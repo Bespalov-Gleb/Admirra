@@ -1,16 +1,18 @@
 <template>
   <div 
     :class="[
-      'animate-pulse bg-gray-200 dark:bg-gray-700',
-      variant === 'circle' ? 'rounded-full' : 'rounded-lg',
+      'animate-pulse bg-gray-200',
+      roundedClass,
       customClass
     ]"
-    :style="{ width, height }"
+    :style="customStyle"
   ></div>
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   width: {
     type: String,
     default: '100%'
@@ -19,13 +21,44 @@ defineProps({
     type: String,
     default: '20px'
   },
-  variant: {
+  rounded: {
     type: String,
-    default: 'rect' // 'rect' or 'circle'
+    default: 'md'
   },
   customClass: {
     type: String,
     default: ''
   }
 })
+
+const roundedClass = computed(() => {
+  const maps = {
+    'sm': 'rounded-sm',
+    'md': 'rounded-md',
+    'lg': 'rounded-lg',
+    'xl': 'rounded-xl',
+    '2xl': 'rounded-2xl',
+    'full': 'rounded-full'
+  }
+  return maps[props.rounded] || 'rounded-md'
+})
+
+const customStyle = computed(() => ({
+  width: props.width,
+  height: props.height
+}))
 </script>
+
+<style scoped>
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+</style>
