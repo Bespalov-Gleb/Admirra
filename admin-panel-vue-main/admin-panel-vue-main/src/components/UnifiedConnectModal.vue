@@ -36,11 +36,11 @@
                     class="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all flex items-center justify-between shadow-sm group hover:border-gray-400"
                   >
                     <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shadow-sm border" :class="platformClasses[form.platform]">
-                        {{ platformInitials[form.platform] }}
+                      <div class="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shadow-sm border" :class="currentPlatform.className">
+                        {{ currentPlatform.initials }}
                       </div>
                       <div class="text-left">
-                        <span class="block text-[13px] font-black text-black leading-none">{{ platformLabels[form.platform] }}</span>
+                        <span class="block text-[13px] font-black text-black leading-none">{{ currentPlatform.label }}</span>
                       </div>
                     </div>
                     <svg class="w-4 h-4 text-gray-400 group-hover:text-black transition-all duration-300" :class="{ 'rotate-180': dropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -48,17 +48,17 @@
 
                   <div v-if="dropdownOpen" class="absolute z-[110] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 overflow-hidden animate-slide-down">
                     <button 
-                      v-for="(label, key) in platformLabels" 
+                      v-for="(config, key) in PLATFORMS" 
                       :key="key"
                       type="button"
                       @click="selectPlatform(key)"
                       class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-all border-b border-gray-50 last:border-none"
                       :class="{ 'bg-blue-50/40': form.platform === key }"
                     >
-                      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[9px] font-black shadow-sm" :class="platformClasses[key]">
-                        {{ platformInitials[key] }}
+                      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[9px] font-black shadow-sm" :class="config.className">
+                        {{ config.initials }}
                       </div>
-                      <span class="text-[12px] font-black" :class="form.platform === key ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ label }}</span>
+                      <span class="text-[12px] font-black" :class="form.platform === key ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ config.label }}</span>
                     </button>
                   </div>
                 </div>
@@ -74,9 +74,9 @@
                 required
               />
 
-              <!-- Token Input (Show for everyone EXCEPT dynamic platforms like VK) -->
+              <!-- Standard Token Input (Show for non-dynamic platforms) -->
               <Input
-                v-if="form.platform !== 'VK_ADS'"
+                v-if="!currentPlatform.isDynamic"
                 v-model="form.access_token"
                 :type="showToken ? 'text' : 'password'"
                 label="Access Token"
@@ -87,13 +87,13 @@
               >
                 <template #label-right>
                   <a 
-                    v-if="tokenLinks[form.platform]"
-                    :href="tokenLinks[form.platform]"
+                    v-if="currentPlatform.tokenLink"
+                    :href="currentPlatform.tokenLink"
                     target="_blank"
                     class="text-[9px] text-blue-500 hover:text-blue-600 font-black flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg transition-all"
                   >
                     <span>ПОЛУЧИТЬ</span>
-                    <svg class="w-3 h-3 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    <svg class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                   </a>
                 </template>
                 <button 
@@ -106,19 +106,23 @@
                 </button>
               </Input>
 
-              <!-- VK Special Fields -->
-              <template v-if="form.platform === 'VK_ADS'">
+              <!-- Dynamic Fields (e.g., VK Ads Client ID/Secret) -->
+              <template v-if="currentPlatform.isDynamic">
                 <Input
-                  v-model="form.client_id"
-                  label="Client ID"
+                  v-for="field in currentPlatform.dynamicFields"
+                  :key="field.key"
+                  v-model="form[field.key]"
+                  :type="field.type"
+                  :label="field.label"
                   labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
-                  inputClass="rounded-2xl font-bold text-black text-[13px] shadow-sm hover:border-gray-400"
-                  placeholder="Введите Client ID из настроек VK"
-                  required
+                  inputClass="rounded-2xl text-black text-[13px] shadow-sm hover:border-gray-400"
+                  :input-style="field.type === 'password' ? 'font-mono tracking-widest' : 'font-bold'"
+                  :placeholder="field.placeholder"
+                  :required="field.required"
                 >
-                  <template #label-right>
+                  <template v-if="field.helpLink" #label-right>
                     <a 
-                      href="https://ads.vk.com/hq/settings/access"
+                      :href="field.helpLink"
                       target="_blank"
                       class="text-[9px] text-blue-500 hover:text-blue-600 font-black flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg transition-all"
                     >
@@ -127,26 +131,16 @@
                     </a>
                   </template>
                 </Input>
-
-                <Input
-                  v-model="form.client_secret"
-                  type="password"
-                  label="Client Secret"
-                  labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
-                  inputClass="rounded-2xl font-mono text-[13px] tracking-widest text-black shadow-sm hover:border-gray-400"
-                  placeholder="••••••••••••••••••••"
-                  required
-                />
               </template>
 
-              <!-- Account ID -->
+              <!-- Account/Cabinet ID -->
               <Input 
                 v-model="form.account_id" 
-                :label="form.platform === 'VK_ADS' ? 'ID Кабинета/Аккаунта' : (form.platform === 'YANDEX_METRIKA' ? 'ID Счетчика' : 'Account ID')"
+                :label="currentPlatform.accountIdLabel || 'Account ID'"
                 labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
                 inputClass="rounded-2xl font-bold text-black text-[13px] shadow-sm hover:border-gray-400"
                 :hint="form.platform === 'YANDEX_DIRECT' ? '(необязательно)' : '(обязательно)'"
-                :placeholder="form.platform === 'VK_ADS' ? 'Напр: 1234567' : (form.platform === 'YANDEX_METRIKA' ? 'Напр: 98765432' : 'Пусто для Яндекс.Директ')" 
+                :placeholder="currentPlatform.accountIdPlaceholder || 'Введите ID'" 
               />
             </form>
           </div>
@@ -166,10 +160,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import api from '../api/axios'
 import CustomScroll from './ui/CustomScroll.vue'
 import Input from '../views/Settings/components/Input.vue'
+import { PLATFORMS, getPlatformProperty } from '../constants/platformConfig'
 
 const props = defineProps({
   isOpen: Boolean,
@@ -196,36 +191,14 @@ const form = reactive({
   client_secret: ''
 })
 
+const currentPlatform = computed(() => PLATFORMS[form.platform])
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     form.client_name = props.initialClientName
     error.value = null
   }
 })
-
-const platformLabels = {
-  'YANDEX_DIRECT': 'Яндекс.Директ',
-  'VK_ADS': 'VK Ads',
-  'YANDEX_METRIKA': 'Яндекс.Метрика'
-}
-
-const platformInitials = {
-  'YANDEX_DIRECT': 'ЯD',
-  'VK_ADS': 'VK',
-  'YANDEX_METRIKA': 'YM'
-}
-
-const platformClasses = {
-  'YANDEX_DIRECT': 'bg-red-500 text-white border-red-600',
-  'VK_ADS': 'bg-blue-600 text-white border-blue-700',
-  'YANDEX_METRIKA': 'bg-yellow-400 text-black border-yellow-500'
-}
-
-const tokenLinks = {
-  'YANDEX_DIRECT': 'https://oauth.yandex.ru/authorize?response_type=token&client_id=3febb68881204d9380089f718e5251b1',
-  'VK_ADS': 'https://ads.vk.com/hq/settings/access',
-  'YANDEX_METRIKA': 'https://oauth.yandex.ru/authorize?response_type=token&client_id=3febb68881204d9380089f718e5251b1'
-}
 
 const selectPlatform = (key) => {
   form.platform = key
