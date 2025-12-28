@@ -18,8 +18,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("api")
 
-# We don't need this if we use Alembic, but good for safety
-# models.Base.metadata.create_all(bind=engine)
+# Enable automatic table creation
+models.Base.metadata.create_all(bind=engine)
+
+# Fix for bcrypt 4.0.0+ and passlib compatibility
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type("about", (object,), {"__version__": bcrypt.__version__})
 
 import mimetypes
 mimetypes.add_type('application/javascript', '.js')
