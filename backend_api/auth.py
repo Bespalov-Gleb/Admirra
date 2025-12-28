@@ -1,0 +1,72 @@
+from fastapi import APIRouter, Depends, HTTPException, status, Form
+from sqlalchemy.orm import Session
+from core.database import get_db
+from core import models, schemas, security
+from datetime import timedelta
+
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+@router.post("/register", response_model=schemas.Token)
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Register a new user with email, optional username, and password.
+    """
+    # Check email uniqueness
+    db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user_email:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Check username uniqueness if provided
+    if user.username:
+        db_user_name = db.query(models.User).filter(models.User.username == user.username).first()
+        if db_user_name:
+            raise HTTPException(status_code=400, detail="Username already taken")
+    
+    hashed_password = security.get_password_hash(user.password)
+    new_user = models.User(
+        email=user.email,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        password_hash=hashed_password,
+        role=models.UserRole.MANAGER
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Auto-login after registration
+    access_token = security.create_access_token(
+        data={"sub": new_user.email}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/login", response_model=schemas.Token)
+def login_for_access_token(
+    login_data: schemas.UserLogin,
+    db: Session = Depends(get_db)
+):
+    """
+    Login using email. Accepts JSON data.
+    """
+    user = db.query(models.User).filter(models.User.email == login_data.email).first()
+    
+    if not user or not security.verify_password(login_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create JWT token
+    access_token = security.create_access_token(
+        data={"sub": user.email}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=schemas.UserResponse)
+def read_users_me(current_user: models.User = Depends(security.get_current_user)):
+    """
+    Get current logged in user details.
+    """
+    return current_user

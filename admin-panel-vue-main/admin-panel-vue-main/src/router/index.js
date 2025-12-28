@@ -1,0 +1,112 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
+
+const routes = [
+  {
+    path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Auth/Login.vue')
+  },
+  {
+    path: '/dashboard/general',
+    name: 'GeneralStats',
+    component: () => import('../views/GeneralStats/GeneralStats.vue')
+  },
+  {
+    path: '/dashboard/general-2',
+    name: 'GeneralStats2',
+    component: () => import('../views/GeneralStats2/GeneralStats2.vue')
+  },
+  {
+    path: '/products',
+    name: 'Products',
+    component: () => import('../views/Product/Products.vue')
+  },
+  {
+    path: '/projects',
+    name: 'Projects',
+    component: () => import('../views/Project/Projects.vue')
+  },
+  {
+    path: '/channels',
+    name: 'Channels',
+    component: () => import('../views/Channels/Channels.vue')
+  },
+  {
+    path: '/team',
+    name: 'Team',
+    component: () => import('../views/Team/Team.vue')
+  },
+  {
+    path: '/history',
+    name: 'History',
+    component: () => import('../views/History/History.vue')
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('../views/Settings/Settings.vue')
+  },
+  {
+    path: '/help',
+    name: 'Help',
+    component: () => import('../views/Help/Help.vue')
+  },
+  {
+    path: '/contact',
+    name: 'Contact',
+    component: () => import('../views/Contact/Contact.vue')
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/Profile/Profile.vue')
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes
+})
+
+// Проверка аутентификации перед переходом
+router.beforeEach(async (to, from, next) => {
+  const { checkAuth } = useAuth()
+  const isAuth = await checkAuth()
+  const isLoginPage = to.path === '/login' || to.path === '/'
+
+  console.log(`Navigating to: ${to.path}, Authenticated: ${isAuth}`)
+
+  // Если пользователь не авторизован и пытается зайти не на страницу логина
+  if (!isAuth && !isLoginPage) {
+    console.warn('Unauthorized access attempt, redirecting to login...')
+    next('/login')
+  }
+  // Если пользователь авторизован и пытается зайти на страницу логина
+  else if (isAuth && isLoginPage) {
+    console.log('Already authenticated, redirecting to dashboard...')
+    next('/dashboard/general')
+  }
+  // Иначе разрешаем переход
+  else {
+    next()
+  }
+})
+
+// Обработка ошибок при загрузке компонентов (например, ChunkLoadError)
+router.onError((error, to) => {
+  if (error.message.includes('Failed to fetch dynamically imported module') || error.message.includes('chunk')) {
+    console.error('Critical: Chunk load error detected for path:', to.path, error)
+    console.warn('Attempting page refresh to recover from chunk error...')
+    window.location.reload()
+  } else {
+    console.error('Router error:', error)
+  }
+})
+
+export default router
+
