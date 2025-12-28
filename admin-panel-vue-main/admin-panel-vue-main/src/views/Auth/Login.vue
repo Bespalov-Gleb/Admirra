@@ -38,10 +38,30 @@
           </button>
         </div>
         
-        <!-- Сообщение об ошибке -->
-        <div v-if="errorMessage" class="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-          {{ errorMessage }}
-        </div>
+        <!-- Сообщение об ошибке (Premium UI) -->
+        <Transition name="fade-slide">
+          <div 
+            v-if="errorMessage" 
+            :class="[
+              'mb-6 p-4 rounded-xl flex items-start gap-3 border shadow-sm transition-all duration-300',
+              'bg-red-50 border-red-100 text-red-800',
+              { 'animate-shake': errorShake }
+            ]"
+          >
+            <ExclamationCircleIcon class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div class="flex-1 text-sm font-medium leading-relaxed">
+              {{ errorMessage }}
+            </div>
+            <button 
+              @click="errorMessage = ''" 
+              class="text-red-400 hover:text-red-600 transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </Transition>
 
         <!-- Форма входа -->
         <form v-if="isLogin" @submit.prevent="handleLogin" class="space-y-4">
@@ -210,7 +230,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { UserIcon, EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
+import { UserIcon, EyeIcon, EyeSlashIcon, ExclamationCircleIcon } from '@heroicons/vue/24/outline'
 import { useAuth } from '../../composables/useAuth'
 
 const router = useRouter()
@@ -221,6 +241,15 @@ const showRegisterPassword = ref(false)
 const showConfirmPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
+const errorShake = ref(false)
+
+const triggerError = (msg) => {
+  errorMessage.value = msg
+  errorShake.value = true
+  setTimeout(() => {
+    errorShake.value = false
+  }, 500)
+}
 
 const loginForm = reactive({
   email: '',
@@ -246,13 +275,13 @@ const handleLogin = async () => {
   if (result.success) {
     router.push('/dashboard/general')
   } else {
-    errorMessage.value = result.message
+    triggerError(result.message)
   }
 }
 
 const handleRegister = async () => {
   if (registerForm.password !== registerForm.confirmPassword) {
-    errorMessage.value = 'Пароли не совпадают'
+    triggerError('Пароли не совпадают')
     return
   }
 
@@ -265,8 +294,52 @@ const handleRegister = async () => {
   if (result.success) {
     router.push('/dashboard/general')
   } else {
-    errorMessage.value = result.message
+    triggerError(result.message)
   }
 }
 </script>
+
+<style scoped>
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Изменение дизайна кнопок для большей премиальности */
+.bg-gray-900 {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.bg-gray-900:hover {
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  transform: translateY(-1px);
+}
+
+input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+</style>
 
