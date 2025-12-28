@@ -19,13 +19,8 @@ onMounted(() => {
 const isAuthPage = computed(() => {
   if (!route) return true
   const path = route.path
-  const name = route.name
-  // Если не авторизован, показываем страницу логина
-  if (!isAuthenticated.value) {
-    return path === '/login' || path === '/' || name === 'Login'
-  }
-  // Если авторизован, не показываем страницу логина
-  return false
+  // Always use auth layout for /login or root
+  return path === '/login' || path === '/'
 })
 
 const mainMargin = computed(() => {
