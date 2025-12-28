@@ -56,29 +56,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Route for legacy pages - (Removed, handled by SPA)
-# @app.get("/login") ...
-# @app.get("/register") ...
-
-# Mount assets and other static files
-app.mount("/assets", StaticFiles(directory="public_html (17)/public_html/assets"), name="assets")
-
-# Catch-all for Frontend (serves new layout from public_html (17))
-@app.get("/{full_path:path}")
-async def serve_frontend(full_path: str):
-    # Don't intercept API calls
-    if full_path.startswith("api/"):
-        return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
-
-    # Primary: check public_html (17)/public_html
-    file_path = os.path.join("public_html (17)/public_html", full_path)
-    if os.path.isfile(file_path):
-        return FileResponse(file_path)
-    
-    # Secondary: check frontend (fallback for specific pages like dashboard.html)
-    old_file_path = os.path.join("frontend", full_path)
-    if os.path.isfile(old_file_path):
-        return FileResponse(old_file_path)
-
-    # If path is empty or unknown, serve the main index.html from new layout
-    return FileResponse("public_html (17)/public_html/index.html")
+# The frontend is served by Nginx in the frontend container.
+# The backend only needs to provide the API.
