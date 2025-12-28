@@ -74,8 +74,9 @@
                 required
               />
 
-              <!-- Token Input -->
+              <!-- Token Input (Show for everyone EXCEPT dynamic platforms like VK) -->
               <Input
+                v-if="form.platform !== 'VK_ADS'"
                 v-model="form.access_token"
                 :type="showToken ? 'text' : 'password'"
                 label="Access Token"
@@ -105,10 +106,43 @@
                 </button>
               </Input>
 
+              <!-- VK Special Fields -->
+              <template v-if="form.platform === 'VK_ADS'">
+                <Input
+                  v-model="form.client_id"
+                  label="Client ID"
+                  labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
+                  inputClass="rounded-2xl font-bold text-black text-[13px] shadow-sm hover:border-gray-400"
+                  placeholder="Введите Client ID из настроек VK"
+                  required
+                >
+                  <template #label-right>
+                    <a 
+                      href="https://ads.vk.com/hq/settings/access"
+                      target="_blank"
+                      class="text-[9px] text-blue-500 hover:text-blue-600 font-black flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg transition-all"
+                    >
+                      <span>ГДЕ ВЗЯТЬ?</span>
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                  </template>
+                </Input>
+
+                <Input
+                  v-model="form.client_secret"
+                  type="password"
+                  label="Client Secret"
+                  labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
+                  inputClass="rounded-2xl font-mono text-[13px] tracking-widest text-black shadow-sm hover:border-gray-400"
+                  placeholder="••••••••••••••••••••"
+                  required
+                />
+              </template>
+
               <!-- Account ID -->
               <Input 
                 v-model="form.account_id" 
-                :label="form.platform === 'VK_ADS' ? 'ID Кабинета' : (form.platform === 'YANDEX_METRIKA' ? 'ID Счетчика' : 'Account ID')"
+                :label="form.platform === 'VK_ADS' ? 'ID Кабинета/Аккаунта' : (form.platform === 'YANDEX_METRIKA' ? 'ID Счетчика' : 'Account ID')"
                 labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
                 inputClass="rounded-2xl font-bold text-black text-[13px] shadow-sm hover:border-gray-400"
                 :hint="form.platform === 'YANDEX_DIRECT' ? '(необязательно)' : '(обязательно)'"
@@ -157,7 +191,9 @@ const form = reactive({
   client_name: props.initialClientName,
   access_token: '',
   refresh_token: '',
-  account_id: ''
+  account_id: '',
+  client_id: '',
+  client_secret: ''
 })
 
 watch(() => props.isOpen, (newVal) => {
@@ -212,6 +248,8 @@ const handleSubmit = async () => {
     emit('success', response.data)
     form.access_token = ''
     form.account_id = ''
+    form.client_id = ''
+    form.client_secret = ''
     close()
   } catch (err) {
     error.value = err.response?.data?.detail || 'Ошибка подключения'
