@@ -28,17 +28,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token immediately to prevent further authorized requests
-      localStorage.removeItem('auth_token')
-      
-      // Only redirect if we are not already going to or on the login page
+      // Diagnostic log
       const currentPath = window.location.pathname
-      const isLoginPage = currentPath === '/login' || currentPath === '/'
-      if (!isLoginPage) {
-        console.warn(`Unauthenticated request (401) from path: ${currentPath}. Redirecting to login...`)
+      console.warn(`Axios: Unauthenticated request (401) from path: ${currentPath}`)
+
+      // Check if we are on an auth page (Login or Root)
+      // Normalize path (remove trailing slash)
+      const normalizedPath = currentPath.replace(/\/$/, '') || '/'
+      const isAuthPage = normalizedPath === '/login' || normalizedPath === '/'
+
+      if (!isAuthPage) {
+        console.warn('Axios: Unauthorized access to protected route, clearing session and redirecting...')
+        localStorage.removeItem('auth_token')
         window.location.href = '/login'
       } else {
-        console.log(`Unauthenticated request (401) on login page, staying here.`)
+        console.log('Axios: 401 encountered on auth page, staying here.')
       }
     }
     return Promise.reject(error)

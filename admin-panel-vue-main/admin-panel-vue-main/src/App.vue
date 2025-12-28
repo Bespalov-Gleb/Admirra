@@ -17,10 +17,11 @@ onMounted(() => {
 })
 
 const isAuthPage = computed(() => {
-  if (!route) return true
-  const path = route.path
+  if (!route || !route.path) return true
+  // Normalize path (remove trailing slash)
+  const normalizedPath = route.path.replace(/\/$/, '') || '/'
   // Always use auth layout for /login or root
-  return path === '/login' || path === '/'
+  return normalizedPath === '/login' || normalizedPath === '/'
 })
 
 const mainMargin = computed(() => {

@@ -77,19 +77,23 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const { checkAuth } = useAuth()
   const isAuth = await checkAuth()
-  const isLoginPage = to.path === '/login' || to.path === '/'
+  
+  // Normalize path
+  const normalizedPath = to.path.replace(/\/$/, '') || '/'
+  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/'
 
-  console.log(`Navigating to: ${to.path}, Authenticated: ${isAuth}`)
+  console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
   // Если пользователь не авторизован и пытается зайти не на страницу логина
   if (!isAuth && !isLoginPage) {
-    console.warn('Unauthorized access attempt, redirecting to login...')
+    console.warn('Router: Unauthorized access attempt, redirecting to login...')
     next('/login')
   }
   // Если пользователь авторизован и пытается зайти на страницу логина
   else if (isAuth && isLoginPage) {
-    console.log('Already authenticated, redirecting to dashboard...')
-    next('/dashboard/general')
+    console.log('Router: Already authenticated, redirecting to dashboard...')
+    // Use the next() with a path to trigger a redirect
+    next({ name: 'GeneralStats' })
   }
   // Иначе разрешаем переход
   else {

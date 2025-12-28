@@ -35,6 +35,7 @@ export function useAuth() {
   // Получение данных текущего пользователя
   const fetchCurrentUser = async () => {
     try {
+      console.log('useAuth: Fetching current user details...')
       const response = await api.get('auth/me')
       user.value = response.data
       isAuthenticated.value = true
@@ -63,6 +64,7 @@ export function useAuth() {
     authPromise = (async () => {
       try {
         if (!token) {
+          console.log('useAuth: No token found, user is guest.')
           isAuthenticated.value = false
           user.value = null
           return false
@@ -75,8 +77,8 @@ export function useAuth() {
           console.log('useAuth: Background auth check...')
         }
 
-        await fetchCurrentUser()
-        return !!user.value
+        const result = await fetchCurrentUser()
+        return result.success
       } finally {
         isLoading.value = false
         initialCheckDone = true
@@ -90,13 +92,25 @@ export function useAuth() {
   // Вход
   const login = async (email, password) => {
     try {
+      console.log('useAuth: Attempting login for', email)
       const response = await api.post('auth/login', { email, password })
       const { access_token } = response.data
+      
+      // 1. Set token first
       setToken(access_token)
-      await fetchCurrentUser()
+      
+      // 2. Fetch user data immediately and WAIT for it
+      const userResult = await fetchCurrentUser()
+      
+      if (!userResult.success) {
+        throw new Error('Could not fetch user data after successful login')
+      }
+      
+      console.log('useAuth: Login successful, user state updated.')
       return { success: true }
     } catch (error) {
       console.error('Login error:', error)
+      removeToken() // Cleanup on failure
       return { 
         success: false, 
         message: getErrorMessage(error, 'Ошибка авторизации') 
@@ -107,6 +121,7 @@ export function useAuth() {
   // Регистрация
   const register = async (email, password, username, first_name = null, last_name = null) => {
     try {
+      console.log('useAuth: Registering new user...')
       const response = await api.post('auth/register', { 
         email, 
         password, 
@@ -114,11 +129,22 @@ export function useAuth() {
         first_name,
         last_name
       })
+      
+      // 1. Set token
       setToken(response.data.access_token)
-      await fetchCurrentUser()
+      
+      // 2. Fetch user data immediately and WAIT
+      const userResult = await fetchCurrentUser()
+      
+      if (!userResult.success) {
+        throw new Error('Could not fetch user data after successful registration')
+      }
+
+      console.log('useAuth: Registration successful.')
       return { success: true }
     } catch (error) {
       console.error('Registration error:', error)
+      removeToken()
       return { 
         success: false, 
         message: getErrorMessage(error, 'Ошибка регистрации') 
@@ -128,6 +154,7 @@ export function useAuth() {
 
   // Сохранение токена
   const setToken = (token) => {
+    console.log('useAuth: Token saved to storage.')
     localStorage.setItem(tokenKey, token)
     isAuthenticated.value = true
   }
@@ -139,6 +166,7 @@ export function useAuth() {
 
   // Удаление токена (выход)
   const removeToken = () => {
+    console.log('useAuth: Removing token and clearing session.')
     localStorage.removeItem(tokenKey)
     isAuthenticated.value = false
     user.value = null
