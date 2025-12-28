@@ -335,20 +335,42 @@ def get_top_clients(
     db: Session = Depends(get_db)
 ):
     """
-    Get top projects by total expenses.
+    Get top projects by total expenses using optimized aggregated queries.
     """
-    clients = db.query(models.Client).filter_by(owner_id=current_user.id).all()
+    # 1. Get all client IDs owned by the user
+    user_clients = db.query(models.Client.id, models.Client.name).filter_by(owner_id=current_user.id).all()
+    if not user_clients:
+        return []
+        
+    client_map = {c.id: c.name for c in user_clients}
+    client_ids = list(client_map.keys())
+
+    # 2. Aggregate Yandex costs in one query
+    yandex_costs = db.query(
+        models.YandexStats.client_id,
+        func.sum(models.YandexStats.cost).label("total_cost")
+    ).filter(models.YandexStats.client_id.in_(client_ids)).group_by(models.YandexStats.client_id).all()
+
+    # 3. Aggregate VK costs in one query
+    vk_costs = db.query(
+        models.VKStats.client_id,
+        func.sum(models.VKStats.cost).label("total_cost")
+    ).filter(models.VKStats.client_id.in_(client_ids)).group_by(models.VKStats.client_id).all()
+
+    # 4. Combine results
+    expenses_map = {cid: 0 for cid in client_ids}
+    for cid, cost in yandex_costs:
+        expenses_map[cid] += float(cost or 0)
+    for cid, cost in vk_costs:
+        expenses_map[cid] += float(cost or 0)
+
     results = []
     total_all = 0
-    
-    for client in clients:
-        y_cost = db.query(func.sum(models.YandexStats.cost)).filter_by(client_id=client.id).scalar() or 0
-        v_cost = db.query(func.sum(models.VKStats.cost)).filter_by(client_id=client.id).scalar() or 0
-        total = float(y_cost) + float(v_cost)
+    for cid, total in expenses_map.items():
         if total > 0:
-            results.append({"name": client.name, "expenses": total})
+            results.append({"name": client_map[cid], "expenses": total})
             total_all += total
-            
+
     # Sort and calculate percentage
     results.sort(key=lambda x: x["expenses"], reverse=True)
     results = results[:5] # Top 5

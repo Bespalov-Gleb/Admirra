@@ -59,7 +59,7 @@ class Integration(Base):
     __tablename__ = "integrations"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
     platform = Column(Enum(IntegrationPlatform), nullable=False)
     access_token = Column(String, nullable=False) # Should be encrypted in production
     refresh_token = Column(String)
@@ -75,7 +75,7 @@ class YandexStats(Base):
     __tablename__ = "yandex_stats"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     impressions = Column(Integer, default=0)
@@ -91,7 +91,7 @@ class YandexKeywords(Base):
     __tablename__ = "yandex_keywords"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     keyword = Column(String)
@@ -121,7 +121,7 @@ class VKStats(Base):
     __tablename__ = "vk_stats"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     impressions = Column(Integer, default=0)
