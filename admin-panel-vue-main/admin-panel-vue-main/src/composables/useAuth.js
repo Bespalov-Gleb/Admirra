@@ -10,6 +10,28 @@ let authPromise = null
 let initialCheckDone = false
 
 export function useAuth() {
+  // Helper to map API errors to friendly messages
+  const getErrorMessage = (error, defaultMsg) => {
+    const detail = error.response?.data?.detail
+    if (!detail) return defaultMsg
+    
+    // Map common FastAPI/Pydantic error details
+    if (typeof detail === 'string') {
+      if (detail === 'Incorrect email or password') return 'Неверный email или пароль'
+      if (detail === 'Email already registered') return 'Этот Email уже зарегистрирован'
+      if (detail === 'Username already taken') return 'Имя пользователя уже занято'
+      if (detail === 'Could not validate credentials') return 'Сессия истекла. Пожалуйста, войдите снова'
+      return detail
+    }
+    
+    // Handle list of validation errors (Pydantic)
+    if (Array.isArray(detail)) {
+      return detail.map(err => err.msg).join('. ')
+    }
+    
+    return defaultMsg
+  }
+
   // Получение данных текущего пользователя
   const fetchCurrentUser = async () => {
     try {
@@ -77,7 +99,7 @@ export function useAuth() {
       console.error('Login error:', error)
       return { 
         success: false, 
-        message: error.response?.data?.detail || 'Ошибка авторизации' 
+        message: getErrorMessage(error, 'Ошибка авторизации') 
       }
     }
   }
@@ -99,7 +121,7 @@ export function useAuth() {
       console.error('Registration error:', error)
       return { 
         success: false, 
-        message: error.response?.data?.detail || 'Ошибка регистрации' 
+        message: getErrorMessage(error, 'Ошибка регистрации') 
       }
     }
   }

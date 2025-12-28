@@ -223,8 +223,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 
 const loginForm = reactive({
-  email: 'admin@gmail.com',
-  password: 'password',
+  email: '',
+  password: '',
   remember: false
 })
 
