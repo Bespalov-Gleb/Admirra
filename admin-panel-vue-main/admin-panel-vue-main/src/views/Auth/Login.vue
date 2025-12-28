@@ -64,7 +64,7 @@
         </Transition>
 
         <!-- Форма входа -->
-        <form v-if="isLogin" @submit.prevent="handleLogin" class="space-y-4">
+        <form v-if="isLogin" @submit.prevent="handleLogin" novalidate class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               Email
@@ -126,7 +126,7 @@
         </form>
 
         <!-- Форма регистрации -->
-        <form v-else @submit.prevent="handleRegister" class="space-y-4">
+        <form v-else @submit.prevent="handleRegister" novalidate class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
               Имя
@@ -265,7 +265,17 @@ const registerForm = reactive({
   agree: false
 })
 
+// Валидация Email
+const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 const handleLogin = async () => {
+  // Базовая валидация
+  if (!loginForm.email) return triggerError('Пожалуйста, введите Email')
+  if (!isValidEmail(loginForm.email)) return triggerError('Введите корректный Email адрес')
+  if (!loginForm.password) return triggerError('Пожалуйста, введите пароль')
+
   loading.value = true
   errorMessage.value = ''
   
@@ -280,10 +290,19 @@ const handleLogin = async () => {
 }
 
 const handleRegister = async () => {
+  // Валидация полей
+  if (!registerForm.username) return triggerError('Введите ваше имя')
+  if (!registerForm.email) return triggerError('Введите Email')
+  if (!isValidEmail(registerForm.email)) return triggerError('Введите корректный Email')
+  if (!registerForm.password) return triggerError('Введите пароль')
+  if (registerForm.password.length < 6) return triggerError('Пароль должен быть не менее 6 символов')
+  
   if (registerForm.password !== registerForm.confirmPassword) {
     triggerError('Пароли не совпадают')
     return
   }
+
+  if (!registerForm.agree) return triggerError('Вы должны согласиться с условиями')
 
   loading.value = true
   errorMessage.value = ''
