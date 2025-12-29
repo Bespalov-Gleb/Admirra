@@ -64,62 +64,69 @@ class StatsService:
         }
 
     @staticmethod
-    def get_campaign_stats(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date):
+    def get_campaign_stats(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all"):
         if not client_ids:
             return []
 
-        y_query = db.query(
-            models.YandexStats.campaign_name,
-            func.sum(models.YandexStats.impressions).label("impressions"),
-            func.sum(models.YandexStats.clicks).label("clicks"),
-            func.sum(models.YandexStats.cost).label("cost"),
-            func.sum(models.YandexStats.conversions).label("conversions")
-        ).filter(models.YandexStats.client_id.in_(client_ids))
-
-        v_query = db.query(
-            models.VKStats.campaign_name,
-            func.sum(models.VKStats.impressions).label("impressions"),
-            func.sum(models.VKStats.clicks).label("clicks"),
-            func.sum(models.VKStats.cost).label("cost"),
-            func.sum(models.VKStats.conversions).label("conversions")
-        ).filter(models.VKStats.client_id.in_(client_ids))
-
-        if d_start:
-            y_query = y_query.filter(models.YandexStats.date >= d_start)
-            v_query = v_query.filter(models.VKStats.date >= d_start)
-        if d_end:
-            y_query = y_query.filter(models.YandexStats.date <= d_end)
-            v_query = v_query.filter(models.VKStats.date <= d_end)
-
-        y_results = y_query.group_by(models.YandexStats.campaign_name).all()
-        v_results = v_query.group_by(models.VKStats.campaign_name).all()
-
         campaigns = []
-        for r in y_results:
-            cost = float(r.cost or 0)
-            clicks = int(r.clicks or 0)
-            convs = int(r.conversions or 0)
-            campaigns.append({
-                "name": f"[ЯД] {r.campaign_name}",
-                "impressions": int(r.impressions or 0),
-                "clicks": clicks,
-                "cost": round(cost, 2),
-                "conversions": convs,
-                "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
-                "cpa": round(cost / convs, 2) if convs > 0 else 0
-            })
-        for r in v_results:
-            cost = float(r.cost or 0)
-            clicks = int(r.clicks or 0)
-            convs = int(r.conversions or 0)
-            campaigns.append({
-                "name": f"[VK] {r.campaign_name}",
-                "impressions": int(r.impressions or 0),
-                "clicks": clicks,
-                "cost": round(cost, 2),
-                "conversions": convs,
-                "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
-                "cpa": round(cost / convs, 2) if convs > 0 else 0
-            })
+
+        if platform in ["all", "yandex"]:
+            y_query = db.query(
+                models.YandexStats.campaign_name,
+                func.sum(models.YandexStats.impressions).label("impressions"),
+                func.sum(models.YandexStats.clicks).label("clicks"),
+                func.sum(models.YandexStats.cost).label("cost"),
+                func.sum(models.YandexStats.conversions).label("conversions")
+            ).filter(models.YandexStats.client_id.in_(client_ids))
+
+            if d_start:
+                y_query = y_query.filter(models.YandexStats.date >= d_start)
+            if d_end:
+                y_query = y_query.filter(models.YandexStats.date <= d_end)
+
+            y_results = y_query.group_by(models.YandexStats.campaign_name).all()
+            for r in y_results:
+                cost = float(r.cost or 0)
+                clicks = int(r.clicks or 0)
+                convs = int(r.conversions or 0)
+                campaigns.append({
+                    "name": f"[ЯД] {r.campaign_name}",
+                    "impressions": int(r.impressions or 0),
+                    "clicks": clicks,
+                    "cost": round(cost, 2),
+                    "conversions": convs,
+                    "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
+                    "cpa": round(cost / convs, 2) if convs > 0 else 0
+                })
+
+        if platform in ["all", "vk"]:
+            v_query = db.query(
+                models.VKStats.campaign_name,
+                func.sum(models.VKStats.impressions).label("impressions"),
+                func.sum(models.VKStats.clicks).label("clicks"),
+                func.sum(models.VKStats.cost).label("cost"),
+                func.sum(models.VKStats.conversions).label("conversions")
+            ).filter(models.VKStats.client_id.in_(client_ids))
+
+            if d_start:
+                v_query = v_query.filter(models.VKStats.date >= d_start)
+            if d_end:
+                v_query = v_query.filter(models.VKStats.date <= d_end)
+
+            v_results = v_query.group_by(models.VKStats.campaign_name).all()
+            for r in v_results:
+                cost = float(r.cost or 0)
+                clicks = int(r.clicks or 0)
+                convs = int(r.conversions or 0)
+                campaigns.append({
+                    "name": f"[VK] {r.campaign_name}",
+                    "impressions": int(r.impressions or 0),
+                    "clicks": clicks,
+                    "cost": round(cost, 2),
+                    "conversions": convs,
+                    "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
+                    "cpa": round(cost / convs, 2) if convs > 0 else 0
+                })
+
         campaigns.sort(key=lambda x: x["cost"], reverse=True)
         return campaigns

@@ -95,6 +95,7 @@ def get_campaign_stats(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[uuid.UUID] = None,
+    platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -107,7 +108,7 @@ def get_campaign_stats(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
 
-    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end)
+    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform)
 
 @router.get("/keywords", response_model=List[schemas.KeywordStat])
 def get_keyword_stats(

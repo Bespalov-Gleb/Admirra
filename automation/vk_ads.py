@@ -64,6 +64,10 @@ class VKAdsAPI:
                     if response.status_code == 200:
                         chunk_data = self._parse_response(response.json(), names_map)
                         all_results.extend(chunk_data)
+                    elif response.status_code == 400:
+                        # VK often returns 400 for dates older than 12 months or invalid params.
+                        # We log it but continue with other chunks.
+                        logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text}")
                     else:
                         logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text}")
                 except Exception as e:
