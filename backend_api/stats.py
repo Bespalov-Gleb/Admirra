@@ -5,6 +5,7 @@ from core.database import get_db
 from core import models, schemas, security
 from datetime import datetime, timedelta
 from typing import List, Optional
+import uuid
 from backend_api.stats_service import StatsService
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
