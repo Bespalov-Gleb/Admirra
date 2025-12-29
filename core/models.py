@@ -63,6 +63,8 @@ class Integration(Base):
     platform = Column(Enum(IntegrationPlatform), nullable=False)
     access_token = Column(String, nullable=False) # Should be encrypted in production
     refresh_token = Column(String)
+    platform_client_id = Column(String) # For platforms like VK Ads
+    platform_client_secret = Column(String) # For platforms like VK Ads
     expires_at = Column(DateTime)
     account_id = Column(String) # Logic ID in the platform
     sync_status = Column(Enum(IntegrationSyncStatus), default=IntegrationSyncStatus.NEVER)

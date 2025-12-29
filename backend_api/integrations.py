@@ -68,13 +68,17 @@ async def create_integration(
         models.Integration.platform == integration.platform
     ).first()
 
-    # Encrypt tokens before saving
+    # Encrypt tokens and credentials before saving
     encrypted_access = security.encrypt_token(access_token)
     encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+    encrypted_platform_client_id = security.encrypt_token(integration.client_id) if integration.client_id else None
+    encrypted_platform_client_secret = security.encrypt_token(integration.client_secret) if integration.client_secret else None
 
     if db_integration:
         db_integration.access_token = encrypted_access
         db_integration.refresh_token = encrypted_refresh
+        db_integration.platform_client_id = encrypted_platform_client_id
+        db_integration.platform_client_secret = encrypted_platform_client_secret
         db_integration.account_id = integration.account_id
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db.commit()
@@ -86,6 +90,8 @@ async def create_integration(
         platform=integration.platform,
         access_token=encrypted_access,
         refresh_token=encrypted_refresh,
+        platform_client_id=encrypted_platform_client_id,
+        platform_client_secret=encrypted_platform_client_secret,
         account_id=integration.account_id,
         sync_status=models.IntegrationSyncStatus.NEVER
     )

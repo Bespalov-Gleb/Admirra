@@ -13,6 +13,17 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
+    """
+    Helper to update an existing record or create a new one.
+    """
+    existing = db.query(model).filter_by(**filters).first()
+    if existing:
+        for key, value in data.items():
+            setattr(existing, key, value)
+    else:
+        db.add(model(**filters, **data))
+
 async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):
     """
     Syncs a single integration for a given date range.
@@ -22,114 +33,95 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         access_token = security.decrypt_token(integration.access_token)
         api = YandexDirectAPI(access_token)
-        stats = await api.get_report(date_from, date_to)
         
+        # Campaign stats
+        stats = await api.get_report(date_from, date_to)
         for s in stats:
-            existing = db.query(models.YandexStats).filter(
-                models.YandexStats.client_id == integration.client_id,
-                models.YandexStats.date == datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                models.YandexStats.campaign_name == s['campaign_name']
-            ).first()
-            
-            if existing:
-                existing.impressions = s['impressions']
-                existing.clicks = s['clicks']
-                existing.cost = s['cost']
-                existing.conversions = s['conversions']
-            else:
-                new_stat = models.YandexStats(
-                    client_id=integration.client_id,
-                    date=datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                    campaign_name=s['campaign_name'],
-                    impressions=s['impressions'],
-                    clicks=s['clicks'],
-                    cost=s['cost'],
-                    conversions=s['conversions']
-                )
-                db.add(new_stat)
+            filters = {
+                "client_id": integration.client_id,
+                "date": datetime.strptime(s['date'], "%Y-%m-%d").date(),
+                "campaign_name": s['campaign_name']
+            }
+            data = {
+                "impressions": s['impressions'],
+                "clicks": s['clicks'],
+                "cost": s['cost'],
+                "conversions": s['conversions']
+            }
+            _update_or_create_stats(db, models.YandexStats, filters, data)
 
         # Group stats
         group_stats = await api.get_report(date_from, date_to, level="group")
         for g in group_stats:
-            existing_g = db.query(models.YandexGroups).filter(
-                models.YandexGroups.client_id == integration.client_id,
-                models.YandexGroups.date == datetime.strptime(g['date'], "%Y-%m-%d").date(),
-                models.YandexGroups.campaign_name == g['campaign_name'],
-                models.YandexGroups.group_name == g['name']
-            ).first()
-
-            if existing_g:
-                existing_g.impressions = g['impressions']
-                existing_g.clicks = g['clicks']
-                existing_g.cost = g['cost']
-                existing_g.conversions = g['conversions']
-            else:
-                db.add(models.YandexGroups(
-                    client_id=integration.client_id,
-                    date=datetime.strptime(g['date'], "%Y-%m-%d").date(),
-                    campaign_name=g['campaign_name'],
-                    group_name=g['name'],
-                    impressions=g['impressions'],
-                    clicks=g['clicks'],
-                    cost=g['cost'],
-                    conversions=g['conversions']
-                ))
+            filters = {
+                "client_id": integration.client_id,
+                "date": datetime.strptime(g['date'], "%Y-%m-%d").date(),
+                "campaign_name": g['campaign_name'],
+                "group_name": g['name']
+            }
+            data = {
+                "impressions": g['impressions'],
+                "clicks": g['clicks'],
+                "cost": g['cost'],
+                "conversions": g['conversions']
+            }
+            _update_or_create_stats(db, models.YandexGroups, filters, data)
 
         # Keyword stats
         keyword_stats = await api.get_report(date_from, date_to, level="keyword")
         for k in keyword_stats:
-            existing_k = db.query(models.YandexKeywords).filter(
-                models.YandexKeywords.client_id == integration.client_id,
-                models.YandexKeywords.date == datetime.strptime(k['date'], "%Y-%m-%d").date(),
-                models.YandexKeywords.campaign_name == k['campaign_name'],
-                models.YandexKeywords.keyword == k['name']
-            ).first()
-
-            if existing_k:
-                existing_k.impressions = k['impressions']
-                existing_k.clicks = k['clicks']
-                existing_k.cost = k['cost']
-                existing_k.conversions = k['conversions']
-            else:
-                db.add(models.YandexKeywords(
-                    client_id=integration.client_id,
-                    date=datetime.strptime(k['date'], "%Y-%m-%d").date(),
-                    campaign_name=k['campaign_name'],
-                    keyword=k['name'],
-                    impressions=k['impressions'],
-                    clicks=k['clicks'],
-                    cost=k['cost'],
-                    conversions=k['conversions']
-                ))
+            filters = {
+                "client_id": integration.client_id,
+                "date": datetime.strptime(k['date'], "%Y-%m-%d").date(),
+                "campaign_name": k['campaign_name'],
+                "keyword": k['name']
+            }
+            data = {
+                "impressions": k['impressions'],
+                "clicks": k['clicks'],
+                "cost": k['cost'],
+                "conversions": k['conversions']
+            }
+            _update_or_create_stats(db, models.YandexKeywords, filters, data)
 
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         access_token = security.decrypt_token(integration.access_token)
         api = VKAdsAPI(access_token, integration.account_id)
         stats = await api.get_statistics(date_from, date_to)
         
+        # If no stats and we have client credentials, try to refresh and retry once
+        if not stats and integration.platform_client_id and integration.platform_client_secret:
+            logger.info(f"Retrying VK sync with fresh token for client {integration.client_id}")
+            from backend_api.services import IntegrationService
+            try:
+                client_id = security.decrypt_token(integration.platform_client_id)
+                client_secret = security.decrypt_token(integration.platform_client_secret)
+                vk_data = await IntegrationService.exchange_vk_token(client_id, client_secret)
+                
+                new_access_token = vk_data["access_token"]
+                integration.access_token = security.encrypt_token(new_access_token)
+                if vk_data.get("refresh_token"):
+                    integration.refresh_token = security.encrypt_token(vk_data["refresh_token"])
+                
+                # Retry with new token
+                api = VKAdsAPI(new_access_token, integration.account_id)
+                stats = await api.get_statistics(date_from, date_to)
+            except Exception as e:
+                logger.error(f"Failed to refresh VK token: {e}")
+
         for s in stats:
-            existing = db.query(models.VKStats).filter(
-                models.VKStats.client_id == integration.client_id,
-                models.VKStats.date == datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                models.VKStats.campaign_name == s['campaign_name']
-            ).first()
-            
-            if existing:
-                existing.impressions = s['impressions']
-                existing.clicks = s['clicks']
-                existing.cost = s['cost']
-                existing.conversions = s['conversions']
-            else:
-                new_stat = models.VKStats(
-                    client_id=integration.client_id,
-                    date=datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                    campaign_name=s['campaign_name'],
-                    impressions=s['impressions'],
-                    clicks=s['clicks'],
-                    cost=s['cost'],
-                    conversions=s['conversions']
-                )
-                db.add(new_stat)
+            filters = {
+                "client_id": integration.client_id,
+                "date": datetime.strptime(s['date'], "%Y-%m-%d").date(),
+                "campaign_name": s['campaign_name']
+            }
+            data = {
+                "impressions": s['impressions'],
+                "clicks": s['clicks'],
+                "cost": s['cost'],
+                "conversions": s['conversions']
+            }
+            _update_or_create_stats(db, models.VKStats, filters, data)
 
     elif integration.platform == models.IntegrationPlatform.YANDEX_METRIKA:
         if not integration.account_id:

@@ -1,0 +1,759 @@
+{
+  "items": [
+    {
+      "total": {
+        "base": {
+          "shows": 0,
+          "clicks": 0,
+          "goals": 0,
+          "spent": "0",
+          "not_ad_spent": "0",
+          "cpm": "0",
+          "cpc": "0",
+          "cpa": "0",
+          "ctr": 0,
+          "cr": 0,
+          "vk": {
+            "goals": 0,
+            "cpa": "0",
+            "cr": 0
+          }
+        }
+      },
+      "rows": [
+        {
+          "date": "2025-12-22",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-23",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-24",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-25",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-26",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-27",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-28",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-29",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        }
+      ],
+      "id": 92781338
+    },
+    {
+      "total": {
+        "base": {
+          "shows": 0,
+          "clicks": 0,
+          "goals": 0,
+          "spent": "0",
+          "not_ad_spent": "0",
+          "cpm": "0",
+          "cpc": "0",
+          "cpa": "0",
+          "ctr": 0,
+          "cr": 0,
+          "vk": {
+            "goals": 0,
+            "cpa": "0",
+            "cr": 0
+          }
+        }
+      },
+      "rows": [
+        {
+          "date": "2025-12-22",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-23",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-24",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-25",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-26",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-27",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-28",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-29",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        }
+      ],
+      "id": 112314946
+    },
+    {
+      "total": {
+        "base": {
+          "shows": 0,
+          "clicks": 0,
+          "goals": 0,
+          "spent": "0",
+          "not_ad_spent": "0",
+          "cpm": "0",
+          "cpc": "0",
+          "cpa": "0",
+          "ctr": 0,
+          "cr": 0,
+          "vk": {
+            "goals": 0,
+            "cpa": "0",
+            "cr": 0
+          }
+        }
+      },
+      "rows": [
+        {
+          "date": "2025-12-22",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-23",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-24",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-25",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-26",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-27",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-28",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-29",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        }
+      ],
+      "id": 114502107
+    },
+    {
+      "total": {
+        "base": {
+          "shows": 0,
+          "clicks": 0,
+          "goals": 0,
+          "spent": "0",
+          "not_ad_spent": "0",
+          "cpm": "0",
+          "cpc": "0",
+          "cpa": "0",
+          "ctr": 0,
+          "cr": 0,
+          "vk": {
+            "goals": 0,
+            "cpa": "0",
+            "cr": 0
+          }
+        }
+      },
+      "rows": [
+        {
+          "date": "2025-12-22",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-23",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-24",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-25",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-26",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-27",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-28",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        },
+        {
+          "date": "2025-12-29",
+          "base": {
+            "shows": 0,
+            "clicks": 0,
+            "goals": 0,
+            "spent": "0",
+            "not_ad_spent": "0",
+            "cpm": "0",
+            "cpc": "0",
+            "cpa": "0",
+            "ctr": 0,
+            "cr": 0,
+            "vk": {
+              "goals": 0,
+              "cpa": "0",
+              "cr": 0
+            }
+          }
+        }
+      ],
+      "id": 125534471
+    }
+  ],
+  "total": {
+    "base": {
+      "shows": 0,
+      "clicks": 0,
+      "goals": 0,
+      "spent": "0",
+      "not_ad_spent": "0",
+      "cpm": "0",
+      "cpc": "0",
+      "cpa": "0",
+      "ctr": 0,
+      "cr": 0,
+      "vk": {
+        "goals": 0,
+        "cpa": "0",
+        "cr": 0
+      }
+    }
+  }
+}
