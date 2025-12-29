@@ -9,8 +9,9 @@ export const PLATFORMS = {
   VK_ADS: {
     label: 'VK Ads',
     initials: 'VK',
+    description: 'Для подключения перейдите в <b>Настройки -> Доступ</b> и создайте API ключ (Client ID и Client Secret).',
     className: 'bg-blue-600 text-white border-blue-700',
-    tokenLink: 'https://ads.vk.com/hq/settings/access',
+    tokenLink: 'https://ads.vk.com/hq/settings',
     isDynamic: true,
     dynamicFields: [
       {
@@ -19,7 +20,7 @@ export const PLATFORMS = {
         placeholder: 'Введите Client ID из настроек VK',
         type: 'text',
         required: true,
-        helpLink: 'https://ads.vk.com/hq/settings/access'
+        helpLink: 'https://ads.vk.com/hq/settings'
       },
       {
         key: 'client_secret',

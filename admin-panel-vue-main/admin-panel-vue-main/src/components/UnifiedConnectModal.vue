@@ -64,6 +64,11 @@
                 </div>
               </div>
 
+              <!-- Platform Description -->
+              <div v-if="currentPlatform.description" class="p-4 bg-gray-50/80 border border-gray-100 rounded-2xl">
+                <p v-html="currentPlatform.description" class="text-[11px] text-gray-600 font-bold leading-relaxed uppercase tracking-tight italic"></p>
+              </div>
+
               <!-- Client Name -->
               <Input
                 v-model="form.client_name"
