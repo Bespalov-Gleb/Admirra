@@ -1,5 +1,6 @@
 import httpx
 import logging
+import asyncio
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
@@ -67,6 +68,9 @@ class VKAdsAPI:
                         logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text}")
                 except Exception as e:
                     logger.error(f"VK Ads API Exception for range {d_from}-{d_to}: {e}")
+                
+                # Sleep to avoid 429 Too Many Requests (VK limit is strict)
+                await asyncio.sleep(1)
                     
         return all_results
 
