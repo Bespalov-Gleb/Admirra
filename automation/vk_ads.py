@@ -50,7 +50,8 @@ class VKAdsAPI:
 
         async with httpx.AsyncClient() as client:
             for d_from, d_to in date_chunks:
-                url = f"{self.base_url}/statistics/campaigns/day.json"
+                # VK Ads v2 terminology: Campaigns are 'ad_plans'
+                url = f"{self.base_url}/statistics/ad_plans/day.json"
                 params = {
                     "date_from": d_from,
                     "date_to": d_to,
