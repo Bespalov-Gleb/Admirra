@@ -9,7 +9,7 @@ export const PLATFORMS = {
   VK_ADS: {
     label: 'VK Ads',
     initials: 'VK',
-    description: 'Для получения API-ключей перейдите в кабинет <b>VK Ads (ads.vk.com)</b>: раздел <b>Настройки -> Доступ</b>.',
+    description: 'Нажмите <b>«ГДЕ ВЗЯТЬ?»</b> ниже, чтобы перейти в кабинет <b>VK Ads (ads.vk.com)</b>, затем откройте раздел <b>Настройки -> Доступ</b>.',
     className: 'bg-blue-600 text-white border-blue-700',
     tokenLink: 'https://ads.vk.com/hq/settings',
     isDynamic: true,
