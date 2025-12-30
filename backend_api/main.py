@@ -58,3 +58,7 @@ app.add_middleware(
 
 # The frontend is served by Nginx in the frontend container.
 # The backend only needs to provide the API.
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend_api.main:app", host="0.0.0.0", port=8000, reload=True)

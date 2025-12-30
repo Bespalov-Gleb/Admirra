@@ -14,7 +14,11 @@ export function useDashboardStats() {
   const dynamics = ref({
     labels: [],
     costs: [],
-    clicks: []
+    clicks: [],
+    impressions: [],
+    leads: [],
+    cpc: [],
+    cpa: []
   })
 
   const topClients = ref([])

@@ -97,6 +97,10 @@ class DynamicsStat(BaseModel):
     labels: List[str]
     costs: List[float]
     clicks: List[int]
+    impressions: List[int]
+    leads: List[int]
+    cpc: List[float]
+    cpa: List[float]
 
 class CampaignStat(BaseModel):
     name: str

@@ -54,7 +54,9 @@ def get_dynamics(
     yandex_stats = db.query(
         models.YandexStats.date,
         func.sum(models.YandexStats.cost).label("cost"),
-        func.sum(models.YandexStats.clicks).label("clicks")
+        func.sum(models.YandexStats.clicks).label("clicks"),
+        func.sum(models.YandexStats.impressions).label("impressions"),
+        func.sum(models.YandexStats.conversions).label("leads")
     ).filter(
         models.YandexStats.client_id.in_(effective_client_ids),
         models.YandexStats.date >= d_start,
@@ -64,7 +66,9 @@ def get_dynamics(
     vk_stats = db.query(
         models.VKStats.date,
         func.sum(models.VKStats.cost).label("cost"),
-        func.sum(models.VKStats.clicks).label("clicks")
+        func.sum(models.VKStats.clicks).label("clicks"),
+        func.sum(models.VKStats.impressions).label("impressions"),
+        func.sum(models.VKStats.conversions).label("leads")
     ).filter(
         models.VKStats.client_id.in_(effective_client_ids),
         models.VKStats.date >= d_start,
@@ -74,6 +78,10 @@ def get_dynamics(
     labels = []
     costs_data = []
     clicks_data = []
+    impressions_data = []
+    leads_data = []
+    cpc_data = []
+    cpa_data = []
 
     for i in range((d_end - d_start).days + 1):
         d = d_start + timedelta(days=i)
@@ -84,11 +92,29 @@ def get_dynamics(
         
         day_cost = float((y_stat.cost if y_stat else 0) + (v_stat.cost if v_stat else 0))
         day_clicks = int((y_stat.clicks if y_stat else 0) + (v_stat.clicks if v_stat else 0))
+        day_impressions = int((y_stat.impressions if y_stat else 0) + (v_stat.impressions if v_stat else 0))
+        day_leads = int((y_stat.leads if y_stat else 0) + (v_stat.leads if v_stat else 0))
         
         costs_data.append(round(day_cost, 2))
         clicks_data.append(day_clicks)
+        impressions_data.append(day_impressions)
+        leads_data.append(day_leads)
+        
+        cpc_val = round(day_cost / day_clicks, 2) if day_clicks > 0 else 0
+        cpa_val = round(day_cost / day_leads, 2) if day_leads > 0 else 0
+        
+        cpc_data.append(cpc_val)
+        cpa_data.append(cpa_val)
 
-    return {"labels": labels, "costs": costs_data, "clicks": clicks_data}
+    return {
+        "labels": labels, 
+        "costs": costs_data, 
+        "clicks": clicks_data,
+        "impressions": impressions_data,
+        "leads": leads_data,
+        "cpc": cpc_data,
+        "cpa": cpa_data
+    }
 
 @router.get("/campaigns", response_model=List[schemas.CampaignStat])
 def get_campaign_stats(
