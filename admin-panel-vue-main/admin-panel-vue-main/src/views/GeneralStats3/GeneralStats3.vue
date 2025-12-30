@@ -169,11 +169,7 @@
 
     <!-- График статистики -->
     <div class="w-full overflow-hidden">
-      <StatisticsChart 
-        :dynamics="dynamics" 
-        :period="filters.period"
-        @update:period="(val) => { filters.period = val; handlePeriodChange(); }"
-      />
+      <StatisticsChart :dynamics="dynamics" />
     </div>
   </div>
 </template>

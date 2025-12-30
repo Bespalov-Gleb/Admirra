@@ -45,15 +45,12 @@
                 ? 'bg-white text-gray-900 shadow-sm' 
                 : 'text-gray-400 hover:text-gray-600'
             ]"
-            @click="$emit('update:period', day)"
+            @click="selectedDays = day"
           >
             {{ day }}
           </button>
         </div>
-        <button 
-          @click="$emit('update:period', 'custom')"
-          class="ml-3 p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all shadow-sm"
-        >
+        <button class="ml-3 p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all shadow-sm">
           <img :src="calendarIcon" alt="Calendar" class="w-4 h-4 opacity-60" />
         </button>
       </div>
@@ -94,16 +91,10 @@ const props = defineProps({
       costs: [],
       clicks: []
     })
-  },
-  period: {
-    type: [String, Number],
-    default: '14'
   }
 })
 
-const emit = defineEmits(['update:period'])
-
-const selectedDays = computed(() => props.period)
+const selectedDays = ref(7)
 
 ChartJS.register(
   CategoryScale,
@@ -175,6 +166,8 @@ const normalizeDataset = (data, label, color, offset = 0) => {
 }
 
 const chartData = computed(() => {
+  console.log('StatisticsChart: Received dynamics data:', props.dynamics)
+  
   if (!props.dynamics || !props.dynamics.labels || props.dynamics.labels.length === 0) {
     return { labels: [], datasets: [] }
   }
