@@ -45,12 +45,15 @@
                 ? 'bg-white text-gray-900 shadow-sm' 
                 : 'text-gray-400 hover:text-gray-600'
             ]"
-            @click="selectedDays = day"
+            @click="$emit('update:period', day)"
           >
             {{ day }}
           </button>
         </div>
-        <button class="ml-3 p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all shadow-sm">
+        <button 
+          @click="$emit('update:period', 'custom')"
+          class="ml-3 p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all shadow-sm"
+        >
           <img :src="calendarIcon" alt="Calendar" class="w-4 h-4 opacity-60" />
         </button>
       </div>
@@ -91,10 +94,16 @@ const props = defineProps({
       costs: [],
       clicks: []
     })
+  },
+  period: {
+    type: [String, Number],
+    default: '14'
   }
 })
 
-const selectedDays = ref(7)
+const emit = defineEmits(['update:period'])
+
+const selectedDays = computed(() => props.period)
 
 ChartJS.register(
   CategoryScale,
@@ -126,7 +135,6 @@ const cpaData = computed(() => props.dynamics.cpa || [])
 
 // Helper to normalize data for visual display
 const normalizeDataset = (data, label, color, offset = 0) => {
-  // Defensive check: ensure data is a valid array of numbers
   const cleanData = Array.isArray(data) ? data.map(v => Number(v) || 0) : []
   
   if (cleanData.length === 0) {
@@ -135,7 +143,7 @@ const normalizeDataset = (data, label, color, offset = 0) => {
       data: [],
       borderColor: color,
       backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
+      borderWidth: 2,
       tension: 0.4,
       fill: false,
       yAxisID: 'y_normalized'
@@ -147,27 +155,26 @@ const normalizeDataset = (data, label, color, offset = 0) => {
   
   return {
     label,
-    data: cleanData.map((val, index) => ({
-      x: props.dynamics.labels[index],
-      y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
+    data: cleanData.map(val => ({
+      y: (val / safeMax) * 0.3 + offset, // Slightly smaller multiplier
       realValue: val
     })),
     borderColor: color,
     backgroundColor: 'transparent',
-    borderWidth: isMobile.value ? 2 : 2.5,
-    pointRadius: isMobile.value ? 3 : 4,
+    borderWidth: 1.5,
+    pointRadius: 0, // Remove circles for a cleaner line look
+    pointHoverRadius: 4,
     pointBackgroundColor: color,
     pointBorderColor: '#ffffff',
-    pointBorderWidth: isMobile.value ? 1.5 : 2,
+    pointBorderWidth: 1,
     tension: 0.4,
     fill: false,
-    yAxisID: 'y_normalized'
+    yAxisID: 'y_normalized',
+    spanGaps: true
   }
 }
 
 const chartData = computed(() => {
-  console.log('StatisticsChart: Received dynamics data:', props.dynamics)
-  
   if (!props.dynamics || !props.dynamics.labels || props.dynamics.labels.length === 0) {
     return { labels: [], datasets: [] }
   }
@@ -209,6 +216,16 @@ const chartOptions = computed(() => ({
     mode: 'index',
     intersect: false,
   },
+  elements: {
+    line: {
+      borderCapStyle: 'round',
+      borderJoinStyle: 'round',
+      cubicInterpolationMode: 'monotone'
+    },
+    point: {
+      radius: 0
+    }
+  },
   animation: {
     duration: 1000,
     easing: 'easeInOutQuart'
@@ -235,7 +252,7 @@ const chartOptions = computed(() => ({
           if (label) {
             label += ': ';
           }
-          const realValue = context.raw.realValue;
+          const realValue = context.raw?.realValue;
           if (realValue !== undefined) {
             if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
               label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(realValue);
@@ -250,29 +267,33 @@ const chartOptions = computed(() => ({
   },
   scales: {
     y_normalized: {
-      type: 'linear',
       display: false,
-      beginAtZero: true,
-      max: 1.1, // Add some headroom at the top
+      min: -0.1, // Give some padding at the bottom for the lowest line
+      max: 1.0,
       grid: {
-        color: '#f3f4f6',
-        drawBorder: false,
+        display: false
       }
     },
     x: {
+      type: 'category', // Explicitly force category type
       grid: {
         display: false
       },
       ticks: {
         display: true,
         autoSkip: true,
-        maxTicksLimit: isMobile.value ? 5 : 10,
+        maxTicksLimit: isMobile.value ? 5 : 8,
         font: {
-          size: isMobile.value ? 9 : 11
+          size: 11,
+          weight: '500'
         },
         color: '#9ca3af',
         maxRotation: 0,
-        minRotation: 0
+        minRotation: 0,
+        padding: 10
+      },
+      border: {
+        display: false
       }
     }
   }
