@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  font-size: 14px; /* Ин тамоми сайтро каме хурдтар ва зичтар мекунад */
+}
+
+@media (min-width: 1536px) {
+  html {
+    font-size: 15px; /* Барои экранҳои хеле калон каме калонтар */
+  }
+}
+
 .main-bg-color {
   background-color: rgb(32, 33, 35);
 }
