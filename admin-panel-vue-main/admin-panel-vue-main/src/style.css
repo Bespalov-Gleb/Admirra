@@ -2,22 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-
 .main-bg-color {
-    background-color: rgb(32, 33, 35);
+  background-color: rgb(32, 33, 35);
 }
 
-/* Скрытие скроллбара для всех браузеров */
-::-webkit-scrollbar {
-    display: none;
+/* Класс для скрытия скроллбара */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Для Firefox */
-* {
-    scrollbar-width: none;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-/* Для IE и Edge */
-* {
-    -ms-overflow-style: none;
+/* Стили для tooltip графика - отображение в одну строку */
+.chartjs-tooltip {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.chartjs-tooltip-body {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.chartjs-tooltip-body-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
 }

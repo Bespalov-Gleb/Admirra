@@ -62,6 +62,11 @@ const routes = [
     component: () => import('../views/Contact/Contact.vue')
   },
   {
+    path: '/dashboard/general-3',
+    name: 'GeneralStats3',
+    component: () => import('../views/GeneralStats3/GeneralStats3.vue')
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile/Profile.vue')
@@ -93,7 +98,7 @@ router.beforeEach(async (to, from, next) => {
   else if (isAuth && isLoginPage) {
     console.log('Router: Already authenticated, redirecting to dashboard...')
     // Use the next() with a path to trigger a redirect
-    next({ name: 'GeneralStats' })
+    next({ name: 'GeneralStats3' })
   }
   // Иначе разрешаем переход
   else {

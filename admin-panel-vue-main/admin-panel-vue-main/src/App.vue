@@ -50,12 +50,12 @@ const mainMargin = computed(() => {
       <div v-else class="flex min-h-screen">
         <SidebarV2 />
         <div :class="[
-          'flex-1 transition-all duration-300 ml-0',
+          'flex-1 transition-all duration-300 ml-0 overflow-x-hidden',
           mainMargin
         ]">
           <Header />
-          <main>
-            <div class="p-8">
+          <main class="overflow-x-hidden">
+            <div class="p-8 overflow-x-hidden w-full">
               <router-view :key="$route.fullPath" />
             </div>
           </main>

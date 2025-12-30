@@ -8,123 +8,352 @@
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen text-white transition-all duration-300 z-50 main-bg-color border-r border-gray-800 flex flex-col',
+      'fixed left-0 top-0 h-screen text-white transition-all duration-300 z-50 main-bg-color',
       isCollapsed ? 'w-20' : 'w-[280px]',
       'lg:translate-x-0',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
     ]"
+    
   >
     <!-- Брендинг -->
-    <div class="flex items-center h-20 px-6 border-b border-gray-800">
-      <div v-if="!isCollapsed" class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-          <span class="text-gray-900 font-bold text-xl">T</span>
-        </div>
-        <span class="text-lg font-bold tracking-tight">TRAFFIC AGENT</span>
+    <div class="flex items-center justify-between p-6 border-b border-gray-700">
+      <div v-if="!isCollapsed" @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+        <img :src="logoFull" alt="Logo" class="h-10 w-auto" />
       </div>
-      <div v-else class="w-full flex justify-center">
-        <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-          <span class="text-gray-900 font-bold text-xl">T</span>
-        </div>
+      <div v-else @click="handleBrandClick" class="cursor-pointer hover:opacity-80 transition-opacity mx-auto">
+        <img :src="logoFav" alt="Logo" class="h-10 w-10" />
       </div>
     </div>
 
     <!-- Навигация -->
-    <div class="flex-1 overflow-y-auto py-6 px-3 custom-scrollbar">
-      <div v-for="(group, gIdx) in navigationGroups" :key="gIdx" class="mb-8">
-        <p v-if="!isCollapsed" class="px-4 mb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-          {{ group.title }}
-        </p>
+    <nav class="py-4">
+      <!-- Дашборд с выпадающим меню -->
+      <div class="relative group">
+        <button
+          @click="toggleDashboard"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-gray-700 transition-colors',
+            isCollapsed && 'justify-center'
+          ]"
+        >
+          <!-- Индикатор активного состояния для родителя, когда активен дочерний элемент -->
+          <div
+            v-if="isActive('/dashboard/general') || isActive('/dashboard/general-2') || isActive('/dashboard/general-3')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <Squares2X2Icon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed" class="flex-1">Дашборд</span>
+          <ChevronDownIcon
+            v-if="!isCollapsed"
+            :class="[
+              'w-4 h-4 transition-transform',
+              isDashboardOpen && 'rotate-180'
+            ]"
+          />
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Дашборд
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
         
-        <div class="space-y-1">
-          <template v-for="item in group.items" :key="item.name">
-            <!-- Обычная ссылка -->
-            <router-link
-              v-if="!item.children"
-              :to="item.path"
-              @click="closeMobileMenu"
-              class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative"
-              :class="[
-                isActive(item.path) 
-                  ? 'bg-white/10 text-white font-medium shadow-sm' 
-                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
-              ]"
-            >
-              <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
-              <span v-if="!isCollapsed" class="flex-1">{{ item.name }}</span>
-              <div v-if="isActive(item.path)" class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full"></div>
-            </router-link>
-
-            <!-- Группа с подменю (Дашборд) -->
-            <div v-else>
-              <div 
-                class="flex items-center w-full rounded-xl transition-all duration-200 text-gray-400 hover:bg-white/5 hover:text-white group relative"
-                :class="[isGroupActive(item) && 'text-white bg-white/5']"
-              >
-                <router-link
-                  :to="item.children[0].path"
-                  class="flex-1 flex items-center gap-3 px-4 py-3"
-                  @click="closeMobileMenu"
-                >
-                  <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
-                  <span v-if="!isCollapsed" class="flex-1">{{ item.name }}</span>
-                </router-link>
-                <button
-                  v-if="!isCollapsed"
-                  @click.stop="toggleGroup(item.name)"
-                  class="p-3 hover:text-white transition-colors"
-                >
-                  <ChevronDownIcon
-                    class="w-4 h-4 transition-transform duration-200"
-                    :class="[openGroups.includes(item.name) && 'rotate-180']"
-                  />
-                </button>
-              </div>
-              
-              <div v-if="!isCollapsed && openGroups.includes(item.name)" class="mt-1 space-y-1 ml-4 border-l border-gray-800">
-                <router-link
-                  v-for="subItem in item.children"
-                  :key="subItem.path"
-                  :to="subItem.path"
-                  @click="closeMobileMenu"
-                  class="flex items-center gap-3 px-8 py-2.5 rounded-xl transition-all duration-200"
-                  :class="[
-                    isActive(subItem.path)
-                      ? 'text-white font-medium'
-                      : 'text-gray-500 hover:text-white'
-                  ]"
-                >
-                  <div class="w-1.5 h-1.5 rounded-full" :class="[isActive(subItem.path) ? 'bg-white' : 'bg-gray-700']"></div>
-                  <span class="text-sm">{{ subItem.name }}</span>
-                </router-link>
-              </div>
-            </div>
-          </template>
+        <!-- Выпадающее меню -->
+        <div
+          v-if="!isCollapsed && isDashboardOpen"
+        >
+          <button
+            @click="handleLinkClick('/dashboard/general')"
+            :class="[
+              'relative w-full flex items-center gap-3 px-3 py-3 pl-14 hover:bg-gray-700 transition-colors text-left',
+              isActive('/dashboard/general') ? 'bg-gray-700' : ''
+            ]"
+          >
+            <Bars3Icon class="w-5 h-5" />
+            <span>Общая статистика v1</span>
+          </button>
+          <button
+            @click="handleLinkClick('/dashboard/general-2')"
+            :class="[
+              'relative w-full flex items-center gap-3 px-3 py-3 pl-14 hover:bg-gray-700 transition-colors text-left',
+              isActive('/dashboard/general-2') ? 'bg-gray-700' : ''
+            ]"
+          >
+            <Bars3Icon class="w-5 h-5" />
+            <span>Общая статистика v2</span>
+          </button>
+          <button
+            @click="handleLinkClick('/dashboard/general-3')"
+            :class="[
+              'relative w-full flex items-center gap-3 px-3 py-3 pl-14 hover:bg-gray-700 transition-colors text-left',
+              isActive('/dashboard/general-3') ? 'bg-gray-700' : ''
+            ]"
+          >
+            <Bars3Icon class="w-5 h-5" />
+            <span>Общая статистика v3</span>
+          </button>
         </div>
       </div>
-    </div>
 
-    <!-- Футер сайдбара -->
-    <div class="p-4 border-t border-gray-800 bg-black/20">
-      <button
-        @click="handleLogoutClick"
-        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-400/10 transition-all duration-200"
-        :class="[isCollapsed && 'justify-center']"
-      >
-        <ArrowRightOnRectangleIcon class="w-5 h-5 flex-shrink-0" />
-        <span v-if="!isCollapsed" class="font-medium">Выйти</span>
-      </button>
+      <!-- Каналы -->
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/channels')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/channels') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/channels')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <ShareIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">Каналы</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Каналы
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Команда -->
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/team')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/team') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/team')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <UserGroupIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">Команда</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Команда
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- История -->
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/history')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/history') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/history')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <ClockIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">История</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          История
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Продукты -->
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/products')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/products') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/products')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <FolderIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">Продукты</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Продукты
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+
+      <!-- Проекты -->
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/projects')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/projects') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/projects')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <BriefcaseIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">Проекты</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Проекты
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Разделитель -->
+    <div class="border-t border-gray-700 my-4"></div>
+
+    <!-- Настройки -->
+    <nav class="py-4">
+      <div class="relative group">
+        <button
+          @click="handleLinkClick('/settings')"
+          :class="[
+            'relative w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors text-left',
+            isCollapsed && 'justify-center',
+            isActive('/settings') ? 'bg-gray-700' : ''
+          ]"
+        >
+          <!-- Индикатор активного состояния -->
+          <div
+            v-if="isActive('/settings')"
+            class="absolute left-0 top-0 h-full w-1.5 rounded-r-md bg-white"
+          ></div>
+          <Cog6ToothIcon class="w-5 h-5 flex-shrink-0" />
+          <span v-if="!isCollapsed">Настройки</span>
+        </button>
+        <!-- Tooltip для свернутого меню -->
+        <div
+          v-if="isCollapsed"
+          class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+        >
+          Настройки
+          <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Нижние ссылки -->
+    <div class="absolute bottom-0 left-0 right-0 pb-10">
+      <nav>
+        <div class="relative group">
+          <router-link
+            to="/help"
+            @click="closeMobileMenu"
+            :class="[
+              'relative flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors',
+              isCollapsed && 'justify-center',
+              isActive('/help') && 'bg-gray-700'
+            ]"
+          >
+            <span v-if="!isCollapsed">Помощь</span>
+          </router-link>
+          <!-- Tooltip для свернутого меню -->
+          <div
+            v-if="isCollapsed"
+            class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+          >
+            Помощь
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+        <div class="relative group">
+          <router-link
+            to="/contact"
+            @click="closeMobileMenu"
+            :class="[
+              'relative flex items-center gap-3 px-6 py-3 hover:bg-gray-700 transition-colors',
+              isCollapsed && 'justify-center',
+              isActive('/contact') && 'bg-gray-700'
+            ]"
+          >
+            <span v-if="!isCollapsed">Связать</span>
+          </router-link>
+          <!-- Tooltip для свернутого меню -->
+          <div
+            v-if="isCollapsed"
+            class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+          >
+            Связать
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+        <div class="relative group">
+          <button
+            @click="handleLogoutClick"
+            :class="[
+              'relative flex items-center gap-3 w-full px-6 py-3 hover:bg-gray-700 transition-colors',
+              isCollapsed && 'justify-center'
+            ]"
+          >
+            <ArrowRightOnRectangleIcon class="w-5 h-5 flex-shrink-0" />
+            <span v-if="!isCollapsed">Выход</span>
+          </button>
+          <!-- Tooltip для свернутого меню -->
+          <div
+            v-if="isCollapsed"
+            class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+          >
+            Выход
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+      </nav>
     </div>
 
     <!-- Кнопка сворачивания -->
     <button
-      @click="toggleCollapse"
-      class="hidden lg:flex absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full items-center justify-center bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700 transition-all shadow-lg"
+      @click="handleToggleCollapse"
+      class="hidden lg:flex absolute right-0 bottom-24 translate-x-1/2 w-8 h-[70px] rounded-full items-center justify-center hover:bg-gray-700 transition-colors z-10 main-bg-color"
     >
-      <ChevronLeftIcon :class="['w-4 h-4 transition-transform', isCollapsed && 'rotate-180']" />
+      <ChevronLeftIcon
+        :class="[
+          'w-4 h-4 transition-transform',
+          isCollapsed && 'rotate-180'
+        ]"
+      />
     </button>
   </aside>
 
+  <!-- Модалка подтверждения выхода -->
   <ConfirmModal
     v-model:is-open="showLogoutModal"
     title="Подтверждение выхода"
@@ -134,11 +363,12 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Squares2X2Icon,
   Bars3Icon,
+  FunnelIcon,
   ShareIcon,
   UserGroupIcon,
   ClockIcon,
@@ -147,78 +377,72 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
-  QuestionMarkCircleIcon,
-  EnvelopeIcon
+  ChevronLeftIcon
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import ConfirmModal from './ConfirmModal.vue'
+import logoFull from '../assets/imgs/logo/AdMirra.png'
+import logoFav from '../assets/imgs/logo/Fav.png'
 
-const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu } = useSidebar()
+const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { removeToken } = useAuth()
 const route = useRoute()
 const router = useRouter()
-
+const isDashboardOpen = ref(false)
 const showLogoutModal = ref(false)
-const openGroups = ref(['Дашборд'])
 
-const navigationGroups = [
-  {
-    title: 'Главное',
-    items: [
-      {
-        name: 'Дашборд',
-        icon: Squares2X2Icon,
-        children: [
-          { name: 'Общая статистика', path: '/dashboard/general' },
-          { name: 'Второй вариант', path: '/dashboard/general-2' }
-        ]
-      },
-      { name: 'Проекты', path: '/projects', icon: BriefcaseIcon },
-      { name: 'Каналы', path: '/channels', icon: ShareIcon }
-    ]
-  },
-  {
-    title: 'Управление',
-    items: [
-      { name: 'Команда', path: '/team', icon: UserGroupIcon },
-      { name: 'Продукты', path: '/products', icon: FolderIcon },
-      { name: 'История', path: '/history', icon: ClockIcon }
-    ]
-  },
-  {
-    title: 'Система',
-    items: [
-      { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
-      { name: 'Помощь', path: '/help', icon: QuestionMarkCircleIcon },
-      { name: 'Контакты', path: '/contact', icon: EnvelopeIcon }
-    ]
+// Закрывать мобильное меню при клике на ссылку
+const handleLinkClick = (path) => {
+  if (path) {
+    router.push(path)
   }
-]
-
-const isActive = (path) => route.path === path
-
-const isGroupActive = (item) => {
-  if (!item.children) return isActive(item.path)
-  return item.children.some(child => isActive(child.path))
+  closeMobileMenu()
 }
 
-const toggleGroup = (name) => {
-  const index = openGroups.value.indexOf(name)
-  if (index === -1) openGroups.value.push(name)
-  else openGroups.value.splice(index, 1)
-}
-
-watch(() => route.path, (newPath) => {
-  navigationGroups.forEach(group => {
-    group.items.forEach(item => {
-      if (item.children && item.children.some(child => child.path === newPath)) {
-        if (!openGroups.value.includes(item.name)) openGroups.value.push(item.name)
-      }
-    })
-  })
+// Автоматически открывать выпадающее меню, если текущий маршрут в дашборде
+watch(() => route?.path, (path) => {
+  if (path && path.startsWith('/dashboard')) {
+    isDashboardOpen.value = true
+  }
 }, { immediate: true })
+
+// Также открывать меню для старого маршрута /projects
+watch(() => route?.path, (path) => {
+  if (path === '/projects') {
+    isDashboardOpen.value = true
+  }
+}, { immediate: true })
+
+// Вычисляемое свойство для проверки активного маршрута
+const isActive = (path) => {
+  if (!route?.path) return false
+  if (path === '/dashboard/projects') {
+    return route.path === '/dashboard/projects' || route.path === '/projects'
+  }
+  return route.path === path
+}
+
+const handleToggleCollapse = () => {
+  toggleCollapse()
+  if (isCollapsed.value) {
+    isDashboardOpen.value = false
+  }
+}
+
+const toggleDashboard = () => {
+  // Если меню свернуто, разворачиваем его и открываем выпадающее меню
+  if (isCollapsed.value) {
+    toggleCollapse()
+    // Используем nextTick, чтобы дождаться разворачивания меню
+    setTimeout(() => {
+      isDashboardOpen.value = true
+    }, 100)
+  } else {
+    // Если меню развернуто, просто переключаем выпадающее меню
+    isDashboardOpen.value = !isDashboardOpen.value
+  }
+}
 
 const handleLogoutClick = () => {
   closeMobileMenu()
@@ -226,23 +450,24 @@ const handleLogoutClick = () => {
 }
 
 const handleLogout = () => {
-  console.log('Logging out from Sidebar...')
   removeToken()
   showLogoutModal.value = false
   router.push('/login')
 }
-</script>
 
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+// Обработчик клика на "@" - открывает меню, если оно закрыто
+const handleBrandClick = () => {
+  // На мобильных устройствах: если меню закрыто, открываем его
+  if (window.innerWidth < 1024) {
+    if (!isMobileMenuOpen.value) {
+      toggleMobileMenu()
+    }
+  } else {
+    // На десктопе: если меню свернуто, разворачиваем его
+    if (isCollapsed.value) {
+      toggleCollapse()
+    }
+  }
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-</style>
+</script>
 

@@ -29,13 +29,10 @@
       <div class="flex items-center gap-4 flex-shrink-0">
         <button
           @click="showAddProjectModal = true"
-          class="hidden lg:flex items-center gap-3 px-6 py-3 bg-white border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+          class="hidden lg:flex items-center gap-3 px-6 py-3 bg-blue-600 border border-transparent rounded-[10px] hover:bg-blue-700 transition-colors shadow-sm"
         >
-          <div class="w-8 h-8 rounded-lg bg-gray-200 flex items-center justify-center">
-            <LinkIcon class="w-5 h-5 text-gray-600" />
-          </div>
-          <span class="text-sm font-medium text-gray-900">Добавить новый проект</span>
-          <ChevronRightIcon class="w-5 h-5 text-gray-600" />
+          <LinkIcon class="w-5 h-5 text-white" />
+          <span class="text-sm font-medium text-white">Добавить проект</span>
         </button>
         <!-- Уведомления -->
         <div class="relative">
