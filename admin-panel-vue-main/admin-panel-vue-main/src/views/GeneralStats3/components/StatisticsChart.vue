@@ -126,13 +126,29 @@ const cpaData = computed(() => props.dynamics.cpa || [])
 
 // Helper to normalize data for visual display
 const normalizeDataset = (data, label, color, offset = 0) => {
-  const max = Math.max(...data, 0)
+  // Defensive check: ensure data is a valid array of numbers
+  const cleanData = Array.isArray(data) ? data.map(v => Number(v) || 0) : []
+  
+  if (cleanData.length === 0) {
+    return {
+      label,
+      data: [],
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      tension: 0.4,
+      fill: false,
+      yAxisID: 'y_normalized'
+    }
+  }
+
+  const max = Math.max(...cleanData, 0)
   const safeMax = max === 0 ? 1 : max
   
   return {
     label,
-    data: data.map(val => ({
-      y: (val / safeMax) * 0.4 + offset, // Scale down to 40% height and add offset
+    data: cleanData.map(val => ({
+      y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
       realValue: val
     })),
     borderColor: color,
@@ -148,21 +164,29 @@ const normalizeDataset = (data, label, color, offset = 0) => {
   }
 }
 
-const chartData = computed(() => ({
-  labels: dateLabels.value,
-  datasets: [
-    {
-      ...normalizeDataset(expensesData.value, 'Расход', '#3b82f6', 0.5), // Highest position
-      borderWidth: isMobile.value ? 2 : 3,
-      pointRadius: isMobile.value ? 4 : 5,
-    },
-    normalizeDataset(impressionsData.value, 'Показы', '#f97316', 0.4),
-    normalizeDataset(clicksData.value, 'Переходы', '#22c55e', 0.3),
-    normalizeDataset(leadsData.value, 'Лиды', '#a855f7', 0.2),
-    normalizeDataset(cpcData.value, 'CPC', '#ef4444', 0.1),
-    normalizeDataset(cpaData.value, 'CPA', '#ec4899', 0), // Lowest position
-  ]
-}))
+const chartData = computed(() => {
+  console.log('StatisticsChart: Received dynamics data:', props.dynamics)
+  
+  if (!props.dynamics || !props.dynamics.labels || props.dynamics.labels.length === 0) {
+    return { labels: [], datasets: [] }
+  }
+
+  return {
+    labels: props.dynamics.labels,
+    datasets: [
+      {
+        ...normalizeDataset(props.dynamics.costs, 'Расход', '#3b82f6', 0.5),
+        borderWidth: isMobile.value ? 2 : 3,
+        pointRadius: isMobile.value ? 4 : 5,
+      },
+      normalizeDataset(props.dynamics.impressions, 'Показы', '#f97316', 0.4),
+      normalizeDataset(props.dynamics.clicks, 'Переходы', '#22c55e', 0.3),
+      normalizeDataset(props.dynamics.leads, 'Лиды', '#a855f7', 0.2),
+      normalizeDataset(props.dynamics.cpc, 'CPC', '#ef4444', 0.1),
+      normalizeDataset(props.dynamics.cpa, 'CPA', '#ec4899', 0),
+    ]
+  }
+})
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 640
