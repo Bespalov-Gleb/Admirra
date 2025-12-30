@@ -147,7 +147,8 @@ const normalizeDataset = (data, label, color, offset = 0) => {
   
   return {
     label,
-    data: cleanData.map(val => ({
+    data: cleanData.map((val, index) => ({
+      x: props.dynamics.labels[index],
       y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
       realValue: val
     })),
