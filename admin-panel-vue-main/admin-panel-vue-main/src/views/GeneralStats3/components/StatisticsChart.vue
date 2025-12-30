@@ -108,6 +108,12 @@ ChartJS.register(
 )
 
 const isMobile = ref(window.innerWidth < 640)
+const chartKey = ref(0)
+
+// Перерисовываем график при изменении данных
+watch(() => props.dynamics, () => {
+  chartKey.value++
+}, { deep: true })
 
 // Data from props
 const dateLabels = computed(() => props.dynamics.labels || [])
@@ -118,95 +124,43 @@ const leadsData = computed(() => props.dynamics.leads || [])
 const cpcData = computed(() => props.dynamics.cpc || [])
 const cpaData = computed(() => props.dynamics.cpa || [])
 
-const chartKey = ref(0)
+// Helper to normalize data for visual display
+const normalizeDataset = (data, label, color, offset = 0) => {
+  const max = Math.max(...data, 0)
+  const safeMax = max === 0 ? 1 : max
+  
+  return {
+    label,
+    data: data.map(val => ({
+      y: (val / safeMax) * 0.4 + offset, // Scale down to 40% height and add offset
+      realValue: val
+    })),
+    borderColor: color,
+    backgroundColor: 'transparent',
+    borderWidth: isMobile.value ? 2 : 2.5,
+    pointRadius: isMobile.value ? 3 : 4,
+    pointBackgroundColor: color,
+    pointBorderColor: '#ffffff',
+    pointBorderWidth: isMobile.value ? 1.5 : 2,
+    tension: 0.4,
+    fill: false,
+    yAxisID: 'y_normalized'
+  }
+}
 
 const chartData = computed(() => ({
   labels: dateLabels.value,
   datasets: [
     {
-      label: 'Расход',
-      data: expensesData.value,
-      borderColor: '#3b82f6', // blue-500
-      backgroundColor: 'transparent',
+      ...normalizeDataset(expensesData.value, 'Расход', '#3b82f6', 0.5), // Highest position
       borderWidth: isMobile.value ? 2 : 3,
       pointRadius: isMobile.value ? 4 : 5,
-      pointBackgroundColor: '#3b82f6',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 2 : 2.5,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_money'
     },
-    {
-      label: 'Показы',
-      data: impressionsData.value,
-      borderColor: '#f97316', // orange-500
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#f97316',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_count'
-    },
-    {
-      label: 'Переходы',
-      data: clicksData.value,
-      borderColor: '#22c55e', // green-500
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#22c55e',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_count'
-    },
-    {
-      label: 'Лиды',
-      data: leadsData.value,
-      borderColor: '#a855f7', // purple-500
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#a855f7',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_count'
-    },
-    {
-      label: 'CPC',
-      data: cpcData.value,
-      borderColor: '#ef4444', // red-500
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#ef4444',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_money'
-    },
-    {
-      label: 'CPA',
-      data: cpaData.value,
-      borderColor: '#ec4899', // pink-500
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#ec4899',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_money'
-    }
+    normalizeDataset(impressionsData.value, 'Показы', '#f97316', 0.4),
+    normalizeDataset(clicksData.value, 'Переходы', '#22c55e', 0.3),
+    normalizeDataset(leadsData.value, 'Лиды', '#a855f7', 0.2),
+    normalizeDataset(cpcData.value, 'CPC', '#ef4444', 0.1),
+    normalizeDataset(cpaData.value, 'CPA', '#ec4899', 0), // Lowest position
   ]
 }))
 
@@ -240,13 +194,15 @@ const chartOptions = computed(() => ({
     },
     tooltip: {
       enabled: true,
-      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
       titleColor: '#111827',
+      titleFont: { size: 14, weight: 'bold' },
       bodyColor: '#4b5563',
+      bodyFont: { size: 12 },
       borderColor: '#e5e7eb',
       borderWidth: 1,
       padding: 12,
-      boxPadding: 6,
+      boxPadding: 8,
       usePointStyle: true,
       callbacks: {
         label: function(context) {
@@ -254,11 +210,12 @@ const chartOptions = computed(() => ({
           if (label) {
             label += ': ';
           }
-          if (context.parsed.y !== null) {
+          const realValue = context.raw.realValue;
+          if (realValue !== undefined) {
             if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
-              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(context.parsed.y);
+              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(realValue);
             } else {
-              label += new Intl.NumberFormat('ru-RU').format(context.parsed.y);
+              label += new Intl.NumberFormat('ru-RU').format(realValue);
             }
           }
           return label;
@@ -267,23 +224,14 @@ const chartOptions = computed(() => ({
     }
   },
   scales: {
-    y_money: {
+    y_normalized: {
       type: 'linear',
-      display: false, // Мы скрываем оси как на картинке, оставляя только сетку
-      position: 'left',
+      display: false,
       beginAtZero: true,
+      max: 1.1, // Add some headroom at the top
       grid: {
         color: '#f3f4f6',
         drawBorder: false,
-      }
-    },
-    y_count: {
-      type: 'linear',
-      display: false,
-      position: 'right',
-      beginAtZero: true,
-      grid: {
-        drawOnChartArea: false, // Отключаем дублирующуюся сетку
       }
     },
     x: {
@@ -292,6 +240,8 @@ const chartOptions = computed(() => ({
       },
       ticks: {
         display: true,
+        autoSkip: true,
+        maxTicksLimit: isMobile.value ? 5 : 10,
         font: {
           size: isMobile.value ? 9 : 11
         },

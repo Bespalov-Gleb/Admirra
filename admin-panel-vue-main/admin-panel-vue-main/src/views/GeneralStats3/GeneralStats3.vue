@@ -53,19 +53,38 @@
 
 
     <!-- Карточки KPI -->
-    <div class="w-full overflow-hidden">
-      <div 
-        ref="cardsContainer"
-        class="flex gap-4 sm:gap-6 overflow-x-auto pb-4 custom-scrollbar select-none max-w-full"
-        @mousedown="handleMouseDown"
-        @mousemove="handleMouseMove"
-        @mouseup="handleMouseUp"
-        @mouseleave="handleMouseUp"
-        @wheel.prevent="handleWheel"
-        @touchstart="handleTouchStart"
-        @touchmove="handleTouchMove"
-        @touchend="handleTouchEnd"
-      >
+    <div class="space-y-4">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-lg font-bold text-gray-800">Статистика по картам</h2>
+        <div class="flex gap-2">
+          <button 
+            @click="scrollCards('left')"
+            class="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm group"
+          >
+            <ChevronLeftIcon class="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+          </button>
+          <button 
+            @click="scrollCards('right')"
+            class="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm group"
+          >
+            <ChevronRightIcon class="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
+          </button>
+        </div>
+      </div>
+
+      <div class="w-full overflow-hidden">
+        <div 
+          ref="cardsContainer"
+          class="flex gap-4 sm:gap-6 overflow-x-auto pb-2 scrollbar-hide select-none max-w-full scroll-smooth"
+          @mousedown="handleMouseDown"
+          @mousemove="handleMouseMove"
+          @mouseup="handleMouseUp"
+          @mouseleave="handleMouseUp"
+          @wheel.prevent="handleWheel"
+          @touchstart="handleTouchStart"
+          @touchmove="handleTouchMove"
+          @touchend="handleTouchEnd"
+        >
         <!-- Расходы -->
         <div class="flex-shrink-0">
           <CardV3
@@ -157,10 +176,9 @@
 <script setup>
 import { ref } from 'vue'
 import {
-  CurrencyDollarIcon,
-  EyeIcon,
-  ArrowPathIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/vue/24/outline'
 import CardV3 from './components/CardV3.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
@@ -184,6 +202,16 @@ const cardsContainer = ref(null)
 const isDragging = ref(false)
 const startX = ref(0)
 const scrollLeft = ref(0)
+
+const scrollCards = (direction) => {
+  if (!cardsContainer.value) return
+  const scrollAmount = 350
+  if (direction === 'left') {
+    cardsContainer.value.scrollLeft -= scrollAmount
+  } else {
+    cardsContainer.value.scrollLeft += scrollAmount
+  }
+}
 
 // Drag to scroll
 const handleMouseDown = (e) => {
