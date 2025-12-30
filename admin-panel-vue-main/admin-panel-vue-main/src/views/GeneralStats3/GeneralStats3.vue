@@ -85,82 +85,83 @@
           @touchmove="handleTouchMove"
           @touchend="handleTouchEnd"
         >
-        <!-- Расходы -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="Расходы"
-            :value="summary.expenses.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="orange"
-          />
-        </div>
-        
-        <!-- Показы -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="Показы"
-            :value="summary.impressions.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="DashEyeIcon"
-            icon-color="blue"
-          />
-        </div>
-        
-        <!-- Переходы -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="Переходы"
-            :value="summary.clicks.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="DashArrowIcon"
-            icon-color="green"
-          />
-        </div>
-        
-        <!-- Лиды -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="Лиды"
-            :value="summary.leads.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="UserGroupIcon"
-            icon-color="red"
-          />
-        </div>
-        
-        <!-- CPC -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="CPC"
-            :value="summary.cpc.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="среднее"
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="orange"
-          />
-        </div>
-        
-        <!-- CPA -->
-        <div class="flex-shrink-0">
-          <CardV3
-            title="CPA"
-            :value="summary.cpa.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="целевое"
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="orange"
-          />
+          <!-- Расходы -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="Расходы"
+              :value="summary.expenses.toLocaleString() + ' ₽'"
+              :trend="0"
+              change-text="из API"
+              :change-positive="true"
+              :icon="MoneyIcon"
+              icon-color="orange"
+            />
+          </div>
+          
+          <!-- Показы -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="Показы"
+              :value="summary.impressions.toLocaleString()"
+              :trend="0"
+              change-text="из API"
+              :change-positive="true"
+              :icon="DashEyeIcon"
+              icon-color="blue"
+            />
+          </div>
+          
+          <!-- Переходы -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="Переходы"
+              :value="summary.clicks.toLocaleString()"
+              :trend="0"
+              change-text="из API"
+              :change-positive="true"
+              :icon="DashArrowIcon"
+              icon-color="green"
+            />
+          </div>
+          
+          <!-- Лиды -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="Лиды"
+              :value="summary.leads.toLocaleString()"
+              :trend="0"
+              change-text="из API"
+              :change-positive="true"
+              :icon="UserGroupIcon"
+              icon-color="red"
+            />
+          </div>
+          
+          <!-- CPC -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="CPC"
+              :value="summary.cpc.toLocaleString() + ' ₽'"
+              :trend="0"
+              change-text="среднее"
+              :change-positive="true"
+              :icon="MoneyIcon"
+              icon-color="orange"
+            />
+          </div>
+          
+          <!-- CPA -->
+          <div class="flex-shrink-0">
+            <CardV3
+              title="CPA"
+              :value="summary.cpa.toLocaleString() + ' ₽'"
+              :trend="0"
+              change-text="целевое"
+              :change-positive="true"
+              :icon="MoneyIcon"
+              icon-color="orange"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -272,4 +273,3 @@ const handleTouchEnd = () => {
 
 // Автоматическая прокрутка отключена
 </script>
-
