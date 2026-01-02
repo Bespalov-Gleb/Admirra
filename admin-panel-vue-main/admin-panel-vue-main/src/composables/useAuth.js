@@ -50,8 +50,10 @@ export function useAuth() {
 
   // Проверка токена в localStorage
   const checkAuth = async () => {
+    console.log('checkAuth: START called.') // Debug: ensure function is entered
+    
     // If a check is already in progress, return the same promise
-    if (authPromise) return authPromise
+    // if (authPromise) return authPromise // DISABLED FOR DEBUGGING
 
     const token = localStorage.getItem(tokenKey)
     
