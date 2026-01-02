@@ -59,10 +59,24 @@ export function useAuth() {
     console.log('checkAuth: Checking...', { initialCheckDone, hasUser: !!user.value, hasToken: !!token })
     
     if (token) {
-        // FORCE SUCCESS if token exists. 
-        // We rely on the API to return 401 if the token is invalid.
-        // This avoids "router loops" where the frontend state is slightly out of sync.
+        // FORCE SUCCESS if token exists to unblock router.
         isAuthenticated.value = true
+        
+        // CRITICAL: Trigger background fetch if we don't have user data yet
+        if (!user.value && !authPromise) {
+            console.log('checkAuth: Token exists, triggering background fetch...')
+            authPromise = (async () => {
+                try {
+                    const result = await fetchCurrentUser()
+                    return result.success
+                } finally {
+                    isLoading.value = false
+                    initialCheckDone = true
+                    authPromise = null
+                }
+            })()
+        }
+        
         return true
     }
 
