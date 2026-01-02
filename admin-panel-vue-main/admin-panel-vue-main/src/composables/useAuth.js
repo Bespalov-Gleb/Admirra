@@ -56,6 +56,16 @@ export function useAuth() {
     const token = localStorage.getItem(tokenKey)
     
     // If we already checked once and have a user, don't re-fetch unless token is gone
+    console.log('checkAuth: Checking...', { initialCheckDone, hasUser: !!user.value, hasToken: !!token })
+    
+    if (token) {
+        // FORCE SUCCESS if token exists. 
+        // We rely on the API to return 401 if the token is invalid.
+        // This avoids "router loops" where the frontend state is slightly out of sync.
+        isAuthenticated.value = true
+        return true
+    }
+
     if (initialCheckDone && user.value && token) {
       isAuthenticated.value = true
       return true
