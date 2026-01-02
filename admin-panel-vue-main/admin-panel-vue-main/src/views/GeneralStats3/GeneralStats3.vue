@@ -34,7 +34,22 @@
           <option value="14">14 дней</option>
           <option value="30">30 дней</option>
           <option value="90">90 дней</option>
+          <option value="custom">Произвольно</option>
         </select>
+        
+        <!-- Custom Date Range -->
+        <template v-if="filters.period === 'custom'">
+          <input 
+            type="date" 
+            v-model="filters.start_date"
+            class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
+          >
+          <input 
+            type="date" 
+            v-model="filters.end_date"
+            class="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
+          >
+        </template>
       </div>
     </div>
 
