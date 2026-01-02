@@ -197,6 +197,7 @@ export function useAuth() {
     localStorage.removeItem(tokenKey)
     isAuthenticated.value = false
     user.value = null
+    initialCheckDone = false // Reset check state
   }
 
   return {
