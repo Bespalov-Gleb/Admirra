@@ -1,67 +1,88 @@
 <template>
-  <div class="bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm">
+  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm">
     <!-- Заголовок и селектор дат -->
-    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-2">
-      <div>
-        <h3 class="text-xl font-bold text-gray-900 mb-6">Эффективность кампаний</h3>
-        
-        <!-- Легенда (теперь явно под заголовком как на фото) -->
-        <div class="flex items-center gap-4 sm:gap-6 mb-6 flex-wrap">
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">Расход</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-orange-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">Показы</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">Переходы</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-purple-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">Лиды</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">CPC</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 bg-pink-500 rounded-full"></div>
-            <span class="text-xs font-semibold text-gray-500">CPA</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center self-end sm:self-auto">
-        <div class="flex items-center bg-gray-50 rounded-xl p-1 shadow-inner">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <h3 class="text-lg font-semibold text-gray-900">Эффективность кампаний</h3>
+      <div class="flex items-center">
+        <!-- Фейковые кнопки периода (для дизайна), реальный фильтр в GeneralStats3.vue -->
+        <div class="flex items-center overflow-hidden rounded-lg">
           <button 
-            v-for="day in [7, 14, 30]" 
+            v-for="(day, index) in [7, 14, 30]" 
             :key="day"
-            :class="[
-              'px-4 py-1.5 text-xs font-bold rounded-lg transition-all',
-              selectedDays === day 
-                ? 'bg-white text-gray-900 shadow-sm' 
-                : 'text-gray-400 hover:text-gray-600'
-            ]"
-            @click="selectedDays = day"
+            class="px-3 py-1.5 text-sm font-medium transition-colors bg-gray-50 text-gray-700 hover:bg-gray-100 cursor-default"
           >
             {{ day }}
           </button>
         </div>
-        <button class="ml-3 p-2 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all shadow-sm">
-          <img :src="calendarIcon" alt="Calendar" class="w-4 h-4 opacity-60" />
+        <button class="ml-2 px-3 py-1.5 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-default">
+          <img :src="calendarIcon" alt="Calendar" class="w-4 h-4" />
         </button>
       </div>
     </div>
     
-    <div class="h-72 relative w-full pt-4">
+    <div class="h-64 relative pb-6 w-full overflow-hidden mb-6">
       <Line
         :data="chartData"
         :options="chartOptions"
         :key="chartKey"
       />
+    </div>
+    
+    <!-- Легенда -->
+    <div class="flex items-center gap-4 sm:gap-6 flex-wrap">
+      <template v-if="!selectedMetric">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Расход</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Показы</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Переходы</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Лиды</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">CPC</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-pink-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">CPA</span>
+        </div>
+      </template>
+      <template v-else>
+        <!-- Dynamic Legend based on selection -->
+        <div v-if="selectedMetric === 'expenses'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Расход</span>
+        </div>
+        <div v-if="selectedMetric === 'impressions'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Показы</span>
+        </div>
+        <div v-if="selectedMetric === 'clicks'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Переходы</span>
+        </div>
+        <div v-if="selectedMetric === 'leads'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">Лиды</span>
+        </div>
+        <div v-if="selectedMetric === 'cpc'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">CPC</span>
+        </div>
+        <div v-if="selectedMetric === 'cpa'" class="flex items-center gap-2">
+          <div class="w-3 h-3 bg-pink-500 rounded-full"></div>
+          <span class="text-sm text-gray-600">CPA</span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -89,12 +110,18 @@ const props = defineProps({
     default: () => ({
       labels: [],
       costs: [],
-      clicks: []
+      clicks: [],
+      impressions: [],
+      leads: [],
+      cpc: [],
+      cpa: []
     })
+  },
+  selectedMetric: {
+    type: String,
+    default: null // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' or null
   }
 })
-
-const selectedDays = ref(7)
 
 ChartJS.register(
   CategoryScale,
@@ -109,90 +136,133 @@ ChartJS.register(
 
 const isMobile = ref(window.innerWidth < 640)
 const chartKey = ref(0)
+const selectedDays = ref(7) // Local ref, technically controlled by parent but kept for UI state
 
-// Перерисовываем график при изменении данных
-watch(() => props.dynamics, () => {
-  chartKey.value++
-}, { deep: true })
-
-// Data from props
-const dateLabels = computed(() => props.dynamics.labels || [])
-const expensesData = computed(() => props.dynamics.costs || [])
-const clicksData = computed(() => props.dynamics.clicks || [])
-const impressionsData = computed(() => props.dynamics.impressions || [])
-const leadsData = computed(() => props.dynamics.leads || [])
-const cpcData = computed(() => props.dynamics.cpc || [])
-const cpaData = computed(() => props.dynamics.cpa || [])
-
-// Helper to normalize data for visual display
-const normalizeDataset = (data, label, color, offset = 0) => {
-  // Defensive check: ensure data is a valid array of numbers
+// Helper to normalize data for visual display (scale 0-1)
+const normalizeDataset = (data, label, offset = 0) => {
   const cleanData = Array.isArray(data) ? data.map(v => Number(v) || 0) : []
   
-  if (cleanData.length === 0) {
-    return {
-      label,
-      data: [],
-      borderColor: color,
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      tension: 0.4,
-      fill: false,
-      yAxisID: 'y_normalized'
-    }
-  }
+  if (cleanData.length === 0) return []
 
   const max = Math.max(...cleanData, 0)
   const safeMax = max === 0 ? 1 : max
   
-  return {
-    label,
-    data: cleanData.map((val, index) => ({
-      x: props.dynamics.labels[index],
-      y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
-      realValue: val
-    })),
-    borderColor: color,
-    backgroundColor: 'transparent',
-    borderWidth: isMobile.value ? 2 : 2.5,
-    pointRadius: isMobile.value ? 3 : 4,
-    pointBackgroundColor: color,
-    pointBorderColor: '#ffffff',
-    pointBorderWidth: isMobile.value ? 1.5 : 2,
-    tension: 0.4,
-    fill: false,
-    yAxisID: 'y_normalized'
-  }
+  return cleanData.map((val, index) => ({
+    x: props.dynamics.labels[index],
+    y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
+    realValue: val
+  }))
 }
 
-const chartData = computed(() => {
-  console.log('StatisticsChart: Received dynamics data:', props.dynamics)
-  
-  if (!props.dynamics || !props.dynamics.labels || props.dynamics.labels.length === 0) {
-    return { labels: [], datasets: [] }
-  }
+// Compute all datasets from props
+const allDatasets = computed(() => {
+  if (!props.dynamics || !props.dynamics.labels) return []
 
-  return {
-    labels: props.dynamics.labels,
-    datasets: [
-      {
-        ...normalizeDataset(props.dynamics.costs, 'Расход', '#3b82f6', 0.5),
-        borderWidth: isMobile.value ? 2 : 3,
-        pointRadius: isMobile.value ? 4 : 5,
-      },
-      normalizeDataset(props.dynamics.impressions, 'Показы', '#f97316', 0.4),
-      normalizeDataset(props.dynamics.clicks, 'Переходы', '#22c55e', 0.3),
-      normalizeDataset(props.dynamics.leads, 'Лиды', '#a855f7', 0.2),
-      normalizeDataset(props.dynamics.cpc, 'CPC', '#ef4444', 0.1),
-      normalizeDataset(props.dynamics.cpa, 'CPA', '#ec4899', 0),
-    ]
-  }
+  const d = props.dynamics
+  
+  return [
+    {
+      label: 'Расход',
+      key: 'expenses',
+      data: normalizeDataset(d.costs, 'Расход', 0.5),
+      borderColor: '#3b82f6',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 5 : 6,
+      pointBackgroundColor: '#3b82f6',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 2 : 2.5,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Показы',
+      key: 'impressions',
+      data: normalizeDataset(d.impressions, 'Показы', 0.4),
+      borderColor: '#f97316',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#f97316',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Переходы',
+      key: 'clicks',
+      data: normalizeDataset(d.clicks, 'Переходы', 0.3),
+      borderColor: '#22c55e',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#22c55e',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Лиды',
+      key: 'leads',
+      data: normalizeDataset(d.leads, 'Лиды', 0.2),
+      borderColor: '#a855f7',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#a855f7',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'CPC',
+      key: 'cpc',
+      data: normalizeDataset(d.cpc, 'CPC', 0.1),
+      borderColor: '#ef4444',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#ef4444',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'CPA',
+      key: 'cpa',
+      data: normalizeDataset(d.cpa, 'CPA', 0),
+      borderColor: '#ec4899',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#ec4899',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    }
+  ]
 })
+
+const chartData = computed(() => ({
+  labels: props.dynamics.labels || [],
+  datasets: props.selectedMetric
+    ? allDatasets.value.filter(dataset => dataset.key === props.selectedMetric)
+    : allDatasets.value
+}))
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 640
   chartKey.value++
 }
+
+watch(() => props.dynamics, () => {
+  chartKey.value++
+}, { deep: true })
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
@@ -219,16 +289,20 @@ const chartOptions = computed(() => ({
     },
     tooltip: {
       enabled: true,
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      titleColor: '#111827',
-      titleFont: { size: 14, weight: 'bold' },
-      bodyColor: '#4b5563',
-      bodyFont: { size: 12 },
-      borderColor: '#e5e7eb',
-      borderWidth: 1,
-      padding: 12,
-      boxPadding: 8,
+      mode: 'index',
+      intersect: false,
       usePointStyle: true,
+      boxWidth: 12,
+      boxHeight: 12,
+      boxPadding: 8,
+      padding: 16,
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      titleColor: '#ffffff',
+      bodyColor: '#ffffff',
+      borderColor: 'transparent',
+      borderWidth: 0,
+      cornerRadius: 10,
+      displayColors: true,
       callbacks: {
         label: function(context) {
           let label = context.dataset.label || '';
@@ -237,7 +311,7 @@ const chartOptions = computed(() => ({
           }
           const realValue = context.raw.realValue;
           if (realValue !== undefined) {
-            if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
+             if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
               label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(realValue);
             } else {
               label += new Intl.NumberFormat('ru-RU').format(realValue);
@@ -249,14 +323,17 @@ const chartOptions = computed(() => ({
     }
   },
   scales: {
-    y_normalized: {
-      type: 'linear',
-      display: false,
+    y: {
       beginAtZero: true,
-      max: 1.1, // Add some headroom at the top
+      max: 1.1, // Headroom for offsets
+      ticks: {
+        display: false
+      },
       grid: {
-        color: '#f3f4f6',
+        color: '#e5e7eb',
+        display: true,
         drawBorder: false,
+        lineWidth: 1
       }
     },
     x: {
@@ -265,12 +342,10 @@ const chartOptions = computed(() => ({
       },
       ticks: {
         display: true,
-        autoSkip: true,
-        maxTicksLimit: isMobile.value ? 5 : 10,
         font: {
           size: isMobile.value ? 9 : 11
         },
-        color: '#9ca3af',
+        color: '#6b7280',
         maxRotation: 0,
         minRotation: 0
       }
@@ -279,4 +354,11 @@ const chartOptions = computed(() => ({
 }))
 </script>
 
-
+<style>
+/* Custom Tooltip Styles */
+.chartjs-tooltip-key {
+  border-radius: 50% !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+</style>

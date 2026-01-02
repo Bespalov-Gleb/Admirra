@@ -1,13 +1,27 @@
 <template>
-  <div class="bg-white min-w-[250px] rounded-2xl p-5 sm:p-6">
+  <div 
+    class="min-w-[250px] rounded-2xl p-5 sm:p-6 shadow-sm transition-all cursor-pointer"
+    :class="[
+      !isSelected ? 'bg-white hover:shadow-md' : '',
+      iconColor === 'blue' && isSelected ? 'bg-blue-50' : '',
+      iconColor === 'orange' && isSelected ? 'bg-orange-50' : '',
+      iconColor === 'green' && isSelected ? 'bg-green-50' : '',
+      iconColor === 'red' && isSelected ? 'bg-red-50' : '',
+      iconColor === 'purple' && isSelected ? 'bg-purple-50' : '',
+      iconColor === 'pink' && isSelected ? 'bg-pink-50' : ''
+    ]"
+    @click="$emit('click')"
+  >
     <div class="flex items-start gap-4">
       <!-- Иконка слева -->
       <div :class="[
-        'w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm',
+        'w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm',
         iconColor === 'orange' ? 'bg-orange-100' : '',
         iconColor === 'blue' ? 'bg-blue-100' : '',
         iconColor === 'green' ? 'bg-green-100' : '',
-        iconColor === 'red' ? 'bg-red-100' : ''
+        iconColor === 'red' ? 'bg-red-100' : '',
+        iconColor === 'purple' ? 'bg-purple-100' : '',
+        iconColor === 'pink' ? 'bg-pink-100' : ''
       ]">
         <!-- Если icon - это строка (путь к изображению) -->
         <img 
@@ -18,7 +32,9 @@
             iconColor === 'orange' ? 'icon-orange' : '',
             iconColor === 'blue' ? 'icon-blue' : '',
             iconColor === 'green' ? 'icon-green' : '',
-            iconColor === 'red' ? 'icon-red' : ''
+            iconColor === 'red' ? 'icon-red' : '',
+            iconColor === 'purple' ? 'icon-purple' : '',
+            iconColor === 'pink' ? 'icon-pink' : ''
           ]" 
         />
         <!-- Если icon - это компонент -->
@@ -30,7 +46,9 @@
             iconColor === 'orange' ? 'text-orange-600' : '',
             iconColor === 'blue' ? 'text-blue-600' : '',
             iconColor === 'green' ? 'text-green-600' : '',
-            iconColor === 'red' ? 'text-red-600' : ''
+            iconColor === 'red' ? 'text-red-600' : '',
+            iconColor === 'purple' ? 'text-purple-600' : '',
+            iconColor === 'pink' ? 'text-pink-600' : ''
           ]" 
         />
       </div>
@@ -38,7 +56,7 @@
       <!-- Контент справа -->
       <div class="flex-1 min-w-0">
         <!-- Заголовок с иконкой информации -->
-        <div class="flex items-center gap-1.5 mb-3">
+        <div class="flex items-center gap-1.5 mb-4">
           <h3 class="text-sm font-semibold text-gray-700">{{ title }}</h3>
           <div class="relative group">
             <InformationCircleIcon class="w-4 h-4 text-gray-500 hover:text-gray-700 flex-shrink-0 cursor-help transition-colors" />
@@ -50,7 +68,7 @@
         </div>
         
         <!-- Основное значение и абсолютное изменение -->
-        <div class="flex items-baseline gap-2 sm:gap-3 mb-3 flex-wrap">
+        <div class="flex items-baseline gap-2 sm:gap-3 flex-wrap">
           <p class="text-lg font-bold text-gray-800 leading-tight">{{ value }}</p>
           <span 
             :class="[
@@ -101,13 +119,19 @@ defineProps({
   },
   iconColor: {
     type: String,
-    default: 'orange' // orange, blue, green, red
+    default: 'orange' // orange, blue, green, red, purple, pink
   },
   tooltipText: {
     type: String,
     default: ''
+  },
+  isSelected: {
+    type: Boolean,
+    default: false
   }
 })
+
+defineEmits(['click'])
 </script>
 
 <style scoped>
@@ -127,5 +151,12 @@ defineProps({
 .icon-red {
   filter: brightness(0) saturate(100%) invert(27%) sepia(95%) saturate(1352%) hue-rotate(346deg) brightness(101%) contrast(101%);
 }
-</style>
 
+.icon-purple {
+  filter: brightness(0) saturate(100%) invert(48%) sepia(93%) saturate(1352%) hue-rotate(250deg) brightness(101%) contrast(101%);
+}
+
+.icon-pink {
+  filter: brightness(0) saturate(100%) invert(60%) sepia(93%) saturate(1352%) hue-rotate(300deg) brightness(101%) contrast(101%);
+}
+</style>
