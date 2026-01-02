@@ -135,7 +135,7 @@ export function useAuth() {
       return { success: true }
     } catch (error) {
       console.error('Login error:', error)
-      removeToken() // Cleanup on failure
+      forceLogout() // Cleanup on failure
       return { 
         success: false, 
         message: getErrorMessage(error, 'Ошибка авторизации') 
@@ -170,7 +170,7 @@ export function useAuth() {
       return { success: true }
     } catch (error) {
       console.error('Registration error:', error)
-      removeToken()
+      forceLogout()
       return { 
         success: false, 
         message: getErrorMessage(error, 'Ошибка регистрации') 
@@ -191,9 +191,9 @@ export function useAuth() {
   }
 
   // Удаление токена (выход)
-  const removeToken = () => {
-    console.trace('Who called removeToken?') // Debug log
-    console.log('useAuth: Removing token and clearing session.')
+  const forceLogout = () => {
+    console.trace('Who called forceLogout?') // Debug log
+    console.log('useAuth: Force logout triggered.')
     localStorage.removeItem(tokenKey)
     isAuthenticated.value = false
     user.value = null
@@ -210,7 +210,7 @@ export function useAuth() {
     register,
     setToken,
     getToken,
-    removeToken
+    forceLogout
   }
 }
 

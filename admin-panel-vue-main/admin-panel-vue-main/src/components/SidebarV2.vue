@@ -386,7 +386,7 @@ import logoFull from '../assets/imgs/logo/AdMirra.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
-const { removeToken } = useAuth()
+const { forceLogout } = useAuth()
 const route = useRoute()
 const router = useRouter()
 const isDashboardOpen = ref(false)
@@ -450,7 +450,7 @@ const handleLogoutClick = () => {
 }
 
 const handleLogout = () => {
-  removeToken()
+  forceLogout()
   showLogoutModal.value = false
   router.push('/login')
 }

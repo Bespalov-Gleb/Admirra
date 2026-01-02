@@ -209,7 +209,7 @@ import { useToaster } from '../composables/useToaster'
 
 const router = useRouter()
 const { toggleMobileMenu } = useSidebar()
-const { user, removeToken } = useAuth()
+const { user, forceLogout } = useAuth()
 
 const displayName = computed(() => {
   if (!user.value) return 'Загрузка...'
@@ -310,7 +310,7 @@ const handleLogoutClick = () => {
 
 const handleLogout = () => {
   console.log('Logging out from Header...')
-  removeToken()
+  forceLogout()
   showLogoutModal.value = false
   router.push('/login')
 }
