@@ -107,6 +107,7 @@ export function useAuth() {
       }
       
       console.log('useAuth: Login successful, user state updated.')
+      initialCheckDone = true
       return { success: true }
     } catch (error) {
       console.error('Login error:', error)
@@ -141,6 +142,7 @@ export function useAuth() {
       }
 
       console.log('useAuth: Registration successful.')
+      initialCheckDone = true
       return { success: true }
     } catch (error) {
       console.error('Registration error:', error)
