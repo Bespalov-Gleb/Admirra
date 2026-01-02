@@ -97,7 +97,6 @@ router.beforeEach(async (to, from, next) => {
   // Если пользователь авторизован и пытается зайти на страницу логина
   else if (isAuth && isLoginPage) {
     console.log('Router: Already authenticated, redirecting to dashboard...')
-    // Use the next() with a path to trigger a redirect
     next({ name: 'GeneralStats3' })
   }
   // Иначе разрешаем переход

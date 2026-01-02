@@ -168,6 +168,7 @@ export function useAuth() {
 
   // Удаление токена (выход)
   const removeToken = () => {
+    console.trace('Who called removeToken?') // Debug log
     console.log('useAuth: Removing token and clearing session.')
     localStorage.removeItem(tokenKey)
     isAuthenticated.value = false
