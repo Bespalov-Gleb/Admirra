@@ -283,7 +283,7 @@ const handleLogin = async () => {
   
   loading.value = false
   if (result.success) {
-    router.push('/dashboard/general')
+    router.push('/dashboard/general-3')
   } else {
     triggerError(result.message)
   }
@@ -311,7 +311,7 @@ const handleRegister = async () => {
   
   loading.value = false
   if (result.success) {
-    router.push('/dashboard/general')
+    router.push('/dashboard/general-3')
   } else {
     triggerError(result.message)
   }
