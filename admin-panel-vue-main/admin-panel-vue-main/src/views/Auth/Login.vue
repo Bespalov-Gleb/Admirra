@@ -9,7 +9,7 @@
         </div>
 
         <!-- Заголовок -->
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-8 text-center">Вход в систему</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-8 text-center">Вход в систему</h1>
 
         <!-- Сообщение об ошибке -->
         <Transition name="fade-slide">
@@ -80,12 +80,12 @@
               />
               <span class="ml-2 text-sm text-gray-700">Запомнить меня</span>
             </label>
-            <a
-              href="#"
+            <router-link
+              to="/forgot-password"
               class="text-sm text-gray-900 hover:text-blue-600"
             >
               Забыли пароль?
-            </a>
+            </router-link>
           </div>
 
           <!-- Кнопка входа -->
@@ -109,6 +109,15 @@
                 Зарегистрируйтесь
               </router-link>
             </div>
+            <!-- Временная ссылка для тестирования -->
+            <div class="pt-2 border-t border-gray-200">
+              <router-link
+                to="/reset-password"
+                class="text-xs text-gray-500 hover:text-blue-600"
+              >
+                Тест: Установка нового пароля
+              </router-link>
+            </div>
           </div>
         </form>
       </div>
@@ -124,14 +133,14 @@
       <!-- Текст поверх изображения -->
       <div class="w-full h-full flex flex-col justify-start px-12 py-16 relative z-10">
         <!-- Заголовок -->
-        <h2 class="text-4xl font-bold text-blue-900 mb-6 leading-tight">
+        <h2 class="text-3xl font-bold text-blue-900 mb-6 leading-tight">
           Анализируйте и <br />
           оптимизируйте <br />
           Ваши рекламные кампании
         </h2>
 
         <!-- Описание -->
-        <p class="text-lg text-blue-800 leading-relaxed max-w-lg">
+        <p class="text-base text-blue-800 leading-relaxed max-w-lg">
           Онлайн-сервис для маркетологов, который превращает сырые цифры в понятные, сильные отчёты с глубоким AI-анализом.
         </p>
       </div>
