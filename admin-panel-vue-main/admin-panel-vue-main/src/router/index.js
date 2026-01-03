@@ -12,6 +12,11 @@ const routes = [
     component: () => import('../views/Auth/Login.vue')
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Auth/Register.vue')
+  },
+  {
     path: '/dashboard/general',
     name: 'GeneralStats',
     component: () => import('../views/GeneralStats/GeneralStats.vue')
@@ -85,7 +90,7 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
-  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/'
+  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register'
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 

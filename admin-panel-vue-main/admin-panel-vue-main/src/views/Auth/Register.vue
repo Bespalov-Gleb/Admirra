@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen flex bg-white">
-    <!-- Левая секция - Форма входа -->
+    <!-- Левая секция - Форма регистрации -->
     <div class="w-full lg:w-5/12 bg-white flex items-center justify-center px-4 sm:px-6 lg:px-12 py-12">
       <div class="w-full max-w-md">
         <!-- Логотип AdMirra -->
@@ -9,7 +9,7 @@
         </div>
 
         <!-- Заголовок -->
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-8 text-center">Вход в систему</h1>
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-8 text-center">Регистрация</h1>
 
         <!-- Сообщение об ошибке -->
         <Transition name="fade-slide">
@@ -34,13 +34,25 @@
           </div>
         </Transition>
 
-        <!-- Форма входа -->
-        <form @submit.prevent="handleLogin" class="space-y-5">
+        <!-- Форма регистрации -->
+        <form @submit.prevent="handleRegister" class="space-y-5">
+          <!-- Имя -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Имя</label>
+            <input
+              v-model="registerForm.username"
+              type="text"
+              required
+              placeholder="Введите имя"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
           <!-- E-mail -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
             <input
-              v-model="loginForm.email"
+              v-model="registerForm.email"
               type="email"
               required
               placeholder="E-mail"
@@ -53,10 +65,11 @@
             <label class="block text-sm font-medium text-gray-700 mb-2">Пароль</label>
             <div class="relative">
               <input
-                v-model="loginForm.password"
+                v-model="registerForm.password"
                 :type="showPassword ? 'text' : 'password'"
                 required
                 placeholder="Пароль"
+                minlength="6"
                 class="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -70,45 +83,61 @@
             </div>
           </div>
 
-          <!-- Запомнить меня и Забыли пароль -->
-          <div class="flex items-center justify-between">
-            <label class="flex items-center">
+          <!-- Подтверждение пароля -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Подтвердите пароль</label>
+            <div class="relative">
               <input
-                v-model="loginForm.remember"
-                type="checkbox"
-                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                v-model="registerForm.confirmPassword"
+                :type="showConfirmPassword ? 'text' : 'password'"
+                required
+                placeholder="Подтвердите пароль"
+                minlength="6"
+                class="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <span class="ml-2 text-sm text-gray-700">Запомнить меня</span>
-            </label>
-            <a
-              href="#"
-              class="text-sm text-gray-900 hover:text-blue-600"
-            >
-              Забыли пароль?
-            </a>
+              <button
+                type="button"
+                @click="showConfirmPassword = !showConfirmPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <EyeIcon v-if="!showConfirmPassword" class="w-5 h-5" />
+                <EyeSlashIcon v-else class="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          <!-- Кнопка входа -->
+          <!-- Согласие с условиями -->
+          <div class="flex items-start">
+            <input
+              v-model="registerForm.agree"
+              type="checkbox"
+              required
+              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
+            />
+            <span class="ml-2 text-sm text-gray-600">
+              Я согласен с <a href="#" class="text-blue-600 hover:text-blue-700">условиями использования</a>
+            </span>
+          </div>
+
+          <!-- Кнопка регистрации -->
           <button
             type="submit"
             :disabled="loading"
             class="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-base flex items-center justify-center gap-2"
           >
            <span v-if="loading" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-           {{ loading ? 'Вход...' : 'Войти' }}
+           {{ loading ? 'Регистрация...' : 'Зарегистрироваться' }}
           </button>
 
-          <!-- Ссылка на регистрацию -->
-          <div class="text-center mt-6 space-y-2">
-            <div>
-              <span class="text-sm text-gray-600">Нет аккаунта? </span>
-              <router-link
-                to="/register"
-                class="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Зарегистрируйтесь
-              </router-link>
-            </div>
+          <!-- Ссылка на вход -->
+          <div class="text-center mt-6">
+            <span class="text-sm text-gray-600">Уже есть аккаунт? </span>
+            <router-link
+              to="/login"
+              class="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Войти
+            </router-link>
           </div>
         </form>
       </div>
@@ -150,16 +179,19 @@ import logoAdMirra from '../../assets/imgs/logo/logo-dark.png'
 import loginImage from '../../assets/imgs/logo/login.svg'
 
 const router = useRouter()
-const { login } = useAuth()
+const { register } = useAuth()
 const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 const errorShake = ref(false)
 
-const loginForm = reactive({
+const registerForm = reactive({
+  username: '',
   email: '',
   password: '',
-  remember: false
+  confirmPassword: '',
+  agree: false
 })
 
 const triggerError = (msg) => {
@@ -174,15 +206,24 @@ const isValidEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-const handleLogin = async () => {
-  if (!loginForm.email) return triggerError('Пожалуйста, введите Email')
-  if (!isValidEmail(loginForm.email)) return triggerError('Введите корректный Email адрес')
-  if (!loginForm.password) return triggerError('Пожалуйста, введите пароль')
+const handleRegister = async () => {
+  if (!registerForm.username) return triggerError('Введите ваше имя')
+  if (!registerForm.email) return triggerError('Введите Email')
+  if (!isValidEmail(registerForm.email)) return triggerError('Введите корректный Email')
+  if (!registerForm.password) return triggerError('Введите пароль')
+  if (registerForm.password.length < 6) return triggerError('Пароль должен быть не менее 6 символов')
+  
+  if (registerForm.password !== registerForm.confirmPassword) {
+    triggerError('Пароли не совпадают')
+    return
+  }
+
+  if (!registerForm.agree) return triggerError('Вы должны согласиться с условиями')
 
   loading.value = true
   errorMessage.value = ''
   
-  const result = await login(loginForm.email, loginForm.password)
+  const result = await register(registerForm.email, registerForm.password, registerForm.username)
   
   loading.value = false
   if (result.success) {
