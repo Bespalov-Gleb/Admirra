@@ -119,7 +119,18 @@ export function useAuth() {
   const login = async (email, password) => {
     try {
       console.log('useAuth: Attempting login for', email)
-      const response = await api.post('auth/login', { email, password })
+      
+      // Use FormData for OAuth2 standard (application/x-www-form-urlencoded)
+      const formData = new URLSearchParams()
+      formData.append('username', email)
+      formData.append('password', password)
+
+      const response = await api.post('auth/login', formData, {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      })
+
       const { access_token } = response.data
       
       // 1. Set token first
