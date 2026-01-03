@@ -1,39 +1,41 @@
 <template>
-  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4 sticky top-0 z-30">
+  <header class="main-bg-color text-white px-4 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-30">
     <div class="flex items-center justify-between gap-4">
       <!-- Левая часть - Логотип и название -->
       <div class="flex items-center gap-3 flex-shrink-0">
         <!-- Кнопка меню для мобильных -->
         <button
           @click="toggleMobileMenu"
-          class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          class="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
           aria-label="Открыть меню"
         >
-          <Bars3Icon class="w-6 h-6 text-gray-600" />
+          <Bars3Icon class="w-6 h-6 text-white" />
         </button>
         
         <!-- Логотип -->
-        <div class="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
-          <UserIcon class="w-6 h-6 text-gray-600" />
+         <div class="bg-[#e5e7eb] p-1.5 rounded-lg">
+          <logoFull  class="h-8 w-auto text-black"/>
         </div>
         
         <!-- Название агентства -->
-        <div>
-          <h1 class="text-sm sm:text-base md:text-lg font-bold text-gray-900 uppercase">ТРАФИК АГЕНТСТВО</h1>
-          <p class="text-xs text-gray-500 hidden sm:block">отчеты агентства в одном месте</p>
+        <div class="hidden lg:block">
+          <h1 class="text-sm sm:text-base md:text-lg font-bold text-white uppercase">ТРАФИК АГЕНТСТВО</h1>
+          <p class="text-xs text-gray-400 hidden sm:block">отчеты агентства в одном месте</p>
         </div>
       </div>
 
 
-      <!-- Правая часть - Уведомления и профиль -->
-      <div class="flex items-center gap-4 flex-shrink-0">
+      <!-- Правая часть - Кнопки и профиль -->
+      <div class="flex items-center gap-3 flex-shrink-0 bg-white px-5 py-1.5 rounded-[16px] text-gray-900">
+        <!-- Кнопка "Добавить проект" -->
         <button
           @click="showAddProjectModal = true"
-          class="hidden lg:flex items-center gap-3 px-6 py-3 bg-blue-600 border border-transparent rounded-[10px] hover:bg-blue-700 transition-colors shadow-sm"
+          class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <LinkIcon class="w-5 h-5 text-white" />
+          <AddProjectArrow class="w-5 h-5 text-white" />
           <span class="text-sm font-medium text-white">Добавить проект</span>
         </button>
+        
         <!-- Уведомления -->
         <div class="relative">
           <button
@@ -42,10 +44,10 @@
             class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
             aria-label="Уведомления"
           >
-            <BellIcon class="w-6 h-6 text-gray-600" />
+            <BellIcon class="w-5 h-5 text-main-bg-color" />
             <span
               v-if="unreadCount > 0"
-              class="absolute top-0 right-0 w-5 h-5 bg-gray-900 text-white text-xs font-medium rounded-full flex items-center justify-center"
+              class="absolute top-0 right-0 w-[16px] h-[16px] bg-[#1c274c] text-white text-[10px] font-medium rounded-[4px] flex items-center justify-center"
             >
               {{ unreadCount }}
             </span>
@@ -106,23 +108,15 @@
           </Teleport>
         </div>
 
+        
         <!-- Профиль -->
-        <div class="relative">
+        <div class="relative bg-[#E5E7EB] rounded-md ml-1">
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="flex items-center gap-2 sm:gap-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            class="p-2 rounded-lg hover:bg-gray-300 transition-colors"
           >
-            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 flex items-center justify-center">
-              <UserIcon class="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
-            </div>
-            <span class="hidden sm:block text-sm font-medium text-gray-900">{{ displayName }}</span>
-            <ChevronDownIcon
-              :class="[
-                'w-4 h-4 sm:w-5 sm:h-5 text-gray-600 transition-transform hidden sm:block',
-                isProfileMenuOpen && 'rotate-180'
-              ]"
-            />
+            <ProfileHeader class="w-5 h-5 text-main-bg-color" />
           </button>
 
           <!-- Выпадающее меню профиля -->
@@ -131,12 +125,37 @@
               v-if="isProfileMenuOpen"
               ref="profileMenuRef"
               :style="getProfileMenuStyle()"
-              class="dropdown-menu fixed w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+              class="dropdown-menu fixed w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
               @click.stop
             >
               <div class="px-4 py-3 border-b border-gray-200">
                 <p class="text-sm font-semibold text-gray-900">{{ displayName }}</p>
                 <p class="text-xs text-gray-500 mt-1">{{ user?.email }}</p>
+              </div>
+              
+              <!-- Переключатель темной темы -->
+              <div class="flex items-center justify-between px-4 py-2 hover:bg-gray-100 transition-colors">
+                <div class="flex items-center gap-2">
+                  <MoonIcon class="w-5 h-5 text-gray-600" />
+                  <span class="text-sm text-gray-700">Темная тема</span>
+                  <span class="px-1.5 py-0.5 bg-yellow-400 text-gray-900 text-[10px] font-medium rounded">Бета</span>
+                </div>
+                <button
+                  @click="toggleTheme"
+                  :class="[
+                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                    isDarkMode ? 'bg-blue-600' : 'bg-gray-300'
+                  ]"
+                  role="switch"
+                  :aria-checked="isDarkMode"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                      isDarkMode ? 'translate-x-4' : 'translate-x-0.5'
+                    ]"
+                  ></span>
+                </button>
               </div>
               
               <router-link
@@ -192,24 +211,37 @@ import { useRouter } from 'vue-router'
 import { Teleport } from 'vue'
 import {
   UserIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   BellIcon,
-  LinkIcon,
-  XMarkIcon
+  XMarkIcon,
+  MoonIcon
 } from '@heroicons/vue/24/outline'
+import logoFull from '../assets/icons/logo-header.vue'
+import AddProjectArrow   from '../assets/icons/add-project-header.vue'
+import ProfileHeader   from '../assets/icons/profile-header.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import UnifiedConnectModal from './UnifiedConnectModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
+import { useTheme } from '../composables/useTheme'
 import { useToaster } from '../composables/useToaster'
 
 const router = useRouter()
 const { toggleMobileMenu } = useSidebar()
 const { user, forceLogout } = useAuth()
+// Initialize theme
+const { isDarkMode, toggleTheme } = useTheme()
+
+const isProfileMenuOpen = ref(false)
+const showNotifications = ref(false)
+const showLogoutModal = ref(false)
+const showAddProjectModal = ref(false)
+const profileMenuRef = ref(null)
+const notificationsRef = ref(null)
+const profileMenuPosition = ref({ top: '0px', right: '0px' })
+const notificationsPosition = ref({ top: '0px', right: '0px' })
 
 const displayName = computed(() => {
   if (!user.value) return 'Загрузка...'
@@ -219,21 +251,13 @@ const displayName = computed(() => {
   return user.value.username || user.value.email
 })
 
-const isProfileMenuOpen = ref(false)
-const showNotifications = ref(false)
-const showLogoutModal = ref(false)
-const showAddProjectModal = ref(false)
-const profileMenuRef = ref(null)
-const notificationsRef = ref(null)
-const notificationsButtonRef = ref(null)
-
+// Mock Notifications
 const notifications = ref([
   { id: 1, title: 'Новый проект добавлен', time: '5 минут назад', read: false },
   { id: 2, title: 'Обновление статистики', time: '1 час назад', read: false },
   { id: 3, title: 'Новое сообщение от команды', time: '2 часа назад', read: true },
   { id: 4, title: 'Завершен проект "КСИ СТРОЙ"', time: '3 часа назад', read: true }
 ])
-
 const unreadCount = ref(2)
 
 const toggleProfileMenu = async () => {
@@ -282,9 +306,6 @@ const updateNotificationsPosition = async () => {
   }
 }
 
-const profileMenuPosition = ref({ top: '0px', right: '0px' })
-const notificationsPosition = ref({ top: '0px', right: '0px' })
-
 const getProfileMenuStyle = () => {
   return {
     top: profileMenuPosition.value.top,
@@ -309,7 +330,6 @@ const handleLogoutClick = () => {
 }
 
 const handleLogout = () => {
-  console.log('Logging out from Header...')
   forceLogout()
   showLogoutModal.value = false
   router.push('/login')
