@@ -143,11 +143,11 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline'
-import EyeIcon from '../../assets/icons/eye.vue'
-import EyeSlashIcon from '../../assets/icons/eye-slash.vue'
-import { useAuth } from '../../composables/useAuth'
-import logoAdMirra from '../../assets/imgs/logo/logo-dark.png'
-import loginImage from '../../assets/imgs/logo/login.svg'
+import EyeIcon from '@/assets/icons/eye.vue'
+import EyeSlashIcon from '@/assets/icons/eye-slash.vue'
+import { useAuth } from '@/composables/useAuth'
+import logoAdMirra from '@/assets/imgs/logo/logo-dark.png'
+import loginImage from '@/assets/imgs/logo/login.svg'
 
 const router = useRouter()
 const { login } = useAuth()
