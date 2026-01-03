@@ -15,23 +15,6 @@
   font-display: swap;
 }
 
-/* Локальные шрифты Play */
-@font-face {
-  font-family: 'Play';
-  src: url('@/assets/fonts/Play-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Play';
-  src: url('@/assets/fonts/Play-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -48,52 +31,28 @@
     background-color: #0090FF;
 }
 
-.main-bg-color {
-    background-color: #2d3035;
+/* Скрытие скроллбара для всех браузеров */
+::-webkit-scrollbar {
+    display: none;
 }
 
-.text-main-bg-color {
-    color: #2d3035;
+/* Для Firefox */
+* {
+    scrollbar-width: none;
 }
 
-.bg-active-menu {
-    background-color: #0090FF;
-}
-
-html {
-  font-size: 11px; /* Ин эффекти масштаби тақрибан 67%-ро медиҳад */
-}
-
-@media (min-width: 1536px) {
-  html {
-    font-size: 13px; /* Барои экранҳои хеле калон */
-  }
-}
-
-.main-bg-color {
-    background-color: #2d3035;
-}
-
-.text-main-bg-color {
-    color: #2d3035;
-}
-
-.bg-active-menu {
-    background-color: #0090FF;
+/* Для IE и Edge */
+* {
+    -ms-overflow-style: none;
 }
 
 /* Класс для скрытия скроллбара */
 .scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* Скрытие скроллбара для всех браузеров */
-::-webkit-scrollbar {
     display: none;
 }
 
