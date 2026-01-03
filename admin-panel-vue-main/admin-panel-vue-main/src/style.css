@@ -13,7 +13,15 @@ html {
 }
 
 .main-bg-color {
-  background-color: rgb(32, 33, 35);
+    background-color: #2d3035;
+}
+
+.text-main-bg-color {
+    color: #2d3035;
+}
+
+.bg-active-menu {
+    background-color: #0090FF;
 }
 
 /* Класс для скрытия скроллбара */
@@ -24,6 +32,11 @@ html {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Скрытие скроллбара для всех браузеров */
+::-webkit-scrollbar {
+    display: none;
 }
 
 /* Стили для tooltip графика - отображение в одну строку */

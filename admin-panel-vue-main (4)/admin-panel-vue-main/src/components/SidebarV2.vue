@@ -114,7 +114,7 @@
           ]"
         >
           <ActiveIndicator :is-active="isActive('/projects')" />
-          <Project class="w-4 h-4 flex-shrink-0" />
+          <Project Icon class="w-4 h-4 flex-shrink-0" />
           <span v-if="!isCollapsed" class="text-sm">Проекты</span>
         </button>
         <!-- Tooltip для свернутого меню -->
@@ -367,9 +367,8 @@ import Product from '../assets/icons/menu/product.vue'
 import Channels from '../assets/icons/menu/channels.vue'
 import Clock from '../assets/icons/menu/clock.vue'
 import Setting from '../assets/icons/menu/setting.vue'
-
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
-const { forceLogout } = useAuth()
+const { removeToken } = useAuth()
 const route = useRoute()
 const router = useRouter()
 const isDashboardOpen = ref(false)
@@ -428,7 +427,7 @@ const handleLogoutClick = () => {
 }
 
 const handleLogout = () => {
-  forceLogout()
+  removeToken()
   showLogoutModal.value = false
   router.push('/login')
 }
@@ -448,3 +447,4 @@ const handleBrandClick = () => {
   }
 }
 </script>
+

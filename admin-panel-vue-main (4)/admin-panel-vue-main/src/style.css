@@ -1,0 +1,58 @@
+/* Локальные шрифты Play */
+@font-face {
+  font-family: 'Play';
+  src: url('./assets/fonts/Play-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Play';
+  src: url('./assets/fonts/Play-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.main-bg-color {
+    background-color: #2d3035;
+}
+
+.text-main-bg-color {
+    color: #2d3035;
+}
+
+.bg-active-menu {
+    background-color: #0090FF;
+}
+
+/* Скрытие скроллбара для всех браузеров */
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* Для Firefox */
+* {
+    scrollbar-width: none;
+}
+
+/* Для IE и Edge */
+* {
+    -ms-overflow-style: none;
+}
+
+/* Класс для скрытия скроллбара */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
