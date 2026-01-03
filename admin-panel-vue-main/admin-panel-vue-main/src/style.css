@@ -19,6 +19,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 
+  Global scale adjustment to 90%.
+  This duplicates the browser's native zoom behavior, scaling both responsive (rem) 
+  and fixed (px) elements uniformly.
+*/
+html {
+    zoom: 90%;
+}
+
 .main-bg-color {
     background-color: #2d3035;
 }
