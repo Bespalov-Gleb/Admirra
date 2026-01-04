@@ -1,28 +1,30 @@
 import sys
 import os
 
-# Add root directory to path
-sys.path.append(os.getcwd())
+# Add the parent directory to sys.path so we can import 'core'
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.database import SessionLocal
-from core import models
+from core import models, security
 
 def check_user():
     db = SessionLocal()
     try:
-        user = db.query(models.User).filter(models.User.email == "cfcg@gmail.com").first()
-        if user:
-            print(f"USER FOUND: {user.email}, id={user.id}")
+        user = db.query(models.User).filter(models.User.email == "ddd@gmail.com").first()
+        if not user:
+            print("User 'ddd@gmail.com' NOT FOUND.")
         else:
-            print("USER NOT FOUND: cfcg@gmail.com")
+            print(f"User found: {user.email}")
+            print(f"Role: {user.role}")
+            print(f"Is Active: {user.is_active}")
+            print(f"Password Hash: {user.password_hash}")
             
-        all_users = db.query(models.User).all()
-        print(f"Total users in DB: {len(all_users)}")
-        for u in all_users:
-            print(f"- {u.email}")
+            # Verify password
+            is_valid = security.verify_password("12345678", user.password_hash)
+            print(f"Password '12345678' valid? {is_valid}")
             
     except Exception as e:
-        print(f"ERROR: {str(e)}")
+        print(f"Error: {e}")
     finally:
         db.close()
 

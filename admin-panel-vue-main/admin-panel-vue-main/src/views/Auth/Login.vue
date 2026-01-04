@@ -41,7 +41,7 @@
             <label class="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
             <input
               v-model="loginForm.email"
-              type="email"
+              type="text"
               required
               placeholder="E-mail"
               class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -110,14 +110,7 @@
               </router-link>
             </div>
             <!-- Временная ссылка для тестирования -->
-            <div class="pt-2 border-t border-gray-200">
-              <router-link
-                to="/reset-password"
-                class="text-xs text-gray-500 hover:text-blue-600"
-              >
-                Тест: Установка нового пароля
-              </router-link>
-            </div>
+            <!-- Временная ссылка для тестирования удалена -->
           </div>
         </form>
       </div>
@@ -155,6 +148,7 @@ import { ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import EyeIcon from '@/assets/icons/eye.vue'
 import EyeSlashIcon from '@/assets/icons/eye-slash.vue'
 import { useAuth } from '@/composables/useAuth'
+import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 import logoAdMirra from '@/assets/imgs/logo/logo-dark.png'
 import loginImage from '@/assets/imgs/logo/login.svg'
 
@@ -195,7 +189,7 @@ const handleLogin = async () => {
   
   loading.value = false
   if (result.success) {
-    router.push('/dashboard/general-3')
+    router.push(DEFAULT_DASHBOARD_PATH)
   } else {
     triggerError(result.message)
   }

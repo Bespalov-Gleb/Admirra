@@ -20,12 +20,12 @@
 @tailwind utilities;
 
 /* 
-  Global scale adjustment to 90%.
-  This duplicates the browser's native zoom behavior, scaling both responsive (rem) 
-  and fixed (px) elements uniformly.
+  Global font size adjustment.
+  Setting root font-size scales all rem-based sizes down.
+  16px * 0.9 = 14.4px approximately.
 */
 html {
-    zoom: 90%;
+    font-size: 90%; 
 }
 
 .main-bg-color {

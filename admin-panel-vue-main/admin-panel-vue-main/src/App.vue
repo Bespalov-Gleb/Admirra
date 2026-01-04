@@ -17,11 +17,9 @@ onMounted(() => {
 })
 
 const isAuthPage = computed(() => {
-  if (!route || !route.path) return true
-  // Normalize path (remove trailing slash)
-  const normalizedPath = route.path.replace(/\/$/, '') || '/'
-  // Always use auth layout for /login or root
-  return normalizedPath === '/login' || normalizedPath === '/'
+  const isMetaAuth = route.meta.layout === 'auth'
+  const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
+  return isMetaAuth || isPathAuth
 })
 
 const mainMargin = computed(() => {

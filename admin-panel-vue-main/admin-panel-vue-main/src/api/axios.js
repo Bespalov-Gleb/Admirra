@@ -38,9 +38,9 @@ api.interceptors.response.use(
       const isAuthPage = normalizedPath === '/login' || normalizedPath === '/'
 
       if (!isAuthPage) {
-        console.warn('Axios: Unauthorized access to protected route. Auto-logout disabled for debugging.')
-        // localStorage.removeItem('auth_token')
-        // window.location.href = '/login'
+        // console.warn('Axios: Unauthorized access to protected route. Auto-logout disabled for debugging.')
+        localStorage.removeItem('auth_token')
+        window.location.href = '/login'
       } else {
         console.log('Axios: 401 encountered on auth page, staying here.')
       }
