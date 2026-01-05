@@ -18,7 +18,7 @@
         </div>
         
         <!-- Название агентства / Выбор проекта -->
-        <div class="hidden lg:block relative">
+        <div class="hidden lg:block relative" ref="projectMenuRef">
            <button 
              @click="toggleProjectMenu"
              class="flex items-center gap-2 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
@@ -314,6 +314,7 @@ const { projects, currentProjectId, currentProject, currentProjectName, fetchPro
 const isProjectMenuOpen = ref(false)
 const showAgencyModal = ref(false)
 const agencyModalRef = ref(null)
+const projectMenuRef = ref(null)
 
 const toggleProjectMenu = () => {
     isProjectMenuOpen.value = !isProjectMenuOpen.value
@@ -517,17 +518,9 @@ const handleClickOutside = (event) => {
   }
 
   // Проверяем проектное меню
-  if (isProjectMenuOpen.value) {
-    const projectButton = target.closest('button')
-    const projectDropdown = target.closest('.dropdown-menu') || target.closest('.absolute')
-    
-    // If the click is not on the toggle button and not inside the dropdown, close it
-    if (!target.closest('button[onclick*="toggleProjectMenu"]') && !target.closest('.absolute.top-full')) {
-        // More reliable check using the structure
-        const parent = target.closest('.relative')
-        if (!parent || !parent.innerHTML.includes('toggleProjectMenu')) {
-            isProjectMenuOpen.value = false
-        }
+  if (isProjectMenuOpen.value && projectMenuRef.value) {
+    if (!projectMenuRef.value.contains(target)) {
+        isProjectMenuOpen.value = false
     }
   }
 }
