@@ -15,8 +15,10 @@ class YandexDirectAPI:
             "Accept-Language": "ru",
             "processingMode": "auto"
         }
+        # AGENCY MODE: Inject Client-Login header if provided
         if client_login:
             self.headers["Client-Login"] = client_login
+            logger.info(f"Initialized Yandex API with Agency Client-Login: {client_login}")
 
     async def get_report(self, date_from: str, date_to: str, level: str = "campaign", max_retries: int = 5) -> List[Dict[str, Any]]:
         """

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from core.database import get_db, SessionLocal
 from core import models, schemas, security
@@ -308,3 +309,109 @@ def delete_integration(
     db.delete(integration)
     db.commit()
     return None
+
+async def get_agency_clients(access_token: str) -> List[dict]:
+    """
+    Fetch list of sub-clients from Yandex Agency Account using AgencyClients service.
+    """
+    url = "https://api.direct.yandex.com/json/v5/agencyclients"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept-Language": "ru"
+    }
+    
+    # Request all clients
+    payload = {
+        "method": "get",
+        "params": {
+            "SelectionCriteria": {
+                "Archived": "NO" # Only active clients
+            },
+            "FieldNames": ["Login", "ClientInfo", "RepresentedBy"],
+            "Page": {
+                "Limit": 10000 
+            }
+        }
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if "result" in data and "Clients" in data["result"]:
+                    return [
+                        {
+                            "login": c["Login"],
+                            "name": f"{c['ClientInfo']} ({c['Login']})",
+                            "fio": c.get("RepresentedBy", {}).get("Agency", "")
+                        }
+                        for c in data["result"]["Clients"]
+                    ]
+            else:
+                logger.error(f"AgencyClients Error: {response.text}")
+        except Exception as e:
+            logger.error(f"Failed to fetch agency clients: {e}")
+            
+    return []
+
+@router.get("/yandex/agency-clients")
+async def list_agency_clients(
+    access_token: str, 
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """
+    Proxy endpoint to get clients from Yandex for the current token (before saving integration).
+    """
+    clients = await get_agency_clients(access_token)
+    return clients
+
+@router.post("/batch-import")
+async def batch_import_integrations(
+    payload: dict = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Import multiple clients from Yandex Agency account.
+    Payload: { "access_token": "...", "clients": [ { "login": "...", "name": "..." } ] }
+    """
+    access_token = payload.get("access_token")
+    clients_to_import = payload.get("clients", [])
+    
+    if not access_token or not clients_to_import:
+        raise HTTPException(status_code=400, detail="Missing access_token or clients list")
+        
+    imported_count = 0
+    
+    for client_data in clients_to_import:
+        # 1. Create Client (Project)
+        new_client = models.Client(
+            owner_id=current_user.id,
+            name=client_data.get("name") or client_data.get("login"),
+            description=f"Imported from Yandex (Login: {client_data.get('login')})"
+        )
+        db.add(new_client)
+        db.commit()
+        db.refresh(new_client)
+        
+        # 2. Create Integration
+        encrypted_access = security.encrypt_token(access_token)
+        
+        new_integration = models.Integration(
+            client_id=new_client.id,
+            platform=models.IntegrationPlatform.YANDEX_DIRECT,
+            access_token=encrypted_access,
+            is_agency=True,
+            agency_client_login=client_data.get("login"),
+            sync_status=models.IntegrationSyncStatus.PENDING,
+            last_sync_at=datetime.utcnow()
+        )
+        db.add(new_integration)
+        db.commit()
+        
+        # 3. Trigger initial sync
+        asyncio.create_task(run_sync_in_background(new_integration.id))
+        imported_count += 1
+        
+    return {"message": f"Successfully imported {imported_count} projects", "count": imported_count}

@@ -17,10 +17,55 @@
           <logoFull  class="h-8 w-auto text-black"/>
         </div>
         
-        <!-- Название агентства -->
-        <div class="hidden lg:block">
-          <h1 class="text-sm sm:text-base md:text-lg font-bold text-white uppercase">ТРАФИК АГЕНТСТВО</h1>
-          <p class="text-xs text-gray-400 hidden sm:block">отчеты агентства в одном месте</p>
+        <!-- Название агентства / Выбор проекта -->
+        <div class="hidden lg:block relative">
+           <button 
+             @click="toggleProjectMenu"
+             class="flex items-center gap-2 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+           >
+             <div>
+               <h1 class="text-sm sm:text-base md:text-lg font-bold text-white uppercase text-left">
+                 {{ currentProject ? currentProject.name : 'ЗАГРУЗКА...' }}
+               </h1>
+               <p class="text-xs text-gray-400 text-left">
+                 {{ projects.length }} {{ getProjectWord(projects.length) }}
+               </p>
+             </div>
+             <ChevronDownIcon class="w-4 h-4 text-gray-400" />
+           </button>
+
+           <!-- Project Dropdown -->
+           <div 
+             v-if="isProjectMenuOpen"
+             class="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50 text-gray-800"
+           >
+              <div class="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Мои проекты
+              </div>
+              
+              <div class="max-h-64 overflow-y-auto">
+                <button
+                  v-for="project in projects"
+                  :key="project.id"
+                  @click="handleProjectSelect(project.id)"
+                  class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group"
+                  :class="{'bg-blue-50/50 text-blue-600': currentProject?.id === project.id}"
+                >
+                  <span class="font-medium truncate">{{ project.name }}</span>
+                  <CheckIcon v-if="currentProject?.id === project.id" class="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+
+              <div class="p-2 border-t border-gray-100 mt-1">
+                <button
+                  @click="openAddProject"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                >
+                  <PlusIcon class="w-4 h-4" />
+                  Создать новый
+                </button>
+              </div>
+           </div>
         </div>
       </div>
 
@@ -216,23 +261,66 @@ import {
   Bars3Icon,
   BellIcon,
   XMarkIcon,
-  MoonIcon
+  MoonIcon,
+  ChevronDownIcon,
+  CheckIcon,
+  PlusIcon,
+  CloudArrowDownIcon
 } from '@heroicons/vue/24/outline'
 import logoFull from '../assets/icons/logo-header.vue'
 import AddProjectArrow   from '../assets/icons/add-project-header.vue'
 import ProfileHeader   from '../assets/icons/profile-header.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import UnifiedConnectModal from './UnifiedConnectModal.vue'
+import AgencyImportModal from './AgencyImportModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import { useToaster } from '../composables/useToaster'
+import { useProjects } from '../composables/useProjects'
 
 const router = useRouter()
 const { toggleMobileMenu } = useSidebar()
 const { user, forceLogout } = useAuth()
 // Initialize theme
 const { isDarkMode, toggleTheme } = useTheme()
+const { projects, currentProject, fetchProjects, setCurrentProject } = useProjects()
+
+// Project Menu State
+const isProjectMenuOpen = ref(false)
+const showAgencyModal = ref(false)
+const agencyModalRef = ref(null)
+
+const toggleProjectMenu = () => {
+    isProjectMenuOpen.value = !isProjectMenuOpen.value
+}
+
+const handleProjectSelect = (id) => {
+    setCurrentProject(id)
+    isProjectMenuOpen.value = false
+}
+
+const openAddProject = () => {
+    showAddProjectModal.value = true
+    isProjectMenuOpen.value = false
+}
+
+const openAgencyImport = () => {
+    showAgencyModal.value = true
+    isProjectMenuOpen.value = false
+}
+
+
+const getProjectWord = (count) => {
+    if (count % 10 === 1 && count % 100 !== 11) return 'проект'
+    if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'проекта'
+    return 'проектов'
+}
+
+onMounted(() => {
+    fetchProjects()
+    document.addEventListener('click', handleClickOutside)
+})
 
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)
@@ -388,9 +476,19 @@ const handleClickOutside = (event) => {
       showNotifications.value = false
     }
   }
+
+  // Проверяем проектное меню
+  if (isProjectMenuOpen.value) {
+    // Simple check: if click is not inside the project dropdown
+    if (!target.closest('.relative') || (!target.closest('button') && !target.closest('.dropdown-menu'))) {
+        // This is a bit simplistic, might need ref for robustness
+        // But for now relying on v-if and limited scope
+    }
+  }
 }
 
 onMounted(() => {
+  fetchProjects() // Ensure projects are loaded
   document.addEventListener('click', handleClickOutside)
 })
 

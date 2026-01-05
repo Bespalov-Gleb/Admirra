@@ -69,7 +69,12 @@ class Integration(Base):
     account_id = Column(String) # Logic ID in the platform
     sync_status = Column(Enum(IntegrationSyncStatus), default=IntegrationSyncStatus.NEVER)
     last_sync_at = Column(DateTime)
+    last_sync_at = Column(DateTime)
     error_message = Column(String)
+    
+    # Agency Mode Support
+    is_agency = Column(Boolean, default=False)
+    agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
 
     client = relationship("Client", back_populates="integrations")
 

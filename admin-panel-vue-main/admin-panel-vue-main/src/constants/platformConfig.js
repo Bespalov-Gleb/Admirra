@@ -3,7 +3,7 @@ export const PLATFORMS = {
     label: 'Яндекс.Директ',
     initials: 'ЯD',
     className: 'bg-red-500 text-white border-red-600',
-    tokenLink: 'https://oauth.yandex.ru/authorize?response_type=token&client_id=3febb68881204d9380089f718e5251b1',
+    tokenLink: 'https://oauth.yandex.ru/authorize?response_type=token&client_id=e2a052c8cac54caeb9b1b05a593be932',
     isDynamic: false
   },
   VK_ADS: {
@@ -37,7 +37,7 @@ export const PLATFORMS = {
     label: 'Яндекс.Метрика',
     initials: 'YM',
     className: 'bg-yellow-400 text-black border-yellow-500',
-    tokenLink: 'https://oauth.yandex.ru/authorize?response_type=token&client_id=3febb68881204d9380089f718e5251b1',
+    tokenLink: 'https://oauth.yandex.ru/authorize?response_type=token&client_id=e2a052c8cac54caeb9b1b05a593be932',
     isDynamic: false,
     accountIdLabel: 'ID Счетчика',
     accountIdPlaceholder: 'Напр: 98765432'
