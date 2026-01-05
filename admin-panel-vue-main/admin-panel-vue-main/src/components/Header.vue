@@ -504,10 +504,16 @@ const handleClickOutside = (event) => {
 
   // Проверяем проектное меню
   if (isProjectMenuOpen.value) {
-    // Simple check: if click is not inside the project dropdown
-    if (!target.closest('.relative') || (!target.closest('button') && !target.closest('.dropdown-menu'))) {
-        // This is a bit simplistic, might need ref for robustness
-        // But for now relying on v-if and limited scope
+    const projectButton = target.closest('button')
+    const projectDropdown = target.closest('.dropdown-menu') || target.closest('.absolute')
+    
+    // If the click is not on the toggle button and not inside the dropdown, close it
+    if (!target.closest('button[onclick*="toggleProjectMenu"]') && !target.closest('.absolute.top-full')) {
+        // More reliable check using the structure
+        const parent = target.closest('.relative')
+        if (!parent || !parent.innerHTML.includes('toggleProjectMenu')) {
+            isProjectMenuOpen.value = false
+        }
     }
   }
 }
