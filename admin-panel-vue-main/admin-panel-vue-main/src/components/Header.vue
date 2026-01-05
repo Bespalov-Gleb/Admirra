@@ -319,10 +319,7 @@ const getProjectWord = (count) => {
     return 'проектов'
 }
 
-onMounted(() => {
-    fetchProjects()
-    document.addEventListener('click', handleClickOutside)
-})
+
 
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)

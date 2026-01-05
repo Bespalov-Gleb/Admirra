@@ -374,6 +374,7 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
     Core logic to import Yandex clients into the database.
     """
     imported_count = 0
+    tasks = []
     for client_data in clients_to_import:
         login = client_data.get("login")
         
@@ -413,10 +414,11 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         db.commit()
         
         # 3. Trigger initial sync
-        # Since we are likely in a background thread or async task already, 
-        # let's use the background runner
-        asyncio.create_task(run_sync_in_background_async(new_integration.id))
+        tasks.append(run_sync_in_background_async(new_integration.id))
         imported_count += 1
+    
+    if tasks:
+        await asyncio.gather(*tasks)
     return imported_count
 
 async def run_sync_in_background_async(integration_id: uuid.UUID):
