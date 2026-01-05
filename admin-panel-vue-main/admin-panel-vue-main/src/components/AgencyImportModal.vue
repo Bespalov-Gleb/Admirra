@@ -41,7 +41,13 @@
               placeholder="Поиск клиента..." 
               class="flex-grow px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-100 outline-none"
             >
-            <div class="text-xs font-bold text-gray-500 whitespace-nowrap">
+            <button 
+              @click="toggleSelectAll" 
+              class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-colors whitespace-nowrap"
+            >
+              {{ selectedClients.length === filteredClients.length ? 'Снять всё' : 'Выбрать все' }}
+            </button>
+            <div class="text-xs font-bold text-gray-500 whitespace-nowrap border-l border-gray-200 pl-4">
                 Выбрано: {{ selectedClients.length }}
             </div>
         </div>
@@ -126,6 +132,14 @@ const filteredClients = computed(() => {
 
 const isSelected = (client) => {
     return selectedClients.value.some(c => c.login === client.login)
+}
+
+const toggleSelectAll = () => {
+    if (selectedClients.value.length === filteredClients.value.length) {
+        selectedClients.value = []
+    } else {
+        selectedClients.value = [...filteredClients.value]
+    }
 }
 
 const close = () => {

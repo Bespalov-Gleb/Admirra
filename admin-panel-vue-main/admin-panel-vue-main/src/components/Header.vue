@@ -44,15 +44,25 @@
               </div>
               
               <div class="max-h-64 overflow-y-auto">
+                <!-- Все проекты -->
+                <button
+                  @click="handleProjectSelect(null)"
+                  class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group"
+                  :class="{'bg-blue-50/50 text-blue-600': !currentProjectId}"
+                >
+                  <span class="font-medium truncate">Все проекты</span>
+                  <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
+                </button>
+
                 <button
                   v-for="project in projects"
                   :key="project.id"
                   @click="handleProjectSelect(project.id)"
                   class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group"
-                  :class="{'bg-blue-50/50 text-blue-600': currentProject?.id === project.id}"
+                  :class="{'bg-blue-50/50 text-blue-600': currentProjectId === project.id}"
                 >
                   <span class="font-medium truncate">{{ project.name }}</span>
-                  <CheckIcon v-if="currentProject?.id === project.id" class="w-4 h-4 text-blue-600" />
+                  <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
                 </button>
               </div>
 
@@ -284,7 +294,7 @@ const { toggleMobileMenu } = useSidebar()
 const { user, forceLogout } = useAuth()
 // Initialize theme
 const { isDarkMode, toggleTheme } = useTheme()
-const { projects, currentProject, fetchProjects, setCurrentProject } = useProjects()
+const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 // Project Menu State
 const isProjectMenuOpen = ref(false)
