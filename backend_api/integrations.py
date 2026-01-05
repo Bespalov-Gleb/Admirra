@@ -7,7 +7,7 @@ import uuid
 import httpx
 import logging
 
-# Yandex Credentials
+# Yandex Direct Credentials (NEW VERSION - Supports Auto Auth, but pending API Access)
 YANDEX_CLIENT_ID = "e2a052c8cac54caeb9b1b05a593be932"
 YANDEX_CLIENT_SECRET = "a3ff5920d00e4ee7b8a8019e33cdaaf0"
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
