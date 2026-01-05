@@ -25,7 +25,7 @@
            >
              <div>
                <h1 class="text-sm sm:text-base md:text-lg font-bold text-white uppercase text-left">
-                 {{ currentProject ? currentProject.name : 'ЗАГРУЗКА...' }}
+                 {{ currentProjectName }}
                </h1>
                <p class="text-xs text-gray-400 text-left">
                  {{ projects.length }} {{ getProjectWord(projects.length) }}
