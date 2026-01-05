@@ -251,7 +251,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Teleport } from 'vue'
 import {
@@ -320,6 +320,21 @@ const getProjectWord = (count) => {
 onMounted(() => {
     fetchProjects()
     document.addEventListener('click', handleClickOutside)
+    
+    // Check for agency import retry
+    if (router.currentRoute.value.query.agency_import === 'success') {
+        const token = localStorage.getItem('temp_yandex_agency_token')
+        if (token) {
+            showAgencyModal.value = true
+            // Wait for modal to render then pass token
+            nextTick(() => {
+                if (agencyModalRef.value) {
+                    agencyModalRef.value.handleToken(token)
+                    localStorage.removeItem('temp_yandex_agency_token')
+                }
+            })
+        }
+    }
 })
 
 const isProfileMenuOpen = ref(false)

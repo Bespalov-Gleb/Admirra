@@ -173,7 +173,7 @@ async def exchange_yandex_token(
         # Trigger background sync
         background_tasks.add_task(run_sync_in_background, db_integration.id)
         
-        return {"status": "success", "integration_id": str(db_integration.id)}
+        return {"status": "success", "integration_id": str(db_integration.id), "access_token": access_token}
 
 from .services import IntegrationService
 
