@@ -9,6 +9,11 @@ export default {
       fontFamily: {
         sans: ['Play', 'sans-serif'],
       },
+      colors: {
+        sidebar: '#2d3035',
+        active: '#0090FF',
+        dashboard: '#F4F7FE',
+      }
     },
   },
   plugins: [],

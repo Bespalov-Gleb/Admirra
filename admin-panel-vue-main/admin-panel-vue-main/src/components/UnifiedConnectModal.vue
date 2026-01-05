@@ -79,9 +79,28 @@
                 required
               />
 
-              <!-- Standard Token Input (Show for non-dynamic platforms) -->
+              <!-- Yandex Auth Button -->
+              <div v-if="form.platform === 'YANDEX_DIRECT'" class="py-2">
+                <button
+                  type="button"
+                  @click="initYandexAuth"
+                  :disabled="loadingAuth"
+                  class="w-full py-4 bg-[#FC3F1D] text-white rounded-2xl hover:bg-[#e63212] transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <div v-if="loadingAuth" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span v-else class="font-black text-[12px] uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.923 15.686L8.683 5H5v14h3.04V9.695l4.577 9.305h3.336l-5.603-9.52 5.09-4.48h-3.32l-3.2 3.11V15.686z"/></svg>
+                    Подключить Яндекс Директ
+                  </span>
+                </button>
+                <p class="text-[10px] text-gray-400 text-center mt-3 font-medium">
+                  Вы будете перенаправлены на страницу авторизации Яндекс
+                </p>
+              </div>
+
+              <!-- Standard Token Input (Show for other non-dynamic platforms) -->
               <Input
-                v-if="!currentPlatform.isDynamic"
+                v-else-if="!currentPlatform.isDynamic"
                 v-model="form.access_token"
                 :type="showToken ? 'text' : 'password'"
                 label="Access Token"
@@ -138,8 +157,9 @@
                 </Input>
               </template>
 
-              <!-- Account/Cabinet ID -->
+              <!-- Account/Cabinet ID (Hidden for Yandex Direct as it's not needed for auth initially) -->
               <Input 
+                v-if="form.platform !== 'YANDEX_DIRECT'"
                 v-model="form.account_id" 
                 :label="currentPlatform.accountIdLabel || 'Account ID'"
                 labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
@@ -233,6 +253,30 @@ const handleSubmit = async () => {
     error.value = err.response?.data?.detail || 'Ошибка подключения'
   } finally {
     loading.value = false
+  }
+}
+
+const loadingAuth = ref(false)
+
+const initYandexAuth = async () => {
+  loadingAuth.value = true
+  try {
+    // Generate callback URL based on current domain (localhost or admirra.ru)
+    const redirectUri = `${window.location.origin}/auth/yandex/callback`
+    
+    // Save client name to local storage to retrieve it after callback
+    if (form.client_name) {
+      localStorage.setItem('yandex_auth_client_name', form.client_name)
+    }
+    
+    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    if (data.url) {
+      window.location.href = data.url
+    }
+  } catch (err) {
+    console.error(err)
+    error.value = 'Не удалось инициализировать авторизацию Яндекс'
+    loadingAuth.value = false
   }
 }
 </script>

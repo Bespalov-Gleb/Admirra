@@ -1,37 +1,35 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import SidebarV2 from './components/SidebarV2.vue'
-import Header from './components/Header.vue'
-import { useSidebar } from './composables/useSidebar'
 import { useAuth } from './composables/useAuth'
 import Toaster from './components/ui/Toaster.vue'
+import AuthLayout from './layouts/AuthLayout.vue'
+import MainLayout from './layouts/MainLayout.vue'
 
 const route = useRoute()
-const { isCollapsed } = useSidebar()
-const { checkAuth, isAuthenticated, isLoading } = useAuth()
+const { checkAuth, isLoading } = useAuth()
 
-// Проверяем аутентификацию при загрузке
 onMounted(() => {
   checkAuth()
 })
 
-const isAuthPage = computed(() => {
-  const isMetaAuth = route.meta.layout === 'auth'
-  const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
-  return isMetaAuth || isPathAuth
-})
-
-const mainMargin = computed(() => {
-  if (isCollapsed.value) {
-    return 'lg:ml-20'
+const layout = computed(() => {
+  // Check for auth layout meta or fallback to MainLayout
+  if (route.meta.layout === 'auth') {
+    return AuthLayout
   }
-  return 'lg:ml-[280px]'
+  // Legacy support for paths if they are not in router meta yet
+  const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
+  if (isPathAuth) {
+    return AuthLayout
+  }
+  
+  return MainLayout
 })
 </script>
 
 <template>
-  <div id="app" class="min-h-screen bg-gray-100">
+  <div id="app" class="min-h-screen main-bg-color">
     <!-- Индикатор загрузки при проверке сессии -->
     <div v-if="isLoading" class="fixed inset-0 flex items-center justify-center bg-gray-50 z-[1000]">
       <div class="flex flex-col items-center gap-4">
@@ -41,24 +39,9 @@ const mainMargin = computed(() => {
     </div>
 
     <template v-else>
-      <!-- Страница логина -->
-      <router-view v-if="isAuthPage" :key="$route.path" />
-
-      <!-- Основное приложение с сайдбаром и хедером -->
-      <div v-else class="flex min-h-screen">
-        <SidebarV2 />
-        <div :class="[
-          'flex-1 transition-all duration-300 ml-0 overflow-x-hidden',
-          mainMargin
-        ]">
-          <Header />
-          <main class="overflow-x-hidden">
-            <div class="p-8 overflow-x-hidden w-full">
-              <router-view :key="$route.fullPath" />
-            </div>
-          </main>
-        </div>
-      </div>
+      <component :is="layout">
+        <router-view :key="$route.fullPath" />
+      </component>
     </template>
     
     <!-- Global Notifications -->
@@ -68,7 +51,7 @@ const mainMargin = computed(() => {
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Play', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

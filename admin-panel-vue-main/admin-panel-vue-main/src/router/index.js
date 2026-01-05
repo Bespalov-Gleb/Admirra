@@ -19,6 +19,12 @@ const routes = [
     meta: { layout: 'auth' }
   },
   {
+    path: '/auth/yandex/callback',
+    name: 'YandexCallback',
+    component: () => import('../views/Auth/YandexCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/dashboard/general',
     name: 'GeneralStats',
     component: () => import('../views/GeneralStats/GeneralStats.vue')

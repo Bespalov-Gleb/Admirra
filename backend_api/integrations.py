@@ -4,6 +4,16 @@ from core.database import get_db
 from core import models, schemas, security
 from typing import List
 import uuid
+import httpx
+import logging
+
+# Yandex Credentials
+YANDEX_CLIENT_ID = "e2a052c8cac54caeb9b1b05a593be932"
+YANDEX_CLIENT_SECRET = "a3ff5920d00e4ee7b8a8019e33cdaaf0"
+YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
+YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
@@ -20,6 +30,148 @@ def get_integrations(
         models.Client.owner_id == current_user.id
     ).all()
 
+@router.get("/yandex/auth-url")
+def get_yandex_auth_url(redirect_uri: str):
+    """
+    Generate Yandex OAuth authorization URL with dynamic redirect_uri.
+    """
+    return {
+        "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}"
+    }
+
+from fastapi import BackgroundTasks
+
+def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
+    # Create a new session for the background task
+    db = SessionLocal()
+    try:
+        integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
+        if integration:
+            try:
+                # We need to run the async sync function in a sync context or use asyncio.run
+                # Since we are in a background task (which runs in a thread pool), we can use asyncio.run
+                end = datetime.now().date()
+                start = end - timedelta(days=days)
+                asyncio.run(sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
+                db.commit()
+            except Exception as e:
+                logger.error(f"Background sync failed for {integration_id}: {e}")
+    finally:
+        db.close()
+
+@router.post("/yandex/exchange")
+async def exchange_yandex_token(
+    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "..."}
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exchange authorization code for access token.
+    """
+    auth_code = payload.get("code")
+    redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
+    client_name_input = payload.get("client_name")
+    
+    if not auth_code or not redirect_uri:
+        raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
+
+    # 1. Exchange code for token
+    async with httpx.AsyncClient() as client:
+        # Yandex requires the same redirect_uri in the token request
+        response = await client.post(YANDEX_TOKEN_URL, data={
+            "grant_type": "authorization_code",
+            "code": auth_code,
+            "client_id": YANDEX_CLIENT_ID,
+            "client_secret": YANDEX_CLIENT_SECRET,
+            # "redirect_uri": redirect_uri # Yandex docs say this is optional for token exchange but good practice if strictly checked
+        })
+        
+        if response.status_code != 200:
+            logger.error(f"Yandex Token Exchange Failed: {response.text}")
+            raise HTTPException(status_code=400, detail="Failed to exchange token with Yandex")
+            
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        
+        # 2. Get User Info from Yandex Passport
+        yandex_login = None
+        yandex_user_id = None
+        
+        try:
+            auth_headers = {"Authorization": f"OAuth {access_token}"}
+            user_info_resp = await client.get("https://login.yandex.ru/info?format=json", headers=auth_headers)
+            if user_info_resp.status_code == 200:
+                user_info = user_info_resp.json()
+                yandex_login = user_info.get("login")
+                yandex_user_id = user_info.get("id")
+        except Exception as e:
+            logger.error(f"Failed to fetch Yandex user info: {e}")
+
+        # Determine Client Name
+        # If client_name is provided from frontend, use it. Otherwise fallback to login or generic.
+        if client_name_input:
+             client_name = client_name_input
+        elif yandex_login:
+             client_name = f"Yandex Direct ({yandex_login})"
+        else:
+             client_name = "Yandex Direct Main"
+        
+        # 3. Create/Get Client
+        client = db.query(models.Client).filter(
+            models.Client.owner_id == current_user.id,
+            models.Client.name == client_name
+        ).first()
+        
+        if not client:
+            client = models.Client(
+                owner_id=current_user.id,
+                name=client_name
+            )
+            db.add(client)
+            db.flush()
+
+        # 4. Save Integration
+        db_integration = db.query(models.Integration).filter(
+            models.Integration.client_id == client.id,
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+        ).first()
+
+        encrypted_access = security.encrypt_token(access_token)
+        encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+        
+        # Store Yandex Login as account_id for display
+        final_account_id = yandex_login if yandex_login else "Unknown"
+        # Store User ID as platform_client_id (optional, but good for reference)
+        encrypted_platform_id = security.encrypt_token(yandex_user_id) if yandex_user_id else None
+        
+        if db_integration:
+            db_integration.access_token = encrypted_access
+            db_integration.refresh_token = encrypted_refresh
+            db_integration.account_id = final_account_id
+            db_integration.platform_client_id = encrypted_platform_id
+            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        else:
+            db_integration = models.Integration(
+                client_id=client.id,
+                platform=models.IntegrationPlatform.YANDEX_DIRECT,
+                access_token=encrypted_access,
+                refresh_token=encrypted_refresh,
+                account_id=final_account_id,
+                platform_client_id=encrypted_platform_id,
+                sync_status=models.IntegrationSyncStatus.NEVER
+            )
+            db.add(db_integration)
+        
+        db.commit()
+        db.refresh(db_integration)
+        
+        # Trigger background sync
+        background_tasks.add_task(run_sync_in_background, db_integration.id)
+        
+        return {"status": "success", "integration_id": str(db_integration.id)}
+
 from .services import IntegrationService
 
 @router.post("/", response_model=schemas.IntegrationResponse, status_code=status.HTTP_201_CREATED)
@@ -29,9 +181,7 @@ async def create_integration(
     db: Session = Depends(get_db)
 ):
     """
-    Create or update an integration. 
-    If the specified client_name doesn't exist, a new client will be created automatically.
-    Supports automated token exchange for VK Ads using IntegrationService.
+    Create or update an integration manually. 
     """
     # 1. Automate VK Ads token exchange if credentials provided
     access_token = integration.access_token
