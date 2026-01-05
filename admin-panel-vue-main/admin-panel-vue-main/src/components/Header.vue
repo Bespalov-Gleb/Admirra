@@ -64,9 +64,16 @@
                   <span class="font-medium truncate">{{ project.name }}</span>
                   <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
                 </button>
+                <button
+                  @click="openAgencyImport"
+                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                >
+                  <CloudArrowDownIcon class="w-4 h-4" />
+                  Импорт (Агентство)
+                </button>
               </div>
 
-              <div class="p-2 border-t border-gray-100 mt-1">
+              <div class="p-2 border-t border-gray-100">
                 <button
                   @click="openAddProject"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
@@ -256,6 +263,13 @@
   <!-- Модалка добавления проекта (Единая) -->
   <UnifiedConnectModal
     v-model:is-open="showAddProjectModal"
+    @success="handleConnectSuccess"
+  />
+
+  <!-- Модалка импорта агентства -->
+  <AgencyImportModal
+    ref="agencyModalRef"
+    v-model:is-open="showAgencyModal"
     @success="handleConnectSuccess"
   />
 </template>
