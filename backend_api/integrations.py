@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from core.database import get_db
+from core.database import get_db, SessionLocal
 from core import models, schemas, security
 from typing import List
 import uuid
 import httpx
 import logging
+import asyncio
+from datetime import datetime, timedelta
 
 # Yandex Direct Credentials (NEW VERSION - Supports Auto Auth, but pending API Access)
 YANDEX_CLIENT_ID = "e2a052c8cac54caeb9b1b05a593be932"
