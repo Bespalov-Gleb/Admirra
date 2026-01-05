@@ -61,14 +61,6 @@ onMounted(async () => {
     // Clean up
     localStorage.removeItem('yandex_auth_client_name')
     
-    // AGENCY MODE: If this was an agency import, redirect back with a flag
-    if (localStorage.getItem('is_agency_import') === 'true') {
-        localStorage.removeItem('is_agency_import')
-        localStorage.setItem('temp_yandex_agency_token', response.data.access_token)
-        router.push('/dashboard/general-3?agency_import=success')
-        return
-    }
-
     // Show success message
     toaster.success('Яндекс Директ успешно подключен!')
     

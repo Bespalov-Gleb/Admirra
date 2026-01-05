@@ -170,8 +170,11 @@ async def exchange_yandex_token(
         db.commit()
         db.refresh(db_integration)
         
-        # Trigger background sync
+        # Trigger background sync for the main integration
         background_tasks.add_task(run_sync_in_background, db_integration.id)
+        
+        # SILENT AUTOMATION: Trigger background discovery for agency clients
+        background_tasks.add_task(auto_discover_agency_bg, current_user.id, access_token)
         
         return {"status": "success", "integration_id": str(db_integration.id), "access_token": access_token}
 
@@ -366,30 +369,29 @@ async def list_agency_clients(
     clients = await get_agency_clients(access_token)
     return clients
 
-@router.post("/batch-import")
-async def batch_import_integrations(
-    payload: dict = Body(...),
-    current_user: models.User = Depends(security.get_current_user),
-    db: Session = Depends(get_db)
-):
+async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: str, clients_to_import: List[dict]):
     """
-    Import multiple clients from Yandex Agency account.
-    Payload: { "access_token": "...", "clients": [ { "login": "...", "name": "..." } ] }
+    Core logic to import Yandex clients into the database.
     """
-    access_token = payload.get("access_token")
-    clients_to_import = payload.get("clients", [])
-    
-    if not access_token or not clients_to_import:
-        raise HTTPException(status_code=400, detail="Missing access_token or clients list")
-        
     imported_count = 0
-    
     for client_data in clients_to_import:
+        login = client_data.get("login")
+        
+        # 0. Check if this client already exists for this user to avoid duplicates
+        existing = db.query(models.Integration).join(models.Client).filter(
+            models.Client.owner_id == user_id,
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
+            models.Integration.agency_client_login == login
+        ).first()
+        
+        if existing:
+            continue
+
         # 1. Create Client (Project)
         new_client = models.Client(
-            owner_id=current_user.id,
-            name=client_data.get("name") or client_data.get("login"),
-            description=f"Imported from Yandex (Login: {client_data.get('login')})"
+            owner_id=user_id,
+            name=client_data.get("name") or login,
+            description=f"Auto-imported from Yandex Agency (Login: {login})"
         )
         db.add(new_client)
         db.commit()
@@ -403,7 +405,7 @@ async def batch_import_integrations(
             platform=models.IntegrationPlatform.YANDEX_DIRECT,
             access_token=encrypted_access,
             is_agency=True,
-            agency_client_login=client_data.get("login"),
+            agency_client_login=login,
             sync_status=models.IntegrationSyncStatus.PENDING,
             last_sync_at=datetime.utcnow()
         )
@@ -411,7 +413,63 @@ async def batch_import_integrations(
         db.commit()
         
         # 3. Trigger initial sync
-        asyncio.create_task(run_sync_in_background(new_integration.id))
+        # Since we are likely in a background thread or async task already, 
+        # let's use the background runner
+        asyncio.create_task(run_sync_in_background_async(new_integration.id))
         imported_count += 1
+    return imported_count
+
+async def run_sync_in_background_async(integration_id: uuid.UUID):
+    # Helper to run sync without needing background_tasks object
+    # In a real app we'd use Celery, here we just use asyncio.create_task
+    db = SessionLocal()
+    try:
+        integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
+        if integration:
+            end = datetime.now().date()
+            start = end - timedelta(days=7)
+            await sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+            db.commit()
+    except Exception as e:
+        logger.error(f"Async bg sync failed for {integration_id}: {e}")
+    finally:
+        db.close()
+
+def auto_discover_agency_bg(user_id: uuid.UUID, access_token: str):
+    """
+    Sync-wrapper to run agency discovery in background thread.
+    """
+    db = SessionLocal()
+    try:
+        # 1. Fetch clients from Yandex
+        # We need an event loop since get_agency_clients is async
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        clients = loop.run_until_complete(get_agency_clients(access_token))
         
-    return {"message": f"Successfully imported {imported_count} projects", "count": imported_count}
+        if clients:
+            logger.info(f"Discovered {len(clients)} clients for user {user_id}. Importing...")
+            loop.run_until_complete(import_yandex_clients(db, user_id, access_token, clients))
+        loop.close()
+    except Exception as e:
+        logger.error(f"Auto-discovery failed: {e}")
+    finally:
+        db.close()
+
+@router.post("/batch-import")
+async def batch_import_integrations(
+    payload: dict = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Import multiple clients from Yandex Agency account manually.
+    """
+    access_token = payload.get("access_token")
+    clients_to_import = payload.get("clients", [])
+    
+    if not access_token or not clients_to_import:
+        raise HTTPException(status_code=400, detail="Missing access_token or clients list")
+        
+    count = await import_yandex_clients(db, current_user.id, access_token, clients_to_import)
+    return {"message": f"Successfully imported {count} projects", "count": count}

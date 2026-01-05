@@ -64,13 +64,6 @@
                   <span class="font-medium truncate">{{ project.name }}</span>
                   <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
                 </button>
-                <button
-                  @click="openAgencyImport"
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                >
-                  <CloudArrowDownIcon class="w-4 h-4" />
-                  Импорт (Агентство)
-                </button>
               </div>
 
               <div class="p-2 border-t border-gray-100">
@@ -265,13 +258,6 @@
     v-model:is-open="showAddProjectModal"
     @success="handleConnectSuccess"
   />
-
-  <!-- Модалка импорта агентства -->
-  <AgencyImportModal
-    ref="agencyModalRef"
-    v-model:is-open="showAgencyModal"
-    @success="handleConnectSuccess"
-  />
 </template>
 
 <script setup>
@@ -288,15 +274,13 @@ import {
   MoonIcon,
   ChevronDownIcon,
   CheckIcon,
-  PlusIcon,
-  CloudArrowDownIcon
+  PlusIcon
 } from '@heroicons/vue/24/outline'
 import logoFull from '../assets/icons/logo-header.vue'
 import AddProjectArrow   from '../assets/icons/add-project-header.vue'
 import ProfileHeader   from '../assets/icons/profile-header.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import UnifiedConnectModal from './UnifiedConnectModal.vue'
-import AgencyImportModal from './AgencyImportModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
@@ -312,27 +296,12 @@ const { projects, currentProjectId, currentProject, currentProjectName, fetchPro
 
 // Project Menu State
 const isProjectMenuOpen = ref(false)
-const showAgencyModal = ref(false)
-const agencyModalRef = ref(null)
+// Project Menu State
+const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
 
 const toggleProjectMenu = () => {
     isProjectMenuOpen.value = !isProjectMenuOpen.value
-}
-
-const handleProjectSelect = (id) => {
-    setCurrentProject(id)
-    isProjectMenuOpen.value = false
-}
-
-const openAddProject = () => {
-    showAddProjectModal.value = true
-    isProjectMenuOpen.value = false
-}
-
-const openAgencyImport = () => {
-    showAgencyModal.value = true
-    isProjectMenuOpen.value = false
 }
 
 
@@ -345,21 +314,6 @@ const getProjectWord = (count) => {
 onMounted(() => {
     fetchProjects()
     document.addEventListener('click', handleClickOutside)
-    
-    // Check for agency import retry
-    if (router.currentRoute.value.query.agency_import === 'success') {
-        const token = localStorage.getItem('temp_yandex_agency_token')
-        if (token) {
-            showAgencyModal.value = true
-            // Wait for modal to render then pass token
-            nextTick(() => {
-                if (agencyModalRef.value) {
-                    agencyModalRef.value.handleToken(token)
-                    localStorage.removeItem('temp_yandex_agency_token')
-                }
-            })
-        }
-    }
 })
 
 const isProfileMenuOpen = ref(false)
