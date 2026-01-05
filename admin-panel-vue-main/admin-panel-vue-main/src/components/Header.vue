@@ -295,7 +295,6 @@ const { isDarkMode, toggleTheme } = useTheme()
 const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 // Project Menu State
-const isProjectMenuOpen = ref(false)
 // Project Menu State
 const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
