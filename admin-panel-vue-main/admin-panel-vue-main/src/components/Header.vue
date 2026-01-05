@@ -295,12 +295,21 @@ const { isDarkMode, toggleTheme } = useTheme()
 const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 // Project Menu State
-// Project Menu State
 const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
 
 const toggleProjectMenu = () => {
     isProjectMenuOpen.value = !isProjectMenuOpen.value
+}
+
+const handleProjectSelect = (id) => {
+    setCurrentProject(id)
+    isProjectMenuOpen.value = false
+}
+
+const openAddProject = () => {
+    showAddProjectModal.value = true
+    isProjectMenuOpen.value = false
 }
 
 
