@@ -34,12 +34,24 @@ from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Log all routes for debugging on startup
+    logger.info("--- REGISTERED ROUTES ---")
+    for route in app.routes:
+        if hasattr(route, "path"):
+            logger.info(f"Route: {route.path} [{', '.join(route.methods)}]")
+    yield
+
 app = FastAPI(
     title="Analytics SAAS API",
     description="Professional API for Advertising Campaign Analytics. Supports Yandex Direct, VK Ads, and Yandex Metrica.",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 app.include_router(auth_router, prefix="/api")
