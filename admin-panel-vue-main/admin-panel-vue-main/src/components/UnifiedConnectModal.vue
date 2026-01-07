@@ -98,6 +98,25 @@
                 </p>
               </div>
 
+              <!-- VK Auth Button -->
+              <div v-else-if="form.platform === 'VK_ADS' && !currentPlatform.isDynamic" class="py-2">
+                <button
+                  type="button"
+                  @click="initVKAuth"
+                  :disabled="loadingAuth"
+                  class="w-full py-4 bg-[#0077FF] text-white rounded-2xl hover:bg-[#0066EE] transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <div v-if="loadingAuth" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span v-else class="font-black text-[12px] uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M13.162 18.994c-6.098 0-9.57-4.172-9.714-11.104h3.047c.1 5.093 2.344 7.25 4.125 7.696V7.89H13.5v4.39c1.703-.187 3.562-2.188 4.172-4.39h2.89c-.531 2.766-2.563 4.766-3.734 5.438 1.171.547 3.5 2.25 4.406 5.664h-3.14c-.703-2.203-2.454-3.906-4.22-4.08v4.08h-2.1c-.015.002-.015.002 0 .006z"/></svg>
+                    Подключить VK Ads
+                  </span>
+                </button>
+                <p class="text-[10px] text-gray-400 text-center mt-3 font-medium">
+                  Вы будете перенаправлены на страницу авторизации VK
+                </p>
+              </div>
+
               <!-- Standard Token Input (Show for other non-dynamic platforms) -->
               <Input
                 v-else-if="!currentPlatform.isDynamic"
@@ -157,9 +176,9 @@
                 </Input>
               </template>
 
-              <!-- Account/Cabinet ID (Hidden for Yandex Direct as it's not needed for auth initially) -->
+              <!-- Account/Cabinet ID (Hidden for Yandex and VK as it's not needed for auth initially) -->
               <Input 
-                v-if="form.platform !== 'YANDEX_DIRECT'"
+                v-if="form.platform !== 'YANDEX_DIRECT' && form.platform !== 'VK_ADS'"
                 v-model="form.account_id" 
                 :label="currentPlatform.accountIdLabel || 'Account ID'"
                 labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
@@ -276,6 +295,26 @@ const initYandexAuth = async () => {
   } catch (err) {
     console.error(err)
     error.value = 'Не удалось инициализировать авторизацию Яндекс'
+    loadingAuth.value = false
+  }
+}
+
+const initVKAuth = async () => {
+  loadingAuth.value = true
+  try {
+    const redirectUri = `${window.location.origin}/auth/vk/callback`
+    
+    if (form.client_name) {
+      localStorage.setItem('vk_auth_client_name', form.client_name)
+    }
+    
+    const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    if (data.url) {
+      window.location.href = data.url
+    }
+  } catch (err) {
+    console.error(err)
+    error.value = 'Не удалось инициализировать авторизацию VK'
     loadingAuth.value = false
   }
 }

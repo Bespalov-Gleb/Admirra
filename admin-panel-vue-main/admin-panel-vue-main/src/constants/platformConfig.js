@@ -9,29 +9,10 @@ export const PLATFORMS = {
   VK_ADS: {
     label: 'VK Ads',
     initials: 'VK',
-    description: 'Нажмите <b>«ГДЕ ВЗЯТЬ?»</b> ниже, чтобы перейти в кабинет <b>VK Ads</b>, откройте <b>Настройки -> Доступ</b> и скопируйте оттуда <b>Client ID</b> и <b>Client Secret</b>.',
+    description: 'Для автоматической работы нажмите кнопку ниже. Вы будете перенаправлены на страницу авторизации VK Ads.',
     className: 'bg-blue-600 text-white border-blue-700',
     tokenLink: 'https://ads.vk.com/hq/settings',
-    isDynamic: true,
-    dynamicFields: [
-      {
-        key: 'client_id',
-        label: 'Client ID',
-        placeholder: 'Введите Client ID из настроек VK',
-        type: 'text',
-        required: true,
-        helpLink: 'https://ads.vk.com/hq/settings'
-      },
-      {
-        key: 'client_secret',
-        label: 'Client Secret',
-        placeholder: '••••••••••••••••••••',
-        type: 'password',
-        required: true
-      }
-    ],
-    accountIdLabel: 'ID Кабинета/Аккаунта',
-    accountIdPlaceholder: 'Напр: 1234567'
+    isDynamic: false
   },
   YANDEX_METRIKA: {
     label: 'Яндекс.Метрика',

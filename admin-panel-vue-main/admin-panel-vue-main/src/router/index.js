@@ -25,6 +25,12 @@ const routes = [
     meta: { layout: 'auth' }
   },
   {
+    path: '/auth/vk/callback',
+    name: 'VKCallback',
+    component: () => import('../views/Auth/VKCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/dashboard/general',
     name: 'GeneralStats',
     component: () => import('../views/GeneralStats/GeneralStats.vue')

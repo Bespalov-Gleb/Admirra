@@ -16,6 +16,12 @@ YANDEX_CLIENT_SECRET = "a3ff5920d00e4ee7b8a8019e33cdaaf0"
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 
+# VK Ads Credentials (OAuth 2.0 flow)
+VK_CLIENT_ID = "54416403"
+VK_CLIENT_SECRET = "8oAosCbGdjPM3CP8HCXe"
+VK_AUTH_URL = "https://ads.vk.com/oauth2/authorize"
+VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
@@ -40,6 +46,17 @@ def get_yandex_auth_url(redirect_uri: str):
     """
     return {
         "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}"
+    }
+
+@router.get("/vk/auth-url")
+def get_vk_auth_url(redirect_uri: str):
+    """
+    Generate VK Ads OAuth authorization URL.
+    """
+    # Scope for VK Ads v2: ads, offline (for long-lived access)
+    scope = "ads,offline"
+    return {
+        "url": f"{VK_AUTH_URL}?response_type=code&client_id={VK_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}"
     }
 
 from fastapi import BackgroundTasks
@@ -177,6 +194,103 @@ async def exchange_yandex_token(
         background_tasks.add_task(auto_discover_agency_bg, current_user.id, access_token)
         
         return {"status": "success", "integration_id": str(db_integration.id), "access_token": access_token}
+
+@router.post("/vk/exchange")
+async def exchange_vk_token_oauth(
+    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "..."}
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exchange authorization code for VK Ads access token.
+    """
+    auth_code = payload.get("code")
+    redirect_uri = payload.get("redirect_uri")
+    client_name_input = payload.get("client_name")
+    
+    if not auth_code or not redirect_uri:
+        raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(VK_TOKEN_URL, data={
+            "grant_type": "authorization_code",
+            "code": auth_code,
+            "client_id": VK_CLIENT_ID,
+            "client_secret": VK_CLIENT_SECRET,
+            "redirect_uri": redirect_uri
+        })
+        
+        if response.status_code != 200:
+            logger.error(f"VK Token Exchange Failed: {response.text}")
+            raise HTTPException(status_code=400, detail="Failed to exchange token with VK Ads")
+            
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        
+        # Try to auto-detect Account ID (Cabinet)
+        vk_account_id = None
+        try:
+            acc_response = await client.get(
+                "https://ads.vk.com/api/v2/ad_accounts.json", 
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            if acc_response.status_code == 200:
+                acc_data = acc_response.json()
+                items = acc_data.get("items", [])
+                if items:
+                    vk_account_id = str(items[0].get("id"))
+                    logger.info(f"Auto-detected VK Account ID: {vk_account_id}")
+        except Exception as e:
+            logger.error(f"Failed to auto-detect VK Account ID: {e}")
+
+        # Determine Client Name
+        client_name = client_name_input or "VK Ads Project"
+        
+        # Create/Get Client
+        db_client = db.query(models.Client).filter(
+            models.Client.owner_id == current_user.id,
+            models.Client.name == client_name
+        ).first()
+        
+        if not db_client:
+            db_client = models.Client(owner_id=current_user.id, name=client_name)
+            db.add(db_client)
+            db.flush()
+
+        # Save Integration
+        db_integration = db.query(models.Integration).filter(
+            models.Integration.client_id == db_client.id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS
+        ).first()
+
+        encrypted_access = security.encrypt_token(access_token)
+        encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+        
+        if db_integration:
+            db_integration.access_token = encrypted_access
+            db_integration.refresh_token = encrypted_refresh
+            db_integration.account_id = vk_account_id
+            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        else:
+            db_integration = models.Integration(
+                client_id=db_client.id,
+                platform=models.IntegrationPlatform.VK_ADS,
+                access_token=encrypted_access,
+                refresh_token=encrypted_refresh,
+                account_id=vk_account_id,
+                sync_status=models.IntegrationSyncStatus.NEVER
+            )
+            db.add(db_integration)
+        
+        db.commit()
+        db.refresh(db_integration)
+        
+        # Trigger background sync
+        background_tasks.add_task(run_sync_in_background, db_integration.id)
+        
+        return {"status": "success", "integration_id": str(db_integration.id)}
 
 from .services import IntegrationService
 
