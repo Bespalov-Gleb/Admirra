@@ -1,8 +1,20 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
+    <!-- Состояние, если нет проектов или включен превью -->
+    <div v-if="(!loading && clients.length === 0) || showBannerPreview" class="flex items-center justify-center min-h-[calc(100vh-144px)] px-4">
+      <CreateProjectBanner 
+        :loading="creatingProject"
+        @create="handleCreateProject"
+      />
+    </div>
+
     <!-- Заголовок с фильтрами -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 py-3">
-      <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Статистика по всем проектам</h1>
+    <div v-else class="space-y-6">
+      <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl mb-4 text-sm font-medium">
+        {{ statsError }}
+      </div>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 py-3">
+      <h1 @click="showBannerPreview = !showBannerPreview" class="text-2xl sm:text-3xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors">Статистика по всем проектам</h1>
       <div class="flex flex-wrap gap-2 mr-1">
         <!-- Project Filter -->
         <select
@@ -73,11 +85,10 @@
           <CardV3
             title="Расходы"
             :value="summary.expenses.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="blue"
+            :trend="summary.trends?.expenses || 0"
+            :change-positive="summary.trends?.expenses >= 0"
+            :icon="CurrencyDollarIcon"
+            icon-color="orange"
             :is-selected="selectedMetric === 'expenses'"
             @click="toggleMetric('expenses')"
           />
@@ -88,11 +99,10 @@
           <CardV3
             title="Показы"
             :value="summary.impressions.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="DashEyeIcon"
-            icon-color="orange"
+            :trend="summary.trends?.impressions || 0"
+            :change-positive="summary.trends?.impressions >= 0"
+            :icon="EyeIcon"
+            icon-color="blue"
             :is-selected="selectedMetric === 'impressions'"
             @click="toggleMetric('impressions')"
           />
@@ -103,10 +113,9 @@
           <CardV3
             title="Переходы"
             :value="summary.clicks.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
-            :icon="DashArrowIcon"
+            :trend="summary.trends?.clicks || 0"
+            :change-positive="summary.trends?.clicks >= 0"
+            :icon="ArrowPathIcon"
             icon-color="green"
             :is-selected="selectedMetric === 'clicks'"
             @click="toggleMetric('clicks')"
@@ -118,11 +127,10 @@
           <CardV3
             title="Лиды"
             :value="summary.leads.toLocaleString()"
-            :trend="0"
-            change-text="из API"
-            :change-positive="true"
+            :trend="summary.trends?.leads || 0"
+            :change-positive="summary.trends?.leads >= 0"
             :icon="UserGroupIcon"
-            icon-color="purple"
+            icon-color="red"
             :is-selected="selectedMetric === 'leads'"
             @click="toggleMetric('leads')"
           />
@@ -133,11 +141,10 @@
           <CardV3
             title="CPC"
             :value="summary.cpc.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="ср."
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="red"
+            :trend="summary.trends?.cpc || 0"
+            :change-positive="summary.trends?.cpc <= 0"
+            :icon="CurrencyDollarIcon"
+            icon-color="orange"
             :is-selected="selectedMetric === 'cpc'"
             @click="toggleMetric('cpc')"
           />
@@ -148,11 +155,10 @@
           <CardV3
             title="CPA"
             :value="summary.cpa.toLocaleString() + ' ₽'"
-            :trend="0"
-            change-text="цель"
-            :change-positive="true"
-            :icon="MoneyIcon"
-            icon-color="pink"
+            :trend="summary.trends?.cpa || 0"
+            :change-positive="summary.trends?.cpa <= 0"
+            :icon="CurrencyDollarIcon"
+            icon-color="blue"
             :is-selected="selectedMetric === 'cpa'"
             @click="toggleMetric('cpa')"
           />
@@ -162,16 +168,19 @@
     
 
     <!-- График статистики -->
-    <div class="w-full overflow-hidden">
-      <!-- 
-        Pass both dynamic data AND selected metric 
-      -->
+    <div class="w-full">
       <StatisticsChart 
         :dynamics="dynamics" 
         :selected-metric="selectedMetric"
       />
     </div>
+
+    <!-- Эффективность продвижения -->
+    <div class="w-full">
+      <PromotionEfficiency :summary="summary" />
+    </div>
   </div>
+</div>
 </template>
 
 <script setup>
@@ -181,13 +190,15 @@ import {
   EyeIcon,
   ArrowPathIcon,
   UserGroupIcon
-} from '@heroicons/vue/24/outline'
+} from '@heroicons/vue/24/solid'
 import CardV3 from './components/CardV3.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
-import MoneyIcon from '../../assets/dash/money.svg'
-import DashEyeIcon from '../../assets/dash/dash-eye.svg'
-import DashArrowIcon from '../../assets/dash/dash-arrow.svg'
+import PromotionEfficiency from './components/PromotionEfficiency.vue'
+import CreateProjectBanner from '../Dashboard/components/CreateProjectBanner.vue'
 import { useDashboardStats } from '../../composables/useDashboardStats'
+import api from '../../api/axios'
+import { useToaster } from '../../composables/useToaster'
+import { useProjects } from '../../composables/useProjects'
 
 // Integrate existing data logic
 const {
@@ -195,11 +206,45 @@ const {
   dynamics,
   clients,
   loading,
-  error,
+  error: statsError,
   filters,
   handlePeriodChange,
-  fetchStats
+  fetchStats,
+  fetchClients
 } = useDashboardStats()
+
+const { projects: globalProjects, setCurrentProject, fetchProjects: refreshGlobalProjects } = useProjects()
+const toaster = useToaster()
+
+const creatingProject = ref(false)
+const showBannerPreview = ref(false) // Toggle for user review
+
+const handleCreateProject = async (name) => {
+  creatingProject.value = true
+  try {
+    const { data } = await api.post('clients/', { name })
+    toaster.success(`Проект "${name}" успешно создан!`)
+    
+    // Refresh clients list (for dashboard and header)
+    await Promise.all([
+      fetchClients(),
+      refreshGlobalProjects()
+    ])
+    
+    // Automatically select the new project
+    if (data && data.id) {
+      setCurrentProject(data.id)
+      filters.client_id = data.id
+    }
+    
+    await fetchStats()
+  } catch (err) {
+    console.error('Error creating project:', err)
+    toaster.error('Не удалось создать проект')
+  } finally {
+    creatingProject.value = false
+  }
+}
 
 const cardsContainer = ref(null)
 const isDragging = ref(false)

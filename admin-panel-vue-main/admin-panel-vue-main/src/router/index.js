@@ -89,6 +89,17 @@ const routes = [
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile/Profile.vue')
+  },
+  {
+    path: '/projects/create',
+    name: 'CreateProject',
+    component: () => import('../views/Project/CreateProjectPage.vue')
+  },
+  {
+    path: '/preview-banner',
+    name: 'PreviewBanner',
+    component: () => import('../views/Dashboard/components/CreateProjectBanner.vue'),
+    meta: { layout: 'auth' } // Using auth layout for a clean centered look
   }
 ]
 
@@ -104,7 +115,7 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
-  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register'
+  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register' || normalizedPath === '/preview-banner'
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 

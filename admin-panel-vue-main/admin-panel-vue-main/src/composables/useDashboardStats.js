@@ -1,4 +1,4 @@
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import api from '../api/axios'
 
 export function useDashboardStats() {
@@ -8,7 +8,8 @@ export function useDashboardStats() {
     clicks: 0,
     leads: 0,
     cpc: 0,
-    cpa: 0
+    cpa: 0,
+    trends: null
   })
 
   const dynamics = ref({
@@ -25,6 +26,7 @@ export function useDashboardStats() {
   const campaigns = ref([])
   const clients = ref([])
   const loading = ref(true)
+  const loadingClients = ref(false)
   const loadingCampaigns = ref(false)
   const error = ref(null)
 
@@ -57,11 +59,14 @@ export function useDashboardStats() {
 
   // Fetch clients list
   const fetchClients = async () => {
+    loadingClients.value = true
     try {
       const response = await api.get('clients/')
       clients.value = response.data
     } catch (err) {
       console.error('Error fetching clients:', err)
+    } finally {
+      loadingClients.value = false
     }
   }
 
@@ -124,11 +129,12 @@ export function useDashboardStats() {
     topClients,
     campaigns,
     clients,
-    loading,
+    loading: computed(() => loading.value || loadingClients.value),
     loadingCampaigns,
     error,
     filters,
     handlePeriodChange,
-    fetchStats
+    fetchStats,
+    fetchClients
   }
 }

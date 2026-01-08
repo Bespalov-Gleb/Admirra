@@ -67,13 +67,14 @@
               </div>
 
               <div class="p-2 border-t border-gray-100">
-                <button
-                  @click="openAddProject"
+                <router-link
+                  to="/projects/create"
+                  @click="isProjectMenuOpen = false"
                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                 >
                   <PlusIcon class="w-4 h-4" />
-                  Создать новый
-                </button>
+                  Создать новый проект
+                </router-link>
               </div>
            </div>
         </div>
@@ -87,8 +88,8 @@
           @click="showAddProjectModal = true"
           class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <AddProjectArrow class="w-5 h-5 text-white" />
-          <span class="text-sm font-medium text-white">Добавить проект</span>
+          <PlusIcon class="w-5 h-5 text-white" />
+          <span class="text-sm font-medium text-white">Добавить интеграцию</span>
         </button>
         
         <!-- Уведомления -->

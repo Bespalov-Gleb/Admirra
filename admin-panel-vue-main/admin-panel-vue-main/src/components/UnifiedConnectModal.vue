@@ -69,15 +69,41 @@
                 <p v-html="currentPlatform.description" class="text-[11px] text-gray-600 font-bold leading-relaxed uppercase tracking-tight italic"></p>
               </div>
 
-              <!-- Client Name -->
-              <Input
-                v-model="form.client_name"
-                label="Название проекта"
-                labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
-                inputClass="rounded-2xl font-bold text-black text-[13px] shadow-sm hover:border-gray-400"
-                placeholder="Напр: ТРАФИК АГЕНТСТВО"
-                required
-              />
+              <!-- Project Selection -->
+              <div class="relative">
+                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Проект</label>
+                <div class="relative">
+                  <button 
+                    type="button"
+                    @click="projectDropdownOpen = !projectDropdownOpen"
+                    class="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all flex items-center justify-between shadow-sm group hover:border-gray-400"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="text-left">
+                        <span class="block text-[13px] font-black text-black leading-none">
+                          {{ form.client_id ? projects.find(p => p.id === form.client_id)?.name : 'Выберите проект' }}
+                        </span>
+                      </div>
+                    </div>
+                    <svg class="w-4 h-4 text-gray-400 group-hover:text-black transition-all duration-300" :class="{ 'rotate-180': projectDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </button>
+
+                  <div v-if="projectDropdownOpen" class="absolute z-[110] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 overflow-hidden animate-slide-down">
+                    <div class="max-h-48 overflow-y-auto">
+                      <button 
+                        v-for="project in projects" 
+                        :key="project.id"
+                        type="button"
+                        @click="selectProject(project)"
+                        class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-all border-b border-gray-50 last:border-none"
+                        :class="{ 'bg-blue-50/40': form.client_id === project.id }"
+                      >
+                        <span class="text-[12px] font-black" :class="form.client_id === project.id ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ project.name }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <!-- Yandex Auth Button -->
               <div v-if="form.platform === 'YANDEX_DIRECT'" class="py-2">
@@ -204,11 +230,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import api from '../api/axios'
 import CustomScroll from './ui/CustomScroll.vue'
 import Input from '../views/Settings/components/Input.vue'
 import { PLATFORMS, getPlatformProperty } from '../constants/platformConfig'
+import { useProjects } from '../composables/useProjects'
+
+const { projects, fetchProjects } = useProjects()
+const projectDropdownOpen = ref(false)
 
 const props = defineProps({
   isOpen: Boolean,
@@ -227,11 +257,12 @@ const showToken = ref(false)
 
 const form = reactive({
   platform: 'YANDEX_DIRECT',
-  client_name: props.initialClientName,
+  client_id: null, // Selected project ID
+  client_name: props.initialClientName, // Keep for legacy or if creating new inline
   access_token: '',
   refresh_token: '',
   account_id: '',
-  client_id: '',
+  client_id_platform: '', // Rename if needed, but the backend might expect 'client_id' for some platforms
   client_secret: ''
 })
 
@@ -253,7 +284,18 @@ const close = () => {
   emit('update:isOpen', false)
   error.value = null
   dropdownOpen.value = false
+  projectDropdownOpen.value = false
 }
+
+const selectProject = (project) => {
+  form.client_id = project.id
+  form.client_name = project.name
+  projectDropdownOpen.value = false
+}
+
+onMounted(() => {
+  fetchProjects()
+})
 
 const handleSubmit = async () => {
   if (loading.value) return
@@ -274,6 +316,10 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
+import {
+  PlusIcon
+} from '@heroicons/vue/24/outline'
 
 const loadingAuth = ref(false)
 

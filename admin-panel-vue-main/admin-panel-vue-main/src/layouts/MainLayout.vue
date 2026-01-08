@@ -6,7 +6,7 @@
       mainMargin
     ]">
       <Header />
-      <main class="overflow-x-hidden bg-dashboard rounded-tl-[40px] mt-2 min-h-[calc(100vh-80px)]">
+      <main class="overflow-x-hidden bg-white rounded-tl-[40px] mt-2 min-h-[calc(100vh-80px)] shadow-inner">
         <div class="p-8 overflow-x-hidden w-full">
           <router-view />
         </div>

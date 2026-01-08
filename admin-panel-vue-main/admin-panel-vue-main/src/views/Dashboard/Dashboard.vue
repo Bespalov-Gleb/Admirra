@@ -1,6 +1,15 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
+    <!-- Состояние, если нет проектов -->
+    <div v-if="!loading && clients.length === 0" class="flex items-center justify-center min-h-[60vh] px-4">
+      <CreateProjectBanner 
+        :loading="creatingProject"
+        @create="handleCreateProject"
+      />
+    </div>
+
     <!-- Заголовок с фильтрами -->
+    <div v-else class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 py-3">
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Статистика по всем проектам</h1>
       <div class="flex flex-wrap gap-2 mr-1">
@@ -184,10 +193,12 @@ import {
 } from '@heroicons/vue/24/outline'
 import CardV3 from './components/CardV3.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
+import CreateProjectBanner from './components/CreateProjectBanner.vue'
 import MoneyIcon from '../../assets/dash/money.svg'
 import DashEyeIcon from '../../assets/dash/dash-eye.svg'
 import DashArrowIcon from '../../assets/dash/dash-arrow.svg'
 import { useDashboardStats } from '../../composables/useDashboardStats'
+import api from '../../api/axios'
 
 // Integrate existing data logic
 const {
@@ -198,8 +209,25 @@ const {
   error,
   filters,
   handlePeriodChange,
-  fetchStats
+  fetchStats,
+  fetchClients
 } = useDashboardStats()
+
+const creatingProject = ref(false)
+
+const handleCreateProject = async (name) => {
+  creatingProject.value = true
+  try {
+    await api.post('clients/', { name })
+    // Refresh clients list and stats
+    await fetchClients()
+    await fetchStats()
+  } catch (err) {
+    console.error('Error creating project:', err)
+  } finally {
+    creatingProject.value = false
+  }
+}
 
 const cardsContainer = ref(null)
 const isDragging = ref(false)

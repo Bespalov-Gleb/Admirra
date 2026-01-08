@@ -32,6 +32,21 @@
       </button>
     </div>
 
+    <!-- Кнопка создания проекта -->
+    <div class="px-4 mb-2">
+      <router-link
+        to="/projects/create"
+        @click="closeMobileMenu"
+        :class="[
+          'flex items-center gap-3 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-[16px] transition-all overflow-hidden shadow-lg shadow-blue-900/30 group/create-btn',
+          isCollapsed ? 'p-3.5 justify-center' : 'px-5 py-3.5'
+        ]"
+      >
+        <PlusIcon class="w-5 h-5 flex-shrink-0 transition-transform group-hover/create-btn:rotate-90" />
+        <span v-if="!isCollapsed" class="text-sm font-black uppercase tracking-widest whitespace-nowrap">Создать проект</span>
+      </router-link>
+    </div>
+
     <!-- Навигация -->
     <div class="overflow-y-auto scrollbar-hide h-[calc(100vh-180px)]">
       <nav class="py-4">
@@ -52,7 +67,7 @@
               v-if="!isCollapsed && item.children"
               :class="[
                 'w-4 h-4 transition-transform',
-                !isDashboardOpen && 'rotate-180'
+                !isSubmenuOpen && 'rotate-180'
               ]"
             />
           </button>
@@ -67,7 +82,7 @@
           </div>
 
           <!-- Выпадающее меню -->
-          <div v-if="item.children && !isCollapsed && isDashboardOpen">
+          <div v-if="item.children && !isCollapsed && isSubmenuOpen">
             <button
               v-for="child in item.children"
               :key="child.path"
@@ -166,6 +181,7 @@ import {
   Bars3Icon,
   ChevronUpIcon,
   ArrowRightOnRectangleIcon,
+  PlusIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -186,7 +202,7 @@ const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMo
 const { forceLogout } = useAuth()
 const route = useRoute()
 const router = useRouter()
-const isDashboardOpen = ref(false)
+const isSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
 const menuItems = [
@@ -200,7 +216,15 @@ const menuItems = [
       { name: 'Общая статистика v3', path: '/dashboard/general-3' },
     ]
   },
-  { name: 'Проекты', path: '/projects', icon: Project },
+  {
+    name: 'Проекты',
+    path: '/projects',
+    icon: Project,
+    children: [
+      { name: 'Все проекты', path: '/projects' },
+      { name: 'Создать проект', path: '/projects/create' },
+    ]
+  },
   { name: 'Команда', path: '/team', icon: Group },
   { name: 'Продукты', path: '/products', icon: Product },
   { name: 'Каналы', path: '/channels', icon: Channels },
@@ -216,12 +240,12 @@ const handleLinkClick = (path) => {
   closeMobileMenu()
 }
 
-// Автоматически открывать выпадающее меню, если текущий маршрут в дашборде
+// Автоматически открывать выпадающее меню, если текущий маршрут имеет вложенность
 watch(() => route?.path, (path) => {
-  if (path && (path.startsWith('/dashboard/general') || path.startsWith('/dashboard/general-2') || path.startsWith('/dashboard/general-3'))) {
-    isDashboardOpen.value = true
+  if (path && (path.startsWith('/dashboard') || path.startsWith('/projects'))) {
+    isSubmenuOpen.value = true
   } else {
-    isDashboardOpen.value = false
+    isSubmenuOpen.value = false
   }
 }, { immediate: true })
 
@@ -241,7 +265,7 @@ const isActive = (path) => {
 const handleToggleCollapse = () => {
   toggleCollapse()
   if (isCollapsed.value) {
-    isDashboardOpen.value = false
+    isSubmenuOpen.value = false
   }
 }
 
@@ -251,11 +275,11 @@ const toggleDashboard = () => {
     toggleCollapse()
     // Используем nextTick, чтобы дождаться разворачивания меню
     setTimeout(() => {
-      isDashboardOpen.value = true
+      isSubmenuOpen.value = true
     }, 100)
   } else {
     // Если меню развернуто, просто переключаем выпадающее меню
-    isDashboardOpen.value = !isDashboardOpen.value
+    isSubmenuOpen.value = !isSubmenuOpen.value
   }
 }
 

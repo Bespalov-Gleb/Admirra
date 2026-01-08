@@ -75,86 +75,72 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import ProjectCard from './components/ProjectCard.vue'
+import api from '../../api/axios'
 
 const searchQuery = ref('')
 const selectedPeriod = ref('14')
 const selectedFilter = ref('all')
+const loading = ref(true)
+const projects = ref([])
 
-const projects = ref([
-  {
-    id: 1,
-    title: 'КСИ СТРОЙ',
-    description: 'описание проекта',
-    impressions: 120302,
-    clicks: 12302,
-    cpc: 12.3,
-    expenses: 120000.3,
-    leads: 125,
-    cpa: 12.3,
-    budgetRemaining: 12000.3,
-    channels: ['Google Ads', 'Яндекс.Директ'],
-    trend: 12.7
-  },
-  {
-    id: 2,
-    title: 'Laptops',
-    description: 'описание проекта',
-    impressions: 98000,
-    clicks: 2100,
-    cpc: 52.3,
-    expenses: 109830,
-    leads: 98,
-    cpa: 1120,
-    budgetRemaining: 390170,
-    channels: ['Google Ads', 'Facebook Ads'],
-    trend: -8.2
-  },
-  {
-    id: 3,
-    title: 'Phones',
-    description: 'описание проекта',
-    impressions: 156000,
-    clicks: 4500,
-    cpc: 38.9,
-    expenses: 175050,
-    leads: 234,
-    cpa: 748,
-    budgetRemaining: 224950,
-    channels: ['Яндекс.Директ', 'ВКонтакте'],
-    trend: 15.7
-  },
-  {
-    id: 4,
-    title: 'Проект 4',
-    description: 'описание проекта',
-    impressions: 87000,
-    clicks: 1800,
-    cpc: 48.2,
-    expenses: 86760,
-    leads: 87,
-    cpa: 997,
-    budgetRemaining: 413240,
-    channels: ['Google Ads'],
-    trend: 5.3
-  },
-  {
-    id: 5,
-    title: 'Проект 5',
-    description: 'описание проекта',
-    impressions: 112000,
-    clicks: 2900,
-    cpc: 42.1,
-    expenses: 122090,
-    leads: 134,
-    cpa: 911,
-    budgetRemaining: 377910,
-    channels: ['Яндекс.Директ', 'Facebook Ads', 'ВКонтакте'],
-    trend: -3.1
+const fetchProjects = async () => {
+  loading.value = true
+  try {
+    // Calculate dates based on selectedPeriod
+    const end = new Date()
+    const start = new Date()
+    start.setDate(end.getDate() - (parseInt(selectedPeriod.value) - 1))
+    
+    const formatDate = (date) => date.toISOString().split('T')[0]
+    
+    const response = await api.get('clients/stats', {
+      params: {
+        start_date: formatDate(start),
+        end_date: formatDate(end)
+      }
+    })
+    
+    projects.value = response.data.map(client => ({
+      id: client.id,
+      title: client.name,
+      description: client.description,
+      impressions: client.summary?.impressions || 0,
+      clicks: client.summary?.clicks || 0,
+      cpc: client.summary?.cpc || 0,
+      expenses: client.summary?.expenses || 0,
+      leads: client.summary?.leads || 0,
+      cpa: client.summary?.cpa || 0,
+      budgetRemaining: 0, 
+      channels: (client.integrations || []).map(i => {
+        const platformMap = {
+          'YANDEX_DIRECT': 'Яндекс.Директ',
+          'VK_ADS': 'ВКонтакте',
+          'GOOGLE_ADS': 'Google Ads',
+          'FACEBOOK_ADS': 'Facebook Ads'
+        }
+        return platformMap[i.platform] || i.platform
+      }),
+      trend: client.summary?.trends?.expenses || 0
+    }))
+  } catch (error) {
+    console.error('Error fetching projects:', error)
+  } finally {
+    loading.value = false
   }
-])
+}
+
+// Re-fetch when period changes
+import { watch } from 'vue'
+watch(selectedPeriod, () => {
+  fetchProjects()
+})
+
+onMounted(() => {
+  fetchProjects()
+})
 
 const filteredProjects = computed(() => {
   let result = projects.value

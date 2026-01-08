@@ -1,26 +1,27 @@
 <template>
-  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm">
+  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm border border-gray-50">
     <!-- Заголовок и селектор дат -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-      <h3 class="text-lg font-semibold text-gray-900">Эффективность кампаний</h3>
-      <div class="flex items-center">
-        <!-- Фейковые кнопки периода (для дизайна), реальный фильтр в GeneralStats3.vue -->
-        <div class="flex items-center overflow-hidden rounded-lg">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
+      <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center bg-gray-50 rounded-xl p-1">
           <button 
-            v-for="(day, index) in [7, 14, 30]" 
+            v-for="day in [7, 14, 30]" 
             :key="day"
-            class="px-3 py-1.5 text-sm font-medium transition-colors bg-gray-50 text-gray-700 hover:bg-gray-100 cursor-default"
+            class="px-4 py-1.5 text-sm font-semibold rounded-lg transition-all"
+            :class="selectedDays === day ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'"
+            @click="selectedDays = day"
           >
             {{ day }}
           </button>
         </div>
-        <button class="ml-2 px-3 py-1.5 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-default">
-          <img :src="calendarIcon" alt="Calendar" class="w-4 h-4" />
+        <button class="p-2.5 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
+          <CalendarIcon class="w-5 h-5" />
         </button>
       </div>
     </div>
     
-    <div class="h-64 relative pb-6 w-full overflow-hidden mb-6">
+    <div class="h-80 relative pb-10 w-full overflow-hidden">
       <Line
         :data="chartData"
         :options="chartOptions"
@@ -29,58 +30,14 @@
     </div>
     
     <!-- Легенда -->
-    <div class="flex items-center gap-4 sm:gap-6 flex-wrap">
-      <template v-if="!selectedMetric">
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Расход</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Показы</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Переходы</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Лиды</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">CPC</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-pink-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">CPA</span>
-        </div>
-      </template>
-      <template v-else>
-        <!-- Dynamic Legend based on selection -->
-        <div v-if="selectedMetric === 'expenses'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Расход</span>
-        </div>
-        <div v-if="selectedMetric === 'impressions'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Показы</span>
-        </div>
-        <div v-if="selectedMetric === 'clicks'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Переходы</span>
-        </div>
-        <div v-if="selectedMetric === 'leads'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">Лиды</span>
-        </div>
-        <div v-if="selectedMetric === 'cpc'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">CPC</span>
-        </div>
-        <div v-if="selectedMetric === 'cpa'" class="flex items-center gap-2">
-          <div class="w-3 h-3 bg-pink-500 rounded-full"></div>
-          <span class="text-sm text-gray-600">CPA</span>
+    <div class="flex items-center gap-6 flex-wrap justify-center sm:justify-start">
+      <template v-for="dataset in allDatasets" :key="dataset.key">
+        <div 
+          v-if="!selectedMetric || selectedMetric === dataset.key"
+          class="flex items-center gap-2"
+        >
+          <div :style="{ backgroundColor: dataset.borderColor }" class="w-2.5 h-2.5 rounded-full"></div>
+          <span class="text-sm font-bold text-gray-500">{{ dataset.label }}</span>
         </div>
       </template>
     </div>
@@ -88,6 +45,9 @@
 </template>
 
 <script setup>
+import { 
+  CalendarIcon
+} from '@heroicons/vue/24/outline'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Line } from 'vue-chartjs'
 import {
