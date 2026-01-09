@@ -17,7 +17,11 @@ const api = axios.create({
           searchParams.append(key, value);
         }
       });
-      return searchParams.toString();
+      const result = searchParams.toString();
+      if (result.includes('campaign_ids')) {
+        console.log('[Axios] Serialized params with campaign_ids:', result);
+      }
+      return result;
     }
   }
 })

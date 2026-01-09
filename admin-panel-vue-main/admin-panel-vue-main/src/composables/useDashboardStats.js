@@ -31,41 +31,32 @@ export function useDashboardStats() {
   const loadingCampaigns = ref(false)
   const error = ref(null)
 
-  // Individual refs for filters for better reactivity control
-  const channel = ref('all')
-  const period = ref('14')
-  const client_id = ref(null)
-  const campaign_ids = ref([])
-  const start_date = ref('')
-  const end_date = ref(new Date().toISOString().split('T')[0])
-
-  // Computed filters object for backward compatibility if needed, 
-  // but we should favor refs for internal logic
+  // Filters state - single reactive object for consistency
   const filters = reactive({
-    channel,
-    period,
-    client_id,
-    campaign_ids,
-    start_date,
-    end_date
+    channel: 'all',
+    period: '14',
+    client_id: null,
+    campaign_ids: [],
+    start_date: '',
+    end_date: new Date().toISOString().split('T')[0]
   })
 
   // Set initial dates for "14 days"
   const setInitialDates = () => {
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - parseInt(period.value))
-    start_date.value = start.toISOString().split('T')[0]
-    end_date.value = end.toISOString().split('T')[0]
+    start.setDate(end.getDate() - parseInt(filters.period))
+    filters.start_date = start.toISOString().split('T')[0]
+    filters.end_date = end.toISOString().split('T')[0]
   }
 
   const handlePeriodChange = () => {
-    if (period.value === 'custom') return
+    if (filters.period === 'custom') return
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - parseInt(period.value))
-    start_date.value = start.toISOString().split('T')[0]
-    end_date.value = end.toISOString().split('T')[0]
+    start.setDate(end.getDate() - parseInt(filters.period))
+    filters.start_date = start.toISOString().split('T')[0]
+    filters.end_date = end.toISOString().split('T')[0]
   }
 
   // Fetch clients list
@@ -83,23 +74,22 @@ export function useDashboardStats() {
 
   // Fetch all dashboard stats (summary, dynamics, top-clients, and filtered campaigns)
   const fetchStats = async () => {
-    console.log('[useDashboardStats] fetchStats: START', { 
-      client_id: client_id.value, 
-      campaign_ids: JSON.stringify(campaign_ids.value) 
-    })
+    console.log('[useDashboardStats] fetchStats: START', JSON.parse(JSON.stringify(filters)))
     loading.value = true
     error.value = null
 
     try {
       const params = {
-        start_date: start_date.value,
-        end_date: end_date.value,
-        platform: channel.value
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        platform: filters.channel
       }
-      if (client_id.value) params.client_id = client_id.value
-      if (campaign_ids.value && campaign_ids.value.length > 0) {
-        params.campaign_ids = campaign_ids.value
+      if (filters.client_id) params.client_id = filters.client_id
+      if (filters.campaign_ids && filters.campaign_ids.length > 0) {
+        params.campaign_ids = filters.campaign_ids
       }
+
+      console.log('[useDashboardStats] fetchStats: FINAL PARAMS before Axios', params)
 
       const results = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
@@ -130,8 +120,8 @@ export function useDashboardStats() {
 
   // Fetch the total pool of campaigns for the dropdown (unfiltered by campaign_ids)
   const fetchCampaignPool = async () => {
-    console.log('[useDashboardStats] fetchCampaignPool: START', { client_id: client_id.value })
-    if (!client_id.value) {
+    console.log('[useDashboardStats] fetchCampaignPool: START', { client_id: filters.client_id })
+    if (!filters.client_id) {
       allCampaigns.value = []
       return
     }
@@ -139,10 +129,10 @@ export function useDashboardStats() {
     loadingCampaigns.value = true
     try {
       const params = {
-        client_id: client_id.value,
-        platform: channel.value,
-        start_date: start_date.value,
-        end_date: end_date.value
+        client_id: filters.client_id,
+        platform: filters.channel,
+        start_date: filters.start_date,
+        end_date: filters.end_date
       }
       const response = await api.get('dashboard/campaigns', { params })
       allCampaigns.value = response.data
@@ -158,36 +148,28 @@ export function useDashboardStats() {
   
   // 1. Project or Channel change -> Reset campaign selection and Fetch Pool
   watch(
-    [client_id, channel],
+    () => [filters.client_id, filters.channel],
     (newVal, oldVal) => {
       console.log('[useDashboardStats] WATCH [client_id, channel] triggered', {
         oldProject: oldVal ? oldVal[0] : null,
-        newProject: newVal[0],
-        oldChannel: oldVal ? oldVal[1] : null,
-        newChannel: newVal[1]
+        newProject: newVal[0]
       })
-      
-      // ONLY reset if this is a REAL change from one specific value to another
-      // We ignore initial mounting (from undefined/null) to preserve state if it was pre-set
-      if (oldVal && newVal[0] !== oldVal[0] && oldVal[0] !== null && oldVal[0] !== undefined) {
-         console.log('[useDashboardStats] RESET campaign_ids: Project changed from', oldVal[0], 'to', newVal[0])
-         campaign_ids.value = []
+      if (oldVal && (newVal[0] !== oldVal[0] || newVal[1] !== oldVal[1])) {
+        // Only reset if this is a REAL change
+        if (oldVal[0] !== null && oldVal[0] !== undefined) {
+           console.log('[useDashboardStats] RESET campaign_ids: Project changed')
+           filters.campaign_ids = []
+        }
       }
-      
-      if (oldVal && newVal[1] !== oldVal[1] && oldVal[1] !== 'all' && oldVal[1] !== undefined) {
-         console.log('[useDashboardStats] RESET campaign_ids: Channel changed from', oldVal[1], 'to', newVal[1])
-         campaign_ids.value = []
-      }
-      
       fetchCampaignPool()
     }
   )
 
   // 2. Date range change -> Fetch Pool (keep selection)
   watch(
-    [start_date, end_date],
+    () => [filters.start_date, filters.end_date],
     () => {
-      console.log('[useDashboardStats] WATCH [dates] triggered', { start: start_date.value, end: end_date.value })
+      console.log('[useDashboardStats] WATCH [dates] triggered')
       fetchCampaignPool()
     }
   )
@@ -195,11 +177,11 @@ export function useDashboardStats() {
   // 3. Any filter change -> Fetch Statistics
   watch(
     () => [
-      start_date.value, 
-      end_date.value, 
-      client_id.value, 
-      channel.value, 
-      JSON.stringify(campaign_ids.value)
+      filters.start_date, 
+      filters.end_date, 
+      filters.client_id, 
+      filters.channel, 
+      JSON.stringify(filters.campaign_ids)
     ],
     (newVal) => {
       console.log('[useDashboardStats] WATCH [all filters] triggered -> fetchStats', {

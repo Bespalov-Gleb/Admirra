@@ -51,12 +51,19 @@ def cache_response(ttl: int = 600):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            # Create a cache key based on function name and arguments
-            # Note: We filter out 'db' or 'current_user' from keys to keep them generic for the same data
-            cache_args = [str(arg) for arg in args if not hasattr(arg, 'execute')] # Simple check for DB session
-            cache_kwargs = {k: str(v) for k, v in kwargs.items() if k not in ["db", "current_user", "background_tasks"]}
+            # Create a more robust cache key using JSON for stabilization
+            import json
             
-            key = f"{func.__name__}:{cache_args}:{cache_kwargs}"
+            # Filter out internal/large objects
+            clean_kwargs = {k: v for k, v in kwargs.items() if k not in ["db", "current_user", "background_tasks"]}
+            
+            # Serialize parameters to a stable string
+            try:
+                params_str = json.dumps(clean_kwargs, sort_keys=True, default=str)
+            except:
+                params_str = str(clean_kwargs)
+                
+            key = f"{func.__name__}:{params_str}"
             
             cached_val = CacheService.get(key)
             if cached_val is not None:
