@@ -23,11 +23,9 @@ export function useDashboardStats() {
   })
 
   const topClients = ref([])
-  const campaigns = ref([])
-  const clients = ref([])
-  const loading = ref(true)
-  const loadingClients = ref(false)
   const loadingCampaigns = ref(false)
+  const allCampaigns = ref([]) // For dropdown
+  const campaigns = ref([])    // For stats table (filtered)
   const error = ref(null)
 
   // Filters state
@@ -93,7 +91,16 @@ export function useDashboardStats() {
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
         api.get('dashboard/top-clients'),
-        api.get('dashboard/campaigns', { params })
+        api.get('dashboard/campaigns', { params }),
+        // Also fetch ALL campaigns for the dropdown if client/channel changed
+        api.get('dashboard/campaigns', { 
+          params: { 
+            client_id: filters.client_id, 
+            platform: filters.channel,
+            start_date: filters.start_date,
+            end_date: filters.end_date
+          } 
+        })
       ])
 
       // Map results
@@ -101,9 +108,10 @@ export function useDashboardStats() {
       if (results[1].status === 'fulfilled') dynamics.value = results[1].value.data
       if (results[2].status === 'fulfilled') topClients.value = results[2].value.data
       if (results[3].status === 'fulfilled') campaigns.value = results[3].value.data
+      if (results[4].status === 'fulfilled') allCampaigns.value = results[4].value.data
 
-      // If all failed, set a general error
-      if (results.every(r => r.status === 'rejected')) {
+      // If all critical failed, set a general error
+      if (results.slice(0, 4).every(r => r.status === 'rejected')) {
         error.value = 'Не удалось загрузить данные статистики'
       }
     } catch (err) {
@@ -117,10 +125,16 @@ export function useDashboardStats() {
 
   // Watch filters and trigger fetch
   watch(
-    () => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids],
-    (newVal, oldVal) => {
+    () => ({
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id,
+      channel: filters.channel,
+      campaign_ids: [...filters.campaign_ids]
+    }),
+    (newFilters, oldFilters) => {
       // If client or channel changed, reset campaign selection
-      if (oldVal && (newVal[2] !== oldVal[2] || newVal[3] !== oldVal[3])) {
+      if (oldFilters && (newFilters.client_id !== oldFilters.client_id || newFilters.channel !== oldFilters.channel)) {
         filters.campaign_ids = []
       }
       fetchStats()
@@ -138,6 +152,8 @@ export function useDashboardStats() {
     summary,
     dynamics,
     topClients,
+    topClients,
+    allCampaigns,
     campaigns,
     clients,
     loading: computed(() => loading.value || loadingClients.value),

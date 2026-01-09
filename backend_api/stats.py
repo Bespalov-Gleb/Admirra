@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from core.database import get_db
@@ -43,7 +43,7 @@ async def get_dynamics(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = None,
+    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -122,7 +122,7 @@ async def get_campaign_stats(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = None,
+    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -311,7 +311,7 @@ async def export_stats_csv(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = None,
+    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)

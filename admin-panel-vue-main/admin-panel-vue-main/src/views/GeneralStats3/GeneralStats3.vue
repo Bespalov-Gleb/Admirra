@@ -59,17 +59,17 @@
             <select
               v-model="selectedCampaignId"
               class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[180px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm"
-              :disabled="loadingCampaigns || !filters.client_id || !campaigns.length"
+              :disabled="loadingCampaigns || !filters.client_id || !allCampaigns.length"
             >
               <template v-if="!filters.client_id">
                 <option value="">Выберите проект</option>
               </template>
-              <template v-else-if="!campaigns.length && !loadingCampaigns">
+              <template v-else-if="!allCampaigns.length && !loadingCampaigns">
                 <option value="">Нет кампаний</option>
               </template>
               <template v-else>
-                <option value="">Все кампании ({{ campaigns.length }})</option>
-                <option v-for="campaign in campaigns" :key="campaign.id" :value="campaign.id">
+                <option value="">Все кампании ({{ allCampaigns.length }})</option>
+                <option v-for="campaign in allCampaigns" :key="campaign.id" :value="campaign.id">
                   {{ campaign.name }}
                 </option>
               </template>
@@ -284,6 +284,7 @@ const {
   summary,
   dynamics,
   clients,
+  allCampaigns,
   campaigns,
   loading,
   error: statsError,
@@ -330,7 +331,7 @@ watch(() => route.query.new_integration_id, (id) => {
 const dashboardTitle = computed(() => {
   if (filters.campaign_ids && filters.campaign_ids.length > 0) {
     const campaignId = filters.campaign_ids[0]
-    const campaign = campaigns.value.find(c => c.id === campaignId)
+    const campaign = allCampaigns.value.find(c => c.id === campaignId)
     return campaign ? `Кампания: ${campaign.name}` : `Статистика по кампаниям (${filters.campaign_ids.length})`
   }
   if (filters.client_id) {
