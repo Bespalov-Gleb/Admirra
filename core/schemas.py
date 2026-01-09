@@ -47,11 +47,11 @@ class IntegrationBase(BaseModel):
         return v
 
 class IntegrationCreate(IntegrationBase):
-    access_token: Optional[str] = None # Optional now because VK might use client_id/secret instead
+    access_token: Optional[str] = None
     refresh_token: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
-    client_name: str # To create a client if needed
+    client_name: Optional[str] = None # Make optional to avoid 422 if not provided
 
 class IntegrationResponse(IntegrationBase):
     id: UUID
