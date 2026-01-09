@@ -301,14 +301,18 @@ const { projects: globalProjects, currentProjectId, setCurrentProject, fetchProj
 
 // 1. If Global Store changes (e.g. from Header), update Local Dashboard
 watch(currentProjectId, (newId) => {
+  console.log('[GeneralStats3] WATCH currentProjectId', { newId })
   if (filters.client_id !== newId) {
+    console.log('[GeneralStats3] Syncing Local filters.client_id ->', newId)
     filters.client_id = newId
   }
 }, { immediate: true })
 
 // 2. If Local Dashboard changes (e.g. from Project Filter select), update Global Store
 watch(() => filters.client_id, (newId) => {
+  console.log('[GeneralStats3] WATCH filters.client_id', { newId })
   if (currentProjectId.value !== newId) {
+    console.log('[GeneralStats3] Syncing Global currentProjectId ->', newId)
     setCurrentProject(newId)
   }
 })
@@ -319,9 +323,10 @@ const selectedCampaignId = computed({
     return (ids && ids.length > 0) ? ids[0] : ''
   },
   set: (val) => {
-    // Only update if selection actually changed to avoid loop
     const current = (filters.campaign_ids && filters.campaign_ids.length > 0) ? filters.campaign_ids[0] : ''
+    console.log('[GeneralStats3] selectedCampaignId SET', { val, current })
     if (val !== current) {
+      console.log('[GeneralStats3] Updating filters.campaign_ids ->', val ? [val] : [])
       filters.campaign_ids = val ? [val] : []
     }
   }

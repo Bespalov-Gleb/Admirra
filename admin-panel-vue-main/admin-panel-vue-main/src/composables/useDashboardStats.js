@@ -83,6 +83,10 @@ export function useDashboardStats() {
 
   // Fetch all dashboard stats (summary, dynamics, top-clients, and filtered campaigns)
   const fetchStats = async () => {
+    console.log('[useDashboardStats] fetchStats: START', { 
+      client_id: client_id.value, 
+      campaign_ids: JSON.stringify(campaign_ids.value) 
+    })
     loading.value = true
     error.value = null
 
@@ -97,7 +101,6 @@ export function useDashboardStats() {
         params.campaign_ids = campaign_ids.value
       }
 
-      // Parallel requests (excluding the full pool)
       const results = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
@@ -105,18 +108,20 @@ export function useDashboardStats() {
         api.get('dashboard/campaigns', { params })
       ])
 
-      // Map results
       if (results[0].status === 'fulfilled') summary.value = results[0].value.data
       if (results[1].status === 'fulfilled') dynamics.value = results[1].value.data
       if (results[2].status === 'fulfilled') topClients.value = results[2].value.data
       if (results[3].status === 'fulfilled') campaigns.value = results[3].value.data
+      
+      console.log('[useDashboardStats] fetchStats: SUCCESS', { 
+        campaignsCount: campaigns.value.length 
+      })
 
-      // If critical summary/dynamics failed, set a general error
       if (results[0].status === 'rejected' && results[1].status === 'rejected') {
         error.value = 'Не удалось загрузить данные статистики'
       }
     } catch (err) {
-      console.error('Error fetching stats:', err)
+      console.error('[useDashboardStats] fetchStats: ERROR', err)
       error.value = 'Произошла непредвиденная ошибка'
     } finally {
       loading.value = false
@@ -125,6 +130,7 @@ export function useDashboardStats() {
 
   // Fetch the total pool of campaigns for the dropdown (unfiltered by campaign_ids)
   const fetchCampaignPool = async () => {
+    console.log('[useDashboardStats] fetchCampaignPool: START', { client_id: client_id.value })
     if (!client_id.value) {
       allCampaigns.value = []
       return
@@ -140,8 +146,9 @@ export function useDashboardStats() {
       }
       const response = await api.get('dashboard/campaigns', { params })
       allCampaigns.value = response.data
+      console.log('[useDashboardStats] fetchCampaignPool: SUCCESS', { poolCount: allCampaigns.value.length })
     } catch (err) {
-      console.error('Error fetching campaign pool:', err)
+      console.error('[useDashboardStats] fetchCampaignPool: ERROR', err)
     } finally {
       loadingCampaigns.value = false
     }
@@ -153,10 +160,15 @@ export function useDashboardStats() {
   watch(
     [client_id, channel],
     (newVal, oldVal) => {
+      console.log('[useDashboardStats] WATCH [client_id, channel] triggered', {
+        oldProject: oldVal ? oldVal[0] : null,
+        newProject: newVal[0],
+        oldChannel: oldVal ? oldVal[1] : null,
+        newChannel: newVal[1]
+      })
       if (oldVal && (newVal[0] !== oldVal[0] || newVal[1] !== oldVal[1])) {
-        // Only reset if we actually have a change (not initial load from undefined)
-        // AND avoid resetting during initial mounting jitter
         if (oldVal[0] !== undefined) {
+           console.log('[useDashboardStats] RESET campaign_ids due to project/channel change')
            campaign_ids.value = []
         }
       }
@@ -168,6 +180,7 @@ export function useDashboardStats() {
   watch(
     [start_date, end_date],
     () => {
+      console.log('[useDashboardStats] WATCH [dates] triggered', { start: start_date.value, end: end_date.value })
       fetchCampaignPool()
     }
   )
@@ -181,7 +194,10 @@ export function useDashboardStats() {
       channel.value, 
       JSON.stringify(campaign_ids.value)
     ],
-    () => {
+    (newVal) => {
+      console.log('[useDashboardStats] WATCH [all filters] triggered -> fetchStats', {
+        campaign_ids: newVal[4]
+      })
       fetchStats()
     }
   )
