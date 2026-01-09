@@ -166,12 +166,19 @@ export function useDashboardStats() {
         oldChannel: oldVal ? oldVal[1] : null,
         newChannel: newVal[1]
       })
-      if (oldVal && (newVal[0] !== oldVal[0] || newVal[1] !== oldVal[1])) {
-        if (oldVal[0] !== undefined) {
-           console.log('[useDashboardStats] RESET campaign_ids due to project/channel change')
-           campaign_ids.value = []
-        }
+      
+      // ONLY reset if this is a REAL change from one specific value to another
+      // We ignore initial mounting (from undefined/null) to preserve state if it was pre-set
+      if (oldVal && newVal[0] !== oldVal[0] && oldVal[0] !== null && oldVal[0] !== undefined) {
+         console.log('[useDashboardStats] RESET campaign_ids: Project changed from', oldVal[0], 'to', newVal[0])
+         campaign_ids.value = []
       }
+      
+      if (oldVal && newVal[1] !== oldVal[1] && oldVal[1] !== 'all' && oldVal[1] !== undefined) {
+         console.log('[useDashboardStats] RESET campaign_ids: Channel changed from', oldVal[1], 'to', newVal[1])
+         campaign_ids.value = []
+      }
+      
       fetchCampaignPool()
     }
   )
