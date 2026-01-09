@@ -31,32 +31,41 @@ export function useDashboardStats() {
   const loadingCampaigns = ref(false)
   const error = ref(null)
 
-  // Filters state
+  // Individual refs for filters for better reactivity control
+  const channel = ref('all')
+  const period = ref('14')
+  const client_id = ref(null)
+  const campaign_ids = ref([])
+  const start_date = ref('')
+  const end_date = ref(new Date().toISOString().split('T')[0])
+
+  // Computed filters object for backward compatibility if needed, 
+  // but we should favor refs for internal logic
   const filters = reactive({
-    channel: 'all',
-    period: '14',
-    client_id: null,
-    campaign_ids: [],
-    start_date: '',
-    end_date: new Date().toISOString().split('T')[0]
+    channel,
+    period,
+    client_id,
+    campaign_ids,
+    start_date,
+    end_date
   })
 
   // Set initial dates for "14 days"
   const setInitialDates = () => {
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - parseInt(filters.period))
-    filters.start_date = start.toISOString().split('T')[0]
-    filters.end_date = end.toISOString().split('T')[0]
+    start.setDate(end.getDate() - parseInt(period.value))
+    start_date.value = start.toISOString().split('T')[0]
+    end_date.value = end.toISOString().split('T')[0]
   }
 
   const handlePeriodChange = () => {
-    if (filters.period === 'custom') return
+    if (period.value === 'custom') return
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - parseInt(filters.period))
-    filters.start_date = start.toISOString().split('T')[0]
-    filters.end_date = end.toISOString().split('T')[0]
+    start.setDate(end.getDate() - parseInt(period.value))
+    start_date.value = start.toISOString().split('T')[0]
+    end_date.value = end.toISOString().split('T')[0]
   }
 
   // Fetch clients list
@@ -79,13 +88,13 @@ export function useDashboardStats() {
 
     try {
       const params = {
-        start_date: filters.start_date,
-        end_date: filters.end_date,
-        platform: filters.channel
+        start_date: start_date.value,
+        end_date: end_date.value,
+        platform: channel.value
       }
-      if (filters.client_id) params.client_id = filters.client_id
-      if (filters.campaign_ids && filters.campaign_ids.length > 0) {
-        params.campaign_ids = filters.campaign_ids
+      if (client_id.value) params.client_id = client_id.value
+      if (campaign_ids.value && campaign_ids.value.length > 0) {
+        params.campaign_ids = campaign_ids.value
       }
 
       // Parallel requests (excluding the full pool)
@@ -93,7 +102,7 @@ export function useDashboardStats() {
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
         api.get('dashboard/top-clients'),
-        api.get('dashboard/campaigns', { params }) // This one is filtered by campaign_ids
+        api.get('dashboard/campaigns', { params })
       ])
 
       // Map results
@@ -116,7 +125,7 @@ export function useDashboardStats() {
 
   // Fetch the total pool of campaigns for the dropdown (unfiltered by campaign_ids)
   const fetchCampaignPool = async () => {
-    if (!filters.client_id) {
+    if (!client_id.value) {
       allCampaigns.value = []
       return
     }
@@ -124,11 +133,11 @@ export function useDashboardStats() {
     loadingCampaigns.value = true
     try {
       const params = {
-        platform: filters.channel,
-        start_date: filters.start_date,
-        end_date: filters.end_date
+        client_id: client_id.value,
+        platform: channel.value,
+        start_date: start_date.value,
+        end_date: end_date.value
       }
-      if (filters.client_id) params.client_id = filters.client_id
       const response = await api.get('dashboard/campaigns', { params })
       allCampaigns.value = response.data
     } catch (err) {
@@ -138,35 +147,39 @@ export function useDashboardStats() {
     }
   }
 
-  // Watchers
+  // Watchers (Granular control via refs)
   
-  // 1. If project or channel changes, reset campaign selection and fetch a new pool
+  // 1. Project or Channel change -> Reset campaign selection and Fetch Pool
   watch(
-    () => [filters.client_id, filters.channel],
+    [client_id, channel],
     (newVal, oldVal) => {
       if (oldVal && (newVal[0] !== oldVal[0] || newVal[1] !== oldVal[1])) {
-        filters.campaign_ids = []
+        // Only reset if we actually have a change (not initial load from undefined)
+        // AND avoid resetting during initial mounting jitter
+        if (oldVal[0] !== undefined) {
+           campaign_ids.value = []
+        }
       }
       fetchCampaignPool()
     }
   )
 
-  // 2. Fetch pool if dates change (but keep selection if possible)
+  // 2. Date range change -> Fetch Pool (keep selection)
   watch(
-    () => [filters.start_date, filters.end_date],
+    [start_date, end_date],
     () => {
       fetchCampaignPool()
     }
   )
 
-  // 3. Fetch stats whenever any filter changes
+  // 3. Any filter change -> Fetch Statistics
   watch(
     () => [
-      filters.start_date, 
-      filters.end_date, 
-      filters.client_id, 
-      filters.channel, 
-      JSON.stringify(filters.campaign_ids)
+      start_date.value, 
+      end_date.value, 
+      client_id.value, 
+      channel.value, 
+      JSON.stringify(campaign_ids.value)
     ],
     () => {
       fetchStats()

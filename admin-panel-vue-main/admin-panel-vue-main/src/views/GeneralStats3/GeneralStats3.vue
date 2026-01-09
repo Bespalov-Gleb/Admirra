@@ -295,10 +295,33 @@ const {
   loadingCampaigns
 } = useDashboardStats()
 
+// Two-way sync: currentProjectId (Global Store) <-> filters.client_id (Local Dashboard)
+
+// 1. If Global Store changes (e.g. from Header), update Local Dashboard
+watch(currentProjectId, (newId) => {
+  if (filters.client_id !== newId) {
+    filters.client_id = newId
+  }
+}, { immediate: true })
+
+// 2. If Local Dashboard changes (e.g. from Project Filter select), update Global Store
+watch(() => filters.client_id, (newId) => {
+  if (currentProjectId.value !== newId) {
+    setCurrentProject(newId)
+  }
+})
+
 const selectedCampaignId = computed({
-  get: () => (filters.campaign_ids && filters.campaign_ids.length > 0) ? filters.campaign_ids[0] : '',
+  get: () => {
+    const ids = filters.campaign_ids
+    return (ids && ids.length > 0) ? ids[0] : ''
+  },
   set: (val) => {
-    filters.campaign_ids = val ? [val] : []
+    // Only update if selection actually changed to avoid loop
+    const current = (filters.campaign_ids && filters.campaign_ids.length > 0) ? filters.campaign_ids[0] : ''
+    if (val !== current) {
+      filters.campaign_ids = val ? [val] : []
+    }
   }
 })
 
