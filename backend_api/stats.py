@@ -20,7 +20,7 @@ async def get_summary(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = None,
+    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
     platform: Optional[str] = "all", # 'yandex', 'vk', 'all'
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)

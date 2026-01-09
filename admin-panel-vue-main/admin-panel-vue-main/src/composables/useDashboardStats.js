@@ -23,9 +23,12 @@ export function useDashboardStats() {
   })
 
   const topClients = ref([])
-  const loadingCampaigns = ref(false)
+  const campaigns = ref([])
   const allCampaigns = ref([]) // For dropdown
-  const campaigns = ref([])    // For stats table (filtered)
+  const clients = ref([])
+  const loading = ref(true)
+  const loadingClients = ref(false)
+  const loadingCampaigns = ref(false)
   const error = ref(null)
 
   // Filters state
@@ -151,7 +154,6 @@ export function useDashboardStats() {
   return {
     summary,
     dynamics,
-    topClients,
     topClients,
     allCampaigns,
     campaigns,
