@@ -146,6 +146,9 @@ export function useDashboardStats() {
       const response = await api.get('dashboard/campaigns', { params })
       allCampaigns.value = response.data
       console.log('[useDashboardStats] fetchCampaignPool: SUCCESS', { poolCount: allCampaigns.value.length })
+      if (allCampaigns.value.length > 0) {
+        console.log('[useDashboardStats] fetchCampaignPool: Sample IDs:', allCampaigns.value.slice(0, 3).map(c => ({ id: c.id, name: c.name })))
+      }
     } catch (err) {
       console.error('[useDashboardStats] fetchCampaignPool: ERROR', err)
     } finally {

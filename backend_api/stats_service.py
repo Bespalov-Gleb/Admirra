@@ -40,11 +40,14 @@ class StatsService:
             )
 
             if campaign_ids:
-                print(f"DEBUG: StatsService.get_data - FILTERING by {len(campaign_ids)} campaigns")
+                print(f"DEBUG: StatsService.get_data - FILTERING by {len(campaign_ids)} campaigns: {campaign_ids}")
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
             else:
                 print(f"DEBUG: StatsService.get_data - NO campaign filter")
+            
+            # Print the actual query for one of them to see the SQL
+            # print(f"DEBUG: Y_QUERY: {y_q}")
 
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
