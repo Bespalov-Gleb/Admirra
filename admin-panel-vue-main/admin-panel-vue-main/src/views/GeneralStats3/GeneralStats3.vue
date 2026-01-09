@@ -58,6 +58,7 @@
             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Кампания</label>
             <select
               v-model="selectedCampaignId"
+              @change="console.log('[GeneralStats3] Campaign SELECT change event:', selectedCampaignId)"
               class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[180px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm"
               :disabled="loadingCampaigns || !filters.client_id || !allCampaigns.length"
             >

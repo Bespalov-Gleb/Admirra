@@ -84,12 +84,21 @@ export function useDashboardStats() {
         end_date: filters.end_date,
         platform: filters.channel
       }
+      
+      console.log('[useDashboardStats] fetchStats: current filters.campaign_ids =', filters.campaign_ids)
+      
       if (filters.client_id) params.client_id = filters.client_id
-      if (filters.campaign_ids && filters.campaign_ids.length > 0) {
+      
+      // Explicitly check for campaign_ids and log the decision
+      if (Array.isArray(filters.campaign_ids) && filters.campaign_ids.length > 0) {
+        console.log('[useDashboardStats] fetchStats: ADDING campaign_ids to params:', filters.campaign_ids)
         params.campaign_ids = filters.campaign_ids
+      } else {
+        console.log('[useDashboardStats] fetchStats: NO campaigns selected (empty array)')
+        params.campaign_ids = [] // Send empty array instead of nothing
       }
 
-      console.log('[useDashboardStats] fetchStats: FINAL PARAMS before Axios', params)
+      console.log('[useDashboardStats] fetchStats: FINAL PARAMS for Axios ->', JSON.stringify(params))
 
       const results = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
