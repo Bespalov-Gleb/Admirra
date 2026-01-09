@@ -67,13 +67,22 @@
       v-model:is-open="showAddModal"
       @success="fetchIntegrations"
     />
+
+    <!-- Модальное окно импорта агентства -->
+    <AgencyImportModal
+      ref="agencyModalRef"
+      v-model:is-open="isAgencyModalOpen"
+      @success="fetchIntegrations"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '../../../api/axios'
 import UnifiedConnectModal from '../../../components/UnifiedConnectModal.vue'
+import AgencyImportModal from '../../../components/AgencyImportModal.vue'
 import { useToaster } from '../../../composables/useToaster'
 
 const integrations = ref([])
@@ -86,6 +95,10 @@ const platformLabels = {
   'VK_ADS': 'VK Ads',
   'YANDEX_METRIKA': 'Яндекс.Метрика'
 }
+
+const isAgencyModalOpen = ref(false)
+const agencyModalRef = ref(null)
+const route = useRoute()
 
 const fetchIntegrations = async () => {
   loading.value = true
@@ -123,7 +136,23 @@ const handleSync = async (id) => {
   }
 }
 
-onMounted(fetchIntegrations)
+onMounted(() => {
+  fetchIntegrations()
+  
+  if (route.query.trigger_agency_import === '1') {
+    const token = localStorage.getItem('temp_agency_token')
+    if (token) {
+      isAgencyModalOpen.value = true
+      setTimeout(() => {
+        if (agencyModalRef.value) {
+          agencyModalRef.value.handleToken(token)
+        }
+      }, 100)
+    }
+    // Clean up
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+})
 </script>
 
 <style scoped>

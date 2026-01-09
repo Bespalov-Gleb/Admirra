@@ -47,7 +47,9 @@
         
         <!-- Значение и тренд -->
         <div class="flex items-center justify-between gap-2">
-          <p class="text-lg sm:text-xl font-bold text-gray-900">{{ value }}</p>
+          <div class="flex flex-col">
+            <p class="text-lg sm:text-xl font-bold text-gray-900 leading-none">{{ value }}</p>
+          </div>
           
           <!-- Тренд badge -->
           <div 

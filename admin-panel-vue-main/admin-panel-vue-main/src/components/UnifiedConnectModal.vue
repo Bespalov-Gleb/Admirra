@@ -417,15 +417,19 @@ const handleSubmit = async () => {
 const fetchCampaigns = async (integrationId) => {
   loadingCampaigns.value = true
   try {
-    // Wait a bit for the background sync to start creating campaigns
-    // Or we could have an endpoint that fetches from platform directly
-    // For now, let's try to fetch what we have in DB
-    const { data } = await api.get('campaigns', { params: { integration_id: integrationId } })
+    // Use the discovery endpoint which fetches fresh data from platform
+    const { data } = await api.post(`integrations/${integrationId}/discover-campaigns`)
     campaigns.value = data
-    // Auto-select all by default
-    selectedCampaignIds.value = data.map(c => c.id)
+    // Select active campaigns by default
+    selectedCampaignIds.value = data.filter(c => c.is_active).map(c => c.id)
+    
+    // If none are active (newly discovered), select all
+    if (selectedCampaignIds.value.length === 0) {
+      selectedCampaignIds.value = data.map(c => c.id)
+    }
   } catch (err) {
     console.error('Failed to fetch campaigns:', err)
+    error.value = 'Не удалось загрузить список кампаний'
   } finally {
     loadingCampaigns.value = false
   }

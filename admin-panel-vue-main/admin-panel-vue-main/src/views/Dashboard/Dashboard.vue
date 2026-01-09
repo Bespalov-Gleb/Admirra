@@ -198,6 +198,7 @@ import MoneyIcon from '../../assets/dash/money.svg'
 import DashEyeIcon from '../../assets/dash/dash-eye.svg'
 import DashArrowIcon from '../../assets/dash/dash-arrow.svg'
 import { useDashboardStats } from '../../composables/useDashboardStats'
+import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
 
 // Integrate existing data logic
@@ -213,17 +214,20 @@ const {
   fetchClients
 } = useDashboardStats()
 
+const toaster = useToaster()
 const creatingProject = ref(false)
 
 const handleCreateProject = async (name) => {
   creatingProject.value = true
   try {
     await api.post('clients/', { name })
+    toaster.success(`Проект "${name}" успешно создан!`)
     // Refresh clients list and stats
     await fetchClients()
     await fetchStats()
   } catch (err) {
     console.error('Error creating project:', err)
+    toaster.error('Не удалось создать проект')
   } finally {
     creatingProject.value = false
   }

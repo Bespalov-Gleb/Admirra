@@ -47,15 +47,6 @@
       </div>
     </div>
 
-    <!-- Formulas -->
-    <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-20 pt-6 border-t border-gray-100">
-      <div class="flex items-center gap-3">
-        <span class="text-sm font-bold text-gray-900">CTR = (Переходы/Показы) * 100%</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <span class="text-sm font-bold text-gray-900">Конверсия = (Лиды/Переходы) * 100%</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -73,35 +64,62 @@ const ctr = computed(() => props.summary.ctr || 0)
 const cr = computed(() => props.summary.cr || 0)
 
 const stats = computed(() => [
-  { label: 'Показы', value: props.summary.impressions.toLocaleString(), trend: props.summary.trends?.impressions },
+  { label: 'Показы', value: (props.summary.impressions || 0).toLocaleString(), trend: props.summary.trends?.impressions },
   { label: 'CTR', value: ctr.value.toFixed(2) + '%', trend: props.summary.trends?.ctr },
-  { label: 'Клики', value: props.summary.clicks.toLocaleString(), trend: props.summary.trends?.clicks },
+  { label: 'Клики', value: (props.summary.clicks || 0).toLocaleString(), trend: props.summary.trends?.clicks },
   { label: 'Конверсия, % (CR)', value: cr.value.toFixed(2) + '%', trend: props.summary.trends?.cr },
-  { label: 'Конверсии', value: props.summary.leads.toLocaleString(), trend: props.summary.trends?.leads },
-  { label: 'Цена цели', value: props.summary.cpa.toLocaleString() + ' ₽', trend: props.summary.trends?.cpa }
+  { label: 'Конверсии', value: (props.summary.leads || 0).toLocaleString(), trend: props.summary.trends?.leads },
+  { label: 'Цена цели', value: (props.summary.cpa || 0).toLocaleString() + ' ₽', trend: props.summary.trends?.cpa }
 ])
 
 // Dynamic points for the funnel visualization
 const chartPoints = computed(() => {
+  // Baseline max value for scaling. We take the max of absolute values to determine peak.
+  const vals = [
+    props.summary.impressions || 0,
+    props.summary.clicks || 0,
+    props.summary.leads || 0,
+    (props.summary.cpa || 0) / 10 // CPA is usually larger, scale it down for visual balance
+  ]
+  const maxVal = Math.max(...vals, 1) // Avoid division by zero
+  
+  // Formulas for dynamic Y coordinates (between 30 and 130)
+  const getY = (val) => {
+    if (!val) return 130 // Bottom line for zero values
+    // Logarithmic-like scaling to show difference even between small and large non-zero numbers
+    const ratio = Math.min(Math.log10(val + 1) / Math.log10(maxVal + 1), 1)
+    return 130 - (ratio * 100) // Height range is 100 units
+  }
+
+  // Percentage scaling (CTR/CR)
+  const getYRate = (val) => {
+    if (!val) return 130
+    const ratio = Math.min(val / 10, 1) // 10% is considered high for this visual
+    return 130 - (ratio * 90)
+  }
+
   return [
-    { x: 100, y: 55, value: props.summary.impressions.toLocaleString() },
-    { x: 300, y: 45, value: props.summary.clicks.toLocaleString() },
-    { x: 500, y: 55, value: (props.summary.leads || 0).toLocaleString() },
-    { x: 700, y: 75, value: ctr.value.toFixed(2) + '%' },
-    { x: 900, y: 95, value: props.summary.cpa.toLocaleString() }
+    { x: 100, y: getY(props.summary.impressions), value: (props.summary.impressions || 0).toLocaleString() },
+    { x: 300, y: getYRate(ctr.value), value: ctr.value.toFixed(2) + '%' },
+    { x: 500, y: getY(props.summary.clicks), value: (props.summary.clicks || 0).toLocaleString() },
+    { x: 700, y: getYRate(cr.value), value: cr.value.toFixed(2) + '%' },
+    { x: 900, y: getY(props.summary.leads), value: (props.summary.leads || 0).toLocaleString() }
   ]
 })
 
-// Dynamic Funnel Path using Cubic Bezier for smooth curves
+// Dynamic Funnel Path using Cubic Bezier for smooth curves based on points
 const funnelPath = computed(() => {
-  // We'll create a smooth "mountain/wave" path that feels premium
-  // Points (x, y): (0, 60), (200, 40), (400, 50), (600, 70), (800, 90), (1000, 110)
-  return `M0,60 
-          C100,60 100,40 200,40 
-          C300,40 300,50 400,50 
-          C500,50 500,70 600,70 
-          C700,70 700,90 800,90 
-          C900,90 900,110 1000,110 
-          L1000,150 L0,150 Z`
+  const p = chartPoints.value
+  const baseline = 150
+  
+  // We construct a path that passes smoothly through each of our 5 points
+  return `M0,${p[0].y + 20} 
+          C100,${p[0].y + 20} 50,${p[0].y} ${p[0].x},${p[0].y} 
+          C${(p[0].x + p[1].x) / 2},${p[0].y} ${(p[0].x + p[1].x) / 2},${p[1].y} ${p[1].x},${p[1].y} 
+          C${(p[1].x + p[2].x) / 2},${p[1].y} ${(p[1].x + p[2].x) / 2},${p[2].y} ${p[2].x},${p[2].y} 
+          C${(p[2].x + p[3].x) / 2},${p[2].y} ${(p[2].x + p[3].x) / 2},${p[3].y} ${p[3].x},${p[3].y} 
+          C${(p[3].x + p[4].x) / 2},${p[3].y} ${(p[3].x + p[4].x) / 2},${p[4].y} ${p[4].x},${p[4].y} 
+          C950,${p[4].y} 1000,${p[4].y + 10} 1000,${p[4].y + 20} 
+          L1000,${baseline} L0,${baseline} Z`
 })
 </script>

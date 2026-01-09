@@ -10,11 +10,12 @@ router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 @router.get("/", response_model=List[schemas.CampaignResponse])
 def get_campaigns(
     integration_id: Optional[uuid.UUID] = None,
+    client_id: Optional[uuid.UUID] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    List campaigns for a specific integration or all campaigns owned by the user.
+    List campaigns for a specific integration, client, or all campaigns owned by the user.
     """
     query = db.query(models.Campaign).join(models.Integration).join(models.Client).filter(
         models.Client.owner_id == current_user.id
@@ -22,6 +23,8 @@ def get_campaigns(
     
     if integration_id:
         query = query.filter(models.Campaign.integration_id == integration_id)
+    if client_id:
+        query = query.filter(models.Integration.client_id == client_id)
         
     return query.all()
 

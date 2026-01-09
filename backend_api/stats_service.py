@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from core import models
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 from typing import List, Optional
 
@@ -14,7 +14,7 @@ class StatsService:
         return [c.id for c in db.query(models.Client).filter_by(owner_id=user_id).all()]
 
     @staticmethod
-    def aggregate_summary(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all"):
+    def aggregate_summary(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all", campaign_ids: Optional[List[uuid.UUID]] = None):
         if not client_ids:
             return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "trends": None}
 
@@ -24,14 +24,24 @@ class StatsService:
                 func.sum(models.YandexStats.impressions).label("total_impressions"),
                 func.sum(models.YandexStats.clicks).label("total_clicks"),
                 func.sum(models.YandexStats.conversions).label("total_conversions")
-            ).filter(models.YandexStats.client_id.in_(client_ids))
+            ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                models.YandexStats.client_id.in_(client_ids),
+                models.Campaign.is_active == True
+            )
 
             v_q = db.query(
                 func.sum(models.VKStats.cost).label("total_cost"),
                 func.sum(models.VKStats.impressions).label("total_impressions"),
                 func.sum(models.VKStats.clicks).label("total_clicks"),
                 func.sum(models.VKStats.conversions).label("total_conversions")
-            ).filter(models.VKStats.client_id.in_(client_ids))
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(client_ids),
+                models.Campaign.is_active == True
+            )
+
+            if campaign_ids:
+                y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
+                v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
 
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
@@ -62,8 +72,9 @@ class StatsService:
             prev = get_data(prev_start, prev_end)
             
             def calc_trend(c, p):
-                if p == 0: return 100 if c > 0 else 0
-                return round(((c - p) / p) * 100, 1)
+                if p is None or p == 0: 
+                    return 100.0 if (c or 0) > 0 else 0.0
+                return round(((float(c or 0) - float(p)) / float(p)) * 100, 1)
 
             trends = {
                 "expenses": calc_trend(curr["costs"], prev["costs"]),
@@ -98,7 +109,7 @@ class StatsService:
         }
 
     @staticmethod
-    def get_campaign_stats(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all"):
+    def get_campaign_stats(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all", campaign_ids: Optional[List[uuid.UUID]] = None):
         if not client_ids:
             return []
 
@@ -106,24 +117,32 @@ class StatsService:
 
         if platform in ["all", "yandex"]:
             y_query = db.query(
+                models.Campaign.id.label("campaign_id"),
                 models.YandexStats.campaign_name,
                 func.sum(models.YandexStats.impressions).label("impressions"),
                 func.sum(models.YandexStats.clicks).label("clicks"),
                 func.sum(models.YandexStats.cost).label("cost"),
                 func.sum(models.YandexStats.conversions).label("conversions")
-            ).filter(models.YandexStats.client_id.in_(client_ids))
+            ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                models.YandexStats.client_id.in_(client_ids),
+                models.Campaign.is_active == True
+            )
+
+            if campaign_ids:
+                y_query = y_query.filter(models.Campaign.id.in_(campaign_ids))
 
             if d_start:
                 y_query = y_query.filter(models.YandexStats.date >= d_start)
             if d_end:
                 y_query = y_query.filter(models.YandexStats.date <= d_end)
 
-            y_results = y_query.group_by(models.YandexStats.campaign_name).all()
+            y_results = y_query.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
                 convs = int(r.conversions or 0)
                 campaigns.append({
+                    "id": str(r.campaign_id),
                     "name": f"[ЯД] {r.campaign_name}",
                     "impressions": int(r.impressions or 0),
                     "clicks": clicks,
@@ -135,24 +154,32 @@ class StatsService:
 
         if platform in ["all", "vk"]:
             v_query = db.query(
+                models.Campaign.id.label("campaign_id"),
                 models.VKStats.campaign_name,
                 func.sum(models.VKStats.impressions).label("impressions"),
                 func.sum(models.VKStats.clicks).label("clicks"),
                 func.sum(models.VKStats.cost).label("cost"),
                 func.sum(models.VKStats.conversions).label("conversions")
-            ).filter(models.VKStats.client_id.in_(client_ids))
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(client_ids),
+                models.Campaign.is_active == True
+            )
+
+            if campaign_ids:
+                v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
 
             if d_start:
                 v_query = v_query.filter(models.VKStats.date >= d_start)
             if d_end:
                 v_query = v_query.filter(models.VKStats.date <= d_end)
 
-            v_results = v_query.group_by(models.VKStats.campaign_name).all()
+            v_results = v_query.group_by(models.Campaign.id, models.VKStats.campaign_name).all()
             for r in v_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
                 convs = int(r.conversions or 0)
                 campaigns.append({
+                    "id": str(r.campaign_id),
                     "name": f"[VK] {r.campaign_name}",
                     "impressions": int(r.impressions or 0),
                     "clicks": clicks,

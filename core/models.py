@@ -76,13 +76,13 @@ class Integration(Base):
     agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
 
     client = relationship("Client", back_populates="integrations")
-    campaigns = relationship("Campaign", back_populates="integration")
+    campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
 
 class Campaign(Base):
     __tablename__ = "campaigns"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id"), index=True)
+    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id", ondelete="CASCADE"), index=True)
     external_id = Column(String, nullable=False) # Campaign ID from the platform
     name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
@@ -97,13 +97,13 @@ class YandexStats(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
-    impressions = Column(Integer, default=0)
-    clicks = Column(Integer, default=0)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
-    conversions = Column(Integer, default=0)
+    conversions = Column(BigInteger, default=0)
     ctr = Column(Numeric(10, 4))
     cpc = Column(Numeric(20, 2))
 
@@ -114,14 +114,14 @@ class YandexKeywords(Base):
     __tablename__ = "yandex_keywords"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     keyword = Column(String)
-    impressions = Column(Integer, default=0)
-    clicks = Column(Integer, default=0)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
-    conversions = Column(Integer, default=0)
+    conversions = Column(BigInteger, default=0)
 
     client = relationship("Client", back_populates="yandex_keywords")
 
@@ -129,14 +129,14 @@ class YandexGroups(Base):
     __tablename__ = "yandex_groups"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"))
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     group_name = Column(String)
-    impressions = Column(Integer, default=0)
-    clicks = Column(Integer, default=0)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
-    conversions = Column(Integer, default=0)
+    conversions = Column(BigInteger, default=0)
 
     client = relationship("Client", back_populates="yandex_groups")
 
@@ -144,14 +144,14 @@ class VKStats(Base):
     __tablename__ = "vk_stats"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
-    impressions = Column(Integer, default=0)
-    clicks = Column(Integer, default=0)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
-    conversions = Column(Integer, default=0)
+    conversions = Column(BigInteger, default=0)
 
     client = relationship("Client", back_populates="vk_stats")
     campaign = relationship("Campaign", back_populates="vk_stats")

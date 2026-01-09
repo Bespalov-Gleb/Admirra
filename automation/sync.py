@@ -32,7 +32,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         access_token = security.decrypt_token(integration.access_token)
-        api = YandexDirectAPI(access_token)
+        api = YandexDirectAPI(access_token, integration.agency_client_login)
         
         # Campaign stats
         stats = await api.get_report(date_from, date_to)
@@ -48,13 +48,18 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 campaign = models.Campaign(
                     integration_id=integration.id,
                     external_id=campaign_external_id,
-                    name=s['campaign_name']
+                    name=s['campaign_name'],
+                    is_active=True
                 )
                 db.add(campaign)
                 db.flush()
             elif campaign.name != s['campaign_name']:
                 campaign.name = s['campaign_name']
                 db.flush()
+
+            # OPTIMIZATION: Only sync data for active campaigns
+            if not campaign.is_active:
+                continue
 
             # 2. Update Stats
             filters = {
@@ -63,7 +68,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
             }
             data = {
-                "campaign_name": s['campaign_name'], # Keep for compatibility
+                "campaign_name": s['campaign_name'], 
                 "impressions": s['impressions'],
                 "clicks": s['clicks'],
                 "cost": s['cost'],
@@ -71,7 +76,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             }
             _update_or_create_stats(db, models.YandexStats, filters, data)
 
-        # Group stats
+        # Group stats (Note: We keep syncing these as they are smaller and help drill-down)
         group_stats = await api.get_report(date_from, date_to, level="group")
         for g in group_stats:
             filters = {
@@ -131,10 +136,6 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.error(f"Failed to refresh VK token: {e}")
 
         for s in stats:
-            # 1. Ensure Campaign exists
-            # VK Ads stats might not have an explicit external campaign ID in the same way, 
-            # but usually it's in s['campaign_id'] if the API helper provides it.
-            # Let's assume s['campaign_id'] and s['campaign_name'] are available.
             campaign_external_id = str(s.get('campaign_id', ''))
             campaign_name = s.get('campaign_name', 'Unknown VK Campaign')
             
@@ -149,13 +150,18 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 campaign = models.Campaign(
                     integration_id=integration.id,
                     external_id=campaign_external_id,
-                    name=campaign_name
+                    name=campaign_name,
+                    is_active=True
                 )
                 db.add(campaign)
                 db.flush()
             elif campaign.name != campaign_name:
                 campaign.name = campaign_name
                 db.flush()
+
+            # OPTIMIZATION: Only sync data for active campaigns
+            if not campaign.is_active:
+                continue
 
             # 2. Update Stats
             filters = {
@@ -164,7 +170,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
             }
             data = {
-                "campaign_name": campaign_name, # Keep for compatibility
+                "campaign_name": campaign_name,
                 "impressions": s['impressions'],
                 "clicks": s['clicks'],
                 "cost": s['cost'],
@@ -223,9 +229,7 @@ async def sync_data(days: int = 7):
         clients = db.query(models.Client).all()
         for client in clients:
             try:
-                # Generate weekly report for current week
                 generate_weekly_report(db, client.id, end_date)
-                # Generate monthly report for current month
                 generate_monthly_report(db, client.id, end_date.year, end_date.month)
             except Exception as e:
                 logger.error(f"Error generating reports for client {client.id}: {e}")
@@ -233,9 +237,6 @@ async def sync_data(days: int = 7):
         # Google Sheets Export
         gs = GoogleSheetsService()
         for client in clients:
-            # We assume each client has a spreadsheet_id. 
-            # I'll add this field to the Client model in the next step.
-            # For now, we skip if not present or use a placeholder if needed.
             spreadsheet_id = getattr(client, 'spreadsheet_id', None)
             if spreadsheet_id and gs.service:
                 try:

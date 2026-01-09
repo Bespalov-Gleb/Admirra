@@ -35,6 +35,7 @@ export function useDashboardStats() {
     channel: 'all',
     period: '14',
     client_id: '',
+    campaign_ids: [],
     start_date: '',
     end_date: new Date().toISOString().split('T')[0]
   })
@@ -83,6 +84,9 @@ export function useDashboardStats() {
         platform: filters.channel
       }
       if (filters.client_id) params.client_id = filters.client_id
+      if (filters.campaign_ids && filters.campaign_ids.length > 0) {
+        params.campaign_ids = filters.campaign_ids
+      }
 
       // Parallel requests with error handling
       const results = await Promise.allSettled([
@@ -113,8 +117,15 @@ export function useDashboardStats() {
 
   // Watch filters and trigger fetch
   watch(
-    () => [filters.start_date, filters.end_date, filters.client_id, filters.channel],
-    () => fetchStats()
+    () => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids],
+    (newVal, oldVal) => {
+      // If client or channel changed, reset campaign selection
+      if (oldVal && (newVal[2] !== oldVal[2] || newVal[3] !== oldVal[3])) {
+        filters.campaign_ids = []
+      }
+      fetchStats()
+    },
+    { deep: true }
   )
 
   onMounted(() => {

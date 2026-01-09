@@ -80,8 +80,14 @@ const props = defineProps({
   selectedMetric: {
     type: String,
     default: null // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' or null
+  },
+  period: {
+    type: [String, Number],
+    default: 7
   }
 })
+
+const emit = defineEmits(['update:period'])
 
 ChartJS.register(
   CategoryScale,
@@ -96,7 +102,10 @@ ChartJS.register(
 
 const isMobile = ref(window.innerWidth < 640)
 const chartKey = ref(0)
-const selectedDays = ref(7) // Local ref, technically controlled by parent but kept for UI state
+const selectedDays = computed({
+  get: () => Number(props.period) || 7,
+  set: (val) => emit('update:period', val)
+})
 
 // Helper to normalize data for visual display (scale 0-1)
 const normalizeDataset = (data, label, offset = 0) => {
@@ -119,8 +128,7 @@ const allDatasets = computed(() => {
   if (!props.dynamics || !props.dynamics.labels) return []
 
   const d = props.dynamics
-  
-  return [
+  const datasets = [
     {
       label: 'Расход',
       key: 'expenses',
@@ -206,6 +214,8 @@ const allDatasets = computed(() => {
       fill: false
     }
   ]
+
+  return datasets
 })
 
 const chartData = computed(() => ({

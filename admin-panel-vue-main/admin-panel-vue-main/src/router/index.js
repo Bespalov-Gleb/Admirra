@@ -127,7 +127,7 @@ router.beforeEach(async (to, from, next) => {
   // Если пользователь авторизован и пытается зайти на страницу логина
   else if (isAuth && isLoginPage) {
     console.log('Router: Already authenticated, redirecting to dashboard...')
-    next({ name: 'GeneralStats3' })
+    next({ name: 'CreateProject' })
   }
   // Иначе разрешаем переход
   else {

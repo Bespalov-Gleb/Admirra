@@ -188,13 +188,22 @@ async def exchange_yandex_token(
         db.commit()
         db.refresh(db_integration)
         
-        # Trigger background sync for the main integration
-        background_tasks.add_task(run_sync_in_background, db_integration.id)
-        
-        # SILENT AUTOMATION: Trigger background discovery for agency clients
-        background_tasks.add_task(auto_discover_agency_bg, current_user.id, access_token)
-        
-        return {"status": "success", "integration_id": str(db_integration.id), "access_token": access_token}
+        # SILENT AUTOMATION: Removed auto_discover_agency_bg to allow user selection
+        # Instead, we check if it's an agency account and return it
+        is_agency = False
+        try:
+             agency_clients = await get_agency_clients(access_token)
+             if agency_clients:
+                 is_agency = True
+        except:
+             pass
+
+        return {
+            "status": "success", 
+            "integration_id": str(db_integration.id), 
+            "access_token": access_token,
+            "is_agency": is_agency
+        }
 
 @router.post("/vk/exchange")
 async def exchange_vk_token_oauth(
@@ -291,7 +300,11 @@ async def exchange_vk_token_oauth(
         # Trigger background sync
         background_tasks.add_task(run_sync_in_background, db_integration.id)
         
-        return {"status": "success", "integration_id": str(db_integration.id)}
+        return {
+            "status": "success", 
+            "integration_id": str(db_integration.id),
+            "is_agency": False # VK usually doesn't have the same agency structure as Yandex in this flow
+        }
 
 from .services import IntegrationService
 
@@ -406,6 +419,56 @@ async def trigger_sync(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+@router.post("/{integration_id}/discover-campaigns")
+async def discover_campaigns(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch campaign list from platform and save/update in DB as inactive.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+        
+    access_token = security.decrypt_token(integration.access_token)
+    discovered_campaigns = []
+    
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        api = YandexDirectAPI(access_token, integration.agency_client_login)
+        discovered_campaigns = await api.get_campaigns()
+    elif integration.platform == models.IntegrationPlatform.VK_ADS:
+        api = VKAdsAPI(access_token, integration.account_id)
+        discovered_campaigns = await api.get_campaigns()
+        
+    # Save to DB
+    for dc in discovered_campaigns:
+        campaign = db.query(models.Campaign).filter_by(
+            integration_id=integration.id,
+            external_id=str(dc["id"])
+        ).first()
+        
+        if not campaign:
+            campaign = models.Campaign(
+                integration_id=integration.id,
+                external_id=str(dc["id"]),
+                name=dc["name"],
+                is_active=False # Discovery creates them as inactive by default
+            )
+            db.add(campaign)
+        else:
+            campaign.name = dc["name"]
+            
+    db.commit()
+    
+    # Return all campaigns for this integration
+    return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_integration(
@@ -552,26 +615,6 @@ async def run_sync_in_background_async(integration_id: uuid.UUID):
     finally:
         db.close()
 
-def auto_discover_agency_bg(user_id: uuid.UUID, access_token: str):
-    """
-    Sync-wrapper to run agency discovery in background thread.
-    """
-    db = SessionLocal()
-    try:
-        # 1. Fetch clients from Yandex
-        # We need an event loop since get_agency_clients is async
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        clients = loop.run_until_complete(get_agency_clients(access_token))
-        
-        if clients:
-            logger.info(f"Discovered {len(clients)} clients for user {user_id}. Importing...")
-            loop.run_until_complete(import_yandex_clients(db, user_id, access_token, clients))
-        loop.close()
-    except Exception as e:
-        logger.error(f"Auto-discovery failed: {e}")
-    finally:
-        db.close()
 
 @router.post("/batch-import")
 async def batch_import_integrations(

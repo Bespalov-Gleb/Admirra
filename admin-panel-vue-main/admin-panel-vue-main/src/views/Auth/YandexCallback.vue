@@ -58,14 +58,25 @@ onMounted(async () => {
     
     const response = await api.post('integrations/yandex/exchange', payload)
     
+    // Check if we should perform agency import
+    const isAgencyImport = localStorage.getItem('is_agency_import') === 'true'
+    const isAgency = response.data.is_agency
+    
     // Clean up
     localStorage.removeItem('yandex_auth_client_name')
+    localStorage.removeItem('is_agency_import')
     
-    // Show success message
-    toaster.success('Яндекс Директ успешно подключен!')
-    
-    // Redirect to the main dashboard
-    router.push('/dashboard/general-3') 
+    if (isAgency || isAgencyImport) {
+      // Store token temporarily for the AgencyImportModal to use
+      localStorage.setItem('temp_agency_token', response.data.access_token)
+      toaster.success('Аккаунт агентства успешно подключен!')
+      // Redirect to settings and trigger the import modal
+      router.push('/settings?trigger_agency_import=1')
+    } else {
+      // Standard success flow
+      toaster.success('Яндекс Директ успешно подключен!')
+      router.push('/projects/create') 
+    }
   } catch (err) {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'

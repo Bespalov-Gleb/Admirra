@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 class YandexDirectAPI:
     def __init__(self, access_token: str, client_login: str = None):
-        self.url = "https://api.direct.yandex.com/json/v5/reports"
+        self.report_url = "https://api.direct.yandex.com/json/v5/reports"
+        self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept-Language": "ru",
@@ -19,6 +20,37 @@ class YandexDirectAPI:
         if client_login:
             self.headers["Client-Login"] = client_login
             logger.info(f"Initialized Yandex API with Agency Client-Login: {client_login}")
+
+    async def get_campaigns(self) -> List[Dict[str, Any]]:
+        """
+        Fetches the list of all campaigns using the Campaigns service.
+        """
+        payload = {
+            "method": "get",
+            "params": {
+                "FieldNames": ["Id", "Name", "Status"]
+            }
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "result" in data and "Campaigns" in data["result"]:
+                        return [
+                            {
+                                "id": str(c["Id"]),
+                                "name": c["Name"],
+                                "status": c["Status"]
+                            }
+                            for c in data["result"]["Campaigns"]
+                        ]
+                logger.error(f"Failed to fetch Yandex campaigns: {response.text}")
+            except Exception as e:
+                logger.error(f"Error fetching Yandex campaigns: {e}")
+                
+        return []
 
     async def get_report(self, date_from: str, date_to: str, level: str = "campaign", max_retries: int = 5) -> List[Dict[str, Any]]:
         """
@@ -53,7 +85,7 @@ class YandexDirectAPI:
         async with httpx.AsyncClient() as client:
             for attempt in range(max_retries):
                 response = await client.post(
-                    self.url,
+                    self.report_url,
                     json=report_definition,
                     headers=self.headers,
                     timeout=60.0
@@ -112,15 +144,15 @@ class YandexDirectAPI:
             if len(cols[0]) == 10 and cols[0][4] == '-' and cols[0][7] == '-':
                 try:
                     if level in ["keyword", "group"]:
-                        if len(cols) >= 7:
+                        if len(cols) >= 8: # These reports have 8 columns
                             results.append({
                                 "date": cols[0],
-                                "campaign_name": cols[1],
-                                "name": cols[2], # AdGroupName or Criteria
-                                "impressions": int(cols[3]) if cols[3].isdigit() else 0,
-                                "clicks": int(cols[4]) if cols[4].isdigit() else 0,
-                                "cost": float(cols[5]) / 1000000 if cols[5].replace('.', '', 1).isdigit() else 0.0,
-                                "conversions": int(cols[6]) if cols[6].isdigit() else 0
+                                "campaign_name": cols[3], # Index 3 is CampaignName
+                                "name": cols[2], # Index 2 is AdGroupName or Criteria
+                                "impressions": int(cols[4]) if cols[4].isdigit() else 0,
+                                "clicks": int(cols[5]) if cols[5].isdigit() else 0,
+                                "cost": float(cols[6]) / 1000000 if cols[6].replace('.', '', 1).isdigit() else 0.0,
+                                "conversions": int(cols[7]) if cols[7].isdigit() else 0
                             })
                     else:
                         if len(cols) >= 7:

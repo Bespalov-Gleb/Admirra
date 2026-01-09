@@ -13,7 +13,7 @@
         </div>
         <h2 class="text-xl font-bold text-gray-900">Ошибка подключения</h2>
         <p class="text-red-500 text-sm mb-6">{{ error }}</p>
-        <router-link to="/dashboard/general-3" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors">
+        <router-link to="/projects/create" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors">
           Вернуться на панель
         </router-link>
       </div>
@@ -53,11 +53,15 @@ onMounted(async () => {
       client_name: clientName
     }
     
-    await api.post('integrations/vk/exchange', payload)
+    const response = await api.post('integrations/vk/exchange', payload)
+    const integrationId = response.data.integration_id
     
     localStorage.removeItem('vk_auth_client_name')
     toaster.success('VK Ads успешно подключен!')
-    router.push('/dashboard/general-3') 
+    
+    // Redirect to dashboard with a flag to show campaign selection if needed
+    // or just show success. 
+    router.push(`/projects/create?new_integration_id=${integrationId}`) 
   } catch (err) {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'

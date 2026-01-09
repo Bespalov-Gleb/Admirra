@@ -14,9 +14,9 @@ class VKAdsAPI:
         }
         self.account_id = account_id
 
-    async def _get_campaign_names(self) -> Dict[int, str]:
+    async def get_campaigns(self) -> List[Dict[str, Any]]:
         """
-        Fetches the list of campaigns (AdPlans) to map IDs to names.
+        Fetches the list of all campaigns (AdPlans).
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
@@ -28,13 +28,20 @@ class VKAdsAPI:
                 response = await client.get(url, params=params, headers=self.headers)
                 if response.status_code == 200:
                     data = response.json()
-                    return {item['id']: item['name'] for item in data.get('items', [])}
+                    return [
+                        {
+                            "id": str(item["id"]),
+                            "name": item["name"],
+                            "status": item.get("status")
+                        }
+                        for item in data.get("items", [])
+                    ]
                 else:
-                    logger.error(f"Failed to fetch VK campaign names: {response.status_code}")
-                    return {}
+                    logger.error(f"Failed to fetch VK campaigns: {response.status_code}")
+                    return []
         except Exception as e:
-            logger.error(f"Error fetching VK campaign names: {e}")
-            return {}
+            logger.error(f"Error fetching VK campaigns: {e}")
+            return []
 
     async def get_statistics(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
@@ -42,7 +49,8 @@ class VKAdsAPI:
         Automatically splits date ranges into 90-day chunks to satisfy VK API limits.
         """
         # Fetch names first
-        names_map = await self._get_campaign_names()
+        campaigns = await self.get_campaigns()
+        names_map = {int(c["id"]): c["name"] for c in campaigns}
         
         # Split dates into chunks
         date_chunks = self._split_date_range(date_from, date_to, 90)
