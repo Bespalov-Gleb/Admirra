@@ -35,7 +35,7 @@ export function useDashboardStats() {
   const filters = reactive({
     channel: 'all',
     period: '14',
-    client_id: '',
+    client_id: null,
     campaign_ids: [],
     start_date: '',
     end_date: new Date().toISOString().split('T')[0]
@@ -72,10 +72,9 @@ export function useDashboardStats() {
     }
   }
 
-  // Fetch all dashboard stats
+  // Fetch all dashboard stats (summary, dynamics, top-clients, and filtered campaigns)
   const fetchStats = async () => {
     loading.value = true
-    loadingCampaigns.value = true
     error.value = null
 
     try {
@@ -89,21 +88,12 @@ export function useDashboardStats() {
         params.campaign_ids = filters.campaign_ids
       }
 
-      // Parallel requests with error handling
+      // Parallel requests (excluding the full pool)
       const results = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
         api.get('dashboard/top-clients'),
-        api.get('dashboard/campaigns', { params }),
-        // Also fetch ALL campaigns for the dropdown if client/channel changed
-        api.get('dashboard/campaigns', { 
-          params: { 
-            client_id: filters.client_id, 
-            platform: filters.channel,
-            start_date: filters.start_date,
-            end_date: filters.end_date
-          } 
-        })
+        api.get('dashboard/campaigns', { params }) // This one is filtered by campaign_ids
       ])
 
       // Map results
@@ -111,10 +101,9 @@ export function useDashboardStats() {
       if (results[1].status === 'fulfilled') dynamics.value = results[1].value.data
       if (results[2].status === 'fulfilled') topClients.value = results[2].value.data
       if (results[3].status === 'fulfilled') campaigns.value = results[3].value.data
-      if (results[4].status === 'fulfilled') allCampaigns.value = results[4].value.data
 
-      // If all critical failed, set a general error
-      if (results.slice(0, 4).every(r => r.status === 'rejected')) {
+      // If critical summary/dynamics failed, set a general error
+      if (results[0].status === 'rejected' && results[1].status === 'rejected') {
         error.value = 'Не удалось загрузить данные статистики'
       }
     } catch (err) {
@@ -122,32 +111,72 @@ export function useDashboardStats() {
       error.value = 'Произошла непредвиденная ошибка'
     } finally {
       loading.value = false
+    }
+  }
+
+  // Fetch the total pool of campaigns for the dropdown (unfiltered by campaign_ids)
+  const fetchCampaignPool = async () => {
+    if (!filters.client_id) {
+      allCampaigns.value = []
+      return
+    }
+    
+    loadingCampaigns.value = true
+    try {
+      const params = {
+        platform: filters.channel,
+        start_date: filters.start_date,
+        end_date: filters.end_date
+      }
+      if (filters.client_id) params.client_id = filters.client_id
+      const response = await api.get('dashboard/campaigns', { params })
+      allCampaigns.value = response.data
+    } catch (err) {
+      console.error('Error fetching campaign pool:', err)
+    } finally {
       loadingCampaigns.value = false
     }
   }
 
-  // Watch filters and trigger fetch
+  // Watchers
+  
+  // 1. If project or channel changes, reset campaign selection and fetch a new pool
   watch(
-    () => ({
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      client_id: filters.client_id,
-      channel: filters.channel,
-      campaign_ids: [...filters.campaign_ids]
-    }),
-    (newFilters, oldFilters) => {
-      // If client or channel changed, reset campaign selection
-      if (oldFilters && (newFilters.client_id !== oldFilters.client_id || newFilters.channel !== oldFilters.channel)) {
+    () => [filters.client_id, filters.channel],
+    (newVal, oldVal) => {
+      if (oldVal && (newVal[0] !== oldVal[0] || newVal[1] !== oldVal[1])) {
         filters.campaign_ids = []
       }
+      fetchCampaignPool()
+    }
+  )
+
+  // 2. Fetch pool if dates change (but keep selection if possible)
+  watch(
+    () => [filters.start_date, filters.end_date],
+    () => {
+      fetchCampaignPool()
+    }
+  )
+
+  // 3. Fetch stats whenever any filter changes
+  watch(
+    () => [
+      filters.start_date, 
+      filters.end_date, 
+      filters.client_id, 
+      filters.channel, 
+      JSON.stringify(filters.campaign_ids)
+    ],
+    () => {
       fetchStats()
-    },
-    { deep: true }
+    }
   )
 
   onMounted(() => {
     setInitialDates()
     fetchClients()
+    fetchCampaignPool()
     fetchStats()
   })
 

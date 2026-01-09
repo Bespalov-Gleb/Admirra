@@ -19,8 +19,8 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 async def get_summary(
     start_date: str = None,
     end_date: str = None,
-    client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all", # 'yandex', 'vk', 'all'
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -28,22 +28,37 @@ async def get_summary(
     """
     Get aggregated statistics (Expenses, Impressions, Clicks, Leads, CPC, CPA) for a specified period.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    # Safe UUID conversion
+    u_client_id = None
+    if client_id and client_id.strip():
+        try: u_client_id = uuid.UUID(client_id)
+        except: pass
+    
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try: u_campaign_ids.append(uuid.UUID(cid))
+                except: pass
+        if not u_campaign_ids: u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0}
 
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
     
-    return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, campaign_ids)
+    return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
 @cache_response(ttl=900)
 async def get_dynamics(
     start_date: str = None,
     end_date: str = None,
-    client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -51,7 +66,22 @@ async def get_dynamics(
     """
     Get daily dynamics of costs and clicks for the dashboard chart.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    # Safe UUID conversion
+    u_client_id = None
+    if client_id and client_id.strip():
+        try: u_client_id = uuid.UUID(client_id)
+        except: pass
+    
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try: u_campaign_ids.append(uuid.UUID(cid))
+                except: pass
+        if not u_campaign_ids: u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"labels": [], "costs": [], "clicks": []}
     
@@ -71,7 +101,7 @@ async def get_dynamics(
         models.YandexStats.date >= d_start,
         models.YandexStats.date <= d_end
     )
-    if campaign_ids: y_stats = y_stats.filter(models.Campaign.id.in_(campaign_ids))
+    if u_campaign_ids: y_stats = y_stats.filter(models.Campaign.id.in_(u_campaign_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
 
     v_stats = db.query(
@@ -86,7 +116,7 @@ async def get_dynamics(
         models.VKStats.date >= d_start,
         models.VKStats.date <= d_end
     )
-    if campaign_ids: v_stats = v_stats.filter(models.Campaign.id.in_(campaign_ids))
+    if u_campaign_ids: v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
@@ -121,8 +151,8 @@ async def get_dynamics(
 async def get_campaign_stats(
     start_date: str = None,
     end_date: str = None,
-    client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -130,13 +160,28 @@ async def get_campaign_stats(
     """
     Get statistics grouped by campaign for the specified period.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    # Safe UUID conversion
+    u_client_id = None
+    if client_id and client_id.strip():
+        try: u_client_id = uuid.UUID(client_id)
+        except: pass
+    
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try: u_campaign_ids.append(uuid.UUID(cid))
+                except: pass
+        if not u_campaign_ids: u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
 
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
 
-    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, campaign_ids)
+    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
 @router.get("/keywords", response_model=List[schemas.KeywordStat])
 @cache_response(ttl=900)
@@ -310,8 +355,8 @@ def get_integrations_status(
 async def export_stats_csv(
     start_date: str = None,
     end_date: str = None,
-    client_id: Optional[uuid.UUID] = None,
-    campaign_ids: Optional[List[uuid.UUID]] = Query(None),
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -319,14 +364,29 @@ async def export_stats_csv(
     """
     Export statistics to CSV file.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    # Safe UUID conversion
+    u_client_id = None
+    if client_id and client_id.strip():
+        try: u_client_id = uuid.UUID(client_id)
+        except: pass
+    
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try: u_campaign_ids.append(uuid.UUID(cid))
+                except: pass
+        if not u_campaign_ids: u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return StreamingResponse(io.StringIO("No data"), media_type="text/csv")
         
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     
-    stats = StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, campaign_ids)
+    stats = StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
     
     output = io.StringIO()
     # Add BOM for Excel compatibility with UTF-8
