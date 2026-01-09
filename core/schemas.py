@@ -143,6 +143,7 @@ class DynamicsStat(BaseModel):
     cpa: List[float]
 
 class CampaignStat(BaseModel):
+    id: Optional[str] = None
     name: str
     impressions: int
     clicks: int
