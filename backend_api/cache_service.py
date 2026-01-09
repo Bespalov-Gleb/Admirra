@@ -60,9 +60,11 @@ def cache_response(ttl: int = 600):
             
             cached_val = CacheService.get(key)
             if cached_val is not None:
+                print(f"DEBUG: CACHE HIT for {func.__name__} - key: {key[:100]}...")
                 logger.info(f"Cache hit for {func.__name__}")
                 return cached_val
             
+            print(f"DEBUG: CACHE MISS for {func.__name__} - key: {key[:100]}...")
             result = await func(*args, **kwargs)
             CacheService.set(key, result, ttl)
             return result

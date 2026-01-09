@@ -40,8 +40,11 @@ class StatsService:
             )
 
             if campaign_ids:
+                print(f"DEBUG: StatsService.get_data - FILTERING by {len(campaign_ids)} campaigns")
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
+            else:
+                print(f"DEBUG: StatsService.get_data - NO campaign filter")
 
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)

@@ -50,6 +50,7 @@ async def get_summary(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
     
+    print(f"DEBUG: get_summary - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
     return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
@@ -84,6 +85,8 @@ async def get_dynamics(
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"labels": [], "costs": [], "clicks": []}
+    
+    print(f"DEBUG: get_dynamics - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
     
     # Defaults
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
