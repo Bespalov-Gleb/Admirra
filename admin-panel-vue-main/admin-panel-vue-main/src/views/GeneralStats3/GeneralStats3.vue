@@ -295,6 +295,8 @@ const {
   loadingCampaigns
 } = useDashboardStats()
 
+const { projects: globalProjects, currentProjectId, setCurrentProject, fetchProjects: refreshGlobalProjects } = useProjects()
+
 // Two-way sync: currentProjectId (Global Store) <-> filters.client_id (Local Dashboard)
 
 // 1. If Global Store changes (e.g. from Header), update Local Dashboard
@@ -324,8 +326,6 @@ const selectedCampaignId = computed({
     }
   }
 })
-
-const { projects: globalProjects, setCurrentProject, fetchProjects: refreshGlobalProjects } = useProjects()
 const toaster = useToaster()
 const route = useRoute()
 
