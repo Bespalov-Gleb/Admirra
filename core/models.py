@@ -77,12 +77,28 @@ class Integration(Base):
     agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
 
     client = relationship("Client", back_populates="integrations")
+    campaigns = relationship("Campaign", back_populates="integration")
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id"), index=True)
+    external_id = Column(String, nullable=False) # Campaign ID from the platform
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    integration = relationship("Integration", back_populates="campaigns")
+    yandex_stats = relationship("YandexStats", back_populates="campaign")
+    vk_stats = relationship("VKStats", back_populates="campaign")
 
 class YandexStats(Base):
     __tablename__ = "yandex_stats"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     impressions = Column(Integer, default=0)
@@ -93,6 +109,7 @@ class YandexStats(Base):
     cpc = Column(Numeric(20, 2))
 
     client = relationship("Client", back_populates="yandex_stats")
+    campaign = relationship("Campaign", back_populates="yandex_stats")
 
 class YandexKeywords(Base):
     __tablename__ = "yandex_keywords"
@@ -129,6 +146,7 @@ class VKStats(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     impressions = Column(Integer, default=0)
@@ -137,6 +155,7 @@ class VKStats(Base):
     conversions = Column(Integer, default=0)
 
     client = relationship("Client", back_populates="vk_stats")
+    campaign = relationship("Campaign", back_populates="vk_stats")
 
 class MetrikaGoals(Base):
     __tablename__ = "metrika_goals"

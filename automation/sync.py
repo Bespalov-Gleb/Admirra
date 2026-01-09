@@ -37,12 +37,33 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         # Campaign stats
         stats = await api.get_report(date_from, date_to)
         for s in stats:
+            # 1. Ensure Campaign exists
+            campaign_external_id = str(s['campaign_id'])
+            campaign = db.query(models.Campaign).filter_by(
+                integration_id=integration.id,
+                external_id=campaign_external_id
+            ).first()
+            
+            if not campaign:
+                campaign = models.Campaign(
+                    integration_id=integration.id,
+                    external_id=campaign_external_id,
+                    name=s['campaign_name']
+                )
+                db.add(campaign)
+                db.flush()
+            elif campaign.name != s['campaign_name']:
+                campaign.name = s['campaign_name']
+                db.flush()
+
+            # 2. Update Stats
             filters = {
                 "client_id": integration.client_id,
-                "date": datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                "campaign_name": s['campaign_name']
+                "campaign_id": campaign.id,
+                "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
             }
             data = {
+                "campaign_name": s['campaign_name'], # Keep for compatibility
                 "impressions": s['impressions'],
                 "clicks": s['clicks'],
                 "cost": s['cost'],
@@ -110,12 +131,40 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.error(f"Failed to refresh VK token: {e}")
 
         for s in stats:
+            # 1. Ensure Campaign exists
+            # VK Ads stats might not have an explicit external campaign ID in the same way, 
+            # but usually it's in s['campaign_id'] if the API helper provides it.
+            # Let's assume s['campaign_id'] and s['campaign_name'] are available.
+            campaign_external_id = str(s.get('campaign_id', ''))
+            campaign_name = s.get('campaign_name', 'Unknown VK Campaign')
+            
+            campaign = None
+            if campaign_external_id:
+                campaign = db.query(models.Campaign).filter_by(
+                    integration_id=integration.id,
+                    external_id=campaign_external_id
+                ).first()
+            
+            if not campaign:
+                campaign = models.Campaign(
+                    integration_id=integration.id,
+                    external_id=campaign_external_id,
+                    name=campaign_name
+                )
+                db.add(campaign)
+                db.flush()
+            elif campaign.name != campaign_name:
+                campaign.name = campaign_name
+                db.flush()
+
+            # 2. Update Stats
             filters = {
                 "client_id": integration.client_id,
-                "date": datetime.strptime(s['date'], "%Y-%m-%d").date(),
-                "campaign_name": s['campaign_name']
+                "campaign_id": campaign.id,
+                "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
             }
             data = {
+                "campaign_name": campaign_name, # Keep for compatibility
                 "impressions": s['impressions'],
                 "clicks": s['clicks'],
                 "cost": s['cost'],

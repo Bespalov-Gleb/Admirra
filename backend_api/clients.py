@@ -3,9 +3,37 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, schemas, security
+from datetime import datetime, timedelta
 from typing import List
 
+from backend_api.stats_service import StatsService
+
 router = APIRouter(prefix="/clients", tags=["Clients"])
+
+@router.get("/stats", response_model=List[schemas.ClientResponse])
+def get_clients_with_stats(
+    start_date: str = None,
+    end_date: str = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all clients with aggregated statistics for a specified period.
+    """
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    # Default to 7 days if no start_date provided
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
+    
+    user_clients = db.query(models.Client).filter(models.Client.owner_id == current_user.id).all()
+    
+    results = []
+    for client in user_clients:
+        # Get dynamic summary with trends for each client
+        summary_data = StatsService.aggregate_summary(db, [client.id], d_start, d_end)
+        client.summary = summary_data
+        results.append(client)
+        
+    return results
 
 @router.get("/", response_model=List[schemas.ClientResponse])
 def get_clients(

@@ -33,6 +33,7 @@ from backend_api.auth import router as auth_router
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
+from backend_api.campaigns import router as campaigns_router
 
 app = FastAPI(
     title="Analytics SAAS API",
@@ -42,10 +43,20 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    import json
+    logger.error(f"Validation Error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body)},
+    )
+
 app.include_router(auth_router, prefix="/api")
 app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
+app.include_router(campaigns_router, prefix="/api")
 
 # Configure CORS
 app.add_middleware(

@@ -57,9 +57,55 @@ class IntegrationResponse(IntegrationBase):
     id: UUID
     client_id: UUID
     access_token: str
+    campaigns: List["CampaignResponse"] = []
     
     class Config:
         from_attributes = True
+
+# Campaign Schemas
+class CampaignBase(BaseModel):
+    external_id: str
+    name: str
+    is_active: bool = True
+
+class CampaignCreate(CampaignBase):
+    integration_id: UUID
+
+class CampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    client_id: Optional[UUID] = None # For moving campaign between projects (effectively changing integration/client)
+
+class CampaignResponse(CampaignBase):
+    id: UUID
+    integration_id: UUID
+    
+    class Config:
+        from_attributes = True
+
+IntegrationResponse.model_rebuild()
+
+# Stats Schemas
+class StatsTrend(BaseModel):
+    expenses: float = 0
+    impressions: float = 0
+    clicks: float = 0
+    leads: float = 0
+    cpc: float = 0
+    cpa: float = 0
+    ctr: float = 0
+    cr: float = 0
+
+class StatsSummary(BaseModel):
+    expenses: float
+    impressions: int
+    clicks: int
+    leads: int
+    cpc: float
+    cpa: float
+    ctr: float = 0
+    cr: float = 0
+    trends: Optional[StatsTrend] = None
 
 # Client Schemas
 class ClientBase(BaseModel):
@@ -80,18 +126,12 @@ class ClientResponse(ClientBase):
     owner_id: UUID
     created_at: datetime
     integrations: List[IntegrationResponse] = []
+    summary: Optional[StatsSummary] = None
 
     class Config:
         from_attributes = True
 
-# Stats Schemas
-class StatsSummary(BaseModel):
-    expenses: float
-    impressions: int
-    clicks: int
-    leads: int
-    cpc: float
-    cpa: float
+
 
 class DynamicsStat(BaseModel):
     labels: List[str]

@@ -25,7 +25,7 @@ class YandexDirectAPI:
         Fetches a report from Yandex Direct API v5.
         Handles polling for 201/202 statuses and tracks API units.
         """
-        field_names = ["Date", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"]
+        field_names = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"]
         if level == "keyword":
             field_names.insert(2, "Criteria")
             report_type = "CRITERIA_PERFORMANCE_REPORT"
@@ -123,14 +123,15 @@ class YandexDirectAPI:
                                 "conversions": int(cols[6]) if cols[6].isdigit() else 0
                             })
                     else:
-                        if len(cols) >= 6:
+                        if len(cols) >= 7:
                             results.append({
                                 "date": cols[0],
-                                "campaign_name": cols[1],
-                                "impressions": int(cols[2]) if cols[2].isdigit() else 0,
-                                "clicks": int(cols[3]) if cols[3].isdigit() else 0,
-                                "cost": float(cols[4]) / 1000000 if cols[4].replace('.', '', 1).isdigit() else 0.0,
-                                "conversions": int(cols[5]) if cols[5].isdigit() else 0
+                                "campaign_id": cols[1],
+                                "campaign_name": cols[2],
+                                "impressions": int(cols[3]) if cols[3].isdigit() else 0,
+                                "clicks": int(cols[4]) if cols[4].isdigit() else 0,
+                                "cost": float(cols[5]) / 1000000 if cols[5].replace('.', '', 1).isdigit() else 0.0,
+                                "conversions": int(cols[6]) if cols[6].isdigit() else 0
                             })
                 except (ValueError, IndexError):
                     continue

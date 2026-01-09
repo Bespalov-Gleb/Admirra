@@ -16,51 +16,85 @@ class StatsService:
     @staticmethod
     def aggregate_summary(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all"):
         if not client_ids:
-            return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0}
+            return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "trends": None}
 
-        yandex_query = db.query(
-            func.sum(models.YandexStats.cost).label("total_cost"),
-            func.sum(models.YandexStats.impressions).label("total_impressions"),
-            func.sum(models.YandexStats.clicks).label("total_clicks"),
-            func.sum(models.YandexStats.conversions).label("total_conversions")
-        ).filter(models.YandexStats.client_id.in_(client_ids))
+        def get_data(start, end):
+            y_q = db.query(
+                func.sum(models.YandexStats.cost).label("total_cost"),
+                func.sum(models.YandexStats.impressions).label("total_impressions"),
+                func.sum(models.YandexStats.clicks).label("total_clicks"),
+                func.sum(models.YandexStats.conversions).label("total_conversions")
+            ).filter(models.YandexStats.client_id.in_(client_ids))
 
-        vk_query = db.query(
-            func.sum(models.VKStats.cost).label("total_cost"),
-            func.sum(models.VKStats.impressions).label("total_impressions"),
-            func.sum(models.VKStats.clicks).label("total_clicks"),
-            func.sum(models.VKStats.conversions).label("total_conversions")
-        ).filter(models.VKStats.client_id.in_(client_ids))
+            v_q = db.query(
+                func.sum(models.VKStats.cost).label("total_cost"),
+                func.sum(models.VKStats.impressions).label("total_impressions"),
+                func.sum(models.VKStats.clicks).label("total_clicks"),
+                func.sum(models.VKStats.conversions).label("total_conversions")
+            ).filter(models.VKStats.client_id.in_(client_ids))
 
+            if start:
+                y_q = y_q.filter(models.YandexStats.date >= start)
+                v_q = v_q.filter(models.VKStats.date >= start)
+            if end:
+                y_q = y_q.filter(models.YandexStats.date <= end)
+                v_q = v_q.filter(models.VKStats.date <= end)
+
+            y_s = y_q.first() if platform in ["all", "yandex"] else None
+            v_s = v_q.first() if platform in ["all", "vk"] else None
+
+            costs = float((y_s.total_cost if y_s else 0) or 0) + float((v_s.total_cost if v_s else 0) or 0)
+            imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
+            clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
+            convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            
+            return {"costs": costs, "imps": imps, "clks": clks, "convs": convs}
+
+        # Current period data
+        curr = get_data(d_start, d_end)
+        
+        # Previous period data for trends
+        trends = None
         if d_start:
-            yandex_query = yandex_query.filter(models.YandexStats.date >= d_start)
-            vk_query = vk_query.filter(models.VKStats.date >= d_start)
-        if d_end:
-            yandex_query = yandex_query.filter(models.YandexStats.date <= d_end)
-            vk_query = vk_query.filter(models.VKStats.date <= d_end)
+            delta = (d_end - d_start).days + 1
+            prev_start = d_start - timedelta(days=delta)
+            prev_end = d_start - timedelta(days=1)
+            prev = get_data(prev_start, prev_end)
+            
+            def calc_trend(c, p):
+                if p == 0: return 100 if c > 0 else 0
+                return round(((c - p) / p) * 100, 1)
 
-        y_summary = yandex_query.first() if platform in ["all", "yandex"] else None
-        v_summary = vk_query.first() if platform in ["all", "vk"] else None
+            trends = {
+                "expenses": calc_trend(curr["costs"], prev["costs"]),
+                "impressions": calc_trend(curr["imps"], prev["imps"]),
+                "clicks": calc_trend(curr["clks"], prev["clks"]),
+                "leads": calc_trend(curr["convs"], prev["convs"]),
+                "cpc": calc_trend(curr["costs"]/curr["clks"] if curr["clks"] > 0 else 0, 
+                               prev["costs"]/prev["clks"] if prev["clks"] > 0 else 0),
+                "cpa": calc_trend(curr["costs"]/curr["convs"] if curr["convs"] > 0 else 0, 
+                               prev["costs"]/prev["convs"] if prev["convs"] > 0 else 0),
+                "ctr": calc_trend(curr["clks"]/curr["imps"] if curr["imps"] > 0 else 0,
+                               prev["clks"]/prev["imps"] if prev["imps"] > 0 else 0),
+                "cr": calc_trend(curr["convs"]/curr["clks"] if curr["clks"] > 0 else 0,
+                               prev["convs"]/prev["clks"] if prev["clks"] > 0 else 0)
+            }
 
-        total_costs = float((y_summary.total_cost if y_summary else 0) or 0) + \
-                      float((v_summary.total_cost if v_summary else 0) or 0)
-        total_impressions = int((y_summary.total_impressions if y_summary else 0) or 0) + \
-                            int((v_summary.total_impressions if v_summary else 0) or 0)
-        total_clicks = int((y_summary.total_clicks if y_summary else 0) or 0) + \
-                       int((v_summary.total_clicks if v_summary else 0) or 0)
-        total_conversions = int((y_summary.total_conversions if y_summary else 0) or 0) + \
-                            int((v_summary.total_conversions if v_summary else 0) or 0)
-
-        cpc = total_costs / total_clicks if total_clicks > 0 else 0
-        cpa = total_costs / total_conversions if total_conversions > 0 else 0
+        cpc = curr["costs"] / curr["clks"] if curr["clks"] > 0 else 0
+        cpa = curr["costs"] / curr["convs"] if curr["convs"] > 0 else 0
+        ctr = (curr["clks"] / curr["imps"] * 100) if curr["imps"] > 0 else 0
+        cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
 
         return {
-            "expenses": round(total_costs, 2),
-            "impressions": total_impressions,
-            "clicks": total_clicks,
-            "leads": total_conversions,
+            "expenses": round(curr["costs"], 2),
+            "impressions": curr["imps"],
+            "clicks": curr["clks"],
+            "leads": curr["convs"],
             "cpc": round(cpc, 2),
-            "cpa": round(cpa, 2)
+            "cpa": round(cpa, 2),
+            "ctr": round(ctr, 2),
+            "cr": round(cr, 2),
+            "trends": trends
         }
 
     @staticmethod

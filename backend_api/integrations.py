@@ -9,16 +9,17 @@ import httpx
 import logging
 import asyncio
 from datetime import datetime, timedelta
+import os
 
-# Yandex Direct Credentials (NEW VERSION - Supports Auto Auth, but pending API Access)
-YANDEX_CLIENT_ID = "e2a052c8cac54caeb9b1b05a593be932"
-YANDEX_CLIENT_SECRET = "a3ff5920d00e4ee7b8a8019e33cdaaf0"
+# Yandex Direct Credentials
+YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
+YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a8019e33cdaaf0")
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 
 # VK Ads Credentials (OAuth 2.0 flow)
-VK_CLIENT_ID = "54416403"
-VK_CLIENT_SECRET = "8oAosCbGdjPM3CP8HCXe"
+VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
+VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
 VK_AUTH_URL = "https://ads.vk.com/oauth2/authorize"
 VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 
