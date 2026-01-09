@@ -324,6 +324,8 @@ const selectedCampaignId = computed({
     return (ids && ids.length > 0) ? ids[0] : ''
   },
   set: (val) => {
+    console.log('[GeneralStats3] selectedCampaignId setter: INCOMING val =', val, typeof val)
+    
     // CRITICAL: Defensive check to ignore transient/null states from DOM re-renders 
     // or when the options temporarily disappear during fetch.
     if (val === undefined || val === null) {
@@ -332,6 +334,7 @@ const selectedCampaignId = computed({
     }
     
     const current = (filters.campaign_ids && filters.campaign_ids.length > 0) ? filters.campaign_ids[0] : ''
+    console.log('[GeneralStats3] selectedCampaignId setter: current =', current, 'new =', val)
     
     if (val !== current) {
       console.log('[GeneralStats3] selectedCampaignId setter: UPDATING filters.campaign_ids ->', val ? [val] : [])
