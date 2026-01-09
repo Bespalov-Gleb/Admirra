@@ -3,10 +3,22 @@
     <h3 class="text-xl font-bold text-gray-900 mb-8">Эффективность продвижения</h3>
     
     <!-- KPI Row -->
-    <div class="grid grid-cols-3 md:grid-cols-6 gap-4 mb-10">
-      <div v-for="item in stats" :key="item.label" class="text-center">
-        <p class="text-lg sm:text-2xl font-black text-gray-900 mb-1">{{ item.value }}</p>
-        <p class="text-[10px] sm:text-xs font-medium text-gray-400 uppercase tracking-wider">{{ item.label }}</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+      <div v-for="item in stats" :key="item.label" class="text-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100/50">
+        <p class="text-lg sm:text-2xl font-black text-gray-900 mb-1 leading-none">{{ item.value }}</p>
+        <p class="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">{{ item.label }}</p>
+        
+        <!-- Trend indicator -->
+        <div v-if="item.trend !== undefined" class="flex items-center justify-center gap-1">
+          <span 
+            :class="[
+              'text-[10px] font-black px-2 py-0.5 rounded-full',
+              item.trend >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+            ]"
+          >
+            {{ item.trend > 0 ? '+' : '' }}{{ item.trend }}%
+          </span>
+        </div>
       </div>
     </div>
 
@@ -22,7 +34,7 @@
             </linearGradient>
           </defs>
           <path 
-            d="M0,50 L200,40 L400,60 L600,70 L800,80 L1000,100 L1000,150 L0,150 Z" 
+            :d="funnelPath" 
             fill="url(#funnelGradient)"
           />
           <!-- Data points with values -->
@@ -57,31 +69,39 @@ const props = defineProps({
   }
 })
 
-const ctr = computed(() => {
-  if (!props.summary.impressions) return 0
-  return ((props.summary.clicks / props.summary.impressions) * 100).toFixed(2)
-})
-
-const cr = computed(() => {
-  if (!props.summary.clicks) return 0
-  return ((props.summary.leads / props.summary.clicks) * 100).toFixed(2)
-})
+const ctr = computed(() => props.summary.ctr || 0)
+const cr = computed(() => props.summary.cr || 0)
 
 const stats = computed(() => [
-  { label: 'Показы', value: props.summary.impressions.toLocaleString() },
-  { label: 'CTR', value: ctr.value + '%' },
-  { label: 'Клики', value: props.summary.clicks.toLocaleString() },
-  { label: 'Конверсия, % (CR)', value: cr.value + '%' },
-  { label: 'Конверсии', value: props.summary.leads.toLocaleString() },
-  { label: 'Цена цели', value: props.summary.cpa.toLocaleString() + ' ₽' }
+  { label: 'Показы', value: props.summary.impressions.toLocaleString(), trend: props.summary.trends?.impressions },
+  { label: 'CTR', value: ctr.value.toFixed(2) + '%', trend: props.summary.trends?.ctr },
+  { label: 'Клики', value: props.summary.clicks.toLocaleString(), trend: props.summary.trends?.clicks },
+  { label: 'Конверсия, % (CR)', value: cr.value.toFixed(2) + '%', trend: props.summary.trends?.cr },
+  { label: 'Конверсии', value: props.summary.leads.toLocaleString(), trend: props.summary.trends?.leads },
+  { label: 'Цена цели', value: props.summary.cpa.toLocaleString() + ' ₽', trend: props.summary.trends?.cpa }
 ])
 
-// Mocked points for the design's visualization effect
-const chartPoints = [
-  { x: 100, y: 50, value: '2329' },
-  { x: 300, y: 40, value: '1134' },
-  { x: 500, y: 60, value: '94' },
-  { x: 700, y: 70, value: '5.32%' },
-  { x: 900, y: 90, value: '5' }
-]
+// Dynamic points for the funnel visualization
+const chartPoints = computed(() => {
+  return [
+    { x: 100, y: 55, value: props.summary.impressions.toLocaleString() },
+    { x: 300, y: 45, value: props.summary.clicks.toLocaleString() },
+    { x: 500, y: 55, value: (props.summary.leads || 0).toLocaleString() },
+    { x: 700, y: 75, value: ctr.value.toFixed(2) + '%' },
+    { x: 900, y: 95, value: props.summary.cpa.toLocaleString() }
+  ]
+})
+
+// Dynamic Funnel Path using Cubic Bezier for smooth curves
+const funnelPath = computed(() => {
+  // We'll create a smooth "mountain/wave" path that feels premium
+  // Points (x, y): (0, 60), (200, 40), (400, 50), (600, 70), (800, 90), (1000, 110)
+  return `M0,60 
+          C100,60 100,40 200,40 
+          C300,40 300,50 400,50 
+          C500,50 500,70 600,70 
+          C700,70 700,90 800,90 
+          C900,90 900,110 1000,110 
+          L1000,150 L0,150 Z`
+})
 </script>

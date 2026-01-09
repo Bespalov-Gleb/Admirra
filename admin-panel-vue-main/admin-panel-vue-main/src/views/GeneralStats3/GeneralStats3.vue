@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
-    <!-- Состояние, если нет проектов или включен превью -->
-    <div v-if="(!loading && clients.length === 0) || showBannerPreview" class="flex items-center justify-center min-h-[calc(100vh-144px)] px-4">
+    <!-- Состояние, если включен превью баннера -->
+    <div v-if="showBannerPreview" class="flex items-center justify-center min-h-[calc(100vh-144px)] px-4">
       <CreateProjectBanner 
         :loading="creatingProject"
         @create="handleCreateProject"

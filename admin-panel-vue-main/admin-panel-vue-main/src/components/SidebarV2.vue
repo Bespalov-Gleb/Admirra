@@ -32,70 +32,64 @@
       </button>
     </div>
 
-    <!-- Кнопка создания проекта -->
-    <div class="px-4 mb-2">
-      <router-link
-        to="/projects/create"
-        @click="closeMobileMenu"
-        :class="[
-          'flex items-center gap-3 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-[16px] transition-all overflow-hidden shadow-lg shadow-blue-900/30 group/create-btn',
-          isCollapsed ? 'p-3.5 justify-center' : 'px-5 py-3.5'
-        ]"
-      >
-        <PlusIcon class="w-5 h-5 flex-shrink-0 transition-transform group-hover/create-btn:rotate-90" />
-        <span v-if="!isCollapsed" class="text-sm font-black uppercase tracking-widest whitespace-nowrap">Создать проект</span>
-      </router-link>
-    </div>
 
     <!-- Навигация -->
     <div class="overflow-y-auto scrollbar-hide h-[calc(100vh-180px)]">
-      <nav class="py-4">
-        <div v-for="item in menuItems" :key="item.name" class="relative group">
-          <!-- Кнопка меню -->
-          <button
-            @click="item.children ? toggleDashboard() : handleLinkClick(item.path)"
-            :class="[
-              'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left',
-              isCollapsed && 'justify-center',
-              (!item.children && isActive(item.path)) ? 'bg-active-menu' : ''
-            ]"
-          >
-            <ActiveIndicator v-if="!item.children" :is-active="isActive(item.path)" />
-            <component :is="item.icon" class="w-4 h-4 flex-shrink-0" />
-            <span v-if="!isCollapsed" class="flex-1 text-sm">{{ item.name }}</span>
-            <ChevronUpIcon
-              v-if="!isCollapsed && item.children"
-              :class="[
-                'w-4 h-4 transition-transform',
-                !isSubmenuOpen && 'rotate-180'
-              ]"
-            />
-          </button>
+      <nav class="py-4 space-y-6">
+        <div v-for="(section, index) in menuSections" :key="section.title" class="space-y-1">
+          <!-- Разделитель секций -->
+          <div 
+            v-if="index > 0" 
+            class="mx-4 my-6 border-t border-white/5"
+          ></div>
 
-          <!-- Tooltip для свернутого меню -->
-          <div
-            v-if="isCollapsed"
-            class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
-          >
-            {{ item.name }}
-            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-          </div>
-
-          <!-- Выпадающее меню -->
-          <div v-if="item.children && !isCollapsed && isSubmenuOpen">
+          <div v-for="item in section.items" :key="item.name" class="relative group">
+            <!-- Кнопка меню -->
             <button
-              v-for="child in item.children"
-              :key="child.path"
-              @click="handleLinkClick(child.path)"
+              @click="item.children ? toggleDashboard() : handleLinkClick(item.path)"
               :class="[
-                'relative w-full flex items-center gap-2.5 px-3 py-2.5 pl-14 text-left',
-                isActive(child.path) ? 'bg-active-menu' : ''
+                'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left transition-colors',
+                isCollapsed && 'justify-center',
+                (!item.children && isActive(item.path)) ? 'bg-active-menu' : 'hover:bg-white/5'
               ]"
             >
-              <ActiveIndicator :is-active="isActive(child.path)" />
-              <Bars3Icon class="w-4 h-4" />
-              <span class="text-sm">{{ child.name }}</span>
+              <ActiveIndicator v-if="!item.children" :is-active="isActive(item.path)" />
+              <component :is="item.icon" class="w-4 h-4 flex-shrink-0" />
+              <span v-if="!isCollapsed" class="flex-1 text-sm font-medium">{{ item.name }}</span>
+              <ChevronUpIcon
+                v-if="!isCollapsed && item.children"
+                :class="[
+                  'w-4 h-4 transition-transform',
+                  !isSubmenuOpen && 'rotate-180'
+                ]"
+              />
             </button>
+
+            <!-- Tooltip для свернутого меню -->
+            <div
+              v-if="isCollapsed"
+              class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
+            >
+              {{ item.name }}
+              <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+            </div>
+
+            <!-- Выпадающее меню -->
+            <div v-if="item.children && !isCollapsed && isSubmenuOpen">
+              <button
+                v-for="child in item.children"
+                :key="child.path"
+                @click="handleLinkClick(child.path)"
+                :class="[
+                  'relative w-full flex items-center gap-2.5 px-3 py-2.5 pl-14 text-left transition-colors',
+                  isActive(child.path) ? 'bg-active-menu' : 'hover:bg-white/5'
+                ]"
+              >
+                <ActiveIndicator :is-active="isActive(child.path)" />
+                <Bars3Icon class="w-4 h-4" />
+                <span class="text-sm font-medium">{{ child.name }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -205,31 +199,42 @@ const router = useRouter()
 const isSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
-const menuItems = [
+const menuSections = [
   {
-    name: 'Дашборд',
-    icon: Squares2X2Icon,
-    path: '/dashboard', // Base path for active check
-    children: [
-      { name: 'Статистика по проектам', path: '/dashboard/general' },
-      { name: 'Отчет по проекту', path: '/dashboard/general-2' },
-      { name: 'Общая статистика v3', path: '/dashboard/general-3' },
+    title: 'ОСНОВНОЕ',
+    items: [
+      {
+        name: 'Дашборд',
+        icon: Squares2X2Icon,
+        path: '/dashboard',
+        children: [
+          { name: 'Статистика по проектам', path: '/dashboard/general' },
+          { name: 'Отчет по проекту', path: '/dashboard/general-2' },
+          { name: 'Общая статистика v3', path: '/dashboard/general-3' },
+        ]
+      },
+      {
+        name: 'Проекты',
+        path: '/projects',
+        icon: Project
+      }
     ]
   },
   {
-    name: 'Проекты',
-    path: '/projects',
-    icon: Project,
-    children: [
-      { name: 'Все проекты', path: '/projects' },
-      { name: 'Создать проект', path: '/projects/create' },
+    title: 'УПРАВЛЕНИЕ',
+    items: [
+      { name: 'Команда', path: '/team', icon: Group },
+      { name: 'Продукты', path: '/products', icon: Product },
+      { name: 'Каналы', path: '/channels', icon: Channels },
     ]
   },
-  { name: 'Команда', path: '/team', icon: Group },
-  { name: 'Продукты', path: '/products', icon: Product },
-  { name: 'Каналы', path: '/channels', icon: Channels },
-  { name: 'История', path: '/history', icon: Clock },
-  { name: 'Настройки', path: '/settings', icon: Setting },
+  {
+    title: 'СЕРВИС',
+    items: [
+      { name: 'История', path: '/history', icon: Clock },
+      { name: 'Настройки', path: '/settings', icon: Setting },
+    ]
+  }
 ]
 
 // Закрывать мобильное меню при клике на ссылку
@@ -242,7 +247,7 @@ const handleLinkClick = (path) => {
 
 // Автоматически открывать выпадающее меню, если текущий маршрут имеет вложенность
 watch(() => route?.path, (path) => {
-  if (path && (path.startsWith('/dashboard') || path.startsWith('/projects'))) {
+  if (path && path.startsWith('/dashboard')) {
     isSubmenuOpen.value = true
   } else {
     isSubmenuOpen.value = false

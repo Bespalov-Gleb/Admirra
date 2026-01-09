@@ -83,13 +83,13 @@
 
       <!-- Правая часть - Кнопки и профиль -->
       <div class="flex items-center gap-3 flex-shrink-0 bg-white px-5 py-1.5 rounded-[16px] text-gray-900">
-        <!-- Кнопка "Добавить проект" -->
+        <!-- Динамическая кнопка (Интеграция или Проект) -->
         <button
-          @click="showAddProjectModal = true"
+          @click="handleHeaderAction"
           class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
         >
           <PlusIcon class="w-5 h-5 text-white" />
-          <span class="text-sm font-medium text-white">Добавить интеграцию</span>
+          <span class="text-sm font-medium text-white">{{ headerButtonText }}</span>
         </button>
         
         <!-- Уведомления -->
@@ -263,7 +263,7 @@
 
 <script setup>
 import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Teleport } from 'vue'
 import {
   UserIcon,
@@ -289,6 +289,7 @@ import { useToaster } from '../composables/useToaster'
 import { useProjects } from '../composables/useProjects'
 
 const router = useRouter()
+const route = useRoute()
 const { toggleMobileMenu } = useSidebar()
 const { user, forceLogout } = useAuth()
 // Initialize theme
@@ -321,6 +322,17 @@ const getProjectWord = (count) => {
 }
 
 
+
+const isProjectsPage = computed(() => route.path.startsWith('/projects'))
+const headerButtonText = computed(() => isProjectsPage.value ? 'Создать проект' : 'Добавить интеграцию')
+
+const handleHeaderAction = () => {
+    if (isProjectsPage.value) {
+        router.push('/projects/create')
+    } else {
+        showAddProjectModal.value = true
+    }
+}
 
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)

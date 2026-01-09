@@ -17,8 +17,8 @@
           </button>
         </div>
 
-        <!-- Scrollable Content using CustomScroll -->
-        <CustomScroll class="flex-grow">
+        <!-- Step 1: Configuration -->
+        <CustomScroll v-if="currentStep === 1" class="flex-grow">
           <div class="pr-1 pb-4 space-y-5">
             <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[12px] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
               <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
@@ -90,6 +90,7 @@
 
                   <div v-if="projectDropdownOpen" class="absolute z-[110] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 overflow-hidden animate-slide-down">
                     <div class="max-h-48 overflow-y-auto">
+                      <!-- Existing Projects -->
                       <button 
                         v-for="project in projects" 
                         :key="project.id"
@@ -100,9 +101,34 @@
                       >
                         <span class="text-[12px] font-black" :class="form.client_id === project.id ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ project.name }}</span>
                       </button>
+
+                      <!-- Create New Option -->
+                      <button 
+                        type="button"
+                        @click="selectNewProject"
+                        class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-blue-50 transition-all border-t border-gray-100"
+                        :class="{ 'bg-blue-50': isCreatingNewProject }"
+                      >
+                        <div class="w-5 h-5 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                          <PlusIcon class="w-4 h-4" />
+                        </div>
+                        <span class="text-[12px] font-black text-blue-600">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+                      </button>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <!-- New Project Name Input -->
+              <div v-if="isCreatingNewProject" class="animate-modal-in">
+                <Input
+                  v-model="form.client_name"
+                  label="Название проекта"
+                  labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1"
+                  inputClass="rounded-2xl font-black text-black shadow-sm"
+                  placeholder="Нанапример: Проект Альфа"
+                  required
+                />
               </div>
 
               <!-- Yandex Auth Button -->
@@ -202,7 +228,7 @@
                 </Input>
               </template>
 
-              <!-- Account/Cabinet ID (Hidden for Yandex and VK as it's not needed for auth initially) -->
+              <!-- Account/Cabinet ID -->
               <Input 
                 v-if="form.platform !== 'YANDEX_DIRECT' && form.platform !== 'VK_ADS'"
                 v-model="form.account_id" 
@@ -215,13 +241,64 @@
             </form>
           </div>
         </CustomScroll>
-        
+
+        <!-- Step 2: Campaign Selection -->
+        <CustomScroll v-else class="flex-grow">
+          <div class="pr-1 pb-4 space-y-4">
+            <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex items-start gap-3 mb-2">
+              <div class="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+              </div>
+              <div class="pt-0.5">
+                <p class="text-[12px] font-black text-black leading-tight uppercase">Выберите кампании</p>
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Отметьте те, которые нужно отслеживать</p>
+              </div>
+            </div>
+
+            <div v-if="loadingCampaigns" class="py-12 flex flex-col items-center justify-center gap-4">
+              <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
+              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Получение списка кампаний...</span>
+            </div>
+
+            <div v-else-if="campaigns.length === 0" class="py-12 text-center">
+              <p class="text-gray-400 font-bold text-[13px]">Кампании не найдены</p>
+            </div>
+
+            <div v-else class="space-y-2">
+              <button 
+                v-for="campaign in campaigns" 
+                :key="campaign.id"
+                type="button"
+                @click="toggleCampaign(campaign.id)"
+                class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
+                :class="selectedCampaignIds.includes(campaign.id) ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-50' : 'bg-white border-gray-100 hover:border-gray-300'"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all" :class="selectedCampaignIds.includes(campaign.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
+                    <svg v-if="selectedCampaignIds.includes(campaign.id)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                  </div>
+                  <div class="text-left">
+                    <span class="block text-[12px] font-black transition-all" :class="selectedCampaignIds.includes(campaign.id) ? 'text-blue-700' : 'text-gray-700 font-bold'">{{ campaign.name }}</span>
+                    <span class="block text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">ID: {{ campaign.external_id }}</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </CustomScroll>
+
         <!-- Footer: Fixed -->
         <div class="flex gap-3 pt-6 mt-4 border-t border-gray-50 flex-shrink-0 bg-white">
-          <button type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Отмена</button>
-          <button @click="handleSubmit" :disabled="loading" class="flex-[1.5] py-3.5 bg-gray-900 text-white rounded-2xl hover:bg-black hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg">
+          <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Отмена</button>
+          <button v-else type="button" @click="currentStep = 1" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Назад</button>
+          
+          <button v-if="currentStep === 1" @click="handleSubmit" :disabled="loading" class="flex-[1.5] py-3.5 bg-gray-900 text-white rounded-2xl hover:bg-black hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg">
             <div v-if="loading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loading ? 'ЗАГРУЗКА...' : 'ПОДКЛЮЧИТЬ' }}</span>
+          </button>
+          <button v-else @click="finishConnection" :disabled="loadingFinish" class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
+            <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ЗАВЕРШИТЬ' }}</span>
           </button>
         </div>
       </div>
@@ -254,6 +331,15 @@ const loading = ref(false)
 const error = ref(null)
 const dropdownOpen = ref(false)
 const showToken = ref(false)
+const isCreatingNewProject = ref(false)
+
+// Step 2 state
+const currentStep = ref(1) // 1: Setup, 2: Campaign Selection
+const campaigns = ref([])
+const selectedCampaignIds = ref([])
+const loadingCampaigns = ref(false)
+const loadingFinish = ref(false)
+const lastIntegrationId = ref(null)
 
 const form = reactive({
   platform: 'YANDEX_DIRECT',
@@ -272,6 +358,9 @@ watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     form.client_name = props.initialClientName
     error.value = null
+    currentStep.value = 1
+    campaigns.value = []
+    selectedCampaignIds.value = []
   }
 })
 
@@ -290,6 +379,14 @@ const close = () => {
 const selectProject = (project) => {
   form.client_id = project.id
   form.client_name = project.name
+  isCreatingNewProject.value = false
+  projectDropdownOpen.value = false
+}
+
+const selectNewProject = () => {
+  form.client_id = null
+  form.client_name = ''
+  isCreatingNewProject.value = true
   projectDropdownOpen.value = false
 }
 
@@ -303,17 +400,64 @@ const handleSubmit = async () => {
   error.value = null
 
   try {
-    const response = await api.post('integrations/', form)
-    emit('success', response.data)
-    form.access_token = ''
-    form.account_id = ''
-    form.client_id = ''
-    form.client_secret = ''
-    close()
+    const { data } = await api.post('integrations/', form)
+    lastIntegrationId.value = data.id
+    
+    // Transition to step 2
+    currentStep.value = 2
+    fetchCampaigns(data.id)
+    
   } catch (err) {
     error.value = err.response?.data?.detail || 'Ошибка подключения'
   } finally {
     loading.value = false
+  }
+}
+
+const fetchCampaigns = async (integrationId) => {
+  loadingCampaigns.value = true
+  try {
+    // Wait a bit for the background sync to start creating campaigns
+    // Or we could have an endpoint that fetches from platform directly
+    // For now, let's try to fetch what we have in DB
+    const { data } = await api.get('campaigns', { params: { integration_id: integrationId } })
+    campaigns.value = data
+    // Auto-select all by default
+    selectedCampaignIds.value = data.map(c => c.id)
+  } catch (err) {
+    console.error('Failed to fetch campaigns:', err)
+  } finally {
+    loadingCampaigns.value = false
+  }
+}
+
+const toggleCampaign = (id) => {
+  const index = selectedCampaignIds.value.indexOf(id)
+  if (index > -1) {
+    selectedCampaignIds.value.splice(index, 1)
+  } else {
+    selectedCampaignIds.value.push(id)
+  }
+}
+
+const finishConnection = async () => {
+  loadingFinish.value = true
+  try {
+    // Update campaign statuses (only selected are active)
+    const promises = campaigns.value.map(c => {
+      const isActive = selectedCampaignIds.value.includes(c.id)
+      return api.patch(`campaigns/${c.id}`, { is_active: isActive })
+    })
+    
+    await Promise.all(promises)
+    
+    emit('success', { integration_id: lastIntegrationId.value })
+    close()
+  } catch (err) {
+    console.error('Failed to finalize campaigns:', err)
+    error.value = 'Ошибка при сохранении кампаний'
+  } finally {
+    loadingFinish.value = false
   }
 }
 

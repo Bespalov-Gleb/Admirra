@@ -133,7 +133,6 @@ const fetchProjects = async () => {
 }
 
 // Re-fetch when period changes
-import { watch } from 'vue'
 watch(selectedPeriod, () => {
   fetchProjects()
 })
