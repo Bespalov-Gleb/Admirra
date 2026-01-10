@@ -1,17 +1,28 @@
 <template>
-  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 pt-4 pb-6 sm:pb-8 shadow-sm border border-gray-50 relative">
-    <div class="h-80 relative w-full overflow-hidden mt-2">
-      <!-- Кнопка скачивания -->
-      <button 
-        @click="downloadChart"
-        class="absolute top-0 right-0 z-10 p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-        title="Скачать график как изображение"
-      >
-        <ArrowDownTrayIcon class="w-5 h-5" />
-      </button>
-
+  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm border border-gray-50">
+    <!-- Заголовок и селектор дат -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
+      <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center bg-gray-50 rounded-xl p-1">
+          <button 
+            v-for="day in [7, 14, 30]" 
+            :key="day"
+            class="px-4 py-1.5 text-sm font-semibold rounded-lg transition-all"
+            :class="selectedDays === day ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'"
+            @click="selectedDays = day"
+          >
+            {{ day }}
+          </button>
+        </div>
+        <button class="p-2.5 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
+          <CalendarIcon class="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+    
+    <div class="h-80 relative pb-10 w-full overflow-hidden">
       <Line
-        ref="chartRef"
         :data="chartData"
         :options="chartOptions"
         :key="chartKey"
@@ -22,10 +33,8 @@
     <div class="flex items-center gap-6 flex-wrap justify-center sm:justify-start">
       <template v-for="dataset in allDatasets" :key="dataset.key">
         <div 
-          v-if="!selectedMetrics.length || selectedMetrics.includes(dataset.key)"
-          class="flex items-center gap-2 cursor-pointer select-none transition-opacity"
-          :class="{ 'opacity-30': hiddenDatasets.has(dataset.key) }"
-          @click="toggleDataset(dataset.key)"
+          v-if="!selectedMetric || selectedMetric === dataset.key"
+          class="flex items-center gap-2"
         >
           <div :style="{ backgroundColor: dataset.borderColor }" class="w-2.5 h-2.5 rounded-full"></div>
           <span class="text-sm font-bold text-gray-500">{{ dataset.label }}</span>
@@ -37,8 +46,7 @@
 
 <script setup>
 import { 
-  CalendarIcon,
-  ArrowDownTrayIcon
+  CalendarIcon
 } from '@heroicons/vue/24/outline'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Line } from 'vue-chartjs'
@@ -53,6 +61,7 @@ import {
   Legend,
   Filler
 } from 'chart.js'
+import calendarIcon from '../../../assets/dash/calendar.svg'
 
 const props = defineProps({
   dynamics: {
@@ -68,9 +77,9 @@ const props = defineProps({
       cpa: []
     })
   },
-  selectedMetrics: {
-    type: Array,
-    default: () => []
+  selectedMetric: {
+    type: String,
+    default: null // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' or null
   },
   period: {
     type: [String, Number],
@@ -93,108 +102,114 @@ ChartJS.register(
 
 const isMobile = ref(window.innerWidth < 640)
 const chartKey = ref(0)
-const chartRef = ref(null)
-const hiddenDatasets = ref(new Set())
-
 const selectedDays = computed({
   get: () => Number(props.period) || 7,
   set: (val) => emit('update:period', val)
 })
 
-const toggleDataset = (key) => {
-  if (hiddenDatasets.value.has(key)) {
-    hiddenDatasets.value.delete(key)
-  } else {
-    hiddenDatasets.value.add(key)
-  }
+// Helper to normalize data for visual display (scale 0-1)
+const normalizeDataset = (data, label, offset = 0) => {
+  const cleanData = Array.isArray(data) ? data.map(v => Number(v) || 0) : []
+  
+  if (cleanData.length === 0) return []
+
+  const max = Math.max(...cleanData, 0)
+  const safeMax = max === 0 ? 1 : max
+  
+  return cleanData.map((val, index) => ({
+    x: props.dynamics.labels[index],
+    y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
+    realValue: val
+  }))
 }
 
-const downloadChart = () => {
-  if (!chartRef.value || !chartRef.value.chart) return
-  const link = document.createElement('a')
-  link.download = `statistics_${new Date().toISOString().split('T')[0]}.png`
-  link.href = chartRef.value.chart.toBase64Image()
-  link.click()
-}
-
-// Compute all datasets from props - matching image colors and using REAL values
+// Compute all datasets from props
 const allDatasets = computed(() => {
   if (!props.dynamics || !props.dynamics.labels) return []
 
   const d = props.dynamics
   const datasets = [
     {
-      label: 'Показы',
-      key: 'impressions',
-      data: d.impressions || [],
-      borderColor: '#818cf8',
-      yAxisID: 'yLeft',
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 4,
-      pointBackgroundColor: '#818cf8',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      tension: 0.4,
-      fill: false
-    },
-    {
-      label: 'Клики',
-      key: 'clicks',
-      data: d.clicks || [],
-      borderColor: '#fbbf24',
-      yAxisID: 'yRight',
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 4,
-      pointBackgroundColor: '#fbbf24',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      tension: 0.4,
-      fill: false
-    },
-    {
-      label: 'Конверсии',
-      key: 'leads',
-      data: d.leads || [],
-      borderColor: '#3b82f6',
-      yAxisID: 'yRight',
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 4,
-      pointBackgroundColor: '#3b82f6',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      tension: 0.4,
-      fill: false
-    },
-    {
-      label: 'Цена конверсии',
-      key: 'cpa',
-      data: d.cpa || [],
-      borderColor: '#991b1b',
-      yAxisID: 'yRight',
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 4,
-      pointBackgroundColor: '#991b1b',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      tension: 0.4,
-      fill: false
-    },
-    {
       label: 'Расход',
       key: 'expenses',
-      data: d.costs || [],
-      borderColor: '#f43f5e',
-      yAxisID: 'yLeft',
+      data: normalizeDataset(d.costs, 'Расход', 0.5),
+      borderColor: '#3b82f6',
       backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 4,
-      pointBackgroundColor: '#f43f5e',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 5 : 6,
+      pointBackgroundColor: '#3b82f6',
       pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
+      pointBorderWidth: isMobile.value ? 2 : 2.5,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Показы',
+      key: 'impressions',
+      data: normalizeDataset(d.impressions, 'Показы', 0.4),
+      borderColor: '#f97316',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#f97316',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Переходы',
+      key: 'clicks',
+      data: normalizeDataset(d.clicks, 'Переходы', 0.3),
+      borderColor: '#22c55e',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#22c55e',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'Лиды',
+      key: 'leads',
+      data: normalizeDataset(d.leads, 'Лиды', 0.2),
+      borderColor: '#a855f7',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#a855f7',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'CPC',
+      key: 'cpc',
+      data: normalizeDataset(d.cpc, 'CPC', 0.1),
+      borderColor: '#ef4444',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#ef4444',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0.4,
+      fill: false
+    },
+    {
+      label: 'CPA',
+      key: 'cpa',
+      data: normalizeDataset(d.cpa, 'CPA', 0),
+      borderColor: '#ec4899',
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#ec4899',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
       tension: 0.4,
       fill: false
     }
@@ -205,13 +220,9 @@ const allDatasets = computed(() => {
 
 const chartData = computed(() => ({
   labels: props.dynamics.labels || [],
-  datasets: allDatasets.value.filter(dataset => {
-    // Priority 1: Check selectedMetrics from parent (Cards selection)
-    if (props.selectedMetrics.length > 0 && !props.selectedMetrics.includes(dataset.key)) return false
-    // Priority 2: Check hiddenDatasets (Interactive legend selection)
-    if (hiddenDatasets.value.has(dataset.key)) return false
-    return true
-  })
+  datasets: props.selectedMetric
+    ? allDatasets.value.filter(dataset => dataset.key === props.selectedMetric)
+    : allDatasets.value
 }))
 
 const handleResize = () => {
@@ -251,28 +262,29 @@ const chartOptions = computed(() => ({
       mode: 'index',
       intersect: false,
       usePointStyle: true,
-      backgroundColor: '#111827',
+      boxWidth: 12,
+      boxHeight: 12,
+      boxPadding: 8,
       padding: 16,
-      cornerRadius: 12,
-      titleFont: {
-        size: 13,
-        weight: 'bold'
-      },
-      bodyFont: {
-        size: 12
-      },
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      titleColor: '#ffffff',
+      bodyColor: '#ffffff',
+      borderColor: 'transparent',
+      borderWidth: 0,
+      cornerRadius: 10,
+      displayColors: true,
       callbacks: {
         label: function(context) {
           let label = context.dataset.label || '';
           if (label) {
             label += ': ';
           }
-          const val = context.raw;
-          if (val !== undefined) {
-             if (['Расход', 'Цена конверсии', 'CPC'].includes(context.dataset.label)) {
-              label += new Intl.NumberFormat('ru-RU').format(val) + ' ₽'
+          const realValue = context.raw.realValue;
+          if (realValue !== undefined) {
+             if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
+              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(realValue);
             } else {
-              label += new Intl.NumberFormat('ru-RU').format(val)
+              label += new Intl.NumberFormat('ru-RU').format(realValue);
             }
           }
           return label;
@@ -281,24 +293,17 @@ const chartOptions = computed(() => ({
     }
   },
   scales: {
-    yLeft: {
-      type: 'linear',
-      display: false, // Keep image look (clean)
-      position: 'left',
+    y: {
       beginAtZero: true,
+      max: 1.1, // Headroom for offsets
+      ticks: {
+        display: false
+      },
       grid: {
-        color: '#f3f4f6',
+        color: '#e5e7eb',
         display: true,
-        drawBorder: false
-      }
-    },
-    yRight: {
-      type: 'linear',
-      display: false,
-      position: 'right',
-      beginAtZero: true,
-      grid: {
-        drawOnChartArea: false // Only show grid for left axis
+        drawBorder: false,
+        lineWidth: 1
       }
     },
     x: {
@@ -307,10 +312,12 @@ const chartOptions = computed(() => ({
       },
       ticks: {
         display: true,
-        color: '#9ca3af',
         font: {
-          size: 11
-        }
+          size: isMobile.value ? 9 : 11
+        },
+        color: '#6b7280',
+        maxRotation: 0,
+        minRotation: 0
       }
     }
   }
