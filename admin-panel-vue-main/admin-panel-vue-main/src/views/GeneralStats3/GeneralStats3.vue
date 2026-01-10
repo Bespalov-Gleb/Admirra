@@ -143,7 +143,7 @@
               :change-positive="(summary.trends?.expenses || 0) <= 0"
               :icon="CurrencyDollarIcon"
               icon-color="orange"
-              :is-selected="selectedMetric === 'expenses'"
+              :is-selected="selectedMetrics.includes('expenses')"
               @click="toggleMetric('expenses')"
             />
           </div>
@@ -157,7 +157,7 @@
               :change-positive="summary.trends?.impressions >= 0"
               :icon="EyeIcon"
               icon-color="blue"
-              :is-selected="selectedMetric === 'impressions'"
+              :is-selected="selectedMetrics.includes('impressions')"
               @click="toggleMetric('impressions')"
             />
           </div>
@@ -171,7 +171,7 @@
               :change-positive="summary.trends?.clicks >= 0"
               :icon="ArrowPathIcon"
               icon-color="green"
-              :is-selected="selectedMetric === 'clicks'"
+              :is-selected="selectedMetrics.includes('clicks')"
               @click="toggleMetric('clicks')"
             />
           </div>
@@ -185,7 +185,7 @@
               :change-positive="summary.trends?.leads >= 0"
               :icon="UserGroupIcon"
               icon-color="red"
-              :is-selected="selectedMetric === 'leads'"
+              :is-selected="selectedMetrics.includes('leads')"
               @click="toggleMetric('leads')"
             />
           </div>
@@ -199,7 +199,7 @@
               :change-positive="(summary.trends?.cpc || 0) <= 0"
               :icon="HandRaisedIcon"
               icon-color="purple"
-              :is-selected="selectedMetric === 'cpc'"
+              :is-selected="selectedMetrics.includes('cpc')"
               @click="toggleMetric('cpc')"
             />
           </div>
@@ -213,7 +213,7 @@
               :change-positive="(summary.trends?.cpa || 0) <= 0"
               :icon="BanknotesIcon"
               icon-color="pink"
-              :is-selected="selectedMetric === 'cpa'"
+              :is-selected="selectedMetrics.includes('cpa')"
               @click="toggleMetric('cpa')"
             />
           </div>
@@ -235,7 +235,7 @@
       </div>
       <StatisticsChart 
         :dynamics="dynamics" 
-        :selected-metric="selectedMetric"
+        :selected-metrics="selectedMetrics"
         :period="filters.period"
         @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
       />
@@ -417,13 +417,14 @@ const cardsContainer = ref(null)
 const isDragging = ref(false)
 const startX = ref(0)
 const scrollLeft = ref(0)
-const selectedMetric = ref(null) // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' или null для всех
+const selectedMetrics = ref([]) // массив ключей: 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa'
 
 const toggleMetric = (metric) => {
-  if (selectedMetric.value === metric) {
-    selectedMetric.value = null
+  const index = selectedMetrics.value.indexOf(metric)
+  if (index === -1) {
+    selectedMetrics.value.push(metric)
   } else {
-    selectedMetric.value = metric
+    selectedMetrics.value.splice(index, 1)
   }
 }
 
