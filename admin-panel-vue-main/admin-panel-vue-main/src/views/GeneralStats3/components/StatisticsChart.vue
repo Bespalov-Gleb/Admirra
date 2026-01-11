@@ -1,24 +1,8 @@
 <template>
   <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm border border-gray-50">
-    <!-- Заголовок и селектор дат -->
+    <!-- Заголовок -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
       <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>
-      <div class="flex items-center gap-2">
-        <div class="flex items-center bg-gray-50 rounded-xl p-1">
-          <button 
-            v-for="day in [7, 14, 30]" 
-            :key="day"
-            class="px-4 py-1.5 text-sm font-semibold rounded-lg transition-all"
-            :class="selectedDays === day ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'"
-            @click="selectedDays = day"
-          >
-            {{ day }}
-          </button>
-        </div>
-        <button class="p-2.5 bg-gray-50 text-gray-400 hover:text-gray-600 rounded-xl transition-all">
-          <CalendarIcon class="w-5 h-5" />
-        </button>
-      </div>
     </div>
     
     <div class="h-80 relative pb-10 w-full overflow-hidden">

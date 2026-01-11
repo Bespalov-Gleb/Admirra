@@ -2,14 +2,6 @@
   <div class="bg-white w-full rounded-[40px] px-6 sm:px-10 py-8 shadow-sm border border-gray-50">
     <div class="flex items-center justify-between mb-8">
       <h3 class="text-xl font-bold text-gray-900">Эффективность продвижения</h3>
-      <div class="flex gap-2">
-        <button v-for="tab in tabs" :key="tab" 
-          :class="['px-4 py-1.5 text-xs font-bold rounded-lg transition-all', 
-                   activeTab === tab ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600']"
-          @click="activeTab = tab">
-          {{ tab }}
-        </button>
-      </div>
     </div>
     
     <!-- Labels Row -->
@@ -22,7 +14,7 @@
 
     <!-- Funnel Chart Area -->
     <div class="relative h-32 mb-10 px-4 sm:px-12">
-      <svg viewBox="0 0 1000 120" preserveAspectRatio="none" class="w-full h-full">
+      <svg viewBox="0 0 1080 120" preserveAspectRatio="none" class="w-full h-full">
         <defs>
           <filter id="shadow">
             <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
@@ -41,15 +33,41 @@
         <!-- Stage 3 (End) -->
         <polygon :points="funnelPoints.stage3" fill="#82d944" />
 
-        <!-- Conversion Rate Badges -->
+        <!-- Metric Badges -->
+        <!-- 1. Показы -->
+        <g transform="translate(100, 60)">
+          <rect x="-40" y="-12" width="80" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[0].value }}</text>
+        </g>
+
+        <!-- 2. CTR -->
         <g v-if="funnelLabels[1].value" transform="translate(300, 60)">
           <rect x="-35" y="-12" width="70" height="24" rx="12" fill="white" filter="url(#shadow)" />
           <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[1].value }}</text>
         </g>
         
+        <!-- 3. Клики -->
+        <g transform="translate(500, 60)">
+          <rect x="-40" y="-12" width="80" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[2].value }}</text>
+        </g>
+
+        <!-- 4. Конверсии, % (CR) -->
         <g v-if="funnelLabels[3].value" transform="translate(700, 60)">
           <rect x="-35" y="-12" width="70" height="24" rx="12" fill="white" filter="url(#shadow)" />
           <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[3].value }}</text>
+        </g>
+
+        <!-- 5. Конверсии -->
+        <g transform="translate(900, 60)">
+          <rect x="-40" y="-12" width="80" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[4].value }}</text>
+        </g>
+
+        <!-- 6. Цена цели -->
+        <g transform="translate(1000, 60)">
+          <rect x="-40" y="-12" width="80" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[5].value }}</text>
         </g>
       </svg>
     </div>
@@ -57,13 +75,22 @@
     <!-- Stats Table Section -->
     <div class="mt-8">
       <div class="flex justify-center mb-6">
-        <button class="text-[11px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>
-          Скрыть таблицу
+        <button 
+          @click="isTableVisible = !isTableVisible"
+          class="text-[11px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          <svg 
+            class="w-3.5 h-3.5 transition-transform duration-300" 
+            :class="{ 'rotate-180': !isTableVisible }"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
+          </svg>
+          {{ isTableVisible ? 'Скрыть таблицу' : 'Подробнее' }}
         </button>
       </div>
 
-      <div class="overflow-x-auto">
+      <div v-if="isTableVisible" class="overflow-x-auto transition-all duration-500">
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
@@ -133,8 +160,7 @@ const props = defineProps({
   }
 })
 
-const tabs = ['Кампании', 'Цели', 'Места показа']
-const activeTab = ref('Места показа')
+const isTableVisible = ref(true)
 
 const funnelLabels = computed(() => [
   { text: 'Показы', value: (props.summary.impressions || 0).toLocaleString() },
