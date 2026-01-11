@@ -1,57 +1,130 @@
 <template>
   <div class="bg-white w-full rounded-[40px] px-6 sm:px-10 py-8 shadow-sm border border-gray-50">
-    <h3 class="text-xl font-bold text-gray-900 mb-8">Эффективность продвижения</h3>
+    <div class="flex items-center justify-between mb-8">
+      <h3 class="text-xl font-bold text-gray-900">Эффективность продвижения</h3>
+      <div class="flex gap-2">
+        <button v-for="tab in tabs" :key="tab" 
+          :class="['px-4 py-1.5 text-xs font-bold rounded-lg transition-all', 
+                   activeTab === tab ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600']"
+          @click="activeTab = tab">
+          {{ tab }}
+        </button>
+      </div>
+    </div>
     
-    <!-- KPI Row -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-      <div v-for="item in stats" :key="item.label" class="text-center p-4 bg-gray-50/50 rounded-2xl border border-gray-100/50">
-        <p class="text-lg sm:text-2xl font-black text-gray-900 mb-1 leading-none">{{ item.value }}</p>
-        <p class="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">{{ item.label }}</p>
-        
-        <!-- Trend indicator -->
-        <div v-if="item.trend !== undefined" class="flex items-center justify-center gap-1">
-          <span 
-            :class="[
-              'text-[10px] font-black px-2 py-0.5 rounded-full',
-              item.trend >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-            ]"
-          >
-            {{ item.trend > 0 ? '+' : '' }}{{ item.trend }}%
-          </span>
-        </div>
+    <!-- Labels Row -->
+    <div class="flex justify-between px-4 sm:px-12 mb-2 text-center">
+      <div v-for="label in funnelLabels" :key="label.text" class="flex flex-col items-center flex-1">
+        <span class="text-sm font-black text-gray-900">{{ label.value }}</span>
+        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{{ label.text }}</span>
       </div>
     </div>
 
     <!-- Funnel Chart Area -->
-    <div class="relative h-48 mb-8">
-      <div class="absolute inset-0 flex items-end justify-between px-4 sm:px-12">
-        <!-- We'll use a simple SVG or a specialized chart for this "funnel" area -->
-        <svg viewBox="0 0 1000 150" preserveAspectRatio="none" class="w-full h-full">
-          <defs>
-            <linearGradient id="funnelGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#22c55e;stop-opacity:0.8" />
-              <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-            </linearGradient>
-          </defs>
-          <path 
-            :d="funnelPath" 
-            fill="url(#funnelGradient)"
-          />
-          <!-- Data points with values -->
-          <g v-for="(point, index) in chartPoints" :key="index">
-            <circle :cx="point.x" :cy="point.y" r="5" fill="#3b82f6" stroke="white" stroke-width="2" />
-            <rect :x="point.x - 20" :y="point.y - 30" width="40" height="20" rx="10" fill="#3b82f6" />
-            <text :x="point.x" :y="point.y - 17" text-anchor="middle" fill="white" font-size="10" font-weight="bold">{{ point.value }}</text>
-          </g>
-        </svg>
-      </div>
+    <div class="relative h-32 mb-10 px-4 sm:px-12">
+      <svg viewBox="0 0 1000 120" preserveAspectRatio="none" class="w-full h-full">
+        <defs>
+          <filter id="shadow">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+          </filter>
+        </defs>
+        
+        <!-- Funnel Polygons -->
+        <!-- Stage 1 to 2 -->
+        <polygon :points="funnelPoints.stage1" fill="#82d944" />
+        <!-- Transition 1 (Trapezoid) -->
+        <polygon :points="funnelPoints.trans1" fill="#82d944" opacity="0.9" />
+        <!-- Stage 2 to 3 -->
+        <polygon :points="funnelPoints.stage2" fill="#82d944" />
+        <!-- Transition 2 (Trapezoid) -->
+        <polygon :points="funnelPoints.trans2" fill="#82d944" opacity="0.9" />
+        <!-- Stage 3 (End) -->
+        <polygon :points="funnelPoints.stage3" fill="#82d944" />
+
+        <!-- Conversion Rate Badges -->
+        <g v-if="funnelLabels[1].value" transform="translate(300, 60)">
+          <rect x="-35" y="-12" width="70" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[1].value }}</text>
+        </g>
+        
+        <g v-if="funnelLabels[3].value" transform="translate(700, 60)">
+          <rect x="-35" y="-12" width="70" height="24" rx="12" fill="white" filter="url(#shadow)" />
+          <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[3].value }}</text>
+        </g>
+      </svg>
     </div>
 
+    <!-- Stats Table Section -->
+    <div class="mt-8">
+      <div class="flex justify-center mb-6">
+        <button class="text-[11px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/></svg>
+          Скрыть таблицу
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+              <th class="pb-4 pr-4">Кампании</th>
+              <th class="pb-4 px-2 text-right">Показы</th>
+              <th class="pb-4 px-2 text-right">Клики</th>
+              <th class="pb-4 px-2 text-right">CTR</th>
+              <th class="pb-4 px-2 text-right">Ср. стоимость клика</th>
+              <th class="pb-4 px-2 text-right">Конверсии</th>
+              <th class="pb-4 px-2 text-right">Конверсии (CR)</th>
+              <th class="pb-4 px-2 text-right">Цена цели</th>
+              <th class="pb-4 px-2 text-right">Расход ↑</th>
+              <th class="pb-4 px-2 text-right">Доходы</th>
+              <th class="pb-4 px-2 text-right">Прибыль</th>
+              <th class="pb-4 px-2 text-right text-nowrap">Рентабельность</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Total Row -->
+            <tr class="group">
+              <td class="py-4 pr-4 font-bold text-sm text-gray-900">Итого</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.impressions || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.clicks || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.ctr || 0).toFixed(2) }}%</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cpc || 0).toFixed(2) }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.leads || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cr || 0).toFixed(2) }}%</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ summary.cpa ? summary.cpa.toFixed(2) + ' ₽' : '—' }}</td>
+              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ (summary.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.revenue || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700" :class="(summary.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'">
+                {{ (summary.profit || 0).toLocaleString() }} ₽
+              </td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.roi || 0).toFixed(0) }}%</td>
+            </tr>
+            <!-- Example Campaign Row -->
+            <tr class="border-t border-gray-50/50">
+              <td class="py-4 pr-4 text-sm font-bold text-gray-500 flex items-center gap-2">
+                <span class="text-xs">▹</span> В сетях
+              </td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.impressions || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.clicks || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.ctr || 0).toFixed(2) }}%</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cpc || 0).toFixed(2) }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.leads || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cr || 0).toFixed(2) }}%</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">—</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">0 ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ (summary.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-1%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   summary: {
@@ -60,66 +133,42 @@ const props = defineProps({
   }
 })
 
-const ctr = computed(() => props.summary.ctr || 0)
-const cr = computed(() => props.summary.cr || 0)
+const tabs = ['Кампании', 'Цели', 'Места показа']
+const activeTab = ref('Места показа')
 
-const stats = computed(() => [
-  { label: 'Показы', value: (props.summary.impressions || 0).toLocaleString(), trend: props.summary.trends?.impressions },
-  { label: 'CTR', value: ctr.value.toFixed(2) + '%', trend: props.summary.trends?.ctr },
-  { label: 'Клики', value: (props.summary.clicks || 0).toLocaleString(), trend: props.summary.trends?.clicks },
-  { label: 'Конверсия, % (CR)', value: cr.value.toFixed(2) + '%', trend: props.summary.trends?.cr },
-  { label: 'Конверсии', value: (props.summary.leads || 0).toLocaleString(), trend: props.summary.trends?.leads },
-  { label: 'Цена цели', value: (props.summary.cpa || 0).toLocaleString() + ' ₽', trend: props.summary.trends?.cpa }
+const funnelLabels = computed(() => [
+  { text: 'Показы', value: (props.summary.impressions || 0).toLocaleString() },
+  { text: 'CTR', value: (props.summary.ctr || 0).toFixed(2) + '%' },
+  { text: 'Клики', value: (props.summary.clicks || 0).toLocaleString() },
+  { text: 'Конверсии, % (CR)', value: (props.summary.cr || 0).toFixed(2) + '%' },
+  { text: 'Конверсии', value: (props.summary.leads || 0).toLocaleString() },
+  { text: 'Цена цели', value: props.summary.cpa ? props.summary.cpa.toFixed(2) + ' ₽' : '0,00 ₽' }
 ])
 
-// Dynamic points for the funnel visualization
-const chartPoints = computed(() => {
-  // Baseline max value for scaling. We take the max of absolute values to determine peak.
-  const vals = [
-    props.summary.impressions || 0,
-    props.summary.clicks || 0,
-    props.summary.leads || 0,
-    (props.summary.cpa || 0) / 10 // CPA is usually larger, scale it down for visual balance
-  ]
-  const maxVal = Math.max(...vals, 1) // Avoid division by zero
+const funnelPoints = computed(() => {
+  const h1 = 100 // Height of first stage (highest)
+  const h2 = Math.max(80, h1 * 0.8) // Height of second stage
+  const h3 = 10 // Height of end line (conversions)
   
-  // Formulas for dynamic Y coordinates (between 30 and 130)
-  const getY = (val) => {
-    if (!val) return 130 // Bottom line for zero values
-    // Logarithmic-like scaling to show difference even between small and large non-zero numbers
-    const ratio = Math.min(Math.log10(val + 1) / Math.log10(maxVal + 1), 1)
-    return 130 - (ratio * 100) // Height range is 100 units
-  }
-
-  // Percentage scaling (CTR/CR)
-  const getYRate = (val) => {
-    if (!val) return 130
-    const ratio = Math.min(val / 10, 1) // 10% is considered high for this visual
-    return 130 - (ratio * 90)
-  }
-
-  return [
-    { x: 100, y: getY(props.summary.impressions), value: (props.summary.impressions || 0).toLocaleString() },
-    { x: 300, y: getYRate(ctr.value), value: ctr.value.toFixed(2) + '%' },
-    { x: 500, y: getY(props.summary.clicks), value: (props.summary.clicks || 0).toLocaleString() },
-    { x: 700, y: getYRate(cr.value), value: cr.value.toFixed(2) + '%' },
-    { x: 900, y: getY(props.summary.leads), value: (props.summary.leads || 0).toLocaleString() }
-  ]
-})
-
-// Dynamic Funnel Path using Cubic Bezier for smooth curves based on points
-const funnelPath = computed(() => {
-  const p = chartPoints.value
-  const baseline = 150
+  const yCenter = 60
   
-  // We construct a path that passes smoothly through each of our 5 points
-  return `M0,${p[0].y + 20} 
-          C100,${p[0].y + 20} 50,${p[0].y} ${p[0].x},${p[0].y} 
-          C${(p[0].x + p[1].x) / 2},${p[0].y} ${(p[0].x + p[1].x) / 2},${p[1].y} ${p[1].x},${p[1].y} 
-          C${(p[1].x + p[2].x) / 2},${p[1].y} ${(p[1].x + p[2].x) / 2},${p[2].y} ${p[2].x},${p[2].y} 
-          C${(p[2].x + p[3].x) / 2},${p[2].y} ${(p[2].x + p[3].x) / 2},${p[3].y} ${p[3].x},${p[3].y} 
-          C${(p[3].x + p[4].x) / 2},${p[3].y} ${(p[3].x + p[4].x) / 2},${p[4].y} ${p[4].x},${p[4].y} 
-          C950,${p[4].y} 1000,${p[4].y + 10} 1000,${p[4].y + 20} 
-          L1000,${baseline} L0,${baseline} Z`
+  return {
+    // Rect for Stage 1 (Impressions)
+    stage1: `0,${yCenter - h1/2} 200,${yCenter - h1/2} 200,${yCenter + h1/2} 0,${yCenter + h1/2}`,
+    // Trapezoid Transition 1
+    trans1: `200,${yCenter - h1/2} 400,${yCenter - h2/2} 400,${yCenter + h2/2} 200,${yCenter + h1/2}`,
+    // Rect for Stage 2 (Clicks)
+    stage2: `400,${yCenter - h2/2} 600,${yCenter - h2/2} 600,${yCenter + h2/2} 400,${yCenter + h2/2}`,
+    // Trapezoid Transition 2
+    trans2: `600,${yCenter - h2/2} 800,${yCenter - h3/2} 800,${yCenter + h3/2} 600,${yCenter + h2/2}`,
+    // Rect for Stage 3 (Conversions)
+    stage3: `800,${yCenter - h3/2} 1000,${yCenter - h3/2} 1000,${yCenter + h3/2} 800,${yCenter + h3/2}`
+  }
 })
 </script>
+
+<style scoped>
+.text-nowrap {
+  white-space: nowrap;
+}
+</style>

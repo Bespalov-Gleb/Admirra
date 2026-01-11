@@ -12,9 +12,9 @@ def test_registration():
     db = SessionLocal()
     try:
         user_in = schemas.UserCreate(
-            email="test_debug_2@example.com",
+            email="iii@gmail.com",
             password="testpassword123",
-            username="debug_user_2"
+            username="iii"
         )
         print("Attempting registration...")
         result = register_user(user=user_in, db=db)
