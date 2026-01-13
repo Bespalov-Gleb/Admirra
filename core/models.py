@@ -79,6 +79,10 @@ class Integration(Base):
     is_agency = Column(Boolean, default=False)
     agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
 
+    # Goals Support
+    selected_goals = Column(String, nullable=True) # JSON list of goal IDs
+    primary_goal_id = Column(String, nullable=True)
+
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
 

@@ -40,6 +40,8 @@ class IntegrationBase(BaseModel):
     account_id: Optional[str] = None
     auto_sync: Optional[bool] = True
     sync_interval: Optional[int] = 1440
+    selected_goals: Optional[str] = None # JSON string
+    primary_goal_id: Optional[str] = None
 
     @field_validator('platform', mode='before')
     @classmethod
@@ -59,6 +61,8 @@ class IntegrationResponse(IntegrationBase):
     id: UUID
     client_id: UUID
     access_token: str
+    selected_goals: Optional[str] = None
+    primary_goal_id: Optional[str] = None
     campaigns: List["CampaignResponse"] = []
     
     class Config:

@@ -439,6 +439,66 @@ def get_integration(
         
     return integration
 
+@router.get("/{integration_id}/profiles")
+async def get_integration_profiles(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch available profiles/accounts for this integration.
+    For Yandex Agency, returns list of sub-clients.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    access_token = security.decrypt_token(integration.access_token)
+    
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        # If it's an agency token, we can fetch sub-clients
+        # Reuse existing function
+        profiles = await get_agency_clients(access_token)
+        return profiles
+    
+    # For regular accounts, return the account itself as the only profile
+    return [{"login": integration.account_id, "name": integration.account_id}]
+
+@router.get("/{integration_id}/goals")
+async def get_integration_goals(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch available goals (Metrica) for this integration.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    # For now, return a placeholder or implement Metrica fetching
+    # In a real scenario, we'd find the Metrica counter ID linked to this Direct account
+    # or let user input it.
+    
+    # Stub for UI development
+    return [
+        {"id": "500481744", "name": "Автоцель: переход в мессенджер"},
+        {"id": "530485499", "name": "Целевая страница"},
+        {"id": "900465557", "name": "Переход в корзину"},
+        {"id": "900455915", "name": "Оформление заказа"},
+        {"id": "500481741", "name": "Клик по номеру"},
+        {"id": "90481745", "name": "Страница формы"}
+    ]
+
 @router.patch("/{integration_id}", response_model=schemas.IntegrationResponse)
 async def update_integration(
     integration_id: uuid.UUID,
