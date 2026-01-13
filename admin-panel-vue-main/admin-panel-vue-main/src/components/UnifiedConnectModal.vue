@@ -543,12 +543,6 @@ const fetchProfiles = async (integrationId) => {
   try {
     const { data } = await api.get(`integrations/${integrationId}/profiles`)
     profiles.value = data
-    
-    // AUTO-SKIP: If only one profile, select it automatically
-    if (data.length === 1) {
-      console.log('Auto-selecting single profile:', data[0].login)
-      selectProfile(data[0])
-    }
   } catch (err) {
     console.error('Failed to fetch profiles:', err)
     error.value = 'Не удалось загрузить профили'
