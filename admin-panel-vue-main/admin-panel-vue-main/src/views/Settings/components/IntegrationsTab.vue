@@ -72,8 +72,37 @@
                   </label>
                 </div>
 
+                <!-- Status Badge -->
+                <div class="flex flex-col items-end gap-1 px-4 min-w-[100px]">
+                  <div 
+                    class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                    :class="{
+                      'bg-green-50 text-green-600': item.sync_status === 'SUCCESS',
+                      'bg-red-50 text-red-600': item.sync_status === 'FAILED',
+                      'bg-gray-50 text-gray-400': item.sync_status === 'NEVER' || item.sync_status === 'PENDING'
+                    }"
+                  >
+                    <div class="w-1.5 h-1.5 rounded-full" :class="{
+                      'bg-green-500': item.sync_status === 'SUCCESS',
+                      'bg-red-500': item.sync_status === 'FAILED',
+                      'bg-gray-300': item.sync_status === 'NEVER' || item.sync_status === 'PENDING'
+                    }"></div>
+                    {{ statusLabels[item.sync_status] || 'Неизвестно' }}
+                  </div>
+                  <span v-if="item.error_message" class="text-[9px] text-red-400 font-medium max-w-[150px] truncate" :title="item.error_message">
+                    {{ item.error_message }}
+                  </span>
+                </div>
+
                 <!-- Action Links -->
                 <div class="flex items-center gap-6">
+                  <button 
+                    @click="testConnection(item.id)" 
+                    :disabled="testingId === item.id"
+                    class="text-[11px] font-bold text-gray-500 hover:text-black transition-colors disabled:opacity-50"
+                  >
+                    {{ testingId === item.id ? 'Проверка...' : 'Проверить' }}
+                  </button>
                   <button 
                     @click="handleSync(item.id)" 
                     :disabled="syncingId === item.id"
@@ -159,6 +188,18 @@ const platformLabels = {
   'YANDEX_METRIKA': 'Яндекс.Метрика'
 }
 
+const statusLabels = {
+  'SUCCESS': 'Активно',
+  'FAILED': 'Ошибка',
+  'PENDING': 'Ожидание',
+  'NEVER': 'Не проверено'
+}
+
+const syncingId = ref(null)
+const testingId = ref(null)
+
+const toaster = useToaster()
+
 const intervals = [
   { label: '15 минут', value: 15 },
   { label: '1 час', value: 60 },
@@ -225,6 +266,25 @@ const updateSyncInterval = async (integration, value) => {
     toaster.success('Интервал синхронизации обновлен')
   } catch (err) {
     toaster.error('Не удалось обновить интервал')
+  }
+}
+
+const testConnection = async (id) => {
+  testingId.value = id
+  try {
+    const { data } = await api.get(`integrations/${id}/test-connection`)
+    if (data.status === 'success') {
+      toaster.success('Соединение активно: ' + data.details.join(', '))
+    } else if (data.status === 'warning') {
+      toaster.warning('Соединение частично активно: ' + data.details.join(', '))
+    } else {
+      toaster.error('Ошибка соединения: ' + data.details.join(', '))
+    }
+    fetchIntegrations()
+  } catch (error) {
+    toaster.error('Не удалось проверить соединение: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    testingId.value = null
   }
 }
 

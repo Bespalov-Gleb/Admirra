@@ -37,11 +37,10 @@ class VKAdsAPI:
                         for item in data.get("items", [])
                     ]
                 else:
-                    logger.error(f"Failed to fetch VK campaigns: {response.status_code}")
-                    return []
+                    raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {response.text}")
         except Exception as e:
             logger.error(f"Error fetching VK campaigns: {e}")
-            return []
+            raise e
 
     async def get_statistics(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """

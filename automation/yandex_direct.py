@@ -28,6 +28,7 @@ class YandexDirectAPI:
         payload = {
             "method": "get",
             "params": {
+                "SelectionCriteria": {},
                 "FieldNames": ["Id", "Name", "Status"]
             }
         }
@@ -46,9 +47,14 @@ class YandexDirectAPI:
                             }
                             for c in data["result"]["Campaigns"]
                         ]
-                logger.error(f"Failed to fetch Yandex campaigns: {response.text}")
+                    elif "error" in data:
+                        error_msg = data["error"].get("error_msg", response.text)
+                        raise Exception(f"Yandex API Error: {error_msg}")
+                
+                raise Exception(f"Failed to fetch Yandex campaigns: {response.status_code} - {response.text}")
             except Exception as e:
                 logger.error(f"Error fetching Yandex campaigns: {e}")
+                raise e
                 
         return []
 

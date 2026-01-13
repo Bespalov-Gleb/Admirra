@@ -229,6 +229,11 @@
         <!-- Step 3: Campaign Selection -->
         <CustomScroll v-else-if="currentStep === 3" class="flex-grow">
           <div class="pr-1 pb-4 space-y-4">
+            <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[12px] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
+              <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+              <span class="font-bold">{{ error }}</span>
+            </div>
+            
             <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Рекламная кампания</label>
             
             <!-- Search Campaigns -->
@@ -242,10 +247,11 @@
             </div>
 
             <div v-if="loadingCampaigns" class="py-12 flex flex-col items-center justify-center gap-4">
-              <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
-              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Получение кампаний...</span>
+              <!-- Loading Skeleton for Campaigns -->
+              <div v-for="i in 3" :key="i" class="w-full h-16 bg-gray-50 rounded-2xl animate-pulse"></div>
+              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2">Получение кампаний...</span>
             </div>
-            <div v-else class="space-y-2">
+            <div v-else-if="filteredCampaigns.length > 0" class="space-y-2">
               <button 
                 v-for="campaign in filteredCampaigns" 
                 :key="campaign.id"
@@ -270,51 +276,64 @@
         <!-- Step 4: Goal Selection -->
         <CustomScroll v-else-if="currentStep === 4" class="flex-grow">
           <div class="pr-1 pb-4 space-y-6">
-            <div>
-              <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Основная цель:</label>
-              <div class="relative">
-                <button 
-                  @click="goalDropdownOpen = !goalDropdownOpen"
-                  class="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between hover:bg-gray-100 transition-all"
-                >
-                  <span class="text-[12px] font-black text-black text-left">
-                    {{ form.primary_goal_id ? goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id : 'Выберите основную цель' }}
-                  </span>
-                  <ChevronDownIcon class="w-5 h-5 text-gray-400" />
-                </button>
-                <div v-if="goalDropdownOpen" class="absolute z-[120] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 max-h-48 overflow-y-auto animate-slide-down">
+            <div v-if="loadingGoals" class="py-12 flex flex-col items-center justify-center gap-4">
+              <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
+              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка целей...</span>
+            </div>
+            <div v-else-if="goals.length === 0" class="py-12 flex flex-col items-center justify-center text-center">
+               <div class="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mb-3">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </div>
+                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
+                <p class="text-[10px] text-gray-300 mt-1 font-bold">Проверьте настройки Метрики</p>
+            </div>
+            <div v-else class="space-y-6">
+              <div>
+                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Основная цель:</label>
+                <div class="relative">
+                  <button 
+                    @click="goalDropdownOpen = !goalDropdownOpen"
+                    class="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between hover:bg-gray-100 transition-all"
+                  >
+                    <span class="text-[12px] font-black text-black text-left">
+                      {{ form.primary_goal_id ? goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id : 'Выберите основную цель' }}
+                    </span>
+                    <ChevronDownIcon class="w-5 h-5 text-gray-400" />
+                  </button>
+                  <div v-if="goalDropdownOpen" class="absolute z-[120] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 max-h-48 overflow-y-auto animate-slide-down">
+                    <button 
+                      v-for="goal in goals" 
+                      :key="goal.id"
+                      @click="selectPrimaryGoal(goal)"
+                      class="w-full px-4 py-2.5 text-left text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all border-b border-gray-50 last:border-none"
+                    >
+                      {{ goal.name }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Цели для блока с конверсиями:</label>
+                <div class="space-y-2">
                   <button 
                     v-for="goal in goals" 
                     :key="goal.id"
-                    @click="selectPrimaryGoal(goal)"
-                    class="w-full px-4 py-2.5 text-left text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all border-b border-gray-50 last:border-none"
+                    @click="toggleGoal(goal.id)"
+                    class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
+                    :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'"
                   >
-                    {{ goal.name }} ({{ goal.id }})
+                    <div class="flex items-center gap-3">
+                      <div class="w-4 h-4 rounded border flex items-center justify-center transition-all" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
+                        <svg v-if="selectedGoalIds.includes(goal.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                      </div>
+                      <div class="text-left">
+                        <span class="block text-[11px] font-black transition-all" :class="selectedGoalIds.includes(goal.id) ? 'text-blue-700' : 'text-gray-700 font-bold'">{{ goal.name }}</span>
+                        <span class="block text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{{ goal.id }}</span>
+                      </div>
+                    </div>
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Цели для блока с конверсиями:</label>
-              <div class="space-y-2">
-                <button 
-                  v-for="goal in goals" 
-                  :key="goal.id"
-                  @click="toggleGoal(goal.id)"
-                  class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
-                  :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'"
-                >
-                  <div class="flex items-center gap-3">
-                    <div class="w-4 h-4 rounded border flex items-center justify-center transition-all" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
-                      <svg v-if="selectedGoalIds.includes(goal.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-                    <div class="text-left">
-                      <span class="block text-[11px] font-black transition-all" :class="selectedGoalIds.includes(goal.id) ? 'text-blue-700' : 'text-gray-700 font-bold'">{{ goal.name }}</span>
-                      <span class="block text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{{ goal.id }}</span>
-                    </div>
-                  </div>
-                </button>
               </div>
             </div>
           </div>
@@ -582,6 +601,13 @@ const toggleGoal = (id) => {
 
 const handleSubmit = async () => {
   if (loading.value) return
+  
+  // Validation: Ensure project is selected or a new name is provided
+  if (!form.client_id && (!isCreatingNewProject.value || !form.client_name)) {
+    error.value = 'Пожалуйста, выберите проект или укажите название нового'
+    return
+  }
+
   loading.value = true
   error.value = null
 

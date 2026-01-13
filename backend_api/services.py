@@ -1,6 +1,9 @@
 import httpx
 from fastapi import HTTPException
 from core import models, schemas
+import logging
+
+logger = logging.getLogger(__name__)
 
 class IntegrationService:
     @staticmethod
@@ -36,6 +39,31 @@ class IntegrationService:
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to connect to VK Ads: {str(e)}")
+
+    @staticmethod
+    async def refresh_yandex_token(refresh_token: str, client_id: str, client_secret: str) -> dict:
+        """
+        Refreshes Yandex OAuth access token using a refresh token.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://oauth.yandex.ru/token",
+                    data={
+                        "grant_type": "refresh_token",
+                        "refresh_token": refresh_token,
+                        "client_id": client_id,
+                        "client_secret": client_secret
+                    }
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"Yandex Refresh Error: {response.text}")
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to refresh Yandex token: {e}")
+            return None
 
     @staticmethod
     def map_error(platform: str, error_detail: str) -> str:

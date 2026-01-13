@@ -60,3 +60,29 @@ class YandexMetricaAPI:
                 data = response.json()
                 return data.get('data', [])
             return []
+
+    async def get_counters(self) -> List[Dict[str, Any]]:
+        """
+        Lists all accessible counters.
+        """
+        url = "https://api-metrica.yandex.net/management/v1/counters"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('counters', [])
+            logger.error(f"Failed to fetch counters: {response.status_code} - {response.text}")
+            return []
+
+    async def get_counter_goals(self, counter_id: str) -> List[Dict[str, Any]]:
+        """
+        Lists all goals for a specific counter.
+        """
+        url = f"https://api-metrica.yandex.net/management/v1/counter/{counter_id}/goals"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('goals', [])
+            logger.error(f"Failed to fetch goals for counter {counter_id}: {response.status_code} - {response.text}")
+            return []

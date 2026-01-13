@@ -3,6 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from core.database import get_db, SessionLocal
 from core import models, schemas, security
+from automation.yandex_direct import YandexDirectAPI
+from automation.yandex_metrica import YandexMetricaAPI
+from automation.vk_ads import VKAdsAPI
 from typing import List
 import uuid
 import httpx
@@ -487,19 +490,35 @@ async def get_integration_goals(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    # For now, return a placeholder or implement Metrica fetching
-    # In a real scenario, we'd find the Metrica counter ID linked to this Direct account
-    # or let user input it.
+    # Use the token from integration
+    access_token = security.decrypt_token(integration.access_token)
+    metrica_api = YandexMetricaAPI(access_token)
     
-    # Stub for UI development
-    return [
-        {"id": "500481744", "name": "Автоцель: переход в мессенджер"},
-        {"id": "530485499", "name": "Целевая страница"},
-        {"id": "900465557", "name": "Переход в корзину"},
-        {"id": "900455915", "name": "Оформление заказа"},
-        {"id": "500481741", "name": "Клик по номеру"},
-        {"id": "90481745", "name": "Страница формы"}
-    ]
+    try:
+        # 1. Get all counters
+        counters = await metrica_api.get_counters()
+        if not counters:
+            return []
+            
+        all_goals = []
+        # 2. For each counter, get goals
+        # Optional: we could filter counters by some criteria, but for now we get all
+        for counter in counters:
+            counter_id = str(counter['id'])
+            counter_name = counter.get('name', 'Unknown')
+            goals = await metrica_api.get_counter_goals(counter_id)
+            for goal in goals:
+                all_goals.append({
+                    "id": str(goal['id']),
+                    "name": f"{goal['name']} ({counter_name})",
+                    "counter_id": counter_id
+                })
+        
+        return all_goals
+    except Exception as e:
+        logger.error(f"Error fetching real Metrica goals: {e}")
+        # Fallback to stub only if everything fails (not recommended but for safety)
+        return []
 
 @router.patch("/{integration_id}", response_model=schemas.IntegrationResponse)
 async def update_integration(
@@ -580,6 +599,76 @@ async def discover_campaigns(
     
     # Return all campaigns for this integration
     return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+
+@router.get("/{integration_id}/test-connection")
+async def test_integration_connection(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Test if the integration tokens are still valid and have access.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+        
+    access_token = security.decrypt_token(integration.access_token)
+    status_info = {"status": "success", "platform": integration.platform, "details": []}
+    
+    try:
+        if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+            # Test Direct API
+            direct_api = YandexDirectAPI(access_token, integration.agency_client_login)
+            try:
+                # Simple check: fetch campaign IDs only
+                await direct_api.get_campaigns()
+                status_info["details"].append("Yandex Direct: OK")
+            except Exception as e:
+                status_info["status"] = "failed"
+                status_info["details"].append(f"Yandex Direct: {str(e)}")
+            
+            # Test Metrica API
+            metrica_api = YandexMetricaAPI(access_token)
+            try:
+                await metrica_api.get_counters()
+                status_info["details"].append("Yandex Metrica: OK")
+            except Exception as e:
+                # Metrica failure might not mean total failure if Direct works
+                status_info["details"].append(f"Yandex Metrica: {str(e)}")
+                if status_info["status"] == "success": # If Direct worked, we might still mark as partial success or warning
+                     status_info["status"] = "warning"
+
+        elif integration.platform == models.IntegrationPlatform.VK_ADS:
+             # Test VK API
+             from automation.vk_ads import VKAdsAPI
+             vk_api = VKAdsAPI(access_token, integration.account_id)
+             try:
+                 await vk_api.get_campaigns()
+                 status_info["details"].append("VK Ads: OK")
+             except Exception as e:
+                 status_info["status"] = "failed"
+                 status_info["details"].append(f"VK Ads: {str(e)}")
+
+        # Update integration status in DB
+        integration.last_sync_at = datetime.utcnow()
+        if status_info["status"] == "failed":
+            integration.sync_status = models.IntegrationSyncStatus.FAILED
+            integration.error_message = "; ".join(status_info["details"])
+        else:
+            integration.sync_status = models.IntegrationSyncStatus.SUCCESS
+            integration.error_message = None
+            
+        db.commit()
+        return status_info
+
+    except Exception as e:
+        logger.error(f"Health check failed for {integration_id}: {e}")
+        return {"status": "error", "message": str(e)}
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_integration(
