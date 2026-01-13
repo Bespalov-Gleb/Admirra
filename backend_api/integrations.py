@@ -481,15 +481,19 @@ async def get_integration_profiles(
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         log_event("yandex", f"fetching profiles for integration {integration_id}")
-        api = YandexDirectAPI(access_token, integration.agency_client_login) # Assuming api is YandexDirectAPI
         try:
-            profiles = await api.get_accounts() # Assuming get_accounts() is the correct method
-            log_event("yandex", f"received {len(profiles)} profiles from yandex", [p['login'] for p in profiles])
+            # 1. Try to get agency clients
+            profiles = await get_agency_clients(access_token)
+            
+            # 2. If no agency clients, or it's a regular account, include the account itself
+            if not profiles:
+                profiles = [{"login": integration.account_id, "name": f"Личный аккаунт ({integration.account_id})"}]
+            
+            log_event("yandex", f"received {len(profiles)} profiles from yandex")
             return profiles
         except Exception as e:
             log_event("yandex", f"error fetching profiles: {str(e)}", level="error")
-            logger.error(f"Error fetching Yandex agency clients: {e}") # Keep existing logger.error
-            # Fallback to single account if not an agency or no sub-clients
+            # Fallback to single account
             return [{"login": integration.account_id, "name": integration.account_id}]
     
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")

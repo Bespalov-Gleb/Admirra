@@ -9,7 +9,8 @@
         <!-- Header: Fixed -->
         <div class="flex items-center justify-between mb-2 flex-shrink-0">
           <div>
-            <h3 class="text-xl font-black text-black tracking-tight leading-tight uppercase">Добавить интеграцию</h3>
+            <h3 class="text-xl font-black text-black tracking-tight leading-none uppercase">Добавить интеграцию</h3>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Новый рекламный канал</p>
           </div>
           <button @click="close" class="p-2 bg-gray-50 text-gray-500 hover:text-black hover:rotate-90 hover:bg-gray-100 transition-all rounded-full border border-gray-100 shadow-sm">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -45,330 +46,136 @@
 
         <!-- Step 1: Configuration (Platform & Project) -->
         <CustomScroll v-if="currentStep === 1" class="flex-grow">
-          <div class="pr-1 pb-4 space-y-5">
-            <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[12px] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
-              <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-              <span class="font-bold">{{ error }}</span>
-            </div>
-
-            <form @submit.prevent="nextStep" class="space-y-5">
-              <!-- Platform Selection -->
-              <div class="relative">
-                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Платформа</label>
-                <div class="relative">
-                  <button 
-                    type="button"
-                    @click="dropdownOpen = !dropdownOpen"
-                    class="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all flex items-center justify-between shadow-sm group hover:border-gray-400"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shadow-sm border" :class="currentPlatform.className">
-                        {{ currentPlatform.initials }}
-                      </div>
-                      <div class="text-left">
-                        <span class="block text-[13px] font-black text-black leading-none">{{ currentPlatform.label }}</span>
-                      </div>
-                    </div>
-                    <svg class="w-4 h-4 text-gray-400 group-hover:text-black transition-all duration-300" :class="{ 'rotate-180': dropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </button>
-
-                  <div v-if="dropdownOpen" class="absolute z-[110] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 overflow-hidden animate-slide-down">
-                    <button 
-                      v-for="(config, key) in PLATFORMS" 
-                      :key="key"
-                      type="button"
-                      @click="selectPlatform(key)"
-                      class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-all border-b border-gray-50 last:border-none"
-                      :class="{ 'bg-blue-50/40': form.platform === key }"
-                    >
-                      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[9px] font-black shadow-sm" :class="config.className">
-                        {{ config.initials }}
-                      </div>
-                      <span class="text-[12px] font-black" :class="form.platform === key ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ config.label }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Project Selection -->
-              <div class="relative">
-                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Проект</label>
-                <div class="relative">
-                  <button 
-                    type="button"
-                    @click="projectDropdownOpen = !projectDropdownOpen"
-                    class="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-2xl focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all flex items-center justify-between shadow-sm group hover:border-gray-400"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div class="text-left">
-                        <span class="block text-[13px] font-black text-black leading-none">
-                          {{ form.client_id ? projects.find(p => p.id === form.client_id)?.name : 'Выберите проект' }}
-                        </span>
-                      </div>
-                    </div>
-                    <svg class="w-4 h-4 text-gray-400 group-hover:text-black transition-all duration-300" :class="{ 'rotate-180': projectDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </button>
-
-                  <div v-if="projectDropdownOpen" class="absolute z-[110] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 overflow-hidden animate-slide-down">
-                    <div class="max-h-48 overflow-y-auto">
-                      <button 
-                        v-for="project in projects" 
-                        :key="project.id"
-                        type="button"
-                        @click="selectProject(project)"
-                        class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gray-50 transition-all border-b border-gray-50 last:border-none"
-                        :class="{ 'bg-blue-50/40': form.client_id === project.id }"
-                      >
-                        <span class="text-[12px] font-black" :class="form.client_id === project.id ? 'text-blue-600' : 'text-gray-600 font-bold'">{{ project.name }}</span>
-                      </button>
-
-                      <button 
-                        type="button"
-                        @click="selectNewProject"
-                        class="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-blue-50 transition-all border-t border-gray-100"
-                        :class="{ 'bg-blue-50': isCreatingNewProject }"
-                      >
-                        <div class="w-5 h-5 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                          <PlusIcon class="w-4 h-4" />
-                        </div>
-                        <span class="text-[12px] font-black text-blue-600">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- New Project Name Input -->
-              <div v-if="isCreatingNewProject" class="animate-modal-in">
-                <Input
-                  v-model="form.client_name"
-                  label="Название проекта"
-                  labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1"
-                  inputClass="rounded-2xl font-black text-black shadow-sm"
-                  placeholder="Нанапример: Проект Альфа"
-                  required
-                />
-              </div>
-
-              <!-- Yandex Auth Button (Step 1 footer alternative) -->
-              <div v-if="form.platform === 'YANDEX_DIRECT' && currentStep === 1" class="py-2">
-                <!-- This button is handled by nextStep logic indirectly or explicitly here -->
-              </div>
-
-              <!-- VK Auth Button (Step 1 footer alternative) -->
-              <div v-else-if="form.platform === 'VK_ADS' && !currentPlatform.isDynamic && currentStep === 1" class="py-2">
-                <!-- Handled in footer -->
-              </div>
-
-              <!-- Standard Token Input -->
-              <Input
-                v-else-if="!currentPlatform.isDynamic"
-                v-model="form.access_token"
-                :type="showToken ? 'text' : 'password'"
-                label="Access Token"
-                labelClass="text-[10px] font-black text-black uppercase tracking-[0.2em] mb-1 px-1"
-                inputClass="rounded-2xl font-mono text-[13px] tracking-widest text-black shadow-sm hover:border-gray-400"
-                placeholder="••••••••••••••••••••"
-                required
-              />
-            </form>
-          </div>
+          <IntegrationStep1 
+            v-model="form"
+            v-model:isCreatingNewProject="isCreatingNewProject"
+            :projects="projects"
+            :error="error"
+            :showToken="showToken"
+            @next="nextStep"
+            @openProjectSelector="isProjectSelectorOpen = true"
+            @openPlatformSelector="isPlatformSelectorOpen = true"
+          />
         </CustomScroll>
 
-        <!-- Step 2: Profile Selection -->
         <CustomScroll v-else-if="currentStep === 2" class="flex-grow">
-          <div class="pr-1 pb-4 space-y-4">
-            <div class="relative mb-4">
-              <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Профиль рекламной кампании</label>
-              
-              <!-- Search Profiles -->
-              <div class="mb-4">
-                <input 
-                  v-model="searchQuery" 
-                  type="text" 
-                  placeholder="Поиск профиля..." 
-                  class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
-                >
-              </div>
-
-              <div v-if="loadingProfiles" class="py-12 flex flex-col items-center justify-center gap-4">
-                <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
-                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка профилей...</span>
-              </div>
-              <div v-else-if="filteredProfiles.length > 0" class="space-y-2">
-                <button 
-                  v-for="profile in filteredProfiles" 
-                  :key="profile.login"
-                  @click="selectProfile(profile)"
-                  class="w-full px-5 py-4 bg-white border rounded-2xl transition-all flex items-center justify-between group"
-                  :class="form.account_id === profile.login ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-50' : 'border-gray-100 hover:border-gray-300'"
-                >
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-500 uppercase">
-                      {{ profile.login.substring(0, 2) }}
-                    </div>
-                    <div class="text-left">
-                      <span class="block text-[13px] font-black transition-all" :class="form.account_id === profile.login ? 'text-blue-700' : 'text-black'">{{ profile.name || profile.login }}</span>
-                      <span class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">{{ profile.login }}</span>
-                    </div>
-                  </div>
-                  <ChevronRightIcon class="w-5 h-5 text-gray-300 group-hover:text-black transition-all" />
-                </button>
-              </div>
-              <div v-else class="py-12 flex flex-col items-center justify-center text-center px-4">
-                <div class="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mb-3">
-                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </div>
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Профили не найдены</p>
-                <p class="text-[10px] text-gray-300 mt-1 font-bold">Попробуйте изменить поисковый запрос</p>
-              </div>
-            </div>
-          </div>
+          <IntegrationStep2 
+            :profiles="profiles"
+            :selectedAccountId="form.account_id"
+            :loading="loadingProfiles"
+            :platform="form.platform"
+            @openProfileSelector="isProfileSelectorOpen = true"
+            @next="nextStep"
+          />
         </CustomScroll>
 
-        <!-- Step 3: Campaign Selection -->
-        <CustomScroll v-else-if="currentStep === 3" class="flex-grow">
-          <div class="pr-1 pb-4 space-y-4">
-            <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[12px] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
-              <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-              <span class="font-bold">{{ error }}</span>
-            </div>
-            
-            <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Рекламная кампания</label>
-            
-            <!-- Search Campaigns -->
-            <div class="mb-4">
-              <input 
-                v-model="searchQuery" 
-                type="text" 
-                placeholder="Поиск кампании..." 
-                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
-              >
-            </div>
 
-            <div v-if="loadingCampaigns" class="py-12 flex flex-col items-center justify-center gap-4">
-              <!-- Loading Skeleton for Campaigns -->
-              <div v-for="i in 3" :key="i" class="w-full h-16 bg-gray-50 rounded-2xl animate-pulse"></div>
-              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2">Получение кампаний...</span>
-            </div>
-            <div v-else-if="filteredCampaigns.length > 0" class="space-y-2">
-              <button 
-                v-for="campaign in filteredCampaigns" 
-                :key="campaign.id"
-                @click="toggleCampaign(campaign.id)"
-                class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
-                :class="selectedCampaignIds.includes(campaign.id) ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-50' : 'bg-white border-gray-100 hover:border-gray-300'"
-              >
-                <div class="flex items-center gap-3">
-                  <div class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all" :class="selectedCampaignIds.includes(campaign.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
-                    <svg v-if="selectedCampaignIds.includes(campaign.id)" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                  </div>
-                  <div class="text-left">
-                    <span class="block text-[12px] font-black transition-all" :class="selectedCampaignIds.includes(campaign.id) ? 'text-blue-700' : 'text-gray-700 font-bold'">{{ campaign.name }}</span>
-                    <span class="block text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">ID: {{ campaign.external_id }}</span>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
+        <CustomScroll v-else-if="currentStep === 3" class="flex-grow">
+          <IntegrationStep3 
+            :campaigns="campaigns"
+            :selectedIds="selectedCampaignIds"
+            :loading="loadingCampaigns"
+            :platform="form.platform"
+            :allFromProfile="allFromProfile"
+            @openCampaignSelector="isCampaignSelectorOpen = true"
+            @toggleAll="toggleAllCampaigns"
+            @next="nextStep"
+          />
         </CustomScroll>
 
         <!-- Step 4: Goal Selection -->
         <CustomScroll v-else-if="currentStep === 4" class="flex-grow">
-          <div class="pr-1 pb-4 space-y-6">
-            <div v-if="loadingGoals" class="py-12 flex flex-col items-center justify-center gap-4">
-              <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
-              <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка целей...</span>
-            </div>
-            <div v-else-if="goals.length === 0" class="py-12 flex flex-col items-center justify-center text-center">
-               <div class="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mb-3">
-                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                </div>
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
-                <p class="text-[10px] text-gray-300 mt-1 font-bold">Проверьте настройки Метрики</p>
-            </div>
-            <div v-else class="space-y-6">
-              <div>
-                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Основная цель:</label>
-                <div class="relative">
-                  <button 
-                    @click="goalDropdownOpen = !goalDropdownOpen"
-                    class="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-between hover:bg-gray-100 transition-all"
-                  >
-                    <span class="text-[12px] font-black text-black text-left">
-                      {{ form.primary_goal_id ? goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id : 'Выберите основную цель' }}
-                    </span>
-                    <ChevronDownIcon class="w-5 h-5 text-gray-400" />
-                  </button>
-                  <div v-if="goalDropdownOpen" class="absolute z-[120] mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl py-2 max-h-48 overflow-y-auto animate-slide-down">
-                    <button 
-                      v-for="goal in goals" 
-                      :key="goal.id"
-                      @click="selectPrimaryGoal(goal)"
-                      class="w-full px-4 py-2.5 text-left text-[11px] font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all border-b border-gray-50 last:border-none"
-                    >
-                      {{ goal.name }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-3 px-1">Цели для блока с конверсиями:</label>
-                <div class="space-y-2">
-                  <button 
-                    v-for="goal in goals" 
-                    :key="goal.id"
-                    @click="toggleGoal(goal.id)"
-                    class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
-                    :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100 hover:border-gray-300'"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div class="w-4 h-4 rounded border flex items-center justify-center transition-all" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
-                        <svg v-if="selectedGoalIds.includes(goal.id)" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                      </div>
-                      <div class="text-left">
-                        <span class="block text-[11px] font-black transition-all" :class="selectedGoalIds.includes(goal.id) ? 'text-blue-700' : 'text-gray-700 font-bold'">{{ goal.name }}</span>
-                        <span class="block text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{{ goal.id }}</span>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <IntegrationStep4 
+            :goals="goals"
+            :primaryGoalId="form.primary_goal_id"
+            :selectedGoalIds="selectedGoalIds"
+            :loading="loadingGoals"
+            :platform="form.platform"
+            :allFromProfile="allGoalsFromProfile"
+            :showValidationError="showValidationError"
+            @openGoalSelector="isGoalSelectorOpen = true"
+            @toggleAll="toggleAllGoals"
+            @toggleSecondary="toggleGoal"
+            @selectPrimary="selectPrimaryGoal"
+            @finish="finishConnection"
+          />
         </CustomScroll>
 
         <!-- Footer: Fixed -->
         <div class="flex gap-3 pt-6 mt-4 border-t border-gray-50 flex-shrink-0 bg-white">
-          <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Отмена</button>
+          <button v-if="currentStep <= 3" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
+            Отмена
+          </button>
           <button v-else type="button" @click="prevStep" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Назад</button>
           
           <button 
             v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
             @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
             :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
-            class="flex-[1.5] py-3.5 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
-            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FC3F1D] hover:bg-[#e63212]' : 'bg-[#0077FF] hover:bg-[#0066EE]'"
+            class="flex-[1.5] py-4 rounded-[1.25rem] text-white font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20'"
           >
             <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span v-else class="flex items-center gap-2">
-              <svg v-if="form.platform === 'YANDEX_DIRECT'" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.923 15.686L8.683 5H5v14h3.04V9.695l4.577 9.305h3.336l-5.603-9.52 5.09-4.48h-3.32l-3.2 3.11V15.686z"/></svg>
-              <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13.162 18.994c-6.098 0-9.57-4.172-9.714-11.104h3.047c.1 5.093 2.344 7.25 4.125 7.696V7.89H13.5v4.39c1.703-.187 3.562-2.188 4.172-4.39h2.89c-.531 2.766-2.563 4.766-3.734 5.438 1.171.547 3.5 2.25 4.406 5.664h-3.14c-.703-2.203-2.454-3.906-4.22-4.08v4.08h-2.1c-.015.002-.015.002 0 .006z"/></svg>
-              ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС' : 'VK ADS' }}
+              ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС ДИРЕКТ' : 'VK ADS' }}
             </span>
           </button>
 
-          <button v-else-if="currentStep < 4" @click="nextStep" :disabled="loading || loadingProfiles || loadingCampaigns" class="flex-[1.5] py-3.5 bg-gray-900 text-white rounded-2xl hover:bg-black hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
-            <div v-if="loading || loadingProfiles || loadingCampaigns" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            <span>{{ loading || loadingProfiles || loadingCampaigns ? 'ЗАГРУЗКА...' : 'ДАЛЕЕ' }}</span>
-          </button>
+          <!-- No right button for step 2 & 3 in footer, use the content button -->
           
-          <button v-else @click="finishConnection" :disabled="loadingFinish" class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
+          <button v-else-if="currentStep === 4" @click="finishConnection" :disabled="loadingFinish" class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
             <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ПОДКЛЮЧИТЬ' }}</span>
           </button>
         </div>
+
+        <!-- Project Selection Modal Overlay -->
+        <ProjectSelectionModal 
+          :isOpen="isProjectSelectorOpen"
+          :projects="projects"
+          :selectedId="form.client_id"
+          @close="isProjectSelectorOpen = false"
+          @select="selectProject"
+          @create="selectNewProject"
+        />
+
+        <!-- Platform Selection Modal Overlay -->
+        <PlatformSelectionModal 
+          :isOpen="isPlatformSelectorOpen"
+          :selectedKey="form.platform"
+          @close="isPlatformSelectorOpen = false"
+          @select="selectPlatform"
+        />
+
+        <!-- Profile Selection Modal Overlay -->
+        <ProfileSelectionModal 
+          :isOpen="isProfileSelectorOpen"
+          :profiles="profiles"
+          :selectedAccountId="form.account_id"
+          :loading="loadingProfiles"
+          @close="isProfileSelectorOpen = false"
+          @select="selectProfile"
+        />
+
+        <!-- Campaign Selection Modal Overlay -->
+        <CampaignSelectionModal 
+          :isOpen="isCampaignSelectorOpen"
+          :campaigns="campaigns"
+          :selectedIds="selectedCampaignIds"
+          :loading="loadingCampaigns"
+          @close="isCampaignSelectorOpen = false"
+          @toggle="toggleCampaign"
+        />
+
+        <!-- Goal Selection Modal Overlay -->
+        <GoalSelectionModal 
+          :isOpen="isGoalSelectorOpen"
+          :goals="goals"
+          :selectedId="form.primary_goal_id"
+          :loading="loadingGoals"
+          @close="isGoalSelectorOpen = false"
+          @select="selectPrimaryGoal"
+        />
       </div>
     </div>
   </div>
@@ -378,12 +185,21 @@
 import { ref, reactive, watch, computed, onMounted } from 'vue'
 import api from '../api/axios'
 import CustomScroll from './ui/CustomScroll.vue'
-import Input from '../views/Settings/components/Input.vue'
-import { PLATFORMS, getPlatformProperty } from '../constants/platformConfig'
+import { PLATFORMS } from '../constants/platformConfig'
 import { useProjects } from '../composables/useProjects'
 
+// Import Step Components
+import IntegrationStep1 from './integration-steps/IntegrationStep1.vue'
+import IntegrationStep2 from './integration-steps/IntegrationStep2.vue'
+import IntegrationStep3 from './integration-steps/IntegrationStep3.vue'
+import IntegrationStep4 from './integration-steps/IntegrationStep4.vue'
+import ProjectSelectionModal from './ProjectSelectionModal.vue'
+import PlatformSelectionModal from './PlatformSelectionModal.vue'
+import ProfileSelectionModal from './ProfileSelectionModal.vue'
+import CampaignSelectionModal from './CampaignSelectionModal.vue'
+import GoalSelectionModal from './GoalSelectionModal.vue'
+
 const { projects, fetchProjects } = useProjects()
-const projectDropdownOpen = ref(false)
 
 const props = defineProps({
   isOpen: Boolean,
@@ -405,11 +221,17 @@ const emit = defineEmits(['update:isOpen', 'success'])
 
 const loading = ref(false)
 const error = ref(null)
-const dropdownOpen = ref(false)
 const showToken = ref(false)
 const isCreatingNewProject = ref(false)
+const showValidationError = ref(false)
+const isProjectSelectorOpen = ref(false)
+const isPlatformSelectorOpen = ref(false)
+const isProfileSelectorOpen = ref(false)
+const isCampaignSelectorOpen = ref(false)
+const isGoalSelectorOpen = ref(false)
+const allFromProfile = ref(false)
+const allGoalsFromProfile = ref(false)
 
-// Step 2 state
 // Step 2-4 state
 const currentStep = ref(props.initialStep || 1)
 const profiles = ref([])
@@ -421,7 +243,6 @@ const loadingProfiles = ref(false)
 const loadingCampaigns = ref(false)
 const loadingGoals = ref(false)
 const loadingFinish = ref(false)
-const goalDropdownOpen = ref(false)
 const searchQuery = ref('')
 const lastIntegrationId = ref(props.resumeIntegrationId)
 
@@ -492,15 +313,14 @@ watch(() => props.isOpen, (newVal) => {
 
 const selectPlatform = (key) => {
   form.platform = key
-  dropdownOpen.value = false
+  isPlatformSelectorOpen.value = false
 }
 
 const close = () => {
   sendRemoteLog('Modal Closed')
   emit('update:isOpen', false)
   error.value = null
-  dropdownOpen.value = false
-  projectDropdownOpen.value = false
+  showValidationError.value = false
 }
 
 const selectProject = (project) => {
@@ -572,7 +392,6 @@ const selectProfile = async (profile) => {
       agency_client_login: profile.login 
     })
     sendRemoteLog('Profile Selected', { login: profile.login })
-    nextStep()
   } catch (err) {
     error.value = 'Ошибка при выборе профиля'
   }
@@ -591,9 +410,8 @@ const fetchGoals = async (integrationId) => {
   }
 }
 
-const selectPrimaryGoal = (goal) => {
-  form.primary_goal_id = goal.id
-  goalDropdownOpen.value = false
+const selectPrimaryGoal = (goalId) => {
+  form.primary_goal_id = goalId
 }
 
 const toggleGoal = (id) => {
@@ -602,6 +420,16 @@ const toggleGoal = (id) => {
     selectedGoalIds.value.splice(index, 1)
   } else {
     selectedGoalIds.value.push(id)
+  }
+  if (selectedGoalIds.value.length < goals.value.length) {
+    allGoalsFromProfile.value = false
+  }
+}
+
+const toggleAllGoals = () => {
+  allGoalsFromProfile.value = !allGoalsFromProfile.value
+  if (allGoalsFromProfile.value) {
+    selectedGoalIds.value = goals.value.map(g => g.id)
   }
 }
 
@@ -661,10 +489,31 @@ const toggleCampaign = (id) => {
   } else {
     selectedCampaignIds.value.push(id)
   }
+  // If user manually toggles, they are no longer in "All" mode if they deselected something
+  if (selectedCampaignIds.value.length < campaigns.value.length) {
+    allFromProfile.value = false
+  }
+}
+
+const toggleAllCampaigns = () => {
+  allFromProfile.value = !allFromProfile.value
+  if (allFromProfile.value) {
+    selectedCampaignIds.value = campaigns.value.map(c => c.id)
+  } else {
+    // Keep current or clear? Usually better to keep current but let them select specific ones
+    // But for the checkbox UX, checking it should select all.
+  }
 }
 
 const finishConnection = async () => {
+  // Validation: Ensure primary goal is selected
+  if (!form.primary_goal_id) {
+    showValidationError.value = true
+    return
+  }
+
   loadingFinish.value = true
+  error.value = null
   try {
     // 1. Update campaign statuses (only selected are active)
     const campaignPromises = campaigns.value.map(c => {
