@@ -1,6 +1,8 @@
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from core import models, security
+from core.logging_utils import log_event
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import VKAdsAPI
@@ -40,9 +42,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             api = YandexDirectAPI(access_token, integration.agency_client_login)
-            
             try:
+                log_event("sync", f"fetching yandex report for {integration.id}")
                 stats = await api.get_report(date_from, date_to)
+                log_event("sync", f"received {len(stats)} rows from yandex")
             except Exception as e:
                 # If unauthorized and we have a refresh token, try to refresh
                 if ("401" in str(e) or "Unauthorized" in str(e)) and integration.refresh_token:
@@ -121,9 +124,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)
             api = VKAdsAPI(access_token, integration.account_id)
-            
             try:
+                log_event("sync", f"fetching vk statistics for {integration.id}")
                 stats = await api.get_statistics(date_from, date_to)
+                log_event("sync", f"received {len(stats)} rows from vk")
             except Exception as e:
                 # VK Refresh using Client Credentials
                 if integration.platform_client_id and integration.platform_client_secret:
