@@ -38,6 +38,8 @@ from core import models
 class IntegrationBase(BaseModel):
     platform: models.IntegrationPlatform
     account_id: Optional[str] = None
+    auto_sync: Optional[bool] = True
+    sync_interval: Optional[int] = 1440
 
     @field_validator('platform', mode='before')
     @classmethod

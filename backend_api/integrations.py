@@ -420,6 +420,51 @@ async def trigger_sync(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
+@router.get("/{integration_id}", response_model=schemas.IntegrationResponse)
+def get_integration(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific integration by ID.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+        
+    return integration
+
+@router.patch("/{integration_id}", response_model=schemas.IntegrationResponse)
+async def update_integration(
+    integration_id: uuid.UUID,
+    integration_in: dict = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update integration settings (auto_sync, sync_interval, etc.).
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+        
+    for key, value in integration_in.items():
+        if hasattr(integration, key):
+            setattr(integration, key, value)
+            
+    db.commit()
+    db.refresh(integration)
+    return integration
+
 @router.post("/{integration_id}/discover-campaigns")
 async def discover_campaigns(
     integration_id: uuid.UUID,

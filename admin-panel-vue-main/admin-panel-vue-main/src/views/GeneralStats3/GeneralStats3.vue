@@ -5,225 +5,46 @@
       <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl mb-4 text-sm font-medium">
         {{ statsError }}
       </div>
-      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-8 py-4 px-6 bg-white/50 backdrop-blur-md rounded-[32px] border border-white shadow-sm">
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center gap-3">
-            <h1 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-              {{ dashboardTitle }}
-            </h1>
-            <button 
-              v-if="filters.campaign_ids && filters.campaign_ids.length > 0" 
-              @click="filters.campaign_ids = []"
-              class="px-3 py-1 bg-blue-100 text-blue-600 text-[10px] font-black uppercase rounded-full hover:bg-blue-200 transition-colors flex items-center gap-1"
-            >
-              Сбросить 
-              <ArrowPathIcon class="w-2.5 h-2.5" />
-            </button>
-          </div>
-          <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Общая аналитика и управление кампаниями</p>
+      
+      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8 py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
+        <div class="min-w-0 flex-shrink-0">
+          <StatsHeader 
+            :label="filters.client_id ? 'Выбранный проект' : 'Общий дашборд'"
+            :title="dashboardTitle"
+            :subtitle="dynamicSubtitle"
+            :show-reset="filters.campaign_ids && filters.campaign_ids.length > 0"
+            @reset="filters.campaign_ids = []"
+          />
         </div>
 
-        <div class="flex flex-wrap gap-4 items-end">
-          <!-- Project Filter -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Проект</label>
-            <select
-              v-model="filters.client_id"
-              class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[160px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm"
-            >
-              <option value="">Все проекты</option>
-              <option v-for="client in clients" :key="client.id" :value="client.id">
-                {{ client.name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Channel Filter -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Канал</label>
-            <select
-              v-model="filters.channel"
-              class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[140px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm"
-            >
-              <option value="all">Все каналы</option>
-              <option value="google" disabled>Google Ads</option>
-              <option value="yandex">Яндекс.Директ</option>
-              <option value="vk">ВКонтакте</option>
-              <option value="telegram" disabled>Telegram Ads</option>
-            </select>
-          </div>
-
-          <!-- Campaign Filter -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Кампания</label>
-            <select
-              v-model="selectedCampaignId"
-              @change="console.log('[GeneralStats3] Campaign SELECT change event:', selectedCampaignId)"
-              class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[180px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm"
-              :disabled="loadingCampaigns || !filters.client_id || !allCampaigns.length"
-            >
-              <template v-if="!filters.client_id">
-                <option value="">Выберите проект</option>
-              </template>
-              <template v-else-if="!allCampaigns.length && !loadingCampaigns">
-                <option value="">Нет кампаний</option>
-              </template>
-              <template v-else>
-                <option value="">Все кампании ({{ allCampaigns.length }})</option>
-                <option v-for="campaign in allCampaigns" :key="campaign.id" :value="campaign.id">
-                  {{ campaign.name }}
-                </option>
-              </template>
-            </select>
-          </div>
-
-          <!-- Period Filter -->
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Период</label>
-            <select v-model="filters.period" @change="handlePeriodChange" class="px-4 py-2 border border-gray-100 rounded-xl bg-gray-50/50 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none cursor-pointer min-w-[120px] h-[42px] transition-all hover:bg-white hover:border-gray-200 shadow-sm pr-8">
-              <option value="7">7 дней</option>
-              <option value="14">14 дней</option>
-              <option value="30">30 дней</option>
-              <option value="90">90 дней</option>
-              <option value="custom">Период</option>
-            </select>
-          </div>
-
-          <!-- Custom Date Range -->
-          <template v-if="filters.period === 'custom'">
-            <input type="date" v-model="filters.start_date" class="px-4 py-2 border border-gray-100 rounded-xl bg-white text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 h-[42px]">
-            <input type="date" v-model="filters.end_date" class="px-4 py-2 border border-gray-100 rounded-xl bg-white text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 h-[42px]">
-          </template>
-
-          <!-- Export Button -->
-          <button 
-            @click="handleExport"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-100 bg-blue-50/50 text-blue-600 hover:bg-blue-600 hover:text-white h-[42px] transition-all group shadow-sm shadow-blue-100/50"
-            title="Скачать отчет CSV"
-          >
-            <ArrowDownTrayIcon class="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span class="text-[10px] font-black uppercase tracking-widest">CSV</span>
-          </button>
+        <div class="flex-grow xl:flex xl:justify-end min-w-0">
+          <StatsFilters 
+            :filters="filters"
+            :clients="clients"
+            :all-campaigns="allCampaigns"
+            :loading-campaigns="loadingCampaigns"
+            @period-change="handlePeriodChange"
+            @export="handleExport"
+            @update:campaign-ids="(ids) => filters.campaign_ids = ids"
+          />
         </div>
       </div>
-
 
     <!-- Карточки KPI -->
     <div class="w-full">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Общая статистика</h2>
-      </div>
-
       <div v-if="loading && !summary.expenses" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
         <Skeleton v-for="i in 6" :key="i" class="h-32 rounded-3xl shadow-sm" />
       </div>
 
-      <div 
+      <KPIOverview
         v-else-if="summary && summary.expenses !== undefined"
-        class="w-full overflow-hidden relative group/scroll mb-8"
-      >
-        <div 
-          ref="cardsContainer"
-          class="flex gap-4 sm:gap-6 overflow-x-auto pb-4 custom-scrollbar select-none max-w-full"
-          @mousedown="handleMouseDown"
-          @mousemove="handleMouseMove"
-          @mouseup="handleMouseUp"
-          @mouseleave="handleMouseUp"
-          @wheel.prevent="handleWheel"
-          @touchstart="handleTouchStart"
-          @touchmove="handleTouchMove"
-          @touchend="handleTouchEnd"
-        >
-          <!-- Расходы -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Расходы"
-              :value="(summary.expenses || 0).toLocaleString() + ' ₽'"
-              :trend="Math.abs(summary.trends?.expenses || 0)"
-              :change-positive="(summary.trends?.expenses || 0) <= 0"
-              :icon="CurrencyDollarIcon"
-              icon-color="orange"
-              :is-selected="selectedMetric === 'expenses'"
-              @click="toggleMetric('expenses')"
-            />
-          </div>
-          
-          <!-- Показы -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Показы"
-              :value="(summary.impressions || 0).toLocaleString()"
-              :trend="summary.trends?.impressions || 0"
-              :change-positive="summary.trends?.impressions >= 0"
-              :icon="EyeIcon"
-              icon-color="blue"
-              :is-selected="selectedMetric === 'impressions'"
-              @click="toggleMetric('impressions')"
-            />
-          </div>
-          
-          <!-- Переходы -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Переходы"
-              :value="(summary.clicks || 0).toLocaleString()"
-              :trend="summary.trends?.clicks || 0"
-              :change-positive="summary.trends?.clicks >= 0"
-              :icon="ArrowPathIcon"
-              icon-color="green"
-              :is-selected="selectedMetric === 'clicks'"
-              @click="toggleMetric('clicks')"
-            />
-          </div>
-          
-          <!-- Лиды -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Лиды"
-              :value="(summary.leads || 0).toLocaleString()"
-              :trend="summary.trends?.leads || 0"
-              :change-positive="summary.trends?.leads >= 0"
-              :icon="UserGroupIcon"
-              icon-color="red"
-              :is-selected="selectedMetric === 'leads'"
-              @click="toggleMetric('leads')"
-            />
-          </div>
-          
-          <!-- CPC -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Sр. CPC"
-              :value="(summary.cpc || 0).toLocaleString() + ' ₽'"
-              :trend="Math.abs(summary.trends?.cpc || 0)"
-              :change-positive="(summary.trends?.cpc || 0) <= 0"
-              :icon="HandRaisedIcon"
-              icon-color="purple"
-              :is-selected="selectedMetric === 'cpc'"
-              @click="toggleMetric('cpc')"
-            />
-          </div>
-          
-          <!-- CPA -->
-          <div class="flex-shrink-0">
-            <CardV3
-              title="Sр. CPA"
-              :value="(summary.cpa || 0).toLocaleString() + ' ₽'"
-              :trend="Math.abs(summary.trends?.cpa || 0)"
-              :change-positive="(summary.trends?.cpa || 0) <= 0"
-              :icon="BanknotesIcon"
-              icon-color="pink"
-              :is-selected="selectedMetric === 'cpa'"
-              @click="toggleMetric('cpa')"
-            />
-          </div>
-        </div>
-        <!-- Progress Bar for loading -->
-        <div v-if="loading" class="absolute bottom-0 left-0 h-0.5 bg-blue-600 animate-progress-fast z-20"></div>
-      </div>
+        :summary="summary"
+        :selected-metric="selectedMetric"
+        :loading="loading"
+        @toggle-metric="toggleMetric"
+        class="mb-8"
+      />
     </div>
-    
-
 
     <!-- График статистики -->
     <div class="w-full relative">
@@ -246,8 +67,7 @@
       <PromotionEfficiency :summary="summary" />
     </div>
 
-
-    <!-- Connect Modal for post-callback or manual use -->
+    <!-- Connect Modal -->
     <UnifiedConnectModal
       ref="connectModalRef"
       v-model:is-open="isConnectModalOpen"
@@ -260,115 +80,83 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import {
-  CurrencyDollarIcon,
-  EyeIcon,
   ArrowPathIcon,
-  UserGroupIcon,
-  HandRaisedIcon,
-  BanknotesIcon,
-  ArrowDownTrayIcon,
-  PlusIcon
 } from '@heroicons/vue/24/solid'
-import CardV3 from './components/CardV3.vue'
+
+// Components
 import StatisticsChart from './components/StatisticsChart.vue'
 import PromotionEfficiency from './components/PromotionEfficiency.vue'
+import KPIOverview from './components/KPIOverview.vue'
+import StatsFilters from './components/StatsFilters.vue'
+import StatsHeader from './components/StatsHeader.vue'
 import UnifiedConnectModal from '../../components/UnifiedConnectModal.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
+
+// Logic
 import { useDashboardStats } from '../../composables/useDashboardStats'
 import { useRoute } from 'vue-router'
-import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
 import { useProjects } from '../../composables/useProjects'
+import api from '../../api/axios'
 
-// Integrate existing data logic
 const {
   summary,
   dynamics,
   clients,
   allCampaigns,
-  campaigns,
   loading,
   error: statsError,
   filters,
   handlePeriodChange,
   fetchStats,
-  fetchClients,
   loadingCampaigns
 } = useDashboardStats()
 
-const { projects: globalProjects, currentProjectId, setCurrentProject, fetchProjects: refreshGlobalProjects } = useProjects()
+const { currentProjectId, setCurrentProject } = useProjects()
+const toaster = useToaster()
+const route = useRoute()
 
-// Two-way sync: currentProjectId (Global Store) <-> filters.client_id (Local Dashboard)
+// --- Project Synchronization ---
 
-// 1. If Global Store changes (e.g. from Header), update Local Dashboard
+// Sync Global -> Local
 watch(currentProjectId, (newId) => {
-  console.log('[GeneralStats3] WATCH currentProjectId', { newId })
   if (filters.client_id !== newId) {
-    console.log('[GeneralStats3] Syncing Local filters.client_id ->', newId)
     filters.client_id = newId
   }
 }, { immediate: true })
 
-// 2. If Local Dashboard changes (e.g. from Project Filter select), update Global Store
+// Sync Local -> Global
 watch(() => filters.client_id, (newId) => {
-  console.log('[GeneralStats3] WATCH filters.client_id', { newId })
   if (currentProjectId.value !== newId) {
-    console.log('[GeneralStats3] Syncing Global currentProjectId ->', newId)
     setCurrentProject(newId)
   }
 })
 
-const selectedCampaignId = computed({
-  get: () => {
-    const ids = filters.campaign_ids
-    return (ids && ids.length > 0) ? ids[0] : ''
-  },
-  set: (val) => {
-    console.log('[GeneralStats3] selectedCampaignId setter: INCOMING val =', val, typeof val)
-    
-    // CRITICAL: Defensive check to ignore transient/null states from DOM re-renders 
-    // or when the options temporarily disappear during fetch.
-    if (val === undefined || val === null) {
-      console.log('[GeneralStats3] selectedCampaignId setter: IGNORED undefined/null value')
-      return
-    }
-    
-    const current = (filters.campaign_ids && filters.campaign_ids.length > 0) ? filters.campaign_ids[0] : ''
-    console.log('[GeneralStats3] selectedCampaignId setter: current =', current, 'new =', val)
-    
-    if (val !== current) {
-      console.log('[GeneralStats3] selectedCampaignId setter: UPDATING filters.campaign_ids ->', val ? [val] : [])
-      filters.campaign_ids = val ? [val] : []
-    }
-  }
-})
-const toaster = useToaster()
-const route = useRoute()
+// --- State & UI Logic ---
 
-// Modal state
+const selectedMetric = ref(null)
 const isConnectModalOpen = ref(false)
 const connectModalRef = ref(null)
 
-// React to post-callback redirect
-watch(() => route.query.new_integration_id, (id) => {
-  if (id) {
-    isConnectModalOpen.value = true
-    // Need to wait for modal to mount
-    setTimeout(() => {
-      if (connectModalRef.value) {
-        connectModalRef.value.currentStep = 2
-        connectModalRef.value.lastIntegrationId = id
-        connectModalRef.value.fetchCampaigns(id)
-      }
-    }, 100)
-    
-    // Clear query param without recharge
-    window.history.replaceState({}, '', window.location.pathname)
+const toggleMetric = (metric) => {
+  selectedMetric.value = selectedMetric.value === metric ? null : metric
+}
+
+const dynamicSubtitle = computed(() => {
+  if (filters.campaign_ids?.length > 0) {
+    return 'Детальная статистика выбранной кампании'
   }
-}, { immediate: true })
+  if (filters.client_id) {
+    return 'Аналитика и показатели эффективности проекта'
+  }
+  if (filters.channel !== 'all') {
+    return 'Статистика по конкретному рекламному каналу'
+  }
+  return 'Общая аналитика по всем активным проектам'
+})
 
 const dashboardTitle = computed(() => {
-  if (filters.campaign_ids && filters.campaign_ids.length > 0) {
+  if (filters.campaign_ids?.length > 0) {
     const campaignId = filters.campaign_ids[0]
     const campaign = allCampaigns.value.find(c => c.id === campaignId)
     return campaign ? `Кампания: ${campaign.name}` : `Статистика по кампаниям (${filters.campaign_ids.length})`
@@ -384,67 +172,16 @@ const dashboardTitle = computed(() => {
   return 'Статистика по всем проектам'
 })
 
-const creatingProject = ref(false)
-
-const handleCreateProject = async (name) => {
-  creatingProject.value = true
-  try {
-    const { data } = await api.post('clients/', { name })
-    toaster.success(`Проект "${name}" успешно создан!`)
-    
-    // Refresh clients list (for dashboard and header)
-    await Promise.all([
-      fetchClients(),
-      refreshGlobalProjects()
-    ])
-    
-    // Automatically select the new project
-    if (data && data.id) {
-      setCurrentProject(data.id)
-      filters.client_id = data.id
-    }
-    
-    await fetchStats()
-  } catch (err) {
-    console.error('Error creating project:', err)
-    toaster.error('Не удалось создать проект')
-  } finally {
-    creatingProject.value = false
-  }
-}
-
-const cardsContainer = ref(null)
-const isDragging = ref(false)
-const startX = ref(0)
-const scrollLeft = ref(0)
-const selectedMetric = ref(null) // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' или null для всех
-
-const toggleMetric = (metric) => {
-  if (selectedMetric.value === metric) {
-    selectedMetric.value = null
-  } else {
-    selectedMetric.value = metric
-  }
-}
-
-const handleSelectCampaign = (campaign) => {
-  if (campaign && campaign.id) {
-    filters.campaign_ids = [campaign.id]
-    // Scroll to top to see updated stats
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-}
+// --- Handlers ---
 
 const handleExport = async () => {
   try {
     const params = {
       start_date: filters.start_date,
       end_date: filters.end_date,
-      platform: filters.channel
-    }
-    if (filters.client_id) params.client_id = filters.client_id
-    if (filters.campaign_ids && filters.campaign_ids.length > 0) {
-      params.campaign_ids = filters.campaign_ids
+      platform: filters.channel,
+      client_id: filters.client_id || undefined,
+      campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined
     }
 
     const response = await api.get('dashboard/export/csv', {
@@ -467,72 +204,19 @@ const handleExport = async () => {
   }
 }
 
-// Drag to scroll logic (from new design)
-const handleMouseDown = (e) => {
-  isDragging.value = true
-  startX.value = e.pageX - cardsContainer.value.offsetLeft
-  scrollLeft.value = cardsContainer.value.scrollLeft
-  cardsContainer.value.style.scrollBehavior = 'auto'
-}
-
-const handleMouseMove = (e) => {
-  if (!isDragging.value) return
-  e.preventDefault()
-  e.stopPropagation()
-  const x = e.pageX - cardsContainer.value.offsetLeft
-  const walk = (x - startX.value) * 2 // Скорость прокрутки
-  cardsContainer.value.scrollLeft = scrollLeft.value - walk
-}
-
-const handleMouseUp = () => {
-  isDragging.value = false
-  if (cardsContainer.value) {
-    cardsContainer.value.style.scrollBehavior = 'smooth'
+// React to post-callback redirect (integrations)
+watch(() => route.query.new_integration_id, (id) => {
+  if (id) {
+    isConnectModalOpen.value = true
+    setTimeout(() => {
+      if (connectModalRef.value) {
+        connectModalRef.value.currentStep = 2
+        connectModalRef.value.lastIntegrationId = id
+        connectModalRef.value.fetchCampaigns(id)
+      }
+    }, 100)
+    window.history.replaceState({}, '', window.location.pathname)
   }
-}
+}, { immediate: true })
 
-// Прокрутка колесом мыши
-const handleWheel = (e) => {
-  if (cardsContainer.value) {
-    e.preventDefault()
-    e.stopPropagation()
-    cardsContainer.value.scrollLeft += e.deltaY
-  }
-}
-
-// Touch события для мобильных устройств
-const handleTouchStart = (e) => {
-  isDragging.value = true
-  startX.value = e.touches[0].pageX - cardsContainer.value.offsetLeft
-  scrollLeft.value = cardsContainer.value.scrollLeft
-  cardsContainer.value.style.scrollBehavior = 'auto'
-}
-
-const handleTouchMove = (e) => {
-  if (!isDragging.value) return
-  e.preventDefault()
-  e.stopPropagation()
-  const x = e.touches[0].pageX - cardsContainer.value.offsetLeft
-  const walk = (x - startX.value) * 2
-  cardsContainer.value.scrollLeft = scrollLeft.value - walk
-}
-
-const handleTouchEnd = () => {
-  isDragging.value = false
-  if (cardsContainer.value) {
-    cardsContainer.value.style.scrollBehavior = 'smooth'
-  }
-}
 </script>
-
-<style scoped>
-/* Optional: Hide scrollbar but keep functionality */
-.custom-scrollbar::-webkit-scrollbar {
-  height: 0px;
-  background: transparent;
-}
-.custom-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>

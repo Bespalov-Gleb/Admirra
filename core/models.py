@@ -71,6 +71,10 @@ class Integration(Base):
     last_sync_at = Column(DateTime)
     error_message = Column(String)
     
+    # Sync settings
+    auto_sync = Column(Boolean, default=True)
+    sync_interval = Column(Integer, default=1440) # In minutes, default 24h
+    
     # Agency Mode Support
     is_agency = Column(Boolean, default=False)
     agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
