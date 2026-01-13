@@ -160,7 +160,7 @@
       v-model:is-open="showAddModal" 
       :resume-integration-id="resumeIntegrationId"
       :initial-step="initialStep"
-      @success="fetchIntegrations" 
+      @success="handleIntegrationSuccess" 
     />
     <AgencyImportModal ref="agencyModalRef" v-model:is-open="isAgencyModalOpen" @success="fetchIntegrations" />
   </div>
@@ -228,6 +228,11 @@ const fetchIntegrations = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleIntegrationSuccess = () => {
+  toaster.success('Интеграция успешно настроена!')
+  fetchIntegrations()
 }
 
 const groupedClients = computed(() => {
@@ -307,7 +312,7 @@ onMounted(() => {
   if (route.query.resume_integration_id) {
     resumeIntegrationId.value = route.query.resume_integration_id
     const isAgency = route.query.is_agency === 'true'
-    initialStep.value = isAgency ? 2 : 3 // Skip profile selection for standard accounts
+    initialStep.value = 2 // Always show profile selection for consistency
     showAddModal.value = true
     
     // Clean up URL
