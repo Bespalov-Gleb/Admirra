@@ -36,7 +36,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     """
     logger.info(f"Syncing {integration.platform} for client {integration.client_id}")
     
-    async def _do_sync():
+    try:
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             api = YandexDirectAPI(access_token, integration.agency_client_login)
