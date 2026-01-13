@@ -521,9 +521,6 @@ async def get_integration_goals(
     metrica_api = YandexMetricaAPI(access_token)
     
     try:
-        # 1. Get all counters
-        counters = await metrica_api.get_counters()
-        if not counters:
         log_event("yandex", f"fetching goals for integration {integration_id}, account: {account_id}")
         counters = await metrica_api.get_counters()
         log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
