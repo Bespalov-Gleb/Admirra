@@ -432,6 +432,14 @@ const stepLabels = {
   4: 'Настройка целей'
 }
 
+const sendRemoteLog = async (message, data = null) => {
+  try {
+    await api.post('integrations/remote-log', { message, data })
+  } catch (err) {
+    console.warn('Failed to send remote log:', err)
+  }
+}
+
 const filteredProfiles = computed(() => {
   if (!searchQuery.value) return profiles.value
   const q = searchQuery.value.toLowerCase()
@@ -488,6 +496,7 @@ const selectPlatform = (key) => {
 }
 
 const close = () => {
+  sendRemoteLog('Modal Closed')
   emit('update:isOpen', false)
   error.value = null
   dropdownOpen.value = false
@@ -525,6 +534,7 @@ const nextStep = () => {
     handleSubmit()
   } else {
     currentStep.value++
+    sendRemoteLog(`Moved to Step ${currentStep.value}`)
     if (currentStep.value === 2) fetchProfiles(lastIntegrationId.value)
     if (currentStep.value === 3) fetchCampaigns(lastIntegrationId.value)
     if (currentStep.value === 4) fetchGoals(lastIntegrationId.value)
@@ -535,6 +545,7 @@ const prevStep = () => {
   searchQuery.value = '' // Reset search
   if (currentStep.value > 1) {
     currentStep.value--
+    sendRemoteLog(`Moved back to Step ${currentStep.value}`)
   }
 }
 
@@ -560,6 +571,7 @@ const selectProfile = async (profile) => {
       account_id: profile.login,
       agency_client_login: profile.login 
     })
+    sendRemoteLog('Profile Selected', { login: profile.login })
     nextStep()
   } catch (err) {
     error.value = 'Ошибка при выборе профиля'

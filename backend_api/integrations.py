@@ -13,6 +13,7 @@ import asyncio
 from datetime import datetime, timedelta
 import os
 import json
+from core.logging_utils import log_event
 
 # Yandex Direct Credentials
 YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
@@ -29,6 +30,16 @@ VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+@router.post("/remote-log")
+async def remote_log(payload: dict):
+    """
+    Endpoint for frontend to send logs.
+    """
+    message = payload.get("message", "No message")
+    data = payload.get("data")
+    log_event("frontend", message, data)
+    return {"status": "ok"}
 
 @router.get("/", response_model=List[schemas.IntegrationResponse])
 def get_integrations(
@@ -460,18 +471,33 @@ async def get_integration_profiles(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
 
+    log_event("get_integration_profiles", f"User {current_user.id} requesting profiles for integration {integration_id}")
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        log_event("get_integration_profiles", f"Integration {integration_id} not found for user {current_user.id}", level="warning")
+        raise HTTPException(status_code=404, detail="Integration not found")
+
     access_token = security.decrypt_token(integration.access_token)
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        log_event("yandex", f"fetching profiles for integration {integration_id}")
+        api = YandexDirectAPI(access_token, integration.agency_client_login) # Assuming api is YandexDirectAPI
         try:
-            profiles = await get_agency_clients(access_token)
-            if profiles:
-                return profiles
+            profiles = await api.get_accounts() # Assuming get_accounts() is the correct method
+            log_event("yandex", f"received {len(profiles)} profiles from yandex", [p['login'] for p in profiles])
+            return profiles
         except Exception as e:
-            logger.error(f"Error fetching Yandex agency clients: {e}")
-        
-        # Fallback to single account if not an agency or no sub-clients
-        return [{"login": integration.account_id, "name": integration.account_id}]
+            log_event("yandex", f"error fetching profiles: {str(e)}", level="error")
+            logger.error(f"Error fetching Yandex agency clients: {e}") # Keep existing logger.error
+            # Fallback to single account if not an agency or no sub-clients
+            return [{"login": integration.account_id, "name": integration.account_id}]
+    
+    log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
+    return [] # Return empty list for other platforms or if no specific logic
 
 @router.get("/{integration_id}/goals")
 async def get_integration_goals(
@@ -498,15 +524,19 @@ async def get_integration_goals(
         # 1. Get all counters
         counters = await metrica_api.get_counters()
         if not counters:
+        log_event("yandex", f"fetching goals for integration {integration_id}, account: {account_id}")
+        counters = await metrica_api.get_counters()
+        log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
+
+        if not counters:
             return []
             
         all_goals = []
-        # 2. For each counter, get goals
-        # Optional: we could filter counters by some criteria, but for now we get all
         for counter in counters:
             counter_id = str(counter['id'])
             counter_name = counter.get('name', 'Unknown')
             goals = await metrica_api.get_counter_goals(counter_id)
+            log_event("yandex", f"counter {counter_id} ({counter_name}) has {len(goals)} goals")
             for goal in goals:
                 all_goals.append({
                     "id": str(goal['id']),
