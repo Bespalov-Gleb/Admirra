@@ -450,6 +450,8 @@ watch(() => props.isOpen, (newVal) => {
       lastIntegrationId.value = props.resumeIntegrationId
       currentStep.value = props.initialStep || 2
       if (currentStep.value === 2) fetchProfiles(props.resumeIntegrationId)
+      if (currentStep.value === 3) fetchCampaigns(props.resumeIntegrationId)
+      if (currentStep.value === 4) fetchGoals(props.resumeIntegrationId)
     } else {
       form.client_name = props.initialClientName
       error.value = null
@@ -493,6 +495,8 @@ onMounted(() => {
     lastIntegrationId.value = props.resumeIntegrationId
     currentStep.value = props.initialStep || 2
     if (currentStep.value === 2) fetchProfiles(props.resumeIntegrationId)
+    if (currentStep.value === 3) fetchCampaigns(props.resumeIntegrationId)
+    if (currentStep.value === 4) fetchGoals(props.resumeIntegrationId)
   }
 })
 

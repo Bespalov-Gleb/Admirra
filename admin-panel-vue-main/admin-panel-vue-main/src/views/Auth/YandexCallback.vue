@@ -75,7 +75,7 @@ onMounted(async () => {
     } else {
       // Standard success flow
       toaster.success('Яндекс Директ успешно подключен!')
-      router.push(`/settings?resume_integration_id=${response.data.integration_id}&platform=YANDEX_DIRECT`) 
+      router.push(`/settings?resume_integration_id=${response.data.integration_id}&platform=YANDEX_DIRECT&is_agency=${isAgency}`) 
     }
   } catch (err) {
     console.error(err)

@@ -246,7 +246,8 @@ onMounted(() => {
   
   if (route.query.resume_integration_id) {
     resumeIntegrationId.value = route.query.resume_integration_id
-    initialStep.value = 2 // Resume at profile selection
+    const isAgency = route.query.is_agency === 'true'
+    initialStep.value = isAgency ? 2 : 3 // Skip profile selection for standard accounts
     showAddModal.value = true
     
     // Clean up URL

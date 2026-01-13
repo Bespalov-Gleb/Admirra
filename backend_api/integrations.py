@@ -460,13 +460,15 @@ async def get_integration_profiles(
     access_token = security.decrypt_token(integration.access_token)
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # If it's an agency token, we can fetch sub-clients
-        # Reuse existing function
-        profiles = await get_agency_clients(access_token)
-        return profiles
-    
-    # For regular accounts, return the account itself as the only profile
-    return [{"login": integration.account_id, "name": integration.account_id}]
+        try:
+            profiles = await get_agency_clients(access_token)
+            if profiles:
+                return profiles
+        except Exception as e:
+            logger.error(f"Error fetching Yandex agency clients: {e}")
+        
+        # Fallback to single account if not an agency or no sub-clients
+        return [{"login": integration.account_id, "name": integration.account_id}]
 
 @router.get("/{integration_id}/goals")
 async def get_integration_goals(
