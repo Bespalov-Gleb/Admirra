@@ -12,6 +12,7 @@ import logging
 import asyncio
 from datetime import datetime, timedelta
 import os
+import json
 
 # Yandex Direct Credentials
 YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
@@ -540,8 +541,7 @@ async def update_integration(
     for key, value in integration_in.items():
         if hasattr(integration, key):
             # Special handling for JSON fields if they come as lists/dicts
-            if key == 'selected_goals' and isinstance(value, list):
-                import json
+            if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
             

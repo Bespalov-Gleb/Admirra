@@ -1,7 +1,8 @@
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
+import json
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -42,6 +43,16 @@ class IntegrationBase(BaseModel):
     sync_interval: Optional[int] = 1440
     selected_goals: Optional[List[str]] = None # List of goal IDs
     primary_goal_id: Optional[str] = None
+
+    @field_validator('selected_goals', mode='before')
+    @classmethod
+    def parse_selected_goals(cls, v: Any) -> Any:
+        if isinstance(v, str) and v:
+            try:
+                return json.loads(v)
+            except:
+                return []
+        return v
 
     @field_validator('platform', mode='before')
     @classmethod
