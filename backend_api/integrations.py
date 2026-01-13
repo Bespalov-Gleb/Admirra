@@ -519,6 +519,10 @@ async def update_integration(
         
     for key, value in integration_in.items():
         if hasattr(integration, key):
+            # Special handling for JSON fields if they come as lists/dicts
+            if key == 'selected_goals' and isinstance(value, list):
+                import json
+                value = json.dumps(value)
             setattr(integration, key, value)
             
     db.commit()

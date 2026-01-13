@@ -7,14 +7,25 @@
 
       <div class="relative z-10 flex flex-col max-h-[85vh] p-6">
         <!-- Header: Fixed -->
-        <div class="flex items-center justify-between mb-6 flex-shrink-0">
+        <div class="flex items-center justify-between mb-4 flex-shrink-0">
           <div>
             <h3 class="text-xl font-black text-black tracking-tight leading-tight uppercase">Добавить интеграцию</h3>
-            <p class="text-[11px] text-gray-500 mt-1 font-bold uppercase tracking-wider">Новый рекламный канал</p>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Шаг {{ currentStep }} из 4</span>
+              <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{{ stepLabels[currentStep] }}</p>
+            </div>
           </div>
           <button @click="close" class="p-2 bg-gray-50 text-gray-500 hover:text-black hover:rotate-90 hover:bg-gray-100 transition-all rounded-full border border-gray-100 shadow-sm">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full h-1 bg-gray-100 rounded-full mb-6 overflow-hidden flex-shrink-0">
+          <div 
+            class="h-full bg-blue-600 transition-all duration-500 ease-out"
+            :style="{ width: `${(currentStep / 4) * 100}%` }"
+          ></div>
         </div>
 
         <!-- Step 1: Configuration (Platform & Project) -->
@@ -124,36 +135,14 @@
                 />
               </div>
 
-              <!-- Yandex Auth Button -->
-              <div v-if="form.platform === 'YANDEX_DIRECT'" class="py-2">
-                <button
-                  type="button"
-                  @click="initYandexAuth"
-                  :disabled="loadingAuth"
-                  class="w-full py-4 bg-[#FC3F1D] text-white rounded-2xl hover:bg-[#e63212] transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  <div v-if="loadingAuth" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span v-else class="font-black text-[12px] uppercase tracking-widest flex items-center gap-2">
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.923 15.686L8.683 5H5v14h3.04V9.695l4.577 9.305h3.336l-5.603-9.52 5.09-4.48h-3.32l-3.2 3.11V15.686z"/></svg>
-                    Подключить Яндекс Директ
-                  </span>
-                </button>
+              <!-- Yandex Auth Button (Step 1 footer alternative) -->
+              <div v-if="form.platform === 'YANDEX_DIRECT' && currentStep === 1" class="py-2">
+                <!-- This button is handled by nextStep logic indirectly or explicitly here -->
               </div>
 
-              <!-- VK Auth Button -->
-              <div v-else-if="form.platform === 'VK_ADS' && !currentPlatform.isDynamic" class="py-2">
-                <button
-                  type="button"
-                  @click="initVKAuth"
-                  :disabled="loadingAuth"
-                  class="w-full py-4 bg-[#0077FF] text-white rounded-2xl hover:bg-[#0066EE] transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  <div v-if="loadingAuth" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  <span v-else class="font-black text-[12px] uppercase tracking-widest flex items-center gap-2">
-                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M13.162 18.994c-6.098 0-9.57-4.172-9.714-11.104h3.047c.1 5.093 2.344 7.25 4.125 7.696V7.89H13.5v4.39c1.703-.187 3.562-2.188 4.172-4.39h2.89c-.531 2.766-2.563 4.766-3.734 5.438 1.171.547 3.5 2.25 4.406 5.664h-3.14c-.703-2.203-2.454-3.906-4.22-4.08v4.08h-2.1c-.015.002-.015.002 0 .006z"/></svg>
-                    Подключить VK Ads
-                  </span>
-                </button>
+              <!-- VK Auth Button (Step 1 footer alternative) -->
+              <div v-else-if="form.platform === 'VK_ADS' && !currentPlatform.isDynamic && currentStep === 1" class="py-2">
+                <!-- Handled in footer -->
               </div>
 
               <!-- Standard Token Input -->
@@ -176,13 +165,24 @@
           <div class="pr-1 pb-4 space-y-4">
             <div class="relative mb-4">
               <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Профиль рекламной кампании</label>
+              
+              <!-- Search Profiles -->
+              <div class="mb-4">
+                <input 
+                  v-model="searchQuery" 
+                  type="text" 
+                  placeholder="Поиск профиля..." 
+                  class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+                >
+              </div>
+
               <div v-if="loadingProfiles" class="py-12 flex flex-col items-center justify-center gap-4">
                 <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
                 <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка профилей...</span>
               </div>
               <div v-else class="space-y-2">
                 <button 
-                  v-for="profile in profiles" 
+                  v-for="profile in filteredProfiles" 
                   :key="profile.login"
                   @click="selectProfile(profile)"
                   class="w-full px-5 py-4 bg-white border rounded-2xl transition-all flex items-center justify-between group"
@@ -208,13 +208,24 @@
         <CustomScroll v-else-if="currentStep === 3" class="flex-grow">
           <div class="pr-1 pb-4 space-y-4">
             <label class="block text-[10px] font-black text-black uppercase tracking-[0.2em] mb-2 px-1">Рекламная кампания</label>
+            
+            <!-- Search Campaigns -->
+            <div class="mb-4">
+              <input 
+                v-model="searchQuery" 
+                type="text" 
+                placeholder="Поиск кампании..." 
+                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-all"
+              >
+            </div>
+
             <div v-if="loadingCampaigns" class="py-12 flex flex-col items-center justify-center gap-4">
               <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
               <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Получение кампаний...</span>
             </div>
             <div v-else class="space-y-2">
               <button 
-                v-for="campaign in campaigns" 
+                v-for="campaign in filteredCampaigns" 
                 :key="campaign.id"
                 @click="toggleCampaign(campaign.id)"
                 class="w-full p-4 rounded-2xl border transition-all flex items-center justify-between group"
@@ -292,10 +303,26 @@
           <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Отмена</button>
           <button v-else type="button" @click="prevStep" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Назад</button>
           
-          <button v-if="currentStep < 4" @click="nextStep" :disabled="loading || loadingProfiles || loadingCampaigns" class="flex-[1.5] py-3.5 bg-gray-900 text-white rounded-2xl hover:bg-black hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
+          <button 
+            v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
+            @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
+            :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
+            class="flex-[1.5] py-3.5 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FC3F1D] hover:bg-[#e63212]' : 'bg-[#0077FF] hover:bg-[#0066EE]'"
+          >
+            <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span v-else class="flex items-center gap-2">
+              <svg v-if="form.platform === 'YANDEX_DIRECT'" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.923 15.686L8.683 5H5v14h3.04V9.695l4.577 9.305h3.336l-5.603-9.52 5.09-4.48h-3.32l-3.2 3.11V15.686z"/></svg>
+              <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M13.162 18.994c-6.098 0-9.57-4.172-9.714-11.104h3.047c.1 5.093 2.344 7.25 4.125 7.696V7.89H13.5v4.39c1.703-.187 3.562-2.188 4.172-4.39h2.89c-.531 2.766-2.563 4.766-3.734 5.438 1.171.547 3.5 2.25 4.406 5.664h-3.14c-.703-2.203-2.454-3.906-4.22-4.08v4.08h-2.1c-.015.002-.015.002 0 .006z"/></svg>
+              ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС' : 'VK ADS' }}
+            </span>
+          </button>
+
+          <button v-else-if="currentStep < 4" @click="nextStep" :disabled="loading || loadingProfiles || loadingCampaigns" class="flex-[1.5] py-3.5 bg-gray-900 text-white rounded-2xl hover:bg-black hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
             <div v-if="loading || loadingProfiles || loadingCampaigns" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loading || loadingProfiles || loadingCampaigns ? 'ЗАГРУЗКА...' : 'ДАЛЕЕ' }}</span>
           </button>
+          
           <button v-else @click="finishConnection" :disabled="loadingFinish" class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
             <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ПОДКЛЮЧИТЬ' }}</span>
@@ -322,6 +349,14 @@ const props = defineProps({
   initialClientName: {
     type: String,
     default: ''
+  },
+  resumeIntegrationId: {
+    type: String,
+    default: null
+  },
+  initialStep: {
+    type: Number,
+    default: 1
   }
 })
 
@@ -334,12 +369,45 @@ const showToken = ref(false)
 const isCreatingNewProject = ref(false)
 
 // Step 2 state
-const currentStep = ref(1) // 1: Setup, 2: Campaign Selection
+// Step 2-4 state
+const currentStep = ref(props.initialStep || 1)
+const profiles = ref([])
 const campaigns = ref([])
+const goals = ref([])
 const selectedCampaignIds = ref([])
+const selectedGoalIds = ref([])
+const loadingProfiles = ref(false)
 const loadingCampaigns = ref(false)
+const loadingGoals = ref(false)
 const loadingFinish = ref(false)
-const lastIntegrationId = ref(null)
+const goalDropdownOpen = ref(false)
+const searchQuery = ref('')
+const lastIntegrationId = ref(props.resumeIntegrationId)
+
+const stepLabels = {
+  1: 'Настройка канала',
+  2: 'Выбор профиля',
+  3: 'Выбор кампаний',
+  4: 'Настройка целей'
+}
+
+const filteredProfiles = computed(() => {
+  if (!searchQuery.value) return profiles.value
+  const q = searchQuery.value.toLowerCase()
+  return profiles.value.filter(p => 
+    (p.name && p.name.toLowerCase().includes(q)) || 
+    (p.login && p.login.toLowerCase().includes(q))
+  )
+})
+
+const filteredCampaigns = computed(() => {
+  if (!searchQuery.value) return campaigns.value
+  const q = searchQuery.value.toLowerCase()
+  return campaigns.value.filter(c => 
+    (c.name && c.name.toLowerCase().includes(q)) || 
+    (c.external_id && c.external_id.toLowerCase().includes(q))
+  )
+})
 
 const form = reactive({
   platform: 'YANDEX_DIRECT',
@@ -356,11 +424,18 @@ const currentPlatform = computed(() => PLATFORMS[form.platform])
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
-    form.client_name = props.initialClientName
-    error.value = null
-    currentStep.value = 1
-    campaigns.value = []
-    selectedCampaignIds.value = []
+    if (props.resumeIntegrationId) {
+      lastIntegrationId.value = props.resumeIntegrationId
+      currentStep.value = props.initialStep || 2
+      if (currentStep.value === 2) fetchProfiles(props.resumeIntegrationId)
+    } else {
+      form.client_name = props.initialClientName
+      error.value = null
+      currentStep.value = 1
+      campaigns.value = []
+      selectedCampaignIds.value = []
+      selectedGoalIds.value = []
+    }
   }
 })
 
@@ -392,7 +467,92 @@ const selectNewProject = () => {
 
 onMounted(() => {
   fetchProjects()
+  if (props.resumeIntegrationId && props.isOpen) {
+    lastIntegrationId.value = props.resumeIntegrationId
+    currentStep.value = props.initialStep || 2
+    if (currentStep.value === 2) fetchProfiles(props.resumeIntegrationId)
+  }
 })
+
+const nextStep = () => {
+  searchQuery.value = '' // Reset search on step change
+  if (currentStep.value === 1) {
+    handleSubmit()
+  } else {
+    currentStep.value++
+    if (currentStep.value === 2) fetchProfiles(lastIntegrationId.value)
+    if (currentStep.value === 3) fetchCampaigns(lastIntegrationId.value)
+    if (currentStep.value === 4) fetchGoals(lastIntegrationId.value)
+  }
+}
+
+const prevStep = () => {
+  searchQuery.value = '' // Reset search
+  if (currentStep.value > 1) {
+    currentStep.value--
+  }
+}
+
+const fetchProfiles = async (integrationId) => {
+  loadingProfiles.value = true
+  try {
+    const { data } = await api.get(`integrations/${integrationId}/profiles`)
+    profiles.value = data
+    
+    // AUTO-SKIP: If only one profile, select it automatically
+    if (data.length === 1) {
+      console.log('Auto-selecting single profile:', data[0].login)
+      selectProfile(data[0])
+    }
+  } catch (err) {
+    console.error('Failed to fetch profiles:', err)
+    error.value = 'Не удалось загрузить профили'
+  } finally {
+    loadingProfiles.value = false
+  }
+}
+
+const selectProfile = async (profile) => {
+  form.account_id = profile.login
+  try {
+    // Update integration with selected sub-account/profile if needed
+    // For Yandex Agency, we might need to store agency_client_login
+    await api.patch(`integrations/${lastIntegrationId.value}`, { 
+      account_id: profile.login,
+      agency_client_login: profile.login 
+    })
+    nextStep()
+  } catch (err) {
+    error.value = 'Ошибка при выборе профиля'
+  }
+}
+
+const fetchGoals = async (integrationId) => {
+  loadingGoals.value = true
+  try {
+    // We send account_id to help backend find the right counter
+    const { data } = await api.get(`integrations/${integrationId}/goals?account_id=${form.account_id}`)
+    goals.value = data
+  } catch (err) {
+    console.error('Failed to fetch goals:', err)
+  } finally {
+    loadingGoals.value = false
+  }
+}
+
+const selectPrimaryGoal = (goal) => {
+  form.primary_goal_id = goal.id
+  goalDropdownOpen.value = false
+}
+
+const toggleGoal = (id) => {
+  const index = selectedGoalIds.value.indexOf(id)
+  if (index > -1) {
+    selectedGoalIds.value.splice(index, 1)
+  } else {
+    selectedGoalIds.value.push(id)
+  }
+}
 
 const handleSubmit = async () => {
   if (loading.value) return
@@ -447,19 +607,25 @@ const toggleCampaign = (id) => {
 const finishConnection = async () => {
   loadingFinish.value = true
   try {
-    // Update campaign statuses (only selected are active)
-    const promises = campaigns.value.map(c => {
+    // 1. Update campaign statuses (only selected are active)
+    const campaignPromises = campaigns.value.map(c => {
       const isActive = selectedCampaignIds.value.includes(c.id)
       return api.patch(`campaigns/${c.id}`, { is_active: isActive })
     })
     
-    await Promise.all(promises)
+    // 2. Update integration goals
+    const integrationPromise = api.patch(`integrations/${lastIntegrationId.value}`, {
+      selected_goals: selectedGoalIds.value,
+      primary_goal_id: form.primary_goal_id
+    })
+    
+    await Promise.all([...campaignPromises, integrationPromise])
     
     emit('success', { integration_id: lastIntegrationId.value })
     close()
   } catch (err) {
-    console.error('Failed to finalize campaigns:', err)
-    error.value = 'Ошибка при сохранении кампаний'
+    console.error('Failed to finalize integration:', err)
+    error.value = 'Ошибка при сохранении настроек'
   } finally {
     loadingFinish.value = false
   }

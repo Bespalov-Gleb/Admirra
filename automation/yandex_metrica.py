@@ -42,16 +42,13 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny") -> List[Dict[str, Any]]:
         """
         Fetches goal conversions from Yandex Metrica.
         """
-        # To get specific goals, we first need to know goal IDs. 
-        # For simplicity, we can fetch all goals conversions in one go using ym:s:goal<ID>reaches if we had IDs.
-        # Here we just fetch general conversion rate as an example.
         params = {
             "ids": counter_id,
-            "metrics": "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny",
+            "metrics": metrics,
             "dimensions": "ym:s:date",
             "date1": date_from,
             "date2": date_to

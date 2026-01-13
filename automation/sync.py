@@ -9,6 +9,7 @@ from automation.google_sheets import GoogleSheetsService
 from datetime import datetime, timedelta
 import asyncio
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -185,28 +186,53 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         
         access_token = security.decrypt_token(integration.access_token)
         api = YandexMetricaAPI(access_token)
-        goals = await api.get_goals_stats(integration.account_id, date_from, date_to)
         
-        for g in goals:
+        # Filter by selected goals if provided
+        selected_goals = []
+        if integration.selected_goals:
+            try:
+                # selected_goals is stored as JSON string in DB, but Pydantic might have cast it
+                if isinstance(integration.selected_goals, str):
+                    selected_goals = json.loads(integration.selected_goals)
+                else:
+                    selected_goals = integration.selected_goals
+            except:
+                selected_goals = []
+
+        metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+        if selected_goals and len(selected_goals) > 0:
+            goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
+            metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
+
+        goals_data = await api.get_goals_stats(integration.account_id, date_from, date_to, metrics=metrics)
+        
+        for g in goals_data:
             stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
             
+            # If specific goals were requested, sum their reaches
+            total_reaches = 0
+            if selected_goals and len(selected_goals) > 0:
+                # Metrics are in order: conversionRate, goal1, goal2...
+                for i in range(1, len(g['metrics'])):
+                    total_reaches += int(g['metrics'][i])
+            else:
+                total_reaches = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+
             existing = db.query(models.MetrikaGoals).filter(
                 models.MetrikaGoals.client_id == integration.client_id,
                 models.MetrikaGoals.date == stat_date,
                 models.MetrikaGoals.goal_id == "all"
             ).first()
 
-            reach = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
-
             if existing:
-                existing.conversion_count = reach
+                existing.conversion_count = total_reaches
             else:
                 db.add(models.MetrikaGoals(
                     client_id=integration.client_id,
                     date=stat_date,
                     goal_id="all",
-                    goal_name="All Goals",
-                    conversion_count=reach
+                    goal_name="Selected Goals" if selected_goals else "All Goals",
+                    conversion_count=total_reaches
                 ))
 
 async def sync_data(days: int = 7):

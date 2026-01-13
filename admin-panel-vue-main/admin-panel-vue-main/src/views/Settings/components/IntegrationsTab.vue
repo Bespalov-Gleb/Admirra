@@ -127,7 +127,12 @@
       </div>
     </div>
 
-    <UnifiedConnectModal v-model:is-open="showAddModal" @success="fetchIntegrations" />
+    <UnifiedConnectModal 
+      v-model:is-open="showAddModal" 
+      :resume-integration-id="resumeIntegrationId"
+      :initial-step="initialStep"
+      @success="fetchIntegrations" 
+    />
     <AgencyImportModal ref="agencyModalRef" v-model:is-open="isAgencyModalOpen" @success="fetchIntegrations" />
   </div>
 </template>
@@ -144,9 +149,9 @@ import { useToaster } from '../../../composables/useToaster'
 const clients = ref([])
 const loading = ref(true)
 const showAddModal = ref(false)
-const syncingId = ref(null)
-const toaster = useToaster()
 const activeSettingsItem = ref(null)
+const resumeIntegrationId = ref(null)
+const initialStep = ref(1)
 
 const platformLabels = {
   'YANDEX_DIRECT': 'Яндекс.Директ',
@@ -239,6 +244,15 @@ const handleSync = async (id) => {
 onMounted(() => {
   fetchIntegrations()
   
+  if (route.query.resume_integration_id) {
+    resumeIntegrationId.value = route.query.resume_integration_id
+    initialStep.value = 2 // Resume at profile selection
+    showAddModal.value = true
+    
+    // Clean up URL
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
   if (route.query.trigger_agency_import === '1') {
     const token = localStorage.getItem('temp_agency_token')
     if (token) {
