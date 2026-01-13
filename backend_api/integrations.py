@@ -5,7 +5,7 @@ from core import models, schemas, security
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import VKAdsAPI
-from typing import List
+from typing import List, Optional
 import uuid
 import httpx
 import logging
