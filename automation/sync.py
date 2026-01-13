@@ -27,9 +27,11 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
     """
     existing = db.query(model).filter_by(**filters).first()
     if existing:
+        log_event("database", f"updating {model.__tablename__} record", filters)
         for key, value in data.items():
             setattr(existing, key, value)
     else:
+        log_event("database", f"creating new {model.__tablename__} record", filters)
         db.add(model(**filters, **data))
 
 async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):

@@ -109,7 +109,10 @@ async def exchange_yandex_token(
     client_name_input = payload.get("client_name")
     
     if not auth_code or not redirect_uri:
-        raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
+        log_event("backend", "Failed to exchange Yandex token: missing code or redirect_uri")
+        raise HTTPException(status_code=400, detail="Missing code or redirect_uri")
+    
+    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}")
 
     # 1. Exchange code for token
     async with httpx.AsyncClient() as client:
@@ -469,17 +472,10 @@ async def get_integration_profiles(
     ).first()
     
     if not integration:
+        log_event("get_integration_profiles", f"Integration {integration_id} not found for user {current_user.id}", level="warning")
         raise HTTPException(status_code=404, detail="Integration not found")
 
     log_event("get_integration_profiles", f"User {current_user.id} requesting profiles for integration {integration_id}")
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        log_event("get_integration_profiles", f"Integration {integration_id} not found for user {current_user.id}", level="warning")
-        raise HTTPException(status_code=404, detail="Integration not found")
 
     access_token = security.decrypt_token(integration.access_token)
     
@@ -502,6 +498,7 @@ async def get_integration_profiles(
 @router.get("/{integration_id}/goals")
 async def get_integration_goals(
     integration_id: uuid.UUID,
+    account_id: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -521,7 +518,8 @@ async def get_integration_goals(
     metrica_api = YandexMetricaAPI(access_token)
     
     try:
-        log_event("yandex", f"fetching goals for integration {integration_id}, account: {account_id}")
+        target_account = account_id or integration.account_id
+        log_event("yandex", f"fetching goals for integration {integration_id}, account: {target_account}")
         counters = await metrica_api.get_counters()
         log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
 
@@ -572,6 +570,7 @@ async def update_integration(
                 value = json.dumps(value)
             setattr(integration, key, value)
             
+    log_event("backend", f"updated integration {integration_id}", integration_in)
     db.commit()
     db.refresh(integration)
     return integration
@@ -593,15 +592,18 @@ async def discover_campaigns(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
         
+    log_event("backend", f"discovering campaigns for integration {integration_id}")
     access_token = security.decrypt_token(integration.access_token)
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         api = YandexDirectAPI(access_token, integration.agency_client_login)
         discovered_campaigns = await api.get_campaigns()
+        log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
         discovered_campaigns = await api.get_campaigns()
+        log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
         
     # Save to DB
     for dc in discovered_campaigns:
