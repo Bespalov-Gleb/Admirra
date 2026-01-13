@@ -7,25 +7,40 @@
 
       <div class="relative z-10 flex flex-col max-h-[85vh] p-6">
         <!-- Header: Fixed -->
-        <div class="flex items-center justify-between mb-4 flex-shrink-0">
+        <div class="flex items-center justify-between mb-2 flex-shrink-0">
           <div>
             <h3 class="text-xl font-black text-black tracking-tight leading-tight uppercase">Добавить интеграцию</h3>
-            <div class="flex items-center gap-2 mt-1">
-              <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Шаг {{ currentStep }} из 4</span>
-              <p class="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{{ stepLabels[currentStep] }}</p>
-            </div>
           </div>
           <button @click="close" class="p-2 bg-gray-50 text-gray-500 hover:text-black hover:rotate-90 hover:bg-gray-100 transition-all rounded-full border border-gray-100 shadow-sm">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
 
-        <!-- Progress Bar -->
-        <div class="w-full h-1 bg-gray-100 rounded-full mb-6 overflow-hidden flex-shrink-0">
-          <div 
-            class="h-full bg-blue-600 transition-all duration-500 ease-out"
-            :style="{ width: `${(currentStep / 4) * 100}%` }"
-          ></div>
+        <!-- Visual Stepper: Dots and Lines -->
+        <div class="flex items-center justify-between px-4 mb-8 flex-shrink-0">
+          <div v-for="step in 4" :key="step" class="flex items-center flex-1 last:flex-none">
+            <!-- Circle -->
+            <div 
+              class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300"
+              :class="[
+                currentStep >= step ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-400',
+                currentStep === step ? 'ring-4 ring-blue-50 scale-110' : ''
+              ]"
+            >
+              {{ step }}
+            </div>
+            <!-- Line -->
+            <div 
+              v-if="step < 4" 
+              class="flex-1 h-0.5 mx-2 rounded-full transition-all duration-500"
+              :class="currentStep > step ? 'bg-blue-600' : 'bg-gray-100'"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Current Step Subtitle -->
+        <div class="mb-4 flex-shrink-0">
+           <p class="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] px-1">{{ stepLabels[currentStep] }}</p>
         </div>
 
         <!-- Step 1: Configuration (Platform & Project) -->
@@ -180,7 +195,7 @@
                 <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
                 <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка профилей...</span>
               </div>
-              <div v-else class="space-y-2">
+              <div v-else-if="filteredProfiles.length > 0" class="space-y-2">
                 <button 
                   v-for="profile in filteredProfiles" 
                   :key="profile.login"
@@ -199,6 +214,13 @@
                   </div>
                   <ChevronRightIcon class="w-5 h-5 text-gray-300 group-hover:text-black transition-all" />
                 </button>
+              </div>
+              <div v-else class="py-12 flex flex-col items-center justify-center text-center px-4">
+                <div class="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mb-3">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Профили не найдены</p>
+                <p class="text-[10px] text-gray-300 mt-1 font-bold">Попробуйте изменить поисковый запрос</p>
               </div>
             </div>
           </div>
@@ -565,6 +587,7 @@ const handleSubmit = async () => {
     
     // Transition to step 2
     currentStep.value = 2
+    fetchProfiles(data.id) // IMPORTANT: Fetch profiles first
     fetchCampaigns(data.id)
     
   } catch (err) {
