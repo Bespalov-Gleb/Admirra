@@ -14,10 +14,23 @@
           <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка кампаний...</span>
         </div>
 
-        <CustomScroll v-else class="flex-grow">
-          <div class="space-y-2 pr-1">
-            <button 
-              v-for="campaign in campaigns" 
+        <template v-else>
+          <div class="mb-4 relative group">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+            </div>
+            <input 
+              type="text" 
+              v-model="searchQuery"
+              placeholder="Поиск кампании..."
+              class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+            >
+          </div>
+
+          <CustomScroll class="flex-grow">
+            <div class="space-y-2 pr-1">
+              <button 
+                v-for="campaign in filteredCampaigns" 
               :key="campaign.id"
               @click="$emit('toggle', campaign.id)"
               class="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100 group"
@@ -31,16 +44,26 @@
                   <span class="block text-[14px] font-black group-hover:text-black" :class="{ 'text-blue-600': selectedIds.includes(campaign.id) }">
                     {{ campaign.name }}
                   </span>
-                  <span class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id }}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id }}</span>
+                    <span 
+                      v-if="campaign.status" 
+                      class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter shadow-sm"
+                      :class="campaign.status === 'ACCEPTED' || campaign.status === 'ON' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'"
+                    >
+                      {{ campaign.status === 'ACCEPTED' || campaign.status === 'ON' ? 'Активна' : 'Пауза' }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </button>
 
-            <div v-if="campaigns.length === 0" class="py-12 text-center">
-              <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Кампании не найдены</p>
+              <div v-if="filteredCampaigns.length === 0" class="py-12 text-center">
+                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Кампании не найдены</p>
+              </div>
             </div>
-          </div>
-        </CustomScroll>
+          </CustomScroll>
+        </template>
 
         <div class="mt-6">
           <button 
@@ -56,9 +79,11 @@
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
 import { 
   XMarkIcon, 
-  CheckIcon 
+  CheckIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/vue/24/outline'
 import CustomScroll from './ui/CustomScroll.vue'
 
@@ -70,6 +95,17 @@ const props = defineProps({
 })
 
 defineEmits(['close', 'toggle'])
+
+const searchQuery = ref('')
+
+const filteredCampaigns = computed(() => {
+  if (!searchQuery.value) return props.campaigns
+  const q = searchQuery.value.toLowerCase()
+  return props.campaigns.filter(c => 
+    (c.name && c.name.toLowerCase().includes(q)) || 
+    (c.external_id && c.external_id.toString().includes(q))
+  )
+})
 </script>
 
 <style scoped>

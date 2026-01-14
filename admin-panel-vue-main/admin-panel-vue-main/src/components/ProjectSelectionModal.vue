@@ -9,10 +9,22 @@
           </button>
         </div>
 
+        <div class="mb-4 relative group">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+          </div>
+          <input 
+            type="text" 
+            v-model="searchQuery"
+            placeholder="Поиск проекта..."
+            class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+          >
+        </div>
+
         <CustomScroll class="flex-grow">
           <div class="space-y-2 pr-1">
             <button 
-              v-for="project in projects" 
+              v-for="project in filteredProjects" 
               :key="project.id"
               @click="selectProject(project)"
               class="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 rounded-xl transition-all border border-transparent hover:border-gray-100 group"
@@ -45,7 +57,8 @@ import { ref, computed } from 'vue'
 import { 
   XMarkIcon, 
   PlusIcon,
-  CheckIcon 
+  CheckIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/vue/24/outline'
 import CustomScroll from './ui/CustomScroll.vue'
 
@@ -56,6 +69,14 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select', 'create'])
+
+const searchQuery = ref('')
+
+const filteredProjects = computed(() => {
+  if (!searchQuery.value) return props.projects
+  const q = searchQuery.value.toLowerCase()
+  return props.projects.filter(p => p.name && p.name.toLowerCase().includes(q))
+})
 
 const selectProject = (project) => {
   emit('select', project)

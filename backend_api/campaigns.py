@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, schemas, security
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
@@ -73,4 +73,43 @@ def update_campaign(
     db.commit()
     db.refresh(campaign)
     return campaign
+
+@router.put("/bulk-update")
+def bulk_update_campaigns(
+    updates: List[Dict],
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update multiple campaigns in one request.
+    Expected format: [{"id": "...", "is_active": true}, ...]
+    """
+    if not updates:
+        return {"status": "success", "updated_count": 0}
+        
+    # Get IDs for authorization check
+    update_ids = [uuid.UUID(str(u["id"])) for u in updates]
+    
+    # Check all requested campaigns exist and belong to the user
+    campaigns = db.query(models.Campaign).join(models.Integration).join(models.Client).filter(
+        models.Campaign.id.in_(update_ids),
+        models.Client.owner_id == current_user.id
+    ).all()
+    
+    if len(campaigns) != len(update_ids):
+        raise HTTPException(status_code=403, detail="Some campaigns not found or access denied")
+        
+    # Map for easy access
+    campaign_map = {c.id: c for c in campaigns}
+    
+    for update in updates:
+        uid = uuid.UUID(str(update["id"]))
+        c = campaign_map[uid]
+        if "is_active" in update:
+            c.is_active = update["is_active"]
+        if "name" in update:
+            c.name = update["name"]
+            
+    db.commit()
+    return {"status": "success", "updated_count": len(campaigns)}
 

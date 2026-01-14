@@ -64,7 +64,7 @@
 
     <!-- Эффективность продвижения -->
     <div class="w-full">
-      <PromotionEfficiency :summary="summary" />
+      <PromotionEfficiency :summary="summary" :campaigns="campaigns" />
     </div>
 
     <!-- Connect Modal -->

@@ -49,20 +49,42 @@ class StatsService:
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
 
+            # 3. Yandex Metrica Goals
+            m_q = db.query(
+                func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
+            ).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id == "all"
+            )
+
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
                 v_q = v_q.filter(models.VKStats.date >= start)
+                m_q = m_q.filter(models.MetrikaGoals.date >= start)
             if end:
                 y_q = y_q.filter(models.YandexStats.date <= end)
                 v_q = v_q.filter(models.VKStats.date <= end)
+                m_q = m_q.filter(models.MetrikaGoals.date <= end)
 
             y_s = y_q.first() if platform in ["all", "yandex"] else None
             v_s = v_q.first() if platform in ["all", "vk"] else None
+            m_s = m_q.first() if platform in ["all", "yandex"] else None # Metrica is usually associated with Yandex
 
             costs = float((y_s.total_cost if y_s else 0) or 0) + float((v_s.total_cost if v_s else 0) or 0)
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
-            convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            
+            # Smart Conversion logic: 
+            # If we have Metrica goals for these clients, they are usually more precise "Leads".
+            # BUT: If user is filtering by campaign_id, MetricaGoals table doesn't have campaign attribution yet.
+            # In that case, we MUST use Direct's conversion count.
+            if campaign_ids:
+                convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            else:
+                # Use Metrica goals if available, otherwise fallback to platform conversions
+                metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
+                platform_convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+                convs = max(metrica_convs, platform_convs) 
             
             return {"costs": costs, "imps": imps, "clks": clks, "convs": convs}
 
@@ -104,13 +126,16 @@ class StatsService:
 
         return {
             "expenses": round(curr["costs"], 2),
-            "impressions": curr["imps"],
-            "clicks": curr["clks"],
-            "leads": curr["convs"],
+            "impressions": int(curr["imps"]),
+            "clicks": int(curr["clks"]),
+            "leads": int(curr["convs"]),
             "cpc": round(cpc, 2),
             "cpa": round(cpa, 2),
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
+            "revenue": 0.0, # Placeholder for future financial integration
+            "profit": -round(curr["costs"], 2),
+            "roi": -100.0 if curr["costs"] > 0 else 0.0,
             "trends": trends
         }
 

@@ -119,29 +119,35 @@
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.leads || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cr || 0).toFixed(2) }}%</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ summary.cpa ? summary.cpa.toFixed(2) + ' ₽' : '—' }}</td>
-              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ (summary.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ (summary.expenses || 0).toLocaleString() }} ₽</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.revenue || 0).toLocaleString() }} ₽</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700" :class="(summary.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'">
                 {{ (summary.profit || 0).toLocaleString() }} ₽
               </td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.roi || 0).toFixed(0) }}%</td>
             </tr>
-            <!-- Example Campaign Row -->
-            <tr class="border-t border-gray-50/50">
-              <td class="py-4 pr-4 text-sm font-bold text-gray-500 flex items-center gap-2">
-                <span class="text-xs">▹</span> В сетях
+            <!-- Campaign Rows -->
+            <tr v-for="cmp in campaigns" :key="cmp.id" class="border-t border-gray-50/50 hover:bg-gray-50/30 transition-colors">
+              <td class="py-4 pr-4 text-sm font-bold text-gray-500 truncate max-w-[200px]" :title="cmp.name">
+                {{ cmp.name }}
               </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.impressions || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.clicks || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.ctr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cpc || 0).toFixed(2) }} ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.leads || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">—</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (summary.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.impressions || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.clicks || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
+                {{ cmp.impressions > 0 ? ((cmp.clicks/cmp.impressions)*100).toFixed(2) : '0.00' }}%
+              </td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.cpc || 0).toFixed(2) }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.conversions || 0).toLocaleString() }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
+                {{ cmp.clicks > 0 ? ((cmp.conversions/cmp.clicks)*100).toFixed(2) : '0.00' }}%
+              </td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
+                {{ cmp.cpa ? cmp.cpa.toFixed(2) + ' ₽' : '—' }}
+              </td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.cost || 0).toLocaleString() }} ₽</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">0 ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ (summary.cost || 0).toLocaleString() }} ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-1%</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ (cmp.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-100%</td>
             </tr>
           </tbody>
         </table>
@@ -157,6 +163,10 @@ const props = defineProps({
   summary: {
     type: Object,
     required: true
+  },
+  campaigns: {
+    type: Array,
+    default: () => []
   }
 })
 

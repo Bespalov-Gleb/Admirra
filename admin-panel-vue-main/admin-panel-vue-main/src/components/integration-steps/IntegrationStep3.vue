@@ -47,16 +47,6 @@
       </label>
     </div>
 
-    <!-- Big Orange Next Button -->
-    <div class="pt-2">
-      <button 
-        type="button"
-        @click="$emit('next')"
-        :disabled="(!allFromProfile && selectedIds.length === 0) || loading"
-        class="w-full py-5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-[1.25rem] font-black text-[12px] uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
-      >
-        ДАЛЕЕ
-      </button>
     </div>
   </div>
 </template>

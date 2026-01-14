@@ -32,7 +32,22 @@
 
     <!-- Secondary Goals Section -->
     <div class="space-y-4">
-      <h4 class="text-[14px] font-bold text-gray-700 tracking-tight">Цели для блока с конверсиями:</h4>
+      <div class="flex items-center justify-between">
+        <h4 class="text-[14px] font-bold text-gray-700 tracking-tight">Цели для блока с конверсиями:</h4>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative group">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+        </div>
+        <input 
+          type="text" 
+          v-model="searchQuery"
+          placeholder="Поиск по названию или ID..."
+          class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+        >
+      </div>
 
       <!-- All Goals Checkbox -->
       <div class="flex items-center px-1">
@@ -68,7 +83,7 @@
             </tr>
             <tr 
               v-else
-              v-for="goal in goals" 
+              v-for="goal in filteredGoals" 
               :key="goal.id"
               class="border-b border-gray-50 last:border-none group hover:bg-blue-50/30 transition-all cursor-pointer"
               :class="{ 'bg-blue-50/50': selectedGoalIds.includes(goal.id) }"
@@ -83,7 +98,7 @@
               <td class="px-3 py-3 text-[11px] font-bold text-gray-400 uppercase">{{ goal.id }}</td>
               <td class="px-3 py-3 text-[11px] font-black text-gray-800">{{ goal.name }}</td>
             </tr>
-            <tr v-if="!loading && goals.length === 0">
+            <tr v-if="!loading && filteredGoals.length === 0">
               <td colspan="4" class="py-12 text-center text-[11px] font-black text-gray-300 uppercase tracking-widest">Цели не найдены</td>
             </tr>
           </tbody>
@@ -106,8 +121,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { ChevronDownIcon } from '@heroicons/vue/20/solid'
+import { ref, computed } from 'vue'
+import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
 import { CheckIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -121,6 +136,18 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['openGoalSelector', 'toggleAll', 'toggleSecondary', 'finish'])
+
+
+const searchQuery = ref('')
+
+const filteredGoals = computed(() => {
+  if (!searchQuery.value) return props.goals
+  const q = searchQuery.value.toLowerCase()
+  return props.goals.filter(g => 
+    (g.name && g.name.toLowerCase().includes(q)) || 
+    (g.id && g.id.toString().includes(q))
+  )
+})
 
 const primaryGoalName = computed(() => {
   if (!props.primaryGoalId) return null

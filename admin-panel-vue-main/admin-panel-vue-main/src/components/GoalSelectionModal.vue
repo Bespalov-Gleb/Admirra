@@ -14,10 +14,24 @@
           <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка целей...</span>
         </div>
 
-        <CustomScroll v-else class="flex-grow">
-          <div class="space-y-2 pr-1">
-            <button 
-              v-for="goal in goals" 
+        <template v-else>
+          <!-- Search Input -->
+          <div class="mb-4 relative group">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+            </div>
+            <input 
+              type="text" 
+              v-model="searchQuery"
+              placeholder="Поиск цели..."
+              class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+            >
+          </div>
+
+          <CustomScroll class="flex-grow">
+            <div class="space-y-2 pr-1">
+              <button 
+                v-for="goal in filteredGoals" 
               :key="goal.id"
               @click="selectGoal(goal)"
               class="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100 group"
@@ -37,20 +51,23 @@
               <CheckIcon v-if="selectedId === goal.id" class="w-5 h-5 text-blue-600" />
             </button>
 
-            <div v-if="goals.length === 0" class="py-12 text-center">
-              <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
+              <div v-if="filteredGoals.length === 0" class="py-12 text-center">
+                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
+              </div>
             </div>
-          </div>
-        </CustomScroll>
+          </CustomScroll>
+        </template>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
 import { 
   XMarkIcon, 
-  CheckIcon 
+  CheckIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/vue/24/outline'
 import CustomScroll from './ui/CustomScroll.vue'
 
@@ -62,6 +79,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select'])
+
+const searchQuery = ref('')
+
+const filteredGoals = computed(() => {
+  if (!searchQuery.value) return props.goals
+  const q = searchQuery.value.toLowerCase()
+  return props.goals.filter(g => 
+    (g.name && g.name.toLowerCase().includes(q)) || 
+    (g.id && g.id.toString().includes(q))
+  )
+})
 
 const selectGoal = (goal) => {
   emit('select', goal.id)

@@ -605,6 +605,7 @@ async def get_integration_goals(
                     all_goals.append({
                         "id": str(goal['id']),
                         "name": f"{goal['name']} ({counter_name})",
+                        "type": goal.get('type', 'Unknown'),
                         "counter_id": counter_id
                     })
             except Exception as goals_err:

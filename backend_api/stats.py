@@ -122,6 +122,19 @@ async def get_dynamics(
     if u_campaign_ids: v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
+    # Metrica Goals dynamics
+    m_stats = []
+    if not u_campaign_ids and platform in ["all", "yandex"]:
+        m_stats = db.query(
+            models.MetrikaGoals.date,
+            func.sum(models.MetrikaGoals.conversion_count).label("leads")
+        ).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.goal_id == "all",
+            models.MetrikaGoals.date >= d_start,
+            models.MetrikaGoals.date <= d_end
+        ).group_by(models.MetrikaGoals.date).all()
+
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
     for i in range((d_end - d_start).days + 1):
         d = d_start + timedelta(days=i)
@@ -129,11 +142,19 @@ async def get_dynamics(
         
         y_s = next((s for s in y_stats if s.date == d), None) if platform in ["all", "yandex"] else None
         v_s = next((s for s in v_stats if s.date == d), None) if platform in ["all", "vk"] else None
+        m_s = next((s for s in m_stats if s.date == d), None) if m_stats else None
         
         c = float((y_s.cost if y_s else 0) + (v_s.cost if v_s else 0))
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
-        le = int((y_s.leads if y_s else 0) + (v_s.leads if v_s else 0))
+        
+        # Lead logic matching aggregate_summary
+        platform_le = int((y_s.leads if y_s else 0) + (v_s.leads if v_s else 0))
+        if u_campaign_ids:
+            le = platform_le
+        else:
+            metrika_le = int(m_s.leads if m_s else 0)
+            le = max(metrika_le, platform_le)
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)

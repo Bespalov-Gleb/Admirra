@@ -19,7 +19,7 @@
             </div>
             <div class="text-left">
               <span class="block text-[14px] font-black text-black leading-none">
-                {{ selectedAccountId || 'Выберите профиль' }}
+                {{ selectedProfileName || 'Выберите профиль' }}
               </span>
             </div>
           </div>
@@ -28,21 +28,12 @@
       </div>
     </div>
 
-    <!-- Big Orange Next Button from Screenshot -->
-    <div class="pt-2">
-      <button 
-        type="button"
-        @click="$emit('next')"
-        :disabled="!selectedAccountId || loading"
-        class="w-full py-5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-[1.25rem] font-black text-[12px] uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
-      >
-        ДАЛЕЕ
-      </button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ChevronDownIcon } from '@heroicons/vue/20/solid'
 
 const props = defineProps({
@@ -52,5 +43,11 @@ const props = defineProps({
   platform: String
 })
 
-defineEmits(['openProfileSelector', 'next'])
+const emit = defineEmits(['openProfileSelector', 'next'])
+
+const selectedProfileName = computed(() => {
+  if (!props.selectedAccountId) return null
+  const profile = props.profiles.find(p => p.login === props.selectedAccountId)
+  return profile ? (profile.name || profile.login) : props.selectedAccountId
+})
 </script>

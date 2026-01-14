@@ -1,6 +1,6 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in" @click.self="close">
-    <div class="bg-white rounded-[2rem] p-0.5 w-full max-w-md shadow-[0_20px_50px_rgba(0,0,0,0.25)] transform transition-all animate-modal-in border border-gray-100 relative overflow-hidden">
+    <div class="bg-white rounded-[2rem] p-0.5 w-full max-w-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] transform transition-all animate-modal-in border border-gray-100 relative overflow-hidden">
       <!-- Decorative Background elements -->
       <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-60"></div>
       <div class="absolute bottom-0 left-0 w-24 h-24 bg-red-50 rounded-full -ml-12 -mb-12 blur-2xl opacity-50"></div>
@@ -18,14 +18,14 @@
         </div>
 
         <!-- Visual Stepper: Dots and Lines -->
-        <div class="flex items-center justify-between px-4 mb-8 flex-shrink-0">
+        <div class="flex items-center justify-between px-10 mb-8 flex-shrink-0 max-w-xl mx-auto w-full">
           <div v-for="step in 4" :key="step" class="flex items-center flex-1 last:flex-none">
             <!-- Circle -->
             <div 
-              class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300"
+              class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300"
               :class="[
-                currentStep >= step ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-gray-100 text-gray-400',
-                currentStep === step ? 'ring-4 ring-blue-50 scale-110' : ''
+                currentStep >= step ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110' : 'bg-gray-50 text-gray-400 border border-gray-100',
+                currentStep === step ? 'ring-4 ring-blue-50' : ''
               ]"
             >
               {{ step }}
@@ -40,7 +40,7 @@
         </div>
 
         <!-- Current Step Subtitle -->
-        <div class="mb-4 flex-shrink-0">
+        <div class="mb-4 flex-shrink-0 text-center">
            <p class="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] px-1">{{ stepLabels[currentStep] }}</p>
         </div>
 
@@ -103,11 +103,14 @@
 
         <!-- Footer: Fixed -->
         <div class="flex gap-3 pt-6 mt-4 border-t border-gray-50 flex-shrink-0 bg-white">
-          <button v-if="currentStep <= 3" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
+          <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
             Отмена
           </button>
-          <button v-else type="button" @click="prevStep" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">Назад</button>
+          <button v-if="currentStep > 1" type="button" @click="prevStep" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
+            Назад
+          </button>
           
+          <!-- Step 1 Auth -->
           <button 
             v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
             @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
@@ -121,9 +124,23 @@
             </span>
           </button>
 
-          <!-- No right button for step 2 & 3 in footer, use the content button -->
+          <!-- Step 2 & 3 Next -->
+          <button 
+            v-else-if="currentStep === 2 || currentStep === 3" 
+            @click="nextStep" 
+            :disabled="isNextDisabled"
+            class="flex-[1.5] py-3.5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-2xl hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all shadow-lg"
+          >
+            ДАЛЕЕ
+          </button>
           
-          <button v-else-if="currentStep === 4" @click="finishConnection" :disabled="loadingFinish" class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg">
+          <!-- Step 4 Finish -->
+          <button 
+            v-else-if="currentStep === 4" 
+            @click="finishConnection" 
+            :disabled="loadingFinish" 
+            class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
             <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ПОДКЛЮЧИТЬ' }}</span>
           </button>
@@ -226,11 +243,42 @@ const isCreatingNewProject = ref(false)
 const showValidationError = ref(false)
 const isProjectSelectorOpen = ref(false)
 const isPlatformSelectorOpen = ref(false)
+
+const isNextDisabled = computed(() => {
+  if (currentStep.value === 2) return !form.account_id || loadingProfiles.value
+  if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingCampaigns.value
+  return false
+})
 const isProfileSelectorOpen = ref(false)
 const isCampaignSelectorOpen = ref(false)
 const isGoalSelectorOpen = ref(false)
-const allFromProfile = ref(false)
-const allGoalsFromProfile = ref(false)
+const isCampaignSelectorOpen = ref(false)
+const isGoalSelectorOpen = ref(false)
+
+const allFromProfile = computed({
+  get: () => campaigns.value.length > 0 && selectedCampaignIds.value.length === campaigns.value.length,
+  set: (val) => {
+    if (val) {
+      selectedCampaignIds.value = campaigns.value.map(c => c.id)
+    } else {
+      selectedCampaignIds.value = []
+    }
+  }
+})
+
+const allGoalsFromProfile = computed({
+  get: () => goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length,
+  set: (val) => {
+    if (val) {
+      selectedGoalIds.value = goals.value.map(g => g.id)
+    } else {
+      selectedGoalIds.value = []
+      // Keep primary goal if it exists? Usually cleaner to leave it or clear it too.
+      // Let's keep primary goal if it's manually selected.
+      if (form.primary_goal_id) selectedGoalIds.value = [form.primary_goal_id]
+    }
+  }
+})
 
 // Step 2-4 state
 const currentStep = ref(props.initialStep || 1)
@@ -383,7 +431,16 @@ const fetchProfiles = async (integrationId) => {
 }
 
 const selectProfile = async (profile) => {
+  if (form.account_id === profile.login) return // No change
+  
   form.account_id = profile.login
+  // Reset dependent state
+  campaigns.value = []
+  selectedCampaignIds.value = []
+  goals.value = []
+  selectedGoalIds.value = []
+  form.primary_goal_id = null
+
   try {
     // Update integration with selected sub-account/profile if needed
     // For Yandex Agency, we might need to store agency_client_login
@@ -412,6 +469,10 @@ const fetchGoals = async (integrationId) => {
 
 const selectPrimaryGoal = (goalId) => {
   form.primary_goal_id = goalId
+  // Also auto-select it for tracking if not already selected
+  if (!selectedGoalIds.value.includes(goalId)) {
+    selectedGoalIds.value.push(goalId)
+  }
 }
 
 const toggleGoal = (id) => {
@@ -421,16 +482,10 @@ const toggleGoal = (id) => {
   } else {
     selectedGoalIds.value.push(id)
   }
-  if (selectedGoalIds.value.length < goals.value.length) {
-    allGoalsFromProfile.value = false
-  }
 }
 
 const toggleAllGoals = () => {
   allGoalsFromProfile.value = !allGoalsFromProfile.value
-  if (allGoalsFromProfile.value) {
-    selectedGoalIds.value = goals.value.map(g => g.id)
-  }
 }
 
 const handleSubmit = async () => {
@@ -487,32 +542,13 @@ const fetchCampaigns = async (integrationId) => {
   }
 }
 
-const toggleCampaign = (id) => {
-  const index = selectedCampaignIds.value.indexOf(id)
-  if (index > -1) {
-    selectedCampaignIds.value.splice(index, 1)
-  } else {
-    selectedCampaignIds.value.push(id)
-  }
-  // If user manually toggles, they are no longer in "All" mode if they deselected something
-  if (selectedCampaignIds.value.length < campaigns.value.length) {
-    allFromProfile.value = false
-  }
-}
-
 const toggleAllCampaigns = () => {
   allFromProfile.value = !allFromProfile.value
-  if (allFromProfile.value) {
-    selectedCampaignIds.value = campaigns.value.map(c => c.id)
-  } else {
-    // Keep current or clear? Usually better to keep current but let them select specific ones
-    // But for the checkbox UX, checking it should select all.
-  }
 }
 
 const finishConnection = async () => {
-  // Validation: Ensure primary goal is selected
-  if (!form.primary_goal_id) {
+  // Validation: Ensure primary goal is selected if goals exist
+  if (goals.value.length > 0 && !form.primary_goal_id) {
     showValidationError.value = true
     return
   }
@@ -520,19 +556,21 @@ const finishConnection = async () => {
   loadingFinish.value = true
   error.value = null
   try {
-    // 1. Update campaign statuses (only selected are active)
-    const campaignPromises = campaigns.value.map(c => {
-      const isActive = selectedCampaignIds.value.includes(c.id)
-      return api.patch(`campaigns/${c.id}`, { is_active: isActive })
-    })
+    // 1. Update campaign statuses in bulk (only selected are active)
+    const campaignUpdates = campaigns.value.map(c => ({
+      id: c.id,
+      is_active: selectedCampaignIds.value.includes(c.id)
+    }))
     
-    // 2. Update integration goals
+    // 2. Wrap promises
+    const bulkUpdatePromise = api.put('campaigns/bulk-update', campaignUpdates)
+    
     const integrationPromise = api.patch(`integrations/${lastIntegrationId.value}`, {
       selected_goals: selectedGoalIds.value,
       primary_goal_id: form.primary_goal_id
     })
     
-    await Promise.all([...campaignPromises, integrationPromise])
+    await Promise.all([bulkUpdatePromise, integrationPromise])
     
     emit('success', { integration_id: lastIntegrationId.value })
     close()
