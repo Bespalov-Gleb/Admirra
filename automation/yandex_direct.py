@@ -174,3 +174,27 @@ class YandexDirectAPI:
                 except (ValueError, IndexError):
                     continue
         return results
+
+    async def get_clients(self) -> List[Dict[str, Any]]:
+        """
+        Fetches information about the current client, including ManagedLogins for shared access.
+        """
+        url = "https://api.direct.yandex.com/json/v5/clients"
+        payload = {
+            "method": "get",
+            "params": {
+                "FieldNames": ["Login", "ClientInfo", "ManagedLogins"]
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "result" in data and "Clients" in data["result"]:
+                        return data["result"]["Clients"]
+                    elif "error" in data:
+                        logger.error(f"Yandex Clients API Error: {data['error']}")
+            except Exception as e:
+                logger.error(f"Failed to fetch Yandex clients: {e}")
+        return []

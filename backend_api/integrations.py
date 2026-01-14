@@ -500,10 +500,40 @@ async def get_integration_profiles(
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         log_event("yandex", f"fetching profiles for integration {integration_id}")
         try:
-            # 1. Try to get agency clients
-            profiles = await get_agency_clients(access_token)
-            
-            # 2. If no agency clients, or it's a regular account, include the account itself
+            profiles = []
+            seen_logins = set()
+
+            # 1. Always include the personal account itself
+            personal_login = integration.account_id
+            if personal_login and personal_login.lower() != "unknown":
+                profiles.append({"login": personal_login, "name": f"Личный аккаунт ({personal_login})"})
+                seen_logins.add(personal_login.lower())
+
+            # 2. Try to get agency clients
+            agency_clients = await get_agency_clients(access_token)
+            for ac in agency_clients:
+                login = ac.get("login")
+                if login and login.lower() not in seen_logins:
+                    profiles.append(ac)
+                    seen_logins.add(login.lower())
+
+            # 3. Try to get managed logins (shared access / "Editor" role)
+            try:
+                direct_api = YandexDirectAPI(access_token)
+                clients_info = await direct_api.get_clients()
+                for c_info in clients_info:
+                    managed = c_info.get("ManagedLogins", [])
+                    for m_login in managed:
+                        if m_login and m_login.lower() not in seen_logins:
+                            profiles.append({
+                                "login": m_login,
+                                "name": f"Доступный аккаунт ({m_login})"
+                            })
+                            seen_logins.add(m_login.lower())
+            except Exception as e:
+                logger.error(f"Error fetching managed logins: {e}")
+
+            # Fallback if nothing found
             if not profiles:
                 display_id = integration.account_id or "Unknown"
                 profiles = [{"login": display_id, "name": f"Личный аккаунт ({display_id})"}]
@@ -512,8 +542,7 @@ async def get_integration_profiles(
             return profiles
         except Exception as e:
             log_event("yandex", f"error fetching profiles: {str(e)}", level="error")
-            # Fallback to single account
-            return [{"login": integration.account_id, "name": integration.account_id}]
+            return [{"login": integration.account_id, "name": f"Аккаунт ({integration.account_id})"}]
     
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
     return [] # Return empty list for other platforms or if no specific logic
