@@ -449,6 +449,11 @@ const handleSubmit = async () => {
     const { data } = await api.post('integrations/', form)
     lastIntegrationId.value = data.id
     
+    // NEW: Update account_id from backend auto-detection
+    if (data.account_id) {
+      form.account_id = data.account_id
+    }
+    
     // Transition to step 2
     currentStep.value = 2
     fetchProfiles(data.id) // IMPORTANT: Fetch profiles first

@@ -76,8 +76,10 @@ class YandexMetricaAPI:
             if response.status_code == 200:
                 data = response.json()
                 return data.get('counters', [])
-            logger.error(f"Failed to fetch counters: {response.status_code} - {response.text}")
-            return []
+            
+            error_msg = f"Failed to fetch counters: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
 
     async def get_counter_goals(self, counter_id: str) -> List[Dict[str, Any]]:
         """
@@ -93,5 +95,7 @@ class YandexMetricaAPI:
             if response.status_code == 200:
                 data = response.json()
                 return data.get('goals', [])
-            logger.error(f"Failed to fetch goals for counter {counter_id}: {response.status_code} - {response.text}")
-            return []
+            
+            error_msg = f"Failed to fetch goals for counter {counter_id}: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            raise Exception(error_msg)

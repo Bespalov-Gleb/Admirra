@@ -17,7 +17,7 @@ class YandexDirectAPI:
             "processingMode": "auto"
         }
         # AGENCY MODE: Inject Client-Login header if provided
-        if client_login:
+        if client_login and client_login.lower() != "unknown":
             self.headers["Client-Login"] = client_login
             logger.info(f"Initialized Yandex API with Agency Client-Login: {client_login}")
 
@@ -35,7 +35,7 @@ class YandexDirectAPI:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.campaigns_url, json=payload, headers=self.headers)
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
                     if "result" in data and "Campaigns" in data["result"]:

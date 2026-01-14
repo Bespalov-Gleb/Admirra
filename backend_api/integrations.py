@@ -375,12 +375,30 @@ async def create_integration(
     encrypted_platform_client_id = security.encrypt_token(integration.client_id) if integration.client_id else None
     encrypted_platform_client_secret = security.encrypt_token(integration.client_secret) if integration.client_secret else None
 
+    # NEW: Automatically fetch Yandex login if account_id is missing
+    final_account_id = integration.account_id
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT and (not final_account_id or final_account_id.lower() == "unknown"):
+        log_event("backend", "Triggering Yandex auto-detection for account_id")
+        try:
+            async with httpx.AsyncClient() as client_http:
+                auth_headers = {"Authorization": f"OAuth {access_token}"}
+                user_info_resp = await client_http.get("https://login.yandex.ru/info?format=json", headers=auth_headers, timeout=10.0)
+                if user_info_resp.status_code == 200:
+                    user_info = user_info_resp.json()
+                    final_account_id = user_info.get("login")
+                    log_event("backend", f"Auto-detected Yandex login: {final_account_id}")
+                else:
+                    log_event("backend", f"Yandex Passport failed: {user_info_resp.status_code} - {user_info_resp.text}")
+        except Exception as e:
+            logger.error(f"Failed to auto-detect Yandex login: {e}")
+            log_event("backend", f"Exception during Yandex auto-detection: {str(e)}")
+
     if db_integration:
         db_integration.access_token = encrypted_access
         db_integration.refresh_token = encrypted_refresh
         db_integration.platform_client_id = encrypted_platform_client_id
         db_integration.platform_client_secret = encrypted_platform_client_secret
-        db_integration.account_id = integration.account_id
+        db_integration.account_id = final_account_id # ENSURE UPDATED
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db.commit()
         db.refresh(db_integration)
@@ -393,7 +411,7 @@ async def create_integration(
         refresh_token=encrypted_refresh,
         platform_client_id=encrypted_platform_client_id,
         platform_client_secret=encrypted_platform_client_secret,
-        account_id=integration.account_id,
+        account_id=final_account_id,
         sync_status=models.IntegrationSyncStatus.NEVER
     )
     db.add(new_integration)
@@ -487,7 +505,8 @@ async def get_integration_profiles(
             
             # 2. If no agency clients, or it's a regular account, include the account itself
             if not profiles:
-                profiles = [{"login": integration.account_id, "name": f"Личный аккаунт ({integration.account_id})"}]
+                display_id = integration.account_id or "Unknown"
+                profiles = [{"login": display_id, "name": f"Личный аккаунт ({display_id})"}]
             
             log_event("yandex", f"received {len(profiles)} profiles from yandex")
             return profiles
@@ -524,29 +543,47 @@ async def get_integration_goals(
     
     try:
         log_event("yandex", f"fetching goals for integration {integration_id}, account: {target_account}")
-        counters = await metrica_api.get_counters()
-        log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
+        
+        # Robust goal fetching with fallback
+        try:
+            counters = await metrica_api.get_counters()
+        except Exception as api_err:
+            logger.warning(f"Metrica counters fetch failed for {target_account}: {api_err}. Trying wildcard fetch.")
+            # Fallback: try without login parameter
+            fallback_api = YandexMetricaAPI(access_token) # No login
+            try:
+                counters = await fallback_api.get_counters()
+                metrica_api = fallback_api # Use successful API for subsequent calls
+            except Exception as fallback_err:
+                logger.error(f"Fallback Metrica fetch also failed: {fallback_err}")
+                return []
 
         if not counters:
+            log_event("yandex", "No Metrica counters found or access denied")
             return []
             
+        log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
+
         all_goals = []
         for counter in counters:
             counter_id = str(counter['id'])
             counter_name = counter.get('name', 'Unknown')
-            goals = await metrica_api.get_counter_goals(counter_id)
-            log_event("yandex", f"counter {counter_id} ({counter_name}) has {len(goals)} goals")
-            for goal in goals:
-                all_goals.append({
-                    "id": str(goal['id']),
-                    "name": f"{goal['name']} ({counter_name})",
-                    "counter_id": counter_id
-                })
+            try:
+                # Use metrica_api which might be the fallback one
+                goals = await metrica_api.get_counter_goals(counter_id)
+                log_event("yandex", f"counter {counter_id} ({counter_name}) has {len(goals)} goals")
+                for goal in goals:
+                    all_goals.append({
+                        "id": str(goal['id']),
+                        "name": f"{goal['name']} ({counter_name})",
+                        "counter_id": counter_id
+                    })
+            except Exception as goals_err:
+                logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
         
         return all_goals
     except Exception as e:
         logger.error(f"Error fetching real Metrica goals: {e}")
-        # Fallback to stub only if everything fails (not recommended but for safety)
         return []
 
 @router.patch("/{integration_id}", response_model=schemas.IntegrationResponse)
