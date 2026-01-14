@@ -252,8 +252,6 @@ const isNextDisabled = computed(() => {
 const isProfileSelectorOpen = ref(false)
 const isCampaignSelectorOpen = ref(false)
 const isGoalSelectorOpen = ref(false)
-const isCampaignSelectorOpen = ref(false)
-const isGoalSelectorOpen = ref(false)
 
 const allFromProfile = computed({
   get: () => campaigns.value.length > 0 && selectedCampaignIds.value.length === campaigns.value.length,
