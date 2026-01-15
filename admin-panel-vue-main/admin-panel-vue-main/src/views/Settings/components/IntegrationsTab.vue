@@ -133,7 +133,7 @@
                       <EllipsisVerticalIcon class="w-5 h-5" />
                     </button>
                     <!-- Floating Actions Menu -->
-                    <div class="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 hidden group-hover/menu:block z-50 animate-pop-in">
+                    <div class="absolute right-0 top-full pt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 hidden group-hover/menu:block z-50 animate-pop-in">
                        <button @click="testConnection(item.id)" class="w-full px-4 py-2.5 text-left text-[11px] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
                          <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Проверить связь
                        </button>

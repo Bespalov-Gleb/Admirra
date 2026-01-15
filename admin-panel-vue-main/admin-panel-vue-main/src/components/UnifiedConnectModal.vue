@@ -583,6 +583,13 @@ const finishConnection = async () => {
     
     await Promise.all([bulkUpdatePromise, integrationPromise])
     
+    // 3. Trigger initial sync automatically (last 30 days by default)
+    try {
+      await api.post(`integrations/${lastIntegrationId.value}/sync`, { days: 30 })
+    } catch (syncErr) {
+      console.warn('Initial sync failed, but integration was saved:', syncErr)
+    }
+    
     emit('success', { integration_id: lastIntegrationId.value })
     close()
   } catch (err) {
