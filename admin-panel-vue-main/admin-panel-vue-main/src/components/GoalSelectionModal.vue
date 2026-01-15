@@ -32,24 +32,26 @@
             <div class="space-y-2 pr-1">
               <button 
                 v-for="goal in filteredGoals" 
-              :key="goal.id"
-              @click="selectGoal(goal)"
-              class="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100 group"
-              :class="{ 'bg-blue-50 border-blue-100': selectedId === goal.id }"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-500 uppercase">
-                  {{ goal.type ? goal.type.substring(0, 2) : 'GL' }}
+                :key="goal.id"
+                @click="selectGoal(goal)"
+                class="w-full px-5 py-4 text-left flex items-center justify-between hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100 group"
+                :class="{ 'bg-blue-50 border-blue-100': selectedId === goal.id }"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all" :class="selectedId === goal.id ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
+                    <CheckIcon v-if="selectedId === goal.id" class="w-4 h-4 text-white" stroke-width="4" />
+                  </div>
+                  <div class="text-left">
+                    <span class="block text-[14px] font-black group-hover:text-black" :class="{ 'text-blue-600': selectedId === goal.id }">
+                      {{ goal.name }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
+                      <span v-if="goal.type" class="px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded-md text-[8px] font-black uppercase tracking-tighter">{{ goal.type }}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="text-left">
-                  <span class="block text-[14px] font-black group-hover:text-black" :class="{ 'text-blue-600': selectedId === goal.id }">
-                    {{ goal.name }}
-                  </span>
-                  <span class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
-                </div>
-              </div>
-              <CheckIcon v-if="selectedId === goal.id" class="w-5 h-5 text-blue-600" />
-            </button>
+              </button>
 
               <div v-if="filteredGoals.length === 0" class="py-12 text-center">
                 <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>

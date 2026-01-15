@@ -90,8 +90,8 @@
               @click="$emit('toggleSecondary', goal.id)"
             >
               <td class="px-4 py-3">
-                <div class="w-4 h-4 rounded border flex items-center justify-center transition-all bg-white" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
-                  <CheckIcon v-if="selectedGoalIds.includes(goal.id)" class="w-3 h-3 text-white" stroke-width="4" />
+                <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all bg-white" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
+                  <CheckIcon v-if="selectedGoalIds.includes(goal.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
                 </div>
               </td>
               <td class="px-3 py-3 text-[11px] font-medium text-gray-600 truncate max-w-[80px]" :title="goal.type">{{ goal.type }}</td>
@@ -106,17 +106,6 @@
       </div>
     </div>
 
-    <!-- Redundant Next Button (as per screenshot) -->
-    <div class="pt-2">
-      <button 
-        type="button"
-        @click="$emit('finish')"
-        :disabled="!primaryGoalId || loading"
-        class="w-full py-5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-[1.25rem] font-black text-[12px] uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
-      >
-        ДАЛЕЕ
-      </button>
-    </div>
   </div>
 </template>
 

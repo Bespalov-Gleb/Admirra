@@ -433,6 +433,7 @@ const selectProfile = async (profile) => {
   
   form.account_id = profile.login
   // Reset dependent state
+  error.value = null
   campaigns.value = []
   selectedCampaignIds.value = []
   goals.value = []
@@ -447,8 +448,20 @@ const selectProfile = async (profile) => {
       agency_client_login: profile.login 
     })
     sendRemoteLog('Profile Selected', { login: profile.login })
+    
+    // IMPORTANT: Re-fetch campaigns for the newly selected profile
+    fetchCampaigns(lastIntegrationId.value)
   } catch (err) {
     error.value = 'Ошибка при выборе профиля'
+  }
+}
+
+const toggleCampaign = (id) => {
+  const index = selectedCampaignIds.value.indexOf(id)
+  if (index > -1) {
+    selectedCampaignIds.value.splice(index, 1)
+  } else {
+    selectedCampaignIds.value.push(id)
   }
 }
 

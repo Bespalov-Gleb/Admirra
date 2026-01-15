@@ -33,10 +33,10 @@
       
       <div v-else class="grid grid-cols-1 gap-8">
         <div v-for="client in groupedClients" :key="client.id" 
-             class="bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm overflow-hidden animate-fade-in hover:shadow-md transition-all">
+             class="bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm animate-fade-in hover:shadow-md transition-all relative z-10 hover:z-50">
           
-          <!-- Шапка лоиҳа (Project Header) -->
-          <div class="px-8 py-6 border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent flex items-center justify-between">
+          <!-- Шапка проекта (Project Header) -->
+          <div class="px-8 py-6 border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent flex items-center justify-between rounded-t-[32px]">
             <div class="flex items-center gap-4">
               <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-100 shadow-sm">
                 <span class="text-xs font-black text-gray-400">{{ client.name.charAt(0).toUpperCase() }}</span>
@@ -76,11 +76,20 @@
                     </span>
                   </div>
                   <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5">
-                      <div class="w-1.5 h-1.5 rounded-full" :class="item.sync_status === 'SUCCESS' ? 'bg-green-500' : 'bg-red-400'"></div>
+                    <div class="flex items-center gap-1.5" :title="item.error_message">
+                      <div class="w-1.5 h-1.5 rounded-full" 
+                           :class="{
+                             'bg-green-500': item.sync_status === 'SUCCESS',
+                             'bg-red-400': item.sync_status === 'FAILED',
+                             'bg-amber-400': item.sync_status === 'PENDING',
+                             'bg-gray-300': item.sync_status === 'NEVER'
+                           }"></div>
                       <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                        {{ item.sync_status === 'SUCCESS' ? 'Активно' : 'Ошибка' }}
+                        {{ statusLabels[item.sync_status] || 'Неизвестно' }}
                       </span>
+                      <svg v-if="item.error_message" class="w-3 h-3 text-red-400 cursor-help" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                      </svg>
                     </div>
                     <span v-if="item.last_sync_at" class="text-[10px] font-medium text-gray-300">
                       Последняя: {{ formatDate(item.last_sync_at) }}
@@ -145,18 +154,6 @@
         </div>
       </div>
 
-      <!-- Footer Action -->
-      <div v-if="!loading" class="flex justify-center mt-12 mb-20">
-         <button 
-          @click="showAddModal = true"
-          class="flex items-center gap-3 px-8 py-4 bg-[#2b3a5d] hover:bg-[#1a253d] text-white rounded-[24px] shadow-xl shadow-blue-900/10 transition-all active:scale-95 border border-white/10 group"
-        >
-          <div class="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center group-hover:bg-blue-500 transition-colors">
-            <PlusIcon class="w-4 h-4" />
-          </div>
-          <span class="text-xs font-black uppercase tracking-widest">Подключить новый канал</span>
-        </button>
-      </div>
     </div>
 
     <!-- Модальное окно для выбора интервала -->
