@@ -6,67 +6,189 @@
     </div>
 
     <form @submit.prevent="$emit('next')" class="space-y-6">
-      <!-- Platform Selection -->
-      <div class="relative">
-        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">Платформа</label>
-        <div class="relative">
-          <button 
-            type="button"
-            @click="$emit('openPlatformSelector')"
-            class="w-full px-5 py-4 bg-white border border-gray-200 rounded-[1.25rem] focus:border-blue-500 transition-all flex items-center justify-between shadow-sm group hover:border-gray-300"
-          >
-            <div class="flex items-center gap-4">
-              <div v-if="modelValue.platform === 'YANDEX_DIRECT'" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden">
-                <svg viewBox="0 0 100 100" class="w-full h-full">
-                  <circle cx="50" cy="50" r="50" fill="#FFCC00"/>
-                  <path d="M65 25C58 25 52 30 52 38C52 46 58 51 65 51C72 51 78 46 78 38C78 30 72 25 65 25ZM65 41C63 41 62 39 62 38C62 37 63 35 65 35C67 35 68 37 68 38C68 39 67 41 65 41Z" fill="#000"/>
-                  <path d="M25 75L45 25H55L75 75H65L60 62H40L35 75H25ZM43 54H57L50 36L43 54Z" fill="#000"/>
-                </svg>
-              </div>
-              <div v-else class="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black shadow-sm border" :class="currentPlatform.className">
-                {{ currentPlatform.initials }}
-              </div>
-              <div class="text-left">
-                <span class="block text-[14px] font-black text-black leading-none">{{ currentPlatform.label }}</span>
-              </div>
+      <!-- Platform Info & Health -->
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden group mb-4">
+        <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+        <div class="relative z-10 flex items-center gap-6">
+          <div class="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shadow-inner">
+             <PlatformIcon :platform="modelValue.platform" class="w-10 h-10 brightness-0 invert" />
+          </div>
+          <div class="flex-grow">
+            <h2 class="text-xl font-black mb-1 tracking-tight">Интеграция с {{ PLATFORMS[modelValue.platform]?.label }}</h2>
+            <p class="text-blue-100 text-[11px] font-bold max-w-lg leading-relaxed">
+              Автоматический сбор кампаний, ключевых слов и статистики.
+              <a href="#" class="text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-all ml-1">Как это работает?</a>
+            </p>
+          </div>
+          <div class="hidden md:flex flex-col items-center gap-2">
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+              <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_#4ade80]"></div>
+              <span class="text-[9px] font-black uppercase tracking-widest text-white/90">API: СОЕДИНЕНО</span>
             </div>
-            <ChevronDownIcon class="w-5 h-5 text-gray-400 group-hover:text-black transition-all duration-300" />
-          </button>
+          </div>
         </div>
       </div>
 
-      <!-- Project Selection -->
-      <div class="relative">
-        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">Проект</label>
-        <div class="relative">
-          <button 
-            type="button"
-            @click="$emit('openProjectSelector')"
-            class="w-full px-5 py-4 bg-white border border-gray-200 rounded-[1.25rem] focus:border-blue-500 transition-all flex items-center justify-between shadow-sm group hover:border-gray-300"
+      <!-- Platform Selection Grid -->
+      <div class="space-y-4">
+        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ РЕКЛАМНЫЙ КАНАЛ</label>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div 
+            v-for="(config, key) in PLATFORMS" 
+            :key="key"
+            @click="!config.comingSoon && updateForm({ platform: key })"
+            class="relative group p-4 bg-white border-2 rounded-[1.5rem] transition-all duration-300 cursor-pointer overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1"
+            :class="[
+              modelValue.platform === key ? 'border-blue-600 ring-4 ring-blue-50' : 'border-gray-50 hover:border-blue-200',
+              config.comingSoon ? 'opacity-50 cursor-not-allowed filter grayscale' : ''
+            ]"
           >
-            <div class="flex items-center gap-3">
-              <div class="text-left">
-                <span class="block text-[14px] font-black text-black leading-none">
-                  {{ modelValue.client_name || 'Выберите проект' }}
-                </span>
+            <!-- Selection Checkmark -->
+            <div 
+              class="absolute top-4 right-4 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center transition-all duration-300 scale-0"
+              :class="{ 'scale-100': modelValue.platform === key }"
+            >
+              <CheckIcon class="w-4 h-4 text-white" stroke-width="4" />
+            </div>
+
+            <div class="flex flex-col h-full">
+              <div class="mb-4">
+                <div 
+                  class="w-12 h-12 rounded-2xl flex items-center justify-center text-[14px] font-black transition-all group-hover:scale-110 shadow-inner"
+                  :class="config.className"
+                >
+                  {{ config.initials }}
+                </div>
+              </div>
+              
+              <div class="space-y-1">
+                <h3 class="text-[13px] font-black text-black uppercase tracking-tight">{{ config.label }}</h3>
+                <p class="text-[10px] font-bold text-gray-400 leading-tight pr-4">
+                  {{ config.comingSoon ? 'СКОРО БУДЕТ' : config.description }}
+                </p>
               </div>
             </div>
-            <ChevronDownIcon class="w-5 h-5 text-gray-400 group-hover:text-black transition-all duration-300" />
-          </button>
+          </div>
         </div>
       </div>
 
-      <!-- New Project Name Input (Only if explicitly creating new) -->
-      <div v-if="isCreatingNewProject" class="animate-modal-in pt-2">
-        <Input
-          :modelValue="modelValue.client_name"
-          @update:modelValue="updateForm({ client_name: $event })"
-          label="Название нового проекта"
-          labelClass="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1"
-          inputClass="rounded-[1.25rem] py-4 font-black text-black shadow-sm border-gray-200 focus:border-blue-500"
-          placeholder="Например: Проект Альфа"
-          required
-        />
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+        <!-- Project Selection & Creation -->
+        <div class="space-y-4">
+          <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ ПРОЕКТ (КЛИЕНТА)</label>
+          
+          <div class="relative">
+            <div class="relative group">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+              </div>
+              <input 
+                type="text"
+                v-model="projectSearchQuery"
+                @focus="isDropdownOpen = true"
+                placeholder="Поиск проекта..."
+                class="w-full pl-11 pr-12 py-4 bg-white border border-gray-100 rounded-[1.25rem] focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-[14px] text-gray-900 shadow-sm"
+              >
+              <div class="absolute inset-y-0 right-0 pr-4 flex items-center">
+                <button 
+                  type="button"
+                  @click="isDropdownOpen = !isDropdownOpen"
+                  class="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ChevronDownIcon class="h-5 w-5 text-gray-400" :class="{ 'rotate-180': isDropdownOpen }" />
+                </button>
+              </div>
+            </div>
+
+            <Transition name="fade-scale">
+              <div 
+                v-if="isDropdownOpen" 
+                class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
+                v-click-outside="() => isDropdownOpen = false"
+              >
+                <div class="max-h-[300px] overflow-y-auto py-2 custom-scrollbar">
+                  <div 
+                    @click="handleCreateNewAction"
+                    class="px-4 py-3 mx-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all hover:bg-blue-50 group border border-transparent hover:border-blue-100"
+                  >
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                      <PlusIcon class="w-4 h-4 text-blue-600 group-hover:text-white" />
+                    </div>
+                    <div>
+                      <span class="block text-[12px] font-black text-blue-600 uppercase tracking-tighter">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+                    </div>
+                  </div>
+                  <div class="h-px bg-gray-50 my-2"></div>
+                  <div 
+                    v-for="project in filteredProjects" 
+                    :key="project.id"
+                    @click="selectProject(project)"
+                    class="px-4 py-3 mx-2 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
+                    :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
+                  >
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                        {{ project.name.substring(0, 2).toUpperCase() }}
+                      </div>
+                      <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors">{{ project.name }}</span>
+                    </div>
+                    <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <div v-if="isCreatingNewProject" class="pt-2 animate-fade-in">
+            <Input
+              :modelValue="modelValue.client_name"
+              @update:modelValue="updateForm({ client_name: $event })"
+              label="НАЗВАНИЕ НОВОГО ПРОЕКТА"
+              labelClass="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1"
+              inputClass="rounded-2xl py-4 font-black text-black shadow-sm border-gray-100 focus:border-blue-500"
+              placeholder="Например: Мой Магазин"
+              required
+            />
+          </div>
+        </div>
+
+        <!-- Sync Settings -->
+        <div class="space-y-4">
+          <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ПАРАМЕТРЫ СИНХРОНИЗАЦИИ</label>
+          <div class="bg-gray-50/50 border border-gray-100 rounded-[2rem] p-6 space-y-5">
+            <div class="flex items-center justify-between">
+              <div class="flex flex-col">
+                <span class="text-[12px] font-black text-gray-800 tracking-tight leading-none mb-1">Глубина истории</span>
+                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Начальный импорт</span>
+              </div>
+              <select 
+                :value="modelValue.sync_depth || 90"
+                @change="updateForm({ sync_depth: parseInt($event.target.value) })"
+                class="bg-white border border-gray-100 rounded-xl px-3 py-2 text-[11px] font-black text-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none shadow-sm cursor-pointer"
+              >
+                <option :value="30">30 дней</option>
+                <option :value="90">3 месяца</option>
+                <option :value="180">6 месяцев</option>
+                <option :value="365">1 год</option>
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between pt-4 border-t border-gray-200/50">
+              <div class="flex flex-col">
+                <span class="text-[12px] font-black text-gray-800 tracking-tight leading-none mb-1">Авто-синхронизация</span>
+                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Ежедневное обновление</span>
+              </div>
+              <button 
+                type="button"
+                @click="updateForm({ auto_sync: !modelValue.auto_sync })"
+                class="w-11 h-6 rounded-full transition-all relative outline-none"
+                :class="modelValue.auto_sync ? 'bg-blue-600 shadow-[0_4px_12px_rgba(37,99,235,0.3)]' : 'bg-gray-200'"
+              >
+                <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm" :class="{ 'translate-x-5': modelValue.auto_sync }"></div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </form>
@@ -75,9 +197,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { ChevronDownIcon } from '@heroicons/vue/20/solid'
+import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
+import { CheckIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { PLATFORMS } from '../../constants/platformConfig'
 import Input from '../../views/Settings/components/Input.vue'
+import PlatformIcon from '../ui/PlatformIcon.vue'
 
 const props = defineProps({
   modelValue: Object,
@@ -89,7 +213,42 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'update:isCreatingNewProject', 'next', 'openProjectSelector', 'openPlatformSelector'])
 
-const currentPlatform = computed(() => PLATFORMS[props.modelValue.platform])
+const vClickOutside = {
+  mounted(el, binding) {
+    el.clickOutsideEvent = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event)
+      }
+    }
+    document.addEventListener('click', el.clickOutsideEvent)
+  },
+  unmounted(el) {
+    document.removeEventListener('click', el.clickOutsideEvent)
+  }
+}
+
+const projectSearchQuery = ref(props.modelValue.client_name || '')
+const isDropdownOpen = ref(false)
+
+const filteredProjects = computed(() => {
+  if (!projectSearchQuery.value) return props.projects
+  const q = projectSearchQuery.value.toLowerCase()
+  return props.projects.filter(p => p.name.toLowerCase().includes(q))
+})
+
+const selectProject = (project) => {
+  emit('update:isCreatingNewProject', false)
+  updateForm({ client_id: project.id, client_name: project.name })
+  projectSearchQuery.value = project.name
+  isDropdownOpen.value = false
+}
+
+const handleCreateNewAction = () => {
+  emit('update:isCreatingNewProject', true)
+  updateForm({ client_id: null, client_name: '' })
+  projectSearchQuery.value = ''
+  isDropdownOpen.value = false
+}
 
 const updateForm = (updates) => {
   emit('update:modelValue', { ...props.modelValue, ...updates })

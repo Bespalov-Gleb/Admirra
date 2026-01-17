@@ -67,9 +67,18 @@ const { containerRef, dragScrollHandlers } = useDragScroll()
 
 const metrics = computed(() => [
   {
+    id: 'balance',
+    title: 'Баланс',
+    value: (props.summary.balance || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
+    trend: 0,
+    changePositive: true,
+    icon: BanknotesIcon,
+    iconColor: 'blue'
+  },
+  {
     id: 'expenses',
     title: 'Расходы',
-    value: (props.summary.expenses || 0).toLocaleString() + ' ₽',
+    value: (props.summary.expenses || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
     trend: Math.abs(props.summary.trends?.expenses || 0),
     changePositive: (props.summary.trends?.expenses || 0) <= 0,
     icon: CurrencyDollarIcon,
@@ -105,7 +114,7 @@ const metrics = computed(() => [
   {
     id: 'cpc',
     title: 'Sр. CPC',
-    value: (props.summary.cpc || 0).toLocaleString() + ' ₽',
+    value: (props.summary.cpc || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
     trend: Math.abs(props.summary.trends?.cpc || 0),
     changePositive: (props.summary.trends?.cpc || 0) <= 0,
     icon: HandRaisedIcon,
@@ -114,7 +123,7 @@ const metrics = computed(() => [
   {
     id: 'cpa',
     title: 'Sр. CPA',
-    value: (props.summary.cpa || 0).toLocaleString() + ' ₽',
+    value: (props.summary.cpa || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
     trend: Math.abs(props.summary.trends?.cpa || 0),
     changePositive: (props.summary.trends?.cpa || 0) <= 0,
     icon: BanknotesIcon,

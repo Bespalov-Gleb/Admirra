@@ -95,6 +95,7 @@
           <thead>
             <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
               <th class="pb-4 pr-4">Кампании</th>
+              <th class="pb-4 px-2 text-right">Статус</th>
               <th class="pb-4 px-2 text-right">Показы</th>
               <th class="pb-4 px-2 text-right">Клики</th>
               <th class="pb-4 px-2 text-right">CTR</th>
@@ -102,51 +103,67 @@
               <th class="pb-4 px-2 text-right">Конверсии</th>
               <th class="pb-4 px-2 text-right">Конверсии (CR)</th>
               <th class="pb-4 px-2 text-right">Цена цели</th>
-              <th class="pb-4 px-2 text-right">Расход ↑</th>
+              <th class="pb-4 px-2 text-right text-nowrap">Расход ↑</th>
               <th class="pb-4 px-2 text-right">Доходы</th>
               <th class="pb-4 px-2 text-right">Прибыль</th>
-              <th class="pb-4 px-2 text-right text-nowrap">Рентабельность</th>
+              <th class="pb-4 px-2 text-right text-nowrap">Рантабельность</th>
             </tr>
           </thead>
           <tbody>
             <!-- Total Row -->
             <tr class="group">
               <td class="py-4 pr-4 font-bold text-sm text-gray-900">Итого</td>
+              <td class="py-4 px-2 text-right text-[10px] font-black uppercase text-gray-400">—</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.impressions || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.clicks || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.ctr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cpc || 0).toFixed(2) }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ formatMoney(summary.cpc || 0) }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.leads || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ summary.cpa ? summary.cpa.toFixed(2) + ' ₽' : '—' }}</td>
-              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ (summary.expenses || 0).toLocaleString() }} ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.revenue || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ summary.cpa ? formatMoney(summary.cpa) : '—' }}</td>
+              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ formatMoney(summary.expenses || 0) }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ formatMoney(summary.revenue || 0) }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700" :class="(summary.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'">
-                {{ (summary.profit || 0).toLocaleString() }} ₽
+                {{ formatMoney(summary.profit || 0) }}
               </td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.roi || 0).toFixed(0) }}%</td>
             </tr>
             <!-- Campaign Rows -->
             <tr v-for="cmp in campaigns" :key="cmp.id" class="border-t border-gray-50/50 hover:bg-gray-50/30 transition-colors">
               <td class="py-4 pr-4 text-sm font-bold text-gray-500 truncate max-w-[200px]" :title="cmp.name">
-                {{ cmp.name }}
+                <div class="flex flex-col gap-1">
+                  <span>{{ cmp.name }}</span>
+                  <div class="flex flex-wrap gap-1">
+                    <span v-if="getCTR(cmp) > 5" class="px-1.5 py-0.5 bg-green-50 text-green-600 text-[8px] font-black uppercase rounded border border-green-100 shadow-sm" title="Top CTR">Top CTR</span>
+                    <span v-if="cmp.conversions > 0 && getConversionRate(cmp) > 3" class="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[8px] font-black uppercase rounded border border-purple-100 shadow-sm" title="Высокая конверсия">Эффективно</span>
+                    <span v-if="needsAttention(cmp)" class="px-1.5 py-0.5 bg-yellow-50 text-yellow-600 text-[8px] font-black uppercase rounded border border-yellow-100 shadow-sm animate-pulse" title="Низкий CTR при расходах">Внимание</span>
+                  </div>
+                </div>
+              </td>
+              <td class="py-4 px-2 text-right">
+                <span 
+                  class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter"
+                  :class="cmp.state === 'ON' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-400 border border-gray-100'"
+                >
+                  {{ cmp.state === 'ON' ? 'Active' : 'Stopped' }}
+                </span>
               </td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.impressions || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.clicks || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
                 {{ cmp.impressions > 0 ? ((cmp.clicks/cmp.impressions)*100).toFixed(2) : '0.00' }}%
               </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.cpc || 0).toFixed(2) }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(cmp.cpc || 0) }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.conversions || 0).toLocaleString() }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
                 {{ cmp.clicks > 0 ? ((cmp.conversions/cmp.clicks)*100).toFixed(2) : '0.00' }}%
               </td>
               <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
-                {{ cmp.cpa ? cmp.cpa.toFixed(2) + ' ₽' : '—' }}
+                {{ cmp.cpa ? formatMoney(cmp.cpa) : '—' }}
               </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.cost || 0).toLocaleString() }} ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">0 ₽</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ (cmp.cost || 0).toLocaleString() }} ₽</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(cmp.cost || 0) }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(0) }}</td>
+              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ formatMoney(cmp.cost || 0) }}</td>
               <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-100%</td>
             </tr>
           </tbody>
@@ -178,8 +195,33 @@ const funnelLabels = computed(() => [
   { text: 'Клики', value: (props.summary.clicks || 0).toLocaleString() },
   { text: 'Конверсии, % (CR)', value: (props.summary.cr || 0).toFixed(2) + '%' },
   { text: 'Конверсии', value: (props.summary.leads || 0).toLocaleString() },
-  { text: 'Цена цели', value: props.summary.cpa ? props.summary.cpa.toFixed(2) + ' ₽' : '0,00 ₽' }
+  { text: 'Цена цели', value: props.summary.cpa ? formatMoney(props.summary.cpa) : formatMoney(0) }
 ])
+
+const formatMoney = (val) => {
+  return new Intl.NumberFormat('ru-RU', { 
+    style: 'currency', 
+    currency: props.summary.currency || 'RUB', 
+    maximumFractionDigits: 0 
+  }).format(val)
+}
+
+const getCTR = (cmp) => {
+  if (!cmp.impressions) return 0
+  return (cmp.clicks / cmp.impressions) * 100
+}
+
+const getConversionRate = (cmp) => {
+  if (!cmp.clicks) return 0
+  return (cmp.conversions / cmp.clicks) * 100
+}
+
+const needsAttention = (cmp) => {
+  const hasSignificantSpend = (cmp.cost || 0) > 1000
+  const hasLowCTR = getCTR(cmp) < 1
+  const isActive = cmp.state === 'ON'
+  return hasSignificantSpend && hasLowCTR && isActive
+}
 
 const funnelPoints = computed(() => {
   const h1 = 100 // Height of first stage (highest)

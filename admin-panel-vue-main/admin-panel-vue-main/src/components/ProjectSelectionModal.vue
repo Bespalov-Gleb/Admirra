@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[200] animate-fade-in" @click.self="$emit('close')">
+  <div v-if="isOpen" class="fixed inset-0 flex items-center justify-center p-4 z-[200] animate-fade-in" @click.self="$emit('close')">
     <div class="bg-white rounded-[2rem] p-0.5 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.25)] transform transition-all animate-modal-in border border-gray-100 relative overflow-hidden">
       <div class="relative z-10 flex flex-col max-h-[70vh] p-6">
         <div class="flex items-center justify-between mb-6">

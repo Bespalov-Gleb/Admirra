@@ -91,6 +91,11 @@ const routes = [
     component: () => import('../views/Profile/Profile.vue')
   },
   {
+    path: '/integrations/wizard',
+    name: 'AddIntegration',
+    component: () => import('../views/Integrations/AddIntegrationPage.vue')
+  },
+  {
     path: '/projects/create',
     name: 'CreateProject',
     component: () => import('../views/Project/CreateProjectPage.vue')

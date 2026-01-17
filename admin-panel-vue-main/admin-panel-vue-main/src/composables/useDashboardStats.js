@@ -12,6 +12,8 @@ export function useDashboardStats() {
     leads: 0,
     cpc: 0,
     cpa: 0,
+    balance: 0,
+    currency: 'RUB',
     trends: null
   })
 

@@ -1,118 +1,166 @@
 <template>
-  <div class="pr-1 pb-4 space-y-6">
-    <!-- Primary Goal Selection Trigger -->
-    <div class="relative">
-      <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ОСНОВНАЯ ЦЕЛЬ :</label>
+  <div class="space-y-6">
+    <!-- Header & Search -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
+      <div>
+        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ЦЕЛИ И КОНВЕРСИИ</label>
+        <p class="text-[11px] text-gray-500 font-bold">Выберите основную цель (звездочка) и дополнительные цели для отслеживания</p>
+      </div>
       
-      <div class="relative">
-        <button 
-          type="button"
-          @click="$emit('openGoalSelector')"
-          class="w-full px-5 py-4 bg-white border border-gray-200 rounded-[1.25rem] focus:border-blue-500 transition-all flex items-center justify-between shadow-sm group hover:border-gray-300"
-          :class="{ 'border-red-300 bg-red-50/10': showValidationError && !primaryGoalId }"
-        >
-          <div class="flex items-center gap-4">
-            <div v-if="platform === 'YANDEX_DIRECT'" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden">
-              <svg viewBox="0 0 100 100" class="w-full h-full">
-                <circle cx="50" cy="50" r="50" fill="#FFCC00"/>
-                <path d="M65 25C58 25 52 30 52 38C52 46 58 51 65 51C72 51 78 46 78 38C78 30 72 25 65 25ZM65 41C63 41 62 39 62 38C62 37 63 35 65 35C67 35 68 37 68 38C68 39 67 41 65 41Z" fill="#000"/>
-                <path d="M25 75L45 25H55L75 75H65L60 62H40L35 75H25ZM43 54H57L50 36L43 54Z" fill="#000"/>
-              </svg>
-            </div>
-            <div class="text-left overflow-hidden">
-              <span class="block text-[14px] font-black text-black leading-none truncate max-w-[200px]">
-                {{ primaryGoalName || 'Выберите основную цель' }}
-              </span>
-            </div>
-          </div>
-          <ChevronDownIcon class="w-5 h-5 text-gray-400 group-hover:text-black transition-all duration-300" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Secondary Goals Section -->
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <h4 class="text-[14px] font-bold text-gray-700 tracking-tight">Цели для блока с конверсиями:</h4>
-      </div>
-
-      <!-- Search Input -->
-      <div class="relative group">
+      <div class="relative group w-full md:w-64">
         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
         </div>
         <input 
           type="text" 
           v-model="searchQuery"
-          placeholder="Поиск по названию или ID..."
-          class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+          placeholder="Поиск цели..."
+          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
         >
-      </div>
-
-      <!-- All Goals Checkbox -->
-      <div class="flex items-center px-1">
-        <label class="flex items-center gap-3 cursor-pointer group">
-          <div class="relative w-5 h-5">
-            <input 
-              type="checkbox" 
-              :checked="allFromProfile"
-              @change="$emit('toggleAll')"
-              class="peer sr-only"
-            >
-            <div class="w-5 h-5 bg-white border-2 border-gray-200 rounded-md transition-all peer-checked:bg-blue-600 peer-checked:border-blue-600 group-hover:border-gray-300"></div>
-            <CheckIcon class="absolute inset-0 w-5 h-5 text-white scale-0 transition-all peer-checked:scale-100" stroke-width="4" />
-          </div>
-          <span class="text-[14px] font-bold text-gray-700 tracking-tight">Все цели из профиля</span>
-        </label>
-      </div>
-
-      <!-- Goals Table -->
-      <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-gray-50 border-b border-gray-100">
-              <th class="w-10 px-4 py-3"></th>
-              <th class="px-3 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Тип</th>
-              <th class="px-3 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Номер</th>
-              <th class="px-3 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading" v-for="i in 3" :key="i" class="animate-pulse border-b border-gray-50">
-               <td colspan="4" class="px-4 py-4 h-12 bg-gray-50/50"></td>
-            </tr>
-            <tr 
-              v-else
-              v-for="goal in filteredGoals" 
-              :key="goal.id"
-              class="border-b border-gray-50 last:border-none group hover:bg-blue-50/30 transition-all cursor-pointer"
-              :class="{ 'bg-blue-50/50': selectedGoalIds.includes(goal.id) }"
-              @click="$emit('toggleSecondary', goal.id)"
-            >
-              <td class="px-4 py-3">
-                <div class="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all bg-white" :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'">
-                  <CheckIcon v-if="selectedGoalIds.includes(goal.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
-                </div>
-              </td>
-              <td class="px-3 py-3 text-[11px] font-medium text-gray-600 truncate max-w-[80px]" :title="goal.type">{{ goal.type }}</td>
-              <td class="px-3 py-3 text-[11px] font-bold text-gray-400 uppercase">{{ goal.id }}</td>
-              <td class="px-3 py-3 text-[11px] font-black text-gray-800">{{ goal.name }}</td>
-            </tr>
-            <tr v-if="!loading && filteredGoals.length === 0">
-              <td colspan="4" class="py-12 text-center text-[11px] font-black text-gray-300 uppercase tracking-widest">Цели не найдены</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
 
+    <!-- Goals Power Table -->
+    <div class="bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50/50 border-b border-gray-100">
+            <th class="w-12 px-5 py-4 text-center">
+              <StarIcon class="w-4 h-4 mx-auto text-gray-300" />
+            </th>
+            <th class="w-10 px-2 py-4">
+              <div 
+                @click="toggleSelectAllFiltered"
+                class="w-5 h-5 mx-auto rounded-md border-2 flex items-center justify-center transition-all bg-white cursor-pointer" 
+                :class="isAllFilteredSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-200 hover:border-blue-400'"
+              >
+                <CheckIcon v-if="isAllFilteredSelected" class="w-3.5 h-3.5 text-white" stroke-width="4" />
+                <div v-else-if="isAnyFilteredSelected" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
+              </div>
+            </th>
+            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Тип цели</th>
+            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название цели</th>
+            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Достижения</th>
+            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">CR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Loading State -->
+          <template v-if="loading">
+            <tr v-for="i in 5" :key="i" class="border-b border-gray-50">
+              <td class="px-5 py-5 text-center"><Skeleton width="4" height="4" rounded="full" /></td>
+              <td class="px-2 py-5"><Skeleton width="5" height="5" rounded="md" class="mx-auto" /></td>
+              <td class="px-4 py-5"><Skeleton width="20" height="3" /></td>
+              <td class="px-4 py-5"><Skeleton width="48" height="4" /></td>
+              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
+              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
+            </tr>
+          </template>
+
+          <tr 
+            v-else
+            v-for="goal in sortedGoals" 
+            :key="goal.id"
+            class="border-b border-gray-50 last:border-none group hover:bg-blue-50/30 transition-all cursor-pointer"
+            :class="{ 'bg-blue-50/50': selectedGoalIds.includes(goal.id) || primaryGoalId === goal.id }"
+          >
+            <!-- Primary Star -->
+            <td class="px-5 py-4 text-center" @click.stop="$emit('selectPrimary', goal.id)">
+              <button class="transition-all hover:scale-125 focus:outline-none">
+                <StarIcon 
+                   class="w-6 h-6 transition-colors duration-300" 
+                  :class="primaryGoalId === goal.id ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]' : 'text-gray-200 group-hover:text-gray-300'"
+                />
+              </button>
+            </td>
+
+            <!-- Secondary Checkbox -->
+            <td class="px-2 py-4" @click.stop="$emit('toggleSecondary', goal.id)">
+              <div 
+                class="w-5 h-5 mx-auto rounded-md border-2 flex items-center justify-center transition-all bg-white" 
+                :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'"
+              >
+                <CheckIcon v-if="selectedGoalIds.includes(goal.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
+              </div>
+            </td>
+
+            <td class="px-4 py-4">
+              <span 
+                class="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border"
+                :class="getGoalTypeClass(goal.type)"
+              >
+                {{ formatGoalType(goal.type) }}
+              </span>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <span class="text-[13px] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+                    {{ goal.name }}
+                  </span>
+                  
+                  <!-- IMPROVED: Recommendation Badge with Icon -->
+                  <span 
+                    v-if="goal.id === recommendedGoalId" 
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-yellow-50 to-orange-50 text-orange-600 text-[8px] font-black uppercase rounded-md border border-orange-200 shadow-sm animate-pulse"
+                  >
+                    <StarIcon class="w-2.5 h-2.5 fill-orange-500" />
+                    РЕКОМЕНДУЕМАЯ
+                  </span>
+                </div>
+                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
+              </div>
+            </td>
+
+            <td class="px-3 py-4 text-right">
+              <span class="text-[12px] font-black text-gray-700">{{ goal.reaches || 0 }}</span>
+              <p class="text-[8px] text-gray-400 uppercase font-bold">раз</p>
+            </td>
+
+            <td class="px-3 py-4 text-right">
+              <span 
+                v-if="goal.conversion_rate" 
+                class="px-2.5 py-1 rounded-lg text-[10px] font-black"
+                :class="goal.conversion_rate > 2 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-blue-50 text-blue-600 border border-blue-100'"
+              >
+                {{ goal.conversion_rate.toFixed(1) }}%
+              </span>
+              <span v-else class="text-gray-300 text-[10px] font-black">—</span>
+            </td>
+          </tr>
+
+          <tr v-if="!loading && filteredGoals.length === 0">
+            <td colspan="7" class="py-20 text-center">
+              <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MagnifyingGlassIcon class="w-8 h-8 text-gray-200" />
+              </div>
+              <p class="text-[12px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Error Hint -->
+    <div v-if="showValidationError && !primaryGoalId" class="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
+      <ExclamationTriangleIcon class="w-5 h-5 text-red-500" />
+      <span class="text-[12px] font-bold text-red-600">Пожалуйста, выберите основную цель (нажмите на звездочку)</span>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
-import { CheckIcon } from '@heroicons/vue/24/outline'
+import { 
+  MagnifyingGlassIcon,
+  StarIcon
+} from '@heroicons/vue/20/solid'
+import { 
+  CheckIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/vue/24/outline'
+import Skeleton from '../ui/Skeleton.vue'
 
 const props = defineProps({
   goals: Array,
@@ -124,23 +172,88 @@ const props = defineProps({
   showValidationError: Boolean
 })
 
-const emit = defineEmits(['openGoalSelector', 'toggleAll', 'toggleSecondary', 'finish'])
-
+const emit = defineEmits(['selectPrimary', 'toggleSecondary', 'bulkSelect', 'bulkDeselect'])
 
 const searchQuery = ref('')
 
-const filteredGoals = computed(() => {
-  if (!searchQuery.value) return props.goals
-  const q = searchQuery.value.toLowerCase()
-  return props.goals.filter(g => 
-    (g.name && g.name.toLowerCase().includes(q)) || 
-    (g.id && g.id.toString().includes(q))
-  )
+const recommendedGoalId = computed(() => {
+  if (!props.goals || props.goals.length === 0) return null
+  
+  // Logic: Best CR/Reaches balance. For now, highest CR is a good surrogate.
+  // We filter out goals with 0 reaches to avoid noise.
+  const validGoals = props.goals.filter(g => (g.reaches || 0) > 0)
+  if (validGoals.length === 0) return props.goals[0]?.id
+  
+  return [...validGoals].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]?.id
 })
 
-const primaryGoalName = computed(() => {
-  if (!props.primaryGoalId) return null
-  const goal = props.goals.find(g => g.id === props.primaryGoalId)
-  return goal ? `${goal.name} (${goal.id})` : props.primaryGoalId
+const filteredGoals = computed(() => {
+  if (!props.goals) return []
+  let list = props.goals
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(g => 
+      (g.name && g.name.toLowerCase().includes(q)) || 
+      (g.id && g.id.toString().includes(q))
+    )
+  }
+  return list
 })
+
+const sortedGoals = computed(() => {
+  return [...filteredGoals.value].sort((a, b) => {
+    // 1. Recommended goal always first
+    if (a.id === recommendedGoalId.value) return -1
+    if (b.id === recommendedGoalId.value) return 1
+    
+    // 2. Then by Conversion Rate
+    return (b.conversion_rate || 0) - (a.conversion_rate || 0)
+  })
+})
+
+const isAllFilteredSelected = computed(() => {
+  if (filteredGoals.value.length === 0) return false
+  return filteredGoals.value.every(g => props.selectedGoalIds.includes(g.id))
+})
+
+const isAnyFilteredSelected = computed(() => {
+  return filteredGoals.value.some(g => props.selectedGoalIds.includes(g.id))
+})
+
+const toggleSelectAllFiltered = () => {
+  const ids = filteredGoals.value.map(g => g.id)
+  if (isAllFilteredSelected.value) {
+    emit('bulkDeselect', ids)
+  } else {
+    emit('bulkSelect', ids)
+  }
+}
+
+const formatGoalType = (type) => {
+  if (!type) return 'ЦЕЛЬ'
+  const labels = {
+    'AVERAGE_CPA': 'ЦЕНА КОНВЕРСИИ',
+    'METRICA_GOAL': 'ЦЕЛЬ МЕТРИКИ',
+    'AUTO': 'АВТОЦЕЛЬ',
+    'YANDEX_METRICA': 'ЯНДЕКС МЕТРИКА'
+  }
+  return labels[type] || type.replace(/_/g, ' ')
+}
+
+const getGoalTypeClass = (type) => {
+  if (type === 'METRICA_GOAL' || type === 'YANDEX_METRICA') return 'bg-orange-50 text-orange-600 border-orange-100'
+  if (type === 'AUTO') return 'bg-blue-50 text-blue-600 border-blue-100'
+  return 'bg-gray-50 text-gray-500 border-gray-100'
+}
 </script>
+
+<style scoped>
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+</style>

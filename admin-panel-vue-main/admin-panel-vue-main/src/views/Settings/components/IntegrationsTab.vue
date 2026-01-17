@@ -10,11 +10,6 @@
         <div class="w-8 h-8 border-3 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
       </div>
       
-      <!-- Список проектов -->
-      <div v-if="loading" class="flex justify-center py-12">
-        <div class="w-8 h-8 border-3 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
-      </div>
-      
       <div v-else-if="groupedClients.length === 0" class="text-center py-16 bg-white rounded-[32px] border border-white/80 shadow-sm animate-fade-in mb-8">
         <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-50 rounded-2xl mb-4 border border-gray-100">
            <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -24,7 +19,7 @@
         <p class="text-[13px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Ничего не найдено</p>
         <p class="text-[11px] text-gray-400 mb-6">У вас пока нет активных интеграций для ваших проектов</p>
         <button 
-          @click="showAddModal = true" 
+          @click="$router.push('/integrations/wizard')" 
           class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-500/20"
         >
           Подключить интеграцию
@@ -122,7 +117,7 @@
                 <!-- Тугмаи Настройка (Action Menu) -->
                 <div class="flex items-center gap-3">
                   <button 
-                    @click="openEditModal(item)"
+                    @click="openEditWizard(item)"
                     class="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-[10px] font-black text-gray-600 uppercase tracking-widest rounded-xl transition-all active:scale-95 border border-gray-100"
                   >
                     Настроить
@@ -188,7 +183,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import UnifiedConnectModal from '../../../components/UnifiedConnectModal.vue'
@@ -259,6 +254,7 @@ const formatDate = (dateStr) => {
 const isAgencyModalOpen = ref(false)
 const agencyModalRef = ref(null)
 const route = useRoute()
+const router = useRouter()
 
 const fetchIntegrations = async () => {
   loading.value = true
@@ -348,10 +344,14 @@ const handleSync = async (id) => {
   }
 }
 
-const openEditModal = (item) => {
-  resumeIntegrationId.value = item.id
-  initialStep.value = 2 // Start from Profiles/Campaigns
-  showAddModal.value = true
+const openEditWizard = (item) => {
+  router.push({
+    path: '/integrations/wizard',
+    query: { 
+      resume_integration_id: item.id,
+      initial_step: 2 
+    }
+  })
 }
 
 onMounted(() => {

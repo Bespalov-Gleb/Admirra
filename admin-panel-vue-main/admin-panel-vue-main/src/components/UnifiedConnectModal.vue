@@ -8,34 +8,43 @@
       <div class="relative z-10 flex flex-col max-h-[85vh] p-6">
         <!-- Header: Fixed -->
         <div class="flex items-center justify-between mb-2 flex-shrink-0">
-          <div>
-            <h3 class="text-xl font-black text-black tracking-tight leading-none uppercase">Добавить интеграцию</h3>
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Новый рекламный канал</p>
-          </div>
-          <button @click="close" class="p-2 bg-gray-50 text-gray-500 hover:text-black hover:rotate-90 hover:bg-gray-100 transition-all rounded-full border border-gray-100 shadow-sm">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-          </button>
-        </div>
-
-        <!-- Visual Stepper: Dots and Lines -->
-        <div class="flex items-center justify-between px-10 mb-8 flex-shrink-0 max-w-xl mx-auto w-full">
-          <div v-for="step in 4" :key="step" class="flex items-center flex-1 last:flex-none">
-            <!-- Circle -->
-            <div 
-              class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black transition-all duration-300"
-              :class="[
-                currentStep >= step ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110' : 'bg-gray-50 text-gray-400 border border-gray-100',
-                currentStep === step ? 'ring-4 ring-blue-50' : ''
-              ]"
-            >
-              {{ step }}
+          <div class="flex items-center gap-4">
+            <div>
+              <h3 class="text-xl font-black text-black tracking-tight leading-none uppercase">Добавить интеграцию</h3>
+              <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Шаг {{ currentStep }} из 5</p>
             </div>
-            <!-- Line -->
-            <div 
-              v-if="step < 4" 
-              class="flex-1 h-0.5 mx-2 rounded-full transition-all duration-500"
-              :class="currentStep > step ? 'bg-blue-600' : 'bg-gray-100'"
-            ></div>
+
+            <!-- Global Date Selector for Preview (Steps 3-4) -->
+            <div v-if="currentStep >= 3" class="flex items-center bg-gray-50 border border-gray-100 rounded-xl p-1 shadow-sm ml-4">
+              <button 
+                v-for="opt in dateRangeOptions" 
+                :key="opt.value"
+                @click="statsDateRange = opt.value"
+                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all"
+                :class="statsDateRange === opt.value ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-gray-400 hover:text-gray-600'"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="flex flex-col items-end">
+              <div class="flex gap-1">
+                <div 
+                  v-for="i in 5" 
+                  :key="i"
+                  class="h-1.5 rounded-full transition-all duration-500"
+                  :class="[
+                    i <= currentStep ? 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]' : 'bg-gray-100',
+                    i === currentStep ? 'w-8' : 'w-4'
+                  ]"
+                ></div>
+              </div>
+            </div>
+            <button @click="close" class="p-2 bg-gray-100 text-gray-500 hover:text-black hover:rotate-90 hover:bg-gray-200 transition-all rounded-full border border-gray-200 shadow-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
           </div>
         </div>
 
@@ -64,7 +73,7 @@
             :selectedAccountId="form.account_id"
             :loading="loadingProfiles"
             :platform="form.platform"
-            @openProfileSelector="isProfileSelectorOpen = true"
+            @selectProfile="selectProfile"
             @next="nextStep"
           />
         </CustomScroll>
@@ -72,14 +81,16 @@
 
         <CustomScroll v-else-if="currentStep === 3" class="flex-grow">
           <IntegrationStep3 
+            v-if="currentStep === 3" 
             :campaigns="campaigns"
             :selectedIds="selectedCampaignIds"
             :loading="loadingCampaigns"
             :platform="form.platform"
             :allFromProfile="allFromProfile"
-            @openCampaignSelector="isCampaignSelectorOpen = true"
+            :currency="currentCurrency"
+            @toggle="toggleCampaignSelection"
             @toggleAll="toggleAllCampaigns"
-            @next="nextStep"
+            @next="currentStep++"
           />
         </CustomScroll>
 
@@ -93,11 +104,25 @@
             :platform="form.platform"
             :allFromProfile="allGoalsFromProfile"
             :showValidationError="showValidationError"
-            @openGoalSelector="isGoalSelectorOpen = true"
-            @toggleAll="toggleAllGoals"
+            @bulkSelect="(ids) => selectedGoalIds = [...new Set([...selectedGoalIds, ...ids])]"
+            @bulkDeselect="(ids) => selectedGoalIds = selectedGoalIds.filter(id => !ids.includes(id))"
             @toggleSecondary="toggleGoal"
             @selectPrimary="selectPrimaryGoal"
-            @finish="finishConnection"
+          />
+        </CustomScroll>
+
+        <!-- Step 5: Final Summary -->
+        <CustomScroll v-else-if="currentStep === 5" class="flex-grow">
+          <IntegrationStep5 
+            :projectName="form.client_name"
+            :selectedProfileName="selectedProfile?.name || 'Не выбран'"
+            :selectedProfileLogin="form.account_id"
+            :currency="currentCurrency"
+            :selectedCampaignsList="selectedCampaignsList"
+            :primaryGoalName="primaryGoal?.name"
+            :secondaryGoalsList="secondaryGoalsList"
+            :syncDepth="form.sync_depth"
+            :autoSync="form.auto_sync"
           />
         </CustomScroll>
 
@@ -124,9 +149,9 @@
             </span>
           </button>
 
-          <!-- Step 2 & 3 Next -->
+          <!-- Step 2, 3 & 4 Next -->
           <button 
-            v-else-if="currentStep === 2 || currentStep === 3" 
+            v-else-if="currentStep >= 2 && currentStep <= 4" 
             @click="nextStep" 
             :disabled="isNextDisabled"
             class="flex-[1.5] py-3.5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-2xl hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all shadow-lg"
@@ -134,9 +159,9 @@
             ДАЛЕЕ
           </button>
           
-          <!-- Step 4 Finish -->
+          <!-- Step 5 Finish -->
           <button 
-            v-else-if="currentStep === 4" 
+            v-else-if="currentStep === 5" 
             @click="finishConnection" 
             :disabled="loadingFinish" 
             class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
@@ -164,35 +189,6 @@
           @select="selectPlatform"
         />
 
-        <!-- Profile Selection Modal Overlay -->
-        <ProfileSelectionModal 
-          :isOpen="isProfileSelectorOpen"
-          :profiles="profiles"
-          :selectedAccountId="form.account_id"
-          :loading="loadingProfiles"
-          @close="isProfileSelectorOpen = false"
-          @select="selectProfile"
-        />
-
-        <!-- Campaign Selection Modal Overlay -->
-        <CampaignSelectionModal 
-          :isOpen="isCampaignSelectorOpen"
-          :campaigns="campaigns"
-          :selectedIds="selectedCampaignIds"
-          :loading="loadingCampaigns"
-          @close="isCampaignSelectorOpen = false"
-          @toggle="toggleCampaign"
-        />
-
-        <!-- Goal Selection Modal Overlay -->
-        <GoalSelectionModal 
-          :isOpen="isGoalSelectorOpen"
-          :goals="goals"
-          :selectedId="form.primary_goal_id"
-          :loading="loadingGoals"
-          @close="isGoalSelectorOpen = false"
-          @select="selectPrimaryGoal"
-        />
       </div>
     </div>
   </div>
@@ -204,19 +200,19 @@ import api from '../api/axios'
 import CustomScroll from './ui/CustomScroll.vue'
 import { PLATFORMS } from '../constants/platformConfig'
 import { useProjects } from '../composables/useProjects'
+import { useToaster } from '../composables/useToaster'
 
 // Import Step Components
 import IntegrationStep1 from './integration-steps/IntegrationStep1.vue'
 import IntegrationStep2 from './integration-steps/IntegrationStep2.vue'
 import IntegrationStep3 from './integration-steps/IntegrationStep3.vue'
 import IntegrationStep4 from './integration-steps/IntegrationStep4.vue'
+import IntegrationStep5 from './integration-steps/IntegrationStep5.vue'
 import ProjectSelectionModal from './ProjectSelectionModal.vue'
 import PlatformSelectionModal from './PlatformSelectionModal.vue'
-import ProfileSelectionModal from './ProfileSelectionModal.vue'
-import CampaignSelectionModal from './CampaignSelectionModal.vue'
-import GoalSelectionModal from './GoalSelectionModal.vue'
 
 const { projects, fetchProjects } = useProjects()
+const toaster = useToaster()
 
 const props = defineProps({
   isOpen: Boolean,
@@ -245,13 +241,29 @@ const isProjectSelectorOpen = ref(false)
 const isPlatformSelectorOpen = ref(false)
 
 const isNextDisabled = computed(() => {
+  if (currentStep.value === 1) {
+    return !form.client_id && (!isCreatingNewProject.value || !form.client_name)
+  }
   if (currentStep.value === 2) return !form.account_id || loadingProfiles.value
   if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingCampaigns.value
+  if (currentStep.value === 4) return !form.primary_goal_id || loadingGoals.value
   return false
 })
-const isProfileSelectorOpen = ref(false)
-const isCampaignSelectorOpen = ref(false)
-const isGoalSelectorOpen = ref(false)
+
+const selectedCampaignsList = computed(() => {
+  return campaigns.value.filter(c => selectedCampaignIds.value.includes(c.id))
+})
+
+const selectedProfile = computed(() => {
+  return profiles.value.find(p => p.login === form.account_id)
+})
+
+const primaryGoal = computed(() => {
+  return goals.value.find(g => g.id === form.primary_goal_id)
+})
+
+const searchQuery = ref('')
+const lastIntegrationId = ref(props.resumeIntegrationId)
 
 const allFromProfile = computed({
   get: () => campaigns.value.length > 0 && selectedCampaignIds.value.length === campaigns.value.length,
@@ -280,6 +292,7 @@ const allGoalsFromProfile = computed({
 
 // Step 2-4 state
 const currentStep = ref(props.initialStep || 1)
+const statsDateRange = ref('30') // Days: 7, 30, 90, 365
 const profiles = ref([])
 const campaigns = ref([])
 const goals = ref([])
@@ -289,14 +302,40 @@ const loadingProfiles = ref(false)
 const loadingCampaigns = ref(false)
 const loadingGoals = ref(false)
 const loadingFinish = ref(false)
-const searchQuery = ref('')
-const lastIntegrationId = ref(props.resumeIntegrationId)
+
+const currentCurrency = computed(() => {
+  const p = profiles.value.find(p => p.login === form.account_id)
+  return p?.currency || 'RUB'
+})
+
+const dateRangeOptions = [
+  { label: '7 дней', value: '7' },
+  { label: '30 дней', value: '30' },
+  { label: '90 дней', value: '90' },
+  { label: '1 год', value: '365' }
+]
+
+const getDateRangeParams = () => {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - parseInt(statsDateRange.value))
+  return {
+    date_from: start.toISOString().split('T')[0],
+    date_to: end.toISOString().split('T')[0]
+  }
+}
+
+watch(statsDateRange, () => {
+  if (currentStep.value === 3) fetchCampaigns(lastIntegrationId.value)
+  if (currentStep.value === 4) fetchGoals(lastIntegrationId.value)
+})
 
 const stepLabels = {
   1: 'Настройка канала',
   2: 'Выбор профиля',
   3: 'Выбор кампаний',
-  4: 'Настройка целей'
+  4: 'Настройка целей',
+  5: 'Сводка настроек'
 }
 
 const sendRemoteLog = async (message, data = null) => {
@@ -321,7 +360,7 @@ const filteredCampaigns = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return campaigns.value.filter(c => 
     (c.name && c.name.toLowerCase().includes(q)) || 
-    (c.external_id && c.external_id.toLowerCase().includes(q))
+    (c.external_id && c.external_id.toString().includes(q))
   )
 })
 
@@ -333,7 +372,9 @@ const form = reactive({
   refresh_token: '',
   account_id: '',
   client_id_platform: '', // Rename if needed, but the backend might expect 'client_id' for some platforms
-  client_secret: ''
+  client_secret: '',
+  sync_depth: 90, // Days of history to sync initially
+  auto_sync: true
 })
 
 const currentPlatform = computed(() => PLATFORMS[form.platform])
@@ -347,7 +388,10 @@ watch(() => props.isOpen, (newVal) => {
       if (currentStep.value === 3) fetchCampaigns(props.resumeIntegrationId)
       if (currentStep.value === 4) fetchGoals(props.resumeIntegrationId)
     } else {
+      // Default to picking project first
       form.client_name = props.initialClientName
+      form.client_id = null
+      isCreatingNewProject.value = false
       error.value = null
       currentStep.value = 1
       campaigns.value = []
@@ -373,14 +417,14 @@ const selectProject = (project) => {
   form.client_id = project.id
   form.client_name = project.name
   isCreatingNewProject.value = false
-  projectDropdownOpen.value = false
+  isProjectSelectorOpen.value = false
 }
 
 const selectNewProject = () => {
   form.client_id = null
   form.client_name = ''
   isCreatingNewProject.value = true
-  projectDropdownOpen.value = false
+  isProjectSelectorOpen.value = false
 }
 
 onMounted(() => {
@@ -422,7 +466,7 @@ const fetchProfiles = async (integrationId) => {
     profiles.value = data
   } catch (err) {
     console.error('Failed to fetch profiles:', err)
-    error.value = 'Не удалось загрузить профили'
+    toaster.error('Не удалось загрузить профили. Проверьте соединение.')
   } finally {
     loadingProfiles.value = false
   }
@@ -452,7 +496,7 @@ const selectProfile = async (profile) => {
     // IMPORTANT: Re-fetch campaigns for the newly selected profile
     fetchCampaigns(lastIntegrationId.value)
   } catch (err) {
-    error.value = 'Ошибка при выборе профиля'
+    toaster.error('Ошибка при выборе профиля. Попробуйте еще раз.')
   }
 }
 
@@ -468,11 +512,21 @@ const toggleCampaign = (id) => {
 const fetchGoals = async (integrationId) => {
   loadingGoals.value = true
   try {
+    const { date_from, date_to } = getDateRangeParams()
     // We send account_id to help backend find the right counter
-    const { data } = await api.get(`integrations/${integrationId}/goals?account_id=${form.account_id}`)
+    const { data } = await api.get(`integrations/${integrationId}/goals?account_id=${form.account_id}&date_from=${date_from}&date_to=${date_to}`)
     goals.value = data
+    
+    // Auto-select primary goal if not set
+    if (data.length > 0 && !form.primary_goal_id) {
+      const bestGoal = [...data].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
+      if (bestGoal) {
+        selectPrimaryGoal(bestGoal.id)
+      }
+    }
   } catch (err) {
     console.error('Failed to fetch goals:', err)
+    toaster.warning('Не удалось загрузить статистику целей Метрики.')
   } finally {
     loadingGoals.value = false
   }
@@ -535,11 +589,12 @@ const handleSubmit = async () => {
 const fetchCampaigns = async (integrationId) => {
   loadingCampaigns.value = true
   try {
+    const { date_from, date_to } = getDateRangeParams()
     // Use the discovery endpoint which fetches fresh data from platform
-    const { data } = await api.post(`integrations/${integrationId}/discover-campaigns`)
+    const { data } = await api.post(`integrations/${integrationId}/discover-campaigns?date_from=${date_from}&date_to=${date_to}`)
     campaigns.value = data
     // Select active campaigns by default
-    selectedCampaignIds.value = data.filter(c => c.is_active).map(c => c.id)
+    selectedCampaignIds.value = data.filter(c => c.state === 'ON').map(c => c.id)
     
     // If none are active (newly discovered), select all
     if (selectedCampaignIds.value.length === 0) {
@@ -547,7 +602,7 @@ const fetchCampaigns = async (integrationId) => {
     }
   } catch (err) {
     console.error('Failed to fetch campaigns:', err)
-    error.value = 'Не удалось загрузить список кампаний'
+    toaster.error('Не удалось загрузить список кампаний.')
   } finally {
     loadingCampaigns.value = false
   }
@@ -578,23 +633,26 @@ const finishConnection = async () => {
     
     const integrationPromise = api.patch(`integrations/${lastIntegrationId.value}`, {
       selected_goals: selectedGoalIds.value,
-      primary_goal_id: form.primary_goal_id
+      primary_goal_id: form.primary_goal_id,
+      auto_sync: form.auto_sync,
+      sync_interval: 1440 // Daily
     })
     
     await Promise.all([bulkUpdatePromise, integrationPromise])
     
-    // 3. Trigger initial sync automatically (last 30 days by default)
+    // 3. Trigger initial sync automatically (sync_depth days)
     try {
-      await api.post(`integrations/${lastIntegrationId.value}/sync`, { days: 30 })
+      await api.post(`integrations/${lastIntegrationId.value}/sync`, { days: form.sync_depth })
     } catch (syncErr) {
       console.warn('Initial sync failed, but integration was saved:', syncErr)
     }
     
+    toaster.success('Интеграция успешно настроена!')
     emit('success', { integration_id: lastIntegrationId.value })
     close()
   } catch (err) {
     console.error('Failed to finalize integration:', err)
-    error.value = 'Ошибка при сохранении настроек'
+    toaster.error('Ошибка при сохранении настроек.')
   } finally {
     loadingFinish.value = false
   }
