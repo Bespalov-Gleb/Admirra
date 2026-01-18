@@ -714,6 +714,7 @@ async def discover_campaigns(
         api = YandexDirectAPI(access_token, client_login)
         discovered_campaigns = await api.get_campaigns()
         logger.info(f"DEBUG: API returned {len(discovered_campaigns)} campaigns. First 3 IDs: {[c.get('id') for c in discovered_campaigns[:3]]}")
+        logger.info(f"DEBUG: Campaign names: {[(c.get('id'), c.get('name')) for c in discovered_campaigns]}")
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns for profile {client_login}")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
