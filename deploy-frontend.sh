@@ -1,41 +1,45 @@
 #!/bin/bash
 set -e
 
-FRONTEND_BUILD_CONTEXT="./admin-panel-vue-main/admin-panel-vue-main"
+FRONTEND_DIR="./admin-panel-vue-main/admin-panel-vue-main"
 DEPLOY_DIR="/var/www/admirra.ru"
 BACKUP_DIR="/var/www/admirra.ru.backup.$(date +%Y%m%d_%H%M%S)"
-DOCKER_IMAGE_NAME="temp-frontend-builder"
-DOCKER_CONTAINER_NAME="temp-frontend-extractor"
 
 echo "=================================================="
-echo "🚀 FRONTEND DEPLOYMENT SCRIPT (Docker-based)"
+echo "🚀 FRONTEND DEPLOYMENT SCRIPT"
 echo "=================================================="
 
-# 1. Build frontend Docker image
+# 1. Check for Node.js and npm
 echo ""
-echo "🐳 Step 1: Building frontend Docker image: $DOCKER_IMAGE_NAME"
-docker build -t "$DOCKER_IMAGE_NAME" "$FRONTEND_BUILD_CONTEXT"
+echo "📦 Step 1: Checking Node.js and npm..."
+if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+    echo "❌ Node.js or npm is not installed. Attempting to install..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    echo "✅ Node.js and npm installed."
+else
+    echo "✅ Node.js $(node --version) and npm $(npm --version) found."
+fi
 
-# 2. Create a temporary container to extract build artifacts
+# 2. Navigate to frontend directory
 echo ""
-echo "📦 Step 2: Creating temporary container to extract build artifacts..."
-docker create --name "$DOCKER_CONTAINER_NAME" "$DOCKER_IMAGE_NAME"
+echo "📁 Step 2: Navigating to frontend directory: $FRONTEND_DIR"
+cd "$FRONTEND_DIR"
 
-# 3. Extract files from the temporary container
+# 3. Install dependencies
 echo ""
-echo "📤 Step 3: Extracting built files to /tmp/new-frontend..."
-sudo rm -rf /tmp/new-frontend # Clean up previous temp dir if any
-docker cp "$DOCKER_CONTAINER_NAME":/usr/share/nginx/html /tmp/new-frontend
+echo "📥 Step 3: Installing npm dependencies..."
+npm install
 
-# 4. Remove the temporary container
+# 4. Build production frontend
 echo ""
-echo "🗑️  Step 4: Removing temporary container..."
-docker rm "$DOCKER_CONTAINER_NAME"
+echo "🔨 Step 4: Building frontend for production..."
+npm run build
 
-# 5. Remove the temporary Docker image
+# 5. Navigate back to project root
 echo ""
-echo "🗑️  Step 5: Removing temporary Docker image..."
-docker rmi "$DOCKER_IMAGE_NAME"
+echo "📁 Step 5: Navigating back to project root..."
+cd -
 
 # 6. Create backup of old frontend
 if [ -d "$DEPLOY_DIR" ]; then
@@ -49,9 +53,9 @@ fi
 
 # 7. Copy new build files
 echo ""
-echo "📋 Step 7: Copying new frontend files from /tmp/new-frontend to $DEPLOY_DIR"
+echo "📋 Step 7: Copying new frontend files to $DEPLOY_DIR"
 sudo mkdir -p "$DEPLOY_DIR"
-sudo cp -r /tmp/new-frontend/* "$DEPLOY_DIR/"
+sudo cp -r "$FRONTEND_DIR/dist/"* "$DEPLOY_DIR/"
 
 # 8. Set correct permissions
 echo ""
@@ -84,11 +88,6 @@ else
     exit 1
 fi
 
-# 11. Clean up temporary extracted files
-echo ""
-echo "🧹 Step 11: Cleaning up temporary extracted files..."
-sudo rm -rf /tmp/new-frontend
-
 echo ""
 echo "=================================================="
 echo "✅ FRONTEND DEPLOYMENT COMPLETE!"
@@ -97,9 +96,10 @@ echo ""
 echo "⚠️  IMPORTANT: Clear your browser cache (Ctrl+Shift+R) to see changes."
 echo ""
 echo "📊 Deployment Summary:"
-echo "   - Frontend built using Docker from: $FRONTEND_BUILD_CONTEXT"
+echo "   - Frontend built from: $FRONTEND_DIR"
 echo "   - Deployed to: $DEPLOY_DIR"
 if [ -d "$BACKUP_DIR" ]; then
     echo "   - Backup saved at: $BACKUP_DIR"
 fi
 echo ""
+

@@ -87,6 +87,11 @@ class YandexDirectAPI:
                      context={'client_login': self.client_login},
                      endpoint='campaigns')
         
+        # DEBUG: Log headers to verify Client-Login is set
+        client_login_header = self.headers.get("Client-Login", "NOT SET")
+        logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
+        logger.info(f"YandexDirectAPI.get_campaigns: Full headers (without token) = {[k for k in self.headers.keys() if k != 'Authorization']}")
+        
         payload = {
             "method": "get",
             "params": {

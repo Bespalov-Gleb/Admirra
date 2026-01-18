@@ -657,12 +657,20 @@ async def update_integration(
             if 'agency_client_login' not in integration_in:
                 integration.agency_client_login = integration_in['account_id']
                 logger.info(f"Auto-set agency_client_login to {integration_in['account_id']} for integration {integration_id}")
+        # Also ensure agency_client_login is set if explicitly provided
+        if 'agency_client_login' in integration_in:
+            integration.agency_client_login = integration_in['agency_client_login']
+            logger.info(f"Explicitly set agency_client_login to {integration_in['agency_client_login']} for integration {integration_id}")
     
-    logger.info(f"After update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+    logger.info(f"After update (before commit): agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
     log_event("backend", f"updated integration {integration_id}", integration_in)
     db.commit()
     db.refresh(integration)
+    
+    # Verify the value was actually saved
+    logger.info(f"After commit and refresh: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+    
     return integration
 
 @router.post("/{integration_id}/discover-campaigns")
@@ -702,8 +710,10 @@ async def discover_campaigns(
             )
         
         logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id} with Client-Login: {client_login}")
+        logger.info(f"DEBUG: Integration DB state - agency_client_login='{integration.agency_client_login}', account_id='{integration.account_id}'")
         api = YandexDirectAPI(access_token, client_login)
         discovered_campaigns = await api.get_campaigns()
+        logger.info(f"DEBUG: API returned {len(discovered_campaigns)} campaigns. First 3 IDs: {[c.get('id') for c in discovered_campaigns[:3]]}")
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns for profile {client_login}")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
