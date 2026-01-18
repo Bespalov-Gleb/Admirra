@@ -90,6 +90,8 @@
             :currency="currentCurrency"
             @toggle="toggleCampaignSelection"
             @toggleAll="toggleAllCampaigns"
+            @bulkSelect="bulkSelectCampaigns"
+            @bulkDeselect="bulkDeselectCampaigns"
             @next="currentStep++"
           />
         </CustomScroll>
@@ -515,6 +517,14 @@ const toggleCampaign = (id) => {
   } else {
     selectedCampaignIds.value.push(id)
   }
+}
+
+const bulkSelectCampaigns = (ids) => {
+  selectedCampaignIds.value = [...new Set([...selectedCampaignIds.value, ...ids])]
+}
+
+const bulkDeselectCampaigns = (ids) => {
+  selectedCampaignIds.value = selectedCampaignIds.value.filter(id => !ids.includes(id))
 }
 
 const fetchGoals = async (integrationId) => {

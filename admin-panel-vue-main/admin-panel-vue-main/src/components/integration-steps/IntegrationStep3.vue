@@ -8,8 +8,8 @@
         :loading="loading"
         :currency="currency"
         @toggle="(id) => $emit('toggle', id)"
-        @bulkSelect="(ids) => $emit('bulkSelect', ids)"
-        @bulkDeselect="(ids) => $emit('bulkDeselect', ids)"
+        @bulkSelect="handleBulkSelect"
+        @bulkDeselect="handleBulkDeselect"
       />
     </div>
   </div>
@@ -27,5 +27,13 @@ const props = defineProps({
   currency: String
 })
 
-defineEmits(['toggleAll', 'toggle', 'bulkSelect', 'bulkDeselect'])
+const emit = defineEmits(['toggleAll', 'toggle', 'bulkSelect', 'bulkDeselect'])
+
+const handleBulkSelect = (ids) => {
+  emit('bulkSelect', ids)
+}
+
+const handleBulkDeselect = (ids) => {
+  emit('bulkDeselect', ids)
+}
 </script>

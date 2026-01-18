@@ -8,8 +8,8 @@ services:
       - POSTGRES_DB=saas_project
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres_password
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"  # Закрыт для безопасности - БД доступна только внутри Docker сети
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

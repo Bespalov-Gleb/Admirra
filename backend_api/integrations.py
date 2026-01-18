@@ -638,13 +638,17 @@ async def update_integration(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
-        
+    
+    logger.info(f"Updating integration {integration_id} with data: {integration_in}")
+    logger.info(f"Before update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+    
     for key, value in integration_in.items():
         if hasattr(integration, key):
             # Special handling for JSON fields if they come as lists/dicts
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
+            logger.info(f"Set {key} = {value}")
     
     # CRITICAL: For Yandex Direct, ensure agency_client_login is set when account_id is updated
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
@@ -653,7 +657,9 @@ async def update_integration(
             if 'agency_client_login' not in integration_in:
                 integration.agency_client_login = integration_in['account_id']
                 logger.info(f"Auto-set agency_client_login to {integration_in['account_id']} for integration {integration_id}")
-            
+    
+    logger.info(f"After update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+    
     log_event("backend", f"updated integration {integration_id}", integration_in)
     db.commit()
     db.refresh(integration)
@@ -683,8 +689,11 @@ async def discover_campaigns(
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         # CRITICAL: Ensure profile is selected before fetching campaigns
         client_login = integration.agency_client_login
+        logger.info(f"Integration {integration_id}: agency_client_login = {client_login}, account_id = {integration.account_id}")
+        
         if not client_login:
             client_login = integration.account_id
+            logger.warning(f"Integration {integration_id}: No agency_client_login, falling back to account_id: {client_login}")
             
         if not client_login or client_login.lower() == "unknown":
             raise HTTPException(
@@ -692,7 +701,7 @@ async def discover_campaigns(
                 detail="Профиль не выбран. Пожалуйста, выберите профиль на предыдущем шаге."
             )
         
-        logger.info(f"Fetching campaigns for Yandex Direct profile: {client_login}")
+        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id} with Client-Login: {client_login}")
         api = YandexDirectAPI(access_token, client_login)
         discovered_campaigns = await api.get_campaigns()
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns for profile {client_login}")
