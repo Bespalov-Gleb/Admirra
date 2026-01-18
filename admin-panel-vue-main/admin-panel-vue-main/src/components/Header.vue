@@ -323,7 +323,7 @@ const handleHeaderAction = () => {
     if (isProjectsPage.value) {
         router.push('/projects/create')
     } else {
-        showAddProjectModal.value = true
+        router.push('/integrations/wizard')
     }
 }
 
