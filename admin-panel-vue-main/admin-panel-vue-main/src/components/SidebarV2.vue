@@ -171,11 +171,12 @@
 import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Squares2X2Icon,
+  ChartBarIcon,
   Bars3Icon,
   ChevronUpIcon,
   ArrowRightOnRectangleIcon,
   PlusIcon,
+  PhoneIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -204,13 +205,13 @@ const menuSections = [
     title: 'ОСНОВНОЕ',
     items: [
       {
-        name: 'Дашборд',
-        icon: Squares2X2Icon,
+        name: 'Аналитика',
+        icon: ChartBarIcon,
         path: '/dashboard',
         children: [
-          { name: 'Статистика по проектам', path: '/dashboard/general' },
-          { name: 'Отчет по проекту', path: '/dashboard/general-2' },
-          { name: 'Общая статистика v3', path: '/dashboard/general-3' },
+          { name: 'Аналитика проекта', path: '/dashboard/general-3' },
+          { name: 'Сформировать отчет', path: '/dashboard/general-2' },
+          { name: 'Общая статистика', path: '/dashboard/general' },
         ]
       },
       {
@@ -224,6 +225,7 @@ const menuSections = [
     title: 'УПРАВЛЕНИЕ',
     items: [
       { name: 'Команда', path: '/team', icon: Group },
+      { name: 'API телефония', path: '/phone-api', icon: PhoneIcon },
       { name: 'Продукты', path: '/products', icon: Product },
       { name: 'Каналы', path: '/channels', icon: Channels },
     ]

@@ -51,6 +51,11 @@ const routes = [
     component: () => import('../views/Project/Projects.vue')
   },
   {
+    path: '/phone-api',
+    name: 'PhoneAPI',
+    component: () => import('../views/PhoneAPI/PhoneAPI.vue')
+  },
+  {
     path: '/channels',
     name: 'Channels',
     component: () => import('../views/Channels/Channels.vue')
