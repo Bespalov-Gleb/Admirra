@@ -253,12 +253,6 @@
     message="Вы уверены, что хотите выйти из системы?"
     @confirm="handleLogout"
   />
-
-  <!-- Модалка добавления проекта (Единая) -->
-  <UnifiedConnectModal
-    v-model:is-open="showAddProjectModal"
-    @success="handleConnectSuccess"
-  />
 </template>
 
 <script setup>
@@ -281,7 +275,6 @@ import logoFull from '../assets/icons/logo-header.vue'
 import AddProjectArrow   from '../assets/icons/add-project-header.vue'
 import ProfileHeader   from '../assets/icons/profile-header.vue'
 import ConfirmModal from './ConfirmModal.vue'
-import UnifiedConnectModal from './UnifiedConnectModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
@@ -310,7 +303,7 @@ const handleProjectSelect = (id) => {
 }
 
 const openAddProject = () => {
-    showAddProjectModal.value = true
+    router.push('/integrations/wizard')
     isProjectMenuOpen.value = false
 }
 
@@ -337,7 +330,6 @@ const handleHeaderAction = () => {
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)
 const showLogoutModal = ref(false)
-const showAddProjectModal = ref(false)
 const profileMenuRef = ref(null)
 const notificationsRef = ref(null)
 const profileMenuPosition = ref({ top: '0px', right: '0px' })
@@ -460,12 +452,7 @@ const removeNotification = (id) => {
   notifications.value = notifications.value.filter(n => n.id !== id)
 }
 
-const handleConnectSuccess = (data) => {
-  console.log('Successfully connected:', data)
-  showAddProjectModal.value = false
-  const toaster = useToaster()
-  toaster.success(`Интеграция ${data.platform} успешно добавлена!`)
-}
+// No longer needed - navigation happens on page
 
 // Закрытие dropdown при клике вне его
 const handleClickOutside = (event) => {

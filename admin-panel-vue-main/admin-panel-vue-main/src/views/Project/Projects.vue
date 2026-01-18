@@ -1,23 +1,12 @@
 <template>
   <div class="space-y-4 sm:space-y-6">
-    <!-- Заголовок с поиском и фильтрами -->
+    <!-- Заголовок с фильтрами и переключателем вида -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
       <!-- Заголовок -->
       <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 flex-shrink-0">Проекты</h1>
       
-      <!-- Поиск и фильтры -->
+      <!-- Фильтры и переключатель вида -->
       <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-1 lg:flex-initial lg:justify-end">
-        <!-- Поиск -->
-        <div class="relative flex-1 sm:flex-initial sm:min-w-[200px] lg:min-w-[240px]">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Найти проект"
-            class="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          <MagnifyingGlassIcon class="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-        </div>
-        
         <!-- Фильтр по периоду -->
         <div class="relative flex-shrink-0">
           <select
@@ -55,11 +44,31 @@
             </svg>
           </div>
         </div>
+
+        <!-- Переключатель вида -->
+        <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button 
+            @click="viewMode = 'cards'"
+            class="p-2 rounded transition-all"
+            :class="viewMode === 'cards' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'"
+            title="Карточки"
+          >
+            <ViewColumnsIcon class="w-5 h-5" :class="viewMode === 'cards' ? 'text-blue-600' : 'text-gray-500'" />
+          </button>
+          <button 
+            @click="viewMode = 'table'"
+            class="p-2 rounded transition-all"
+            :class="viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'"
+            title="Таблица"
+          >
+            <Bars3Icon class="w-5 h-5" :class="viewMode === 'table' ? 'text-blue-600' : 'text-gray-500'" />
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Карточки проектов -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div v-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <ProjectCard
         v-for="project in filteredProjects"
         :key="project.id"
@@ -67,8 +76,20 @@
       />
     </div>
 
-    <!-- Пустое состояние -->
-    <div v-if="filteredProjects.length === 0" class="text-center py-12">
+    <!-- Таблица проектов -->
+    <ProjectsTable 
+      v-else
+      :projects="enrichedProjects"
+      :loading="loading"
+      :search-query="searchQuery"
+      @add-project="handleAddProject"
+      @view-project="handleViewProject"
+      @edit-project="handleEditProject"
+      @delete-project="handleDeleteProject"
+    />
+
+    <!-- Пустое состояние для карточек -->
+    <div v-if="viewMode === 'cards' && filteredProjects.length === 0" class="text-center py-12">
       <p class="text-gray-500">Проекты не найдены</p>
     </div>
   </div>
@@ -76,15 +97,20 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
+import { MagnifyingGlassIcon, ViewColumnsIcon, Bars3Icon } from '@heroicons/vue/24/outline'
 import ProjectCard from './components/ProjectCard.vue'
+import ProjectsTable from './components/ProjectsTable.vue'
 import api from '../../api/axios'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const searchQuery = ref('')
 const selectedPeriod = ref('14')
 const selectedFilter = ref('all')
 const loading = ref(true)
 const projects = ref([])
+const viewMode = ref('table') // 'cards' or 'table'
 
 const fetchProjects = async () => {
   loading.value = true
@@ -159,4 +185,40 @@ const filteredProjects = computed(() => {
 
   return result
 })
+
+// Enriched projects with additional fields for table view
+const enrichedProjects = computed(() => {
+  return filteredProjects.value.map(project => ({
+    ...project,
+    tag: 'A',
+    status: 'active',
+    globalLimit: 50,
+    limit: 10,
+    sitesCount: 7,
+    dealsReceived: 0,
+    dealsToday: 0,
+    providers: [],
+    created_at: new Date().toISOString()
+  }))
+})
+
+// Event handlers for table actions
+const handleAddProject = () => {
+  router.push('/settings?tab=integrations')
+}
+
+const handleViewProject = (projectId) => {
+  router.push(`/projects/${projectId}`)
+}
+
+const handleEditProject = (projectId) => {
+  router.push(`/settings?tab=integrations&edit=${projectId}`)
+}
+
+const handleDeleteProject = (projectId) => {
+  if (confirm('Вы уверены, что хотите удалить этот проект?')) {
+    // TODO: Implement delete functionality
+    console.log('Delete project:', projectId)
+  }
+}
 </script>
