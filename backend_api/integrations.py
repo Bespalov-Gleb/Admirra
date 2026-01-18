@@ -121,13 +121,13 @@ async def exchange_yandex_token(
 
     # 1. Exchange code for token
     async with httpx.AsyncClient() as client:
-        # Yandex requires the same redirect_uri in the token request
+        # Yandex requires the same redirect_uri in the token request for strict validation
         response = await client.post(YANDEX_TOKEN_URL, data={
             "grant_type": "authorization_code",
             "code": auth_code,
             "client_id": YANDEX_CLIENT_ID,
             "client_secret": YANDEX_CLIENT_SECRET,
-            # "redirect_uri": redirect_uri # Yandex docs say this is optional for token exchange but good practice if strictly checked
+            "redirect_uri": redirect_uri  # Required for strict validation - must match exactly
         })
         
         if response.status_code != 200:
