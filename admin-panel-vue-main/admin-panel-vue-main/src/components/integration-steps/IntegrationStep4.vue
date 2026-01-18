@@ -1,5 +1,14 @@
 <template>
   <div class="space-y-6">
+    <!-- Loading Banner -->
+    <div v-if="loading" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+      <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div>
+        <p class="text-sm font-bold text-blue-900">Загрузка целей...</p>
+        <p class="text-xs text-blue-600">Получаем цели из Яндекс.Метрики и статистику конверсий</p>
+      </div>
+    </div>
+
     <!-- Header & Search -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
       <div>
@@ -133,9 +142,12 @@
           <tr v-if="!loading && filteredGoals.length === 0">
             <td colspan="7" class="py-20 text-center">
               <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MagnifyingGlassIcon class="w-8 h-8 text-gray-200" />
+                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
               </div>
-              <p class="text-[12px] font-black text-gray-400 uppercase tracking-widest">Цели не найдены</p>
+              <p class="text-sm font-bold text-gray-600 mb-2">Цели не найдены</p>
+              <p class="text-xs text-gray-400">Данные синхронизируются в фоне. Если цели есть в Яндекс.Метрике,<br/>они появятся через несколько секунд.</p>
             </td>
           </tr>
         </tbody>

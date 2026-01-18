@@ -1,5 +1,14 @@
 <template>
   <div class="space-y-4">
+    <!-- Loading Banner -->
+    <div v-if="loading" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+      <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div>
+        <p class="text-sm font-bold text-blue-900">Синхронизация данных...</p>
+        <p class="text-xs text-blue-600">Загружаем кампании и статистику за последние 7 дней</p>
+      </div>
+    </div>
+
     <!-- Filters Header -->
     <div class="flex flex-col md:flex-row gap-4 items-center">
       <div class="relative group flex-grow w-full">
@@ -240,7 +249,19 @@
         </template>
         
         <tr v-if="!loading && filteredCampaigns.length === 0">
-            <td colspan="8" class="py-12 text-center text-[11px] font-black text-gray-300 uppercase tracking-widest">Кампании не найдены</td>
+            <td colspan="8" class="py-12 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-gray-600 mb-1">Кампании не найдены</p>
+                  <p class="text-xs text-gray-400">Данные синхронизируются в фоне. Попробуйте обновить через несколько секунд.</p>
+                </div>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>

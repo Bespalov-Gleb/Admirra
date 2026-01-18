@@ -241,6 +241,7 @@ const {
 
 const isCreatingNewProject = ref(false)
 const isProfileSelectorOpen = ref(false)
+const isSyncingData = ref(false)
 
 const stepLabels = {
   1: 'Платформа и проект',
@@ -248,6 +249,12 @@ const stepLabels = {
   3: 'Рекламные кампании',
   4: 'Цели и конверсии'
 }
+
+// Loading state computed properties
+const loadingProfiles = computed(() => loadingStates.profiles)
+const loadingCampaigns = computed(() => loadingStates.campaigns || isSyncingData.value)
+const loadingGoals = computed(() => loadingStates.goals || isSyncingData.value)
+const loadingFinish = computed(() => loadingStates.finish)
 
 // Selectors Presence (Moved inline)
 
