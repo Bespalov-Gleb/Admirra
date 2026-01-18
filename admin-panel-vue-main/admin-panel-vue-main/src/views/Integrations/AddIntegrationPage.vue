@@ -74,7 +74,8 @@
             <div :key="currentStep">
               <IntegrationStep1 
                 v-if="currentStep === 1"
-                v-model="form"
+                :modelValue="form"
+                @update:modelValue="updateFormData"
                 v-model:isCreatingNewProject="isCreatingNewProject"
                 :projects="projects"
                 :error="error"
@@ -278,6 +279,11 @@ const nextStep = async () => {
 
 const prevStep = () => {
   if (currentStep.value > 1) currentStep.value--
+}
+
+// Update form data (handle reactive updates)
+const updateFormData = (updates) => {
+  Object.assign(form, updates)
 }
 
 // Selection Handlers (Step 1 handled inline now)
