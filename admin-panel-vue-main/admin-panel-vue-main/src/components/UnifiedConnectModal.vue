@@ -381,11 +381,13 @@ const form = reactive({
 
 const currentPlatform = computed(() => PLATFORMS[form.platform])
 
-watch(() => props.isOpen, (newVal) => {
+watch(() => props.isOpen, async (newVal) => {
   if (newVal) {
     if (props.resumeIntegrationId) {
       lastIntegrationId.value = props.resumeIntegrationId
       currentStep.value = props.initialStep || 2
+      // Load integration details (client_id, client_name, platform) first
+      await fetchIntegrationDetails(props.resumeIntegrationId)
       if (currentStep.value === 2) fetchProfiles(props.resumeIntegrationId)
       if (currentStep.value === 3) fetchCampaigns(props.resumeIntegrationId)
       if (currentStep.value === 4) fetchGoals(props.resumeIntegrationId)
@@ -466,6 +468,26 @@ const prevStep = () => {
   if (currentStep.value > 1) {
     currentStep.value--
     sendRemoteLog(`Moved back to Step ${currentStep.value}`)
+  }
+}
+
+const fetchIntegrationDetails = async (integrationId) => {
+  try {
+    const { data } = await api.get(`integrations/${integrationId}`)
+    if (data) {
+      form.client_id = data.client_id
+      form.client_name = data.client_name || 'Не выбран'
+      form.platform = data.platform
+      form.account_id = data.account_id || ''
+      sendRemoteLog('Integration Details Loaded', { 
+        client_id: data.client_id, 
+        client_name: data.client_name,
+        platform: data.platform
+      })
+    }
+  } catch (err) {
+    console.error('Failed to fetch integration details:', err)
+    toaster.error('Не удалось загрузить данные интеграции.')
   }
 }
 

@@ -86,6 +86,11 @@ class Integration(Base):
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
 
+    @property
+    def client_name(self):
+        """Property to expose client name for API responses."""
+        return self.client.name if self.client else None
+
 class Campaign(Base):
     __tablename__ = "campaigns"
     

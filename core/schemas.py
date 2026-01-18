@@ -71,6 +71,7 @@ class IntegrationCreate(IntegrationBase):
 class IntegrationResponse(IntegrationBase):
     id: UUID
     client_id: UUID
+    client_name: Optional[str] = None  # Project name for frontend display
     access_token: str
     selected_goals: Optional[List[str]] = None
     primary_goal_id: Optional[str] = None
