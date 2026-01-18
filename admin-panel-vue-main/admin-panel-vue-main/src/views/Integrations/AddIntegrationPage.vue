@@ -240,6 +240,7 @@ const {
 } = useIntegrationWizard()
 
 const isCreatingNewProject = ref(false)
+const isProfileSelectorOpen = ref(false)
 
 const stepLabels = {
   1: 'Платформа и проект',
