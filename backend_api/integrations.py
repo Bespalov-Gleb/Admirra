@@ -623,10 +623,10 @@ async def get_integration_goals(
                     if date_from and date_to:
                         from sqlalchemy import func
                         stats = db.query(
-                            func.sum(models.MetrikaGoals.conversions).label('total_conversions')
+                            func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
                         ).filter(
                             models.MetrikaGoals.goal_id == str(goal['id']),
-                            models.MetrikaGoals.integration_id == integration_id,
+                            models.MetrikaGoals.client_id == integration.client_id,
                             models.MetrikaGoals.date >= date_from,
                             models.MetrikaGoals.date <= date_to
                         ).first()
