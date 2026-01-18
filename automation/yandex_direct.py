@@ -102,17 +102,53 @@ class YandexDirectAPI:
         
         async with httpx.AsyncClient() as client:
             try:
+                # DEBUG: Log request details
+                logger.info(f"🔵 Sending request to Yandex API:")
+                logger.info(f"   URL: {self.campaigns_url}")
+                logger.info(f"   Client-Login header value: {self.headers.get('Client-Login', 'NOT SET')}")
+                logger.info(f"   All headers being sent: {self.headers}")
+                logger.info(f"   Payload: {payload}")
+                
+                # Make request
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                
+                # DEBUG: Log what was ACTUALLY sent (from httpx's perspective)
+                if hasattr(response, 'request'):
+                    logger.info(f"   📤 Request that was ACTUALLY sent:")
+                    logger.info(f"      Method: {response.request.method}")
+                    logger.info(f"      URL: {response.request.url}")
+                    logger.info(f"      Headers: {dict(response.request.headers)}")
+                    logger.info(f"      Client-Login in sent headers: {'Client-Login' in response.request.headers}")
+                
+                # DEBUG: Log response details
+                logger.info(f"🟢 Received response from Yandex API:")
+                logger.info(f"   Status: {response.status_code}")
+                logger.info(f"   Response headers: {dict(response.headers)}")
+                
                 if response.status_code == 200:
                     data = response.json()
+                    
+                    # DEBUG: Log full response structure
+                    logger.info(f"   Response keys: {list(data.keys())}")
+                    
                     if "result" in data and "Campaigns" in data["result"]:
+                        campaigns = data["result"]["Campaigns"]
+                        logger.info(f"   🔴 CRITICAL: API returned {len(campaigns)} campaigns")
+                        
+                        # Log first 3 campaign names for debugging
+                        for idx, c in enumerate(campaigns[:3]):
+                            logger.info(f"      Campaign {idx + 1}: ID={c['Id']}, Name={c['Name']}, Status={c['Status']}")
+                        
+                        if len(campaigns) > 3:
+                            logger.info(f"      ... and {len(campaigns) - 3} more campaigns")
+                        
                         return [
                             {
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
                                 "status": c["Status"]
                             }
-                            for c in data["result"]["Campaigns"]
+                            for c in campaigns
                         ]
                     elif "error" in data:
                         error_msg = data["error"].get("error_msg", response.text)

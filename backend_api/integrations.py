@@ -711,6 +711,21 @@ async def discover_campaigns(
         
         logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id} with Client-Login: {client_login}")
         logger.info(f"DEBUG: Integration DB state - agency_client_login='{integration.agency_client_login}', account_id='{integration.account_id}'")
+        
+        # CRITICAL: Check if this is an agency account
+        try:
+            test_agency_clients = await get_agency_clients(access_token)
+            logger.info(f"🔍 Token type check: AgencyClients API returned {len(test_agency_clients)} clients")
+            if len(test_agency_clients) > 0:
+                logger.info(f"   ✅ This is an AGENCY token")
+                logger.info(f"   📋 Agency clients: {[c.get('login') for c in test_agency_clients[:5]]}")
+            else:
+                logger.warning(f"   ⚠️  This is a PERSONAL token (AgencyClients returned 0 clients)")
+                logger.warning(f"   ❌ Client-Login header will be IGNORED by Yandex API!")
+        except Exception as e:
+            logger.warning(f"   ⚠️  Failed to check agency status: {e}")
+            logger.warning(f"   This may be a PERSONAL token. Client-Login header may not work!")
+        
         api = YandexDirectAPI(access_token, client_login)
         discovered_campaigns = await api.get_campaigns()
         logger.info(f"DEBUG: API returned {len(discovered_campaigns)} campaigns. First 3 IDs: {[c.get('id') for c in discovered_campaigns[:3]]}")

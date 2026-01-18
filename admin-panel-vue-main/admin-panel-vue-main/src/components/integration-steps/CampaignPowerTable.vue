@@ -362,6 +362,14 @@ const needsAttention = (campaign) => {
 // NEW: Quick action functions
 const selectRecommended = () => {
   console.log('🟣 [CampaignPowerTable] selectRecommended clicked!')
+  console.log('📊 Total campaigns:', filteredCampaigns.value.length)
+  
+  // Debug: Log all campaigns with their stats
+  filteredCampaigns.value.forEach(c => {
+    const ctr = getCTR(c)
+    console.log(`   Campaign "${c.name}": CTR=${ctr.toFixed(2)}%, Conversions=${c.conversions || 0}, Impressions=${c.impressions || 0}, State=${c.state}`)
+  })
+  
   // Select campaigns with good performance:
   // - High CTR (> 3%) OR
   // - Has conversions OR
@@ -380,6 +388,13 @@ const selectRecommended = () => {
 
 const selectActive = () => {
   console.log('🟢 [CampaignPowerTable] selectActive clicked!')
+  console.log('📊 Total campaigns:', filteredCampaigns.value.length)
+  
+  // Debug: Log campaign states
+  filteredCampaigns.value.forEach(c => {
+    console.log(`   Campaign "${c.name}": State=${c.state}`)
+  })
+  
   // Select only active campaigns
   const active = filteredCampaigns.value.filter(c => c.state === 'ON')
   const ids = active.map(c => c.id)
@@ -389,6 +404,13 @@ const selectActive = () => {
 
 const selectByBudget = () => {
   console.log('🔵 [CampaignPowerTable] selectByBudget clicked!')
+  console.log('📊 Total campaigns:', filteredCampaigns.value.length)
+  
+  // Debug: Log campaign costs
+  filteredCampaigns.value.forEach(c => {
+    console.log(`   Campaign "${c.name}": Cost=${c.cost || 0}`)
+  })
+  
   // Select campaigns with cost > 10000
   const highBudget = filteredCampaigns.value.filter(c => (c.cost || 0) > 10000)
   const ids = highBudget.map(c => c.id)
