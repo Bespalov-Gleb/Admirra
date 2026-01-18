@@ -361,6 +361,7 @@ const needsAttention = (campaign) => {
 
 // NEW: Quick action functions
 const selectRecommended = () => {
+  console.log('🟣 [CampaignPowerTable] selectRecommended clicked!')
   // Select campaigns with good performance:
   // - High CTR (> 3%) OR
   // - Has conversions OR
@@ -373,20 +374,25 @@ const selectRecommended = () => {
   })
   
   const ids = recommended.map(c => c.id)
+  console.log(`🟣 [CampaignPowerTable] Emitting bulkSelect with ${ids.length} campaign IDs:`, ids)
   emit('bulkSelect', ids)
 }
 
 const selectActive = () => {
+  console.log('🟢 [CampaignPowerTable] selectActive clicked!')
   // Select only active campaigns
   const active = filteredCampaigns.value.filter(c => c.state === 'ON')
   const ids = active.map(c => c.id)
+  console.log(`🟢 [CampaignPowerTable] Emitting bulkSelect with ${ids.length} active campaign IDs:`, ids)
   emit('bulkSelect', ids)
 }
 
 const selectByBudget = () => {
+  console.log('🔵 [CampaignPowerTable] selectByBudget clicked!')
   // Select campaigns with cost > 10000
   const highBudget = filteredCampaigns.value.filter(c => (c.cost || 0) > 10000)
   const ids = highBudget.map(c => c.id)
+  console.log(`🔵 [CampaignPowerTable] Emitting bulkSelect with ${ids.length} high-budget campaign IDs:`, ids)
   emit('bulkSelect', ids)
 }
 </script>
