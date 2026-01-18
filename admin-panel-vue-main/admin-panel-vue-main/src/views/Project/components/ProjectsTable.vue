@@ -45,14 +45,13 @@
               </div>
             </th>
             <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Проект</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Тег</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Поставщики данных</th>
             <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Интеграции</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Глобальный лимит</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Лимит</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Номеров/Сайтов</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Сделок получено</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Сделок сегодня</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Показы</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Клики</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Расходы</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Лиды</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">CPC</th>
+            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">CPA</th>
             <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Дни получения сделок</th>
             <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Статус</th>
             <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Дата создания</th>
@@ -65,14 +64,13 @@
             <tr v-for="i in 5" :key="i" class="border-b border-gray-50">
               <td class="px-4 py-4"><div class="w-5 h-5 bg-gray-100 rounded animate-pulse"></div></td>
               <td class="px-3 py-4"><div class="w-32 h-4 bg-gray-100 rounded animate-pulse"></div></td>
-              <td class="px-3 py-4"><div class="w-16 h-3 bg-gray-100 rounded animate-pulse"></div></td>
-              <td class="px-3 py-4"><div class="w-24 h-3 bg-gray-100 rounded animate-pulse"></div></td>
               <td class="px-3 py-4"><div class="w-20 h-6 bg-gray-100 rounded-full animate-pulse"></div></td>
               <td class="px-3 py-4"><div class="w-16 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
               <td class="px-3 py-4"><div class="w-16 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
-              <td class="px-3 py-4"><div class="w-12 h-3 bg-gray-100 rounded animate-pulse mx-auto"></div></td>
-              <td class="px-3 py-4"><div class="w-12 h-3 bg-gray-100 rounded animate-pulse mx-auto"></div></td>
-              <td class="px-3 py-4"><div class="w-12 h-3 bg-gray-100 rounded animate-pulse mx-auto"></div></td>
+              <td class="px-3 py-4"><div class="w-20 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+              <td class="px-3 py-4"><div class="w-12 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+              <td class="px-3 py-4"><div class="w-16 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
+              <td class="px-3 py-4"><div class="w-16 h-3 bg-gray-100 rounded animate-pulse ml-auto"></div></td>
               <td class="px-3 py-4"><div class="w-32 h-6 bg-gray-100 rounded animate-pulse"></div></td>
               <td class="px-3 py-4"><div class="w-20 h-6 bg-gray-100 rounded-full animate-pulse"></div></td>
               <td class="px-3 py-4"><div class="w-24 h-3 bg-gray-100 rounded animate-pulse"></div></td>
@@ -104,30 +102,9 @@
                 <div class="flex items-center gap-2">
                   <GlobeAltIcon class="w-5 h-5 text-green-500 flex-shrink-0" />
                   <div>
-                    <div class="font-medium text-sm text-gray-900">{{ project.id.substring(0, 8).toUpperCase() }}</div>
-                    <div class="text-xs text-gray-500">{{ project.title }}</div>
+                    <div class="font-medium text-sm text-gray-900">{{ project.title }}</div>
+                    <div class="text-xs text-gray-500">ID: {{ project.id.substring(0, 8).toUpperCase() }}</div>
                   </div>
-                </div>
-              </td>
-
-              <!-- Tag -->
-              <td class="px-3 py-4">
-                <span class="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded">
-                  {{ project.tag || 'A' }}
-                </span>
-              </td>
-
-              <!-- Data Providers -->
-              <td class="px-3 py-4">
-                <div class="flex items-center gap-1">
-                  <div 
-                    v-for="(provider, idx) in project.providers || []" 
-                    :key="idx"
-                    class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600"
-                  >
-                    {{ provider.charAt(0) }}
-                  </div>
-                  <span v-if="!project.providers || project.providers.length === 0" class="text-xs text-gray-400">-</span>
                 </div>
               </td>
 
@@ -146,36 +123,41 @@
                 </div>
               </td>
 
-              <!-- Global Limit -->
+              <!-- Impressions (Показы) -->
               <td class="px-3 py-4 text-right">
-                <span class="text-sm text-gray-700">{{ project.globalLimit || '50' }}</span>
+                <span class="text-sm font-medium text-gray-900">{{ formatNumber(project.impressions || 0) }}</span>
               </td>
 
-              <!-- Limit -->
+              <!-- Clicks (Клики) -->
               <td class="px-3 py-4 text-right">
-                <span class="text-sm text-gray-700">{{ project.limit || '10' }}</span>
+                <span class="text-sm font-medium text-gray-900">{{ formatNumber(project.clicks || 0) }}</span>
               </td>
 
-              <!-- Numbers/Sites -->
-              <td class="px-3 py-4 text-center">
-                <span class="text-sm text-gray-700">{{ project.sitesCount || '7' }}</span>
+              <!-- Expenses (Расходы) -->
+              <td class="px-3 py-4 text-right">
+                <span class="text-sm font-bold text-gray-900">{{ formatExpenses(project.expenses || 0) }}</span>
               </td>
 
-              <!-- Deals Received -->
-              <td class="px-3 py-4 text-center">
-                <span class="text-sm font-medium text-gray-900">{{ project.dealsReceived || '0' }}</span>
+              <!-- Leads (Лиды) -->
+              <td class="px-3 py-4 text-right">
+                <span class="text-sm font-medium text-gray-900">{{ formatNumber(project.leads || 0) }}</span>
               </td>
 
-              <!-- Deals Today -->
-              <td class="px-3 py-4 text-center">
-                <span class="text-sm font-medium text-gray-900">{{ project.dealsToday || '0' }}</span>
+              <!-- CPC -->
+              <td class="px-3 py-4 text-right">
+                <span class="text-sm text-gray-700">{{ formatExpenses(project.cpc || 0) }}</span>
+              </td>
+
+              <!-- CPA -->
+              <td class="px-3 py-4 text-right">
+                <span class="text-sm text-gray-700">{{ formatExpenses(project.cpa || 0) }}</span>
               </td>
 
               <!-- Days of Week -->
               <td class="px-3 py-4">
                 <div class="flex items-center gap-1">
                   <button 
-                    v-for="day in ['Пн', 'Вт', 'Чт', 'Пт', 'Сб', 'Вс']" 
+                    v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']" 
                     :key="day"
                     class="w-7 h-7 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all"
                     :class="isActiveDayForProject(project, day) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'"
@@ -240,7 +222,7 @@
 
           <!-- Empty State -->
           <tr v-if="!loading && filteredProjects.length === 0">
-            <td colspan="14" class="px-4 py-12 text-center">
+            <td colspan="13" class="px-4 py-12 text-center">
               <div class="flex flex-col items-center justify-center gap-3">
                 <FolderOpenIcon class="w-12 h-12 text-gray-300" />
                 <p class="text-sm text-gray-500 font-medium">Проекты не найдены</p>
@@ -392,6 +374,20 @@ const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+const formatNumber = (num) => {
+  if (!num) return '0'
+  return new Intl.NumberFormat('ru-RU').format(num)
+}
+
+const formatExpenses = (num) => {
+  if (!num) return '0 ₽'
+  return new Intl.NumberFormat('ru-RU', { 
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2 
+  }).format(num) + ' ₽'
 }
 </script>
 
