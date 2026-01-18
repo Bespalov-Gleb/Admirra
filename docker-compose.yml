@@ -21,6 +21,10 @@ services:
     build: .
     environment:
       - DATABASE_URL=postgresql://postgres:postgres_password@db:5432/saas_project
+      - YANDEX_CLIENT_ID=e2a052c8cac54caeb9b1b05a593be932
+      - YANDEX_CLIENT_SECRET=a3ff5920d00e4ee7b8a8019e33cdaaf0
+      - VK_CLIENT_ID=54416403
+      - VK_CLIENT_SECRET=8oAosCbGdjPM3CP8HCXe
     depends_on:
       db:
         condition: service_healthy
@@ -30,7 +34,7 @@ services:
   frontend:
     build: ./admin-panel-vue-main/admin-panel-vue-main
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
