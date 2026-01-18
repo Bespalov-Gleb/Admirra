@@ -204,10 +204,8 @@ watch(() => route.query.new_integration_id, (id) => {
       query: {
         resume_integration_id: id,
         initial_step: 2
-        connectModalRef.value.lastIntegrationId = id
-        connectModalRef.value.fetchCampaigns(id)
       }
-    }, 100)
+    })
     window.history.replaceState({}, '', window.location.pathname)
   }
 }, { immediate: true })
