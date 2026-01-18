@@ -3,6 +3,7 @@ services:
     image: postgres:15-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     environment:
       - POSTGRES_DB=saas_project
       - POSTGRES_USER=postgres
