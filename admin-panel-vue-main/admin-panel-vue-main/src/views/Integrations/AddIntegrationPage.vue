@@ -140,8 +140,21 @@
             Отмена
           </button>
           
+          <!-- Step 1: OAuth Auth for Yandex/VK -->
           <button 
-            v-if="currentStep < 4"
+            v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
+            @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
+            :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
+            class="px-10 py-3.5 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20'"
+          >
+            <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span v-else>ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС ДИРЕКТ' : 'VK ADS' }}</span>
+          </button>
+
+          <!-- Step 2-3: Regular Next -->
+          <button 
+            v-else-if="currentStep >= 2 && currentStep < 4"
             @click="nextStep"
             :disabled="isNextDisabled"
             class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
@@ -240,6 +253,12 @@ const stepLabels = {
 // Validation
 const isNextDisabled = computed(() => {
   if (currentStep.value === 1) {
+    // For Yandex/VK, we need OAuth first (button will be different)
+    // For other platforms, we need project selection
+    if (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS') {
+      // Just need project selection or new project name
+      return !form.client_id && (!isCreatingNewProject.value || !form.client_name)
+    }
     return !form.client_id && (!isCreatingNewProject.value || !form.client_name)
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
@@ -309,6 +328,51 @@ const toggleGoalSelection = (id) => {
   const idx = selectedGoalIds.value.indexOf(id)
   if (idx > -1) selectedGoalIds.value.splice(idx, 1)
   else selectedGoalIds.value.push(id)
+}
+
+// OAuth Authentication
+const loadingAuth = ref(false)
+
+const initYandexAuth = async () => {
+  loadingAuth.value = true
+  try {
+    const redirectUri = `${window.location.origin}/auth/yandex/callback`
+    
+    // Save form state to localStorage
+    if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
+    if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
+    if (isCreatingNewProject.value) localStorage.setItem('yandex_auth_is_new_project', 'true')
+    
+    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    if (data.url) {
+      window.location.href = data.url
+    }
+  } catch (err) {
+    console.error(err)
+    error.value = 'Не удалось инициализировать авторизацию Яндекс'
+    loadingAuth.value = false
+  }
+}
+
+const initVKAuth = async () => {
+  loadingAuth.value = true
+  try {
+    const redirectUri = `${window.location.origin}/auth/vk/callback`
+    
+    // Save form state to localStorage
+    if (form.client_id) localStorage.setItem('vk_auth_client_id', form.client_id)
+    if (form.client_name) localStorage.setItem('vk_auth_client_name', form.client_name)
+    if (isCreatingNewProject.value) localStorage.setItem('vk_auth_is_new_project', 'true')
+    
+    const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    if (data.url) {
+      window.location.href = data.url
+    }
+  } catch (err) {
+    console.error(err)
+    error.value = 'Не удалось инициализировать авторизацию VK'
+    loadingAuth.value = false
+  }
 }
 
 onMounted(() => {
