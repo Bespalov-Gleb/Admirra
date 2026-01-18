@@ -4,6 +4,7 @@ import asyncio
 from datetime import date, datetime
 from typing import List, Dict, Any
 import logging
+from core.logging_utils import log_structured
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,76 @@ class YandexDirectAPI:
             "Accept-Language": "ru",
             "processingMode": "auto"
         }
+        # Track API Units usage
+        self.units_used = 0
+        self.units_limit = 0
+        self.units_remaining = 0
+        
         # AGENCY MODE: Inject Client-Login header if provided
         if client_login and client_login.lower() != "unknown":
             self.headers["Client-Login"] = client_login
+            self.client_login = client_login
             logger.info(f"Initialized Yandex API with Agency Client-Login: {client_login}")
+            log_structured('info', 'Yandex API initialized',
+                         context={'client_login': client_login, 'has_client_login': True},
+                         api_mode='agency')
+        else:
+            self.client_login = None
+            logger.warning(
+                "YandexDirectAPI initialized WITHOUT Client-Login header. "
+                "API will return data from ALL accessible profiles (personal account + agency clients + managed accounts). "
+                "This may lead to incorrect data attribution!"
+            )
+            log_structured('warning', 'Yandex API initialized without Client-Login',
+                         context={'has_client_login': False},
+                         api_mode='unrestricted',
+                         risk='data_attribution_error')
+    
+    def _parse_and_check_units(self, units_header: str) -> None:
+        """
+        Parse Units header and check if we're approaching or exceeded limits.
+        Format: "used/limit/remaining" (e.g., "120/10000/9880")
+        """
+        if not units_header:
+            return
+            
+        try:
+            parts = units_header.split('/')
+            if len(parts) == 3:
+                self.units_used = int(parts[0])
+                self.units_limit = int(parts[1])
+                self.units_remaining = int(parts[2])
+                
+                logger.info(f"Yandex API Units: {self.units_used}/{self.units_limit} (remaining: {self.units_remaining})")
+                log_structured('info', 'API Units tracked',
+                             context={'client_login': self.client_login},
+                             units_used=self.units_used,
+                             units_limit=self.units_limit,
+                             units_remaining=self.units_remaining)
+                
+                # Warning if less than 10% remaining
+                if self.units_limit > 0:
+                    usage_percent = (self.units_used / self.units_limit) * 100
+                    if usage_percent > 90:
+                        logger.warning(f"API Units usage at {usage_percent:.1f}%! Consider slowing down requests.")
+                    
+                # Critical: Stop if limit exceeded
+                if self.units_remaining <= 0:
+                    raise RuntimeError(
+                        f"Yandex API Units limit exceeded: {self.units_used}/{self.units_limit}. "
+                        "Please wait for the limit to reset (usually at midnight Moscow time)."
+                    )
+        except (ValueError, IndexError) as e:
+            logger.warning(f"Failed to parse Units header '{units_header}': {e}")
 
     async def get_campaigns(self) -> List[Dict[str, Any]]:
         """
         Fetches the list of all campaigns using the Campaigns service.
         """
+        log_structured('info', 'Fetching Yandex campaigns',
+                     context={'client_login': self.client_login},
+                     endpoint='campaigns')
+        
         payload = {
             "method": "get",
             "params": {
@@ -54,15 +116,30 @@ class YandexDirectAPI:
                 raise Exception(f"Failed to fetch Yandex campaigns: {response.status_code} - {response.text}")
             except Exception as e:
                 logger.error(f"Error fetching Yandex campaigns: {e}")
-                raise e
-                
-        return []
+                raise
 
     async def get_report(self, date_from: str, date_to: str, level: str = "campaign", max_retries: int = 5) -> List[Dict[str, Any]]:
         """
         Fetches a report from Yandex Direct API v5.
         Handles polling for 201/202 statuses and tracks API units.
         """
+        # VALIDATION: Date format and range
+        try:
+            from datetime import datetime as dt
+            dt_from = dt.strptime(date_from, "%Y-%m-%d")
+            dt_to = dt.strptime(date_to, "%Y-%m-%d")
+            
+            if dt_from > dt_to:
+                raise ValueError(f"date_from ({date_from}) cannot be after date_to ({date_to})")
+            
+            # Yandex Direct has limits on date range (usually 90-180 days)
+            date_range_days = (dt_to - dt_from).days
+            if date_range_days > 365:
+                logger.warning(f"Date range is {date_range_days} days, which may be too large for Yandex API")
+                
+        except ValueError as e:
+            raise ValueError(f"Invalid date format. Expected YYYY-MM-DD: {e}")
+        
         field_names = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"]
         if level == "keyword":
             field_names.insert(2, "Criteria")
@@ -97,11 +174,10 @@ class YandexDirectAPI:
                     timeout=60.0
                 )
 
-                # Track API Units (Points)
+                # Track and validate API Units (Points)
                 units = response.headers.get("Units")
                 if units:
-                    # Format: used/limit/remaining
-                    logger.info(f"Yandex API Units: {units}")
+                    self._parse_and_check_units(units)
 
                 if response.status_code == 200:
                     return self._parse_tsv(response.text, level)
@@ -124,11 +200,29 @@ class YandexDirectAPI:
                     await asyncio.sleep(5)
                 
                 else:
-                    logger.error(f"Yandex Direct API Error: {response.status_code} - {response.text}")
-                    return []
+                    # Handle specific error codes
+                    error_msg = f"Yandex Direct API Error: {response.status_code}"
+                    try:
+                        error_data = response.json()
+                        if "error" in error_data:
+                            error_msg += f" - {error_data['error'].get('error_string', error_data['error'])}"
+                    except:
+                        error_msg += f" - {response.text[:200]}"
+                    
+                    logger.error(error_msg)
+                    
+                    # Raise specific exceptions for different error codes
+                    if response.status_code == 400:
+                        raise ValueError(f"Bad request to Yandex API: {error_msg}")
+                    elif response.status_code == 401:
+                        raise PermissionError(f"Unauthorized access to Yandex API: {error_msg}")
+                    elif response.status_code == 403:
+                        raise PermissionError(f"Forbidden access to Yandex API: {error_msg}")
+                    else:
+                        raise Exception(error_msg)
 
-            logger.error("Maximum retries reached for Yandex report generation.")
-            return []
+            # Max retries reached
+            raise TimeoutError(f"Maximum retries ({max_retries}) reached for Yandex report generation. Report may be too large or API is overloaded.")
 
     def _parse_tsv(self, tsv_data: str, level: str = "campaign") -> List[Dict[str, Any]]:
         lines = tsv_data.strip().split('\n')
@@ -194,7 +288,20 @@ class YandexDirectAPI:
                     if "result" in data and "Clients" in data["result"]:
                         return data["result"]["Clients"]
                     elif "error" in data:
-                        logger.error(f"Yandex Clients API Error: {data['error']}")
+                        error_msg = f"Yandex Clients API Error: {data['error']}"
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
+                    else:
+                        raise Exception(f"Unexpected response format from Yandex Clients API: {data}")
+                else:
+                    error_msg = f"Failed to fetch Yandex clients: {response.status_code} - {response.text[:200]}"
+                    logger.error(error_msg)
+                    if response.status_code == 401:
+                        raise PermissionError(f"Unauthorized: {error_msg}")
+                    elif response.status_code == 403:
+                        raise PermissionError(f"Forbidden: {error_msg}")
+                    else:
+                        raise Exception(error_msg)
             except Exception as e:
                 logger.error(f"Failed to fetch Yandex clients: {e}")
-        return []
+                raise

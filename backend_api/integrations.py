@@ -58,9 +58,14 @@ def get_integrations(
 def get_yandex_auth_url(redirect_uri: str):
     """
     Generate Yandex OAuth authorization URL with dynamic redirect_uri.
+    Required scopes for Yandex Direct API:
+    - direct:api - access to Yandex Direct API
+    - metrika:read - access to Yandex Metrika (for goals)
     """
+    # Yandex Direct requires specific scopes
+    scope = "direct:api metrika:read"
     return {
-        "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}"
+        "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}"
     }
 
 @router.get("/vk/auth-url")
@@ -640,6 +645,14 @@ async def update_integration(
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
+    
+    # CRITICAL: For Yandex Direct, ensure agency_client_login is set when account_id is updated
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        if 'account_id' in integration_in and integration_in['account_id']:
+            # Auto-set agency_client_login if not explicitly provided
+            if 'agency_client_login' not in integration_in:
+                integration.agency_client_login = integration_in['account_id']
+                logger.info(f"Auto-set agency_client_login to {integration_in['account_id']} for integration {integration_id}")
             
     log_event("backend", f"updated integration {integration_id}", integration_in)
     db.commit()
@@ -668,9 +681,21 @@ async def discover_campaigns(
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        api = YandexDirectAPI(access_token, integration.agency_client_login)
+        # CRITICAL: Ensure profile is selected before fetching campaigns
+        client_login = integration.agency_client_login
+        if not client_login:
+            client_login = integration.account_id
+            
+        if not client_login or client_login.lower() == "unknown":
+            raise HTTPException(
+                status_code=400, 
+                detail="Профиль не выбран. Пожалуйста, выберите профиль на предыдущем шаге."
+            )
+        
+        logger.info(f"Fetching campaigns for Yandex Direct profile: {client_login}")
+        api = YandexDirectAPI(access_token, client_login)
         discovered_campaigns = await api.get_campaigns()
-        log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
+        log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns for profile {client_login}")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
         discovered_campaigns = await api.get_campaigns()
@@ -698,6 +723,119 @@ async def discover_campaigns(
     
     # Return all campaigns for this integration
     return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+
+@router.get("/{integration_id}/campaigns-stats")
+async def get_campaigns_stats(
+    integration_id: uuid.UUID,
+    date_from: str = None,
+    date_to: str = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregated statistics for campaigns in the integration.
+    Used by the wizard to show real stats in the campaign selection step.
+    """
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    
+    # Default date range: last 30 days
+    if not date_from or not date_to:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=30)
+        date_from = start_date.strftime("%Y-%m-%d")
+        date_to = end_date.strftime("%Y-%m-%d")
+    
+    campaigns_stats = []
+    
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        # Aggregate YandexStats by campaign_id
+        stats_query = db.query(
+            models.Campaign.id,
+            models.Campaign.external_id,
+            models.Campaign.name,
+            func.sum(models.YandexStats.impressions).label('impressions'),
+            func.sum(models.YandexStats.clicks).label('clicks'),
+            func.sum(models.YandexStats.cost).label('cost'),
+            func.sum(models.YandexStats.conversions).label('conversions')
+        ).join(
+            models.YandexStats, models.Campaign.id == models.YandexStats.campaign_id
+        ).filter(
+            models.Campaign.integration_id == integration_id,
+            models.YandexStats.date >= date_from,
+            models.YandexStats.date <= date_to
+        ).group_by(
+            models.Campaign.id, models.Campaign.external_id, models.Campaign.name
+        ).all()
+        
+        for stat in stats_query:
+            campaigns_stats.append({
+                "id": stat.id,
+                "external_id": stat.external_id,
+                "name": stat.name,
+                "impressions": int(stat.impressions or 0),
+                "clicks": int(stat.clicks or 0),
+                "cost": float(stat.cost or 0),
+                "conversions": int(stat.conversions or 0)
+            })
+    
+    elif integration.platform == models.IntegrationPlatform.VK_ADS:
+        # Aggregate VKStats by campaign_id
+        stats_query = db.query(
+            models.Campaign.id,
+            models.Campaign.external_id,
+            models.Campaign.name,
+            func.sum(models.VKStats.impressions).label('impressions'),
+            func.sum(models.VKStats.clicks).label('clicks'),
+            func.sum(models.VKStats.cost).label('cost'),
+            func.sum(models.VKStats.conversions).label('conversions')
+        ).join(
+            models.VKStats, models.Campaign.id == models.VKStats.campaign_id
+        ).filter(
+            models.Campaign.integration_id == integration_id,
+            models.VKStats.date >= date_from,
+            models.VKStats.date <= date_to
+        ).group_by(
+            models.Campaign.id, models.Campaign.external_id, models.Campaign.name
+        ).all()
+        
+        for stat in stats_query:
+            campaigns_stats.append({
+                "id": stat.id,
+                "external_id": stat.external_id,
+                "name": stat.name,
+                "impressions": int(stat.impressions or 0),
+                "clicks": int(stat.clicks or 0),
+                "cost": float(stat.cost or 0),
+                "conversions": int(stat.conversions or 0)
+            })
+    
+    # Also include campaigns without stats (newly discovered)
+    all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+    existing_ids = {cs["id"] for cs in campaigns_stats}
+    
+    for campaign in all_campaigns:
+        if campaign.id not in existing_ids:
+            campaigns_stats.append({
+                "id": campaign.id,
+                "external_id": campaign.external_id,
+                "name": campaign.name,
+                "impressions": 0,
+                "clicks": 0,
+                "cost": 0,
+                "conversions": 0
+            })
+    
+    log_event("backend", f"returned stats for {len(campaigns_stats)} campaigns")
+    return campaigns_stats
 
 @router.get("/{integration_id}/test-connection")
 async def test_integration_connection(

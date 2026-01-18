@@ -77,7 +77,7 @@
         <div class="space-y-4">
           <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ ПРОЕКТ (КЛИЕНТА)</label>
           
-          <div class="relative">
+          <div class="relative" ref="projectSelectorRef">
             <div class="relative group">
               <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
@@ -92,7 +92,7 @@
               <div class="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <button 
                   type="button"
-                  @click="isDropdownOpen = !isDropdownOpen"
+                  @click.stop="toggleDropdown"
                   class="p-1 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <ChevronDownIcon class="h-5 w-5 text-gray-400" :class="{ 'rotate-180': isDropdownOpen }" />
@@ -104,7 +104,6 @@
               <div 
                 v-if="isDropdownOpen" 
                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
-                v-click-outside="() => isDropdownOpen = false"
               >
                 <div class="max-h-[300px] overflow-y-auto py-2 custom-scrollbar">
                   <div 
@@ -196,7 +195,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
 import { CheckIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { PLATFORMS } from '../../constants/platformConfig'
@@ -213,28 +212,34 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'update:isCreatingNewProject', 'next', 'openProjectSelector', 'openPlatformSelector'])
 
-const vClickOutside = {
-  mounted(el, binding) {
-    el.clickOutsideEvent = (event) => {
-      if (!(el === event.target || el.contains(event.target))) {
-        binding.value(event)
-      }
-    }
-    document.addEventListener('click', el.clickOutsideEvent)
-  },
-  unmounted(el) {
-    document.removeEventListener('click', el.clickOutsideEvent)
+const projectSelectorRef = ref(null)
+const projectSearchQuery = ref(props.modelValue.client_name || '')
+const isDropdownOpen = ref(false)
+
+// Close dropdown when clicking outside the entire project selector container
+const handleClickOutside = (event) => {
+  if (projectSelectorRef.value && !projectSelectorRef.value.contains(event.target)) {
+    isDropdownOpen.value = false
   }
 }
 
-const projectSearchQuery = ref(props.modelValue.client_name || '')
-const isDropdownOpen = ref(false)
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 const filteredProjects = computed(() => {
   if (!projectSearchQuery.value) return props.projects
   const q = projectSearchQuery.value.toLowerCase()
   return props.projects.filter(p => p.name.toLowerCase().includes(q))
 })
+
+const toggleDropdown = () => {
+  isDropdownOpen.value = !isDropdownOpen.value
+}
 
 const selectProject = (project) => {
   emit('update:isCreatingNewProject', false)

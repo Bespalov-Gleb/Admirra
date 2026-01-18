@@ -43,11 +43,30 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     try:
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
-            api = YandexDirectAPI(access_token, integration.agency_client_login)
+            
+            # CRITICAL: Use agency_client_login with fallback to account_id
+            client_login = integration.agency_client_login or integration.account_id
+            if not client_login or client_login.lower() == "unknown":
+                error_msg = f"Profile not selected for integration {integration.id}. Sync aborted."
+                logger.error(error_msg)
+                integration.sync_status = models.SyncStatus.FAILED
+                integration.sync_error = error_msg
+                db.commit()
+                return
+            
+            api = YandexDirectAPI(access_token, client_login)
             try:
                 log_event("sync", f"fetching yandex report for {integration.id}")
                 stats = await api.get_report(date_from, date_to)
                 log_event("sync", f"received {len(stats)} rows from yandex")
+                
+                # EDGE CASE: Empty report handling
+                if not stats or len(stats) == 0:
+                    logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
+                    integration.sync_status = models.SyncStatus.SUCCESS
+                    integration.last_sync_at = datetime.utcnow()
+                    db.commit()
+                    return
             except Exception as e:
                 # If unauthorized and we have a refresh token, try to refresh
                 if ("401" in str(e) or "Unauthorized" in str(e)) and integration.refresh_token:
@@ -60,8 +79,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         if "refresh_token" in new_token_data:
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
-                        # Retry with new token
-                        api = YandexDirectAPI(new_token_data["access_token"], integration.agency_client_login)
+                        # Retry with new token (use same client_login)
+                        api = YandexDirectAPI(new_token_data["access_token"], client_login)
                         stats = await api.get_report(date_from, date_to)
                     else:
                         raise e
@@ -255,7 +274,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         db.flush()
         raise e
 
-async def sync_data(days: int = 7):
+async def sync_data(days: int = 7, max_concurrent: int = 5):
+    """
+    Synchronize all integrations with parallel processing.
+    
+    Args:
+        days: Number of days to sync (default 7)
+        max_concurrent: Maximum number of concurrent sync operations (default 5)
+    """
     db: Session = SessionLocal()
     try:
         integrations = db.query(models.Integration).all()
@@ -266,8 +292,20 @@ async def sync_data(days: int = 7):
         date_from = start_date.strftime("%Y-%m-%d")
         date_to = end_date.strftime("%Y-%m-%d")
 
-        for integration in integrations:
-            await sync_integration(db, integration, date_from, date_to)
+        # Use asyncio.gather() for parallel synchronization with semaphore for rate limiting
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def sync_with_semaphore(integration):
+            async with semaphore:
+                try:
+                    await sync_integration(db, integration, date_from, date_to)
+                except Exception as e:
+                    # Log error but don't stop other syncs
+                    logger.error(f"Failed to sync integration {integration.id}: {e}")
+        
+        # Run all syncs in parallel (with semaphore limiting concurrency)
+        logger.info(f"Starting parallel sync for {len(integrations)} integrations (max {max_concurrent} concurrent)")
+        await asyncio.gather(*[sync_with_semaphore(i) for i in integrations], return_exceptions=True)
             
         db.commit()
 

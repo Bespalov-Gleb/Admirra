@@ -438,15 +438,23 @@ onMounted(() => {
   }
 })
 
-const nextStep = () => {
+const nextStep = async () => {
   searchQuery.value = '' // Reset search on step change
   if (currentStep.value === 1) {
     handleSubmit()
+  } else if (currentStep.value === 2) {
+    // CRITICAL: Validate profile is selected before moving to campaigns
+    if (form.platform === 'YANDEX_DIRECT' && !form.account_id) {
+      toaster.error('Пожалуйста, выберите профиль перед переходом к кампаниям')
+      return
+    }
+    currentStep.value = 3
+    sendRemoteLog(`Moved to Step 3`)
+    await fetchCampaigns(lastIntegrationId.value)
   } else {
     currentStep.value++
     sendRemoteLog(`Moved to Step ${currentStep.value}`)
     if (currentStep.value === 2) fetchProfiles(lastIntegrationId.value)
-    if (currentStep.value === 3) fetchCampaigns(lastIntegrationId.value)
     if (currentStep.value === 4) fetchGoals(lastIntegrationId.value)
   }
 }
@@ -577,7 +585,7 @@ const handleSubmit = async () => {
     // Transition to step 2
     currentStep.value = 2
     fetchProfiles(data.id) // IMPORTANT: Fetch profiles first
-    fetchCampaigns(data.id)
+    // NOTE: fetchCampaigns will be called after profile selection in selectProfile function
     
   } catch (err) {
     error.value = err.response?.data?.detail || 'Ошибка подключения'
@@ -590,19 +598,35 @@ const fetchCampaigns = async (integrationId) => {
   loadingCampaigns.value = true
   try {
     const { date_from, date_to } = getDateRangeParams()
-    // Use the discovery endpoint which fetches fresh data from platform
-    const { data } = await api.post(`integrations/${integrationId}/discover-campaigns?date_from=${date_from}&date_to=${date_to}`)
-    campaigns.value = data
+    
+    // 1. Discover campaigns from platform (creates/updates campaign records)
+    const { data: campaignsData } = await api.post(`integrations/${integrationId}/discover-campaigns`)
+    
+    // 2. Fetch aggregated stats from DB for the date range
+    const { data: statsData } = await api.get(
+      `integrations/${integrationId}/campaigns-stats?date_from=${date_from}&date_to=${date_to}`
+    )
+    
+    // 3. Merge stats into campaigns
+    const statsMap = new Map(statsData.map(s => [s.id, s]))
+    campaigns.value = campaignsData.map(campaign => ({
+      ...campaign,
+      impressions: statsMap.get(campaign.id)?.impressions || 0,
+      clicks: statsMap.get(campaign.id)?.clicks || 0,
+      cost: statsMap.get(campaign.id)?.cost || 0,
+      conversions: statsMap.get(campaign.id)?.conversions || 0
+    }))
+    
     // Select active campaigns by default
-    selectedCampaignIds.value = data.filter(c => c.state === 'ON').map(c => c.id)
+    selectedCampaignIds.value = campaigns.value.filter(c => c.state === 'ON').map(c => c.id)
     
     // If none are active (newly discovered), select all
     if (selectedCampaignIds.value.length === 0) {
-      selectedCampaignIds.value = data.map(c => c.id)
+      selectedCampaignIds.value = campaigns.value.map(c => c.id)
     }
   } catch (err) {
     console.error('Failed to fetch campaigns:', err)
-    toaster.error('Не удалось загрузить список кампаний.')
+    toaster.error(err.response?.data?.detail || 'Не удалось загрузить список кампаний.')
   } finally {
     loadingCampaigns.value = false
   }

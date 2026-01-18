@@ -18,8 +18,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger("api")
 
-# Enable automatic table creation
-models.Base.metadata.create_all(bind=engine)
+# Enable automatic table creation with retry logic
+def init_db_with_retry(max_retries=10, retry_delay=2):
+    """
+    Initialize database with retry logic to handle cases when DB is not ready yet.
+    """
+    from sqlalchemy.exc import OperationalError
+    
+    for attempt in range(max_retries):
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created successfully")
+            return
+        except OperationalError as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                raise
+
+init_db_with_retry()
 
 # Fix for bcrypt 4.0.0+ and passlib compatibility
 import bcrypt
