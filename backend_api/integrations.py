@@ -556,11 +556,14 @@ async def get_integration_profiles(
 async def get_integration_goals(
     integration_id: uuid.UUID,
     account_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Fetch available goals (Metrica) for this integration.
+    If date_from and date_to are provided, also fetch goal statistics.
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
@@ -607,12 +610,45 @@ async def get_integration_goals(
                 goals = await metrica_api.get_counter_goals(counter_id)
                 log_event("yandex", f"counter {counter_id} ({counter_name}) has {len(goals)} goals")
                 for goal in goals:
-                    all_goals.append({
+                    goal_data = {
                         "id": str(goal['id']),
                         "name": f"{goal['name']} ({counter_name})",
                         "type": goal.get('type', 'Unknown'),
-                        "counter_id": counter_id
-                    })
+                        "counter_id": counter_id,
+                        "conversions": 0,
+                        "conversion_rate": 0.0
+                    }
+                    
+                    # If date range provided, fetch stats from DB
+                    if date_from and date_to:
+                        from sqlalchemy import func
+                        stats = db.query(
+                            func.sum(models.MetrikaGoals.conversions).label('total_conversions')
+                        ).filter(
+                            models.MetrikaGoals.goal_id == str(goal['id']),
+                            models.MetrikaGoals.integration_id == integration_id,
+                            models.MetrikaGoals.date >= date_from,
+                            models.MetrikaGoals.date <= date_to
+                        ).first()
+                        
+                        if stats and stats.total_conversions:
+                            goal_data["conversions"] = int(stats.total_conversions)
+                            
+                            # Calculate conversion rate based on campaign clicks
+                            total_clicks = db.query(
+                                func.sum(models.YandexStats.clicks)
+                            ).join(
+                                models.Campaign
+                            ).filter(
+                                models.Campaign.integration_id == integration_id,
+                                models.YandexStats.date >= date_from,
+                                models.YandexStats.date <= date_to
+                            ).scalar() or 0
+                            
+                            if total_clicks > 0:
+                                goal_data["conversion_rate"] = round((goal_data["conversions"] / total_clicks) * 100, 2)
+                    
+                    all_goals.append(goal_data)
             except Exception as goals_err:
                 logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
         
@@ -755,6 +791,23 @@ async def discover_campaigns(
             campaign.name = dc["name"]
             
     db.commit()
+    
+    # IMPORTANT: After discovering campaigns, immediately sync stats for last 7 days
+    # so user can see real data in the wizard
+    from datetime import datetime, timedelta
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        date_from = start_date.strftime("%Y-%m-%d")
+        date_to = end_date.strftime("%Y-%m-%d")
+        
+        logger.info(f"🔄 Auto-syncing stats for integration {integration_id} ({date_from} to {date_to})")
+        await sync_integration(db, integration, date_from, date_to)
+        logger.info(f"✅ Auto-sync completed for integration {integration_id}")
+    except Exception as e:
+        # Don't fail the whole request if sync fails - user can retry later
+        logger.error(f"❌ Auto-sync failed for integration {integration_id}: {e}")
+        log_event("backend", f"Auto-sync failed: {str(e)}", level="error")
     
     # Return all campaigns for this integration
     return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
