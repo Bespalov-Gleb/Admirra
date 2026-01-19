@@ -63,9 +63,8 @@ onMounted(async () => {
     localStorage.removeItem('vk_auth_client_id')
     toaster.success('VK Ads успешно подключен!')
     
-    // Redirect to dashboard with a flag to show campaign selection if needed
-    // or just show success. 
-    router.push(`/projects/create?new_integration_id=${integrationId}`) 
+    // Redirect to integration wizard to continue setup (profile selection, campaigns, goals)
+    router.push(`/integrations/wizard?resume_integration_id=${integrationId}&initial_step=2`) 
   } catch (err) {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'

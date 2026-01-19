@@ -296,6 +296,11 @@ const nextStep = async () => {
       error.value = err.response?.data?.detail || "Ошибка при создании интеграции"
     }
   } else if (currentStep.value === 2) {
+    // CRITICAL: Validate profile is selected before moving to campaigns
+    if (!form.account_id || form.account_id === 'Unknown') {
+      toaster.error('Пожалуйста, выберите профиль перед переходом к кампаниям')
+      return
+    }
     currentStep.value = 3
     fetchCampaigns(lastIntegrationId.value)
   } else if (currentStep.value === 3) {

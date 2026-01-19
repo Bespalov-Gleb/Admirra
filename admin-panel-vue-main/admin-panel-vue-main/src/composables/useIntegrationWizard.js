@@ -160,7 +160,8 @@ export function useIntegrationWizard() {
       form.platform = integration.platform
       form.client_id = integration.client_id
       form.account_id = integration.account_id
-      form.agency_client_login = integration.account_id
+      // CRITICAL: agency_client_login is separate from account_id
+      form.agency_client_login = integration.agency_client_login || integration.account_id
       if (integration.client) form.client_name = integration.client.name
     } catch (err) {
       error.value = "Ошибка при загрузке данных интеграции"
