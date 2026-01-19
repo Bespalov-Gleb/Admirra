@@ -105,7 +105,7 @@
                 v-if="isDropdownOpen" 
                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
               >
-                <div class="max-h-[300px] overflow-y-auto py-2 custom-scrollbar">
+                <div class="max-h-[280px] overflow-y-auto py-2 custom-scrollbar">
                   <div 
                     @click="handleCreateNewAction"
                     class="px-4 py-3 mx-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all hover:bg-blue-50 group border border-transparent hover:border-blue-100"
@@ -122,7 +122,7 @@
                     v-for="project in filteredProjects" 
                     :key="project.id"
                     @click="selectProject(project)"
-                    class="px-4 py-3 mx-2 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
+                    class="px-3 py-2.5 mx-2 mb-1 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
                     :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
                   >
                     <div class="flex items-center gap-3 flex-1 min-w-0">
