@@ -44,17 +44,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             
-            # CRITICAL: Use agency_client_login with fallback to account_id
-            client_login = integration.agency_client_login or integration.account_id
-            if not client_login or client_login.lower() == "unknown":
-                error_msg = f"Profile not selected for integration {integration.id}. Sync aborted."
-                logger.error(error_msg)
-                integration.sync_status = models.IntegrationSyncStatus.FAILED
-                integration.error_message = error_msg
-                db.commit()
-                return
-            
-            api = YandexDirectAPI(access_token, client_login)
+            # SIMPLIFIED ARCHITECTURE: Each token = 1 account, no Client-Login needed
+            # Token inherently represents the account, no profile selection required
+            api = YandexDirectAPI(access_token)
             try:
                 log_event("sync", f"fetching yandex report for {integration.id}")
                 stats = await api.get_report(date_from, date_to)
@@ -80,7 +72,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
                         # Retry with new token (use same client_login)
-                        api = YandexDirectAPI(new_token_data["access_token"], client_login)
+                        api = YandexDirectAPI(new_token_data["access_token"])
                         stats = await api.get_report(date_from, date_to)
                     else:
                         raise e
@@ -88,23 +80,26 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     raise e
 
             for s in stats:
-                # 1. Ensure Campaign exists
+                # 1. Ensure Campaign exists in DB
                 campaign_external_id = str(s['campaign_id'])
                 campaign = db.query(models.Campaign).filter_by(
                     integration_id=integration.id,
                     external_id=campaign_external_id
                 ).first()
                 
+                # CRITICAL FIX: Skip stats for campaigns not in DB
+                # This happens when Reports API returns data for ALL accessible accounts
+                # but discover-campaigns only found campaigns for the token's account
                 if not campaign:
-                    campaign = models.Campaign(
-                        integration_id=integration.id,
-                        external_id=campaign_external_id,
-                        name=s['campaign_name'],
-                        is_active=True
+                    logger.warning(
+                        f"Skipping stats for campaign '{s['campaign_name']}' (ID: {campaign_external_id}) - "
+                        f"not found in DB for integration {integration.id}. "
+                        f"This campaign likely belongs to a different account that shares the token."
                     )
-                    db.add(campaign)
-                    db.flush()
-                elif campaign.name != s['campaign_name']:
+                    continue
+                
+                # Update campaign name if changed
+                if campaign.name != s['campaign_name']:
                     campaign.name = s['campaign_name']
                     db.flush()
 

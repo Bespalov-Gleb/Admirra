@@ -82,18 +82,10 @@
                 @next="nextStep"
               />
 
-              <IntegrationStep2 
-                v-else-if="currentStep === 2"
-                :profiles="profiles"
-                :selectedAccountId="form.account_id"
-                :loading="loadingProfiles"
-                :platform="form.platform"
-                @selectProfile="selectProfile"
-                @next="nextStep"
-              />
+              <!-- Step 2: Profile selection REMOVED - each token = 1 account -->
 
               <IntegrationStep3 
-                v-else-if="currentStep === 3"
+                v-else-if="currentStep === 2"
                 :campaigns="campaigns"
                 :selectedIds="selectedCampaignIds"
                 :loading="loadingCampaigns"
@@ -105,7 +97,7 @@
               />
 
               <IntegrationStep4 
-                v-else-if="currentStep === 4"
+                v-else-if="currentStep === 3"
                 :goals="goals"
                 :primaryGoalId="form.primary_goal_id"
                 :selectedGoalIds="selectedGoalIds"
@@ -245,9 +237,8 @@ const isSyncingData = ref(false)
 
 const stepLabels = {
   1: 'Платформа и проект',
-  2: 'Выбор профиля',
-  3: 'Рекламные кампании',
-  4: 'Цели и конверсии'
+  2: 'Рекламные кампании',
+  3: 'Цели и конверсии'
 }
 
 // Loading state computed properties
@@ -290,21 +281,15 @@ const nextStep = async () => {
       form.client_id = res.data.client_id
       if (res.data.client) form.client_name = res.data.client.name
       
+      // Skip to step 2 (campaigns) - no profile selection needed
       currentStep.value = 2
-      fetchProfiles(lastIntegrationId.value)
+      fetchCampaigns(lastIntegrationId.value)
     } catch (err) {
       error.value = err.response?.data?.detail || "Ошибка при создании интеграции"
     }
   } else if (currentStep.value === 2) {
-    // CRITICAL: Validate profile is selected before moving to campaigns
-    if (!form.account_id || form.account_id === 'Unknown') {
-      toaster.error('Пожалуйста, выберите профиль перед переходом к кампаниям')
-      return
-    }
+    // Step 2 is now campaigns (profile selection removed)
     currentStep.value = 3
-    fetchCampaigns(lastIntegrationId.value)
-  } else if (currentStep.value === 3) {
-    currentStep.value = 4
     fetchGoals(lastIntegrationId.value)
   }
 }
@@ -399,9 +384,9 @@ onMounted(() => {
     currentStep.value = parseInt(startStep) || 2
     fetchIntegration(resumeId)
     
-    if (currentStep.value === 2) fetchProfiles(resumeId)
-    if (currentStep.value === 3) fetchCampaigns(resumeId)
-    if (currentStep.value === 4) fetchGoals(resumeId)
+    // Step 2 = campaigns, Step 3 = goals (profile selection removed)
+    if (currentStep.value === 2) fetchCampaigns(resumeId)
+    if (currentStep.value === 3) fetchGoals(resumeId)
   }
 })
 </script>

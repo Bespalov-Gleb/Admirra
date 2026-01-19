@@ -76,7 +76,7 @@ onMounted(async () => {
       // Redirect to settings and trigger the import modal
       router.push('/settings?trigger_agency_import=1')
     } else {
-      // Standard success flow - redirect to integration wizard to continue setup
+      // Standard success flow - redirect to integration wizard step 2 (campaigns, profile selection removed)
       toaster.success('Яндекс Директ успешно подключен!')
       router.push(`/integrations/wizard?resume_integration_id=${response.data.integration_id}&initial_step=2`) 
     }

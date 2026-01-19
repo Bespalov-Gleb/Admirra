@@ -798,42 +798,14 @@ async def discover_campaigns(
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # CRITICAL: Ensure profile is selected before fetching campaigns
-        client_login = integration.agency_client_login
-        logger.info(f"Integration {integration_id}: agency_client_login = {client_login}, account_id = {integration.account_id}")
+        # SIMPLIFIED ARCHITECTURE: Each token = 1 account
+        # No Client-Login header, no profile selection - token IS the account
+        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}")
         
-        if not client_login:
-            client_login = integration.account_id
-            logger.warning(f"Integration {integration_id}: No agency_client_login, falling back to account_id: {client_login}")
-            
-        if not client_login or client_login.lower() == "unknown":
-            raise HTTPException(
-                status_code=400, 
-                detail="Профиль не выбран. Пожалуйста, выберите профиль на предыдущем шаге."
-            )
-        
-        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id} with Client-Login: {client_login}")
-        logger.info(f"DEBUG: Integration DB state - agency_client_login='{integration.agency_client_login}', account_id='{integration.account_id}'")
-        
-        # CRITICAL: Check if this is an agency account
-        try:
-            test_agency_clients = await get_agency_clients(access_token)
-            logger.info(f"🔍 Token type check: AgencyClients API returned {len(test_agency_clients)} clients")
-            if len(test_agency_clients) > 0:
-                logger.info(f"   ✅ This is an AGENCY token")
-                logger.info(f"   📋 Agency clients: {[c.get('login') for c in test_agency_clients[:5]]}")
-            else:
-                logger.warning(f"   ⚠️  This is a PERSONAL token (AgencyClients returned 0 clients)")
-                logger.warning(f"   ❌ Client-Login header will be IGNORED by Yandex API!")
-        except Exception as e:
-            logger.warning(f"   ⚠️  Failed to check agency status: {e}")
-            logger.warning(f"   This may be a PERSONAL token. Client-Login header may not work!")
-        
-        api = YandexDirectAPI(access_token, client_login)
+        api = YandexDirectAPI(access_token)
         discovered_campaigns = await api.get_campaigns()
-        logger.info(f"DEBUG: API returned {len(discovered_campaigns)} campaigns. First 3 IDs: {[c.get('id') for c in discovered_campaigns[:3]]}")
-        logger.info(f"DEBUG: Campaign names: {[(c.get('id'), c.get('name')) for c in discovered_campaigns]}")
-        log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns for profile {client_login}")
+        logger.info(f"API returned {len(discovered_campaigns)} campaigns. Names: {[c.get('name') for c in discovered_campaigns[:5]]}")
+        log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
         discovered_campaigns = await api.get_campaigns()
@@ -1027,7 +999,7 @@ async def test_integration_connection(
     try:
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             # Test Direct API
-            direct_api = YandexDirectAPI(access_token, integration.agency_client_login)
+            direct_api = YandexDirectAPI(access_token)
             try:
                 # Simple check: fetch campaign IDs only
                 await direct_api.get_campaigns()

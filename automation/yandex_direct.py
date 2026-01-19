@@ -10,6 +10,14 @@ logger = logging.getLogger(__name__)
 
 class YandexDirectAPI:
     def __init__(self, access_token: str, client_login: str = None):
+        """
+        Initialize Yandex Direct API client.
+        
+        SIMPLIFIED ARCHITECTURE: Each token represents ONE account.
+        Client-Login header is NO LONGER USED because:
+        - Personal tokens don't support it (API ignores the header)
+        - Agency tokens are deprecated in favor of 1 token = 1 account model
+        """
         self.report_url = "https://api.direct.yandex.com/json/v5/reports"
         self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
         self.headers = {
@@ -21,26 +29,12 @@ class YandexDirectAPI:
         self.units_used = 0
         self.units_limit = 0
         self.units_remaining = 0
+        self.client_login = None  # No longer used
         
-        # AGENCY MODE: Inject Client-Login header if provided
-        if client_login and client_login.lower() != "unknown":
-            self.headers["Client-Login"] = client_login
-            self.client_login = client_login
-            logger.info(f"Initialized Yandex API with Agency Client-Login: {client_login}")
-            log_structured('info', 'Yandex API initialized',
-                         context={'client_login': client_login, 'has_client_login': True},
-                         api_mode='agency')
-        else:
-            self.client_login = None
-            logger.warning(
-                "YandexDirectAPI initialized WITHOUT Client-Login header. "
-                "API will return data from ALL accessible profiles (personal account + agency clients + managed accounts). "
-                "This may lead to incorrect data attribution!"
-            )
-            log_structured('warning', 'Yandex API initialized without Client-Login',
-                         context={'has_client_login': False},
-                         api_mode='unrestricted',
-                         risk='data_attribution_error')
+        logger.info("Initialized Yandex Direct API (1 token = 1 account model)")
+        log_structured('info', 'Yandex API initialized',
+                     context={'architecture': 'simplified'},
+                     api_mode='personal_token')
     
     def _parse_and_check_units(self, units_header: str) -> None:
         """

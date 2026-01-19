@@ -63,7 +63,7 @@ onMounted(async () => {
     localStorage.removeItem('vk_auth_client_id')
     toaster.success('VK Ads успешно подключен!')
     
-    // Redirect to integration wizard to continue setup (profile selection, campaigns, goals)
+    // Redirect to integration wizard step 2 (campaigns, profile selection removed)
     router.push(`/integrations/wizard?resume_integration_id=${integrationId}&initial_step=2`) 
   } catch (err) {
     console.error(err)
