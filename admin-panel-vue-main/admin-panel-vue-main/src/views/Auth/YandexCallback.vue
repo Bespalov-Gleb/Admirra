@@ -60,26 +60,20 @@ onMounted(async () => {
     
     const response = await api.post('integrations/yandex/exchange', payload)
     
-    // Check if we should perform agency import
-    const isAgencyImport = localStorage.getItem('is_agency_import') === 'true'
-    const isAgency = response.data.is_agency
-    
     // Clean up localStorage
     localStorage.removeItem('yandex_auth_client_name')
     localStorage.removeItem('yandex_auth_client_id')
-    localStorage.removeItem('is_agency_import')
     
-    if (isAgency || isAgencyImport) {
-      // Store token temporarily for the AgencyImportModal to use
-      localStorage.setItem('temp_agency_token', response.data.access_token)
-      toaster.success('Аккаунт агентства успешно подключен!')
-      // Redirect to settings and trigger the import modal
-      router.push('/settings?trigger_agency_import=1')
-    } else {
-      // Standard success flow - redirect to integration wizard step 2 (campaigns, profile selection removed)
-      toaster.success('Яндекс Директ успешно подключен!')
-      router.push(`/integrations/wizard?resume_integration_id=${response.data.integration_id}&initial_step=2`) 
-    }
+    // SIMPLIFIED ARCHITECTURE: One token = one account
+    // No agency import logic - just proceed to wizard
+    toaster.success('Яндекс Директ успешно подключен!')
+    router.push({
+      path: '/integrations/wizard',
+      query: {
+        resume_integration_id: response.data.integration_id,
+        initial_step: 2
+      }
+    })
   } catch (err) {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'

@@ -171,7 +171,6 @@
       </div>
     </div>
 
-    <AgencyImportModal ref="agencyModalRef" v-model:is-open="isAgencyModalOpen" @success="fetchIntegrations" />
   </div>
 </template>
 
@@ -180,7 +179,6 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
-import AgencyImportModal from '../../../components/AgencyImportModal.vue'
 import { useToaster } from '../../../composables/useToaster'
 
 const clients = ref([])
@@ -241,8 +239,6 @@ const formatDate = (dateStr) => {
          date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
 }
 
-const isAgencyModalOpen = ref(false)
-const agencyModalRef = ref(null)
 const route = useRoute()
 const router = useRouter()
 
@@ -359,18 +355,8 @@ onMounted(() => {
     return
   }
 
-  if (route.query.trigger_agency_import === '1') {
-    const token = localStorage.getItem('temp_agency_token')
-    if (token) {
-      isAgencyModalOpen.value = true
-      setTimeout(() => {
-        if (agencyModalRef.value) {
-          agencyModalRef.value.handleToken(token)
-        }
-      }, 100)
-    }
-    window.history.replaceState({}, '', window.location.pathname)
-  }
+  // SIMPLIFIED ARCHITECTURE: Removed agency import logic
+  // All integrations are now one token = one account
 })
 </script>
 

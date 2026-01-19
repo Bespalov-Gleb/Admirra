@@ -551,39 +551,15 @@ async def get_integration_profiles(
         log_event("yandex", f"fetching profiles for integration {integration_id}")
         try:
             profiles = []
-            seen_logins = set()
 
-            # 1. Always include the personal account itself
+            # SIMPLIFIED ARCHITECTURE: One token = one account
+            # Just return the account associated with this integration's token
             personal_login = integration.account_id
             if personal_login and personal_login.lower() != "unknown":
                 profiles.append({"login": personal_login, "name": f"Личный аккаунт ({personal_login})"})
-                seen_logins.add(personal_login.lower())
-
-            # 2. Try to get agency clients
-            agency_clients = await get_agency_clients(access_token)
-            for ac in agency_clients:
-                login = ac.get("login")
-                if login and login.lower() not in seen_logins:
-                    profiles.append(ac)
-                    seen_logins.add(login.lower())
-
-            # 3. Try to get managed logins (shared access / "Editor" role)
-            try:
-                direct_api = YandexDirectAPI(access_token)
-                clients_info = await direct_api.get_clients()
-                for c_info in clients_info:
-                    managed = c_info.get("ManagedLogins", [])
-                    for m_login in managed:
-                        if m_login and m_login.lower() not in seen_logins:
-                            profiles.append({
-                                "login": m_login,
-                                "name": f"Доступный аккаунт ({m_login})"
-                            })
-                            seen_logins.add(m_login.lower())
-            except Exception as e:
-                logger.error(f"Error fetching managed logins: {e}")
-
-            # Fallback if nothing found
+                logger.info(f"Returning single profile for integration {integration_id}: {personal_login}")
+            
+            # Fallback if account_id is not set
             if not profiles:
                 display_id = integration.account_id or "Unknown"
                 profiles = [{"login": display_id, "name": f"Личный аккаунт ({display_id})"}]
@@ -621,7 +597,10 @@ async def get_integration_goals(
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
     target_account = account_id or integration.account_id
-    metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+    
+    # SIMPLIFIED ARCHITECTURE: One token = one account
+    # No need for client_login parameter - token already defines access scope
+    metrica_api = YandexMetricaAPI(access_token)
     
     try:
         log_event("yandex", f"fetching goals for integration {integration_id}, account: {target_account}")
@@ -644,29 +623,12 @@ async def get_integration_goals(
             log_event("yandex", "No Metrica counters found or access denied")
             return []
             
-        log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
+        log_event("yandex", f"found {len(counters)} accessible counters", [c.get('name') for c in counters])
         
-        # IMPORTANT: Metrika API already filters by access rights
-        # The target_account (Yandex.Direct login) might not match owner_login in Metrika
-        # because the user might have delegate access to counters owned by others
-        # So we show ALL accessible counters instead of strict filtering
-        if target_account:
-            # Try to filter, but if no matches found, show all accessible counters
-            filtered_counters = []
-            for counter in counters:
-                owner_login = counter.get('owner_login', '')
-                if owner_login == target_account:
-                    filtered_counters.append(counter)
-                    logger.debug(f"  ✅ Included counter '{counter.get('name')}' (owner: {owner_login})")
-            
-            # If strict filtering returns nothing, use all accessible counters
-            if filtered_counters:
-                counters = filtered_counters
-                logger.info(f"Filtered to {len(counters)} counters for account '{target_account}'")
-            else:
-                logger.warning(f"No counters with owner_login='{target_account}'. Showing all {len(counters)} accessible counters (delegate access).")
-        
-        log_event("yandex", f"found {len(counters)} counters (after filtering)", [c.get('name') for c in counters])
+        # SIMPLIFIED ARCHITECTURE: Token already defines access scope
+        # No need to filter by owner_login - show all counters accessible by this token
+        # The Metrika API automatically returns only counters the token has access to
+        logger.info(f"Token has access to {len(counters)} Metrika counters")
 
         all_goals = []
         for counter in counters:
