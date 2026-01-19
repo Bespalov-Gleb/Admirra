@@ -47,13 +47,15 @@ onMounted(async () => {
     // Determine redirect URI used during auth
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
     
-    // Retrieve client name if saved
+    // Retrieve client info if saved
     const clientName = localStorage.getItem('yandex_auth_client_name')
+    const clientId = localStorage.getItem('yandex_auth_client_id')
     
     const payload = { 
       code, 
       redirect_uri: redirectUri,
-      client_name: clientName // Pass it to backend
+      client_name: clientName, // Pass it to backend
+      client_id: clientId // CRITICAL: Pass client_id to link integration to correct project
     }
     
     const response = await api.post('integrations/yandex/exchange', payload)
@@ -62,8 +64,9 @@ onMounted(async () => {
     const isAgencyImport = localStorage.getItem('is_agency_import') === 'true'
     const isAgency = response.data.is_agency
     
-    // Clean up
+    // Clean up localStorage
     localStorage.removeItem('yandex_auth_client_name')
+    localStorage.removeItem('yandex_auth_client_id')
     localStorage.removeItem('is_agency_import')
     
     if (isAgency || isAgencyImport) {

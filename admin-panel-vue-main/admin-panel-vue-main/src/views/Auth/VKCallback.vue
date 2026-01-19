@@ -46,17 +46,21 @@ onMounted(async () => {
   try {
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     const clientName = localStorage.getItem('vk_auth_client_name')
+    const clientId = localStorage.getItem('vk_auth_client_id')
     
     const payload = { 
       code, 
       redirect_uri: redirectUri,
-      client_name: clientName
+      client_name: clientName,
+      client_id: clientId // CRITICAL: Pass client_id to link integration to correct project
     }
     
     const response = await api.post('integrations/vk/exchange', payload)
     const integrationId = response.data.integration_id
     
+    // Clean up localStorage
     localStorage.removeItem('vk_auth_client_name')
+    localStorage.removeItem('vk_auth_client_id')
     toaster.success('VK Ads успешно подключен!')
     
     // Redirect to dashboard with a flag to show campaign selection if needed

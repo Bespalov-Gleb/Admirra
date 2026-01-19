@@ -112,12 +112,13 @@ async def exchange_yandex_token(
     auth_code = payload.get("code")
     redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
     client_name_input = payload.get("client_name")
+    client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
     
     if not auth_code or not redirect_uri:
         log_event("backend", "Failed to exchange Yandex token: missing code or redirect_uri")
         raise HTTPException(status_code=400, detail="Missing code or redirect_uri")
     
-    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}")
+    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}, client_id: {client_id_input}")
 
     # 1. Exchange code for token
     async with httpx.AsyncClient() as client:
@@ -162,18 +163,40 @@ async def exchange_yandex_token(
              client_name = "Yandex Direct Main"
         
         # 3. Create/Get Client
-        client = db.query(models.Client).filter(
-            models.Client.owner_id == current_user.id,
-            models.Client.name == client_name
-        ).first()
-        
-        if not client:
-            client = models.Client(
-                owner_id=current_user.id,
-                name=client_name
-            )
-            db.add(client)
-            db.flush()
+        # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
+        # This ensures integration is linked to the correct project, not found by name collision
+        if client_id_input:
+            try:
+                import uuid as uuid_lib
+                client_uuid = uuid_lib.UUID(client_id_input)
+                client = db.query(models.Client).filter(
+                    models.Client.id == client_uuid,
+                    models.Client.owner_id == current_user.id
+                ).first()
+                
+                if not client:
+                    log_event("backend", f"Client ID {client_id_input} not found or not owned by user", level="error")
+                    raise HTTPException(status_code=404, detail=f"Project (Client) not found")
+                    
+                log_event("backend", f"Using existing client: {client.name} (ID: {client.id})")
+            except ValueError:
+                log_event("backend", f"Invalid client_id format: {client_id_input}", level="error")
+                raise HTTPException(status_code=400, detail="Invalid project ID format")
+        else:
+            # Legacy flow: search by name (will create duplicates if name matches)
+            client = db.query(models.Client).filter(
+                models.Client.owner_id == current_user.id,
+                models.Client.name == client_name
+            ).first()
+            
+            if not client:
+                client = models.Client(
+                    owner_id=current_user.id,
+                    name=client_name
+                )
+                db.add(client)
+                db.flush()
+                log_event("backend", f"Created new client: {client.name} (ID: {client.id})")
 
         # 4. Save Integration
         db_integration = db.query(models.Integration).filter(
@@ -240,6 +263,7 @@ async def exchange_vk_token_oauth(
     auth_code = payload.get("code")
     redirect_uri = payload.get("redirect_uri")
     client_name_input = payload.get("client_name")
+    client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
     
     if not auth_code or not redirect_uri:
         raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
@@ -281,15 +305,36 @@ async def exchange_vk_token_oauth(
         client_name = client_name_input or "VK Ads Project"
         
         # Create/Get Client
-        db_client = db.query(models.Client).filter(
-            models.Client.owner_id == current_user.id,
-            models.Client.name == client_name
-        ).first()
-        
-        if not db_client:
-            db_client = models.Client(owner_id=current_user.id, name=client_name)
-            db.add(db_client)
-            db.flush()
+        # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
+        if client_id_input:
+            try:
+                import uuid as uuid_lib
+                client_uuid = uuid_lib.UUID(client_id_input)
+                db_client = db.query(models.Client).filter(
+                    models.Client.id == client_uuid,
+                    models.Client.owner_id == current_user.id
+                ).first()
+                
+                if not db_client:
+                    logger.error(f"Client ID {client_id_input} not found or not owned by user")
+                    raise HTTPException(status_code=404, detail=f"Project (Client) not found")
+                    
+                logger.info(f"Using existing client: {db_client.name} (ID: {db_client.id})")
+            except ValueError:
+                logger.error(f"Invalid client_id format: {client_id_input}")
+                raise HTTPException(status_code=400, detail="Invalid project ID format")
+        else:
+            # Legacy flow: search by name
+            db_client = db.query(models.Client).filter(
+                models.Client.owner_id == current_user.id,
+                models.Client.name == client_name
+            ).first()
+            
+            if not db_client:
+                db_client = models.Client(owner_id=current_user.id, name=client_name)
+                db.add(db_client)
+                db.flush()
+                logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
 
         # Save Integration
         db_integration = db.query(models.Integration).filter(
