@@ -36,13 +36,13 @@
         @click="selectProfile(profile)"
         class="relative group p-6 bg-white border-2 rounded-[2rem] transition-all duration-300 cursor-pointer overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1"
         :class="[
-          selectedAccountId === profile.login ? 'border-blue-600 ring-4 ring-blue-50' : 'border-gray-50 hover:border-blue-200'
+          selectedProfile === profile.login ? 'border-blue-600 ring-4 ring-blue-50' : 'border-gray-50 hover:border-blue-200'
         ]"
       >
         <!-- Selection Checkmark -->
         <div 
           class="absolute top-4 right-4 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center transition-all duration-300 scale-0"
-          :class="{ 'scale-100': selectedAccountId === profile.login }"
+          :class="{ 'scale-100': selectedProfile === profile.login }"
         >
           <CheckIcon class="w-4 h-4 text-white" stroke-width="4" />
         </div>
@@ -135,12 +135,12 @@ import { CheckIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   profiles: Array,
-  selectedAccountId: String,
+  selectedProfile: String,
   loading: Boolean,
   platform: String
 })
 
-const emit = defineEmits(['selectProfile', 'next'])
+const emit = defineEmits(['select', 'next'])
 
 const searchQuery = ref('')
 
@@ -167,6 +167,6 @@ const filteredProfiles = computed(() => {
 })
 
 const selectProfile = (profile) => {
-  emit('selectProfile', profile)
+  emit('select', profile)
 }
 </script>

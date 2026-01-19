@@ -402,8 +402,18 @@ onMounted(() => {
   
   if (resumeId) {
     lastIntegrationId.value = resumeId
-    currentStep.value = parseInt(startStep) || 2
+    const step = parseInt(startStep) || 2
+    currentStep.value = step
     fetchIntegration(resumeId)
+    
+    // Load data for the current step
+    if (step === 2) {
+      fetchProfiles(resumeId)
+    } else if (step === 3) {
+      fetchCampaigns(resumeId)
+    } else if (step === 4) {
+      fetchGoals(resumeId)
+    }
     
     // Step 2 = campaigns, Step 3 = goals (profile selection removed)
     if (currentStep.value === 2) fetchCampaigns(resumeId)

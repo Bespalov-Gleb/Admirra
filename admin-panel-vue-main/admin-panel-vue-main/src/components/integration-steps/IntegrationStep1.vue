@@ -125,13 +125,13 @@
                     class="px-4 py-3 mx-2 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
                     :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
                   >
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                      <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
                         {{ project.name.substring(0, 2).toUpperCase() }}
                       </div>
-                      <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors">{{ project.name }}</span>
+                      <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
                     </div>
-                    <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600" />
+                    <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" />
                   </div>
                 </div>
               </div>
