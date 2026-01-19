@@ -601,21 +601,22 @@ async def get_integration_goals(
             
         log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
         
-        # IMPORTANT: Filter counters by permission level to only show counters that belong to the selected account
-        # If target_account is specified, only show counters where this account has edit/view rights
+        # IMPORTANT: Filter counters to only show counters that belong to the selected account
+        # If target_account is specified, only show counters where owner_login matches
         if target_account:
             filtered_counters = []
             for counter in counters:
-                # Check if this counter belongs to the target account
-                # Yandex Metrica API returns counters with permission info
-                permission_level = counter.get('permission', 'own')
-                # For agency tokens, we want to filter counters by the account_id
-                # For personal tokens, we show all accessible counters
-                # Best approach: if counter has grants info, check if target_account is in the grants
-                # Otherwise, use the counter's owner_login
+                # Check if this counter belongs to the target account by owner_login
                 owner_login = counter.get('owner_login', '')
-                if owner_login == target_account or permission_level == 'own':
+                
+                # CRITICAL: Only match by owner_login
+                # Do NOT use permission == 'own' because for agency tokens
+                # 'own' means the counter belongs to the agency itself, not the client
+                if owner_login == target_account:
                     filtered_counters.append(counter)
+                    logger.debug(f"  ✅ Included counter '{counter.get('name')}' (owner: {owner_login})")
+                else:
+                    logger.debug(f"  ❌ Excluded counter '{counter.get('name')}' (owner: {owner_login}, expected: {target_account})")
             
             counters = filtered_counters
             logger.info(f"Filtered to {len(counters)} counters for account '{target_account}'")
@@ -885,7 +886,10 @@ async def get_campaigns_stats(
             models.Campaign.id, models.Campaign.external_id, models.Campaign.name
         ).all()
         
+        logger.info(f"📊 SQL query returned {len(stats_query)} campaigns with stats")
+        
         for stat in stats_query:
+            logger.info(f"   Campaign '{stat.name}': impressions={stat.impressions}, clicks={stat.clicks}, cost={stat.cost}")
             campaigns_stats.append({
                 "id": stat.id,
                 "external_id": stat.external_id,
@@ -929,10 +933,18 @@ async def get_campaigns_stats(
     
     # Also include campaigns without stats (newly discovered)
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+    logger.info(f"📋 Total campaigns in DB for this integration: {len(all_campaigns)}")
+    
     existing_ids = {cs["id"] for cs in campaigns_stats}
     
     for campaign in all_campaigns:
         if campaign.id not in existing_ids:
+            # Check if this campaign has ANY stats records (for debugging)
+            stats_count = db.query(models.YandexStats).filter(
+                models.YandexStats.campaign_id == campaign.id
+            ).count()
+            logger.info(f"   Campaign '{campaign.name}' has {stats_count} YandexStats records, but none in date range")
+            
             campaigns_stats.append({
                 "id": campaign.id,
                 "external_id": campaign.external_id,
@@ -944,6 +956,7 @@ async def get_campaigns_stats(
             })
     
     log_event("backend", f"returned stats for {len(campaigns_stats)} campaigns")
+    logger.info(f"✅ Returning {len(campaigns_stats)} campaigns total (with and without stats)")
     return campaigns_stats
 
 @router.get("/{integration_id}/test-connection")
