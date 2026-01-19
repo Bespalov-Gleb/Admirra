@@ -106,7 +106,7 @@
                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
               >
                 <div class="max-h-[240px] overflow-y-auto custom-scrollbar">
-                  <div class="py-2">
+                  <div class="pt-2 pb-4">
                     <div 
                       @click="handleCreateNewAction"
                       class="px-4 py-3 mx-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all hover:bg-blue-50 group border border-transparent hover:border-blue-100"
