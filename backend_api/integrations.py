@@ -601,25 +601,25 @@ async def get_integration_goals(
             
         log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
         
-        # IMPORTANT: Filter counters to only show counters that belong to the selected account
-        # If target_account is specified, only show counters where owner_login matches
+        # IMPORTANT: Metrika API already filters by access rights
+        # The target_account (Yandex.Direct login) might not match owner_login in Metrika
+        # because the user might have delegate access to counters owned by others
+        # So we show ALL accessible counters instead of strict filtering
         if target_account:
+            # Try to filter, but if no matches found, show all accessible counters
             filtered_counters = []
             for counter in counters:
-                # Check if this counter belongs to the target account by owner_login
                 owner_login = counter.get('owner_login', '')
-                
-                # CRITICAL: Only match by owner_login
-                # Do NOT use permission == 'own' because for agency tokens
-                # 'own' means the counter belongs to the agency itself, not the client
                 if owner_login == target_account:
                     filtered_counters.append(counter)
                     logger.debug(f"  ✅ Included counter '{counter.get('name')}' (owner: {owner_login})")
-                else:
-                    logger.debug(f"  ❌ Excluded counter '{counter.get('name')}' (owner: {owner_login}, expected: {target_account})")
             
-            counters = filtered_counters
-            logger.info(f"Filtered to {len(counters)} counters for account '{target_account}'")
+            # If strict filtering returns nothing, use all accessible counters
+            if filtered_counters:
+                counters = filtered_counters
+                logger.info(f"Filtered to {len(counters)} counters for account '{target_account}'")
+            else:
+                logger.warning(f"No counters with owner_login='{target_account}'. Showing all {len(counters)} accessible counters (delegate access).")
         
         log_event("yandex", f"found {len(counters)} counters (after filtering)", [c.get('name') for c in counters])
 
