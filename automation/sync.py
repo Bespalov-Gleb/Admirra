@@ -49,8 +49,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             if not client_login or client_login.lower() == "unknown":
                 error_msg = f"Profile not selected for integration {integration.id}. Sync aborted."
                 logger.error(error_msg)
-                integration.sync_status = models.SyncStatus.FAILED
-                integration.sync_error = error_msg
+                integration.sync_status = models.IntegrationSyncStatus.FAILED
+                integration.error_message = error_msg
                 db.commit()
                 return
             
@@ -63,7 +63,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 # EDGE CASE: Empty report handling
                 if not stats or len(stats) == 0:
                     logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
-                    integration.sync_status = models.SyncStatus.SUCCESS
+                    integration.sync_status = models.IntegrationSyncStatus.SUCCESS
                     integration.last_sync_at = datetime.utcnow()
                     db.commit()
                     return

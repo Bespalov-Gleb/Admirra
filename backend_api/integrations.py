@@ -599,7 +599,28 @@ async def get_integration_goals(
             log_event("yandex", "No Metrica counters found or access denied")
             return []
             
-        log_event("yandex", f"found {len(counters)} counters", [c.get('name') for c in counters])
+        log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
+        
+        # IMPORTANT: Filter counters by permission level to only show counters that belong to the selected account
+        # If target_account is specified, only show counters where this account has edit/view rights
+        if target_account:
+            filtered_counters = []
+            for counter in counters:
+                # Check if this counter belongs to the target account
+                # Yandex Metrica API returns counters with permission info
+                permission_level = counter.get('permission', 'own')
+                # For agency tokens, we want to filter counters by the account_id
+                # For personal tokens, we show all accessible counters
+                # Best approach: if counter has grants info, check if target_account is in the grants
+                # Otherwise, use the counter's owner_login
+                owner_login = counter.get('owner_login', '')
+                if owner_login == target_account or permission_level == 'own':
+                    filtered_counters.append(counter)
+            
+            counters = filtered_counters
+            logger.info(f"Filtered to {len(counters)} counters for account '{target_account}'")
+        
+        log_event("yandex", f"found {len(counters)} counters (after filtering)", [c.get('name') for c in counters])
 
         all_goals = []
         for counter in counters:
