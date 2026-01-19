@@ -105,33 +105,35 @@
                 v-if="isDropdownOpen" 
                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
               >
-                <div class="max-h-[280px] overflow-y-auto py-2 custom-scrollbar">
-                  <div 
-                    @click="handleCreateNewAction"
-                    class="px-4 py-3 mx-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all hover:bg-blue-50 group border border-transparent hover:border-blue-100"
-                  >
-                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
-                      <PlusIcon class="w-4 h-4 text-blue-600 group-hover:text-white" />
-                    </div>
-                    <div>
-                      <span class="block text-[12px] font-black text-blue-600 uppercase tracking-tighter">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
-                    </div>
-                  </div>
-                  <div class="h-px bg-gray-50 my-2"></div>
-                  <div 
-                    v-for="project in filteredProjects" 
-                    :key="project.id"
-                    @click="selectProject(project)"
-                    class="px-3 py-2.5 mx-2 mb-1 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
-                    :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
-                  >
-                    <div class="flex items-center gap-3 flex-1 min-w-0">
-                      <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
-                        {{ project.name.substring(0, 2).toUpperCase() }}
+                <div class="max-h-[240px] overflow-y-auto custom-scrollbar">
+                  <div class="py-2">
+                    <div 
+                      @click="handleCreateNewAction"
+                      class="px-4 py-3 mx-2 rounded-xl flex items-center gap-3 cursor-pointer transition-all hover:bg-blue-50 group border border-transparent hover:border-blue-100"
+                    >
+                      <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                        <PlusIcon class="w-4 h-4 text-blue-600 group-hover:text-white" />
                       </div>
-                      <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
+                      <div>
+                        <span class="block text-[12px] font-black text-blue-600 uppercase tracking-tighter">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+                      </div>
                     </div>
-                    <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" />
+                    <div class="h-px bg-gray-50 my-2"></div>
+                    <div 
+                      v-for="project in filteredProjects" 
+                      :key="project.id"
+                      @click="selectProject(project)"
+                      class="px-3 py-2.5 mx-2 mb-1 last:mb-0 rounded-xl flex items-center justify-between cursor-pointer transition-all hover:bg-gray-50 group"
+                      :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
+                    >
+                      <div class="flex items-center gap-3 flex-1 min-w-0">
+                        <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
+                          {{ project.name.substring(0, 2).toUpperCase() }}
+                        </div>
+                        <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
+                      </div>
+                      <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" />
+                    </div>
                   </div>
                 </div>
               </div>
