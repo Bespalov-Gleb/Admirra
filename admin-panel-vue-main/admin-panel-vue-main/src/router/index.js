@@ -98,7 +98,8 @@ const routes = [
   {
     path: '/integrations/wizard',
     name: 'AddIntegration',
-    component: () => import('../views/Integrations/AddIntegrationPage.vue')
+    component: () => import('../views/Integrations/AddIntegrationPage.vue'),
+    meta: { layout: 'fullwidth' }
   },
   {
     path: '/projects/create',

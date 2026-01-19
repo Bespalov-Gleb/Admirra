@@ -225,7 +225,7 @@ const menuSections = [
     title: 'УПРАВЛЕНИЕ',
     items: [
       { name: 'Команда', path: '/team', icon: Group },
-      { name: 'API телефония', path: '/phone-api', icon: PhoneIcon },
+      { name: 'Квалификатор лидов', path: '/phone-api', icon: PhoneIcon },
       { name: 'Продукты', path: '/products', icon: Product },
       { name: 'Каналы', path: '/channels', icon: Channels },
     ]

@@ -174,10 +174,14 @@ class MetrikaGoals(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
+    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id", ondelete="CASCADE"), nullable=True, index=True)
     date = Column(Date, index=True, nullable=False)
     goal_id = Column(String, nullable=False)
     goal_name = Column(String)
     conversion_count = Column(Integer, default=0)
+    
+    # Relationships
+    integration = relationship("Integration", foreign_keys=[integration_id])
 
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"

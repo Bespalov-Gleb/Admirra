@@ -241,16 +241,18 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     total_reaches = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
 
                 existing = db.query(models.MetrikaGoals).filter(
-                    models.MetrikaGoals.client_id == integration.client_id,
+                    models.MetrikaGoals.integration_id == integration.id,  # CRITICAL: Check by integration, not client
                     models.MetrikaGoals.date == stat_date,
                     models.MetrikaGoals.goal_id == "all"
                 ).first()
 
                 if existing:
                     existing.conversion_count = total_reaches
+                    existing.integration_id = integration.id  # Update integration_id for existing records
                 else:
                     db.add(models.MetrikaGoals(
                         client_id=integration.client_id,
+                        integration_id=integration.id,  # NEW: Link to specific integration
                         date=stat_date,
                         goal_id="all",
                         goal_name="Selected Goals" if selected_goals else "All Goals",

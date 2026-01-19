@@ -5,6 +5,7 @@ import { useAuth } from './composables/useAuth'
 import Toaster from './components/ui/Toaster.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
 import MainLayout from './layouts/MainLayout.vue'
+import FullWidthLayout from './layouts/FullWidthLayout.vue'
 
 const route = useRoute()
 const { checkAuth, isLoading } = useAuth()
@@ -18,6 +19,12 @@ const layout = computed(() => {
   if (route.meta.layout === 'auth') {
     return AuthLayout
   }
+  
+  // Full width layout (no sidebar)
+  if (route.meta.layout === 'fullwidth') {
+    return FullWidthLayout
+  }
+  
   // Legacy support for paths if they are not in router meta yet
   const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
   if (isPathAuth) {

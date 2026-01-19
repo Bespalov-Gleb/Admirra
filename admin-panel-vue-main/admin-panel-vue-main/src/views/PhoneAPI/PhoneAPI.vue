@@ -3,8 +3,8 @@
     <div class="max-w-6xl mx-auto">
       <!-- Header -->
       <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">API телефония</h1>
-        <p class="text-gray-500">Интеграция с телефонией для отслеживания звонков</p>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Квалификатор лидов</h1>
+        <p class="text-gray-500">Интеграция с телефонией для автоматического отслеживания звонков и конверсий</p>
       </div>
 
       <!-- Coming Soon Card -->

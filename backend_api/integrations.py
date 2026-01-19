@@ -693,7 +693,7 @@ async def get_integration_goals(
                             func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
                         ).filter(
                             models.MetrikaGoals.goal_id == str(goal['id']),
-                            models.MetrikaGoals.client_id == integration.client_id,
+                            models.MetrikaGoals.integration_id == integration_id,  # CRITICAL: Filter by integration, not client
                             models.MetrikaGoals.date >= date_from,
                             models.MetrikaGoals.date <= date_to
                         ).first()

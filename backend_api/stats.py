@@ -345,19 +345,27 @@ async def get_top_clients(
 @cache_response(ttl=900)
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
+    integration_id: Optional[uuid.UUID] = None,  # NEW: Optional filter by integration
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get Metrika goals for the current client.
+    Optionally filter by integration_id to get goals for a specific Yandex account.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     if not effective_client_ids: return []
 
-    goals = db.query(
+    query = db.query(
         models.MetrikaGoals.goal_name,
         func.sum(models.MetrikaGoals.conversion_count).label("count")
-    ).filter(models.MetrikaGoals.client_id.in_(effective_client_ids)).group_by(models.MetrikaGoals.goal_name).all()
+    ).filter(models.MetrikaGoals.client_id.in_(effective_client_ids))
+    
+    # NEW: Filter by integration_id if provided
+    if integration_id:
+        query = query.filter(models.MetrikaGoals.integration_id == integration_id)
+    
+    goals = query.group_by(models.MetrikaGoals.goal_name).all()
 
     return [{"name": g.goal_name, "count": int(g.count or 0), "trend": 15.6} for g in goals]
 

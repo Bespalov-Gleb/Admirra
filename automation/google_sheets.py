@@ -52,16 +52,23 @@ class GoogleSheetsService:
         
         self._write_to_sheet(spreadsheet_id, "Weekly Reports!A1", rows)
 
-    def export_metrika_goals(self, spreadsheet_id: str, client_id: str, db: Session):
+    def export_metrika_goals(self, spreadsheet_id: str, client_id: str, db: Session, integration_id: str = None):
         """
         Exports Metrika goals data.
+        Optionally filter by integration_id to export goals for a specific integration/profile.
         """
         if not self.service: return
 
-        goals = db.query(models.MetrikaGoals).filter_by(client_id=client_id).all()
-        rows = [["Date", "Goal ID", "Goal Name", "Conversions"]]
+        query = db.query(models.MetrikaGoals).filter_by(client_id=client_id)
+        
+        # Filter by integration_id if provided
+        if integration_id:
+            query = query.filter_by(integration_id=integration_id)
+        
+        goals = query.all()
+        rows = [["Date", "Goal ID", "Goal Name", "Conversions", "Integration ID"]]
         for g in goals:
-            rows.append([str(g.date), g.goal_id, g.goal_name, g.conversion_count])
+            rows.append([str(g.date), g.goal_id, g.goal_name, g.conversion_count, str(g.integration_id) if g.integration_id else "N/A"])
         
         self._write_to_sheet(spreadsheet_id, "Goals!A1", rows)
 

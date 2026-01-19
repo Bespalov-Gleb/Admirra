@@ -193,28 +193,47 @@
 
               <!-- Actions -->
               <td class="px-3 py-4">
-                <div class="flex items-center justify-end gap-1">
-                  <button 
-                    @click="$emit('viewProject', project.id)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                    title="Просмотр"
-                  >
-                    <EyeIcon class="w-4 h-4" />
-                  </button>
-                  <button 
-                    @click="$emit('editProject', project.id)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                    title="Редактировать"
-                  >
-                    <PencilIcon class="w-4 h-4" />
-                  </button>
-                  <button 
-                    @click="$emit('deleteProject', project.id)"
-                    class="w-8 h-8 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                    title="Удалить"
-                  >
-                    <TrashIcon class="w-4 h-4" />
-                  </button>
+                <div class="flex items-center justify-end">
+                  <div class="relative">
+                    <button 
+                      @click="toggleActionMenu(project.id)"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+                      title="Действия"
+                    >
+                      <EllipsisVerticalIcon class="w-5 h-5 text-gray-600" />
+                    </button>
+                    
+                    <!-- Dropdown Menu -->
+                    <Transition name="fade-scale">
+                      <div 
+                        v-if="openActionMenuId === project.id"
+                        class="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-1 min-w-[180px]"
+                      >
+                        <button 
+                          @click="handleAction('view', project.id)"
+                          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-3"
+                        >
+                          <EyeIcon class="w-4 h-4" />
+                          Просмотр
+                        </button>
+                        <button 
+                          @click="handleAction('edit', project.id)"
+                          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-3"
+                        >
+                          <PencilIcon class="w-4 h-4" />
+                          Редактировать
+                        </button>
+                        <div class="h-px bg-gray-100 my-1"></div>
+                        <button 
+                          @click="handleAction('delete', project.id)"
+                          class="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3"
+                        >
+                          <TrashIcon class="w-4 h-4" />
+                          Удалить
+                        </button>
+                      </div>
+                    </Transition>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -272,7 +291,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { 
   CheckIcon, 
   MagnifyingGlassIcon, 
@@ -281,7 +300,8 @@ import {
   EyeIcon,
   PencilIcon,
   TrashIcon,
-  FolderOpenIcon
+  FolderOpenIcon,
+  EllipsisVerticalIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -304,6 +324,32 @@ const emit = defineEmits(['addProject', 'viewProject', 'editProject', 'deletePro
 const selected = ref([])
 const localSearchQuery = ref(props.searchQuery)
 const itemsPerPage = ref(10)
+const openActionMenuId = ref(null)
+
+const toggleActionMenu = (projectId) => {
+  openActionMenuId.value = openActionMenuId.value === projectId ? null : projectId
+}
+
+const handleAction = (action, projectId) => {
+  openActionMenuId.value = null
+  if (action === 'view') emit('viewProject', projectId)
+  else if (action === 'edit') emit('editProject', projectId)
+  else if (action === 'delete') emit('deleteProject', projectId)
+}
+
+const handleClickOutside = (event) => {
+  if (!event.target.closest('.relative')) {
+    openActionMenuId.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 watch(() => props.searchQuery, (newVal) => {
   localSearchQuery.value = newVal

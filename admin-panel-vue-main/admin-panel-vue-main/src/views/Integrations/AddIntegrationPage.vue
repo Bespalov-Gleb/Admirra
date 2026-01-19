@@ -1,7 +1,7 @@
 <template>
-  <div class="max-w-6xl mx-auto p-4 md:p-8">
+  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
+    <div class="flex items-center justify-between px-4 md:px-8 py-6 bg-white border-b border-gray-100">
       <div class="flex items-center gap-4">
         <button 
           @click="$router.push('/settings')" 
@@ -31,7 +31,8 @@
     </div>
 
     <!-- Wizard Interface -->
-    <div class="bg-white rounded-[2.5rem] border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col min-h-[600px]">
+    <div class="max-w-7xl mx-auto px-4 md:px-8 py-8">
+      <div class="bg-white rounded-3xl border border-gray-100/50 shadow-2xl shadow-blue-100/20 overflow-hidden flex flex-col min-h-[70vh]">
       <!-- Stepper Header -->
       <div class="px-8 py-10 border-b border-gray-50 bg-gray-50/30">
         <div class="max-w-2xl mx-auto flex items-center justify-between relative">
@@ -82,10 +83,19 @@
                 @next="nextStep"
               />
 
-              <!-- Step 2: Profile selection REMOVED - each token = 1 account -->
+              <!-- Step 2: Profile selection -->
+              <IntegrationStep2 
+                v-else-if="currentStep === 2"
+                :profiles="profiles"
+                :loading="loadingProfiles"
+                :selectedProfile="form.account_id"
+                :platform="form.platform"
+                @select="selectProfile"
+                @next="nextStep"
+              />
 
               <IntegrationStep3 
-                v-else-if="currentStep === 2"
+                v-else-if="currentStep === 3"
                 :campaigns="campaigns"
                 :selectedIds="selectedCampaignIds"
                 :loading="loadingCampaigns"
@@ -97,7 +107,7 @@
               />
 
               <IntegrationStep4 
-                v-else-if="currentStep === 3"
+                v-else-if="currentStep === 4"
                 :goals="goals"
                 :primaryGoalId="form.primary_goal_id"
                 :selectedGoalIds="selectedGoalIds"
@@ -144,9 +154,9 @@
             <span v-else>ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС ДИРЕКТ' : 'VK ADS' }}</span>
           </button>
 
-          <!-- Step 2-3: Regular Next -->
+          <!-- Step 2: Regular Next (profile selection) -->
           <button 
-            v-else-if="currentStep >= 2 && currentStep < 4"
+            v-else-if="currentStep === 2"
             @click="nextStep"
             :disabled="isNextDisabled"
             class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
@@ -155,8 +165,20 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
+          <!-- Step 3: Regular Next (campaigns) -->
           <button 
-            v-else
+            v-else-if="currentStep === 3"
+            @click="nextStep"
+            :disabled="isNextDisabled"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+          >
+            Далее
+            <ArrowRightIcon class="w-4 h-4" />
+          </button>
+
+          <!-- Step 4: Finish button (goals) -->
+          <button 
+            v-else-if="currentStep === 4"
             @click="finishConnection"
             :disabled="isNextDisabled || loadingFinish"
             class="px-10 py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-blue-200"
@@ -166,14 +188,8 @@
           </button>
         </div>
       </div>
+      </div>
     </div>
-
-    <!-- Selectors (Remain as compact modals for now) -->
-
-
-
-
-
   </div>
 </template>
 
@@ -237,8 +253,9 @@ const isSyncingData = ref(false)
 
 const stepLabels = {
   1: 'Платформа и проект',
-  2: 'Рекламные кампании',
-  3: 'Цели и конверсии'
+  2: 'Выбор профиля',
+  3: 'Рекламные кампании',
+  4: 'Цели и конверсии'
 }
 
 // Loading state computed properties
@@ -269,27 +286,31 @@ const isNextDisabled = computed(() => {
 // Navigation Actions
 const nextStep = async () => {
   if (currentStep.value === 1) {
-    // Create or find integration
-    try {
-      const payload = {
-        platform: form.platform,
-        client_id: form.client_id,
-        new_client_name: isCreatingNewProject.value ? form.client_name : null
-      }
-      const res = await api.post('/integrations/', payload)
-      lastIntegrationId.value = res.data.id
-      form.client_id = res.data.client_id
-      if (res.data.client) form.client_name = res.data.client.name
-      
-      // Skip to step 2 (campaigns) - no profile selection needed
-      currentStep.value = 2
-      fetchCampaigns(lastIntegrationId.value)
-    } catch (err) {
-      error.value = err.response?.data?.detail || "Ошибка при создании интеграции"
+    // Step 1 -> 2: OAuth completed, now load profiles
+    // Integration is already created by OAuth callback
+    currentStep.value = 2
+    if (lastIntegrationId.value) {
+      fetchProfiles(lastIntegrationId.value)
     }
   } else if (currentStep.value === 2) {
-    // Step 2 is now campaigns (profile selection removed)
+    // Step 2 -> 3: Profile selected, validate and load campaigns
+    if (!form.account_id) {
+      toaster.error('Пожалуйста, выберите профиль перед переходом к кампаниям')
+      return
+    }
+    // Update integration with selected profile
+    try {
+      await api.patch(`/integrations/${lastIntegrationId.value}`, {
+        account_id: form.account_id
+      })
+    } catch (err) {
+      console.error('Failed to update integration with account_id:', err)
+    }
     currentStep.value = 3
+    fetchCampaigns(lastIntegrationId.value)
+  } else if (currentStep.value === 3) {
+    // Step 3 -> 4: Campaigns selected, load goals
+    currentStep.value = 4
     fetchGoals(lastIntegrationId.value)
   }
 }
