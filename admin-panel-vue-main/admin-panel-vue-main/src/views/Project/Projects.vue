@@ -215,10 +215,17 @@ const handleEditProject = (projectId) => {
   router.push(`/settings?tab=integrations&edit=${projectId}`)
 }
 
-const handleDeleteProject = (projectId) => {
-  if (confirm('Вы уверены, что хотите удалить этот проект?')) {
-    // TODO: Implement delete functionality
-    console.log('Delete project:', projectId)
+const handleDeleteProject = async (projectId) => {
+  if (confirm('Вы уверены, что хотите удалить этот проект? Все интеграции, кампании и статистика будут безвозвратно удалены.')) {
+    try {
+      await api.delete(`clients/${projectId}`)
+      // Remove from local state
+      projects.value = projects.value.filter(p => p.id !== projectId)
+      console.log('✅ Проект успешно удален:', projectId)
+    } catch (error) {
+      console.error('❌ Ошибка при удалении проекта:', error)
+      alert('Не удалось удалить проект. Проверьте консоль для деталей.')
+    }
   }
 }
 </script>
