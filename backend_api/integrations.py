@@ -1013,8 +1013,29 @@ async def discover_campaigns(
         logger.error(f"❌ Auto-sync failed for integration {integration_id}: {e}")
         log_event("backend", f"Auto-sync failed: {str(e)}")
     
-    # Return all campaigns for this integration
-    return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+    # Return all campaigns for this integration as dictionaries
+    # Filter out template/test campaigns (like "CampaignName", "Test Campaign", etc.)
+    all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+    
+    # Filter out template campaigns
+    template_names = ["campaignname", "test campaign", "тест", "test", "шаблон", "template"]
+    filtered_campaigns = []
+    for campaign in all_campaigns:
+        campaign_name_lower = campaign.name.lower().strip()
+        # Skip if name is a template/test name
+        if campaign_name_lower in template_names or campaign_name_lower == "campaignname":
+            logger.info(f"   ⏭️ Skipping template campaign: ID={campaign.external_id}, Name='{campaign.name}'")
+            continue
+        filtered_campaigns.append({
+            "id": str(campaign.id),
+            "external_id": campaign.external_id,
+            "name": campaign.name,
+            "status": "UNKNOWN",  # Will be updated from API if available
+            "state": "UNKNOWN"    # Will be updated from API if available
+        })
+    
+    logger.info(f"✅ Returning {len(filtered_campaigns)} campaigns (filtered out {len(all_campaigns) - len(filtered_campaigns)} template campaigns)")
+    return filtered_campaigns
 
 @router.get("/{integration_id}/campaigns-stats")
 async def get_campaigns_stats(
@@ -1073,7 +1094,7 @@ async def get_campaigns_stats(
         for stat in stats_query:
             logger.info(f"   Campaign '{stat.name}': impressions={stat.impressions}, clicks={stat.clicks}, cost={stat.cost}")
             campaigns_stats.append({
-                "id": stat.id,
+                "id": str(stat.id),  # Convert UUID to string to match discover-campaigns format
                 "external_id": stat.external_id,
                 "name": stat.name,
                 "impressions": int(stat.impressions or 0),
@@ -1104,7 +1125,7 @@ async def get_campaigns_stats(
         
         for stat in stats_query:
             campaigns_stats.append({
-                "id": stat.id,
+                "id": str(stat.id),  # Convert UUID to string to match discover-campaigns format
                 "external_id": stat.external_id,
                 "name": stat.name,
                 "impressions": int(stat.impressions or 0),
@@ -1128,7 +1149,7 @@ async def get_campaigns_stats(
             logger.info(f"   Campaign '{campaign.name}' has {stats_count} YandexStats records, but none in date range")
             
             campaigns_stats.append({
-                "id": campaign.id,
+                "id": str(campaign.id),  # Convert UUID to string to match discover-campaigns format
                 "external_id": campaign.external_id,
                 "name": campaign.name,
                 "impressions": 0,

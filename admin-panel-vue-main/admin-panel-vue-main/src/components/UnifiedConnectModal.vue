@@ -640,14 +640,26 @@ const fetchCampaigns = async (integrationId) => {
     )
     
     // 3. Merge stats into campaigns
+    // IMPORTANT: campaignsData is array of campaign objects with id, name, etc.
+    // statsData is array of stats objects with id, impressions, clicks, cost, conversions
     const statsMap = new Map(statsData.map(s => [s.id, s]))
-    campaigns.value = campaignsData.map(campaign => ({
-      ...campaign,
-      impressions: statsMap.get(campaign.id)?.impressions || 0,
-      clicks: statsMap.get(campaign.id)?.clicks || 0,
-      cost: statsMap.get(campaign.id)?.cost || 0,
-      conversions: statsMap.get(campaign.id)?.conversions || 0
-    }))
+    campaigns.value = campaignsData.map(campaign => {
+      const stats = statsMap.get(campaign.id)
+      return {
+        ...campaign,
+        impressions: stats?.impressions || 0,
+        clicks: stats?.clicks || 0,
+        cost: stats?.cost || 0,
+        conversions: stats?.conversions || 0
+      }
+    })
+    
+    // Filter out template campaigns on frontend as well (double check)
+    campaigns.value = campaigns.value.filter(c => {
+      const nameLower = c.name?.toLowerCase().trim() || ''
+      const templateNames = ['campaignname', 'test campaign', 'тест', 'test', 'шаблон', 'template']
+      return !templateNames.includes(nameLower) && nameLower !== 'campaignname'
+    })
     
     // Select active campaigns by default
     selectedCampaignIds.value = campaigns.value.filter(c => c.state === 'ON').map(c => c.id)
