@@ -27,13 +27,20 @@ class YandexDirectAPI:
         
         # Set Client-Login header if profile is specified
         # This is CRITICAL for filtering campaigns by selected profile
+        # IMPORTANT: Client-Login must be the exact advertising account login (username), not email
         self.client_login = client_login
         if client_login:
-            self.headers["Client-Login"] = client_login
-            logger.info(f"YandexDirectAPI initialized with Client-Login: {client_login}")
-            log_structured('info', 'Yandex API initialized',
-                         context={'has_client_login': True, 'client_login': client_login},
-                         api_mode='agency_or_managed')
+            # Strip whitespace and ensure it's a string
+            client_login_clean = str(client_login).strip()
+            if client_login_clean:
+                self.headers["Client-Login"] = client_login_clean
+                logger.info(f"YandexDirectAPI initialized with Client-Login: '{client_login_clean}'")
+                log_structured('info', 'Yandex API initialized',
+                             context={'has_client_login': True, 'client_login': client_login_clean},
+                             api_mode='agency_or_managed')
+            else:
+                logger.warning(f"YandexDirectAPI: client_login provided but empty after stripping: '{client_login}'")
+                self.client_login = None
         else:
             logger.info("YandexDirectAPI initialized without Client-Login (personal account)")
             log_structured('info', 'Yandex API initialized',
@@ -95,11 +102,21 @@ class YandexDirectAPI:
         logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
         logger.info(f"YandexDirectAPI.get_campaigns: Full headers (without token) = {[k for k in self.headers.keys() if k != 'Authorization']}")
         
+        # CRITICAL: Filter out only archived and converted campaigns
+        # According to Yandex Direct API docs:
+        # - If States is not specified, returns all campaigns except CONVERTED
+        # - ARCHIVED campaigns are also returned if not filtered
+        # - We want to exclude only ARCHIVED and CONVERTED, but include ON, OFF, SUSPENDED, ENDED
+        # - ENDED campaigns might still be relevant (recently ended campaigns)
+        selection_criteria = {
+            "States": ["ON", "OFF", "SUSPENDED", "ENDED"]  # Exclude only ARCHIVED and CONVERTED
+        }
+        
         payload = {
             "method": "get",
             "params": {
-                "SelectionCriteria": {},
-                "FieldNames": ["Id", "Name", "Status"]
+                "SelectionCriteria": selection_criteria,
+                "FieldNames": ["Id", "Name", "Status", "State"]  # Added State to see campaign state
             }
         }
         
@@ -148,7 +165,8 @@ class YandexDirectAPI:
                         # Log ALL campaign names and IDs for debugging
                         logger.info(f"   🔴 ALL campaigns returned by API:")
                         for idx, c in enumerate(campaigns):
-                            logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}")
+                            campaign_state = c.get('State', 'N/A')
+                            logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}, State={campaign_state}")
                         
                         # Check if specific campaigns are present
                         campaign_names = [c['Name'] for c in campaigns]
@@ -166,7 +184,8 @@ class YandexDirectAPI:
                             {
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
-                                "status": c["Status"]
+                                "status": c["Status"],
+                                "state": c.get("State", "UNKNOWN")  # Include state for debugging
                             }
                             for c in campaigns
                         ]

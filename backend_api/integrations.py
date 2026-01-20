@@ -947,8 +947,11 @@ async def discover_campaigns(
         
         logger.info(f"🔵 API returned {len(discovered_campaigns)} campaigns from Yandex Direct API")
         logger.info(f"🔵 Using Client-Login: '{use_client_login}'")
+        logger.info(f"🔵 Integration agency_client_login: '{integration.agency_client_login}'")
+        logger.info(f"🔵 Integration account_id: '{integration.account_id}'")
         logger.info(f"🔵 Campaign names from API: {[c.get('name') for c in discovered_campaigns]}")
         logger.info(f"🔵 Campaign IDs from API: {[c.get('id') for c in discovered_campaigns]}")
+        logger.info(f"🔵 Campaign states from API: {[c.get('state', 'N/A') for c in discovered_campaigns]}")
         
         # Check for specific campaigns
         campaign_names_lower = [c.get('name', '').lower() for c in discovered_campaigns]
@@ -956,6 +959,8 @@ async def discover_campaigns(
             logger.info(f"✅ Found 'кси' campaign in API response!")
         else:
             logger.warning(f"❌ 'кси' campaign NOT found in API response!")
+            logger.warning(f"❌ Expected 3 campaigns for profile '{use_client_login}', but got {len(discovered_campaigns)}")
+            logger.warning(f"❌ This might indicate that Client-Login header is not filtering correctly")
         
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
