@@ -216,37 +216,52 @@ class YandexDirectAPI:
                         logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (including ARCHIVED if any)")
                         logger.info(f"   ✅ Campaign IDs from Campaigns.get: {[c['id'] for c in result]}")
                         
-                        # CRITICAL: Reports API is only used to ADD missing campaigns, not replace results
-                        # Reports API may miss campaigns without data for the date range
-                        # So we use Campaigns.get as primary source and Reports API only as supplement
+                        # CRITICAL: Always check Reports API to find campaigns that Campaigns.get might miss
+                        # This is especially important for accounts using Redirect API (OAuth flow)
+                        # Reports API may find campaigns that Campaigns.get doesn't return due to:
+                        # - Different filtering logic
+                        # - Campaigns without recent activity
+                        # - Campaigns in specific states that Campaigns.get filters out
+                        logger.info(f"   📊 Checking Reports API for additional campaigns...")
                         try:
                             reports_campaigns = await self.get_campaigns_from_reports()
                             if reports_campaigns:
+                                logger.info(f"   📊 Reports API returned {len(reports_campaigns)} campaigns")
+                                logger.info(f"   📊 Reports API campaign IDs: {[c['id'] for c in reports_campaigns]}")
+                                logger.info(f"   📊 Reports API campaign names: {[c['name'] for c in reports_campaigns]}")
+                                
                                 reports_ids = {c["id"] for c in reports_campaigns}
                                 campaigns_get_ids = {c["id"] for c in result}
                                 
                                 missing_in_campaigns_get = reports_ids - campaigns_get_ids
                                 if missing_in_campaigns_get:
-                                    logger.warning(f"   ⚠️ Reports API found {len(missing_in_campaigns_get)} campaigns that Campaigns.get missed: {missing_in_campaigns_get}")
+                                    logger.warning(f"   ⚠️ Reports API found {len(missing_in_campaigns_get)} campaigns that Campaigns.get missed!")
+                                    logger.warning(f"   ⚠️ Missing campaign IDs: {missing_in_campaigns_get}")
                                     
                                     # ADD missing campaigns from Reports API to result (don't replace)
                                     for rc in reports_campaigns:
                                         if rc["id"] not in campaigns_get_ids:
+                                            # Try to get state/type from Campaigns.get result if available
+                                            # Otherwise use UNKNOWN
                                             result.append({
                                                 "id": rc["id"],
                                                 "name": rc["name"],
                                                 "status": "UNKNOWN",  # Reports API doesn't provide status
-                                                "state": "UNKNOWN",  # Reports API doesn't provide state
-                                                "type": "UNKNOWN"  # Reports API doesn't provide type
+                                                "state": "UNKNOWN",  # Reports API doesn't provide state - will be updated if found in DB later
+                                                "type": "UNKNOWN"  # Reports API doesn't provide type - will be updated if found in DB later
                                             })
                                             logger.info(f"   ✅ Added missing campaign from Reports API: ID={rc['id']}, Name='{rc['name']}'")
                                     
                                     logger.info(f"   ✅ Final result: {len(result)} campaigns total (from Campaigns.get + Reports API additions)")
                                 else:
                                     logger.info(f"   ✅ All campaigns from Reports API are already in Campaigns.get results")
+                            else:
+                                logger.warning(f"   ⚠️ Reports API returned 0 campaigns (this might indicate a filtering issue)")
                         except Exception as reports_err:
-                            logger.warning(f"   ⚠️ Could not check Reports API for missing campaigns: {reports_err}")
+                            logger.error(f"   ❌ Could not check Reports API for missing campaigns: {reports_err}")
+                            logger.error(f"   ❌ Reports API error details: {type(reports_err).__name__}: {str(reports_err)}")
                         
+                        logger.info(f"   ✅ Returning {len(result)} total campaigns (from Campaigns.get + Reports API)")
                         return result
                     elif "error" in data:
                         error_code = data["error"].get("error_code")
@@ -319,6 +334,13 @@ class YandexDirectAPI:
         # Client-Login header is already set in self.headers, which is sufficient for filtering
         logger.info(f"📊 get_campaigns_from_reports: Using Client-Login header: '{self.client_login}' (header filtering only, no SelectionCriteria filter)")
         
+        # DEBUG: Log headers that will be sent (mask Authorization)
+        debug_headers = dict(self.headers)
+        if 'Authorization' in debug_headers:
+            debug_headers['Authorization'] = 'Bearer [REDACTED]'
+        logger.info(f"📊 Reports API request headers: {debug_headers}")
+        logger.info(f"📊 Reports API Client-Login header value: '{self.headers.get('Client-Login', 'NOT SET')}'")
+        
         payload = {
             "params": {
                 "SelectionCriteria": selection_criteria,
@@ -332,6 +354,8 @@ class YandexDirectAPI:
             }
         }
         
+        logger.info(f"📊 Reports API payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 self.report_url,
@@ -339,6 +363,8 @@ class YandexDirectAPI:
                 headers=self.headers,
                 timeout=60.0
             )
+            
+            logger.info(f"📊 Reports API response status: {response.status_code}")
             
             # Handle 201/202 (report is being generated)
             max_poll_attempts = 10
@@ -402,7 +428,13 @@ class YandexDirectAPI:
                 campaigns_list = list(campaigns_dict.values())
                 logger.info(f"✅ Reports API returned {len(campaigns_list)} unique campaigns")
                 if campaigns_list:
-                    logger.info(f"   Campaign IDs from Reports API: {[c['id'] for c in campaigns_list]}")
+                    logger.info(f"   📊 Campaign IDs from Reports API: {[c['id'] for c in campaigns_list]}")
+                    logger.info(f"   📊 Campaign names from Reports API: {[c['name'] for c in campaigns_list]}")
+                else:
+                    logger.warning(f"   ⚠️ Reports API returned 0 campaigns - this might indicate:")
+                    logger.warning(f"      - Client-Login header filtering is too strict")
+                    logger.warning(f"      - No campaigns have data in the date range ({date_from} to {date_to})")
+                    logger.warning(f"      - Account doesn't have access to campaigns via Reports API")
                 return campaigns_list
             
             elif response.status_code == 400:
