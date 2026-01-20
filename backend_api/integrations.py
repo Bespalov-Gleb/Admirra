@@ -1142,12 +1142,29 @@ async def get_campaigns_stats(
             })
     
     # Also include campaigns without stats (newly discovered)
+    # CRITICAL: Filter out campaigns that don't belong to this profile
+    # Get list of valid campaign IDs from the most recent discover-campaigns call
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
     logger.info(f"📋 Total campaigns in DB for this integration: {len(all_campaigns)}")
     
+    # Filter out template/invalid campaigns
+    template_names = ["campaignname", "test campaign", "тест", "test", "шаблон", "template"]
+    valid_campaigns = []
+    for campaign in all_campaigns:
+        campaign_name_lower = campaign.name.lower().strip()
+        # Skip template campaigns
+        if campaign_name_lower in template_names or campaign_name_lower == "campaignname":
+            logger.info(f"   ⏭️ Skipping template campaign in stats: ID={campaign.external_id}, Name='{campaign.name}'")
+            continue
+        # Skip campaigns with invalid external_id
+        if not campaign.external_id or not str(campaign.external_id).isdigit():
+            logger.info(f"   ⏭️ Skipping invalid campaign ID in stats: ID={campaign.external_id}, Name='{campaign.name}'")
+            continue
+        valid_campaigns.append(campaign)
+    
     existing_ids = {cs["id"] for cs in campaigns_stats}
     
-    for campaign in all_campaigns:
+    for campaign in valid_campaigns:
         if campaign.id not in existing_ids:
             # Check if this campaign has ANY stats records (for debugging)
             stats_count = db.query(models.YandexStats).filter(

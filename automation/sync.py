@@ -128,7 +128,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "cost": s['cost'],
                     "conversions": s['conversions']
                 }
+                logger.info(f"💾 Saving stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}")
                 _update_or_create_stats(db, models.YandexStats, filters, data)
+            
+            # CRITICAL: Commit stats after processing all campaign stats
+            # This ensures data is saved even if group/keyword sync fails
+            db.commit()
+            logger.info(f"✅ Committed {len(stats)} campaign stats records to database")
 
             # Group and Keyword stats follow same pattern (skipped here for brevity but ideally they use the same 'api' instance)
             for level in ["group", "keyword"]:
