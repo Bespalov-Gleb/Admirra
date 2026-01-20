@@ -147,6 +147,7 @@ import ReportDelivery from './components/ReportDelivery.vue'
 import ReportComments from './components/ReportComments.vue'
 import KeyGoalsStats from './components/KeyGoalsStats.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
+import { useProjects } from '../../composables/useProjects'
 
 const summary = ref({
   expenses: 0,
@@ -167,12 +168,23 @@ const goals = ref([])
 const integrations = ref([])
 const loading = ref(true)
 
+// CRITICAL: Get current project from global state
+const { currentProjectId } = useProjects()
+
 const filters = reactive({
   channel: 'all',
   period: '14',
+  client_id: null,  // NEW: Add client_id filter
   start_date: '',
   end_date: new Date().toISOString().split('T')[0]
 })
+
+// CRITICAL: Sync with global project selection
+watch(currentProjectId, (newId) => {
+  if (filters.client_id !== newId) {
+    filters.client_id = newId
+  }
+}, { immediate: true })
 
 const setInitialDates = () => {
   const end = new Date()
@@ -196,7 +208,9 @@ const fetchStats = async () => {
     const params = {
       start_date: filters.start_date,
       end_date: filters.end_date,
-      platform: filters.channel
+      platform: filters.channel,
+      // CRITICAL: Add client_id to filter by project
+      client_id: filters.client_id || undefined
     }
 
     const [summaryRes, dynamicsRes, goalsRes, integrationsRes] = await Promise.all([
@@ -217,7 +231,8 @@ const fetchStats = async () => {
   }
 }
 
-watch(() => [filters.start_date, filters.end_date, filters.channel], fetchStats)
+// CRITICAL: Watch for changes in filters including client_id
+watch(() => [filters.start_date, filters.end_date, filters.channel, filters.client_id], fetchStats)
 
 onMounted(() => {
   setInitialDates()
