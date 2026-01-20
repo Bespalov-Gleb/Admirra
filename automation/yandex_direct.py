@@ -145,14 +145,124 @@ class YandexDirectAPI:
                             for c in campaigns
                         ]
                     elif "error" in data:
-                        error_msg = data["error"].get("error_msg", response.text)
+                        error_code = data["error"].get("error_code")
+                        error_detail = data["error"].get("error_detail", "")
+                        
+                        # ERROR 3228: API доступен только в режиме Директ Про
+                        # Fallback to Reports API which works for all accounts
+                        if error_code == 3228:
+                            logger.warning(f"⚠️ Campaigns.get API not available (error 3228: {error_detail}). Falling back to Reports API...")
+                            return await self.get_campaigns_from_reports()
+                        
+                        error_msg = json.dumps(data["error"])
                         raise Exception(f"Yandex API Error: {error_msg}")
                 
                 raise Exception(f"Failed to fetch Yandex campaigns: {response.status_code} - {response.text}")
             except Exception as e:
+                # Check if it's the 3228 error (already handled above, but just in case)
+                if "error_code\":3228" in str(e) or "Директ Про" in str(e):
+                    logger.warning(f"⚠️ Caught 3228 error in exception handler. Falling back to Reports API...")
+                    return await self.get_campaigns_from_reports()
+                
                 logger.error(f"Error fetching Yandex campaigns: {e}")
                 raise
 
+    async def get_campaigns_from_reports(self) -> List[Dict[str, Any]]:
+        """
+        FALLBACK METHOD: Get campaigns list using Reports API.
+        This works for ALL Yandex Direct accounts, including those in new interface.
+        
+        Uses a minimal date range to get campaign list without heavy data.
+        """
+        logger.info("📊 Getting campaigns list via Reports API (fallback method)")
+        
+        # Use yesterday's date for a lightweight report
+        from datetime import datetime, timedelta
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        payload = {
+            "params": {
+                "SelectionCriteria": {
+                    "DateFrom": yesterday,
+                    "DateTo": yesterday
+                },
+                "FieldNames": ["CampaignId", "CampaignName"],
+                "ReportName": "Campaign List Report",
+                "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
+                "DateRangeType": "CUSTOM_DATE",
+                "Format": "TSV",
+                "IncludeVAT": "NO",
+                "IncludeDiscount": "NO"
+            }
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self.report_url,
+                json=payload,
+                headers=self.headers,
+                timeout=60.0
+            )
+            
+            # Handle 201/202 (report is being generated)
+            max_poll_attempts = 10
+            poll_attempt = 0
+            
+            while response.status_code in [201, 202] and poll_attempt < max_poll_attempts:
+                retry_in = int(response.headers.get("retryIn", 5))
+                logger.info(f"   Report generating... retrying in {retry_in}s (attempt {poll_attempt + 1}/{max_poll_attempts})")
+                
+                await asyncio.sleep(retry_in)
+                
+                response = await client.post(
+                    self.report_url,
+                    json=payload,
+                    headers=self.headers,
+                    timeout=60.0
+                )
+                poll_attempt += 1
+            
+            if response.status_code == 200:
+                # Parse TSV response
+                tsv_data = response.text
+                lines = tsv_data.strip().split('\n')
+                
+                if len(lines) < 2:  # No data (only header or empty)
+                    logger.warning("Reports API returned no campaigns")
+                    return []
+                
+                campaigns_dict = {}  # Use dict to deduplicate by ID
+                
+                # Skip header line and last line (totals)
+                for line in lines[1:-1]:
+                    parts = line.split('\t')
+                    if len(parts) >= 2:
+                        campaign_id = parts[0].strip()
+                        campaign_name = parts[1].strip()
+                        
+                        if campaign_id and campaign_id != '--':
+                            campaigns_dict[campaign_id] = {
+                                "id": campaign_id,
+                                "name": campaign_name,
+                                "status": "UNKNOWN"  # Reports API doesn't return status
+                            }
+                
+                campaigns_list = list(campaigns_dict.values())
+                logger.info(f"✅ Reports API returned {len(campaigns_list)} unique campaigns")
+                return campaigns_list
+            
+            elif response.status_code == 400:
+                error_data = response.text
+                logger.error(f"Reports API error 400: {error_data}")
+                
+                # If even Reports API fails, return empty list
+                logger.warning("Reports API also failed. Returning empty campaign list.")
+                return []
+            
+            else:
+                logger.error(f"Reports API error {response.status_code}: {response.text}")
+                return []
+    
     async def get_report(self, date_from: str, date_to: str, level: str = "campaign", max_retries: int = 5) -> List[Dict[str, Any]]:
         """
         Fetches a report from Yandex Direct API v5.

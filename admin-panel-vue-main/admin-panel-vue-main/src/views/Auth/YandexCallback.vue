@@ -34,6 +34,11 @@ const toaster = useToaster()
 const loading = ref(true)
 const error = ref(null)
 
+// Simple logger for debugging
+const logger = {
+  info: (msg) => console.log(`[YandexCallback] ${msg}`)
+}
+
 onMounted(async () => {
   const code = route.query.code
   
@@ -60,12 +65,19 @@ onMounted(async () => {
     
     const response = await api.post('integrations/yandex/exchange', payload)
     
+    const isAgency = response.data.is_agency
+    
     // Clean up localStorage
     localStorage.removeItem('yandex_auth_client_name')
     localStorage.removeItem('yandex_auth_client_id')
     
-    // SIMPLIFIED ARCHITECTURE: One token = one account
-    // No agency import logic - just proceed to wizard
+    if (isAgency) {
+      // For agency accounts, optionally show import modal
+      // But for now, just proceed to wizard like normal accounts
+      logger.info('Agency account detected, but proceeding to wizard')
+    }
+    
+    // Proceed to wizard step 2 (profile selection)
     toaster.success('Яндекс Директ успешно подключен!')
     router.push({
       path: '/integrations/wizard',
