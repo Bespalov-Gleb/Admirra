@@ -123,16 +123,28 @@ export function useDashboardStats() {
     
     loadingCampaigns.value = true
     try {
+      // CRITICAL: Use /campaigns/ endpoint to get ALL campaigns for the project
+      // /dashboard/campaigns only returns campaigns with stats (JOIN with stats tables)
+      // For dropdown, we need ALL campaigns, even those without stats
       const params = {
-        client_id: filters.client_id,
-        platform: filters.channel,
-        // CRITICAL: We don't send dates here because we want ALL campaigns 
-        // belonging to the project, not just those with traffic in the period.
+        client_id: filters.client_id
       }
-      const { data } = await api.get('dashboard/campaigns', { params })
-      allCampaigns.value = data
+      
+      // Add platform filter if not "all"
+      if (filters.channel !== 'all') {
+        params.platform = filters.channel
+      }
+      
+      const { data } = await api.get('campaigns/', { params })
+      
+      // Format for dropdown: { id, name }
+      allCampaigns.value = data.map(c => ({
+        id: c.id,
+        name: c.name
+      }))
     } catch (err) {
       console.error('[DashboardStats] Error fetching campaign pool:', err)
+      allCampaigns.value = []
     } finally {
       loadingCampaigns.value = false
     }

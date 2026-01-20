@@ -11,11 +11,13 @@ router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 def get_campaigns(
     integration_id: Optional[uuid.UUID] = None,
     client_id: Optional[uuid.UUID] = None,
+    platform: Optional[str] = None,  # NEW: Filter by platform (yandex_direct, vk_ads, etc.)
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     List campaigns for a specific integration, client, or all campaigns owned by the user.
+    Can filter by platform (yandex_direct, vk_ads, etc.).
     """
     query = db.query(models.Campaign).join(models.Integration).join(models.Client).filter(
         models.Client.owner_id == current_user.id
@@ -25,6 +27,15 @@ def get_campaigns(
         query = query.filter(models.Campaign.integration_id == integration_id)
     if client_id:
         query = query.filter(models.Integration.client_id == client_id)
+    if platform:
+        # Map frontend platform names to backend enum values
+        platform_map = {
+            'yandex': models.IntegrationPlatform.YANDEX_DIRECT,
+            'vk': models.IntegrationPlatform.VK_ADS
+        }
+        target_platform = platform_map.get(platform.lower())
+        if target_platform:
+            query = query.filter(models.Integration.platform == target_platform)
         
     return query.all()
 

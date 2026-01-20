@@ -102,14 +102,13 @@ class YandexDirectAPI:
         logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
         logger.info(f"YandexDirectAPI.get_campaigns: Full headers (without token) = {[k for k in self.headers.keys() if k != 'Authorization']}")
         
-        # CRITICAL: Request ALL campaigns in ALL states (except ARCHIVED which we filter manually)
+        # CRITICAL: Request ALL campaigns in ALL states INCLUDING ARCHIVED
         # According to Yandex Direct API docs:
         # - If States is not specified, returns all campaigns except CONVERTED
-        # - We need ALL campaigns (including those awaiting payment, stopped, suspended, etc.)
-        # - Explicitly include all possible states to ensure we get everything
-        # - We'll filter out only ARCHIVED manually after getting results
+        # - We need ALL campaigns (including archived, awaiting payment, stopped, suspended, etc.)
+        # - Explicitly include ARCHIVED to get archived campaigns for filtering
         selection_criteria = {
-            "States": ["ON", "OFF", "SUSPENDED", "ENDED", "CONVERTED"]  # Include ALL states
+            "States": ["ON", "OFF", "SUSPENDED", "ENDED", "CONVERTED", "ARCHIVED"]  # Include ALL states including ARCHIVED
         }
         
         payload = {
@@ -161,13 +160,22 @@ class YandexDirectAPI:
                         campaigns = data["result"]["Campaigns"]
                         logger.info(f"   🔴 CRITICAL: API returned {len(campaigns)} campaigns")
                         logger.info(f"   🔴 Client-Login used: '{self.client_login}'")
+                        logger.info(f"   🔴 Requested States: {selection_criteria.get('States', 'ALL')}")
                         
                         # Log ALL campaign names and IDs for debugging
                         logger.info(f"   🔴 ALL campaigns returned by API:")
+                        archived_found = 0
                         for idx, c in enumerate(campaigns):
                             campaign_state = c.get('State', 'N/A')
                             status_payment = c.get('StatusPayment', 'N/A')
                             logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}, State={campaign_state}, StatusPayment={status_payment}")
+                            if campaign_state == 'ARCHIVED':
+                                archived_found += 1
+                        
+                        if archived_found > 0:
+                            logger.info(f"   📋 Found {archived_found} ARCHIVED campaigns in API response")
+                        else:
+                            logger.warning(f"   ⚠️ No ARCHIVED campaigns found in API response (requested States include ARCHIVED)")
                         
                         # Check if specific campaigns are present
                         campaign_names = [c['Name'] for c in campaigns]
@@ -205,7 +213,7 @@ class YandexDirectAPI:
                             for c in filtered_campaigns
                         ]
                         
-                        logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (excluding ARCHIVED)")
+                        logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (including ARCHIVED if any)")
                         logger.info(f"   ✅ Campaign IDs from Campaigns.get: {[c['id'] for c in result]}")
                         
                         # CRITICAL: Reports API is only used to ADD missing campaigns, not replace results
