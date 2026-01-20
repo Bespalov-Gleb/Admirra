@@ -687,11 +687,24 @@ async def get_integration_goals(
         logger.info(f"📊 Getting goals for {len(campaign_ids_list)} selected campaigns: {campaign_ids_list}")
         
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-            from automation.yandex_direct import YandexDirectAPI
-            direct_api = YandexDirectAPI(access_token, client_login=target_account)
+            # CRITICAL: campaign_ids from frontend are UUIDs from DB, not external_id
+            # We need to get external_id (numeric) from DB to query Yandex API
+            campaigns_from_db = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration_id,
+                models.Campaign.id.in_([uuid.UUID(cid) for cid in campaign_ids_list if len(cid) == 36])
+            ).all()
             
-            # Try to get PriorityGoals from campaigns (works only for Direct Pro)
-            campaign_goals_map = await direct_api.get_campaign_goals(campaign_ids_list)
+            # Get external_ids (numeric IDs from Yandex Direct)
+            external_ids = [str(c.external_id) for c in campaigns_from_db if c.external_id and str(c.external_id).isdigit()]
+            logger.info(f"📊 Converted {len(campaign_ids_list)} UUIDs to {len(external_ids)} external_ids: {external_ids}")
+            
+            if external_ids:
+                from automation.yandex_direct import YandexDirectAPI
+                direct_api = YandexDirectAPI(access_token, client_login=target_account)
+                
+                # Try to get PriorityGoals from campaigns (works only for Direct Pro)
+                # NOTE: This will return empty due to API limitations, triggering fallback
+                campaign_goals_map = await direct_api.get_campaign_goals(external_ids)
             
             if campaign_goals_map:
                 # Successfully got goals from campaigns - collect unique goal IDs

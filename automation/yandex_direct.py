@@ -575,75 +575,28 @@ class YandexDirectAPI:
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get PriorityGoals for specific campaigns.
-        Returns a dict mapping campaign_id to list of goals.
         
-        CRITICAL: This method works only for accounts with Direct Pro.
-        For accounts without Pro, returns empty dict and should use fallback method.
+        CRITICAL: PriorityGoals cannot be requested directly via FieldNames in Campaigns.get API.
+        PriorityGoals are nested inside BiddingStrategy, which requires requesting full campaign structure
+        by campaign type (TextCampaign, DynamicTextCampaign, etc.), which is complex.
+        
+        For now, this method returns empty dict to trigger fallback:
+        - Get all goals from profile's Metrika counters
+        - User can select which goals to use
+        
+        This is a limitation of Yandex Direct API - there's no direct way to get goals by campaign IDs.
         """
         if not campaign_ids:
             return {}
         
-        logger.info(f"📊 Getting goals for {len(campaign_ids)} campaigns")
+        logger.info(f"📊 Attempting to get goals for {len(campaign_ids)} campaigns")
+        logger.warning(f"⚠️ Yandex Direct API limitation: PriorityGoals cannot be requested via FieldNames")
+        logger.warning(f"⚠️ PriorityGoals are nested in BiddingStrategy and require type-specific requests")
+        logger.warning(f"⚠️ Using fallback: will return all goals from profile for user selection")
         
-        # Request campaigns with PriorityGoals field
-        selection_criteria = {
-            "Ids": [int(cid) for cid in campaign_ids if cid.isdigit()]
-        }
-        
-        payload = {
-            "method": "get",
-            "params": {
-                "SelectionCriteria": selection_criteria,
-                "FieldNames": ["Id", "Name", "PriorityGoals"]  # PriorityGoals contains goal IDs
-            }
-        }
-        
-        campaign_goals_map = {}
-        
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    if "result" in data and "Campaigns" in data["result"]:
-                        campaigns = data["result"]["Campaigns"]
-                        
-                        for campaign in campaigns:
-                            campaign_id = str(campaign["Id"])
-                            priority_goals = campaign.get("PriorityGoals", {})
-                            
-                            # PriorityGoals structure: {"Items": [{"GoalId": "123", "Value": 100}, ...]}
-                            goals_list = []
-                            if priority_goals and "Items" in priority_goals:
-                                for goal_item in priority_goals["Items"]:
-                                    goals_list.append({
-                                        "goal_id": str(goal_item.get("GoalId", "")),
-                                        "value": goal_item.get("Value", 0)
-                                    })
-                            
-                            campaign_goals_map[campaign_id] = goals_list
-                            logger.info(f"   Campaign {campaign_id} ({campaign.get('Name', 'Unknown')}): {len(goals_list)} priority goals")
-                        
-                        return campaign_goals_map
-                    elif "error" in data:
-                        error_code = data["error"].get("error_code")
-                        if error_code == 3228:
-                            # Direct Pro not available - return empty, will use fallback
-                            logger.warning(f"⚠️ Campaigns.get API not available (error 3228). Cannot get PriorityGoals directly.")
-                            return {}
-                        else:
-                            error_msg = json.dumps(data["error"])
-                            raise Exception(f"Yandex API Error: {error_msg}")
-                
-                raise Exception(f"Failed to fetch campaign goals: {response.status_code} - {response.text}")
-            except Exception as e:
-                if "error_code\":3228" in str(e) or "Директ Про" in str(e):
-                    logger.warning(f"⚠️ Cannot get PriorityGoals (Direct Pro not available). Will use fallback method.")
-                    return {}
-                logger.error(f"Error fetching campaign goals: {e}")
-                raise
+        # Return empty to trigger fallback method
+        # Fallback will get all goals from profile's Metrika counters
+        return {}
     
     async def get_clients(self) -> List[Dict[str, Any]]:
         """
