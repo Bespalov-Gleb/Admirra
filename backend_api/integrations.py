@@ -712,37 +712,62 @@ async def get_integration_goals(
             return []
             
         log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
+        logger.info(f"📊 Found {len(counters)} counters before filtering for profile '{target_account}'")
         
-        # IMPORTANT: Filter counters by the selected profile (target_account)
+        # CRITICAL: Filter counters by the selected profile (target_account)
         # One Yandex account can have access to counters from multiple advertising profiles
         # We need to show only counters that belong to the selected profile
         if target_account:
             # Try to filter by owner_login matching the selected profile
             filtered_counters = []
+            excluded_counters = []
+            
             for counter in counters:
                 owner_login = counter.get('owner_login', '')
+                counter_name = counter.get('name', 'Unknown')
+                counter_id = counter.get('id', 'N/A')
+                
                 if owner_login == target_account:
                     filtered_counters.append(counter)
-                    logger.debug(f"  ✅ Included counter '{counter.get('name')}' (owner: {owner_login})")
+                    logger.info(f"  ✅ Included counter '{counter_name}' (ID: {counter_id}, owner: {owner_login})")
                 else:
-                    logger.debug(f"  ❌ Excluded counter '{counter.get('name')}' (owner: {owner_login}, expected: {target_account})")
+                    excluded_counters.append(f"{counter_name} (owner: {owner_login})")
+                    logger.info(f"  ❌ Excluded counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}, expected: {target_account})")
             
-            # If strict filtering returns nothing, show all accessible counters (delegate access)
+            # CRITICAL: Only use filtered counters if we found matches
+            # If no matches, it means either:
+            # 1. The profile doesn't have its own counters (uses delegate access)
+            # 2. The owner_login doesn't match (different account structure)
+            # In this case, we should NOT show all counters - they belong to other profiles!
             if filtered_counters:
                 counters = filtered_counters
-                logger.info(f"Filtered to {len(counters)} counters for profile '{target_account}'")
+                logger.info(f"✅ Filtered to {len(counters)} counters for profile '{target_account}' (excluded {len(excluded_counters)} counters from other profiles)")
             else:
-                logger.warning(f"No counters with owner_login='{target_account}'. Showing all {len(counters)} accessible counters (may have delegate access).")
+                logger.warning(f"⚠️ No counters with owner_login='{target_account}'. This profile may not have its own Metrika counters.")
+                logger.warning(f"⚠️ Excluded {len(excluded_counters)} counters from other profiles: {excluded_counters[:5]}")
+                # CRITICAL: Return empty list instead of showing all counters
+                # This prevents showing metrics from other profiles
+                counters = []
+                logger.info(f"📊 Returning 0 counters (strict filtering by profile)")
         
         log_event("yandex", f"found {len(counters)} counters (after filtering)", [c.get('name') for c in counters])
+        logger.info(f"📊 Returning {len(counters)} counters after filtering for profile '{target_account}'")
 
         all_goals = []
         for counter in counters:
             counter_id = str(counter['id'])
             counter_name = counter.get('name', 'Unknown')
+            owner_login = counter.get('owner_login', 'N/A')
+            
+            # CRITICAL: Double-check that counter belongs to selected profile
+            if target_account and owner_login != target_account:
+                logger.warning(f"⚠️ Skipping counter '{counter_name}' (ID: {counter_id}) - owner_login '{owner_login}' doesn't match selected profile '{target_account}'")
+                continue
+            
             try:
                 # Use metrica_api which might be the fallback one
                 goals = await metrica_api.get_counter_goals(counter_id)
+                logger.info(f"📊 Counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}) has {len(goals)} goals")
                 log_event("yandex", f"counter {counter_id} ({counter_name}) has {len(goals)} goals")
                 for goal in goals:
                     goal_data = {

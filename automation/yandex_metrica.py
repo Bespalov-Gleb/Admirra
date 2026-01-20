@@ -65,17 +65,30 @@ class YandexMetricaAPI:
     async def get_counters(self) -> List[Dict[str, Any]]:
         """
         Lists all accessible counters.
+        CRITICAL: If client_login is provided, API should filter counters by that profile.
+        However, API may return all accessible counters regardless of ulogin parameter.
+        We rely on backend filtering by owner_login after fetching.
         """
         url = "https://api-metrica.yandex.net/management/v1/counters"
         params = {}
         if self.client_login:
             params["ulogin"] = self.client_login
+            logger.info(f"📊 YandexMetricaAPI.get_counters: Using ulogin={self.client_login} to filter counters")
+        else:
+            logger.info(f"📊 YandexMetricaAPI.get_counters: No client_login, fetching all accessible counters")
             
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers, params=params)
             if response.status_code == 200:
                 data = response.json()
-                return data.get('counters', [])
+                counters = data.get('counters', [])
+                logger.info(f"📊 YandexMetricaAPI.get_counters: API returned {len(counters)} counters")
+                if self.client_login:
+                    # Log owner_login for each counter to verify filtering
+                    for counter in counters:
+                        owner_login = counter.get('owner_login', 'N/A')
+                        logger.debug(f"   Counter '{counter.get('name')}' (ID: {counter.get('id')}): owner_login={owner_login}")
+                return counters
             
             error_msg = f"Failed to fetch counters: {response.status_code} - {response.text}"
             logger.error(error_msg)

@@ -222,7 +222,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 return
             
             access_token = security.decrypt_token(integration.access_token)
-            api = YandexMetricaAPI(access_token)
+            
+            # CRITICAL: Use selected profile (agency_client_login) to ensure we sync stats for the correct profile
+            # This ensures statistics are synced only for counters belonging to the selected profile
+            selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else None
+            logger.info(f"Syncing Yandex Metrika integration {integration.id} with profile: {selected_profile} (counter_id={integration.account_id})")
+            
+            api = YandexMetricaAPI(access_token, client_login=selected_profile)
             
             # Filter by selected goals if provided
             selected_goals = []
