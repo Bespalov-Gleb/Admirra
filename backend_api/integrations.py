@@ -514,7 +514,11 @@ def get_integration(
     """
     Get a specific integration by ID.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
+    from sqlalchemy.orm import joinedload
+    
+    integration = db.query(models.Integration).options(
+        joinedload(models.Integration.client)
+    ).join(models.Client).filter(
         models.Integration.id == integration_id,
         models.Client.owner_id == current_user.id
     ).first()
@@ -633,7 +637,11 @@ async def get_integration_goals(
 
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
-    target_account = account_id or integration.account_id
+    # CRITICAL: Use account_id from query param if provided (from frontend),
+    # otherwise use agency_client_login (selected profile) or fallback to account_id
+    # This ensures we filter Metrika counters by the selected profile
+    target_account = account_id or (integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else integration.account_id)
+    logger.info(f"Fetching goals for integration {integration_id}, target_account: {target_account} (query account_id={account_id}, integration.agency_client_login={integration.agency_client_login}, integration.account_id={integration.account_id})")
     
     # IMPORTANT: Pass client_login to filter Metrika counters by the selected profile
     # This is needed when one Yandex account has access to multiple advertising profiles
@@ -816,10 +824,11 @@ async def discover_campaigns(
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         # Each token = 1 Yandex account (email), but не каждый аккаунт имеет Яндекс.Директ
-        # CRITICAL: Use selected profile (account_id or agency_client_login) to filter campaigns
+        # CRITICAL: Use selected profile (agency_client_login takes priority over account_id)
         # This ensures we only get campaigns from the selected profile, not all accessible profiles
-        selected_profile = integration.agency_client_login or integration.account_id
-        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile}")
+        # agency_client_login is set when user selects a profile on step 2
+        selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else integration.account_id
+        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile} (agency_client_login={integration.agency_client_login}, account_id={integration.account_id})")
         
         # Pass client_login to filter campaigns by selected profile
         # If no profile selected, API will return all campaigns accessible by token

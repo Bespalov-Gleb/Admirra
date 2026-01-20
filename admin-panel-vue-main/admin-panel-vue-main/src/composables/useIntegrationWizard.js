@@ -127,8 +127,10 @@ export function useIntegrationWizard() {
     loadingStates.goals = true
     try {
       const { date_from, date_to } = getDateRangeParams()
-      // Send account_id to help backend find the right Metrika counter
-      const accountIdParam = form.account_id ? `&account_id=${form.account_id}` : ''
+      // CRITICAL: Use agency_client_login if set, otherwise account_id
+      // This ensures we filter Metrika counters by the selected profile
+      const targetAccount = form.agency_client_login || form.account_id
+      const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
       const { data } = await api.get(
         `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}`
       )
@@ -161,8 +163,15 @@ export function useIntegrationWizard() {
       form.client_id = integration.client_id
       form.account_id = integration.account_id
       // CRITICAL: agency_client_login is separate from account_id
+      // It's set when user selects a profile on step 2
       form.agency_client_login = integration.agency_client_login || integration.account_id
-      if (integration.client) form.client_name = integration.client.name
+      // CRITICAL: client_name should be returned by backend via IntegrationResponse schema
+      // If not present, try to get it from client object
+      form.client_name = integration.client_name || (integration.client ? integration.client.name : null)
+      if (!form.client_name && integration.client_id) {
+        // Fallback: fetch client name separately if not in response
+        console.warn('client_name not found in integration response, this should not happen')
+      }
     } catch (err) {
       error.value = "Ошибка при загрузке данных интеграции"
     }
