@@ -102,15 +102,14 @@ class YandexDirectAPI:
         logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
         logger.info(f"YandexDirectAPI.get_campaigns: Full headers (without token) = {[k for k in self.headers.keys() if k != 'Authorization']}")
         
-        # CRITICAL: Filter out only archived and converted campaigns
+        # CRITICAL: Don't filter by States to get ALL campaigns
         # According to Yandex Direct API docs:
         # - If States is not specified, returns all campaigns except CONVERTED
-        # - ARCHIVED campaigns are also returned if not filtered
-        # - We want to exclude only ARCHIVED and CONVERTED, but include ON, OFF, SUSPENDED, ENDED
-        # - ENDED campaigns might still be relevant (recently ended campaigns)
-        selection_criteria = {
-            "States": ["ON", "OFF", "SUSPENDED", "ENDED"]  # Exclude only ARCHIVED and CONVERTED
-        }
+        # - We need ALL campaigns (including those awaiting payment, etc.)
+        # - Reports API shows that campaigns exist that Campaigns.get might miss with filters
+        # - We'll filter out ARCHIVED and CONVERTED manually if needed
+        # - Empty SelectionCriteria returns all campaigns except CONVERTED (unless explicitly requested)
+        selection_criteria = {}  # Get all campaigns except CONVERTED
         
         payload = {
             "method": "get",
@@ -179,16 +178,66 @@ class YandexDirectAPI:
                             logger.info(f"   ✅ Found 'кси' campaign in results!")
                         else:
                             logger.warning(f"   ❌ 'кси' campaign NOT found in API response!")
+                            logger.warning(f"   ⚠️ This might mean the campaign is in CONVERTED state or has a different issue")
+                            logger.warning(f"   ⚠️ Consider using Reports API fallback to get all campaigns")
                         
-                        return [
+                        # Filter out only ARCHIVED campaigns manually (keep everything else)
+                        filtered_campaigns = [
+                            c for c in campaigns 
+                            if c.get("State") != "ARCHIVED"  # Exclude only archived
+                        ]
+                        
+                        if len(filtered_campaigns) < len(campaigns):
+                            logger.info(f"   🔍 Filtered out {len(campaigns) - len(filtered_campaigns)} ARCHIVED campaigns")
+                        
+                        result = [
                             {
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
                                 "status": c["Status"],
                                 "state": c.get("State", "UNKNOWN")  # Include state for debugging
                             }
-                            for c in campaigns
+                            for c in filtered_campaigns
                         ]
+                        
+                        # CRITICAL: If we're missing expected campaigns (like "кси"), try Reports API
+                        # Reports API often returns campaigns that Campaigns.get misses due to filters
+                        # Check if we got fewer campaigns than expected by trying Reports API
+                        logger.info(f"   🔍 Campaigns.get returned {len(result)} campaigns. Checking if Reports API has more...")
+                        try:
+                            reports_campaigns = await self.get_campaigns_from_reports()
+                            if reports_campaigns:
+                                reports_ids = {c["id"] for c in reports_campaigns}
+                                campaigns_get_ids = {c["id"] for c in result}
+                                
+                                missing_in_campaigns_get = reports_ids - campaigns_get_ids
+                                if missing_in_campaigns_get:
+                                    logger.warning(f"   ⚠️ Reports API found {len(missing_in_campaigns_get)} campaigns that Campaigns.get missed: {missing_in_campaigns_get}")
+                                    logger.warning(f"   ⚠️ Using Reports API results to include all campaigns")
+                                    
+                                    # Merge results: use Reports API as source of truth for campaign list
+                                    # But preserve status/state from Campaigns.get where available
+                                    campaigns_get_by_id = {c["id"]: c for c in result}
+                                    merged = []
+                                    for rc in reports_campaigns:
+                                        if rc["id"] in campaigns_get_by_id:
+                                            # Use data from Campaigns.get (has status/state)
+                                            merged.append(campaigns_get_by_id[rc["id"]])
+                                        else:
+                                            # Add from Reports API (missing from Campaigns.get)
+                                            merged.append({
+                                                "id": rc["id"],
+                                                "name": rc["name"],
+                                                "status": "UNKNOWN",  # Reports API doesn't provide status
+                                                "state": "UNKNOWN"
+                                            })
+                                            logger.info(f"   ✅ Added missing campaign from Reports API: ID={rc['id']}, Name='{rc['name']}'")
+                                    
+                                    return merged
+                        except Exception as reports_err:
+                            logger.warning(f"   ⚠️ Could not check Reports API for missing campaigns: {reports_err}")
+                        
+                        return result
                     elif "error" in data:
                         error_code = data["error"].get("error_code")
                         error_detail = data["error"].get("error_detail", "")
@@ -198,6 +247,17 @@ class YandexDirectAPI:
                         if error_code == 3228:
                             logger.warning(f"⚠️ Campaigns.get API not available (error 3228: {error_detail}). Falling back to Reports API...")
                             return await self.get_campaigns_from_reports()
+                        
+                        # If we got campaigns but missing expected ones, try Reports API as fallback
+                        # This handles cases where Campaigns.get filters out campaigns that Reports API can see
+                        logger.warning(f"⚠️ Campaigns.get returned error, but trying Reports API fallback to get all campaigns...")
+                        try:
+                            reports_campaigns = await self.get_campaigns_from_reports()
+                            if reports_campaigns:
+                                logger.info(f"✅ Reports API returned {len(reports_campaigns)} campaigns as fallback")
+                                return reports_campaigns
+                        except Exception as reports_err:
+                            logger.warning(f"⚠️ Reports API fallback also failed: {reports_err}")
                         
                         error_msg = json.dumps(data["error"])
                         raise Exception(f"Yandex API Error: {error_msg}")
