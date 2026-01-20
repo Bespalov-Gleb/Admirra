@@ -316,19 +316,23 @@ class YandexDirectAPI:
         """
         logger.info("📊 Getting campaigns list via Reports API (fallback method)")
         
-        # CRITICAL: Use wide date range (last 5 years) to ensure we get ALL campaigns
-        # This ensures we get all campaigns even if they were stopped long ago or have no recent data
-        # Using shorter periods fails when:
-        # 1. Campaigns are stopped long ago (no data for recent periods)
-        # 2. Campaigns have no recent activity (no impressions/clicks in recent periods)
-        # 3. Account doesn't have Pro Direct (only Reports API works)
-        # Using 5 years (1825 days) ensures we find all campaigns that were ever active
+        # CRITICAL: Reports API limitation - it only returns campaigns WITH DATA for the specified period
+        # If campaigns have NO data (never had impressions/clicks), they won't appear in reports
+        # This is a known limitation of Yandex Direct Reports API
+        # 
+        # We try multiple approaches:
+        # 1. Very wide date range (10 years) to catch campaigns with old data
+        # 2. If that doesn't work, we note that some campaigns may be missing due to API limitations
+        
         from datetime import datetime, timedelta
         today = datetime.now()
-        date_from = (today - timedelta(days=1825)).strftime("%Y-%m-%d")  # Last 5 years
+        
+        # Try 10 years to catch campaigns with very old data
+        date_from = (today - timedelta(days=3650)).strftime("%Y-%m-%d")  # Last 10 years
         date_to = today.strftime("%Y-%m-%d")
         
-        logger.info(f"📊 Using date range {date_from} to {date_to} (last 5 years) to get ALL campaigns (including stopped ones)")
+        logger.info(f"📊 Using date range {date_from} to {date_to} (last 10 years) to get ALL campaigns (including stopped ones)")
+        logger.warning(f"⚠️ IMPORTANT: Reports API only returns campaigns WITH DATA. Campaigns without any data won't appear!")
         
         # CRITICAL: Add ClientLogin filter if client_login is set
         # This ensures we only get campaigns from the selected profile
@@ -439,6 +443,9 @@ class YandexDirectAPI:
                 if campaigns_list:
                     logger.info(f"   📊 Campaign IDs from Reports API: {[c['id'] for c in campaigns_list]}")
                     logger.info(f"   📊 Campaign names from Reports API: {[c['name'] for c in campaigns_list]}")
+                    logger.warning(f"   ⚠️ IMPORTANT: Reports API only returns campaigns WITH DATA!")
+                    logger.warning(f"   ⚠️ Campaigns without any data (never had impressions/clicks) won't appear in this list!")
+                    logger.warning(f"   ⚠️ This is a known limitation of Yandex Direct Reports API")
                 else:
                     logger.warning(f"   ⚠️ Reports API returned 0 campaigns - this might indicate:")
                     logger.warning(f"      - Client-Login header filtering is too strict")
