@@ -869,9 +869,13 @@ async def get_integration_goals(
         log_event("yandex", f"found {len(counters)} counters (before filtering)", [c.get('name') for c in counters])
         logger.info(f"📊 Found {len(counters)} counters before filtering for profile '{target_account}'")
         
+        # CRITICAL: Save all counters before filtering (for fallback if filtering returns 0)
+        all_counters_before_filter = counters.copy()
+        
         # CRITICAL: Filter counters by the selected profile (target_account)
         # One Yandex account can have access to counters from multiple advertising profiles
         # We need to show only counters that belong to the selected profile
+        warning_message = None
         if target_account:
             # Helper function to normalize login for comparison
             # Metrika owner_login can have different format than Direct agency_client_login
@@ -928,21 +932,17 @@ async def get_integration_goals(
                     excluded_counters.append(f"{counter_name} (owner: {owner_login})")
                     logger.info(f"  ❌ Excluded counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
             
-            # CRITICAL: Only use filtered counters if we found matches
-            # If no matches, it means either:
-            # 1. The profile doesn't have its own counters (uses delegate access)
-            # 2. The owner_login doesn't match (different account structure)
-            # In this case, we should NOT show all counters - they belong to other profiles!
+            # CRITICAL: If filtering returned 0 counters, use all counters and show warning
             if filtered_counters:
                 counters = filtered_counters
                 logger.info(f"✅ Filtered to {len(counters)} counters for profile '{target_account}' (excluded {len(excluded_counters)} counters from other profiles)")
             else:
                 logger.warning(f"⚠️ No counters with owner_login='{target_account}'. This profile may not have its own Metrika counters.")
                 logger.warning(f"⚠️ Excluded {len(excluded_counters)} counters from other profiles: {excluded_counters[:5]}")
-                # CRITICAL: Return empty list instead of showing all counters
-                # This prevents showing metrics from other profiles
-                counters = []
-                logger.info(f"📊 Returning 0 counters (strict filtering by profile)")
+                # CRITICAL: If no filtered counters, use ALL counters and show warning message
+                counters = all_counters_before_filter
+                warning_message = "Метрики для этого профиля не найдены. Пожалуйста, выберите нужные метрики из доступных"
+                logger.info(f"📊 Using all {len(counters)} counters (filtering returned 0, showing all available)")
         
         log_event("yandex", f"found {len(counters)} counters (after filtering)", [c.get('name') for c in counters])
         logger.info(f"📊 Returning {len(counters)} counters after filtering for profile '{target_account}'")
@@ -953,9 +953,9 @@ async def get_integration_goals(
             counter_name = counter.get('name', 'Unknown')
             owner_login = counter.get('owner_login', 'N/A')
             
-            # CRITICAL: Double-check that counter belongs to selected profile
-            # Use the same normalization logic as in filtering above
-            if target_account:
+            # CRITICAL: Only double-check counter if we're NOT showing all counters (no warning_message)
+            # If warning_message is set, we're showing all counters intentionally, so skip this check
+            if target_account and not warning_message:
                 def normalize_login_check(login: str) -> str:
                     """Normalize login for comparison: lowercase, remove dots/dashes, keep only alphanumeric"""
                     if not login:
@@ -1029,6 +1029,15 @@ async def get_integration_goals(
                     all_goals.append(goal_data)
             except Exception as goals_err:
                 logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
+        
+        # CRITICAL: If warning_message is set, return goals with warning
+        # Frontend should display the warning message to user
+        if warning_message:
+            # Return as dict with goals and warning_message
+            return {
+                "goals": all_goals,
+                "warning_message": warning_message
+            }
         
         return all_goals
     except Exception as e:

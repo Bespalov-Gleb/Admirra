@@ -141,11 +141,22 @@ export function useIntegrationWizard() {
       const { data } = await api.get(
         `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}${campaignIdsParam}`
       )
-      goals.value = data
+      
+      // CRITICAL: Handle both formats: array of goals OR object with goals and warning_message
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.goals) {
+        // Response is object with goals and warning_message
+        goals.value = data.goals
+        if (data.warning_message) {
+          toaster.warning(data.warning_message)
+        }
+      } else {
+        // Response is array of goals (legacy format)
+        goals.value = Array.isArray(data) ? data : []
+      }
       
       // Auto-select primary goal based on conversion rate if not set
-      if (data.length > 0 && !form.primary_goal_id) {
-        const bestGoal = [...data].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
+      if (goals.value.length > 0 && !form.primary_goal_id) {
+        const bestGoal = [...goals.value].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
         if (bestGoal) {
           form.primary_goal_id = bestGoal.id
           // Also auto-select it for tracking
