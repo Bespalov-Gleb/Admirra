@@ -305,7 +305,7 @@ class YandexDirectAPI:
                 logger.error(f"Error fetching Yandex campaigns: {e}")
                 raise
 
-    async def get_campaigns_from_reports(self) -> List[Dict[str, Any]]:
+    async def get_campaigns_from_reports(self, retry_count: int = 0) -> List[Dict[str, Any]]:
         """
         FALLBACK METHOD: Get campaigns list using Reports API.
         This works for ALL Yandex Direct accounts, including those in new interface.
@@ -313,7 +313,14 @@ class YandexDirectAPI:
         CRITICAL: Uses a wide date range (last 5 years) to ensure we get ALL campaigns,
         even if they were stopped long ago or had no data recently. This ensures we find
         all campaigns that were ever active, regardless of when they were last active.
+        
+        Args:
+            retry_count: Internal counter to prevent infinite recursion on error 4000
         """
+        if retry_count > 2:
+            logger.error("❌ Too many retries for Reports API (error 4000). Returning empty list.")
+            return []
+        
         logger.info("📊 Getting campaigns list via Reports API (fallback method)")
         
         # CRITICAL: Reports API limitation - it only returns campaigns WITH DATA for the specified period
@@ -354,11 +361,16 @@ class YandexDirectAPI:
         logger.info(f"📊 Reports API request headers: {debug_headers}")
         logger.info(f"📊 Reports API Client-Login header value: '{self.headers.get('Client-Login', 'NOT SET')}'")
         
+        # CRITICAL: Use unique report name to avoid "report already in queue" error (4000)
+        # Each request needs a unique name, otherwise API returns error if previous report is still processing
+        import time
+        unique_report_name = f"Campaign List Report {int(time.time() * 1000)}"
+        
         payload = {
             "params": {
                 "SelectionCriteria": selection_criteria,
                 "FieldNames": ["CampaignId", "CampaignName"],
-                "ReportName": "Campaign List Report",
+                "ReportName": unique_report_name,
                 "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
                 "DateRangeType": "CUSTOM_DATE",
                 "Format": "TSV",
@@ -456,6 +468,19 @@ class YandexDirectAPI:
             elif response.status_code == 400:
                 error_data = response.text
                 logger.error(f"Reports API error 400: {error_data}")
+                
+                # Check if it's error 4000 (report name conflict)
+                try:
+                    error_json = response.json()
+                    if "error" in error_json:
+                        error_code = error_json["error"].get("error_code")
+                        if error_code == 4000:
+                            # Report with same name is already in queue - retry with new unique name
+                            logger.warning(f"⚠️ Report name conflict (4000). Retrying with new unique name... (attempt {retry_count + 1}/3)")
+                            # Recursively retry with new unique name (will generate new timestamp)
+                            return await self.get_campaigns_from_reports(retry_count=retry_count + 1)
+                except:
+                    pass
                 
                 # If even Reports API fails, return empty list
                 logger.warning("Reports API also failed. Returning empty campaign list.")
