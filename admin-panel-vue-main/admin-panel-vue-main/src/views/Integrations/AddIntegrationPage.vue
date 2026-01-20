@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20">
+  <div class="flex flex-col h-full min-h-[calc(100vh-160px)]">
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 md:px-8 py-6 bg-white border-b border-gray-100">
+    <div class="flex items-center justify-between px-4 md:px-8 py-6 bg-white border-b border-gray-100 flex-shrink-0">
       <div class="flex items-center gap-4">
         <button 
           @click="$router.push('/settings')" 
@@ -10,9 +10,9 @@
           <ArrowLeftIcon class="w-5 h-5 text-gray-400 group-hover:text-black" />
         </button>
         <div>
-          <h1 class="text-2xl font-black text-black tracking-tight uppercase leading-none">Новая интеграция</h1>
+          <h1 class="text-2xl font-black text-black tracking-tight uppercase leading-none">НОВАЯ ИНТЕГРАЦИЯ</h1>
           <div class="flex items-center gap-2 mt-2">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Добавление рекламного канала</p>
+            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">ДОБАВЛЕНИЕ РЕКЛАМНОГО КАНАЛА</p>
             <template v-if="currentStep > 1 && form.client_name">
               <span class="text-[8px] text-gray-300">•</span>
               <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100/50">
@@ -31,8 +31,8 @@
     </div>
 
     <!-- Wizard Interface -->
-    <div class="max-w-7xl mx-auto px-4 md:px-8 py-8">
-      <div class="bg-white rounded-3xl border border-gray-100/50 shadow-2xl shadow-blue-100/20 overflow-hidden flex flex-col min-h-[70vh]">
+    <div class="max-w-7xl mx-auto px-4 md:px-8 py-8 flex-1 flex flex-col">
+      <div class="bg-white rounded-3xl border border-gray-100/50 shadow-2xl shadow-blue-100/20 overflow-hidden flex flex-col flex-1">
       <!-- Stepper Header -->
       <div class="px-8 py-10 border-b border-gray-50 bg-gray-50/30">
         <div class="max-w-2xl mx-auto flex items-center justify-between relative">
@@ -40,12 +40,12 @@
           <div class="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 z-0"></div>
           <div 
             class="absolute top-1/2 left-0 h-0.5 bg-blue-600 transition-all duration-500 -translate-y-1/2 z-0"
-            :style="{ width: `${((currentStep - 1) / 3) * 100}%` }"
+            :style="{ width: `${((currentStep - 1) / 4) * 100}%` }"
           ></div>
 
           <!-- Steps -->
           <div 
-            v-for="step in 4" 
+            v-for="step in 5" 
             :key="step"
             class="relative z-10 flex flex-col items-center gap-3"
           >
@@ -118,6 +118,118 @@
                 @bulkSelect="bulkSelectGoals"
                 @bulkDeselect="bulkDeselectGoals"
               />
+
+              <!-- Step 5: Summary -->
+              <div v-else-if="currentStep === 5" class="space-y-6">
+                <div class="text-center py-6">
+                  <h3 class="text-2xl font-black text-gray-900 mb-2">Сводка настроек</h3>
+                  <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Проверьте выбранные параметры перед подключением</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <!-- Проект -->
+                  <div class="bg-white border-2 border-gray-100 rounded-[1.5rem] p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                      <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Проект</p>
+                        <p class="text-[15px] font-black text-gray-900">{{ form.client_name || 'Не выбран' }}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Профиль -->
+                  <div class="bg-white border-2 border-gray-100 rounded-[1.5rem] p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                      <div class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Профиль</p>
+                        <p class="text-[15px] font-black text-gray-900">{{ form.account_id || 'Не выбран' }}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Рекламные кампании -->
+                  <div class="bg-white border-2 border-gray-100 rounded-[1.5rem] p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                      <div class="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                        </svg>
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Рекламные кампании</p>
+                        <p class="text-[11px] font-bold text-gray-500 mb-2">{{ selectedCampaignIds.length }} {{ selectedCampaignIds.length === 1 ? 'кампания' : selectedCampaignIds.length < 5 ? 'кампании' : 'кампаний' }}</p>
+                      </div>
+                    </div>
+                    <div class="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+                      <template v-if="selectedCampaignIds.length > 0">
+                        <div 
+                          v-for="campaignId in selectedCampaignIds" 
+                          :key="campaignId"
+                          class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl"
+                        >
+                          <div class="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                          <span class="text-[12px] font-bold text-gray-700 flex-1">
+                            {{ campaigns.find(c => c.id === campaignId)?.name || `Кампания #${campaignId}` }}
+                          </span>
+                        </div>
+                      </template>
+                      <p v-else class="text-[11px] text-gray-400 italic">Кампании не выбраны</p>
+                    </div>
+                  </div>
+
+                  <!-- Метрики (цели) -->
+                  <div class="bg-white border-2 border-gray-100 rounded-[1.5rem] p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4">
+                      <div class="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      <div class="flex-1">
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Метрики</p>
+                        <p class="text-[11px] font-bold text-gray-500 mb-2">
+                          {{ (selectedGoalIds.length + (form.primary_goal_id ? 1 : 0)) }} 
+                          {{ (selectedGoalIds.length + (form.primary_goal_id ? 1 : 0)) === 1 ? 'метрика' : (selectedGoalIds.length + (form.primary_goal_id ? 1 : 0)) < 5 ? 'метрики' : 'метрик' }}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+                      <template v-if="form.primary_goal_id">
+                        <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-xl border border-blue-100">
+                          <div class="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                          <span class="text-[11px] font-black text-blue-600 uppercase tracking-tight mr-1">Основная:</span>
+                          <span class="text-[12px] font-bold text-gray-700 flex-1">
+                            {{ goals.find(g => g.id === form.primary_goal_id)?.name || `Цель #${form.primary_goal_id}` }}
+                          </span>
+                        </div>
+                      </template>
+                      <template v-if="selectedGoalIds.length > 0">
+                        <div 
+                          v-for="goalId in selectedGoalIds" 
+                          :key="goalId"
+                          class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl"
+                        >
+                          <div class="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                          <span class="text-[12px] font-bold text-gray-700 flex-1">
+                            {{ goals.find(g => g.id === goalId)?.name || `Цель #${goalId}` }}
+                          </span>
+                        </div>
+                      </template>
+                      <p v-if="!form.primary_goal_id && selectedGoalIds.length === 0" class="text-[11px] text-gray-400 italic">Метрики не выбраны</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </Transition>
         </div>
@@ -176,9 +288,20 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
-          <!-- Step 4: Finish button (goals) -->
+          <!-- Step 4: Next button (goals -> summary) -->
           <button 
             v-else-if="currentStep === 4"
+            @click="nextStep"
+            :disabled="isNextDisabled"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+          >
+            Далее
+            <ArrowRightIcon class="w-4 h-4" />
+          </button>
+
+          <!-- Step 5: Finish button (summary) -->
+          <button 
+            v-else-if="currentStep === 5"
             @click="finishConnection"
             :disabled="isNextDisabled || loadingFinish"
             class="px-10 py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-blue-200"
@@ -217,6 +340,7 @@ import { useProjects } from '../../composables/useProjects'
 import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
+import { PLATFORMS } from '../../constants/platformConfig'
 
 const router = useRouter()
 const { projects, fetchProjects } = useProjects()
@@ -255,7 +379,8 @@ const stepLabels = {
   1: 'Платформа и проект',
   2: 'Выбор профиля',
   3: 'Рекламные кампании',
-  4: 'Цели и конверсии'
+  4: 'Цели и конверсии',
+  5: 'Сводка настроек'
 }
 
 // Loading state computed properties
@@ -279,7 +404,8 @@ const isNextDisabled = computed(() => {
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
   if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
-  if (currentStep.value === 4) return !form.primary_goal_id || loadingStates.finish
+  if (currentStep.value === 4) return !form.primary_goal_id || loadingStates.goals
+  if (currentStep.value === 5) return false // Summary step - no validation needed
   return false
 })
 
@@ -312,6 +438,9 @@ const nextStep = async () => {
     // Step 3 -> 4: Campaigns selected, load goals
     currentStep.value = 4
     fetchGoals(lastIntegrationId.value)
+  } else if (currentStep.value === 4) {
+    // Step 4 -> 5: Goals selected, show summary
+    currentStep.value = 5
   }
 }
 
@@ -423,6 +552,30 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Custom scrollbar styling */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb #f9fafb;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f9fafb;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
 .fade-slide-enter-active,
 .fade-slide-leave-active {
   transition: all 0.3s ease-out;

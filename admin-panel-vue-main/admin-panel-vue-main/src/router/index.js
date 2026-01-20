@@ -98,8 +98,8 @@ const routes = [
   {
     path: '/integrations/wizard',
     name: 'AddIntegration',
-    component: () => import('../views/Integrations/AddIntegrationPage.vue'),
-    meta: { layout: 'fullwidth' }
+    component: () => import('../views/Integrations/AddIntegrationPage.vue')
+    // Using MainLayout (with sidebar) to match screen 2
   },
   {
     path: '/projects/create',

@@ -815,12 +815,44 @@ async def discover_campaigns(
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # SIMPLIFIED ARCHITECTURE: Each token = 1 account
-        # No Client-Login header, no profile selection - token IS the account
-        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}")
+        # Each token = 1 Yandex account (email), but не каждый аккаунт имеет Яндекс.Директ
+        # CRITICAL: Use selected profile (account_id or agency_client_login) to filter campaigns
+        # This ensures we only get campaigns from the selected profile, not all accessible profiles
+        selected_profile = integration.agency_client_login or integration.account_id
+        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile}")
         
-        api = YandexDirectAPI(access_token)
-        discovered_campaigns = await api.get_campaigns()
+        # Pass client_login to filter campaigns by selected profile
+        # If no profile selected, API will return all campaigns accessible by token
+        api = YandexDirectAPI(access_token, client_login=selected_profile if selected_profile and selected_profile.lower() != "unknown" else None)
+        try:
+            discovered_campaigns = await api.get_campaigns()
+        except Exception as e:
+            message = str(e)
+            # Специальная обработка популярных ошибок API
+            # error_code 513: "Ваш логин не подключен к Яндекс.Директу"
+            if 'error_code\": 513' in message or 'не подключен к Яндекс.Директу' in message:
+                logger.warning(f"Yandex Direct not connected for this login (integration {integration_id}): {message}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Для этого аккаунта Яндекс.Директ не подключён. "
+                           "Зайдите в Яндекс.Директ под этой почтой и создайте хотя бы одну кампанию."
+                )
+            # error_code 3228: API only available in Direct Pro mode
+            if 'error_code\": 3228' in message or 'Директ Про' in message:
+                logger.warning(f"Yandex API available only in Direct Pro for this login (integration {integration_id}): {message}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="API Яндекс.Директ доступен только в режиме «Директ Про» для этого аккаунта. "
+                           "Переключите интерфейс на «Директ Про» в настройках Яндекс.Директа."
+                )
+            
+            # Все остальные ошибки пробрасываем как 502, чтобы фронт показал общий текст
+            logger.error(f"Unexpected Yandex Direct error while discovering campaigns: {message}")
+            raise HTTPException(
+                status_code=502,
+                detail="Не удалось получить кампании из Яндекс.Директ. Попробуйте ещё раз позже."
+            )
+        
         logger.info(f"API returned {len(discovered_campaigns)} campaigns. Names: {[c.get('name') for c in discovered_campaigns[:5]]}")
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
