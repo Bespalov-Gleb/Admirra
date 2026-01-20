@@ -1128,9 +1128,10 @@ async def get_campaigns_stats(
         logger.info(f"📊 SQL query returned {len(stats_query)} campaigns with stats")
         
         for stat in stats_query:
-            logger.info(f"   Campaign '{stat.name}': impressions={stat.impressions}, clicks={stat.clicks}, cost={stat.cost}")
+            stat_id_str = str(stat.id)  # Convert UUID to string
+            logger.info(f"   Campaign '{stat.name}' (ID: {stat_id_str}): impressions={stat.impressions}, clicks={stat.clicks}, cost={stat.cost}")
             campaigns_stats.append({
-                "id": str(stat.id),  # Convert UUID to string to match discover-campaigns format
+                "id": stat_id_str,  # Use string ID to match discover-campaigns format
                 "external_id": stat.external_id,
                 "name": stat.name,
                 "impressions": int(stat.impressions or 0),
@@ -1138,6 +1139,8 @@ async def get_campaigns_stats(
                 "cost": float(stat.cost or 0),
                 "conversions": int(stat.conversions or 0)
             })
+        
+        logger.info(f"📊 Created campaigns_stats list with {len(campaigns_stats)} entries. IDs: {[cs['id'] for cs in campaigns_stats]}")
     
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         # Aggregate VKStats by campaign_id
@@ -1191,18 +1194,26 @@ async def get_campaigns_stats(
             continue
         valid_campaigns.append(campaign)
     
+    # CRITICAL: Convert campaign IDs to strings for comparison
+    # campaigns_stats contains "id" as strings (UUID converted to string)
     existing_ids = {cs["id"] for cs in campaigns_stats}
     
     for campaign in valid_campaigns:
-        if campaign.id not in existing_ids:
+        campaign_id_str = str(campaign.id)  # Convert UUID to string for comparison
+        if campaign_id_str not in existing_ids:
             # Check if this campaign has ANY stats records (for debugging)
             stats_count = db.query(models.YandexStats).filter(
                 models.YandexStats.campaign_id == campaign.id
             ).count()
-            logger.info(f"   Campaign '{campaign.name}' has {stats_count} YandexStats records, but none in date range")
+            stats_in_range = db.query(models.YandexStats).filter(
+                models.YandexStats.campaign_id == campaign.id,
+                models.YandexStats.date >= date_from_obj,
+                models.YandexStats.date <= date_to_obj
+            ).count()
+            logger.info(f"   Campaign '{campaign.name}' (ID: {campaign_id_str}): has {stats_count} total YandexStats records, {stats_in_range} in date range {date_from_obj} to {date_to_obj}")
             
             campaigns_stats.append({
-                "id": str(campaign.id),  # Convert UUID to string to match discover-campaigns format
+                "id": campaign_id_str,  # Use string ID to match discover-campaigns format
                 "external_id": campaign.external_id,
                 "name": campaign.name,
                 "impressions": 0,
