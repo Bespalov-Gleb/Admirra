@@ -817,9 +817,33 @@ async def get_integration_goals(
             owner_login = counter.get('owner_login', 'N/A')
             
             # CRITICAL: Double-check that counter belongs to selected profile
-            if target_account and owner_login != target_account:
-                logger.warning(f"⚠️ Skipping counter '{counter_name}' (ID: {counter_id}) - owner_login '{owner_login}' doesn't match selected profile '{target_account}'")
-                continue
+            # Use the same normalization logic as in filtering above
+            if target_account:
+                def normalize_login_check(login: str) -> str:
+                    """Normalize login for comparison: lowercase, remove dots/dashes, keep only alphanumeric"""
+                    if not login:
+                        return ""
+                    normalized = login.lower().strip()
+                    normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
+                    return normalized
+                
+                owner_normalized = normalize_login_check(owner_login)
+                target_normalized = normalize_login_check(target_account)
+                metrika_normalized = normalize_login_check(metrika_owner_login)
+                
+                # Use same matching logic as filtering
+                matches = (
+                    owner_login.lower() == target_account.lower() or
+                    owner_login.lower() == metrika_owner_login.lower() or
+                    owner_normalized == target_normalized or
+                    owner_normalized == metrika_normalized or
+                    target_normalized in owner_normalized or
+                    owner_normalized in target_normalized
+                )
+                
+                if not matches:
+                    logger.warning(f"⚠️ Skipping counter '{counter_name}' (ID: {counter_id}) - owner_login '{owner_login}' (normalized: '{owner_normalized}') doesn't match selected profile '{target_account}' (normalized: '{target_normalized}')")
+                    continue
             
             try:
                 # Use metrica_api which might be the fallback one
