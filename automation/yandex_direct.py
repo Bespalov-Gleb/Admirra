@@ -349,22 +349,40 @@ class YandexDirectAPI:
                 
                 campaigns_dict = {}  # Use dict to deduplicate by ID
                 
-                # Skip header line and last line (totals)
-                for line in lines[1:-1]:
+                # Find header line (contains "CampaignId" or "Campaign ID")
+                header_line_idx = -1
+                for idx, line in enumerate(lines):
+                    if 'campaignid' in line.lower() or 'campaign id' in line.lower():
+                        header_line_idx = idx
+                        break
+                
+                # Skip header line(s) and last line (totals)
+                start_idx = header_line_idx + 1 if header_line_idx >= 0 else 1
+                for line in lines[start_idx:-1]:
                     parts = line.split('\t')
                     if len(parts) >= 2:
                         campaign_id = parts[0].strip()
                         campaign_name = parts[1].strip()
                         
-                        if campaign_id and campaign_id != '--':
+                        # CRITICAL: Skip if it's a header value or invalid ID
+                        if (campaign_id and 
+                            campaign_id != '--' and 
+                            campaign_id.lower() != 'campaignid' and
+                            campaign_id.lower() != 'campaign id' and
+                            not campaign_id.startswith('Total') and
+                            campaign_id.isdigit()):  # Campaign IDs are numeric
                             campaigns_dict[campaign_id] = {
                                 "id": campaign_id,
                                 "name": campaign_name,
                                 "status": "UNKNOWN"  # Reports API doesn't return status
                             }
+                        else:
+                            logger.debug(f"   ⏭️ Skipping invalid campaign entry: ID='{campaign_id}', Name='{campaign_name}'")
                 
                 campaigns_list = list(campaigns_dict.values())
                 logger.info(f"✅ Reports API returned {len(campaigns_list)} unique campaigns")
+                if campaigns_list:
+                    logger.info(f"   Campaign IDs from Reports API: {[c['id'] for c in campaigns_list]}")
                 return campaigns_list
             
             elif response.status_code == 400:

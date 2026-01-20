@@ -109,9 +109,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     campaign.name = s['campaign_name']
                     db.flush()
 
-                # OPTIMIZATION: Only sync data for active campaigns
-                if not campaign.is_active:
-                    continue
+                # CRITICAL: Sync stats for ALL campaigns, not just active ones
+                # This ensures statistics are available even for stopped/paused campaigns
+                # The is_active flag is for user selection, not for data syncing
+                # if not campaign.is_active:
+                #     continue
 
                 # 2. Update Stats
                 filters = {

@@ -1017,7 +1017,7 @@ async def discover_campaigns(
     # Filter out template/test campaigns (like "CampaignName", "Test Campaign", etc.)
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
     
-    # Filter out template campaigns
+    # Filter out template campaigns and campaigns from other profiles
     template_names = ["campaignname", "test campaign", "тест", "test", "шаблон", "template"]
     filtered_campaigns = []
     for campaign in all_campaigns:
@@ -1026,6 +1026,13 @@ async def discover_campaigns(
         if campaign_name_lower in template_names or campaign_name_lower == "campaignname":
             logger.info(f"   ⏭️ Skipping template campaign: ID={campaign.external_id}, Name='{campaign.name}'")
             continue
+        
+        # CRITICAL: Filter out campaigns that don't match the selected profile
+        # If external_id is not numeric (like "CampaignId"), it's invalid
+        if not campaign.external_id or not str(campaign.external_id).isdigit():
+            logger.info(f"   ⏭️ Skipping invalid campaign ID: ID={campaign.external_id}, Name='{campaign.name}'")
+            continue
+        
         filtered_campaigns.append({
             "id": str(campaign.id),
             "external_id": campaign.external_id,
