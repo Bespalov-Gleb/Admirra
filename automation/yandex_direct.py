@@ -97,6 +97,10 @@ class YandexDirectAPI:
                      context={'client_login': self.client_login},
                      endpoint='campaigns')
         
+        logger.info("=" * 80)
+        logger.info("🚀 YandexDirectAPI.get_campaigns: STARTING")
+        logger.info(f"🚀 Client-Login: '{self.client_login}'")
+        
         # DEBUG: Log headers to verify Client-Login is set
         client_login_header = self.headers.get("Client-Login", "NOT SET")
         logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
@@ -263,6 +267,9 @@ class YandexDirectAPI:
                             logger.error(f"   ❌ Reports API error details: {type(reports_err).__name__}: {str(reports_err)}")
                         
                         logger.info(f"   ✅ Returning {len(result)} total campaigns (from Campaigns.get + Reports API)")
+                        logger.info(f"   ✅ Final campaign names: {[c['name'] for c in result]}")
+                        logger.info(f"   ✅ Final campaign IDs: {[c['id'] for c in result]}")
+                        logger.info("=" * 60)
                         return result
                     elif "error" in data:
                         error_code = data["error"].get("error_code")

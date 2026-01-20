@@ -1209,13 +1209,22 @@ async def discover_campaigns(
                 detail="Не удалось получить кампании из Яндекс.Директ. Попробуйте ещё раз позже."
             )
         
+        logger.info(f"🔵 ========== DISCOVER CAMPAIGNS RESULTS ==========")
         logger.info(f"🔵 API returned {len(discovered_campaigns)} campaigns from Yandex Direct API")
         logger.info(f"🔵 Using Client-Login: '{use_client_login}'")
         logger.info(f"🔵 Integration agency_client_login: '{integration.agency_client_login}'")
         logger.info(f"🔵 Integration account_id: '{integration.account_id}'")
-        logger.info(f"🔵 Campaign names from API: {[c.get('name') for c in discovered_campaigns]}")
-        logger.info(f"🔵 Campaign IDs from API: {[c.get('id') for c in discovered_campaigns]}")
-        logger.info(f"🔵 Campaign states from API: {[c.get('state', 'N/A') for c in discovered_campaigns]}")
+        
+        if discovered_campaigns:
+            logger.info(f"🔵 ALL Campaign names from API: {[c.get('name') for c in discovered_campaigns]}")
+            logger.info(f"🔵 ALL Campaign IDs from API: {[c.get('id') for c in discovered_campaigns]}")
+            logger.info(f"🔵 ALL Campaign states from API: {[c.get('state', 'N/A') for c in discovered_campaigns]}")
+            
+            # Log each campaign in detail
+            for idx, c in enumerate(discovered_campaigns):
+                logger.info(f"🔵 Campaign [{idx+1}]: ID={c.get('id')}, Name='{c.get('name')}', State={c.get('state', 'N/A')}, Status={c.get('status', 'N/A')}, Type={c.get('type', 'N/A')}")
+        else:
+            logger.warning(f"🔵 ⚠️ NO CAMPAIGNS RETURNED FROM API!")
         
         # CRITICAL: Check for missing campaigns
         # Expected campaigns from screenshot: "ADS", "Landing", "elka152.ru - Алекс новая", "elka152.ru - Александр", "Основа основ"
@@ -1223,10 +1232,19 @@ async def discover_campaigns(
         found_campaign_names = [c.get('name') for c in discovered_campaigns]
         missing_campaigns = [name for name in expected_campaign_names if name not in found_campaign_names]
         if missing_campaigns:
-            logger.warning(f"❌ MISSING CAMPAIGNS: {missing_campaigns}")
-            logger.warning(f"❌ Expected {len(expected_campaign_names)} campaigns, but got {len(discovered_campaigns)}")
-            logger.warning(f"❌ This might indicate that API is not returning all campaigns")
-            logger.warning(f"❌ Check if missing campaigns are in a different state or belong to a different profile")
+            logger.error(f"❌ ========== MISSING CAMPAIGNS DETECTED ==========")
+            logger.error(f"❌ MISSING CAMPAIGNS: {missing_campaigns}")
+            logger.error(f"❌ Expected {len(expected_campaign_names)} campaigns, but got {len(discovered_campaigns)}")
+            logger.error(f"❌ Found campaigns: {found_campaign_names}")
+            logger.error(f"❌ This might indicate that:")
+            logger.error(f"❌   1. Campaigns.get API is not returning all campaigns")
+            logger.error(f"❌   2. Reports API is not finding missing campaigns (even with 5-year range)")
+            logger.error(f"❌   3. Missing campaigns belong to a different profile")
+            logger.error(f"❌   4. Missing campaigns are in a state that API filters out")
+        else:
+            logger.info(f"✅ All expected campaigns found!")
+        
+        logger.info(f"🔵 ==============================================")
         
         # Check for specific campaigns
         campaign_names_lower = [c.get('name', '').lower() for c in discovered_campaigns]
