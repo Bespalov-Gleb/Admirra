@@ -870,6 +870,13 @@ async def discover_campaigns(
     logger.info(f"   account_id: '{integration.account_id}'")
     logger.info(f"   agency_client_login: '{integration.agency_client_login}'")
     logger.info(f"   platform: {integration.platform}")
+    
+    # CRITICAL: If profile is selected, delete campaigns from other profiles
+    # This prevents "RSY - Hot_3" type campaigns from appearing
+    if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+        # Get valid campaign IDs from API for the selected profile
+        # We'll delete campaigns that don't match after we get the list
+        logger.info(f"🔍 Profile selected: {integration.agency_client_login}. Will clean up campaigns from other profiles after discovery.")
         
     log_event("backend", f"discovering campaigns for integration {integration_id}")
     access_token = security.decrypt_token(integration.access_token)
@@ -996,6 +1003,23 @@ async def discover_campaigns(
     db.commit()
     logger.info(f"💾 Saved {saved_count} new campaigns, updated {updated_count} existing campaigns")
     
+    # CRITICAL: Clean up campaigns from other profiles if profile is selected
+    # Delete campaigns that weren't returned by API (they belong to other profiles)
+    if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+        discovered_external_ids = {str(dc["id"]) for dc in discovered_campaigns}
+        all_db_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
+        
+        deleted_count = 0
+        for db_campaign in all_db_campaigns:
+            if str(db_campaign.external_id) not in discovered_external_ids:
+                logger.warning(f"🗑️ Deleting campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.agency_client_login}")
+                db.delete(db_campaign)
+                deleted_count += 1
+        
+        if deleted_count > 0:
+            db.commit()
+            logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
+    
     # IMPORTANT: After discovering campaigns, immediately sync stats for last 7 days
     # so user can see real data in the wizard
     from datetime import datetime, timedelta
@@ -1074,6 +1098,11 @@ async def get_campaigns_stats(
         date_from = start_date.strftime("%Y-%m-%d")
         date_to = end_date.strftime("%Y-%m-%d")
     
+    # CRITICAL: Convert string dates to date objects for proper SQL comparison
+    date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
+    date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+    logger.info(f"📊 Querying stats for date range: {date_from_obj} to {date_to_obj} (from strings: {date_from} to {date_to})")
+    
     campaigns_stats = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
@@ -1090,8 +1119,8 @@ async def get_campaigns_stats(
             models.YandexStats, models.Campaign.id == models.YandexStats.campaign_id
         ).filter(
             models.Campaign.integration_id == integration_id,
-            models.YandexStats.date >= date_from,
-            models.YandexStats.date <= date_to
+            models.YandexStats.date >= date_from_obj,  # Use date object, not string
+            models.YandexStats.date <= date_to_obj     # Use date object, not string
         ).group_by(
             models.Campaign.id, models.Campaign.external_id, models.Campaign.name
         ).all()
@@ -1124,8 +1153,8 @@ async def get_campaigns_stats(
             models.VKStats, models.Campaign.id == models.VKStats.campaign_id
         ).filter(
             models.Campaign.integration_id == integration_id,
-            models.VKStats.date >= date_from,
-            models.VKStats.date <= date_to
+            models.VKStats.date >= date_from_obj,  # Use date object, not string
+            models.VKStats.date <= date_to_obj     # Use date object, not string
         ).group_by(
             models.Campaign.id, models.Campaign.external_id, models.Campaign.name
         ).all()
