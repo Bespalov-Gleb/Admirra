@@ -100,7 +100,8 @@ async def get_dynamics(
         func.sum(models.YandexStats.conversions).label("leads")
     ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
         models.YandexStats.client_id.in_(effective_client_ids),
-        models.Campaign.is_active == True,
+        # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
+        # is_active is a user selection flag, not a data filtering flag
         models.YandexStats.date >= d_start,
         models.YandexStats.date <= d_end
     )
@@ -115,7 +116,8 @@ async def get_dynamics(
         func.sum(models.VKStats.conversions).label("leads")
     ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
         models.VKStats.client_id.in_(effective_client_ids),
-        models.Campaign.is_active == True,
+        # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
+        # is_active is a user selection flag, not a data filtering flag
         models.VKStats.date >= d_start,
         models.VKStats.date <= d_end
     )

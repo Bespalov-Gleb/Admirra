@@ -89,7 +89,9 @@ export function useDashboardStats() {
         end_date: filters.end_date,
         platform: filters.channel,
         client_id: filters.client_id || undefined,
-        campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : []
+        // CRITICAL: Only send campaign_ids if there are any selected
+        // Empty array should not be sent (backend treats it as "no filter")
+        campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined
       }
 
       const [summaryRes, dynamicsRes, topClientsRes, campaignsRes] = await Promise.allSettled([
