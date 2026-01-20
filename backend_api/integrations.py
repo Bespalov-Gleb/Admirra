@@ -563,8 +563,7 @@ async def get_integration_profiles(
             # 3. Managed accounts (accounts where user has Editor/Manager role)
 
             # 1. Always include the personal account itself
-            # IMPORTANT: account_id is the Yandex email/login, but we need to get the actual advertising account login
-            # Try to get it from Clients.get API which returns the account's own login
+            # Get personal advertising account login via Clients.get API
             personal_login = None
             try:
                 direct_api = YandexDirectAPI(access_token)
@@ -575,12 +574,11 @@ async def get_integration_profiles(
                     logger.info(f"Found personal advertising account login via Clients.get: {personal_login}")
             except Exception as clients_err:
                 logger.warning(f"Could not get personal account login via Clients.get: {clients_err}")
-                # Fallback to account_id (email) if Clients.get fails
-                personal_login = integration.account_id
             
-            # If still no login, use account_id as fallback
-            if not personal_login or personal_login.lower() == "unknown":
+            # Fallback to account_id if Clients.get fails or returns nothing
+            if not personal_login:
                 personal_login = integration.account_id
+                logger.info(f"Using account_id as fallback for personal login: {personal_login}")
             
             if personal_login and personal_login.lower() != "unknown":
                 profiles.append({"login": personal_login, "name": f"Личный аккаунт ({personal_login})"})
@@ -659,10 +657,23 @@ async def get_integration_goals(
 
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
+    
     # CRITICAL: Use account_id from query param if provided (from frontend),
-    # otherwise use agency_client_login (selected profile) or fallback to account_id
-    # This ensures we filter Metrika counters by the selected profile
-    target_account = account_id or (integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else integration.account_id)
+    # otherwise use agency_client_login ONLY if it's explicitly set (user selected a profile)
+    # If agency_client_login is not set, don't filter by profile (will show all accessible counters)
+    if account_id:
+        # Frontend explicitly passed account_id - use it
+        target_account = account_id
+        logger.info(f"Using account_id from query param: {target_account}")
+    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+        # User selected a profile on step 2 - use it
+        target_account = integration.agency_client_login
+        logger.info(f"Using agency_client_login (selected profile): {target_account}")
+    else:
+        # No profile selected - don't filter (will show all accessible counters)
+        target_account = None
+        logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
+    
     logger.info(f"Fetching goals for integration {integration_id}, target_account: {target_account} (query account_id={account_id}, integration.agency_client_login={integration.agency_client_login}, integration.account_id={integration.account_id})")
     
     # IMPORTANT: Pass client_login to filter Metrika counters by the selected profile
@@ -853,21 +864,38 @@ async def discover_campaigns(
         # CRITICAL: Use selected profile (agency_client_login takes priority over account_id)
         # This ensures we only get campaigns from the selected profile, not all accessible profiles
         # agency_client_login is set when user selects a profile on step 2
-        selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else integration.account_id
+        # CRITICAL: Determine which profile to use and whether to pass Client-Login
+        # agency_client_login is set when user selects a profile on step 2
+        # If not set, we need to determine the personal account login
+        selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else None
         
-        # CRITICAL: account_id is the Yandex email/login from Passport API, NOT the advertising account login
-        # We need to always use Client-Login when a specific profile is selected to ensure correct filtering
-        # Even for "personal" account, if user selected it from the list, we should use Client-Login
+        # Get personal account login to compare
+        personal_advertising_login = None
+        if not selected_profile:
+            # No profile selected, try to get personal account login
+            try:
+                temp_api = YandexDirectAPI(access_token)
+                clients_info = await temp_api.get_clients()
+                if clients_info:
+                    personal_advertising_login = clients_info[0].get("Login")
+                    selected_profile = personal_advertising_login
+                    logger.info(f"Using personal advertising account login: {personal_advertising_login}")
+            except Exception as e:
+                logger.warning(f"Could not determine personal advertising login: {e}")
+                selected_profile = integration.account_id
+        
+        # IMPORTANT: Only pass Client-Login if agency_client_login is explicitly set
+        # This means user selected a specific profile (not the default personal account)
         use_client_login = None
-        if selected_profile and selected_profile.lower() != "unknown":
-            # Always use Client-Login when a profile is explicitly selected
-            # This ensures we get campaigns ONLY from that specific advertising account
-            use_client_login = selected_profile
-            logger.info(f"Using Client-Login={use_client_login} for selected profile (agency_client_login={integration.agency_client_login}, account_id={integration.account_id})")
+        if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+            # User explicitly selected a profile - use Client-Login to filter by that profile
+            use_client_login = integration.agency_client_login
+            logger.info(f"Using Client-Login={use_client_login} (user selected profile: {integration.agency_client_login})")
         else:
-            logger.info(f"No profile selected, not using Client-Login header (will return all accessible campaigns)")
+            # No profile explicitly selected - don't use Client-Login (will return campaigns for token owner)
+            logger.info(f"Not using Client-Login (no profile explicitly selected, agency_client_login={integration.agency_client_login})")
         
-        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile}, using Client-Login={use_client_login}")
+        logger.info(f"Fetching campaigns for integration {integration_id}, selected_profile={selected_profile}, agency_client_login={integration.agency_client_login}, using Client-Login={use_client_login}")
         
         # Pass client_login to filter campaigns by selected profile
         # If no profile selected or it's the personal account, API will return campaigns for the token owner
