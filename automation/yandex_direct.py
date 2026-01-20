@@ -208,14 +208,16 @@ class YandexDirectAPI:
         
         # CRITICAL: Add ClientLogin filter if client_login is set
         # This ensures we only get campaigns from the selected profile
+        # CRITICAL: SelectionCriteria only contains date range
+        # ClientLogin filtering is done via Client-Login header, NOT in SelectionCriteria
+        # Adding ClientLogin to SelectionCriteria causes 400 Bad Request error
         selection_criteria = {
             "DateFrom": yesterday,
             "DateTo": yesterday
         }
         
-        if self.client_login:
-            selection_criteria["ClientLogin"] = self.client_login
-            logger.info(f"📊 get_campaigns_from_reports: Adding ClientLogin filter: '{self.client_login}'")
+        # Client-Login header is already set in self.headers, which is sufficient for filtering
+        logger.info(f"📊 get_campaigns_from_reports: Using Client-Login header: '{self.client_login}' (header filtering only, no SelectionCriteria filter)")
         
         payload = {
             "params": {
@@ -329,19 +331,20 @@ class YandexDirectAPI:
         else:
             report_type = "CAMPAIGN_PERFORMANCE_REPORT"
 
-        # CRITICAL: Add ClientLogin filter if client_login is set
-        # This ensures reports are filtered by the selected profile
-        # According to Yandex API docs, ClientLogin filter in SelectionCriteria is more reliable than just the header
+        # CRITICAL: SelectionCriteria only contains date range
+        # ClientLogin filtering is done via Client-Login header, NOT in SelectionCriteria
+        # According to Yandex API docs, ClientLogin filter is in Filter structure, not SelectionCriteria
+        # But for Reports API, the Client-Login header is sufficient for filtering
         selection_criteria = {
             "DateFrom": date_from,
             "DateTo": date_to
         }
         
-        # Add ClientLogin filter if we have a specific client_login
-        # This is CRITICAL for filtering reports by selected profile
-        if self.client_login:
-            selection_criteria["ClientLogin"] = self.client_login
-            logger.info(f"📊 Adding ClientLogin filter to report: '{self.client_login}'")
+        # NOTE: ClientLogin filter should be in Filter structure, not SelectionCriteria
+        # But we use Client-Login header instead, which is the standard way
+        # If we need explicit filtering, we would use:
+        # "Filter": [{"Field": "ClientLogin", "Operator": "EQUALS", "Values": [self.client_login]}]
+        # But for now, Client-Login header is sufficient
         
         report_definition = {
             "params": {

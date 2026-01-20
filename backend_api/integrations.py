@@ -1006,7 +1006,7 @@ async def discover_campaigns(
     except Exception as e:
         # Don't fail the whole request if sync fails - user can retry later
         logger.error(f"❌ Auto-sync failed for integration {integration_id}: {e}")
-        log_event("backend", f"Auto-sync failed: {str(e)}", level="error")
+        log_event("backend", f"Auto-sync failed: {str(e)}")
     
     # Return all campaigns for this integration
     return db.query(models.Campaign).filter_by(integration_id=integration.id).all()
