@@ -564,36 +564,46 @@ async def get_integration_profiles(
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
+            # CRITICAL: Clients.get returns the Login field which is the advertising account login (username)
+            # This is the format needed for Client-Login header
             personal_login = None
             try:
                 direct_api = YandexDirectAPI(access_token)
                 clients_info = await direct_api.get_clients()
+                logger.info(f"🔵 Clients.get returned {len(clients_info) if clients_info else 0} client(s)")
                 if clients_info:
                     # Clients.get returns the account's own login in the Login field
+                    # This is the advertising account username, not email
                     personal_login = clients_info[0].get("Login")
-                    logger.info(f"Found personal advertising account login via Clients.get: {personal_login}")
+                    logger.info(f"🔵 Clients.get Login field: '{personal_login}'")
+                    logger.info(f"🔵 Clients.get full response: {json.dumps(clients_info[0], indent=2, ensure_ascii=False)}")
             except Exception as clients_err:
                 logger.warning(f"Could not get personal account login via Clients.get: {clients_err}")
             
             # Fallback to account_id if Clients.get fails or returns nothing
+            # NOTE: account_id is usually the Yandex email/login, which may not be the advertising account login
             if not personal_login:
                 personal_login = integration.account_id
-                logger.info(f"Using account_id as fallback for personal login: {personal_login}")
+                logger.warning(f"⚠️ Using account_id as fallback for personal login: {personal_login} (this may not be the correct advertising account login)")
             
             if personal_login and personal_login.lower() != "unknown":
                 profiles.append({"login": personal_login, "name": f"Личный аккаунт ({personal_login})"})
                 seen_logins.add(personal_login.lower())
-                logger.info(f"Added personal profile: {personal_login}")
+                logger.info(f"✅ Added personal profile: {personal_login}")
 
             # 2. Try to get agency clients (if this account is an agency)
             try:
                 agency_clients = await get_agency_clients(access_token)
+                logger.info(f"🔵 AgencyClients.get returned {len(agency_clients)} clients")
                 for ac in agency_clients:
                     login = ac.get("login")
+                    logger.info(f"🔵 Agency client: login='{login}', name='{ac.get('name', 'N/A')}'")
                     if login and login.lower() not in seen_logins:
                         profiles.append(ac)
                         seen_logins.add(login.lower())
-                        logger.info(f"Added agency client: {login}")
+                        logger.info(f"✅ Added agency client: {login}")
+                    else:
+                        logger.warning(f"⚠️ Skipped agency client (duplicate or empty login): {login}")
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
 
@@ -854,6 +864,12 @@ async def discover_campaigns(
     # CRITICAL: Refresh integration from DB to ensure we have the latest agency_client_login
     # This is important because the profile might have been updated just before this call
     db.refresh(integration)
+    
+    # DEBUG: Log current state of integration
+    logger.info(f"🔵 discover_campaigns: integration {integration_id} state:")
+    logger.info(f"   account_id: '{integration.account_id}'")
+    logger.info(f"   agency_client_login: '{integration.agency_client_login}'")
+    logger.info(f"   platform: {integration.platform}")
         
     log_event("backend", f"discovering campaigns for integration {integration_id}")
     access_token = security.decrypt_token(integration.access_token)
@@ -929,7 +945,18 @@ async def discover_campaigns(
                 detail="Не удалось получить кампании из Яндекс.Директ. Попробуйте ещё раз позже."
             )
         
-        logger.info(f"API returned {len(discovered_campaigns)} campaigns. Names: {[c.get('name') for c in discovered_campaigns[:5]]}")
+        logger.info(f"🔵 API returned {len(discovered_campaigns)} campaigns from Yandex Direct API")
+        logger.info(f"🔵 Using Client-Login: '{use_client_login}'")
+        logger.info(f"🔵 Campaign names from API: {[c.get('name') for c in discovered_campaigns]}")
+        logger.info(f"🔵 Campaign IDs from API: {[c.get('id') for c in discovered_campaigns]}")
+        
+        # Check for specific campaigns
+        campaign_names_lower = [c.get('name', '').lower() for c in discovered_campaigns]
+        if any('кси' in name or 'ksi' in name for name in campaign_names_lower):
+            logger.info(f"✅ Found 'кси' campaign in API response!")
+        else:
+            logger.warning(f"❌ 'кси' campaign NOT found in API response!")
+        
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
         api = VKAdsAPI(access_token, integration.account_id)
@@ -937,6 +964,9 @@ async def discover_campaigns(
         log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
         
     # Save to DB
+    logger.info(f"💾 Saving {len(discovered_campaigns)} campaigns to database for integration {integration_id}")
+    saved_count = 0
+    updated_count = 0
     for dc in discovered_campaigns:
         campaign = db.query(models.Campaign).filter_by(
             integration_id=integration.id,
@@ -951,10 +981,15 @@ async def discover_campaigns(
                 is_active=False # Discovery creates them as inactive by default
             )
             db.add(campaign)
+            saved_count += 1
+            logger.info(f"   💾 Created new campaign: ID={dc['id']}, Name='{dc['name']}'")
         else:
             campaign.name = dc["name"]
+            updated_count += 1
+            logger.info(f"   💾 Updated existing campaign: ID={dc['id']}, Name='{dc['name']}'")
             
     db.commit()
+    logger.info(f"💾 Saved {saved_count} new campaigns, updated {updated_count} existing campaigns")
     
     # IMPORTANT: After discovering campaigns, immediately sync stats for last 7 days
     # so user can see real data in the wizard

@@ -120,7 +120,13 @@ class YandexDirectAPI:
                     logger.info(f"   📤 Request that was ACTUALLY sent:")
                     logger.info(f"      Method: {response.request.method}")
                     logger.info(f"      URL: {response.request.url}")
-                    logger.info(f"      Headers: {dict(response.request.headers)}")
+                    # Log headers but mask Authorization token
+                    sent_headers = dict(response.request.headers)
+                    if 'Authorization' in sent_headers:
+                        sent_headers['Authorization'] = 'Bearer [REDACTED]'
+                    logger.info(f"      Headers: {sent_headers}")
+                    client_login_value = response.request.headers.get('Client-Login', 'NOT SET')
+                    logger.info(f"      Client-Login header value: '{client_login_value}'")
                     logger.info(f"      Client-Login in sent headers: {'Client-Login' in response.request.headers}")
                 
                 # DEBUG: Log response details
@@ -137,13 +143,24 @@ class YandexDirectAPI:
                     if "result" in data and "Campaigns" in data["result"]:
                         campaigns = data["result"]["Campaigns"]
                         logger.info(f"   🔴 CRITICAL: API returned {len(campaigns)} campaigns")
+                        logger.info(f"   🔴 Client-Login used: '{self.client_login}'")
                         
-                        # Log first 3 campaign names for debugging
-                        for idx, c in enumerate(campaigns[:3]):
-                            logger.info(f"      Campaign {idx + 1}: ID={c['Id']}, Name={c['Name']}, Status={c['Status']}")
+                        # Log ALL campaign names and IDs for debugging
+                        logger.info(f"   🔴 ALL campaigns returned by API:")
+                        for idx, c in enumerate(campaigns):
+                            logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}")
                         
-                        if len(campaigns) > 3:
-                            logger.info(f"      ... and {len(campaigns) - 3} more campaigns")
+                        # Check if specific campaigns are present
+                        campaign_names = [c['Name'] for c in campaigns]
+                        campaign_ids = [str(c['Id']) for c in campaigns]
+                        logger.info(f"   🔴 Campaign names list: {campaign_names}")
+                        logger.info(f"   🔴 Campaign IDs list: {campaign_ids}")
+                        
+                        # Check for specific campaigns user mentioned
+                        if any('кси' in name.lower() or 'ksi' in name.lower() for name in campaign_names):
+                            logger.info(f"   ✅ Found 'кси' campaign in results!")
+                        else:
+                            logger.warning(f"   ❌ 'кси' campaign NOT found in API response!")
                         
                         return [
                             {
@@ -189,12 +206,20 @@ class YandexDirectAPI:
         from datetime import datetime, timedelta
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         
+        # CRITICAL: Add ClientLogin filter if client_login is set
+        # This ensures we only get campaigns from the selected profile
+        selection_criteria = {
+            "DateFrom": yesterday,
+            "DateTo": yesterday
+        }
+        
+        if self.client_login:
+            selection_criteria["ClientLogin"] = self.client_login
+            logger.info(f"📊 get_campaigns_from_reports: Adding ClientLogin filter: '{self.client_login}'")
+        
         payload = {
             "params": {
-                "SelectionCriteria": {
-                    "DateFrom": yesterday,
-                    "DateTo": yesterday
-                },
+                "SelectionCriteria": selection_criteria,
                 "FieldNames": ["CampaignId", "CampaignName"],
                 "ReportName": "Campaign List Report",
                 "ReportType": "CAMPAIGN_PERFORMANCE_REPORT",
@@ -304,12 +329,23 @@ class YandexDirectAPI:
         else:
             report_type = "CAMPAIGN_PERFORMANCE_REPORT"
 
+        # CRITICAL: Add ClientLogin filter if client_login is set
+        # This ensures reports are filtered by the selected profile
+        # According to Yandex API docs, ClientLogin filter in SelectionCriteria is more reliable than just the header
+        selection_criteria = {
+            "DateFrom": date_from,
+            "DateTo": date_to
+        }
+        
+        # Add ClientLogin filter if we have a specific client_login
+        # This is CRITICAL for filtering reports by selected profile
+        if self.client_login:
+            selection_criteria["ClientLogin"] = self.client_login
+            logger.info(f"📊 Adding ClientLogin filter to report: '{self.client_login}'")
+        
         report_definition = {
             "params": {
-                "SelectionCriteria": {
-                    "DateFrom": date_from,
-                    "DateTo": date_to
-                },
+                "SelectionCriteria": selection_criteria,
                 "FieldNames": field_names,
                 "ReportName": f"AgencyStats_{level}_{date_from}_{date_to}_{int(datetime.now().timestamp())}",
                 "ReportType": report_type,
