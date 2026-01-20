@@ -102,20 +102,21 @@ class YandexDirectAPI:
         logger.info(f"YandexDirectAPI.get_campaigns: Client-Login header = '{client_login_header}'")
         logger.info(f"YandexDirectAPI.get_campaigns: Full headers (without token) = {[k for k in self.headers.keys() if k != 'Authorization']}")
         
-        # CRITICAL: Don't filter by States to get ALL campaigns
+        # CRITICAL: Request ALL campaigns in ALL states (except ARCHIVED which we filter manually)
         # According to Yandex Direct API docs:
         # - If States is not specified, returns all campaigns except CONVERTED
-        # - We need ALL campaigns (including those awaiting payment, etc.)
-        # - Reports API shows that campaigns exist that Campaigns.get might miss with filters
-        # - We'll filter out ARCHIVED and CONVERTED manually if needed
-        # - Empty SelectionCriteria returns all campaigns except CONVERTED (unless explicitly requested)
-        selection_criteria = {}  # Get all campaigns except CONVERTED
+        # - We need ALL campaigns (including those awaiting payment, stopped, suspended, etc.)
+        # - Explicitly include all possible states to ensure we get everything
+        # - We'll filter out only ARCHIVED manually after getting results
+        selection_criteria = {
+            "States": ["ON", "OFF", "SUSPENDED", "ENDED", "CONVERTED"]  # Include ALL states
+        }
         
         payload = {
             "method": "get",
             "params": {
                 "SelectionCriteria": selection_criteria,
-                "FieldNames": ["Id", "Name", "Status", "State"]  # Added State to see campaign state
+                "FieldNames": ["Id", "Name", "Status", "State", "StatusPayment"]  # Added StatusPayment to see payment status
             }
         }
         
@@ -165,7 +166,8 @@ class YandexDirectAPI:
                         logger.info(f"   🔴 ALL campaigns returned by API:")
                         for idx, c in enumerate(campaigns):
                             campaign_state = c.get('State', 'N/A')
-                            logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}, State={campaign_state}")
+                            status_payment = c.get('StatusPayment', 'N/A')
+                            logger.info(f"      [{idx+1}] ID={c['Id']}, Name='{c['Name']}', Status={c['Status']}, State={campaign_state}, StatusPayment={status_payment}")
                         
                         # Check if specific campaigns are present
                         campaign_names = [c['Name'] for c in campaigns]
@@ -182,28 +184,33 @@ class YandexDirectAPI:
                             logger.warning(f"   ⚠️ Consider using Reports API fallback to get all campaigns")
                         
                         # Filter out only ARCHIVED campaigns manually (keep everything else)
+                        # Show all campaigns in any status except ARCHIVED
                         filtered_campaigns = [
                             c for c in campaigns 
-                            if c.get("State") != "ARCHIVED"  # Exclude only archived
+                            if c.get("State") != "ARCHIVED"  # Exclude only archived, keep all other states
                         ]
                         
                         if len(filtered_campaigns) < len(campaigns):
                             logger.info(f"   🔍 Filtered out {len(campaigns) - len(filtered_campaigns)} ARCHIVED campaigns")
                         
+                        # Use Campaigns.get as primary source - it has full status/state information
                         result = [
                             {
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
                                 "status": c["Status"],
-                                "state": c.get("State", "UNKNOWN")  # Include state for debugging
+                                "state": c.get("State", "UNKNOWN"),  # Include state for debugging
+                                "status_payment": c.get("StatusPayment", "UNKNOWN")  # Include payment status
                             }
                             for c in filtered_campaigns
                         ]
                         
-                        # CRITICAL: If we're missing expected campaigns (like "кси"), try Reports API
-                        # Reports API often returns campaigns that Campaigns.get misses due to filters
-                        # Check if we got fewer campaigns than expected by trying Reports API
-                        logger.info(f"   🔍 Campaigns.get returned {len(result)} campaigns. Checking if Reports API has more...")
+                        logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (excluding ARCHIVED)")
+                        logger.info(f"   ✅ Campaign IDs from Campaigns.get: {[c['id'] for c in result]}")
+                        
+                        # CRITICAL: Reports API is only used to ADD missing campaigns, not replace results
+                        # Reports API may miss campaigns without data for the date range
+                        # So we use Campaigns.get as primary source and Reports API only as supplement
                         try:
                             reports_campaigns = await self.get_campaigns_from_reports()
                             if reports_campaigns:
@@ -213,19 +220,11 @@ class YandexDirectAPI:
                                 missing_in_campaigns_get = reports_ids - campaigns_get_ids
                                 if missing_in_campaigns_get:
                                     logger.warning(f"   ⚠️ Reports API found {len(missing_in_campaigns_get)} campaigns that Campaigns.get missed: {missing_in_campaigns_get}")
-                                    logger.warning(f"   ⚠️ Using Reports API results to include all campaigns")
                                     
-                                    # Merge results: use Reports API as source of truth for campaign list
-                                    # But preserve status/state from Campaigns.get where available
-                                    campaigns_get_by_id = {c["id"]: c for c in result}
-                                    merged = []
+                                    # ADD missing campaigns from Reports API to result (don't replace)
                                     for rc in reports_campaigns:
-                                        if rc["id"] in campaigns_get_by_id:
-                                            # Use data from Campaigns.get (has status/state)
-                                            merged.append(campaigns_get_by_id[rc["id"]])
-                                        else:
-                                            # Add from Reports API (missing from Campaigns.get)
-                                            merged.append({
+                                        if rc["id"] not in campaigns_get_ids:
+                                            result.append({
                                                 "id": rc["id"],
                                                 "name": rc["name"],
                                                 "status": "UNKNOWN",  # Reports API doesn't provide status
@@ -233,7 +232,9 @@ class YandexDirectAPI:
                                             })
                                             logger.info(f"   ✅ Added missing campaign from Reports API: ID={rc['id']}, Name='{rc['name']}'")
                                     
-                                    return merged
+                                    logger.info(f"   ✅ Final result: {len(result)} campaigns total (from Campaigns.get + Reports API additions)")
+                                else:
+                                    logger.info(f"   ✅ All campaigns from Reports API are already in Campaigns.get results")
                         except Exception as reports_err:
                             logger.warning(f"   ⚠️ Could not check Reports API for missing campaigns: {reports_err}")
                         
