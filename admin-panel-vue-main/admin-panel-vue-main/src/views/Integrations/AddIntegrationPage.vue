@@ -424,13 +424,19 @@ const nextStep = async () => {
       toaster.error('Пожалуйста, выберите профиль перед переходом к кампаниям')
       return
     }
-    // Update integration with selected profile
+    // CRITICAL: Update integration with selected profile (both account_id and agency_client_login)
+    // This ensures the backend uses the correct profile when fetching campaigns
     try {
       await api.patch(`/integrations/${lastIntegrationId.value}`, {
-        account_id: form.account_id
+        account_id: form.account_id,
+        agency_client_login: form.agency_client_login || form.account_id
       })
+      // Wait a bit to ensure DB commit is complete
+      await new Promise(resolve => setTimeout(resolve, 100))
     } catch (err) {
-      console.error('Failed to update integration with account_id:', err)
+      console.error('Failed to update integration with profile:', err)
+      toaster.error('Ошибка при сохранении профиля')
+      return
     }
     currentStep.value = 3
     fetchCampaigns(lastIntegrationId.value)

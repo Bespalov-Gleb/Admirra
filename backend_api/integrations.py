@@ -635,6 +635,10 @@ async def get_integration_goals(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
 
+    # CRITICAL: Refresh integration from DB to ensure we have the latest agency_client_login
+    # This is important because the profile might have been updated just before this call
+    db.refresh(integration)
+
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
     # CRITICAL: Use account_id from query param if provided (from frontend),
@@ -817,6 +821,10 @@ async def discover_campaigns(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+    
+    # CRITICAL: Refresh integration from DB to ensure we have the latest agency_client_login
+    # This is important because the profile might have been updated just before this call
+    db.refresh(integration)
         
     log_event("backend", f"discovering campaigns for integration {integration_id}")
     access_token = security.decrypt_token(integration.access_token)
@@ -828,11 +836,28 @@ async def discover_campaigns(
         # This ensures we only get campaigns from the selected profile, not all accessible profiles
         # agency_client_login is set when user selects a profile on step 2
         selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else integration.account_id
-        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile} (agency_client_login={integration.agency_client_login}, account_id={integration.account_id})")
+        
+        # IMPORTANT: Only pass Client-Login if selected_profile is different from account_id
+        # If they're the same, it means user selected their personal account, and Client-Login is not needed
+        # Client-Login is only needed for agency/managed accounts
+        personal_account = integration.account_id
+        use_client_login = None
+        if selected_profile and selected_profile.lower() != "unknown":
+            if selected_profile != personal_account:
+                # Different profile selected (agency/managed account) - need Client-Login
+                use_client_login = selected_profile
+                logger.info(f"Using Client-Login={use_client_login} (selected profile differs from personal account {personal_account})")
+            else:
+                # Same as personal account - no Client-Login needed
+                logger.info(f"Selected profile is personal account ({personal_account}), not using Client-Login header")
+        else:
+            logger.info(f"No profile selected, not using Client-Login header")
+        
+        logger.info(f"Fetching campaigns for Yandex Direct integration {integration_id}, profile: {selected_profile} (agency_client_login={integration.agency_client_login}, account_id={integration.account_id}, using Client-Login={use_client_login})")
         
         # Pass client_login to filter campaigns by selected profile
-        # If no profile selected, API will return all campaigns accessible by token
-        api = YandexDirectAPI(access_token, client_login=selected_profile if selected_profile and selected_profile.lower() != "unknown" else None)
+        # If no profile selected or it's the personal account, API will return campaigns for the token owner
+        api = YandexDirectAPI(access_token, client_login=use_client_login)
         try:
             discovered_campaigns = await api.get_campaigns()
         except Exception as e:
