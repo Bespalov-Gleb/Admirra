@@ -116,7 +116,7 @@ class YandexDirectAPI:
             "method": "get",
             "params": {
                 "SelectionCriteria": selection_criteria,
-                "FieldNames": ["Id", "Name", "Status", "State", "StatusPayment"]  # Added StatusPayment to see payment status
+                "FieldNames": ["Id", "Name", "Status", "State", "StatusPayment", "Type"]  # Added Type for campaign type filtering
             }
         }
         
@@ -183,15 +183,14 @@ class YandexDirectAPI:
                             logger.warning(f"   ⚠️ This might mean the campaign is in CONVERTED state or has a different issue")
                             logger.warning(f"   ⚠️ Consider using Reports API fallback to get all campaigns")
                         
-                        # Filter out only ARCHIVED campaigns manually (keep everything else)
-                        # Show all campaigns in any status except ARCHIVED
-                        filtered_campaigns = [
-                            c for c in campaigns 
-                            if c.get("State") != "ARCHIVED"  # Exclude only archived, keep all other states
-                        ]
+                        # IMPORTANT: Keep ALL campaigns including ARCHIVED
+                        # ARCHIVED campaigns should be returned so frontend filter can work
+                        # Frontend will filter them using the state field
+                        filtered_campaigns = campaigns  # Keep all campaigns, including ARCHIVED
                         
-                        if len(filtered_campaigns) < len(campaigns):
-                            logger.info(f"   🔍 Filtered out {len(campaigns) - len(filtered_campaigns)} ARCHIVED campaigns")
+                        archived_count = sum(1 for c in campaigns if c.get("State") == "ARCHIVED")
+                        if archived_count > 0:
+                            logger.info(f"   📋 Found {archived_count} ARCHIVED campaigns (will be returned for filtering)")
                         
                         # Use Campaigns.get as primary source - it has full status/state information
                         result = [
@@ -199,8 +198,9 @@ class YandexDirectAPI:
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
                                 "status": c["Status"],
-                                "state": c.get("State", "UNKNOWN"),  # Include state for debugging
-                                "status_payment": c.get("StatusPayment", "UNKNOWN")  # Include payment status
+                                "state": c.get("State", "UNKNOWN"),  # Include state for filtering (ON, OFF, SUSPENDED, ENDED, ARCHIVED)
+                                "status_payment": c.get("StatusPayment", "UNKNOWN"),  # Include payment status
+                                "type": c.get("Type", "UNKNOWN")  # Include type for filtering (TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, etc.)
                             }
                             for c in filtered_campaigns
                         ]
@@ -228,7 +228,8 @@ class YandexDirectAPI:
                                                 "id": rc["id"],
                                                 "name": rc["name"],
                                                 "status": "UNKNOWN",  # Reports API doesn't provide status
-                                                "state": "UNKNOWN"
+                                                "state": "UNKNOWN",  # Reports API doesn't provide state
+                                                "type": "UNKNOWN"  # Reports API doesn't provide type
                                             })
                                             logger.info(f"   ✅ Added missing campaign from Reports API: ID={rc['id']}, Name='{rc['name']}'")
                                     
@@ -278,13 +279,24 @@ class YandexDirectAPI:
         FALLBACK METHOD: Get campaigns list using Reports API.
         This works for ALL Yandex Direct accounts, including those in new interface.
         
-        Uses a minimal date range to get campaign list without heavy data.
+        CRITICAL: Uses a wider date range (last 30 days) to ensure we get all campaigns,
+        even if they were stopped or had no data recently. Using only yesterday's date
+        fails when campaigns are stopped or have no recent activity.
         """
         logger.info("📊 Getting campaigns list via Reports API (fallback method)")
         
-        # Use yesterday's date for a lightweight report
+        # CRITICAL: Use wider date range (last 30 days) instead of just yesterday
+        # This ensures we get all campaigns even if they're stopped or have no recent data
+        # Using only yesterday fails when:
+        # 1. Campaigns are stopped (no data for yesterday)
+        # 2. Campaigns have no activity (no impressions/clicks)
+        # 3. Account doesn't have Pro Direct (only Reports API works)
         from datetime import datetime, timedelta
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        today = datetime.now()
+        date_from = (today - timedelta(days=30)).strftime("%Y-%m-%d")  # Last 30 days
+        date_to = today.strftime("%Y-%m-%d")
+        
+        logger.info(f"📊 Using date range {date_from} to {date_to} to get all campaigns (including stopped ones)")
         
         # CRITICAL: Add ClientLogin filter if client_login is set
         # This ensures we only get campaigns from the selected profile
@@ -292,8 +304,8 @@ class YandexDirectAPI:
         # ClientLogin filtering is done via Client-Login header, NOT in SelectionCriteria
         # Adding ClientLogin to SelectionCriteria causes 400 Bad Request error
         selection_criteria = {
-            "DateFrom": yesterday,
-            "DateTo": yesterday
+            "DateFrom": date_from,
+            "DateTo": date_to
         }
         
         # Client-Login header is already set in self.headers, which is sufficient for filtering
@@ -560,6 +572,79 @@ class YandexDirectAPI:
                     continue
         return results
 
+    async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get PriorityGoals for specific campaigns.
+        Returns a dict mapping campaign_id to list of goals.
+        
+        CRITICAL: This method works only for accounts with Direct Pro.
+        For accounts without Pro, returns empty dict and should use fallback method.
+        """
+        if not campaign_ids:
+            return {}
+        
+        logger.info(f"📊 Getting goals for {len(campaign_ids)} campaigns")
+        
+        # Request campaigns with PriorityGoals field
+        selection_criteria = {
+            "Ids": [int(cid) for cid in campaign_ids if cid.isdigit()]
+        }
+        
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": selection_criteria,
+                "FieldNames": ["Id", "Name", "PriorityGoals"]  # PriorityGoals contains goal IDs
+            }
+        }
+        
+        campaign_goals_map = {}
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if "result" in data and "Campaigns" in data["result"]:
+                        campaigns = data["result"]["Campaigns"]
+                        
+                        for campaign in campaigns:
+                            campaign_id = str(campaign["Id"])
+                            priority_goals = campaign.get("PriorityGoals", {})
+                            
+                            # PriorityGoals structure: {"Items": [{"GoalId": "123", "Value": 100}, ...]}
+                            goals_list = []
+                            if priority_goals and "Items" in priority_goals:
+                                for goal_item in priority_goals["Items"]:
+                                    goals_list.append({
+                                        "goal_id": str(goal_item.get("GoalId", "")),
+                                        "value": goal_item.get("Value", 0)
+                                    })
+                            
+                            campaign_goals_map[campaign_id] = goals_list
+                            logger.info(f"   Campaign {campaign_id} ({campaign.get('Name', 'Unknown')}): {len(goals_list)} priority goals")
+                        
+                        return campaign_goals_map
+                    elif "error" in data:
+                        error_code = data["error"].get("error_code")
+                        if error_code == 3228:
+                            # Direct Pro not available - return empty, will use fallback
+                            logger.warning(f"⚠️ Campaigns.get API not available (error 3228). Cannot get PriorityGoals directly.")
+                            return {}
+                        else:
+                            error_msg = json.dumps(data["error"])
+                            raise Exception(f"Yandex API Error: {error_msg}")
+                
+                raise Exception(f"Failed to fetch campaign goals: {response.status_code} - {response.text}")
+            except Exception as e:
+                if "error_code\":3228" in str(e) or "Директ Про" in str(e):
+                    logger.warning(f"⚠️ Cannot get PriorityGoals (Direct Pro not available). Will use fallback method.")
+                    return {}
+                logger.error(f"Error fetching campaign goals: {e}")
+                raise
+    
     async def get_clients(self) -> List[Dict[str, Any]]:
         """
         Fetches information about the current client, including ManagedLogins for shared access.

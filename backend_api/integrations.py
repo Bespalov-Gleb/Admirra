@@ -644,14 +644,16 @@ async def get_integration_profiles(
 async def get_integration_goals(
     integration_id: uuid.UUID,
     account_id: Optional[str] = None,
+    campaign_ids: Optional[str] = None,  # Comma-separated list of campaign IDs
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Fetch available goals (Metrica) for this integration.
-    If date_from and date_to are provided, also fetch goal statistics.
+    Fetch available goals (Metrica) for selected campaigns.
+    CRITICAL: If campaign_ids is provided, returns goals only for those campaigns.
+    Otherwise falls back to profile-based goal fetching (legacy behavior).
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
@@ -668,22 +670,131 @@ async def get_integration_goals(
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
     
-    # CRITICAL: Use account_id from query param if provided (from frontend),
-    # otherwise use agency_client_login ONLY if it's explicitly set (user selected a profile)
-    # If agency_client_login is not set, don't filter by profile (will show all accessible counters)
+    # Determine target_account for profile filtering (used in both paths)
     if account_id:
-        # Frontend explicitly passed account_id - use it
         target_account = account_id
         logger.info(f"Using account_id from query param: {target_account}")
     elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
-        # User selected a profile on step 2 - use it
         target_account = integration.agency_client_login
         logger.info(f"Using agency_client_login (selected profile): {target_account}")
     else:
-        # No profile selected - don't filter (will show all accessible counters)
         target_account = None
         logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
     
+    # CRITICAL: If campaign_ids provided, get goals from campaigns, not from profile
+    if campaign_ids:
+        campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
+        logger.info(f"📊 Getting goals for {len(campaign_ids_list)} selected campaigns: {campaign_ids_list}")
+        
+        if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+            from automation.yandex_direct import YandexDirectAPI
+            direct_api = YandexDirectAPI(access_token, client_login=target_account)
+            
+            # Try to get PriorityGoals from campaigns (works only for Direct Pro)
+            campaign_goals_map = await direct_api.get_campaign_goals(campaign_ids_list)
+            
+            if campaign_goals_map:
+                # Successfully got goals from campaigns - collect unique goal IDs
+                all_goal_ids = set()
+                for campaign_id, goals in campaign_goals_map.items():
+                    for goal in goals:
+                        all_goal_ids.add(goal["goal_id"])
+                
+                logger.info(f"📊 Found {len(all_goal_ids)} unique goal IDs from campaigns: {all_goal_ids}")
+                
+                # Now get full goal details from Metrika API
+                # We need to find which counters contain these goals
+                from automation.yandex_metrica import YandexMetricaAPI
+                metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+                
+                try:
+                    counters = await metrica_api.get_counters()
+                    # Filter counters by profile (same logic as before)
+                    if target_account:
+                        def normalize_login(login: str) -> str:
+                            if not login:
+                                return ""
+                            normalized = login.lower().strip()
+                            normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
+                            return normalized
+                        
+                        target_normalized = normalize_login(target_account)
+                        filtered_counters = []
+                        for counter in counters:
+                            owner_login = counter.get('owner_login', '')
+                            owner_normalized = normalize_login(owner_login)
+                            if (owner_login.lower() == target_account.lower() or
+                                owner_normalized == target_normalized):
+                                filtered_counters.append(counter)
+                        counters = filtered_counters
+                    
+                    # Get goals from counters and filter by goal IDs from campaigns
+                    all_goals = []
+                    for counter in counters:
+                        counter_id = str(counter['id'])
+                        counter_name = counter.get('name', 'Unknown')
+                        try:
+                            goals = await metrica_api.get_counter_goals(counter_id)
+                            for goal in goals:
+                                goal_id = str(goal['id'])
+                                # Only include goals that are used in selected campaigns
+                                if goal_id in all_goal_ids:
+                                    goal_data = {
+                                        "id": goal_id,
+                                        "name": f"{goal['name']} ({counter_name})",
+                                        "type": goal.get('type', 'Unknown'),
+                                        "counter_id": counter_id,
+                                        "conversions": 0,
+                                        "conversion_rate": 0.0
+                                    }
+                                    
+                                    # Get stats if date range provided
+                                    if date_from and date_to:
+                                        from sqlalchemy import func
+                                        stats = db.query(
+                                            func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
+                                        ).filter(
+                                            models.MetrikaGoals.goal_id == goal_id,
+                                            models.MetrikaGoals.integration_id == integration_id,
+                                            models.MetrikaGoals.date >= date_from,
+                                            models.MetrikaGoals.date <= date_to
+                                        ).first()
+                                        
+                                        if stats and stats.total_conversions:
+                                            goal_data["conversions"] = int(stats.total_conversions)
+                                            
+                                            total_clicks = db.query(
+                                                func.sum(models.YandexStats.clicks)
+                                            ).join(
+                                                models.Campaign
+                                            ).filter(
+                                                models.Campaign.integration_id == integration_id,
+                                                models.Campaign.external_id.in_(campaign_ids_list),
+                                                models.YandexStats.date >= date_from,
+                                                models.YandexStats.date <= date_to
+                                            ).scalar() or 0
+                                            
+                                            if total_clicks > 0:
+                                                goal_data["conversion_rate"] = round((goal_data["conversions"] / total_clicks) * 100, 2)
+                                    
+                                    all_goals.append(goal_data)
+                        except Exception as goals_err:
+                            logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
+                    
+                    logger.info(f"✅ Returning {len(all_goals)} goals from {len(campaign_ids_list)} selected campaigns")
+                    return all_goals
+                except Exception as e:
+                    logger.error(f"Error fetching goals from Metrika: {e}")
+                    # Fall through to fallback method
+            
+            # FALLBACK: If Direct Pro not available or no PriorityGoals found
+            # Get all goals from profile's counters (works for accounts without Direct Pro)
+            logger.info(f"⚠️ Direct Pro not available or no PriorityGoals. Using fallback: getting all goals from profile")
+            # Continue with existing profile-based logic below
+    
+    # LEGACY PATH: If no campaign_ids provided, use profile-based goal fetching
+    # This maintains backward compatibility
+    logger.info(f"📊 Getting goals from profile (campaign_ids not provided or fallback used)")
     logger.info(f"Fetching goals for integration {integration_id}, target_account: {target_account} (query account_id={account_id}, integration.agency_client_login={integration.agency_client_login}, integration.account_id={integration.account_id})")
     
     # CRITICAL: Try to get the correct Metrika owner_login format for the selected profile
@@ -1144,6 +1255,10 @@ async def discover_campaigns(
         log_event("backend", f"Auto-sync failed: {str(e)}")
     
     # Return all campaigns for this integration as dictionaries
+    # CRITICAL: Use discovered_campaigns data (from API) to get state and type
+    # Create a map of external_id -> campaign data from API
+    discovered_map = {str(dc["id"]): dc for dc in discovered_campaigns}
+    
     # Filter out template/test campaigns (like "CampaignName", "Test Campaign", etc.)
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
     
@@ -1163,15 +1278,35 @@ async def discover_campaigns(
             logger.info(f"   ⏭️ Skipping invalid campaign ID: ID={campaign.external_id}, Name='{campaign.name}'")
             continue
         
-        filtered_campaigns.append({
+        # Get state from discovered_campaigns (API data)
+        api_campaign = discovered_map.get(str(campaign.external_id))
+        
+        # Build campaign dict with data from API if available
+        # Map state values to match frontend expectations
+        campaign_state = api_campaign.get("state", "UNKNOWN") if api_campaign else "UNKNOWN"
+        # IMPORTANT: Keep ARCHIVED state as-is for filtering
+        # Map state: OFF -> SUSPENDED for frontend (OFF means paused/stopped)
+        # But keep ARCHIVED, ENDED, ON, SUSPENDED as-is
+        if campaign_state == "OFF":
+            campaign_state = "SUSPENDED"  # Frontend uses SUSPENDED for paused campaigns
+        # ARCHIVED campaigns should be returned with state="ARCHIVED" so filter can find them
+        
+        # Get type and ensure it matches frontend expectations
+        campaign_type = api_campaign.get("type", "UNKNOWN") if api_campaign else "UNKNOWN"
+        # Type values from API should match: TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, MOBILE_APP_CAMPAIGN, SMART_CAMPAIGN
+        
+        campaign_dict = {
             "id": str(campaign.id),
             "external_id": campaign.external_id,
             "name": campaign.name,
-            "status": "UNKNOWN",  # Will be updated from API if available
-            "state": "UNKNOWN"    # Will be updated from API if available
-        })
+            "status": api_campaign.get("status", "UNKNOWN") if api_campaign else "UNKNOWN",
+            "state": campaign_state,  # Mapped state for frontend filtering
+            "type": campaign_type  # Campaign type for filtering
+        }
+        
+        filtered_campaigns.append(campaign_dict)
     
-    logger.info(f"✅ Returning {len(filtered_campaigns)} campaigns (filtered out {len(all_campaigns) - len(filtered_campaigns)} template campaigns)")
+    logger.info(f"✅ Returning {len(filtered_campaigns)} campaigns (filtered out {len(all_campaigns) - len(filtered_campaigns)} template/archived campaigns)")
     return filtered_campaigns
 
 @router.get("/{integration_id}/campaigns-stats")

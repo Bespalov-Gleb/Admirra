@@ -131,8 +131,15 @@ export function useIntegrationWizard() {
       // This ensures we filter Metrika counters by the selected profile
       const targetAccount = form.agency_client_login || form.account_id
       const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
+      
+      // CRITICAL: Pass selected campaign IDs to get goals only for selected campaigns
+      // This ensures goals are filtered by campaigns, not by profile
+      const campaignIdsParam = selectedCampaignIds.value.length > 0 
+        ? `&campaign_ids=${selectedCampaignIds.value.join(',')}` 
+        : ''
+      
       const { data } = await api.get(
-        `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}`
+        `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}${campaignIdsParam}`
       )
       goals.value = data
       
