@@ -574,29 +574,136 @@ class YandexDirectAPI:
 
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Get PriorityGoals for specific campaigns.
+        Get PriorityGoals for specific campaigns using type-specific field names.
         
-        CRITICAL: PriorityGoals cannot be requested directly via FieldNames in Campaigns.get API.
-        PriorityGoals are nested inside BiddingStrategy, which requires requesting full campaign structure
-        by campaign type (TextCampaign, DynamicTextCampaign, etc.), which is complex.
+        CRITICAL: PriorityGoals are accessed via type-specific field names:
+        - TextCampaignFieldNames: ["PriorityGoals"] for TEXT_CAMPAIGN
+        - DynamicTextCampaignFieldNames: ["PriorityGoals"] for DYNAMIC_TEXT_CAMPAIGN
+        - MobileAppCampaignFieldNames: ["PriorityGoals"] for MOBILE_APP_CAMPAIGN
+        - SmartCampaignFieldNames: ["PriorityGoals"] for SMART_CAMPAIGN
         
-        For now, this method returns empty dict to trigger fallback:
-        - Get all goals from profile's Metrika counters
-        - User can select which goals to use
-        
-        This is a limitation of Yandex Direct API - there's no direct way to get goals by campaign IDs.
+        Returns a dict mapping campaign_id to list of goals with goal_id and goal_name.
         """
         if not campaign_ids:
             return {}
         
-        logger.info(f"📊 Attempting to get goals for {len(campaign_ids)} campaigns")
-        logger.warning(f"⚠️ Yandex Direct API limitation: PriorityGoals cannot be requested via FieldNames")
-        logger.warning(f"⚠️ PriorityGoals are nested in BiddingStrategy and require type-specific requests")
-        logger.warning(f"⚠️ Using fallback: will return all goals from profile for user selection")
+        logger.info(f"📊 Getting PriorityGoals for {len(campaign_ids)} campaigns")
         
-        # Return empty to trigger fallback method
-        # Fallback will get all goals from profile's Metrika counters
-        return {}
+        # Convert campaign IDs to integers
+        numeric_ids = []
+        for cid in campaign_ids:
+            if cid.isdigit():
+                numeric_ids.append(int(cid))
+            else:
+                logger.warning(f"⚠️ Campaign ID '{cid}' is not numeric, skipping")
+        
+        if not numeric_ids:
+            logger.warning(f"⚠️ No valid numeric campaign IDs found")
+            return {}
+        
+        selection_criteria = {
+            "Ids": numeric_ids
+        }
+        
+        # CRITICAL: Request PriorityGoals for all campaign types
+        # PriorityGoals are in type-specific structures, not in top-level FieldNames
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": selection_criteria,
+                "FieldNames": ["Id", "Name", "Type"],  # Get basic fields and type
+                "TextCampaignFieldNames": ["PriorityGoals"],  # For TEXT_CAMPAIGN
+                "DynamicTextCampaignFieldNames": ["PriorityGoals"],  # For DYNAMIC_TEXT_CAMPAIGN
+                "MobileAppCampaignFieldNames": ["PriorityGoals"],  # For MOBILE_APP_CAMPAIGN
+                "SmartCampaignFieldNames": ["PriorityGoals"]  # For SMART_CAMPAIGN
+            }
+        }
+        
+        campaign_goals_map = {}
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if "result" in data and "Campaigns" in data["result"]:
+                        campaigns = data["result"]["Campaigns"]
+                        
+                        for campaign in campaigns:
+                            campaign_id = str(campaign["Id"])
+                            campaign_name = campaign.get("Name", "Unknown")
+                            campaign_type = campaign.get("Type", "UNKNOWN")
+                            
+                            # Extract PriorityGoals based on campaign type
+                            priority_goals = []
+                            
+                            if campaign_type == "TEXT_CAMPAIGN" and "TextCampaign" in campaign:
+                                priority_goals = campaign["TextCampaign"].get("PriorityGoals", [])
+                            elif campaign_type == "DYNAMIC_TEXT_CAMPAIGN" and "DynamicTextCampaign" in campaign:
+                                priority_goals = campaign["DynamicTextCampaign"].get("PriorityGoals", [])
+                            elif campaign_type == "MOBILE_APP_CAMPAIGN" and "MobileAppCampaign" in campaign:
+                                priority_goals = campaign["MobileAppCampaign"].get("PriorityGoals", [])
+                            elif campaign_type == "SMART_CAMPAIGN" and "SmartCampaign" in campaign:
+                                priority_goals = campaign["SmartCampaign"].get("PriorityGoals", [])
+                            
+                            # Format goals to include goal_id and goal_name
+                            goals_list = []
+                            for goal in priority_goals:
+                                # PriorityGoals structure: {"GoalId": "123", "Name": "Goal Name", "Value": 100}
+                                goal_id = str(goal.get("GoalId", ""))
+                                goal_name = goal.get("Name", f"Goal {goal_id}")
+                                if goal_id:
+                                    goals_list.append({
+                                        "goal_id": goal_id,
+                                        "goal_name": goal_name
+                                    })
+                            
+                            campaign_goals_map[campaign_id] = goals_list
+                            if goals_list:
+                                logger.info(f"   ✅ Campaign {campaign_id} ({campaign_name}): {len(goals_list)} priority goals")
+                            else:
+                                logger.info(f"   ⚠️ Campaign {campaign_id} ({campaign_name}): no PriorityGoals found")
+                        
+                        logger.info(f"📊 Successfully fetched PriorityGoals for {len(campaign_goals_map)} campaigns")
+                        return campaign_goals_map
+                    
+                    elif "error" in data:
+                        error_code = data["error"].get("error_code")
+                        error_detail = data["error"].get("error_detail", "")
+                        
+                        if error_code == 3228:
+                            logger.warning(f"⚠️ Campaigns.get not available (error 3228: {error_detail}). Account likely does not have Direct Pro.")
+                            return {}  # Return empty to trigger fallback
+                        
+                        error_msg = json.dumps(data["error"])
+                        logger.error(f"Yandex API Error fetching campaign goals: {error_msg}")
+                        raise Exception(f"Yandex API Error: {error_msg}")
+                    else:
+                        logger.warning(f"No campaigns found for IDs: {campaign_ids}")
+                        return {}
+                
+                else:
+                    error_msg = f"Failed to fetch Yandex campaign goals: {response.status_code} - {response.text[:200]}"
+                    logger.error(error_msg)
+                    if response.status_code == 401:
+                        raise PermissionError(f"Unauthorized: {error_msg}")
+                    elif response.status_code == 403:
+                        raise PermissionError(f"Forbidden: {error_msg}")
+                    raise Exception(error_msg)
+                    
+            except PermissionError:
+                raise
+            except Exception as e:
+                # Check if it's a Direct Pro error
+                if "error_code\":3228" in str(e) or "Директ Про" in str(e) or "3228" in str(e):
+                    logger.warning(f"⚠️ Cannot get PriorityGoals (Direct Pro not available). Will use fallback method.")
+                    return {}
+                logger.error(f"Error fetching campaign goals: {e}")
+                # Don't raise - return empty to trigger fallback
+                logger.warning(f"⚠️ Error getting campaign goals, will use fallback method: {e}")
+                return {}
     
     async def get_clients(self) -> List[Dict[str, Any]]:
         """

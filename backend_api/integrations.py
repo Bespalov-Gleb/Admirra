@@ -698,6 +698,9 @@ async def get_integration_goals(
             external_ids = [str(c.external_id) for c in campaigns_from_db if c.external_id and str(c.external_id).isdigit()]
             logger.info(f"📊 Converted {len(campaign_ids_list)} UUIDs to {len(external_ids)} external_ids: {external_ids}")
             
+            # Initialize campaign_goals_map to empty dict (will trigger fallback)
+            campaign_goals_map = {}
+            
             if external_ids:
                 from automation.yandex_direct import YandexDirectAPI
                 direct_api = YandexDirectAPI(access_token, client_login=target_account)
@@ -707,11 +710,16 @@ async def get_integration_goals(
                 campaign_goals_map = await direct_api.get_campaign_goals(external_ids)
             
             if campaign_goals_map:
-                # Successfully got goals from campaigns - collect unique goal IDs
+                # Successfully got goals from campaigns - collect unique goal IDs and names
                 all_goal_ids = set()
+                goal_id_to_name = {}  # Map goal_id -> goal_name from campaigns
                 for campaign_id, goals in campaign_goals_map.items():
                     for goal in goals:
-                        all_goal_ids.add(goal["goal_id"])
+                        goal_id = goal["goal_id"]
+                        all_goal_ids.add(goal_id)
+                        # Store goal name from campaign (if available)
+                        if "goal_name" in goal:
+                            goal_id_to_name[goal_id] = goal["goal_name"]
                 
                 logger.info(f"📊 Found {len(all_goal_ids)} unique goal IDs from campaigns: {all_goal_ids}")
                 
@@ -752,9 +760,11 @@ async def get_integration_goals(
                                 goal_id = str(goal['id'])
                                 # Only include goals that are used in selected campaigns
                                 if goal_id in all_goal_ids:
+                                    # Use goal name from campaign if available, otherwise from Metrika
+                                    goal_name_from_campaign = goal_id_to_name.get(goal_id, goal['name'])
                                     goal_data = {
                                         "id": goal_id,
-                                        "name": f"{goal['name']} ({counter_name})",
+                                        "name": f"{goal_name_from_campaign} ({counter_name})",
                                         "type": goal.get('type', 'Unknown'),
                                         "counter_id": counter_id,
                                         "conversions": 0,
@@ -809,6 +819,9 @@ async def get_integration_goals(
     # This maintains backward compatibility
     logger.info(f"📊 Getting goals from profile (campaign_ids not provided or fallback used)")
     logger.info(f"Fetching goals for integration {integration_id}, target_account: {target_account} (query account_id={account_id}, integration.agency_client_login={integration.agency_client_login}, integration.account_id={integration.account_id})")
+    
+    # CRITICAL: Import YandexMetricaAPI here (before use in fallback path)
+    from automation.yandex_metrica import YandexMetricaAPI
     
     # CRITICAL: Try to get the correct Metrika owner_login format for the selected profile
     # Direct API uses one format (e.g., "sintez-digital"), Metrika may use another (e.g., "Sintez.digital")
