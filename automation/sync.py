@@ -44,9 +44,15 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             
-            # SIMPLIFIED ARCHITECTURE: Each token = 1 account, no Client-Login needed
-            # Token inherently represents the account, no profile selection required
-            api = YandexDirectAPI(access_token)
+            # CRITICAL: Use selected profile (agency_client_login) to filter data by account
+            # This ensures we only sync data from the selected profile, not all accessible accounts
+            # Without Client-Login, Reports API returns data for ALL accessible accounts, which causes:
+            # 1. Stats for campaigns from other accounts
+            # 2. Missing stats for campaigns that weren't discovered (because discover used Client-Login)
+            selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else None
+            logger.info(f"Syncing Yandex Direct integration {integration.id} with profile: {selected_profile} (agency_client_login={integration.agency_client_login})")
+            
+            api = YandexDirectAPI(access_token, client_login=selected_profile)
             try:
                 log_event("sync", f"fetching yandex report for {integration.id}")
                 stats = await api.get_report(date_from, date_to)
@@ -71,8 +77,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         if "refresh_token" in new_token_data:
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
-                        # Retry with new token (use same client_login)
-                        api = YandexDirectAPI(new_token_data["access_token"])
+                        # Retry with new token (use same client_login to maintain profile filtering)
+                        api = YandexDirectAPI(new_token_data["access_token"], client_login=selected_profile)
                         stats = await api.get_report(date_from, date_to)
                     else:
                         raise e
