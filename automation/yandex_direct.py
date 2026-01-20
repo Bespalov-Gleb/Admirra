@@ -215,6 +215,7 @@ class YandexDirectAPI:
                         
                         logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (including ARCHIVED if any)")
                         logger.info(f"   ✅ Campaign IDs from Campaigns.get: {[c['id'] for c in result]}")
+                        logger.info(f"   ✅ Campaign names from Campaigns.get: {[c['name'] for c in result]}")
                         
                         # CRITICAL: Always check Reports API to find campaigns that Campaigns.get might miss
                         # This is especially important for accounts using Redirect API (OAuth flow)
@@ -302,24 +303,25 @@ class YandexDirectAPI:
         FALLBACK METHOD: Get campaigns list using Reports API.
         This works for ALL Yandex Direct accounts, including those in new interface.
         
-        CRITICAL: Uses a wider date range (last 30 days) to ensure we get all campaigns,
-        even if they were stopped or had no data recently. Using only yesterday's date
-        fails when campaigns are stopped or have no recent activity.
+        CRITICAL: Uses a wide date range (last 5 years) to ensure we get ALL campaigns,
+        even if they were stopped long ago or had no data recently. This ensures we find
+        all campaigns that were ever active, regardless of when they were last active.
         """
         logger.info("📊 Getting campaigns list via Reports API (fallback method)")
         
-        # CRITICAL: Use wider date range (last 30 days) instead of just yesterday
-        # This ensures we get all campaigns even if they're stopped or have no recent data
-        # Using only yesterday fails when:
-        # 1. Campaigns are stopped (no data for yesterday)
-        # 2. Campaigns have no activity (no impressions/clicks)
+        # CRITICAL: Use wide date range (last 5 years) to ensure we get ALL campaigns
+        # This ensures we get all campaigns even if they were stopped long ago or have no recent data
+        # Using shorter periods fails when:
+        # 1. Campaigns are stopped long ago (no data for recent periods)
+        # 2. Campaigns have no recent activity (no impressions/clicks in recent periods)
         # 3. Account doesn't have Pro Direct (only Reports API works)
+        # Using 5 years (1825 days) ensures we find all campaigns that were ever active
         from datetime import datetime, timedelta
         today = datetime.now()
-        date_from = (today - timedelta(days=30)).strftime("%Y-%m-%d")  # Last 30 days
+        date_from = (today - timedelta(days=1825)).strftime("%Y-%m-%d")  # Last 5 years
         date_to = today.strftime("%Y-%m-%d")
         
-        logger.info(f"📊 Using date range {date_from} to {date_to} to get all campaigns (including stopped ones)")
+        logger.info(f"📊 Using date range {date_from} to {date_to} (last 5 years) to get ALL campaigns (including stopped ones)")
         
         # CRITICAL: Add ClientLogin filter if client_login is set
         # This ensures we only get campaigns from the selected profile

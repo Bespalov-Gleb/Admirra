@@ -1175,8 +1175,13 @@ async def discover_campaigns(
         # Pass client_login to filter campaigns by selected profile
         # If no profile selected or it's the personal account, API will return campaigns for the token owner
         api = YandexDirectAPI(access_token, client_login=use_client_login)
+        logger.info(f"🔵 About to call api.get_campaigns() with Client-Login: '{use_client_login}'")
         try:
             discovered_campaigns = await api.get_campaigns()
+            logger.info(f"🔵 api.get_campaigns() returned {len(discovered_campaigns)} campaigns")
+            if discovered_campaigns:
+                logger.info(f"🔵 First few campaign names: {[c.get('name') for c in discovered_campaigns[:5]]}")
+                logger.info(f"🔵 First few campaign IDs: {[c.get('id') for c in discovered_campaigns[:5]]}")
         except Exception as e:
             message = str(e)
             # Специальная обработка популярных ошибок API
@@ -1212,14 +1217,34 @@ async def discover_campaigns(
         logger.info(f"🔵 Campaign IDs from API: {[c.get('id') for c in discovered_campaigns]}")
         logger.info(f"🔵 Campaign states from API: {[c.get('state', 'N/A') for c in discovered_campaigns]}")
         
+        # CRITICAL: Check for missing campaigns
+        # Expected campaigns from screenshot: "ADS", "Landing", "elka152.ru - Алекс новая", "elka152.ru - Александр", "Основа основ"
+        expected_campaign_names = ["ADS", "Landing", "elka152.ru - Алекс новая", "elka152.ru - Александр", "Основа основ"]
+        found_campaign_names = [c.get('name') for c in discovered_campaigns]
+        missing_campaigns = [name for name in expected_campaign_names if name not in found_campaign_names]
+        if missing_campaigns:
+            logger.warning(f"❌ MISSING CAMPAIGNS: {missing_campaigns}")
+            logger.warning(f"❌ Expected {len(expected_campaign_names)} campaigns, but got {len(discovered_campaigns)}")
+            logger.warning(f"❌ This might indicate that API is not returning all campaigns")
+            logger.warning(f"❌ Check if missing campaigns are in a different state or belong to a different profile")
+        
         # Check for specific campaigns
         campaign_names_lower = [c.get('name', '').lower() for c in discovered_campaigns]
         if any('кси' in name or 'ksi' in name for name in campaign_names_lower):
             logger.info(f"✅ Found 'кси' campaign in API response!")
         else:
             logger.warning(f"❌ 'кси' campaign NOT found in API response!")
-            logger.warning(f"❌ Expected 3 campaigns for profile '{use_client_login}', but got {len(discovered_campaigns)}")
-            logger.warning(f"❌ This might indicate that Client-Login header is not filtering correctly")
+        
+        # Check for "ADS" and "Landing" campaigns
+        if any('ads' in name.lower() for name in campaign_names_lower):
+            logger.info(f"✅ Found 'ADS' campaign in API response!")
+        else:
+            logger.warning(f"❌ 'ADS' campaign NOT found in API response!")
+        
+        if any('landing' in name.lower() for name in campaign_names_lower):
+            logger.info(f"✅ Found 'Landing' campaign in API response!")
+        else:
+            logger.warning(f"❌ 'Landing' campaign NOT found in API response!")
         
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
