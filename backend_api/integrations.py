@@ -686,6 +686,24 @@ async def get_integration_goals(
     
     logger.info(f"Fetching goals for integration {integration_id}, target_account: {target_account} (query account_id={account_id}, integration.agency_client_login={integration.agency_client_login}, integration.account_id={integration.account_id})")
     
+    # CRITICAL: Try to get the correct Metrika owner_login format for the selected profile
+    # Direct API uses one format (e.g., "sintez-digital"), Metrika may use another (e.g., "Sintez.digital")
+    # We'll try to get the actual login format from Direct API
+    metrika_owner_login = target_account  # Default to target_account
+    if target_account and integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        try:
+            from automation.yandex_direct import YandexDirectAPI
+            direct_api = YandexDirectAPI(access_token, client_login=target_account)
+            clients_info = await direct_api.get_clients()
+            if clients_info:
+                # Get the Login field which is the actual advertising account login
+                actual_login = clients_info[0].get("Login")
+                if actual_login:
+                    metrika_owner_login = actual_login
+                    logger.info(f"📊 Got actual login format from Direct API: '{actual_login}' (was: '{target_account}')")
+        except Exception as e:
+            logger.warning(f"Could not get actual login format from Direct API: {e}, using target_account as-is")
+    
     # IMPORTANT: Pass client_login to filter Metrika counters by the selected profile
     # This is needed when one Yandex account has access to multiple advertising profiles
     metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
@@ -718,21 +736,60 @@ async def get_integration_goals(
         # One Yandex account can have access to counters from multiple advertising profiles
         # We need to show only counters that belong to the selected profile
         if target_account:
+            # Helper function to normalize login for comparison
+            # Metrika owner_login can have different format than Direct agency_client_login
+            # Examples: "Sintez.digital" vs "sintez-digital"
+            # Strategy: normalize both by removing dots/dashes and comparing alphanumeric parts
+            def normalize_login(login: str) -> str:
+                """Normalize login for comparison: lowercase, remove dots/dashes, keep only alphanumeric"""
+                if not login:
+                    return ""
+                # Convert to lowercase and remove all dots, dashes, underscores
+                normalized = login.lower().strip()
+                # Remove common separators to compare core parts
+                normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
+                return normalized
+            
+            # Use both target_account and metrika_owner_login for matching
+            # This handles cases where formats differ between Direct and Metrika
+            target_logins = [target_account, metrika_owner_login]
+            if target_account != metrika_owner_login:
+                target_logins = list(set([target_account, metrika_owner_login]))  # Remove duplicates
+            
+            target_normalized = normalize_login(target_account)
+            metrika_normalized = normalize_login(metrika_owner_login)
+            logger.info(f"📊 Comparing with target_account='{target_account}' (normalized: '{target_normalized}') and metrika_owner_login='{metrika_owner_login}' (normalized: '{metrika_normalized}')")
+            
             # Try to filter by owner_login matching the selected profile
             filtered_counters = []
             excluded_counters = []
             
             for counter in counters:
                 owner_login = counter.get('owner_login', '')
+                owner_normalized = normalize_login(owner_login)
                 counter_name = counter.get('name', 'Unknown')
                 counter_id = counter.get('id', 'N/A')
                 
-                if owner_login == target_account:
+                # Try multiple matching strategies:
+                # 1. Exact match with target_account (case-insensitive)
+                # 2. Exact match with metrika_owner_login (case-insensitive)
+                # 3. Normalized match (without separators)
+                # 4. Partial match (one contains the other)
+                matches = (
+                    owner_login.lower() == target_account.lower() or
+                    owner_login.lower() == metrika_owner_login.lower() or
+                    owner_normalized == target_normalized or
+                    owner_normalized == metrika_normalized or
+                    target_normalized in owner_normalized or
+                    owner_normalized in target_normalized
+                )
+                
+                if matches:
                     filtered_counters.append(counter)
-                    logger.info(f"  ✅ Included counter '{counter_name}' (ID: {counter_id}, owner: {owner_login})")
+                    logger.info(f"  ✅ Included counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}, normalized: {owner_normalized})")
                 else:
                     excluded_counters.append(f"{counter_name} (owner: {owner_login})")
-                    logger.info(f"  ❌ Excluded counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}, expected: {target_account})")
+                    logger.info(f"  ❌ Excluded counter '{counter_name}' (ID: {counter_id}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
             
             # CRITICAL: Only use filtered counters if we found matches
             # If no matches, it means either:
