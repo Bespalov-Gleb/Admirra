@@ -69,7 +69,7 @@
       </div>
 
       <!-- Step Content Area -->
-      <div class="flex-grow p-8 md:p-12">
+      <div class="flex-grow min-h-0 overflow-y-auto p-8 md:p-12 custom-scrollbar">
         <div class="max-w-3xl mx-auto">
           <Transition name="fade-slide" mode="out-in">
             <div :key="currentStep">
