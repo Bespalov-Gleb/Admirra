@@ -727,14 +727,39 @@ class YandexDirectAPI:
                     
                     counter_ids: List[str] = []
                     
-                    # CounterIds / CounterId может быть списком, одним значением или отсутствовать.
+                    # CounterIds / CounterId может быть списком, одним значением или вложенным объектом вида {"Items": [..]}
                     def _extract_ids(container: Dict[str, Any]) -> List[str]:
                         # Проверяем оба варианта: CounterIds (множественное) и CounterId (единственное)
                         raw = container.get("CounterIds") or container.get("CounterId")
                         if not raw:
                             return []
+                        
+                        # Вариант 1: уже список ID
                         if isinstance(raw, list):
                             return [str(x) for x in raw if x]
+                        
+                        # Вариант 2: объект с ключом Items: {"Items": [77748790, ...]}
+                        if isinstance(raw, dict) and "Items" in raw:
+                            items = raw.get("Items") or []
+                            if isinstance(items, list):
+                                return [str(x) for x in items if x]
+                        
+                        # Вариант 3: строка формата "{'Items': [77748790, 90692688]}"
+                        if isinstance(raw, str):
+                            import re, ast
+                            # Пытаемся безопасно распарсить как питоновский литерал
+                            try:
+                                parsed = ast.literal_eval(raw)
+                                if isinstance(parsed, dict) and "Items" in parsed:
+                                    items = parsed.get("Items") or []
+                                    if isinstance(items, list):
+                                        return [str(x) for x in items if x]
+                            except Exception:
+                                # Фоллбек: просто вытащим все числа из строки
+                                ids = re.findall(r"\d+", raw)
+                                return ids
+                        
+                        # Последний фоллбек — трактуем как одиночный ID
                         return [str(raw)]
                     
                     # Извлекаем CounterIds в зависимости от типа кампании
