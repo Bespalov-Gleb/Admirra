@@ -61,8 +61,16 @@ export function useDashboardStats() {
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - parseInt(filters.period))
-    filters.start_date = start.toISOString().split('T')[0]
-    filters.end_date = end.toISOString().split('T')[0]
+    const newStartDate = start.toISOString().split('T')[0]
+    const newEndDate = end.toISOString().split('T')[0]
+    
+    // Only update if dates actually changed to avoid unnecessary API calls
+    if (filters.start_date !== newStartDate || filters.end_date !== newEndDate) {
+      filters.start_date = newStartDate
+      filters.end_date = newEndDate
+      // Explicitly fetch stats after period change
+      fetchStats()
+    }
   }
 
   // --- API Calls ---
@@ -178,8 +186,11 @@ export function useDashboardStats() {
       filters.channel, 
       filters.campaign_ids
     ],
-    () => {
-      fetchStats()
+    (newVal, oldVal) => {
+      // Only fetch if dates are actually set (not empty strings)
+      if (filters.start_date && filters.end_date) {
+        fetchStats()
+      }
     },
     { deep: true }
   )
