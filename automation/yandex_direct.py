@@ -1030,19 +1030,19 @@ class YandexDirectAPI:
                             logger.info("Trying AD_PERFORMANCE_REPORT as alternative")
                             try:
                                 alt_report_definition = {
-                                "params": {
-                                    "SelectionCriteria": {
-                                        "DateFrom": date_from.strftime("%Y-%m-%d"),
-                                        "DateTo": date_to.strftime("%Y-%m-%d"),
-                                        "CampaignIds": numeric_ids
-                                    },
-                                    "FieldNames": ["Date", "CampaignId", "CampaignName", "AdId", "AdType"],
-                                    "ReportName": f"DomainExtraction_Ad_{int(datetime.now().timestamp())}",
-                                    "ReportType": "AD_PERFORMANCE_REPORT",
-                                    "DateRangeType": "CUSTOM_DATE",
-                                    "Format": "TSV",
-                                    "IncludeVAT": "NO"
-                                }
+                                    "params": {
+                                        "SelectionCriteria": {
+                                            "DateFrom": date_from.strftime("%Y-%m-%d"),
+                                            "DateTo": date_to.strftime("%Y-%m-%d"),
+                                            "CampaignIds": numeric_ids
+                                        },
+                                        "FieldNames": ["Date", "CampaignId", "CampaignName", "AdId", "AdType"],
+                                        "ReportName": f"DomainExtraction_Ad_{int(datetime.now().timestamp())}",
+                                        "ReportType": "AD_PERFORMANCE_REPORT",
+                                        "DateRangeType": "CUSTOM_DATE",
+                                        "Format": "TSV",
+                                        "IncludeVAT": "NO"
+                                    }
                                 }
                                 
                                 alt_response = await client.post(
@@ -1072,8 +1072,8 @@ class YandexDirectAPI:
                                         # since we already tried Ads.get above. Skip this path.
                             except Exception as alt_err:
                                 logger.debug(f"AD_PERFORMANCE_REPORT alternative also failed: {alt_err}")
-                except Exception as report_err:
-                    logger.warning(f"Reports API fallback error: {report_err}")
+                    except Exception as report_err:
+                        logger.warning(f"Reports API fallback error: {report_err}")
                 
                 # If both methods failed, return empty set
                 logger.warning(f"Could not extract domains from {len(campaign_ids)} campaigns (Ads.get and Reports API both failed)")
