@@ -1893,7 +1893,8 @@ def delete_integration(
     db: Session = Depends(get_db)
 ):
     """
-    Remove an integration by its ID.
+    Remove an integration by its ID and all related data.
+    This includes campaigns, statistics, keywords, groups, and goals.
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
@@ -1902,9 +1903,41 @@ def delete_integration(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+    
+    # Get all campaigns for this integration to clean up related data
+    campaigns = db.query(models.Campaign).filter(
+        models.Campaign.integration_id == integration_id
+    ).all()
+    
+    campaign_names = [campaign.name for campaign in campaigns]
+    client_id = integration.client_id
+    
+    # Delete statistics and related data that are linked by campaign_name
+    # (These don't have foreign keys, so CASCADE won't work)
+    if campaign_names:
+        # Delete YandexKeywords by campaign_name
+        deleted_keywords = db.query(models.YandexKeywords).filter(
+            models.YandexKeywords.client_id == client_id,
+            models.YandexKeywords.campaign_name.in_(campaign_names)
+        ).delete(synchronize_session=False)
         
+        # Delete YandexGroups by campaign_name
+        deleted_groups = db.query(models.YandexGroups).filter(
+            models.YandexGroups.client_id == client_id,
+            models.YandexGroups.campaign_name.in_(campaign_names)
+        ).delete(synchronize_session=False)
+        
+        logger.info(f"🗑️ Deleted {deleted_keywords} YandexKeywords and {deleted_groups} YandexGroups for integration {integration_id}")
+    
+    # MetrikaGoals will be deleted automatically via CASCADE (has foreign key)
+    # Campaigns will be deleted automatically via CASCADE (has foreign key)
+    # YandexStats and VKStats will be deleted automatically via CASCADE when campaigns are deleted
+    
+    # Delete the integration (this will cascade delete campaigns and metrika_goals)
     db.delete(integration)
     db.commit()
+    
+    logger.info(f"✅ Deleted integration {integration_id} and all related data")
     return None
 
 async def get_agency_clients(access_token: str) -> List[dict]:
