@@ -653,6 +653,112 @@ class YandexDirectAPI:
                     continue
         return results
 
+    async def get_campaign_counters(self, campaign_ids: List[str]) -> Dict[str, List[str]]:
+        """
+        Get attached Metrica counters (CounterIds) for specific campaigns.
+        
+        This does NOT require Direct Pro and работает для обычных аккаунтов:
+        - поле CounterIds находится внутри типо-специфичных объектов кампаний
+          (TextCampaign, DynamicTextCampaign, SmartCampaign и т.д.).
+        
+        Returns dict: campaign_id (str) -> list of counter_id (str).
+        """
+        if not campaign_ids:
+            return {}
+        
+        logger.info(f"📊 Getting CounterIds for {len(campaign_ids)} campaigns")
+        
+        numeric_ids: List[int] = []
+        for cid in campaign_ids:
+            if isinstance(cid, str) and cid.isdigit():
+                numeric_ids.append(int(cid))
+            else:
+                logger.warning(f"⚠️ get_campaign_counters: campaign ID '{cid}' is not numeric, skipping")
+        
+        if not numeric_ids:
+            logger.warning("⚠️ get_campaign_counters: no valid numeric campaign IDs after filtering")
+            return {}
+        
+        selection_criteria = {
+            "Ids": numeric_ids
+        }
+        
+        # Поле CounterIds доступно в типо-специфичных структурах кампаний.
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": selection_criteria,
+                "FieldNames": ["Id", "Name", "Type"],
+                "TextCampaignFieldNames": ["CounterIds"],
+                "DynamicTextCampaignFieldNames": ["CounterIds"],
+                # Для мобильных кампаний поле может отсутствовать — не критично.
+                "SmartCampaignFieldNames": ["CounterIds"]
+            }
+        }
+        
+        result: Dict[str, List[str]] = {}
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                logger.info(f"📊 get_campaign_counters: HTTP {response.status_code}")
+                
+                if response.status_code != 200:
+                    logger.error(f"❌ get_campaign_counters failed: {response.status_code} - {response.text[:200]}")
+                    return {}
+                
+                data = response.json()
+                if "error" in data:
+                    error_msg = json.dumps(data["error"], ensure_ascii=False)
+                    logger.error(f"❌ Yandex API error in get_campaign_counters: {error_msg}")
+                    return {}
+                
+                campaigns = data.get("result", {}).get("Campaigns", [])
+                logger.info(f"📊 get_campaign_counters: got {len(campaigns)} campaigns from API")
+                
+                for campaign in campaigns:
+                    cid = str(campaign.get("Id"))
+                    name = campaign.get("Name", "Unknown")
+                    ctype = campaign.get("Type", "UNKNOWN")
+                    
+                    counter_ids: List[str] = []
+                    
+                    # CounterIds может быть списком или отсутствовать.
+                    def _extract_ids(container: Dict[str, Any]) -> List[str]:
+                        raw = container.get("CounterIds")
+                        if not raw:
+                            return []
+                        if isinstance(raw, list):
+                            return [str(x) for x in raw if x]
+                        return [str(raw)]
+                    
+                    if ctype == "TEXT_CAMPAIGN" and "TextCampaign" in campaign:
+                        counter_ids = _extract_ids(campaign["TextCampaign"])
+                    elif ctype == "DYNAMIC_TEXT_CAMPAIGN" and "DynamicTextCampaign" in campaign:
+                        counter_ids = _extract_ids(campaign["DynamicTextCampaign"])
+                    elif ctype == "SMART_CAMPAIGN" and "SmartCampaign" in campaign:
+                        counter_ids = _extract_ids(campaign["SmartCampaign"])
+                    else:
+                        # Для других типов просто пробуем найти CounterIds, если вдруг присутствует
+                        if "TextCampaign" in campaign:
+                            counter_ids = _extract_ids(campaign["TextCampaign"])
+                        elif "DynamicTextCampaign" in campaign:
+                            counter_ids = _extract_ids(campaign["DynamicTextCampaign"])
+                        elif "SmartCampaign" in campaign:
+                            counter_ids = _extract_ids(campaign["SmartCampaign"])
+                    
+                    if counter_ids:
+                        result[cid] = counter_ids
+                        logger.info(f"   ✅ Campaign {cid} ({name}, type={ctype}) has CounterIds={counter_ids}")
+                    else:
+                        logger.info(f"   ⚠️ Campaign {cid} ({name}, type={ctype}) has no CounterIds")
+                
+                logger.info(f"📊 get_campaign_counters: collected counters for {len(result)} campaigns")
+                return result
+            except Exception as e:
+                logger.error(f"❌ Exception in get_campaign_counters: {e}")
+                return {}
+
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get PriorityGoals for specific campaigns using type-specific field names.
