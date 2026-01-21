@@ -683,15 +683,16 @@ class YandexDirectAPI:
             "Ids": numeric_ids
         }
         
-        # Поле CounterId (единственное число) доступно в типо-специфичных структурах кампаний.
-        # В ответе API это может быть массив или одно значение.
+        # Поля для счётчиков Метрики:
+        # - для текстовых и динамических кампаний используется CounterIds (массив)
+        # - для смарт‑кампаний используется CounterId (одно значение)
         payload = {
             "method": "get",
             "params": {
                 "SelectionCriteria": selection_criteria,
                 "FieldNames": ["Id", "Name", "Type"],
-                "TextCampaignFieldNames": ["CounterId"],
-                "DynamicTextCampaignFieldNames": ["CounterId"],
+                "TextCampaignFieldNames": ["CounterIds"],
+                "DynamicTextCampaignFieldNames": ["CounterIds"],
                 # Для мобильных кампаний поле может отсутствовать — не критично.
                 "SmartCampaignFieldNames": ["CounterId"]
             }
@@ -725,9 +726,9 @@ class YandexDirectAPI:
                     
                     counter_ids: List[str] = []
                     
-                    # CounterId может быть списком, одним значением или отсутствовать.
+                    # CounterIds / CounterId может быть списком, одним значением или отсутствовать.
                     def _extract_ids(container: Dict[str, Any]) -> List[str]:
-                        raw = container.get("CounterId")
+                        raw = container.get("CounterIds") or container.get("CounterId")
                         if not raw:
                             return []
                         if isinstance(raw, list):
