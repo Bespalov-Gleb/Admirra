@@ -938,98 +938,98 @@ class YandexDirectAPI:
                                 "IncludeVAT": "NO"
                             }
                         }
-                    
-                    report_response = await client.post(
-                        self.report_url,
-                        json=report_definition,
-                        headers=self.headers,
-                        timeout=60.0
-                    )
-                    
-                    if report_response.status_code in [200, 201, 202]:
-                        # Handle async report generation
-                        if report_response.status_code in [201, 202]:
-                            retry_after = int(report_response.headers.get("Retry-After", 5))
-                            logger.info(f"Report is generating, waiting {retry_after}s...")
-                            await asyncio.sleep(retry_after)
-                            # Retry once
-                            report_response = await client.post(
-                                self.report_url,
-                                json=report_definition,
-                                headers=self.headers,
-                                timeout=60.0
-                            )
                         
-                        if report_response.status_code == 200:
-                            tsv_data = report_response.text
-                            lines = tsv_data.strip().split('\n')
+                        report_response = await client.post(
+                            self.report_url,
+                            json=report_definition,
+                            headers=self.headers,
+                            timeout=60.0
+                        )
+                        
+                        if report_response.status_code in [200, 201, 202]:
+                            # Handle async report generation
+                            if report_response.status_code in [201, 202]:
+                                retry_after = int(report_response.headers.get("Retry-After", 5))
+                                logger.info(f"Report is generating, waiting {retry_after}s...")
+                                await asyncio.sleep(retry_after)
+                                # Retry once
+                                report_response = await client.post(
+                                    self.report_url,
+                                    json=report_definition,
+                                    headers=self.headers,
+                                    timeout=60.0
+                                )
                             
-                            # Find header row to locate Href column
-                            header_found = False
-                            href_col_index = -1
-                            
-                            for line_idx, line in enumerate(lines):
-                                if not line.strip():
-                                    continue
+                            if report_response.status_code == 200:
+                                tsv_data = report_response.text
+                                lines = tsv_data.strip().split('\n')
                                 
-                                cols = line.split('\t')
+                                # Find header row to locate Href column
+                                header_found = False
+                                href_col_index = -1
                                 
-                                # Look for header row
-                                if not header_found and "Href" in line:
-                                    header_found = True
-                                    try:
-                                        href_col_index = cols.index("Href")
-                                        logger.debug(f"Found Href column at index {href_col_index}")
-                                    except ValueError:
-                                        # Try case-insensitive search
-                                        for i, col in enumerate(cols):
-                                            if "href" in col.lower():
-                                                href_col_index = i
-                                                logger.debug(f"Found Href column (case-insensitive) at index {href_col_index}")
-                                                break
-                                    continue
+                                for line_idx, line in enumerate(lines):
+                                    if not line.strip():
+                                        continue
+                                    
+                                    cols = line.split('\t')
+                                    
+                                    # Look for header row
+                                    if not header_found and "Href" in line:
+                                        header_found = True
+                                        try:
+                                            href_col_index = cols.index("Href")
+                                            logger.debug(f"Found Href column at index {href_col_index}")
+                                        except ValueError:
+                                            # Try case-insensitive search
+                                            for i, col in enumerate(cols):
+                                                if "href" in col.lower():
+                                                    href_col_index = i
+                                                    logger.debug(f"Found Href column (case-insensitive) at index {href_col_index}")
+                                                    break
+                                        continue
+                                    
+                                    # Skip header and summary rows
+                                    if line.startswith("Date") or "Total" in line or len(cols) < 3:
+                                        continue
+                                    
+                                    # Extract domain from Href column if we found it
+                                    if href_col_index >= 0 and href_col_index < len(cols):
+                                        href = cols[href_col_index].strip()
+                                        if href and ('http://' in href or 'https://' in href):
+                                            domain = normalize_domain(href)
+                                            if domain:
+                                                domains.add(domain)
+                                                logger.debug(f"Extracted domain '{domain}' from Reports API Href column")
+                                    
+                                    # Also try to find URLs in any column (fallback)
+                                    for col in cols:
+                                        if col and ('http://' in col or 'https://' in col):
+                                            domain = normalize_domain(col)
+                                            if domain:
+                                                domains.add(domain)
+                                                logger.debug(f"Extracted domain '{domain}' from Reports API (any column)")
                                 
-                                # Skip header and summary rows
-                                if line.startswith("Date") or "Total" in line or len(cols) < 3:
-                                    continue
-                                
-                                # Extract domain from Href column if we found it
-                                if href_col_index >= 0 and href_col_index < len(cols):
-                                    href = cols[href_col_index].strip()
-                                    if href and ('http://' in href or 'https://' in href):
-                                        domain = normalize_domain(href)
-                                        if domain:
-                                            domains.add(domain)
-                                            logger.debug(f"Extracted domain '{domain}' from Reports API Href column")
-                                
-                                # Also try to find URLs in any column (fallback)
-                                for col in cols:
-                                    if col and ('http://' in col or 'https://' in col):
-                                        domain = normalize_domain(col)
-                                        if domain:
-                                            domains.add(domain)
-                                            logger.debug(f"Extracted domain '{domain}' from Reports API (any column)")
-                            
-                            if domains:
-                                logger.info(f"Extracted {len(domains)} unique domains from Reports API: {list(domains)}")
-                                return domains
+                                if domains:
+                                    logger.info(f"Extracted {len(domains)} unique domains from Reports API: {list(domains)}")
+                                    return domains
+                                else:
+                                    logger.warning("Reports API returned data but no Href URLs found")
                             else:
-                                logger.warning("Reports API returned data but no Href URLs found")
+                                logger.warning(f"Reports API returned status {report_response.status_code}")
                         else:
-                            logger.warning(f"Reports API returned status {report_response.status_code}")
-                    else:
-                        # Log error details
-                        try:
-                            error_data = report_response.json()
-                            error_detail = error_data.get("error", {}).get("error_detail", error_data.get("error", "Unknown error"))
-                            logger.warning(f"Reports API fallback failed: {report_response.status_code} - {error_detail}")
-                        except:
-                            logger.warning(f"Reports API fallback failed: {report_response.status_code} - {report_response.text[:200]}")
-                        
-                        # Try alternative: AD_PERFORMANCE_REPORT instead of KEYWORDS_PERFORMANCE_REPORT
-                        logger.info("Trying AD_PERFORMANCE_REPORT as alternative")
-                        try:
-                            alt_report_definition = {
+                            # Log error details
+                            try:
+                                error_data = report_response.json()
+                                error_detail = error_data.get("error", {}).get("error_detail", error_data.get("error", "Unknown error"))
+                                logger.warning(f"Reports API fallback failed: {report_response.status_code} - {error_detail}")
+                            except:
+                                logger.warning(f"Reports API fallback failed: {report_response.status_code} - {report_response.text[:200]}")
+                            
+                            # Try alternative: AD_PERFORMANCE_REPORT instead of KEYWORDS_PERFORMANCE_REPORT
+                            logger.info("Trying AD_PERFORMANCE_REPORT as alternative")
+                            try:
+                                alt_report_definition = {
                                 "params": {
                                     "SelectionCriteria": {
                                         "DateFrom": date_from.strftime("%Y-%m-%d"),
@@ -1043,35 +1043,35 @@ class YandexDirectAPI:
                                     "Format": "TSV",
                                     "IncludeVAT": "NO"
                                 }
-                            }
-                            
-                            alt_response = await client.post(
-                                self.report_url,
-                                json=alt_report_definition,
-                                headers=self.headers,
-                                timeout=60.0
-                            )
-                            
-                            if alt_response.status_code in [200, 201, 202]:
-                                if alt_response.status_code in [201, 202]:
-                                    retry_after = int(alt_response.headers.get("Retry-After", 5))
-                                    logger.info(f"AD_PERFORMANCE_REPORT is generating, waiting {retry_after}s...")
-                                    await asyncio.sleep(retry_after)
-                                    alt_response = await client.post(
-                                        self.report_url,
-                                        json=alt_report_definition,
-                                        headers=self.headers,
-                                        timeout=60.0
-                                    )
+                                }
                                 
-                                if alt_response.status_code == 200:
-                                    # AD_PERFORMANCE_REPORT doesn't have Href, but we can try to get ad IDs
-                                    # and then fetch ads via Ads.get to get Href
-                                    logger.info("AD_PERFORMANCE_REPORT returned data, but Href not available in this report type")
-                                    # Note: We could fetch ad IDs and then use Ads.get, but that's redundant
-                                    # since we already tried Ads.get above. Skip this path.
-                        except Exception as alt_err:
-                            logger.debug(f"AD_PERFORMANCE_REPORT alternative also failed: {alt_err}")
+                                alt_response = await client.post(
+                                    self.report_url,
+                                    json=alt_report_definition,
+                                    headers=self.headers,
+                                    timeout=60.0
+                                )
+                                
+                                if alt_response.status_code in [200, 201, 202]:
+                                    if alt_response.status_code in [201, 202]:
+                                        retry_after = int(alt_response.headers.get("Retry-After", 5))
+                                        logger.info(f"AD_PERFORMANCE_REPORT is generating, waiting {retry_after}s...")
+                                        await asyncio.sleep(retry_after)
+                                        alt_response = await client.post(
+                                            self.report_url,
+                                            json=alt_report_definition,
+                                            headers=self.headers,
+                                            timeout=60.0
+                                        )
+                                    
+                                    if alt_response.status_code == 200:
+                                        # AD_PERFORMANCE_REPORT doesn't have Href, but we can try to get ad IDs
+                                        # and then fetch ads via Ads.get to get Href
+                                        logger.info("AD_PERFORMANCE_REPORT returned data, but Href not available in this report type")
+                                        # Note: We could fetch ad IDs and then use Ads.get, but that's redundant
+                                        # since we already tried Ads.get above. Skip this path.
+                            except Exception as alt_err:
+                                logger.debug(f"AD_PERFORMANCE_REPORT alternative also failed: {alt_err}")
                 except Exception as report_err:
                     logger.warning(f"Reports API fallback error: {report_err}")
                 
