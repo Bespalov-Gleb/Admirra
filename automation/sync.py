@@ -44,13 +44,16 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             
-            # CRITICAL: Use selected profile (agency_client_login) to filter data by account
-            # This ensures we only sync data from the selected profile, not all accessible accounts
-            # Without Client-Login, Reports API returns data for ALL accessible accounts, which causes:
-            # 1. Stats for campaigns from other accounts
-            # 2. Missing stats for campaigns that weren't discovered (because discover used Client-Login)
-            selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else None
-            logger.info(f"Syncing Yandex Direct integration {integration.id} with profile: {selected_profile} (agency_client_login={integration.agency_client_login})")
+            # CRITICAL: Use exactly тот профиль, который пользователь выбрал на шаге 2.
+            # В UI этот профиль сохраняется в integration.account_id.
+            # agency_client_login раньше использовался как «подстраховка», но это приводило
+            # к рассинхрону, когда в нём оставался старый логин другого профиля.
+            # Теперь для всей фильтрации Direct используем только account_id.
+            selected_profile = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
+            logger.info(
+                f"Syncing Yandex Direct integration {integration.id} "
+                f"with profile (account_id)={selected_profile}, agency_client_login={integration.agency_client_login}"
+            )
             
             api = YandexDirectAPI(access_token, client_login=selected_profile)
             try:

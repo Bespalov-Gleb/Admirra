@@ -1273,45 +1273,24 @@ async def discover_campaigns(
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # Each token = 1 Yandex account (email), but не каждый аккаунт имеет Яндекс.Директ
-        # CRITICAL: Use selected profile (agency_client_login takes priority over account_id)
-        # This ensures we only get campaigns from the selected profile, not all accessible profiles
-        # agency_client_login is set when user selects a profile on step 2
-        # CRITICAL: Determine which profile to use and whether to pass Client-Login
-        # agency_client_login is set when user selects a profile on step 2
-        # If not set, we need to determine the personal account login
-        selected_profile = integration.agency_client_login if integration.agency_client_login and integration.agency_client_login.lower() != "unknown" else None
-        
-        # Get personal account login to compare
-        personal_advertising_login = None
+        # Каждая интеграция ДОЛЖНА быть привязана к одному конкретному профилю Яндекс.Директа.
+        # В UI пользователь выбирает профиль на шаге 2, и его логин мы храним в integration.account_id.
+        # Здесь не угадываем «личный» логин и не используем устаревший agency_client_login —
+        # всегда работаем строго через account_id.
+        selected_profile = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
         if not selected_profile:
-            # No profile selected, try to get personal account login
-            try:
-                temp_api = YandexDirectAPI(access_token)
-                clients_info = await temp_api.get_clients()
-                if clients_info:
-                    personal_advertising_login = clients_info[0].get("Login")
-                    selected_profile = personal_advertising_login
-                    logger.info(f"Using personal advertising account login: {personal_advertising_login}")
-            except Exception as e:
-                logger.warning(f"Could not determine personal advertising login: {e}")
-                selected_profile = integration.account_id
+            logger.error(f"❌ discover_campaigns: integration {integration_id} has no account_id (profile login). Cannot fetch campaigns correctly.")
+            raise HTTPException(status_code=400, detail="Для интеграции не задан логин рекламного профиля (account_id). Пере настройте интеграцию.")
         
-        # IMPORTANT: Only pass Client-Login if agency_client_login is explicitly set
-        # This means user selected a specific profile (not the default personal account)
-        use_client_login = None
-        if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
-            # User explicitly selected a profile - use Client-Login to filter by that profile
-            use_client_login = integration.agency_client_login
-            logger.info(f"Using Client-Login={use_client_login} (user selected profile: {integration.agency_client_login})")
-        else:
-            # No profile explicitly selected - don't use Client-Login (will return campaigns for token owner)
-            logger.info(f"Not using Client-Login (no profile explicitly selected, agency_client_login={integration.agency_client_login})")
+        use_client_login = selected_profile
+        logger.info(
+            f"Fetching campaigns for integration {integration_id}, "
+            f"using profile (account_id)='{selected_profile}', "
+            f"agency_client_login='{integration.agency_client_login}', "
+            f"Client-Login header='{use_client_login}'"
+        )
         
-        logger.info(f"Fetching campaigns for integration {integration_id}, selected_profile={selected_profile}, agency_client_login={integration.agency_client_login}, using Client-Login={use_client_login}")
-        
-        # Pass client_login to filter campaigns by selected profile
-        # If no profile selected or it's the personal account, API will return campaigns for the token owner
+        # Жёстко фильтруем кампании по выбранному профилю через Client-Login
         api = YandexDirectAPI(access_token, client_login=use_client_login)
         logger.info(f"🔵 About to call api.get_campaigns() with Client-Login: '{use_client_login}'")
         try:
