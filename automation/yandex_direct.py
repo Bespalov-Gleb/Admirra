@@ -882,29 +882,62 @@ class YandexDirectAPI:
                     else:
                         logger.warning("No ads found in Ads.get API response")
                 
-                # Fallback: Try Reports API to get Href from keyword/group reports
-                logger.info("Trying Reports API fallback to get campaign domains")
+                # Fallback: Try to get campaign names and extract domains from them (if they contain URLs)
+                # This is a heuristic approach - sometimes campaign names contain domain hints
+                logger.info("Trying to extract domains from campaign names as fallback")
                 try:
-                    from datetime import datetime, timedelta
-                    # Use recent date range (last 30 days) to get active ads
-                    date_to = datetime.now().date()
-                    date_from = date_to - timedelta(days=30)
-                    
-                    report_definition = {
+                    campaign_payload = {
+                        "method": "get",
                         "params": {
                             "SelectionCriteria": {
-                                "DateFrom": date_from.strftime("%Y-%m-%d"),
-                                "DateTo": date_to.strftime("%Y-%m-%d"),
-                                "CampaignIds": numeric_ids
+                                "Ids": numeric_ids
                             },
-                            "FieldNames": ["Date", "CampaignId", "CampaignName", "Href"],
-                            "ReportName": f"DomainExtraction_{int(datetime.now().timestamp())}",
-                            "ReportType": "KEYWORDS_PERFORMANCE_REPORT",
-                            "DateRangeType": "CUSTOM_DATE",
-                            "Format": "TSV",
-                            "IncludeVAT": "NO"
+                            "FieldNames": ["Id", "Name"]
                         }
                     }
+                    
+                    campaign_response = await client.post(self.campaigns_url, json=campaign_payload, headers=self.headers, timeout=30.0)
+                    if campaign_response.status_code == 200:
+                        campaign_data = campaign_response.json()
+                        if "result" in campaign_data and "Campaigns" in campaign_data["result"]:
+                            import re
+                            url_pattern = re.compile(r'https?://([^\s/]+)')
+                            for campaign in campaign_data["result"]["Campaigns"]:
+                                campaign_name = campaign.get("Name", "")
+                                # Try to find URLs in campaign name
+                                matches = url_pattern.findall(campaign_name)
+                                for match in matches:
+                                    domain = normalize_domain(match)
+                                    if domain:
+                                        domains.add(domain)
+                                        logger.debug(f"Extracted domain '{domain}' from campaign name '{campaign_name}'")
+                except Exception as name_err:
+                    logger.debug(f"Could not extract domains from campaign names: {name_err}")
+                
+                # Fallback: Try Reports API to get Href from keyword/group reports
+                if not domains:
+                    logger.info("Trying Reports API fallback to get campaign domains")
+                    try:
+                        from datetime import datetime, timedelta
+                        # Use recent date range (last 30 days) to get active ads
+                        date_to = datetime.now().date()
+                        date_from = date_to - timedelta(days=30)
+                        
+                        report_definition = {
+                            "params": {
+                                "SelectionCriteria": {
+                                    "DateFrom": date_from.strftime("%Y-%m-%d"),
+                                    "DateTo": date_to.strftime("%Y-%m-%d"),
+                                    "CampaignIds": numeric_ids
+                                },
+                                "FieldNames": ["Date", "CampaignId", "CampaignName"],
+                                "ReportName": f"DomainExtraction_{int(datetime.now().timestamp())}",
+                                "ReportType": "KEYWORDS_PERFORMANCE_REPORT",
+                                "DateRangeType": "CUSTOM_DATE",
+                                "Format": "TSV",
+                                "IncludeVAT": "NO"
+                            }
+                        }
                     
                     report_response = await client.post(
                         self.report_url,
@@ -985,7 +1018,60 @@ class YandexDirectAPI:
                         else:
                             logger.warning(f"Reports API returned status {report_response.status_code}")
                     else:
-                        logger.warning(f"Reports API fallback failed: {report_response.status_code}")
+                        # Log error details
+                        try:
+                            error_data = report_response.json()
+                            error_detail = error_data.get("error", {}).get("error_detail", error_data.get("error", "Unknown error"))
+                            logger.warning(f"Reports API fallback failed: {report_response.status_code} - {error_detail}")
+                        except:
+                            logger.warning(f"Reports API fallback failed: {report_response.status_code} - {report_response.text[:200]}")
+                        
+                        # Try alternative: AD_PERFORMANCE_REPORT instead of KEYWORDS_PERFORMANCE_REPORT
+                        logger.info("Trying AD_PERFORMANCE_REPORT as alternative")
+                        try:
+                            alt_report_definition = {
+                                "params": {
+                                    "SelectionCriteria": {
+                                        "DateFrom": date_from.strftime("%Y-%m-%d"),
+                                        "DateTo": date_to.strftime("%Y-%m-%d"),
+                                        "CampaignIds": numeric_ids
+                                    },
+                                    "FieldNames": ["Date", "CampaignId", "CampaignName", "AdId", "AdType"],
+                                    "ReportName": f"DomainExtraction_Ad_{int(datetime.now().timestamp())}",
+                                    "ReportType": "AD_PERFORMANCE_REPORT",
+                                    "DateRangeType": "CUSTOM_DATE",
+                                    "Format": "TSV",
+                                    "IncludeVAT": "NO"
+                                }
+                            }
+                            
+                            alt_response = await client.post(
+                                self.report_url,
+                                json=alt_report_definition,
+                                headers=self.headers,
+                                timeout=60.0
+                            )
+                            
+                            if alt_response.status_code in [200, 201, 202]:
+                                if alt_response.status_code in [201, 202]:
+                                    retry_after = int(alt_response.headers.get("Retry-After", 5))
+                                    logger.info(f"AD_PERFORMANCE_REPORT is generating, waiting {retry_after}s...")
+                                    await asyncio.sleep(retry_after)
+                                    alt_response = await client.post(
+                                        self.report_url,
+                                        json=alt_report_definition,
+                                        headers=self.headers,
+                                        timeout=60.0
+                                    )
+                                
+                                if alt_response.status_code == 200:
+                                    # AD_PERFORMANCE_REPORT doesn't have Href, but we can try to get ad IDs
+                                    # and then fetch ads via Ads.get to get Href
+                                    logger.info("AD_PERFORMANCE_REPORT returned data, but Href not available in this report type")
+                                    # Note: We could fetch ad IDs and then use Ads.get, but that's redundant
+                                    # since we already tried Ads.get above. Skip this path.
+                        except Exception as alt_err:
+                            logger.debug(f"AD_PERFORMANCE_REPORT alternative also failed: {alt_err}")
                 except Exception as report_err:
                     logger.warning(f"Reports API fallback error: {report_err}")
                 
