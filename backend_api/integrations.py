@@ -916,8 +916,9 @@ async def get_integration_goals(
         except Exception as e:
             logger.warning(f"Could not get actual login format from Direct API: {e}, using target_account as-is")
     
-    # IMPORTANT: Pass client_login to filter Metrika counters by the selected profile
-    # This is needed when one Yandex account has access to multiple advertising profiles
+    # IMPORTANT: Try to get counters with profile filter first, but fallback to all if 403
+    # Some profiles may not have direct access in Metrika API (403 Forbidden)
+    # In that case, we get all accessible counters and filter by owner_login later
     metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
     
     try:
@@ -927,12 +928,20 @@ async def get_integration_goals(
         try:
             counters = await metrica_api.get_counters()
         except Exception as api_err:
-            logger.warning(f"Metrica counters fetch failed for {target_account}: {api_err}. Trying wildcard fetch.")
-            # Fallback: try without login parameter
+            # Check if it's a 403 Forbidden (access denied for this profile)
+            error_str = str(api_err)
+            if "403" in error_str or "access_denied" in error_str.lower() or "Access is denied" in error_str:
+                logger.warning(f"⚠️ Metrika API returned 403 for profile '{target_account}'. This profile may not have direct Metrika access.")
+                logger.warning(f"⚠️ Falling back to fetching ALL accessible counters (without profile filter)")
+            else:
+                logger.warning(f"Metrica counters fetch failed for {target_account}: {api_err}. Trying wildcard fetch.")
+            
+            # Fallback: try without login parameter (get all accessible counters)
             fallback_api = YandexMetricaAPI(access_token) # No login
             try:
                 counters = await fallback_api.get_counters()
                 metrica_api = fallback_api # Use successful API for subsequent calls
+                logger.info(f"✅ Successfully fetched {len(counters)} counters without profile filter")
             except Exception as fallback_err:
                 logger.error(f"Fallback Metrica fetch also failed: {fallback_err}")
                 return []

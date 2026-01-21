@@ -686,8 +686,9 @@ class YandexDirectAPI:
             "Ids": numeric_ids
         }
         
-        # CRITICAL: Request PriorityGoals for all campaign types
-        # PriorityGoals are in type-specific structures, not in top-level FieldNames
+        # CRITICAL: Request PriorityGoals only for campaign types that support it
+        # MOBILE_APP_CAMPAIGN does NOT support PriorityGoals (causes error 8000)
+        # First, get campaign types, then request PriorityGoals only for supported types
         payload = {
             "method": "get",
             "params": {
@@ -695,7 +696,7 @@ class YandexDirectAPI:
                 "FieldNames": ["Id", "Name", "Type"],  # Get basic fields and type
                 "TextCampaignFieldNames": ["PriorityGoals"],  # For TEXT_CAMPAIGN
                 "DynamicTextCampaignFieldNames": ["PriorityGoals"],  # For DYNAMIC_TEXT_CAMPAIGN
-                "MobileAppCampaignFieldNames": ["PriorityGoals"],  # For MOBILE_APP_CAMPAIGN
+                # NOTE: MobileAppCampaignFieldNames does NOT support PriorityGoals - removed to avoid error 8000
                 "SmartCampaignFieldNames": ["PriorityGoals"]  # For SMART_CAMPAIGN
             }
         }
