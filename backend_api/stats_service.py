@@ -16,7 +16,19 @@ class StatsService:
     @staticmethod
     def aggregate_summary(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all", campaign_ids: Optional[List[uuid.UUID]] = None):
         if not client_ids:
-            return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "trends": None}
+            return {
+                "expenses": 0,
+                "impressions": 0,
+                "clicks": 0,
+                "leads": 0,
+                "cpc": 0,
+                "cpa": 0,
+                "ctr": 0,
+                "cr": 0,
+                "balance": 0,
+                "currency": "RUB",
+                "trends": None
+            }
 
         def get_data(start, end):
             y_q = db.query(
@@ -102,8 +114,13 @@ class StatsService:
             prev = get_data(prev_start, prev_end)
             
             def calc_trend(c, p):
-                if p is None or p == 0: 
-                    return 100.0 if (c or 0) > 0 else 0.0
+                """
+                Calculate percentage change between current (c) and previous (p) value.
+                Если в прошлом периоде данных не было (p == 0 или None), считаем тренд 0%,
+                чтобы избежать «фейковых» 100% при первом появлении данных.
+                """
+                if p is None or p == 0:
+                    return 0.0
                 return round(((float(c or 0) - float(p)) / float(p)) * 100, 1)
 
             trends = {
@@ -135,7 +152,10 @@ class StatsService:
             "cpa": round(cpa, 2),
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
-            "revenue": 0.0, # Placeholder for future financial integration
+            # NEW: for now balance = 0, currency is fixed RUB until we add wallets
+            "balance": 0.0,
+            "currency": "RUB",
+            "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,
             "trends": trends

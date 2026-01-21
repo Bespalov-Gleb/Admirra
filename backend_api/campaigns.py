@@ -11,13 +11,16 @@ router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 def get_campaigns(
     integration_id: Optional[uuid.UUID] = None,
     client_id: Optional[uuid.UUID] = None,
-    platform: Optional[str] = None,  # NEW: Filter by platform (yandex_direct, vk_ads, etc.)
+    platform: Optional[str] = None,  # Filter by platform (yandex_direct, vk_ads, etc.)
+    only_active: bool = False,       # NEW: show only campaigns выбранные в интеграции (is_active=True)
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     List campaigns for a specific integration, client, or all campaigns owned by the user.
-    Can filter by platform (yandex_direct, vk_ads, etc.).
+    Can filter by:
+      - platform (yandex_direct, vk_ads, etc.)
+      - only_active=True: только кампании, которые пользователь выбрал при настройке интеграции (is_active=True).
     """
     query = db.query(models.Campaign).join(models.Integration).join(models.Client).filter(
         models.Client.owner_id == current_user.id
@@ -36,6 +39,9 @@ def get_campaigns(
         target_platform = platform_map.get(platform.lower())
         if target_platform:
             query = query.filter(models.Integration.platform == target_platform)
+    if only_active:
+        # В дашбордах мы хотим видеть только кампании, которые пользователь отметил в интеграции
+        query = query.filter(models.Campaign.is_active == True)
         
     return query.all()
 

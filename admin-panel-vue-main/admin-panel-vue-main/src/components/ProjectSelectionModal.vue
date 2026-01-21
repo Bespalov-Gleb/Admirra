@@ -1,15 +1,15 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 flex items-center justify-center p-4 z-[200] animate-fade-in" @click.self="$emit('close')">
     <div class="bg-white rounded-[2rem] p-0.5 w-full max-w-sm shadow-[0_20px_50px_rgba(0,0,0,0.25)] transform transition-all animate-modal-in border border-gray-100 relative overflow-hidden">
-      <div class="relative z-10 flex flex-col max-h-[70vh] p-6">
-        <div class="flex items-center justify-between mb-6">
+      <div class="relative z-10 flex flex-col max-h-[70vh] p-6 overflow-hidden">
+        <div class="flex items-center justify-between mb-6 flex-shrink-0">
           <h3 class="text-lg font-black text-black tracking-tight uppercase">Выберите проект</h3>
           <button @click="$emit('close')" class="p-2 bg-gray-50 text-gray-400 hover:text-black transition-all rounded-full">
             <XMarkIcon class="w-5 h-5" />
           </button>
         </div>
 
-        <div class="mb-4 relative group">
+        <div class="mb-4 relative group flex-shrink-0">
           <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
           </div>
@@ -21,7 +21,7 @@
           >
         </div>
 
-        <CustomScroll class="flex-grow">
+        <CustomScroll class="flex-1 min-h-0">
           <div class="space-y-2 pr-1">
             <button 
               v-for="project in filteredProjects" 

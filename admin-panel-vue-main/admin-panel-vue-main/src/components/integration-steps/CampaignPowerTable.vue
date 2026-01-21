@@ -155,15 +155,15 @@
               <div class="flex items-center gap-2">
                  <div 
                   class="w-2 h-2 rounded-full relative"
-                  :class="campaign.state === 'ON' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-300'"
+                  :class="stateDotClass(campaign.state)"
                 >
                   <div v-if="campaign.state === 'ON'" class="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-25"></div>
                 </div>
                 <span 
                   class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter shadow-sm whitespace-nowrap"
-                  :class="campaign.state === 'ON' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-400 border border-gray-100'"
+                  :class="stateBadgeClass(campaign.state)"
                 >
-                  {{ campaign.state === 'ON' ? 'Активна' : 'Остановлена' }}
+                  {{ stateLabel(campaign.state) }}
                 </span>
               </div>
             </td>
@@ -298,6 +298,58 @@ const formatMoney = (val) => {
     currency: props.currency || 'RUB', 
     maximumFractionDigits: 0 
   }).format(val)
+}
+
+// Map backend state codes to human‑readable labels and styles
+const stateLabel = (state) => {
+  switch (state) {
+    case 'ON':
+      return 'Активна'
+    case 'OFF':
+      return 'Остановлена'
+    case 'SUSPENDED':
+      return 'Пауза'
+    case 'ENDED':
+      return 'Завершена'
+    case 'ARCHIVED':
+      return 'Архивная'
+    default:
+      return 'Неизвестно'
+  }
+}
+
+const stateBadgeClass = (state) => {
+  switch (state) {
+    case 'ON':
+      return 'bg-green-50 text-green-600 border border-green-100'
+    case 'SUSPENDED':
+      return 'bg-yellow-50 text-yellow-600 border border-yellow-100'
+    case 'ENDED':
+      return 'bg-gray-50 text-gray-500 border border-gray-200'
+    case 'ARCHIVED':
+      return 'bg-gray-100 text-gray-400 border border-gray-200'
+    case 'OFF':
+      return 'bg-gray-50 text-gray-400 border border-gray-100'
+    default:
+      return 'bg-gray-50 text-gray-400 border border-gray-100'
+  }
+}
+
+const stateDotClass = (state) => {
+  switch (state) {
+    case 'ON':
+      return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+    case 'SUSPENDED':
+      return 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]'
+    case 'ARCHIVED':
+      return 'bg-gray-300'
+    case 'ENDED':
+      return 'bg-gray-400'
+    case 'OFF':
+      return 'bg-gray-300'
+    default:
+      return 'bg-gray-300'
+  }
 }
 
 const filteredCampaigns = computed(() => {

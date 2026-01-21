@@ -129,7 +129,10 @@ export function useDashboardStats() {
       // /dashboard/campaigns only returns campaigns with stats (JOIN with stats tables)
       // For dropdown, we need ALL campaigns, even those without stats
       const params = {
-        client_id: filters.client_id
+        client_id: filters.client_id,
+        // В выпадающем списке кампаний на дашборде должны быть только кампании,
+        // которые пользователь выбрал при настройке интеграции (is_active = true)
+        only_active: true
       }
       
       // Add platform filter if not "all"

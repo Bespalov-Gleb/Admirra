@@ -248,7 +248,7 @@
 
         <div class="flex items-center gap-4">
           <button 
-            @click="$router.push('/settings')"
+            @click="handleCancel"
             class="px-6 py-3.5 text-gray-400 hover:text-black text-[10px] font-black uppercase tracking-widest transition-colors"
           >
             Отмена
@@ -408,6 +408,26 @@ const isNextDisabled = computed(() => {
   if (currentStep.value === 5) return false // Summary step - no validation needed
   return false
 })
+
+// Cancel integration flow
+const handleCancel = async () => {
+  try {
+    // Если интеграция уже создана (на любом шаге),
+    // по нажатию "Отмена" удаляем её целиком.
+    if (lastIntegrationId.value) {
+      try {
+        await api.delete(`/integrations/${lastIntegrationId.value}`)
+      } catch (err) {
+        console.error('Failed to delete integration on cancel:', err)
+        // Даже если удаление на бэкенде не удалось, всё равно сбрасываем локальное состояние
+      }
+    }
+  } finally {
+    // В любом случае сбрасываем локальный стор и уходим со страницы интеграции
+    resetStore()
+    router.push('/settings')
+  }
+}
 
 // Navigation Actions
 const nextStep = async () => {

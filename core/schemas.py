@@ -123,6 +123,9 @@ class StatsSummary(BaseModel):
     cpa: float
     ctr: float = 0
     cr: float = 0
+    # NEW: dashboard expects balance & currency for proper display
+    balance: float = 0
+    currency: str = "RUB"
     trends: Optional[StatsTrend] = None
 
 # Client Schemas

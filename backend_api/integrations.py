@@ -730,24 +730,35 @@ async def get_integration_goals(
                 
                 try:
                     counters = await metrica_api.get_counters()
-                    # Filter counters by profile (same logic as before)
-                    if target_account:
-                        def normalize_login(login: str) -> str:
-                            if not login:
-                                return ""
-                            normalized = login.lower().strip()
-                            normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
-                            return normalized
-                        
-                        target_normalized = normalize_login(target_account)
-                        filtered_counters = []
-                        for counter in counters:
-                            owner_login = counter.get('owner_login', '')
-                            owner_normalized = normalize_login(owner_login)
-                            if (owner_login.lower() == target_account.lower() or
-                                owner_normalized == target_normalized):
-                                filtered_counters.append(counter)
-                        counters = filtered_counters
+                    # NEW STRATEGY (campaign-based goals):
+                    # Для целей, привязанных к кампаниям, НЕ режем счётчики по owner_login.
+                    # Используем все доступные (свои + доверенные) счётчики и фильтруем
+                    # уже по конкретным goal_id из PriorityGoals.
+                    #
+                    # Старую жёсткую фильтрацию по логину оставляем закомментированной
+                    # на случай отката:
+                    #
+                    # if target_account:
+                    #     def normalize_login(login: str) -> str:
+                    #         if not login:
+                    #             return ""
+                    #         normalized = login.lower().strip()
+                    #         normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
+                    #         return normalized
+                    #     
+                    #     target_normalized = normalize_login(target_account)
+                    #     filtered_counters = []
+                    #     for counter in counters:
+                    #         owner_login = counter.get('owner_login', '')
+                    #         owner_normalized = normalize_login(owner_login)
+                    #         if (owner_login.lower() == target_account.lower() or
+                    #             owner_normalized == target_normalized):
+                    #             filtered_counters.append(counter)
+                    #     counters = filtered_counters
+                    logger.info(
+                        f"📊 Campaign-based goals: using {len(counters)} accessible Metrica counters "
+                        f"(without strict owner_login filter) to search for goal_ids {list(all_goal_ids)}"
+                    )
                     
                     # Get goals from counters and filter by goal IDs from campaigns
                     all_goals = []
@@ -774,6 +785,9 @@ async def get_integration_goals(
                                     # Get stats if date range provided
                                     if date_from and date_to:
                                         from sqlalchemy import func
+                                        # CRITICAL: MetrikaGoals stores data with goal_id="all" for aggregated goals
+                                        # But we need to find data for specific goal_id
+                                        # Strategy: Try to find by specific goal_id first, if not found, try "all"
                                         stats = db.query(
                                             func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
                                         ).filter(
@@ -783,7 +797,68 @@ async def get_integration_goals(
                                             models.MetrikaGoals.date <= date_to
                                         ).first()
                                         
-                                        if stats and stats.total_conversions:
+                                        # If no stats found for specific goal_id, try "all" (aggregated)
+                                        if not stats or not stats.total_conversions:
+                                            logger.debug(f"📊 No stats found for goal_id={goal_id}, trying 'all' for integration {integration_id}")
+                                            stats = db.query(
+                                                func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
+                                            ).filter(
+                                                models.MetrikaGoals.goal_id == "all",
+                                                models.MetrikaGoals.integration_id == integration_id,
+                                                models.MetrikaGoals.date >= date_from,
+                                                models.MetrikaGoals.date <= date_to
+                                            ).first()
+                                        
+                                        # FALLBACK: If no data in DB, try to get it directly from Metrika API
+                                        # This is needed when integration was just created and sync hasn't run yet
+                                        if not stats or not stats.total_conversions:
+                                            logger.info(f"📊 No MetrikaGoals stats in DB for goal_id={goal_id}, fetching from Metrika API directly")
+                                            try:
+                                                # Find counter_id for this goal (from the counter that has this goal)
+                                                # We need to find which counter contains this goal
+                                                goal_counter_id = None
+                                                for counter in counters:
+                                                    counter_goals = await metrica_api.get_counter_goals(str(counter['id']))
+                                                    if any(str(g['id']) == goal_id for g in counter_goals):
+                                                        goal_counter_id = str(counter['id'])
+                                                        break
+                                                
+                                                if goal_counter_id:
+                                                    # Get goal stats directly from Metrika API
+                                                    goal_metric = f"ym:s:goal{goal_id}reaches"
+                                                    goals_stats = await metrica_api.get_goals_stats(
+                                                        goal_counter_id,
+                                                        date_from,
+                                                        date_to,
+                                                        metrics=goal_metric
+                                                    )
+                                                    
+                                                    # Sum up conversions from all days
+                                                    total_conversions_from_api = 0
+                                                    for day_data in goals_stats:
+                                                        if len(day_data.get('metrics', [])) > 0:
+                                                            total_conversions_from_api += int(day_data['metrics'][0] or 0)
+                                                    
+                                                    if total_conversions_from_api > 0:
+                                                        goal_data["conversions"] = total_conversions_from_api
+                                                        logger.info(f"📊 Got {total_conversions_from_api} conversions from Metrika API for goal_id={goal_id}")
+                                                        
+                                                        total_clicks = db.query(
+                                                            func.sum(models.YandexStats.clicks)
+                                                        ).join(
+                                                            models.Campaign
+                                                        ).filter(
+                                                            models.Campaign.integration_id == integration_id,
+                                                            models.Campaign.external_id.in_(external_ids),  # Use external_ids for filtering
+                                                            models.YandexStats.date >= date_from,
+                                                            models.YandexStats.date <= date_to
+                                                        ).scalar() or 0
+                                                        
+                                                        if total_clicks > 0:
+                                                            goal_data["conversion_rate"] = round((goal_data["conversions"] / total_clicks) * 100, 2)
+                                            except Exception as api_err:
+                                                logger.warning(f"⚠️ Failed to fetch goal stats from Metrika API for goal_id={goal_id}: {api_err}")
+                                        elif stats and stats.total_conversions:
                                             goal_data["conversions"] = int(stats.total_conversions)
                                             
                                             total_clicks = db.query(
@@ -792,7 +867,7 @@ async def get_integration_goals(
                                                 models.Campaign
                                             ).filter(
                                                 models.Campaign.integration_id == integration_id,
-                                                models.Campaign.external_id.in_(campaign_ids_list),
+                                                models.Campaign.external_id.in_(external_ids),  # Use external_ids for filtering
                                                 models.YandexStats.date >= date_from,
                                                 models.YandexStats.date <= date_to
                                             ).scalar() or 0
@@ -1000,6 +1075,9 @@ async def get_integration_goals(
                     # If date range provided, fetch stats from DB
                     if date_from and date_to:
                         from sqlalchemy import func
+                        # CRITICAL: MetrikaGoals stores data with goal_id="all" for aggregated goals
+                        # But we need to find data for specific goal_id
+                        # Strategy: Try to find by specific goal_id first, if not found, try "all"
                         stats = db.query(
                             func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
                         ).filter(
@@ -1009,7 +1087,58 @@ async def get_integration_goals(
                             models.MetrikaGoals.date <= date_to
                         ).first()
                         
-                        if stats and stats.total_conversions:
+                        # If no stats found for specific goal_id, try "all" (aggregated)
+                        if not stats or not stats.total_conversions:
+                            logger.debug(f"📊 No stats found for goal_id={goal['id']}, trying 'all' for integration {integration_id}")
+                            stats = db.query(
+                                func.sum(models.MetrikaGoals.conversion_count).label('total_conversions')
+                            ).filter(
+                                models.MetrikaGoals.goal_id == "all",
+                                models.MetrikaGoals.integration_id == integration_id,
+                                models.MetrikaGoals.date >= date_from,
+                                models.MetrikaGoals.date <= date_to
+                            ).first()
+                        
+                        # FALLBACK: If no data in DB, try to get it directly from Metrika API
+                        # This is needed when integration was just created and sync hasn't run yet
+                        if not stats or not stats.total_conversions:
+                            logger.info(f"📊 No MetrikaGoals stats in DB for goal_id={goal['id']}, fetching from Metrika API directly")
+                            try:
+                                # Get goal stats directly from Metrika API
+                                goal_metric = f"ym:s:goal{goal['id']}reaches"
+                                goals_stats = await metrica_api.get_goals_stats(
+                                    counter_id,
+                                    date_from,
+                                    date_to,
+                                    metrics=goal_metric
+                                )
+                                
+                                # Sum up conversions from all days
+                                total_conversions_from_api = 0
+                                for day_data in goals_stats:
+                                    if len(day_data.get('metrics', [])) > 0:
+                                        total_conversions_from_api += int(day_data['metrics'][0] or 0)
+                                
+                                if total_conversions_from_api > 0:
+                                    goal_data["conversions"] = total_conversions_from_api
+                                    logger.info(f"📊 Got {total_conversions_from_api} conversions from Metrika API for goal_id={goal['id']}")
+                                    
+                                    # Calculate conversion rate based on campaign clicks
+                                    total_clicks = db.query(
+                                        func.sum(models.YandexStats.clicks)
+                                    ).join(
+                                        models.Campaign
+                                    ).filter(
+                                        models.Campaign.integration_id == integration_id,
+                                        models.YandexStats.date >= date_from,
+                                        models.YandexStats.date <= date_to
+                                    ).scalar() or 0
+                                    
+                                    if total_clicks > 0:
+                                        goal_data["conversion_rate"] = round((goal_data["conversions"] / total_clicks) * 100, 2)
+                            except Exception as api_err:
+                                logger.warning(f"⚠️ Failed to fetch goal stats from Metrika API for goal_id={goal['id']}: {api_err}")
+                        elif stats and stats.total_conversions:
                             goal_data["conversions"] = int(stats.total_conversions)
                             
                             # Calculate conversion rate based on campaign clicks
