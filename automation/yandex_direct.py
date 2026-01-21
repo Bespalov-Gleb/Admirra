@@ -719,16 +719,27 @@ class YandexDirectAPI:
                             campaign_type = campaign.get("Type", "UNKNOWN")
                             
                             # Extract PriorityGoals based on campaign type
+                            # В API PriorityGoals может отсутствовать или быть null (None),
+                            # поэтому ВСЕГДА нормализуем к списку перед итерацией.
                             priority_goals = []
                             
+                            def _safe_goals(container: Dict[str, Any], key: str) -> List[Dict[str, Any]]:
+                                raw = container.get(key)
+                                if not raw:
+                                    return []
+                                if isinstance(raw, list):
+                                    return raw
+                                # Если почему‑то пришёл одиночный объект, тоже оборачиваем в список
+                                return [raw]
+                            
                             if campaign_type == "TEXT_CAMPAIGN" and "TextCampaign" in campaign:
-                                priority_goals = campaign["TextCampaign"].get("PriorityGoals", [])
+                                priority_goals = _safe_goals(campaign["TextCampaign"], "PriorityGoals")
                             elif campaign_type == "DYNAMIC_TEXT_CAMPAIGN" and "DynamicTextCampaign" in campaign:
-                                priority_goals = campaign["DynamicTextCampaign"].get("PriorityGoals", [])
+                                priority_goals = _safe_goals(campaign["DynamicTextCampaign"], "PriorityGoals")
                             elif campaign_type == "MOBILE_APP_CAMPAIGN" and "MobileAppCampaign" in campaign:
-                                priority_goals = campaign["MobileAppCampaign"].get("PriorityGoals", [])
+                                priority_goals = _safe_goals(campaign["MobileAppCampaign"], "PriorityGoals")
                             elif campaign_type == "SMART_CAMPAIGN" and "SmartCampaign" in campaign:
-                                priority_goals = campaign["SmartCampaign"].get("PriorityGoals", [])
+                                priority_goals = _safe_goals(campaign["SmartCampaign"], "PriorityGoals")
                             
                             # Format goals to include goal_id and goal_name
                             goals_list = []
