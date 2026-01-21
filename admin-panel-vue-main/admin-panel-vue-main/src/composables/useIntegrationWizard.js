@@ -134,32 +134,50 @@ export function useIntegrationWizard() {
       
       // CRITICAL: Pass selected campaign IDs to get goals only for selected campaigns
       // This ensures goals are filtered by campaigns, not by profile
-      const campaignIdsParam = selectedCampaignIds.value.length > 0 
-        ? `&campaign_ids=${selectedCampaignIds.value.join(',')}` 
+      const campaignIdsParam = selectedCampaignIds.value.length > 0
+        ? `&campaign_ids=${selectedCampaignIds.value.join(',')}`
         : ''
-      
-      const { data } = await api.get(
-        `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}${campaignIdsParam}`
-      )
-      
+
+      // 1) Быстрый запрос: только список целей без тяжёлых конверсий (with_stats=false)
+      const baseUrl = `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}${campaignIdsParam}`
+      const { data } = await api.get(`${baseUrl}&with_stats=false`)
+
       // CRITICAL: Handle both formats: array of goals OR object with goals and warning_message
       if (data && typeof data === 'object' && !Array.isArray(data) && data.goals) {
-        // Response is object with goals and warning_message
         goals.value = data.goals
         if (data.warning_message) {
           toaster.warning(data.warning_message)
         }
       } else {
-        // Response is array of goals (legacy format)
         goals.value = Array.isArray(data) ? data : []
       }
-      
-      // Auto-select primary goal based on conversion rate if not set
+
+      // 2) Фоновый запрос: подтянуть конверсии/CR (with_stats=true) и смержить по id
+      try {
+        const { data: statsData } = await api.get(`${baseUrl}&with_stats=true`)
+        const statsGoals = (statsData && typeof statsData === 'object' && !Array.isArray(statsData) && statsData.goals)
+          ? statsData.goals
+          : (Array.isArray(statsData) ? statsData : [])
+
+        const statsMap = new Map(statsGoals.map(g => [String(g.id), g]))
+        goals.value = goals.value.map(g => {
+          const stat = statsMap.get(String(g.id))
+          if (!stat) return g
+          return {
+            ...g,
+            conversions: stat.conversions ?? g.conversions ?? 0,
+            conversion_rate: stat.conversion_rate ?? g.conversion_rate ?? 0
+          }
+        })
+      } catch (statsErr) {
+        console.warn('Failed to fetch goal stats in background:', statsErr)
+      }
+
+      // Автовыбор основной цели по конверсии, если ещё не выбрана
       if (goals.value.length > 0 && !form.primary_goal_id) {
         const bestGoal = [...goals.value].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
         if (bestGoal) {
           form.primary_goal_id = bestGoal.id
-          // Also auto-select it for tracking
           if (!selectedGoalIds.value.includes(bestGoal.id)) {
             selectedGoalIds.value.push(bestGoal.id)
           }

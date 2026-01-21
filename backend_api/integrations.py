@@ -647,6 +647,7 @@ async def get_integration_goals(
     campaign_ids: Optional[str] = None,  # Comma-separated list of campaign IDs
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    with_stats: bool = True,  # NEW: позволяем отключать тяжёлый расчёт конверсий
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -669,6 +670,8 @@ async def get_integration_goals(
 
     # Use the token from integration
     access_token = security.decrypt_token(integration.access_token)
+    # Флаг, надо ли вообще считать конверсии (DB + Metrika API).
+    include_stats = bool(date_from and date_to and with_stats)
     
     # Determine target_account for profile filtering (used in both paths)
     if account_id:
@@ -736,8 +739,8 @@ async def get_integration_goals(
                                 "conversion_rate": 0.0
                             }
                             
-                            # Если передан период — подтягиваем конверсии (DB + fallback в API)
-                            if date_from and date_to:
+                            # Если включён расчёт статистики — подтягиваем конверсии (DB + fallback в API)
+                            if include_stats:
                                 stats = db.query(
                                     func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
                                 ).filter(
@@ -851,7 +854,7 @@ async def get_integration_goals(
                                     "conversion_rate": 0.0
                                 }
                                 
-                                if date_from and date_to:
+                                if include_stats:
                                     stats = db.query(
                                         func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
                                     ).filter(
@@ -1073,8 +1076,8 @@ async def get_integration_goals(
                         "conversion_rate": 0.0
                     }
                     
-                    # If date range provided, fetch stats from DB
-                    if date_from and date_to:
+                    # If stats requested, fetch from DB / Metrika API
+                    if include_stats:
                         from sqlalchemy import func
                         # CRITICAL: MetrikaGoals stores data with goal_id="all" for aggregated goals
                         # But we need to find data for specific goal_id
