@@ -718,6 +718,7 @@ class YandexDirectAPI:
                     return {}
                 
                 campaigns = data.get("result", {}).get("Campaigns", [])
+                logger.info(f"get_campaign_counters: got {len(campaigns)} campaigns from API")
                 
                 for campaign in campaigns:
                     cid = str(campaign.get("Id"))
@@ -728,6 +729,7 @@ class YandexDirectAPI:
                     
                     # CounterIds / CounterId может быть списком, одним значением или отсутствовать.
                     def _extract_ids(container: Dict[str, Any]) -> List[str]:
+                        # Проверяем оба варианта: CounterIds (множественное) и CounterId (единственное)
                         raw = container.get("CounterIds") or container.get("CounterId")
                         if not raw:
                             return []
@@ -735,24 +737,31 @@ class YandexDirectAPI:
                             return [str(x) for x in raw if x]
                         return [str(raw)]
                     
+                    # Извлекаем CounterIds в зависимости от типа кампании
+                    campaign_container = None
                     if ctype == "TEXT_CAMPAIGN" and "TextCampaign" in campaign:
-                        counter_ids = _extract_ids(campaign["TextCampaign"])
+                        campaign_container = campaign["TextCampaign"]
                     elif ctype == "DYNAMIC_TEXT_CAMPAIGN" and "DynamicTextCampaign" in campaign:
-                        counter_ids = _extract_ids(campaign["DynamicTextCampaign"])
+                        campaign_container = campaign["DynamicTextCampaign"]
                     elif ctype == "SMART_CAMPAIGN" and "SmartCampaign" in campaign:
-                        counter_ids = _extract_ids(campaign["SmartCampaign"])
+                        campaign_container = campaign["SmartCampaign"]
                     else:
-                        # Для других типов просто пробуем найти CounterIds, если вдруг присутствует
-                        if "TextCampaign" in campaign:
-                            counter_ids = _extract_ids(campaign["TextCampaign"])
-                        elif "DynamicTextCampaign" in campaign:
-                            counter_ids = _extract_ids(campaign["DynamicTextCampaign"])
-                        elif "SmartCampaign" in campaign:
-                            counter_ids = _extract_ids(campaign["SmartCampaign"])
+                        # Для других типов пробуем найти любой доступный контейнер
+                        campaign_container = campaign.get("TextCampaign") or campaign.get("DynamicTextCampaign") or campaign.get("SmartCampaign")
+                    
+                    if campaign_container:
+                        counter_ids = _extract_ids(campaign_container)
+                        # Логируем структуру контейнера для отладки
+                        if not counter_ids:
+                            logger.debug(f"Campaign {cid} ({name}, type={ctype}): no CounterIds found. Container keys: {list(campaign_container.keys())}")
+                    else:
+                        logger.debug(f"Campaign {cid} ({name}, type={ctype}): no campaign container found. Campaign keys: {list(campaign.keys())}")
                     
                     if counter_ids:
                         result[cid] = counter_ids
+                        logger.info(f"Campaign {cid} ({name}): found CounterIds={counter_ids}")
                 
+                logger.info(f"get_campaign_counters: returning {len(result)} campaigns with counters")
                 return result
             except Exception as e:
                 logger.error(f"get_campaign_counters exception: {e}")

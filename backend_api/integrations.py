@@ -699,11 +699,14 @@ async def get_integration_goals(
                 direct_api = YandexDirectAPI(access_token, client_login=target_account)
                 
                 campaign_counters_map = await direct_api.get_campaign_counters(external_ids)
+                logger.info(f"get_campaign_counters returned: {campaign_counters_map}")
                 
                 all_counter_ids = set()
                 for counters_list in campaign_counters_map.values():
                     for cid in counters_list:
                         all_counter_ids.add(str(cid))
+                
+                logger.info(f"Extracted {len(all_counter_ids)} unique counter IDs: {list(all_counter_ids)}")
                 
                 if all_counter_ids:
                     from automation.yandex_metrica import YandexMetricaAPI
