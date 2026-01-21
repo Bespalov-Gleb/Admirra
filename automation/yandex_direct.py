@@ -874,14 +874,124 @@ class YandexDirectAPI:
                                     domains.add(domain)
                                     logger.debug(f"Extracted domain '{domain}' from ad {ad.get('Id')}")
                         
-                        logger.info(f"Extracted {len(domains)} unique domains: {list(domains)}")
-                        return domains
+                        if domains:
+                            logger.info(f"Extracted {len(domains)} unique domains from Ads.get: {list(domains)}")
+                            return domains
+                        else:
+                            logger.warning("Ads.get returned ads but no Href URLs found")
                     else:
-                        logger.warning("No ads found in API response")
-                        return set()
-                else:
-                    logger.warning(f"Ads.get failed: {response.status_code}")
-                    return set()
+                        logger.warning("No ads found in Ads.get API response")
+                
+                # Fallback: Try Reports API to get Href from keyword/group reports
+                logger.info("Trying Reports API fallback to get campaign domains")
+                try:
+                    from datetime import datetime, timedelta
+                    # Use recent date range (last 30 days) to get active ads
+                    date_to = datetime.now().date()
+                    date_from = date_to - timedelta(days=30)
+                    
+                    report_definition = {
+                        "params": {
+                            "SelectionCriteria": {
+                                "DateFrom": date_from.strftime("%Y-%m-%d"),
+                                "DateTo": date_to.strftime("%Y-%m-%d"),
+                                "CampaignIds": numeric_ids
+                            },
+                            "FieldNames": ["Date", "CampaignId", "CampaignName", "Href"],
+                            "ReportName": f"DomainExtraction_{int(datetime.now().timestamp())}",
+                            "ReportType": "KEYWORDS_PERFORMANCE_REPORT",
+                            "DateRangeType": "CUSTOM_DATE",
+                            "Format": "TSV",
+                            "IncludeVAT": "NO"
+                        }
+                    }
+                    
+                    report_response = await client.post(
+                        self.report_url,
+                        json=report_definition,
+                        headers=self.headers,
+                        timeout=60.0
+                    )
+                    
+                    if report_response.status_code in [200, 201, 202]:
+                        # Handle async report generation
+                        if report_response.status_code in [201, 202]:
+                            retry_after = int(report_response.headers.get("Retry-After", 5))
+                            logger.info(f"Report is generating, waiting {retry_after}s...")
+                            await asyncio.sleep(retry_after)
+                            # Retry once
+                            report_response = await client.post(
+                                self.report_url,
+                                json=report_definition,
+                                headers=self.headers,
+                                timeout=60.0
+                            )
+                        
+                        if report_response.status_code == 200:
+                            tsv_data = report_response.text
+                            lines = tsv_data.strip().split('\n')
+                            
+                            # Find header row to locate Href column
+                            header_found = False
+                            href_col_index = -1
+                            
+                            for line_idx, line in enumerate(lines):
+                                if not line.strip():
+                                    continue
+                                
+                                cols = line.split('\t')
+                                
+                                # Look for header row
+                                if not header_found and "Href" in line:
+                                    header_found = True
+                                    try:
+                                        href_col_index = cols.index("Href")
+                                        logger.debug(f"Found Href column at index {href_col_index}")
+                                    except ValueError:
+                                        # Try case-insensitive search
+                                        for i, col in enumerate(cols):
+                                            if "href" in col.lower():
+                                                href_col_index = i
+                                                logger.debug(f"Found Href column (case-insensitive) at index {href_col_index}")
+                                                break
+                                    continue
+                                
+                                # Skip header and summary rows
+                                if line.startswith("Date") or "Total" in line or len(cols) < 3:
+                                    continue
+                                
+                                # Extract domain from Href column if we found it
+                                if href_col_index >= 0 and href_col_index < len(cols):
+                                    href = cols[href_col_index].strip()
+                                    if href and ('http://' in href or 'https://' in href):
+                                        domain = normalize_domain(href)
+                                        if domain:
+                                            domains.add(domain)
+                                            logger.debug(f"Extracted domain '{domain}' from Reports API Href column")
+                                
+                                # Also try to find URLs in any column (fallback)
+                                for col in cols:
+                                    if col and ('http://' in col or 'https://' in col):
+                                        domain = normalize_domain(col)
+                                        if domain:
+                                            domains.add(domain)
+                                            logger.debug(f"Extracted domain '{domain}' from Reports API (any column)")
+                            
+                            if domains:
+                                logger.info(f"Extracted {len(domains)} unique domains from Reports API: {list(domains)}")
+                                return domains
+                            else:
+                                logger.warning("Reports API returned data but no Href URLs found")
+                        else:
+                            logger.warning(f"Reports API returned status {report_response.status_code}")
+                    else:
+                        logger.warning(f"Reports API fallback failed: {report_response.status_code}")
+                except Exception as report_err:
+                    logger.warning(f"Reports API fallback error: {report_err}")
+                
+                # If both methods failed, return empty set
+                logger.warning(f"Could not extract domains from {len(campaign_ids)} campaigns (Ads.get and Reports API both failed)")
+                return set()
             except Exception as e:
                 logger.error(f"Error getting campaign domains: {e}")
                 return set()
