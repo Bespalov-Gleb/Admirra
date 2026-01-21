@@ -666,7 +666,7 @@ class YandexDirectAPI:
         if not campaign_ids:
             return {}
         
-        logger.info(f"📊 Getting CounterIds for {len(campaign_ids)} campaigns")
+        # Минимальное логирование для производительности
         
         numeric_ids: List[int] = []
         for cid in campaign_ids:
@@ -683,16 +683,17 @@ class YandexDirectAPI:
             "Ids": numeric_ids
         }
         
-        # Поле CounterIds доступно в типо-специфичных структурах кампаний.
+        # Поле CounterId (единственное число) доступно в типо-специфичных структурах кампаний.
+        # В ответе API это может быть массив или одно значение.
         payload = {
             "method": "get",
             "params": {
                 "SelectionCriteria": selection_criteria,
                 "FieldNames": ["Id", "Name", "Type"],
-                "TextCampaignFieldNames": ["CounterIds"],
-                "DynamicTextCampaignFieldNames": ["CounterIds"],
+                "TextCampaignFieldNames": ["CounterId"],
+                "DynamicTextCampaignFieldNames": ["CounterId"],
                 # Для мобильных кампаний поле может отсутствовать — не критично.
-                "SmartCampaignFieldNames": ["CounterIds"]
+                "SmartCampaignFieldNames": ["CounterId"]
             }
         }
         
@@ -701,20 +702,21 @@ class YandexDirectAPI:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
-                logger.info(f"📊 get_campaign_counters: HTTP {response.status_code}")
                 
                 if response.status_code != 200:
-                    logger.error(f"❌ get_campaign_counters failed: {response.status_code} - {response.text[:200]}")
+                    logger.error(f"get_campaign_counters failed: {response.status_code}")
                     return {}
                 
                 data = response.json()
                 if "error" in data:
-                    error_msg = json.dumps(data["error"], ensure_ascii=False)
-                    logger.error(f"❌ Yandex API error in get_campaign_counters: {error_msg}")
+                    error_code = data["error"].get("error_code")
+                    if error_code == 3228:
+                        # Direct Pro not available - expected, will use fallback
+                        return {}
+                    logger.error(f"get_campaign_counters API error: {data['error'].get('error_detail', 'Unknown')}")
                     return {}
                 
                 campaigns = data.get("result", {}).get("Campaigns", [])
-                logger.info(f"📊 get_campaign_counters: got {len(campaigns)} campaigns from API")
                 
                 for campaign in campaigns:
                     cid = str(campaign.get("Id"))
@@ -723,9 +725,9 @@ class YandexDirectAPI:
                     
                     counter_ids: List[str] = []
                     
-                    # CounterIds может быть списком или отсутствовать.
+                    # CounterId может быть списком, одним значением или отсутствовать.
                     def _extract_ids(container: Dict[str, Any]) -> List[str]:
-                        raw = container.get("CounterIds")
+                        raw = container.get("CounterId")
                         if not raw:
                             return []
                         if isinstance(raw, list):
@@ -749,14 +751,10 @@ class YandexDirectAPI:
                     
                     if counter_ids:
                         result[cid] = counter_ids
-                        logger.info(f"   ✅ Campaign {cid} ({name}, type={ctype}) has CounterIds={counter_ids}")
-                    else:
-                        logger.info(f"   ⚠️ Campaign {cid} ({name}, type={ctype}) has no CounterIds")
                 
-                logger.info(f"📊 get_campaign_counters: collected counters for {len(result)} campaigns")
                 return result
             except Exception as e:
-                logger.error(f"❌ Exception in get_campaign_counters: {e}")
+                logger.error(f"get_campaign_counters exception: {e}")
                 return {}
 
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
