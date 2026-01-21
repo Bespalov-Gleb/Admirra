@@ -112,3 +112,23 @@ class YandexMetricaAPI:
             error_msg = f"Failed to fetch goals for counter {counter_id}: {response.status_code} - {response.text}"
             logger.error(error_msg)
             raise Exception(error_msg)
+    
+    @staticmethod
+    def normalize_domain(url: str) -> str:
+        """
+        Extract and normalize domain from Metrika counter site URL.
+        Returns normalized domain (e.g., 'kxi-stroi.rf' from 'https://www.kxi-stroi.rf/').
+        """
+        if not url:
+            return ""
+        # Remove protocol
+        url = url.replace("http://", "").replace("https://", "")
+        # Remove www.
+        if url.startswith("www."):
+            url = url[4:]
+        # Remove path and query
+        url = url.split("/")[0].split("?")[0]
+        # Remove port
+        url = url.split(":")[0]
+        # Lowercase
+        return url.lower().strip()

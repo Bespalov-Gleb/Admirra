@@ -19,6 +19,7 @@ class YandexDirectAPI:
         """
         self.report_url = "https://api.direct.yandex.com/json/v5/reports"
         self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
+        self.ads_url = "https://api.direct.yandex.com/json/v5/ads"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept-Language": "ru",
@@ -791,6 +792,99 @@ class YandexDirectAPI:
             except Exception as e:
                 logger.error(f"get_campaign_counters exception: {e}")
                 return {}
+    
+    async def get_campaign_domains(self, campaign_ids: List[str]) -> set:
+        """
+        Get unique domains from selected campaigns by fetching their ads and extracting Href URLs.
+        
+        Returns set of normalized domains (e.g., {'kxi-stroi.rf', 'example.com'}).
+        """
+        if not campaign_ids:
+            return set()
+        
+        logger.info(f"Getting domains for {len(campaign_ids)} campaigns")
+        
+        numeric_ids = []
+        for cid in campaign_ids:
+            if isinstance(cid, str) and cid.isdigit():
+                numeric_ids.append(int(cid))
+        
+        if not numeric_ids:
+            return set()
+        
+        # Helper to normalize domain from URL
+        def normalize_domain(url: str) -> str:
+            """Extract and normalize domain from URL"""
+            if not url:
+                return ""
+            # Remove protocol
+            url = url.replace("http://", "").replace("https://", "")
+            # Remove www.
+            if url.startswith("www."):
+                url = url[4:]
+            # Remove path and query
+            url = url.split("/")[0].split("?")[0]
+            # Remove port
+            url = url.split(":")[0]
+            # Lowercase
+            return url.lower().strip()
+        
+        domains = set()
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                # Request ads for these campaigns
+                payload = {
+                    "method": "get",
+                    "params": {
+                        "SelectionCriteria": {
+                            "CampaignIds": numeric_ids
+                        },
+                        "FieldNames": ["Id", "CampaignId"],
+                        "TextAdFieldNames": ["Href", "DisplayUrlPath"],
+                        "DynamicTextAdFieldNames": ["Href", "DisplayUrlPath"],
+                        "MobileAppAdFieldNames": ["TrackingUrl"],
+                        "SmartAdFieldNames": ["Href"]
+                    }
+                }
+                
+                response = await client.post(self.ads_url, json=payload, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if "result" in data and "Ads" in data["result"]:
+                        ads = data["result"]["Ads"]
+                        logger.info(f"Got {len(ads)} ads for domain extraction")
+                        
+                        for ad in ads:
+                            # Try different ad types
+                            href = None
+                            if "TextAd" in ad:
+                                href = ad["TextAd"].get("Href") or ad["TextAd"].get("DisplayUrlPath")
+                            elif "DynamicTextAd" in ad:
+                                href = ad["DynamicTextAd"].get("Href") or ad["DynamicTextAd"].get("DisplayUrlPath")
+                            elif "MobileAppAd" in ad:
+                                href = ad["MobileAppAd"].get("TrackingUrl")
+                            elif "SmartAd" in ad:
+                                href = ad["SmartAd"].get("Href")
+                            
+                            if href:
+                                domain = normalize_domain(href)
+                                if domain:
+                                    domains.add(domain)
+                                    logger.debug(f"Extracted domain '{domain}' from ad {ad.get('Id')}")
+                        
+                        logger.info(f"Extracted {len(domains)} unique domains: {list(domains)}")
+                        return domains
+                    else:
+                        logger.warning("No ads found in API response")
+                        return set()
+                else:
+                    logger.warning(f"Ads.get failed: {response.status_code}")
+                    return set()
+            except Exception as e:
+                logger.error(f"Error getting campaign domains: {e}")
+                return set()
 
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """

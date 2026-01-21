@@ -926,9 +926,139 @@ async def get_integration_goals(
                     return all_goals
                 except Exception as e:
                     logger.error(f"(fallback PriorityGoals) Error fetching goals from Metrika: {e}")
-                    # Продолжаем в профильный путь ниже
             
-            logger.info("⚠️ Neither CounterIds nor PriorityGoals could be used, falling back to profile-wide goals")
+            # 3) Fallback через домены: Кампания → домены сайтов → счётчики Метрики с теми же доменами → цели
+            logger.info("Trying domain-based matching: campaign domains → Metrika counters → goals")
+            try:
+                # Получаем домены выбранных кампаний
+                campaign_domains = await direct_api.get_campaign_domains(external_ids)
+                logger.info(f"Extracted {len(campaign_domains)} unique domains from campaigns: {list(campaign_domains)}")
+                
+                if campaign_domains:
+                    from automation.yandex_metrica import YandexMetricaAPI
+                    metrica_api = YandexMetricaAPI(access_token)
+                    
+                    # Получаем все доступные счётчики
+                    all_counters = await metrica_api.get_counters()
+                    logger.info(f"Got {len(all_counters)} counters from Metrika for domain matching")
+                    
+                    # Фильтруем счётчики по доменам
+                    matching_counters = []
+                    for counter in all_counters:
+                        counter_site = counter.get("site", "")
+                        if not counter_site:
+                            continue
+                        
+                        counter_domain = YandexMetricaAPI.normalize_domain(counter_site)
+                        if counter_domain in campaign_domains:
+                            matching_counters.append(counter)
+                            logger.info(f"Counter '{counter.get('name')}' (ID: {counter.get('id')}, site: {counter_site}) matches campaign domain '{counter_domain}'")
+                    
+                    if matching_counters:
+                        logger.info(f"Found {len(matching_counters)} counters matching campaign domains")
+                        
+                        all_goals = []
+                        from sqlalchemy import func
+                        
+                        for counter in matching_counters:
+                            counter_id = str(counter["id"])
+                            counter_name = counter.get("name", "Unknown")
+                            
+                            try:
+                                goals = await metrica_api.get_counter_goals(counter_id)
+                                for goal in goals:
+                                    goal_id = str(goal["id"])
+                                    goal_name = goal.get("name", f"Goal {goal_id}")
+                                    goal_data = {
+                                        "id": goal_id,
+                                        "name": f"{goal_name}",
+                                        "type": goal.get("type", "Unknown"),
+                                        "counter_id": counter_id,
+                                        "conversions": 0,
+                                        "conversion_rate": 0.0
+                                    }
+                                    
+                                    if include_stats:
+                                        stats = db.query(
+                                            func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
+                                        ).filter(
+                                            models.MetrikaGoals.goal_id == goal_id,
+                                            models.MetrikaGoals.integration_id == integration_id,
+                                            models.MetrikaGoals.date >= date_from,
+                                            models.MetrikaGoals.date <= date_to
+                                        ).first()
+                                        
+                                        if not stats or not stats.total_conversions:
+                                            try:
+                                                goal_metric = f"ym:s:goal{goal_id}reaches"
+                                                goals_stats = await metrica_api.get_goals_stats(
+                                                    counter_id,
+                                                    date_from,
+                                                    date_to,
+                                                    metrics=goal_metric
+                                                )
+                                                
+                                                total_conversions_from_api = 0
+                                                for day_data in goals_stats:
+                                                    if len(day_data.get("metrics", [])) > 0:
+                                                        total_conversions_from_api += int(day_data["metrics"][0] or 0)
+                                                
+                                                if total_conversions_from_api > 0:
+                                                    goal_data["conversions"] = total_conversions_from_api
+                                                    
+                                                    total_clicks = db.query(
+                                                        func.sum(models.YandexStats.clicks)
+                                                    ).join(
+                                                        models.Campaign
+                                                    ).filter(
+                                                        models.Campaign.integration_id == integration_id,
+                                                        models.Campaign.external_id.in_(external_ids),
+                                                        models.YandexStats.date >= date_from,
+                                                        models.YandexStats.date <= date_to
+                                                    ).scalar() or 0
+                                                    
+                                                    if total_clicks > 0:
+                                                        goal_data["conversion_rate"] = round(
+                                                            (goal_data["conversions"] / total_clicks) * 100, 2
+                                                        )
+                                            except Exception as api_err:
+                                                logger.warning(f"⚠️ (domain fallback) Failed to fetch goal stats for goal_id={goal_id}: {api_err}")
+                                        elif stats and stats.total_conversions:
+                                            goal_data["conversions"] = int(stats.total_conversions)
+                                            
+                                            total_clicks = db.query(
+                                                func.sum(models.YandexStats.clicks)
+                                            ).join(
+                                                models.Campaign
+                                            ).filter(
+                                                models.Campaign.integration_id == integration_id,
+                                                models.Campaign.external_id.in_(external_ids),
+                                                models.YandexStats.date >= date_from,
+                                                models.YandexStats.date <= date_to
+                                            ).scalar() or 0
+                                            
+                                            if total_clicks > 0:
+                                                goal_data["conversion_rate"] = round(
+                                                    (goal_data["conversions"] / total_clicks) * 100, 2
+                                                )
+                                    
+                                    all_goals.append(goal_data)
+                            except Exception as goals_err:
+                                logger.error(f"(domain fallback) Failed to fetch goals for counter {counter_id}: {goals_err}")
+                        
+                        if all_goals:
+                            logger.info(f"✅ (domain fallback) Returning {len(all_goals)} goals from {len(matching_counters)} matching counters")
+                            return all_goals
+                        else:
+                            logger.warning("(domain fallback) No goals found in matching counters")
+                    else:
+                        logger.warning(f"(domain fallback) No counters match campaign domains {list(campaign_domains)}")
+                else:
+                    logger.warning("(domain fallback) Could not extract domains from campaigns")
+            except Exception as domain_err:
+                logger.error(f"(domain fallback) Error in domain-based matching: {domain_err}")
+            
+            logger.info("⚠️ Neither CounterIds, PriorityGoals, nor domain matching worked, falling back to profile-wide goals")
     
     # LEGACY PATH: If no campaign_ids provided, use profile-based goal fetching
     
@@ -1194,6 +1324,7 @@ async def update_integration(
     logger.info(f"Updating integration {integration_id} with data: {integration_in}")
     logger.info(f"Before update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
+    # 1. Обновляем поля самой интеграции
     for key, value in integration_in.items():
         if hasattr(integration, key):
             # Special handling for JSON fields if they come as lists/dicts
@@ -1201,6 +1332,38 @@ async def update_integration(
                 value = json.dumps(value)
             setattr(integration, key, value)
             logger.info(f"Set {key} = {value}")
+
+    # 2. Обновляем признак активности кампаний по selected_campaign_ids / all_campaigns
+    try:
+        selected_campaign_ids = integration_in.get("selected_campaign_ids")
+        all_campaigns_flag = integration_in.get("all_campaigns")
+        if selected_campaign_ids is not None or all_campaigns_flag is not None:
+            from uuid import UUID as _UUID
+            # Приводим к множеству UUID для быстрых проверок
+            selected_set = set()
+            if isinstance(selected_campaign_ids, list):
+                for cid in selected_campaign_ids:
+                    try:
+                        selected_set.add(_UUID(str(cid)))
+                    except Exception:
+                        logger.warning(f"Invalid campaign id in selected_campaign_ids: {cid}")
+            # Получаем все кампании этой интеграции
+            campaigns_q = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration.id
+            )
+            for campaign in campaigns_q:
+                if all_campaigns_flag:
+                    # Пользователь выбрал "все кампании" — помечаем все как активные
+                    campaign.is_active = True
+                else:
+                    # Активны только явно выбранные кампании
+                    campaign.is_active = campaign.id in selected_set
+            logger.info(
+                f"Updated campaigns is_active for integration {integration_id}: "
+                f"all_campaigns={all_campaigns_flag}, selected_count={len(selected_set)}"
+            )
+    except Exception as camp_err:
+        logger.error(f"Failed to update campaigns is_active for integration {integration_id}: {camp_err}")
     
     # CRITICAL: For Yandex Direct, ensure agency_client_login is set when account_id is updated
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
