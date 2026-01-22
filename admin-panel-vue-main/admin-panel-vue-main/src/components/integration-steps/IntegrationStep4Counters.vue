@@ -103,17 +103,6 @@
           </tbody>
         </table>
       </div>
-
-      <!-- Next Button -->
-      <div class="flex justify-end pt-4">
-        <button
-          @click="$emit('next')"
-          :disabled="loading || selectedIds.length === 0"
-          class="px-8 py-3.5 bg-blue-600 text-white rounded-2xl font-black text-[12px] uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 shadow-lg hover:shadow-xl"
-        >
-          Далее
-        </button>
-      </div>
     </div>
   </div>
 </template>

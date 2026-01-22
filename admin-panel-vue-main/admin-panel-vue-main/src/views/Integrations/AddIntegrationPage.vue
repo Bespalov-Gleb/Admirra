@@ -307,12 +307,12 @@ const isProfileSelectorOpen = ref(false)
 const isSyncingData = ref(false)
 
 const stepLabels = {
-  1: 'Платформа и проект',
-  2: 'Выбор профиля',
-  3: 'Рекламные кампании',
-  4: 'Счетчики Метрики',
-  5: 'Цели и конверсии',
-  6: 'Сводка настроек'
+  1: 'Проект',
+  2: 'Профиль',
+  3: 'РК',
+  4: 'Счетчики',
+  5: 'Цели',
+  6: 'Сводка'
 }
 
 // Loading state computed properties
