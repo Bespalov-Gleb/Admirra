@@ -640,11 +640,134 @@ async def get_integration_profiles(
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
     return [] # Return empty list for other platforms or if no specific logic
 
+@router.get("/{integration_id}/counters")
+async def get_integration_counters(
+    integration_id: uuid.UUID,
+    account_id: Optional[str] = None,
+    campaign_ids: Optional[str] = None,  # Comma-separated list of campaign IDs
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get Metrika counters for selected campaigns or profile.
+    Priority: Campaign CounterIds -> Profile counters from Metrika API.
+    """
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id
+    ).first()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    
+    access_token = security.decrypt_token(integration.access_token)
+    
+    # Determine target_account for profile filtering
+    if account_id:
+        target_account = account_id
+    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+        target_account = integration.agency_client_login
+    else:
+        target_account = integration.account_id
+    
+    counters_list = []
+    
+    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        # Priority 1: Get counters from selected campaigns via CounterIds
+        if campaign_ids:
+            campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
+            
+            campaigns_from_db = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration_id,
+                models.Campaign.id.in_([uuid.UUID(cid) for cid in campaign_ids_list if len(cid) == 36])
+            ).all()
+            
+            external_ids = [str(c.external_id) for c in campaigns_from_db if c.external_id and str(c.external_id).isdigit()]
+            
+            if external_ids:
+                from automation.yandex_direct import YandexDirectAPI
+                direct_api = YandexDirectAPI(access_token, client_login=target_account)
+                
+                campaign_counters_map = await direct_api.get_campaign_counters(external_ids)
+                
+                # Collect all unique counter IDs
+                all_counter_ids = set()
+                for counters_list in campaign_counters_map.values():
+                    for cid in counters_list:
+                        all_counter_ids.add(str(cid))
+                
+                if all_counter_ids:
+                    # Fetch counter details from Metrika API
+                    from automation.yandex_metrica import YandexMetricaAPI
+                    metrica_api = YandexMetricaAPI(access_token)
+                    
+                    # Get all accessible counters to match with IDs
+                    try:
+                        all_counters = await metrica_api.get_counters()
+                        
+                        # Filter to only counters that match our CounterIds
+                        for counter in all_counters:
+                            if str(counter.get('id')) in all_counter_ids:
+                                counters_list.append({
+                                    "id": str(counter.get('id')),
+                                    "name": counter.get('name', 'Unknown'),
+                                    "site": counter.get('site', ''),
+                                    "owner_login": counter.get('owner_login', ''),
+                                    "source": "campaign"  # Indicates this counter came from campaign CounterIds
+                                })
+                    except Exception as e:
+                        logger.error(f"Failed to fetch counter details from Metrika: {e}")
+        
+        # Priority 2: Fallback to profile-based counters
+        if not counters_list and target_account:
+            from automation.yandex_metrica import YandexMetricaAPI
+            metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+            
+            try:
+                counters = await metrica_api.get_counters()
+                
+                # Filter by owner_login if possible
+                for counter in counters:
+                    owner_login = counter.get('owner_login', '')
+                    # Normalize for comparison
+                    def normalize_login(login):
+                        return login.lower().replace('.', '').replace('-', '') if login else ''
+                    
+                    if normalize_login(owner_login) == normalize_login(target_account) or not owner_login:
+                        counters_list.append({
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": owner_login,
+                            "source": "profile"  # Indicates this counter came from profile
+                        })
+            except Exception as e:
+                logger.error(f"Failed to fetch profile counters: {e}")
+                # If 403, try without profile filter
+                if "403" in str(e) or "access_denied" in str(e).lower():
+                    try:
+                        fallback_api = YandexMetricaAPI(access_token)
+                        counters = await fallback_api.get_counters()
+                        for counter in counters:
+                            counters_list.append({
+                                "id": str(counter.get('id')),
+                                "name": counter.get('name', 'Unknown'),
+                                "site": counter.get('site', ''),
+                                "owner_login": counter.get('owner_login', ''),
+                                "source": "profile_fallback"
+                            })
+                    except Exception as fallback_err:
+                        logger.error(f"Fallback counter fetch also failed: {fallback_err}")
+    
+    logger.info(f"✅ Returning {len(counters_list)} counters for integration {integration_id}")
+    return {"counters": counters_list}
+
 @router.get("/{integration_id}/goals")
 async def get_integration_goals(
     integration_id: uuid.UUID,
     account_id: Optional[str] = None,
     campaign_ids: Optional[str] = None,  # Comma-separated list of campaign IDs
+    counter_ids: Optional[str] = None,  # NEW: Comma-separated list of counter IDs
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     with_stats: bool = True,  # NEW: позволяем отключать тяжёлый расчёт конверсий
@@ -684,7 +807,75 @@ async def get_integration_goals(
         target_account = None
         logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
     
-    # CRITICAL: If campaign_ids provided, get goals по выбранным кампаниям, а не по всему профилю
+    # CRITICAL: Priority order for goal fetching:
+    # 1. If counter_ids provided, fetch goals ONLY from those counters (highest priority)
+    # 2. If campaign_ids provided, get CounterIds from campaigns, then fetch goals
+    # 3. Fallback to profile-based goal fetching
+    
+    # Priority 1: Fetch goals from selected counters
+    if counter_ids:
+        counter_ids_list = [cid.strip() for cid in counter_ids.split(',') if cid.strip()]
+        
+        if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+            from automation.yandex_metrica import YandexMetricaAPI
+            metrica_api = YandexMetricaAPI(access_token)
+            
+            all_goals = []
+            from sqlalchemy import func
+            
+            for counter_id in counter_ids_list:
+                try:
+                    goals = await metrica_api.get_counter_goals(counter_id)
+                except Exception as goals_err:
+                    logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
+                    continue
+                
+                for goal in goals:
+                    goal_id = str(goal["id"])
+                    goal_name = goal.get("name", f"Goal {goal_id}")
+                    goal_data = {
+                        "id": goal_id,
+                        "name": f"{goal_name}",
+                        "type": goal.get("type", "Unknown"),
+                        "counter_id": counter_id,
+                        "conversions": 0,
+                        "conversion_rate": 0.0
+                    }
+                    
+                    if include_stats:
+                        # Try DB first
+                        db_goal = db.query(models.MetrikaGoals).filter(
+                            models.MetrikaGoals.integration_id == integration_id,
+                            models.MetrikaGoals.goal_id == goal_id,
+                            models.MetrikaGoals.date >= datetime.strptime(date_from, "%Y-%m-%d").date(),
+                            models.MetrikaGoals.date <= datetime.strptime(date_to, "%Y-%m-%d").date()
+                        ).first()
+                        
+                        if db_goal:
+                            goal_data["conversions"] = int(db_goal.conversion_count or 0)
+                            goal_data["conversion_rate"] = float(db_goal.conversion_rate or 0.0)
+                        else:
+                            # Fallback to API
+                            try:
+                                stats = await metrica_api.get_goals_stats(
+                                    counter_id, date_from, date_to,
+                                    metrics="ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+                                )
+                                if stats and len(stats) > 0:
+                                    total_reaches = sum(row.get('metrics', [0, 0])[1] for row in stats)
+                                    total_cr = sum(row.get('metrics', [0, 0])[0] for row in stats)
+                                    avg_cr = total_cr / len(stats) if stats else 0.0
+                                    goal_data["conversions"] = int(total_reaches)
+                                    goal_data["conversion_rate"] = float(avg_cr)
+                            except Exception as stats_err:
+                                logger.debug(f"Could not fetch stats for goal {goal_id} from counter {counter_id}: {stats_err}")
+                    
+                    all_goals.append(goal_data)
+            
+            logger.info(f"✅ Returning {len(all_goals)} goals from {len(counter_ids_list)} selected counters")
+            return all_goals
+    
+    # Priority 2: If campaign_ids provided, get goals по выбранным кампаниям, а не по всему профилю
     if campaign_ids:
         campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
         
@@ -1586,12 +1777,13 @@ async def discover_campaigns(
             db.commit()
             logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
     
-    # IMPORTANT: After discovering campaigns, immediately sync stats for last 7 days
-    # so user can see real data in the wizard
+    # IMPORTANT: After discovering campaigns, immediately sync stats for last 30 days
+    # This ensures we have data for any date range the user might select on the dashboard
+    # (users often look at 14-30 day periods, so 30 days covers most use cases)
     from datetime import datetime, timedelta
     try:
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
+        start_date = end_date - timedelta(days=30)  # Increased from 7 to 30 days
         date_from = start_date.strftime("%Y-%m-%d")
         date_to = end_date.strftime("%Y-%m-%d")
         

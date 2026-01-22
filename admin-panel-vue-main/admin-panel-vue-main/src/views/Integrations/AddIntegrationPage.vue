@@ -40,12 +40,12 @@
           <div class="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 z-0"></div>
           <div 
             class="absolute top-1/2 left-0 h-0.5 bg-blue-600 transition-all duration-500 -translate-y-1/2 z-0"
-            :style="{ width: `${((currentStep - 1) / 4) * 100}%` }"
+            :style="{ width: `${((currentStep - 1) / 5) * 100}%` }"
           ></div>
 
           <!-- Steps -->
           <div 
-            v-for="step in 5" 
+            v-for="step in 6" 
             :key="step"
             class="relative z-10 flex flex-col items-center gap-3"
           >
@@ -106,8 +106,21 @@
                 @next="nextStep"
               />
 
-              <IntegrationStep4 
+              <!-- Step 4: Counters selection -->
+              <IntegrationStep4Counters 
                 v-else-if="currentStep === 4"
+                :counters="counters"
+                :selectedIds="selectedCounterIds"
+                :loading="loadingStates.counters"
+                @toggle="toggleCounterSelection"
+                @bulkSelect="bulkSelectCounters"
+                @bulkDeselect="bulkDeselectCounters"
+                @next="nextStep"
+              />
+
+              <!-- Step 5: Goals selection -->
+              <IntegrationStep5 
+                v-else-if="currentStep === 5"
                 :goals="goals"
                 :primaryGoalId="form.primary_goal_id"
                 :selectedGoalIds="selectedGoalIds"
@@ -119,8 +132,15 @@
                 @bulkDeselect="bulkDeselectGoals"
               />
 
-              <!-- Step 5: Summary -->
-              <div v-else-if="currentStep === 5" class="space-y-6">
+              <!-- Step 6: Summary -->
+              <IntegrationStep6 
+                v-else-if="currentStep === 6"
+                :projectName="form.client_name"
+                :selectedCampaigns="campaigns.filter(c => selectedCampaignIds.includes(c.id))"
+                :selectedCounters="counters.filter(c => selectedCounterIds.includes(c.id))"
+                :selectedGoals="goals.filter(g => selectedGoalIds.includes(g.id) || g.id === form.primary_goal_id)"
+                :primaryGoalId="form.primary_goal_id"
+              />
                 <div class="text-center py-6">
                   <h3 class="text-2xl font-black text-gray-900 mb-2">Сводка настроек</h3>
                   <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Проверьте выбранные параметры перед подключением</p>
@@ -288,7 +308,7 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
-          <!-- Step 4: Next button (goals -> summary) -->
+          <!-- Step 4: Next button (counters -> goals) -->
           <button 
             v-else-if="currentStep === 4"
             @click="nextStep"
@@ -299,9 +319,20 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
-          <!-- Step 5: Finish button (summary) -->
+          <!-- Step 5: Next button (goals -> summary) -->
           <button 
             v-else-if="currentStep === 5"
+            @click="nextStep"
+            :disabled="isNextDisabled"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+          >
+            Далее
+            <ArrowRightIcon class="w-4 h-4" />
+          </button>
+
+          <!-- Step 6: Finish button (summary) -->
+          <button 
+            v-else-if="currentStep === 6"
             @click="finishConnection"
             :disabled="isNextDisabled || loadingFinish"
             class="px-10 py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-blue-200"
@@ -333,7 +364,9 @@ import Skeleton from '../../components/ui/Skeleton.vue'
 import IntegrationStep1 from '../../components/integration-steps/IntegrationStep1.vue'
 import IntegrationStep2 from '../../components/integration-steps/IntegrationStep2.vue'
 import IntegrationStep3 from '../../components/integration-steps/IntegrationStep3.vue'
-import IntegrationStep4 from '../../components/integration-steps/IntegrationStep4.vue'
+import IntegrationStep4Counters from '../../components/integration-steps/IntegrationStep4Counters.vue'
+import IntegrationStep5 from '../../components/integration-steps/IntegrationStep5.vue'
+import IntegrationStep6 from '../../components/integration-steps/IntegrationStep6.vue'
 
 // Composables & API
 import { useProjects } from '../../composables/useProjects'
@@ -353,12 +386,16 @@ const {
   campaigns,
   selectedCampaignIds,
   allFromProfile,
+  counters,
+  selectedCounterIds,
+  allFromCounters,
   goals,
   selectedGoalIds,
   allFromGoalsFromProfile,
   profiles,
   fetchProfiles,
   fetchCampaigns,
+  fetchCounters,
   fetchGoals,
   fetchIntegration,
   finishConnection,
@@ -366,6 +403,9 @@ const {
   toggleCampaignSelection,
   bulkSelectCampaigns,
   bulkDeselectCampaigns,
+  toggleCounterSelection,
+  bulkSelectCounters,
+  bulkDeselectCounters,
   bulkSelectGoals,
   bulkDeselectGoals,
   selectPrimaryGoal
@@ -379,8 +419,9 @@ const stepLabels = {
   1: 'Платформа и проект',
   2: 'Выбор профиля',
   3: 'Рекламные кампании',
-  4: 'Цели и конверсии',
-  5: 'Сводка настроек'
+  4: 'Счетчики Метрики',
+  5: 'Цели и конверсии',
+  6: 'Сводка настроек'
 }
 
 // Loading state computed properties
@@ -404,8 +445,9 @@ const isNextDisabled = computed(() => {
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
   if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
-  if (currentStep.value === 4) return !form.primary_goal_id || loadingStates.goals
-  if (currentStep.value === 5) return false // Summary step - no validation needed
+  if (currentStep.value === 4) return selectedCounterIds.value.length === 0 || loadingStates.counters
+  if (currentStep.value === 5) return !form.primary_goal_id || loadingStates.goals
+  if (currentStep.value === 6) return false // Summary step - no validation needed
   return false
 })
 
@@ -461,12 +503,32 @@ const nextStep = async () => {
     currentStep.value = 3
     fetchCampaigns(lastIntegrationId.value)
   } else if (currentStep.value === 3) {
-    // Step 3 -> 4: Campaigns selected, load goals
+    // Step 3 -> 4: Campaigns selected, validate and load counters
+    if (!allFromProfile.value && selectedCampaignIds.value.length === 0) {
+      toaster.error('Пожалуйста, выберите хотя бы одну кампанию')
+      return
+    }
     currentStep.value = 4
-    fetchGoals(lastIntegrationId.value)
+    if (lastIntegrationId.value) {
+      fetchCounters(lastIntegrationId.value)
+    }
   } else if (currentStep.value === 4) {
-    // Step 4 -> 5: Goals selected, show summary
+    // Step 4 -> 5: Counters selected, validate and load goals
+    if (selectedCounterIds.value.length === 0) {
+      toaster.error('Пожалуйста, выберите хотя бы один счетчик')
+      return
+    }
     currentStep.value = 5
+    if (lastIntegrationId.value) {
+      fetchGoals(lastIntegrationId.value)
+    }
+  } else if (currentStep.value === 5) {
+    // Step 5 -> 6: Goals selected, go to summary
+    if (!form.primary_goal_id) {
+      toaster.error('Пожалуйста, выберите основную цель')
+      return
+    }
+    currentStep.value = 6
   }
 }
 
@@ -572,7 +634,12 @@ onMounted(() => {
     
     // Step 2 = campaigns, Step 3 = goals (profile selection removed)
     if (currentStep.value === 2) fetchCampaigns(resumeId)
-    if (currentStep.value === 3) fetchGoals(resumeId)
+    if (currentStep.value === 3) fetchCounters(resumeId)
+    if (currentStep.value === 4) fetchCounters(resumeId)
+    if (currentStep.value === 5) {
+      fetchCounters(resumeId)
+      fetchGoals(resumeId)
+    }
   }
 })
 </script>

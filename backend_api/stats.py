@@ -105,7 +105,25 @@ async def get_dynamics(
         models.YandexStats.date >= d_start,
         models.YandexStats.date <= d_end
     )
-    if u_campaign_ids: y_stats = y_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+    if u_campaign_ids:
+        y_stats = y_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+        # CRITICAL: Also filter by integration_id when campaigns are selected
+        campaign_integrations = db.query(models.Campaign.integration_id).filter(
+            models.Campaign.id.in_(u_campaign_ids)
+        ).distinct().all()
+        integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+        if integration_ids:
+            y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    else:
+        # CRITICAL: When no campaigns selected, filter by all integrations of the client
+        # This prevents mixing data from different profiles/integrations
+        if len(effective_client_ids) == 1:
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
+            ).distinct().all()
+            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            if integration_ids:
+                y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
 
     v_stats = db.query(
@@ -121,7 +139,25 @@ async def get_dynamics(
         models.VKStats.date >= d_start,
         models.VKStats.date <= d_end
     )
-    if u_campaign_ids: v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+    if u_campaign_ids:
+        v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+        # CRITICAL: Also filter by integration_id when campaigns are selected
+        campaign_integrations = db.query(models.Campaign.integration_id).filter(
+            models.Campaign.id.in_(u_campaign_ids)
+        ).distinct().all()
+        integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+        if integration_ids:
+            v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    else:
+        # CRITICAL: When no campaigns selected, filter by all integrations of the client
+        # This prevents mixing data from different profiles/integrations
+        if len(effective_client_ids) == 1:
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
+            ).distinct().all()
+            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            if integration_ids:
+                v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
     # Metrica Goals dynamics

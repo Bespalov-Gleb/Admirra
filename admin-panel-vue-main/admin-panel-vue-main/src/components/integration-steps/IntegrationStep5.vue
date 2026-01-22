@@ -1,198 +1,271 @@
 <template>
-  <div class="space-y-8 py-2">
-    <!-- Header -->
-    <div class="text-center space-y-2">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-50 rounded-full mb-2">
-        <ClipboardDocumentCheckIcon class="w-8 h-8 text-blue-600" />
-      </div>
-      <h2 class="text-xl font-black text-gray-900 uppercase tracking-tight">Просмотр настроек</h2>
-      <p class="text-[13px] text-gray-500 font-bold max-w-sm mx-auto">
-        Пожалуйста, проверьте выбранные параметры перед окончательным подключением интеграции.
-      </p>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Left Column: Basics & Campaigns -->
-      <div class="space-y-6">
-        <!-- Project & Platform -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center">
-              <BuildingOfficeIcon class="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Проект и платформа</p>
-              <h3 class="text-[14px] font-black text-gray-900">{{ projectName || 'Не выбран' }}</h3>
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-100">Яндекс Директ</span>
-            <span class="text-[11px] font-bold text-gray-400 italic">Активный проект</span>
-          </div>
-        </div>
-
-        <!-- Selected Campaigns -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center">
-              <MegaphoneIcon class="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Кампании</p>
-              <h3 class="text-[14px] font-black text-gray-900">Выбрано: {{ selectedCampaignsCount }}</h3>
-            </div>
-          </div>
-          <div class="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            <div 
-              v-for="campaign in selectedCampaignsList" 
-              :key="campaign.id"
-              class="flex items-center gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100/50"
-            >
-              <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-              <span class="text-[11px] font-bold text-gray-700 truncate">{{ campaign.name }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right Column: Profile & Goals -->
-      <div class="space-y-6">
-        <!-- Selected Profile -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <UserCircleIcon class="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Профиль / Аккаунт</p>
-              <h3 class="text-[14px] font-black text-gray-900">{{ selectedProfileName }}</h3>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold text-gray-400">{{ selectedProfileLogin }}</span>
-            <span v-if="currency" class="px-2 py-0.5 bg-green-50 text-green-700 rounded-md text-[9px] font-black border border-green-100">{{ currency }}</span>
-          </div>
-        </div>
-
-        <!-- Main & Secondary Goals -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-orange-50 rounded-2xl flex items-center justify-center">
-              <PresentationChartLineIcon class="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
-              <h3 class="text-[14px] font-black text-gray-900">Основная: {{ primaryGoalName || 'Не выбрана' }}</h3>
-            </div>
-          </div>
-          <div class="space-y-3">
-             <div v-if="primaryGoalName" class="flex items-center gap-2 p-2.5 bg-orange-50/50 rounded-xl border border-orange-100">
-              <StarIcon class="w-4 h-4 text-orange-400 fill-orange-400" />
-              <span class="text-[11px] font-black text-orange-900 truncate">{{ primaryGoalName }}</span>
-            </div>
-            <p v-if="secondaryGoalsList.length > 0" class="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1 mt-4">Дополнительные цели ({{ secondaryGoalsList.length }}):</p>
-            <div class="max-h-24 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              <div 
-                v-for="goal in secondaryGoalsList" 
-                :key="goal.id"
-                class="flex items-center gap-2 p-2 bg-blue-50/30 rounded-xl border border-blue-50"
-              >
-                <CheckIcon class="w-3 h-3 text-blue-500" stroke-width="3" />
-                <span class="text-[11px] font-bold text-gray-600 truncate">{{ goal.name }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+  <div class="space-y-6">
+    <!-- Loading Banner -->
+    <div v-if="loading" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+      <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div>
+        <p class="text-sm font-bold text-blue-900">Загрузка целей...</p>
+        <p class="text-xs text-blue-600">Получаем цели из Яндекс.Метрики и статистику конверсий</p>
       </div>
     </div>
 
-    <!-- Final Checkbox & Settings -->
-    <div class="bg-blue-600 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group">
-      <!-- Decorative circles -->
-      <div class="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full transition-transform group-hover:scale-110"></div>
-      <div class="absolute -bottom-8 -left-8 w-24 h-24 bg-white/10 rounded-full transition-transform group-hover:scale-125"></div>
+    <!-- Header & Search -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
+      <div>
+        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ЦЕЛИ И КОНВЕРСИИ</label>
+        <p class="text-[11px] text-gray-500 font-bold">Выберите основную цель (звездочка) и дополнительные цели для отслеживания</p>
+      </div>
       
-      <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="space-y-4">
-          <div class="flex items-center gap-4">
-             <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                <ArrowPathRoundedSquareIcon class="w-6 h-6 text-white" />
-             </div>
-             <div>
-               <p class="text-[10px] font-black text-blue-100 uppercase tracking-widest leading-none mb-1">Глубина и Автосинхрон</p>
-               <h3 class="text-[17px] font-black">Синхронизация за {{ syncDepth }} дней</h3>
-             </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <div 
-              class="w-10 h-5 bg-white/20 rounded-full p-1 cursor-not-allowed flex shadow-inner"
-              :class="autoSync ? 'opacity-100' : 'opacity-40'"
-            >
-              <div class="w-3 h-3 bg-white rounded-full shadow-md" :class="autoSync ? 'ml-auto' : ''"></div>
-            </div>
-            <span class="text-[12px] font-black uppercase tracking-wider text-blue-50">Автоматическая синхронизация включена</span>
-          </div>
+      <div class="relative group w-full md:w-64">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <MagnifyingGlassIcon class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
         </div>
-        
-        <div class="text-center md:text-right">
-          <p class="text-[10px] font-black text-blue-100 uppercase tracking-widest mb-2">Нажмите кнопку ниже для старта</p>
-          <div class="flex items-center gap-2 justify-center md:justify-end">
-            <SparklesIcon class="w-5 h-5 text-yellow-300 animate-pulse" />
-            <span class="text-lg font-black italic">Готовность 100%</span>
-          </div>
-        </div>
+        <input 
+          type="text" 
+          v-model="searchQuery"
+          placeholder="Поиск цели..."
+          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+        >
       </div>
+    </div>
+
+    <!-- Goals Power Table -->
+    <div class="bg-white border border-gray-100 rounded-[2rem] overflow-hidden shadow-sm">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50/50 border-b border-gray-100">
+            <th class="w-12 px-5 py-4 text-center">
+              <StarIcon class="w-4 h-4 mx-auto text-gray-300" />
+            </th>
+            <th class="w-10 px-2 py-4">
+              <div 
+                @click="toggleSelectAllFiltered"
+                class="w-5 h-5 mx-auto rounded-md border-2 flex items-center justify-center transition-all bg-white cursor-pointer" 
+                :class="isAllFilteredSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-200 hover:border-blue-400'"
+              >
+                <CheckIcon v-if="isAllFilteredSelected" class="w-3.5 h-3.5 text-white" stroke-width="4" />
+                <div v-else-if="isAnyFilteredSelected" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
+              </div>
+            </th>
+            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Тип цели</th>
+            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название цели</th>
+            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Достижения</th>
+            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">CR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Loading State -->
+          <template v-if="loading">
+            <tr v-for="i in 5" :key="i" class="border-b border-gray-50">
+              <td class="px-5 py-5 text-center"><Skeleton width="4" height="4" rounded="full" /></td>
+              <td class="px-2 py-5"><Skeleton width="5" height="5" rounded="md" class="mx-auto" /></td>
+              <td class="px-4 py-5"><Skeleton width="20" height="3" /></td>
+              <td class="px-4 py-5"><Skeleton width="48" height="4" /></td>
+              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
+              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
+            </tr>
+          </template>
+
+          <tr 
+            v-else
+            v-for="goal in sortedGoals" 
+            :key="goal.id"
+            class="border-b border-gray-50 last:border-none group hover:bg-blue-50/30 transition-all cursor-pointer"
+            :class="{ 'bg-blue-50/50': selectedGoalIds.includes(goal.id) || primaryGoalId === goal.id }"
+          >
+            <!-- Primary Star -->
+            <td class="px-5 py-4 text-center" @click.stop="$emit('selectPrimary', goal.id)">
+              <button class="transition-all hover:scale-125 focus:outline-none">
+                <StarIcon 
+                   class="w-6 h-6 transition-colors duration-300" 
+                  :class="primaryGoalId === goal.id ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]' : 'text-gray-200 group-hover:text-gray-300'"
+                />
+              </button>
+            </td>
+
+            <!-- Secondary Checkbox -->
+            <td class="px-2 py-4" @click.stop="$emit('toggleSecondary', goal.id)">
+              <div 
+                class="w-5 h-5 mx-auto rounded-md border-2 flex items-center justify-center transition-all bg-white" 
+                :class="selectedGoalIds.includes(goal.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200 group-hover:border-gray-400'"
+              >
+                <CheckIcon v-if="selectedGoalIds.includes(goal.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
+              </div>
+            </td>
+
+            <td class="px-4 py-4">
+              <span 
+                class="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border"
+                :class="getGoalTypeClass(goal.type)"
+              >
+                {{ formatGoalType(goal.type) }}
+              </span>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-0.5">
+                  <span class="text-[13px] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+                    {{ goal.name }}
+                  </span>
+                  
+                  <!-- IMPROVED: Recommendation Badge with Icon -->
+                  <span 
+                    v-if="goal.id === recommendedGoalId" 
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-yellow-50 to-orange-50 text-orange-600 text-[8px] font-black uppercase rounded-md border border-orange-200 shadow-sm animate-pulse"
+                  >
+                    <StarIcon class="w-2.5 h-2.5 fill-orange-500" />
+                    РЕКОМЕНДУЕМАЯ
+                  </span>
+                </div>
+                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
+              </div>
+            </td>
+
+            <td class="px-3 py-4 text-right">
+              <span class="text-[12px] font-black text-gray-700">{{ goal.reaches || 0 }}</span>
+              <p class="text-[8px] text-gray-400 uppercase font-bold">раз</p>
+            </td>
+
+            <td class="px-3 py-4 text-right">
+              <span 
+                v-if="goal.conversion_rate" 
+                class="px-2.5 py-1 rounded-lg text-[10px] font-black"
+                :class="goal.conversion_rate > 2 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-blue-50 text-blue-600 border border-blue-100'"
+              >
+                {{ goal.conversion_rate.toFixed(1) }}%
+              </span>
+              <span v-else class="text-gray-300 text-[10px] font-black">—</span>
+            </td>
+          </tr>
+
+          <tr v-if="!loading && filteredGoals.length === 0">
+            <td colspan="7" class="py-20 text-center">
+              <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <p class="text-sm font-bold text-gray-600 mb-2">Цели не найдены</p>
+              <p class="text-xs text-gray-400">Данные синхронизируются в фоне. Если цели есть в Яндекс.Метрике,<br/>они появятся через несколько секунд.</p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Error Hint -->
+    <div v-if="showValidationError && !primaryGoalId" class="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
+      <ExclamationTriangleIcon class="w-5 h-5 text-red-500" />
+      <span class="text-[12px] font-bold text-red-600">Пожалуйста, выберите основную цель (нажмите на звездочку)</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { 
-  ClipboardDocumentCheckIcon, 
-  BuildingOfficeIcon,
-  MegaphoneIcon,
-  UserCircleIcon,
-  PresentationChartLineIcon,
-  StarIcon,
-  SparklesIcon,
-  ArrowPathRoundedSquareIcon
-} from '@heroicons/vue/24/solid'
-import { CheckIcon } from '@heroicons/vue/24/outline'
+  MagnifyingGlassIcon,
+  StarIcon
+} from '@heroicons/vue/20/solid'
+import { 
+  CheckIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/vue/24/outline'
+import Skeleton from '../ui/Skeleton.vue'
 
 const props = defineProps({
-  projectName: String,
-  selectedProfileName: String,
-  selectedProfileLogin: String,
-  currency: String,
-  selectedCampaignsList: {
-    type: Array,
-    default: () => []
-  },
-  primaryGoalName: String,
-  secondaryGoalsList: {
-    type: Array,
-    default: () => []
-  },
-  syncDepth: [Number, String],
-  autoSync: Boolean
+  goals: Array,
+  primaryGoalId: [String, Number],
+  selectedGoalIds: Array,
+  loading: Boolean,
+  platform: String,
+  allFromProfile: Boolean,
+  showValidationError: Boolean
 })
 
-const selectedCampaignsCount = computed(() => props.selectedCampaignsList.length)
+const emit = defineEmits(['selectPrimary', 'toggleSecondary', 'bulkSelect', 'bulkDeselect'])
+
+const searchQuery = ref('')
+
+const recommendedGoalId = computed(() => {
+  if (!props.goals || props.goals.length === 0) return null
+  
+  // Logic: Best CR/Reaches balance. For now, highest CR is a good surrogate.
+  // We filter out goals with 0 reaches to avoid noise.
+  const validGoals = props.goals.filter(g => (g.reaches || 0) > 0)
+  if (validGoals.length === 0) return props.goals[0]?.id
+  
+  return [...validGoals].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]?.id
+})
+
+const filteredGoals = computed(() => {
+  if (!props.goals) return []
+  let list = props.goals
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(g => 
+      (g.name && g.name.toLowerCase().includes(q)) || 
+      (g.id && g.id.toString().includes(q))
+    )
+  }
+  return list
+})
+
+const sortedGoals = computed(() => {
+  return [...filteredGoals.value].sort((a, b) => {
+    // 1. Recommended goal always first
+    if (a.id === recommendedGoalId.value) return -1
+    if (b.id === recommendedGoalId.value) return 1
+    
+    // 2. Then by Conversion Rate
+    return (b.conversion_rate || 0) - (a.conversion_rate || 0)
+  })
+})
+
+const isAllFilteredSelected = computed(() => {
+  if (filteredGoals.value.length === 0) return false
+  return filteredGoals.value.every(g => props.selectedGoalIds.includes(g.id))
+})
+
+const isAnyFilteredSelected = computed(() => {
+  return filteredGoals.value.some(g => props.selectedGoalIds.includes(g.id))
+})
+
+const toggleSelectAllFiltered = () => {
+  const ids = filteredGoals.value.map(g => g.id)
+  if (isAllFilteredSelected.value) {
+    emit('bulkDeselect', ids)
+  } else {
+    emit('bulkSelect', ids)
+  }
+}
+
+const formatGoalType = (type) => {
+  if (!type) return 'ЦЕЛЬ'
+  const labels = {
+    'AVERAGE_CPA': 'ЦЕНА КОНВЕРСИИ',
+    'METRICA_GOAL': 'ЦЕЛЬ МЕТРИКИ',
+    'AUTO': 'АВТОЦЕЛЬ',
+    'YANDEX_METRICA': 'ЯНДЕКС МЕТРИКА'
+  }
+  return labels[type] || type.replace(/_/g, ' ')
+}
+
+const getGoalTypeClass = (type) => {
+  if (type === 'METRICA_GOAL' || type === 'YANDEX_METRICA') return 'bg-orange-50 text-orange-600 border-orange-100'
+  if (type === 'AUTO') return 'bg-blue-50 text-blue-600 border-blue-100'
+  return 'bg-gray-50 text-gray-500 border-gray-100'
+}
 </script>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e5e7eb;
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #d1d5db;
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
 }
 </style>

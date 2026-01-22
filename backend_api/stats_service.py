@@ -53,12 +53,44 @@ class StatsService:
                 # is_active is a user selection flag, not a data filtering flag
             )
 
+            # CRITICAL: Always filter by integration_id to prevent mixing data from different profiles
+            # Even when campaigns are not selected, we should only show stats from campaigns
+            # that belong to integrations of the selected client_id
+            integration_ids = None
+            
             if campaign_ids:
                 print(f"DEBUG: StatsService.get_data - FILTERING by {len(campaign_ids)} campaigns: {campaign_ids}")
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
+                
+                # Get integration_ids for selected campaigns
+                campaign_integrations = db.query(models.Campaign.integration_id).filter(
+                    models.Campaign.id.in_(campaign_ids)
+                ).distinct().all()
+                integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+                
+                if integration_ids:
+                    print(f"DEBUG: StatsService.get_data - FILTERING by {len(integration_ids)} integrations from selected campaigns: {integration_ids}")
+                    y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
-                print(f"DEBUG: StatsService.get_data - NO campaign filter")
+                # CRITICAL: When no campaigns selected, filter by all integrations of the client
+                # This ensures we don't mix data from different profiles/integrations
+                if len(client_ids) == 1:
+                    # Get all integrations for this client
+                    client_integrations = db.query(models.Integration.id).filter(
+                        models.Integration.client_id.in_(client_ids)
+                    ).distinct().all()
+                    integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+                    
+                    if integration_ids:
+                        print(f"DEBUG: StatsService.get_data - NO campaign filter, but FILTERING by {len(integration_ids)} integrations for client: {integration_ids}")
+                        y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                        v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    else:
+                        print(f"DEBUG: StatsService.get_data - NO campaign filter, NO integrations found for client {client_ids}")
+                else:
+                    print(f"DEBUG: StatsService.get_data - NO campaign filter, multiple clients ({len(client_ids)}), showing all integrations")
             
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
@@ -79,6 +111,36 @@ class StatsService:
                 y_q = y_q.filter(models.YandexStats.date <= end)
                 v_q = v_q.filter(models.VKStats.date <= end)
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
+
+            # CRITICAL: Log the date range and integration filter for debugging
+            import logging
+            debug_logger = logging.getLogger(__name__)
+            debug_logger.info(f"🔍 StatsService.get_data - Date range: {start} to {end}")
+            debug_logger.info(f"🔍 Integration IDs: {integration_ids}")
+            debug_logger.info(f"🔍 Client IDs: {client_ids}")
+            debug_logger.info(f"🔍 Campaign IDs: {campaign_ids}")
+            
+            # CRITICAL: Check what data actually exists in DB for this date range
+            if platform in ["all", "yandex"]:
+                sample_query = db.query(
+                    models.YandexStats.date,
+                    models.Campaign.name,
+                    func.sum(models.YandexStats.impressions).label("imps"),
+                    func.sum(models.YandexStats.clicks).label("clicks"),
+                    func.sum(models.YandexStats.cost).label("cost")
+                ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                    models.YandexStats.client_id.in_(client_ids),
+                    models.YandexStats.date >= start,
+                    models.YandexStats.date <= end
+                )
+                if integration_ids:
+                    sample_query = sample_query.filter(models.Campaign.integration_id.in_(integration_ids))
+                if campaign_ids:
+                    sample_query = sample_query.filter(models.Campaign.id.in_(campaign_ids))
+                sample_data = sample_query.group_by(models.YandexStats.date, models.Campaign.name).limit(10).all()
+                debug_logger.info(f"🔍 Sample data in DB for date range {start} to {end}: {len(sample_data)} rows")
+                for row in sample_data[:5]:
+                    debug_logger.info(f"🔍   Date: {row.date}, Campaign: {row.name}, Impressions: {row.imps}, Clicks: {row.clicks}, Cost: {row.cost}")
 
             y_s = y_q.first() if platform in ["all", "yandex"] else None
             v_s = v_q.first() if platform in ["all", "vk"] else None

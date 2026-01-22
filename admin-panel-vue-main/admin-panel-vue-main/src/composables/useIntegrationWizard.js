@@ -20,6 +20,7 @@ const form = reactive({
 const loadingStates = reactive({
   profiles: false,
   campaigns: false,
+  counters: false,
   goals: false,
   finish: false
 })
@@ -27,6 +28,10 @@ const loadingStates = reactive({
 const campaigns = ref([])
 const selectedCampaignIds = ref([])
 const allFromProfile = ref(false)
+
+const counters = ref([])
+const selectedCounterIds = ref([])
+const allFromCounters = ref(false)
 
 const goals = ref([])
 const selectedGoalIds = ref([])
@@ -50,6 +55,9 @@ export function useIntegrationWizard() {
     campaigns.value = []
     selectedCampaignIds.value = []
     allFromProfile.value = false
+    counters.value = []
+    selectedCounterIds.value = []
+    allFromCounters.value = false
     goals.value = []
     selectedGoalIds.value = []
     profiles.value = []
@@ -123,6 +131,31 @@ export function useIntegrationWizard() {
     }
   }
 
+  const fetchCounters = async (integrationId) => {
+    loadingStates.counters = true
+    try {
+      const targetAccount = form.agency_client_login || form.account_id
+      const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
+      
+      const campaignIdsParam = selectedCampaignIds.value.length > 0
+        ? `&campaign_ids=${selectedCampaignIds.value.join(',')}`
+        : ''
+      
+      const { data } = await api.get(`/integrations/${integrationId}/counters?${accountIdParam}${campaignIdsParam}`)
+      
+      counters.value = data.counters || []
+      
+      // Auto-select all counters by default
+      selectedCounterIds.value = counters.value.map(c => c.id)
+    } catch (err) {
+      console.error('Failed to fetch counters:', err)
+      toaster.warning('Не удалось загрузить счетчики Метрики.')
+      counters.value = []
+    } finally {
+      loadingStates.counters = false
+    }
+  }
+
   const fetchGoals = async (integrationId) => {
     loadingStates.goals = true
     try {
@@ -132,15 +165,18 @@ export function useIntegrationWizard() {
       const targetAccount = form.agency_client_login || form.account_id
       const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
       
-      // CRITICAL: Pass selected campaign IDs to get goals only for selected campaigns
-      // This ensures goals are filtered by campaigns, not by profile
-      const campaignIdsParam = selectedCampaignIds.value.length > 0
-        ? `&campaign_ids=${selectedCampaignIds.value.join(',')}`
-        : ''
+      // CRITICAL: Priority 1: If counters are selected, use them
+      // Priority 2: Otherwise, use selected campaign IDs
+      let goalsUrl = `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}`
+      
+      if (selectedCounterIds.value.length > 0) {
+        goalsUrl += `&counter_ids=${selectedCounterIds.value.join(',')}`
+      } else if (selectedCampaignIds.value.length > 0) {
+        goalsUrl += `&campaign_ids=${selectedCampaignIds.value.join(',')}`
+      }
 
       // 1) Быстрый запрос: только список целей без тяжёлых конверсий (with_stats=false)
-      const baseUrl = `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}${campaignIdsParam}`
-      const { data } = await api.get(`${baseUrl}&with_stats=false`)
+      const { data } = await api.get(`${goalsUrl}&with_stats=false`)
 
       // CRITICAL: Handle both formats: array of goals OR object with goals and warning_message
       if (data && typeof data === 'object' && !Array.isArray(data) && data.goals) {
@@ -154,7 +190,7 @@ export function useIntegrationWizard() {
 
       // 2) Фоновый запрос: подтянуть конверсии/CR (with_stats=true) и смержить по id
       try {
-        const { data: statsData } = await api.get(`${baseUrl}&with_stats=true`)
+        const { data: statsData } = await api.get(`${goalsUrl}&with_stats=true`)
         const statsGoals = (statsData && typeof statsData === 'object' && !Array.isArray(statsData) && statsData.goals)
           ? statsData.goals
           : (Array.isArray(statsData) ? statsData : [])
@@ -245,6 +281,26 @@ export function useIntegrationWizard() {
     selectedGoalIds.value = selectedGoalIds.value.filter(id => !ids.includes(id))
   }
 
+  const toggleCounterSelection = (id) => {
+    const idx = selectedCounterIds.value.indexOf(id)
+    if (idx > -1) selectedCounterIds.value.splice(idx, 1)
+    else selectedCounterIds.value.push(id)
+    allFromCounters.value = false
+  }
+
+  const bulkSelectCounters = (ids) => {
+    ids.forEach(id => {
+      if (!selectedCounterIds.value.includes(id)) {
+        selectedCounterIds.value.push(id)
+      }
+    })
+  }
+
+  const bulkDeselectCounters = (ids) => {
+    selectedCounterIds.value = selectedCounterIds.value.filter(id => !ids.includes(id))
+    allFromCounters.value = false
+  }
+
   const selectPrimaryGoal = (id) => {
     form.primary_goal_id = id
   }
@@ -279,6 +335,9 @@ export function useIntegrationWizard() {
     campaigns,
     selectedCampaignIds,
     allFromProfile,
+    counters,
+    selectedCounterIds,
+    allFromCounters,
     goals,
     selectedGoalIds,
     allFromGoalsFromProfile,
@@ -288,12 +347,16 @@ export function useIntegrationWizard() {
     resetStore,
     fetchProfiles,
     fetchCampaigns,
+    fetchCounters,
     fetchGoals,
     fetchIntegration,
     finishConnection,
     toggleCampaignSelection,
     bulkSelectCampaigns,
     bulkDeselectCampaigns,
+    toggleCounterSelection,
+    bulkSelectCounters,
+    bulkDeselectCounters,
     bulkSelectGoals,
     bulkDeselectGoals,
     selectPrimaryGoal
