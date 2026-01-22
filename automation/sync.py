@@ -65,8 +65,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 if not stats or len(stats) == 0:
                     logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
                     integration.sync_status = models.IntegrationSyncStatus.SUCCESS
-                    integration.last_sync_at = datetime.utcnow()
-                    db.commit()
+        integration.last_sync_at = datetime.utcnow()
+        db.commit()
+        
+        # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
+        # This prevents stale cached data from appearing on the dashboard
+        from backend_api.cache_service import CacheService
+        CacheService.clear()
+        logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
                     return
             except Exception as e:
                 # If unauthorized and we have a refresh token, try to refresh
@@ -138,6 +144,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             # This ensures data is saved even if group/keyword sync fails
             db.commit()
             logger.info(f"✅ Committed {len(stats)} campaign stats records to database")
+            
+            # Clear cache after saving stats to ensure fresh data on dashboard
+            from backend_api.cache_service import CacheService
+            CacheService.clear()
+            logger.info(f"🗑️ Cleared dashboard cache after saving Yandex stats for integration {integration.id}")
 
             # Group and Keyword stats follow same pattern
             # CRITICAL: Filter by integration_id to avoid saving data from other profiles
@@ -325,6 +336,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         integration.sync_status = models.IntegrationSyncStatus.SUCCESS
         integration.error_message = None
         integration.last_sync_at = datetime.utcnow()
+        
+        # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
+        # This prevents stale cached data from appearing on the dashboard
+        from backend_api.cache_service import CacheService
+        CacheService.clear()
+        logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
 
     except Exception as e:
         logger.error(f"Sync failed for {integration.id}: {e}")

@@ -2129,6 +2129,12 @@ def delete_integration(
     db.delete(integration)
     db.commit()
     
+    # CRITICAL: Clear dashboard cache to ensure fresh data after integration deletion
+    # This prevents stale cached data from the deleted integration from appearing
+    from backend_api.cache_service import CacheService
+    CacheService.clear()
+    logger.info(f"🗑️ Cleared dashboard cache after deleting integration {integration_id}")
+    
     logger.info(f"✅ Deleted integration {integration_id} and all related data")
     return None
 
