@@ -1848,20 +1848,65 @@ async def discover_campaigns(
     
     # CRITICAL: Clean up campaigns from other profiles if profile is selected
     # Delete campaigns that weren't returned by API (they belong to other profiles)
-    if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+    # IMPORTANT: Use account_id (selected profile) instead of agency_client_login
+    # CRITICAL FIX: Only delete if we have discovered campaigns AND they are not empty
+    # This prevents deleting campaigns when API returns empty result due to errors or wrong profile
+    # ALSO: Only delete if we actually discovered some campaigns (not empty list)
+    # CRITICAL: Check if profile changed - only delete if we're sure this is a profile change, not a race condition
+    if integration.account_id and integration.account_id.lower() != "unknown" and discovered_campaigns and len(discovered_campaigns) > 0:
         discovered_external_ids = {str(dc["id"]) for dc in discovered_campaigns}
         all_db_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
         
+        # Check if any existing campaigns match discovered campaigns
+        # If none match, it might mean profile changed OR API returned wrong data
+        existing_external_ids = {str(c.external_id) for c in all_db_campaigns}
+        matching_count = len(existing_external_ids & discovered_external_ids)
+        
         deleted_count = 0
+        campaigns_to_delete = []
         for db_campaign in all_db_campaigns:
             if str(db_campaign.external_id) not in discovered_external_ids:
-                logger.warning(f"🗑️ Deleting campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.agency_client_login}")
-                db.delete(db_campaign)
-                deleted_count += 1
+                campaigns_to_delete.append(db_campaign)
+                logger.warning(f"🗑️ Will delete campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.account_id}")
         
-        if deleted_count > 0:
-            db.commit()
-            logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
+        # CRITICAL: Only delete if:
+        # 1. We have campaigns to delete
+        # 2. We discovered some campaigns (not empty)
+        # 3. At least SOME discovered campaigns match existing ones (profile didn't completely change)
+        # OR if NONE match but we have discovered campaigns (profile definitely changed)
+        if campaigns_to_delete:
+            logger.info(f"🔵 Found {len(campaigns_to_delete)} campaigns to delete (not in API response for profile {integration.account_id})")
+            logger.info(f"🔵 Discovered {len(discovered_campaigns)} campaigns for profile {integration.account_id}")
+            logger.info(f"🔵 Matching campaigns: {matching_count} out of {len(existing_external_ids)} existing")
+            
+            # Only delete if we're confident this is a profile change (no matches) OR if we have some matches (partial overlap)
+            # This prevents deleting when API returns wrong data due to errors
+            if matching_count == 0 and len(discovered_campaigns) > 0:
+                # Profile completely changed - safe to delete old campaigns
+                logger.info(f"🔵 Profile changed completely (0 matches) - deleting {len(campaigns_to_delete)} old campaigns")
+                for db_campaign in campaigns_to_delete:
+                    db.delete(db_campaign)
+                    deleted_count += 1
+            elif matching_count > 0:
+                # Partial overlap - some campaigns match, some don't
+                # This is normal when profile changes or when some campaigns are archived
+                logger.info(f"🔵 Partial overlap ({matching_count} matches) - deleting {len(campaigns_to_delete)} campaigns not in current profile")
+                for db_campaign in campaigns_to_delete:
+                    db.delete(db_campaign)
+                    deleted_count += 1
+            else:
+                logger.warning(f"⚠️ Skipping campaign deletion: no matches and discovered_campaigns might be wrong")
+            
+            if deleted_count > 0:
+                db.commit()
+                logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
+        else:
+            logger.info(f"🔵 No campaigns to delete - all campaigns match discovered campaigns for profile {integration.account_id}")
+    else:
+        if not integration.account_id or integration.account_id.lower() == "unknown":
+            logger.info(f"🔵 Skipping campaign deletion: no valid account_id (profile) selected")
+        elif not discovered_campaigns or len(discovered_campaigns) == 0:
+            logger.warning(f"⚠️ Skipping campaign deletion: discovered_campaigns is empty (might be API error or wrong profile)")
     
     # OPTIMIZATION: Statistics sync removed from discover_campaigns
     # Statistics will be synced only when integration is finalized (on step 6)
