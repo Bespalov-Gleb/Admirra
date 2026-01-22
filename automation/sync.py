@@ -65,14 +65,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 if not stats or len(stats) == 0:
                     logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
                     integration.sync_status = models.IntegrationSyncStatus.SUCCESS
-        integration.last_sync_at = datetime.utcnow()
-        db.commit()
-        
-        # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
-        # This prevents stale cached data from appearing on the dashboard
-        from backend_api.cache_service import CacheService
-        CacheService.clear()
-        logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
+                    integration.last_sync_at = datetime.utcnow()
+                    db.commit()
+                    
+                    # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
+                    # This prevents stale cached data from appearing on the dashboard
+                    from backend_api.cache_service import CacheService
+                    CacheService.clear()
+                    logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
                     return
             except Exception as e:
                 # If unauthorized and we have a refresh token, try to refresh
