@@ -1024,9 +1024,9 @@ async def get_integration_goals(
                             goal_id_to_name[goal_id] = goal["goal_name"]
                 
                 from automation.yandex_metrica import YandexMetricaAPI
-    metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
-    
-    try:
+                metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+                
+                try:
                     counters = await metrica_api.get_counters()
                     
                     all_goals = []
