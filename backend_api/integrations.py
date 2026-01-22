@@ -674,21 +674,28 @@ async def get_integration_counters(
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         # Priority 1: Get counters from selected campaigns via CounterIds
+        logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
         if campaign_ids:
             campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
+            logger.info(f"🔵 Parsed {len(campaign_ids_list)} campaign IDs: {campaign_ids_list}")
             
             campaigns_from_db = db.query(models.Campaign).filter(
                 models.Campaign.integration_id == integration_id,
                 models.Campaign.id.in_([uuid.UUID(cid) for cid in campaign_ids_list if len(cid) == 36])
             ).all()
             
+            logger.info(f"🔵 Found {len(campaigns_from_db)} campaigns in DB")
+            
             external_ids = [str(c.external_id) for c in campaigns_from_db if c.external_id and str(c.external_id).isdigit()]
+            logger.info(f"🔵 Extracted {len(external_ids)} external IDs: {external_ids}")
             
             if external_ids:
                 from automation.yandex_direct import YandexDirectAPI
                 direct_api = YandexDirectAPI(access_token, client_login=target_account)
                 
+                logger.info(f"🔵 Calling get_campaign_counters for {len(external_ids)} campaigns...")
                 campaign_counters_map = await direct_api.get_campaign_counters(external_ids)
+                logger.info(f"🔵 get_campaign_counters returned: {campaign_counters_map}")
                 
                 # Collect all unique counter IDs
                 # CRITICAL: Use different variable name to avoid overwriting counters_list
@@ -696,6 +703,8 @@ async def get_integration_counters(
                 for counter_ids_from_campaign in campaign_counters_map.values():
                     for cid in counter_ids_from_campaign:
                         all_counter_ids.add(str(cid))
+                
+                logger.info(f"🔵 Collected {len(all_counter_ids)} unique counter IDs: {all_counter_ids}")
                 
                 if all_counter_ids:
                     # Fetch counter details from Metrika API
@@ -705,6 +714,7 @@ async def get_integration_counters(
                     # Get all accessible counters to match with IDs
                     try:
                         all_counters = await metrica_api.get_counters()
+                        logger.info(f"🔵 Metrika API returned {len(all_counters)} total counters")
                         
                         # Filter to only counters that match our CounterIds
                         for counter in all_counters:
@@ -721,12 +731,22 @@ async def get_integration_counters(
                                     "source": "campaign"  # Indicates this counter came from campaign CounterIds
                                 })
                         
-                        logger.info(f"📊 Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
+                        logger.info(f"✅ Priority 1 SUCCESS: Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
                     except Exception as e:
-                        logger.error(f"Failed to fetch counter details from Metrika: {e}")
+                        logger.error(f"❌ Priority 1 FAILED: Failed to fetch counter details from Metrika: {e}")
+                else:
+                    logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
+            else:
+                logger.warning(f"⚠️ Priority 1: No valid external_ids extracted from campaigns")
+        else:
+            logger.warning(f"⚠️ Priority 1: No campaign_ids provided in request")
         
         # Priority 2: Fallback to profile-based counters
-        if not counters_list and target_account:
+        # CRITICAL: Only use fallback if campaign_ids were NOT provided
+        # If campaign_ids were provided but no counters found, it means campaigns don't have CounterIds
+        # In that case, we should NOT fallback to profile - user explicitly selected campaigns
+        if not counters_list and target_account and not campaign_ids:
+            logger.info(f"🔵 Priority 2: No campaign_ids provided, falling back to profile-based counters")
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
             
