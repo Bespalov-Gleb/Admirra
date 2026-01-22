@@ -96,25 +96,11 @@ export function useIntegrationWizard() {
   const fetchCampaigns = async (integrationId) => {
     loadingStates.campaigns = true
     try {
-      const { date_from, date_to } = getDateRangeParams()
-      
-      // 1. Discover campaigns from platform (creates/updates campaign records)
+      // OPTIMIZATION: Only fetch campaigns and their status, no statistics
+      // Statistics are heavy and slow down the wizard
       const { data: campaignsData } = await api.post(`/integrations/${integrationId}/discover-campaigns`)
       
-      // 2. Fetch aggregated stats from DB for the date range
-      const { data: statsData } = await api.get(
-        `/integrations/${integrationId}/campaigns-stats?date_from=${date_from}&date_to=${date_to}`
-      )
-      
-      // 3. Merge stats into campaigns
-      const statsMap = new Map(statsData.map(s => [s.id, s]))
-      campaigns.value = campaignsData.map(campaign => ({
-        ...campaign,
-        impressions: statsMap.get(campaign.id)?.impressions || 0,
-        clicks: statsMap.get(campaign.id)?.clicks || 0,
-        cost: statsMap.get(campaign.id)?.cost || 0,
-        conversions: statsMap.get(campaign.id)?.conversions || 0
-      }))
+      campaigns.value = campaignsData
       
       // Select active campaigns by default
       selectedCampaignIds.value = campaigns.value.filter(c => c.state === 'ON').map(c => c.id)
@@ -175,7 +161,8 @@ export function useIntegrationWizard() {
         goalsUrl += `&campaign_ids=${selectedCampaignIds.value.join(',')}`
       }
 
-      // 1) Быстрый запрос: только список целей без тяжёлых конверсий (with_stats=false)
+      // OPTIMIZATION: Only fetch goal names and types, no statistics
+      // Statistics are heavy and slow down the wizard
       const { data } = await api.get(`${goalsUrl}&with_stats=false`)
 
       // CRITICAL: Handle both formats: array of goals OR object with goals and warning_message
@@ -186,27 +173,6 @@ export function useIntegrationWizard() {
         }
       } else {
         goals.value = Array.isArray(data) ? data : []
-      }
-
-      // 2) Фоновый запрос: подтянуть конверсии/CR (with_stats=true) и смержить по id
-      try {
-        const { data: statsData } = await api.get(`${goalsUrl}&with_stats=true`)
-        const statsGoals = (statsData && typeof statsData === 'object' && !Array.isArray(statsData) && statsData.goals)
-          ? statsData.goals
-          : (Array.isArray(statsData) ? statsData : [])
-
-        const statsMap = new Map(statsGoals.map(g => [String(g.id), g]))
-        goals.value = goals.value.map(g => {
-          const stat = statsMap.get(String(g.id))
-          if (!stat) return g
-          return {
-            ...g,
-            conversions: stat.conversions ?? g.conversions ?? 0,
-            conversion_rate: stat.conversion_rate ?? g.conversion_rate ?? 0
-          }
-        })
-      } catch (statsErr) {
-        console.warn('Failed to fetch goal stats in background:', statsErr)
       }
 
       // Автовыбор основной цели по конверсии, если ещё не выбрана

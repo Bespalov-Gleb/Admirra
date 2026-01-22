@@ -5,7 +5,7 @@
       <div class="w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
       <div>
         <p class="text-sm font-bold text-blue-900">Загрузка целей...</p>
-        <p class="text-xs text-blue-600">Получаем цели из Яндекс.Метрики и статистику конверсий</p>
+        <p class="text-xs text-blue-600">Получаем цели из Яндекс.Метрики</p>
       </div>
     </div>
 
@@ -49,8 +49,6 @@
             </th>
             <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Тип цели</th>
             <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название цели</th>
-            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Достижения</th>
-            <th class="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">CR</th>
           </tr>
         </thead>
         <tbody>
@@ -61,8 +59,6 @@
               <td class="px-2 py-5"><Skeleton width="5" height="5" rounded="md" class="mx-auto" /></td>
               <td class="px-4 py-5"><Skeleton width="20" height="3" /></td>
               <td class="px-4 py-5"><Skeleton width="48" height="4" /></td>
-              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
-              <td class="px-3 py-5"><Skeleton width="10" height="3" class="ml-auto" /></td>
             </tr>
           </template>
 
@@ -121,26 +117,10 @@
                 <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
               </div>
             </td>
-
-            <td class="px-3 py-4 text-right">
-              <span class="text-[12px] font-black text-gray-700">{{ goal.reaches || 0 }}</span>
-              <p class="text-[8px] text-gray-400 uppercase font-bold">раз</p>
-            </td>
-
-            <td class="px-3 py-4 text-right">
-              <span 
-                v-if="goal.conversion_rate" 
-                class="px-2.5 py-1 rounded-lg text-[10px] font-black"
-                :class="goal.conversion_rate > 2 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-blue-50 text-blue-600 border border-blue-100'"
-              >
-                {{ goal.conversion_rate.toFixed(1) }}%
-              </span>
-              <span v-else class="text-gray-300 text-[10px] font-black">—</span>
-            </td>
           </tr>
 
           <tr v-if="!loading && filteredGoals.length === 0">
-            <td colspan="7" class="py-20 text-center">
+            <td colspan="5" class="py-20 text-center">
               <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -192,11 +172,8 @@ const recommendedGoalId = computed(() => {
   if (!props.goals || props.goals.length === 0) return null
   
   // Logic: Best CR/Reaches balance. For now, highest CR is a good surrogate.
-  // We filter out goals with 0 reaches to avoid noise.
-  const validGoals = props.goals.filter(g => (g.reaches || 0) > 0)
-  if (validGoals.length === 0) return props.goals[0]?.id
-  
-  return [...validGoals].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]?.id
+  // Select first goal as recommended
+  return props.goals[0]?.id
 })
 
 const filteredGoals = computed(() => {
@@ -214,12 +191,10 @@ const filteredGoals = computed(() => {
 
 const sortedGoals = computed(() => {
   return [...filteredGoals.value].sort((a, b) => {
-    // 1. Recommended goal always first
+    // Recommended goal always first
     if (a.id === recommendedGoalId.value) return -1
     if (b.id === recommendedGoalId.value) return 1
-    
-    // 2. Then by Conversion Rate
-    return (b.conversion_rate || 0) - (a.conversion_rate || 0)
+    return 0
   })
 })
 

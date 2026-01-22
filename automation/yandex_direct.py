@@ -134,7 +134,7 @@ class YandexDirectAPI:
                 logger.info(f"   Payload: {payload}")
                 
                 # Make request
-                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
                 # DEBUG: Log what was ACTUALLY sent (from httpx's perspective)
                 if hasattr(response, 'request'):
@@ -406,7 +406,7 @@ class YandexDirectAPI:
                     self.report_url,
                     json=payload,
                     headers=self.headers,
-                    timeout=60.0
+                    timeout=120.0
                 )
                 poll_attempt += 1
             
@@ -556,7 +556,7 @@ class YandexDirectAPI:
                     self.report_url,
                     json=report_definition,
                     headers=self.headers,
-                    timeout=60.0
+                    timeout=120.0
                 )
 
                 # Track and validate API Units (Points)
@@ -703,7 +703,7 @@ class YandexDirectAPI:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
                 if response.status_code != 200:
                     logger.error(f"get_campaign_counters failed: {response.status_code}")
@@ -848,7 +848,7 @@ class YandexDirectAPI:
                     }
                 }
                 
-                response = await client.post(self.ads_url, json=payload, headers=self.headers, timeout=30.0)
+                response = await client.post(self.ads_url, json=payload, headers=self.headers, timeout=120.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -896,7 +896,7 @@ class YandexDirectAPI:
                         }
                     }
                     
-                    campaign_response = await client.post(self.campaigns_url, json=campaign_payload, headers=self.headers, timeout=30.0)
+                    campaign_response = await client.post(self.campaigns_url, json=campaign_payload, headers=self.headers, timeout=120.0)
                     if campaign_response.status_code == 200:
                         campaign_data = campaign_response.json()
                         if "result" in campaign_data and "Campaigns" in campaign_data["result"]:
@@ -943,7 +943,7 @@ class YandexDirectAPI:
                             self.report_url,
                             json=report_definition,
                             headers=self.headers,
-                            timeout=60.0
+                            timeout=120.0
                         )
                         
                         if report_response.status_code in [200, 201, 202]:
@@ -957,7 +957,7 @@ class YandexDirectAPI:
                                     self.report_url,
                                     json=report_definition,
                                     headers=self.headers,
-                                    timeout=60.0
+                                    timeout=120.0
                                 )
                             
                             if report_response.status_code == 200:
@@ -1049,7 +1049,7 @@ class YandexDirectAPI:
                                     self.report_url,
                                     json=alt_report_definition,
                                     headers=self.headers,
-                                    timeout=60.0
+                                    timeout=120.0
                                 )
                                 
                                 if alt_response.status_code in [200, 201, 202]:
@@ -1061,7 +1061,7 @@ class YandexDirectAPI:
                                             self.report_url,
                                             json=alt_report_definition,
                                             headers=self.headers,
-                                            timeout=60.0
+                                            timeout=120.0
                                         )
                                     
                                     if alt_response.status_code == 200:
@@ -1134,7 +1134,7 @@ class YandexDirectAPI:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=30.0)
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
                 if response.status_code == 200:
                     data = response.json()
