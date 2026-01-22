@@ -1292,8 +1292,8 @@ async def get_integration_goals(
             error_str = str(api_err)
             if "403" in error_str or "access_denied" in error_str.lower():
                 fallback_api = YandexMetricaAPI(access_token)
-            try:
-                counters = await fallback_api.get_counters()
+                try:
+                    counters = await fallback_api.get_counters()
                     metrica_api = fallback_api
                 except Exception:
                     return []
