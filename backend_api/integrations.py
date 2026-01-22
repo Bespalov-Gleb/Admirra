@@ -742,11 +742,9 @@ async def get_integration_counters(
             logger.warning(f"⚠️ Priority 1: No campaign_ids provided in request")
         
         # Priority 2: Fallback to profile-based counters
-        # CRITICAL: Only use fallback if campaign_ids were NOT provided
-        # If campaign_ids were provided but no counters found, it means campaigns don't have CounterIds
-        # In that case, we should NOT fallback to profile - user explicitly selected campaigns
-        if not counters_list and target_account and not campaign_ids:
-            logger.info(f"🔵 Priority 2: No campaign_ids provided, falling back to profile-based counters")
+        # Use fallback if no counters found from campaigns (either no campaign_ids or no CounterIds in campaigns)
+        if not counters_list and target_account:
+            logger.info(f"🔵 Priority 2: No counters from campaigns, falling back to profile-based counters")
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
             
@@ -754,46 +752,60 @@ async def get_integration_counters(
                 counters = await metrica_api.get_counters()
                 logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
                 
-                # Normalize for comparison
-                def normalize_login(login):
-                    return login.lower().replace('.', '').replace('-', '') if login else ''
-                
-                target_normalized = normalize_login(target_account)
-                matched_counters = []
-                unmatched_counters = []
-                
-                # Filter by owner_login if possible
-                for counter in counters:
-                    owner_login = counter.get('owner_login', '')
-                    owner_normalized = normalize_login(owner_login)
-                    
-                    # Match if owner matches target OR if no owner_login (trusted counter)
-                    matches = normalize_login(owner_login) == target_normalized or not owner_login
-                    
-                    counter_data = {
-                        "id": str(counter.get('id')),
-                        "name": counter.get('name', 'Unknown'),
-                        "site": counter.get('site', ''),
-                        "owner_login": owner_login,
-                        "source": "profile"  # Indicates this counter came from profile
-                    }
-                    
-                    if matches:
-                        matched_counters.append(counter_data)
-                        logger.info(f"✅ Included counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                    else:
-                        unmatched_counters.append(counter_data)
-                        logger.info(f"❌ Excluded counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                
-                # If no matched counters but we have unmatched ones, return all with a warning
-                if not matched_counters and unmatched_counters:
-                    logger.warning(f"⚠️ No counters matched profile '{target_account}' after filtering")
-                    logger.warning(f"⚠️ Returning all {len(unmatched_counters)} accessible counters (user can manually select)")
-                    counters_list = unmatched_counters
+                # CRITICAL: If campaign_ids were provided but no CounterIds found,
+                # return ALL counters without filtering by owner_login
+                # This is because campaigns might not have CounterIds configured, but user still needs to select counters
+                if campaign_ids:
+                    logger.warning(f"⚠️ Campaigns don't have CounterIds, returning ALL {len(counters)} accessible counters")
+                    for counter in counters:
+                        counters_list.append({
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": counter.get('owner_login', ''),
+                            "source": "profile_fallback_all"  # Indicates all counters returned because campaigns have no CounterIds
+                        })
                 else:
-                    counters_list = matched_counters
-                    if unmatched_counters:
-                        logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
+                    # Normalize for comparison
+                    def normalize_login(login):
+                        return login.lower().replace('.', '').replace('-', '') if login else ''
+                    
+                    target_normalized = normalize_login(target_account)
+                    matched_counters = []
+                    unmatched_counters = []
+                    
+                    # Filter by owner_login if possible
+                    for counter in counters:
+                        owner_login = counter.get('owner_login', '')
+                        owner_normalized = normalize_login(owner_login)
+                        
+                        # Match if owner matches target OR if no owner_login (trusted counter)
+                        matches = normalize_login(owner_login) == target_normalized or not owner_login
+                        
+                        counter_data = {
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": owner_login,
+                            "source": "profile"  # Indicates this counter came from profile
+                        }
+                        
+                        if matches:
+                            matched_counters.append(counter_data)
+                            logger.info(f"✅ Included counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
+                        else:
+                            unmatched_counters.append(counter_data)
+                            logger.info(f"❌ Excluded counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
+                    
+                    # If no matched counters but we have unmatched ones, return all with a warning
+                    if not matched_counters and unmatched_counters:
+                        logger.warning(f"⚠️ No counters matched profile '{target_account}' after filtering")
+                        logger.warning(f"⚠️ Returning all {len(unmatched_counters)} accessible counters (user can manually select)")
+                        counters_list = unmatched_counters
+                    else:
+                        counters_list = matched_counters
+                        if unmatched_counters:
+                            logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
             except Exception as e:
                 logger.error(f"Failed to fetch profile counters: {e}")
                 # If 403, try without profile filter
