@@ -1584,6 +1584,25 @@ async def update_integration(
     # Verify the value was actually saved
     logger.info(f"After commit and refresh: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
+    # OPTIMIZATION: Sync statistics only when integration is finalized (is_active=True)
+    # This happens on step 6 (summary) when user completes the integration wizard
+    if integration_in.get("is_active") is True:
+        from datetime import datetime, timedelta
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)  # Sync last 30 days
+            date_from = start_date.strftime("%Y-%m-%d")
+            date_to = end_date.strftime("%Y-%m-%d")
+            
+            logger.info(f"🔄 Finalizing integration {integration_id}: syncing stats ({date_from} to {date_to})")
+            await sync_integration(db, integration, date_from, date_to)
+            db.commit()
+            logger.info(f"✅ Statistics synced for finalized integration {integration_id}")
+        except Exception as e:
+            # Don't fail the whole request if sync fails - user can retry later
+            logger.error(f"❌ Statistics sync failed for finalized integration {integration_id}: {e}")
+            log_event("backend", f"Statistics sync failed: {str(e)}")
+    
     return integration
 
 @router.post("/{integration_id}/discover-campaigns")
@@ -1784,23 +1803,8 @@ async def discover_campaigns(
             db.commit()
             logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
     
-    # IMPORTANT: After discovering campaigns, immediately sync stats for last 30 days
-    # This ensures we have data for any date range the user might select on the dashboard
-    # (users often look at 14-30 day periods, so 30 days covers most use cases)
-    from datetime import datetime, timedelta
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)  # Increased from 7 to 30 days
-        date_from = start_date.strftime("%Y-%m-%d")
-        date_to = end_date.strftime("%Y-%m-%d")
-        
-        logger.info(f"🔄 Auto-syncing stats for integration {integration_id} ({date_from} to {date_to})")
-        await sync_integration(db, integration, date_from, date_to)
-        logger.info(f"✅ Auto-sync completed for integration {integration_id}")
-    except Exception as e:
-        # Don't fail the whole request if sync fails - user can retry later
-        logger.error(f"❌ Auto-sync failed for integration {integration_id}: {e}")
-        log_event("backend", f"Auto-sync failed: {str(e)}")
+    # OPTIMIZATION: Statistics sync removed from discover_campaigns
+    # Statistics will be synced only when integration is finalized (on step 6)
     
     # Return all campaigns for this integration as dictionaries
     # CRITICAL: Use discovered_campaigns data (from API) to get state and type
