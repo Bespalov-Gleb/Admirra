@@ -259,33 +259,64 @@ class YandexDirectAPI:
                                     
                                     try:
                                         # Query Campaigns.get for specific campaign IDs
-                                        status_payload = {
-                                            "method": "get",
-                                            "params": {
-                                                "SelectionCriteria": {
-                                                    "Ids": [int(cid) for cid in missing_ids_list if cid.isdigit()]
-                                                },
-                                                "FieldNames": ["Id", "Name", "Status", "State", "StatusPayment", "Type"]
+                                        # CRITICAL: Some campaigns (especially Smart Campaigns) might not be returned
+                                        # even when queried by ID if they are in certain states (CONVERTED, DELETED, etc.)
+                                        missing_ids_int = [int(cid) for cid in missing_ids_list if cid.isdigit()]
+                                        if not missing_ids_int:
+                                            status_map = {}
+                                            logger.warning(f"   ⚠️ No valid numeric IDs to query")
+                                        else:
+                                            # Try with minimal FieldNames first (faster)
+                                            status_payload = {
+                                                "method": "get",
+                                                "params": {
+                                                    "SelectionCriteria": {
+                                                        "Ids": missing_ids_int
+                                                        # CRITICAL: Don't filter by States - we want ALL campaigns
+                                                    },
+                                                    "FieldNames": ["Id", "Name", "Status", "State", "StatusPayment", "Type"]
+                                                }
                                             }
-                                        }
-                                        
-                                        status_response = await client.post(self.campaigns_url, json=status_payload, headers=self.headers, timeout=120.0)
-                                        
-                                        if status_response.status_code == 200:
-                                            status_data = status_response.json()
-                                            if "result" in status_data and "Campaigns" in status_data["result"]:
-                                                status_campaigns = status_data["result"]["Campaigns"]
-                                                status_map = {str(c["Id"]): c for c in status_campaigns}
-                                                logger.info(f"   ✅ Successfully fetched status for {len(status_campaigns)} campaigns")
+                                            
+                                            logger.info(f"   📊 Querying Campaigns.get for {len(missing_ids_int)} campaigns by ID...")
+                                            status_response = await client.post(self.campaigns_url, json=status_payload, headers=self.headers, timeout=120.0)
+                                            
+                                            if status_response.status_code == 200:
+                                                status_data = status_response.json()
+                                                if "result" in status_data and "Campaigns" in status_data["result"]:
+                                                    status_campaigns = status_data["result"]["Campaigns"]
+                                                    status_map = {str(c["Id"]): c for c in status_campaigns}
+                                                    logger.info(f"   ✅ Successfully fetched status for {len(status_campaigns)} campaigns")
+                                                    logger.info(f"   📊 Status query returned campaign IDs: {[str(c['Id']) for c in status_campaigns]}")
+                                                    
+                                                    # Log which campaigns were NOT found
+                                                    requested_ids_set = set(missing_ids_int)
+                                                    found_ids_set = {c["Id"] for c in status_campaigns}
+                                                    missing_in_status = requested_ids_set - found_ids_set
+                                                    if missing_in_status:
+                                                        logger.warning(f"   ⚠️ Status query did NOT return {len(missing_in_status)} campaigns: {missing_in_status}")
+                                                        logger.warning(f"   ⚠️ These campaigns are likely in CONVERTED, DELETED, or another state that Campaigns.get filters out")
+                                                        logger.warning(f"   ⚠️ They exist in Reports API (have data), so they will be displayed with UNKNOWN status")
+                                                else:
+                                                    status_map = {}
+                                                    logger.warning(f"   ⚠️ No campaigns returned from status query")
+                                                    if "error" in status_data:
+                                                        logger.error(f"   ❌ Status query error: {status_data['error']}")
+                                                    else:
+                                                        logger.warning(f"   ⚠️ API returned 200 but no campaigns in result. Full response: {status_data}")
                                             else:
                                                 status_map = {}
-                                                logger.warning(f"   ⚠️ No campaigns returned from status query")
-                                        else:
-                                            status_map = {}
-                                            logger.warning(f"   ⚠️ Failed to fetch status: {status_response.status_code}")
+                                                logger.warning(f"   ⚠️ Failed to fetch status: {status_response.status_code}")
+                                                try:
+                                                    error_text = status_response.text
+                                                    logger.error(f"   ❌ Status query error response: {error_text}")
+                                                except:
+                                                    pass
                                     except Exception as status_err:
                                         status_map = {}
                                         logger.warning(f"   ⚠️ Error fetching status for missing campaigns: {status_err}")
+                                        import traceback
+                                        logger.error(f"   ❌ Traceback: {traceback.format_exc()}")
                                     
                                     # ADD missing campaigns from Reports API to result (don't replace)
                                     for rc in reports_campaigns:

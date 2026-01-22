@@ -1024,9 +1024,9 @@ async def get_integration_goals(
                             goal_id_to_name[goal_id] = goal["goal_name"]
                 
                 from automation.yandex_metrica import YandexMetricaAPI
-                metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
-                
-                try:
+    metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+    
+    try:
                     counters = await metrica_api.get_counters()
                     
                     all_goals = []
@@ -1292,8 +1292,8 @@ async def get_integration_goals(
             error_str = str(api_err)
             if "403" in error_str or "access_denied" in error_str.lower():
                 fallback_api = YandexMetricaAPI(access_token)
-                try:
-                    counters = await fallback_api.get_counters()
+            try:
+                counters = await fallback_api.get_counters()
                     metrica_api = fallback_api
                 except Exception:
                     return []
@@ -1302,7 +1302,7 @@ async def get_integration_goals(
 
         if not counters:
             return []
-        
+            
         # CRITICAL: Save all counters before filtering (for fallback if filtering returns 0)
         all_counters_before_filter = counters.copy()
         
@@ -2106,7 +2106,7 @@ def delete_integration(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
-    
+        
     # Get all campaigns for this integration to clean up related data
     campaigns = db.query(models.Campaign).filter(
         models.Campaign.integration_id == integration_id
