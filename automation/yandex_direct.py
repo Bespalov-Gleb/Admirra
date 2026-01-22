@@ -206,17 +206,25 @@ class YandexDirectAPI:
                             logger.info(f"   📋 Found {archived_count} ARCHIVED campaigns (will be returned for filtering)")
                         
                         # Use Campaigns.get as primary source - it has full status/state information
-                        result = [
-                            {
+                        result = []
+                        for c in filtered_campaigns:
+                            campaign_state = c.get("State")
+                            campaign_status = c.get("Status")
+                            campaign_type = c.get("Type")
+                            
+                            # CRITICAL: Log if State is missing
+                            if campaign_state is None:
+                                logger.warning(f"   ⚠️ Campaign {c['Id']} ('{c['Name']}') has NO State field in API response!")
+                                logger.warning(f"   ⚠️ Available fields: {list(c.keys())}")
+                            
+                            result.append({
                                 "id": str(c["Id"]),
                                 "name": c["Name"],
-                                "status": c["Status"],
-                                "state": c.get("State", "UNKNOWN"),  # Include state for filtering (ON, OFF, SUSPENDED, ENDED, ARCHIVED)
+                                "status": campaign_status if campaign_status is not None else "UNKNOWN",
+                                "state": campaign_state if campaign_state is not None else "UNKNOWN",  # Include state for filtering (ON, OFF, SUSPENDED, ENDED, ARCHIVED)
                                 "status_payment": c.get("StatusPayment", "UNKNOWN"),  # Include payment status
-                                "type": c.get("Type", "UNKNOWN")  # Include type for filtering (TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, etc.)
-                            }
-                            for c in filtered_campaigns
-                        ]
+                                "type": campaign_type if campaign_type is not None else "UNKNOWN"  # Include type for filtering (TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, etc.)
+                            })
                         
                         logger.info(f"   ✅ Campaigns.get returned {len(result)} campaigns (including ARCHIVED if any)")
                         logger.info(f"   ✅ Campaign IDs from Campaigns.get: {[c['id'] for c in result]}")
@@ -533,24 +541,45 @@ class YandexDirectAPI:
                                     status_campaigns = status_data["result"]["Campaigns"]
                                     status_map = {str(c["Id"]): c for c in status_campaigns}
                                     logger.info(f"   ✅ Successfully fetched status for {len(status_campaigns)} campaigns")
+                                    logger.info(f"   📊 Status query returned campaigns: {[str(c['Id']) for c in status_campaigns]}")
+                                    
+                                    # Log which campaigns were NOT found in status query
+                                    requested_ids = {str(c["id"]) for c in campaigns_list}
+                                    found_ids = {str(c["Id"]) for c in status_campaigns}
+                                    missing_ids = requested_ids - found_ids
+                                    if missing_ids:
+                                        logger.warning(f"   ⚠️ Status query did NOT return {len(missing_ids)} campaigns: {missing_ids}")
+                                        logger.warning(f"   ⚠️ This might mean these campaigns are in a state that Campaigns.get filters out")
                                     
                                     # Update campaigns_list with status/state from Campaigns.get
                                     for campaign in campaigns_list:
                                         status_campaign = status_map.get(campaign["id"])
                                         if status_campaign:
                                             campaign["status"] = status_campaign.get("Status", "UNKNOWN")
-                                            campaign["state"] = status_campaign.get("State", "UNKNOWN")
+                                            campaign_state = status_campaign.get("State")
+                                            if campaign_state is None:
+                                                logger.warning(f"   ⚠️ Campaign {campaign['id']} ('{campaign['name']}') has NO State in status query response!")
+                                            campaign["state"] = campaign_state if campaign_state is not None else "UNKNOWN"
                                             campaign["status_payment"] = status_campaign.get("StatusPayment", "UNKNOWN")
                                             campaign["type"] = status_campaign.get("Type", "UNKNOWN")
+                                            logger.info(f"   ✅ Updated campaign {campaign['id']}: State={campaign['state']}, Status={campaign['status']}")
                                         else:
                                             # Keep UNKNOWN if not found
+                                            logger.warning(f"   ⚠️ Campaign {campaign['id']} ('{campaign['name']}') NOT found in status query response!")
                                             campaign["status"] = "UNKNOWN"
                                             campaign["state"] = "UNKNOWN"
                                             campaign["type"] = "UNKNOWN"
                                 else:
                                     logger.warning(f"   ⚠️ No campaigns returned from status query")
+                                    if "error" in status_data:
+                                        logger.error(f"   ❌ Status query error: {status_data['error']}")
                             else:
                                 logger.warning(f"   ⚠️ Failed to fetch status: {status_response.status_code}")
+                                try:
+                                    error_text = status_response.text
+                                    logger.error(f"   ❌ Status query error response: {error_text}")
+                                except:
+                                    pass
                         except Exception as status_err:
                             logger.warning(f"   ⚠️ Error fetching status for Reports API campaigns: {status_err}")
                 else:
