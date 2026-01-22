@@ -691,9 +691,10 @@ async def get_integration_counters(
                 campaign_counters_map = await direct_api.get_campaign_counters(external_ids)
                 
                 # Collect all unique counter IDs
+                # CRITICAL: Use different variable name to avoid overwriting counters_list
                 all_counter_ids = set()
-                for counters_list in campaign_counters_map.values():
-                    for cid in counters_list:
+                for counter_ids_from_campaign in campaign_counters_map.values():
+                    for cid in counter_ids_from_campaign:
                         all_counter_ids.add(str(cid))
                 
                 if all_counter_ids:
@@ -707,14 +708,20 @@ async def get_integration_counters(
                         
                         # Filter to only counters that match our CounterIds
                         for counter in all_counters:
-                            if str(counter.get('id')) in all_counter_ids:
+                            counter_id_str = str(counter.get('id', ''))
+                            if counter_id_str in all_counter_ids:
+                                counter_name = counter.get('name', '')
+                                if not counter_name:
+                                    logger.warning(f"⚠️ Counter {counter_id_str} has no name in Metrika API response")
                                 counters_list.append({
-                                    "id": str(counter.get('id')),
-                                    "name": counter.get('name', 'Unknown'),
+                                    "id": counter_id_str,
+                                    "name": counter_name or f"Счетчик {counter_id_str}",
                                     "site": counter.get('site', ''),
                                     "owner_login": counter.get('owner_login', ''),
                                     "source": "campaign"  # Indicates this counter came from campaign CounterIds
                                 })
+                        
+                        logger.info(f"📊 Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
                     except Exception as e:
                         logger.error(f"Failed to fetch counter details from Metrika: {e}")
         
