@@ -568,7 +568,21 @@ class YandexDirectAPI:
                             
                             if status_response.status_code == 200:
                                 status_data = status_response.json()
-                                if "result" in status_data and "Campaigns" in status_data["result"]:
+                                
+                                # Check for Direct Pro error (3228)
+                                if "error" in status_data:
+                                    error_info = status_data["error"]
+                                    error_code = error_info.get("error_code")
+                                    error_detail = error_info.get("error_detail", "")
+                                    
+                                    if error_code == 3228:
+                                        logger.warning(f"   ⚠️ Direct Pro not available (error 3228: {error_detail})")
+                                        logger.warning(f"   ⚠️ Cannot fetch status/state for campaigns from Reports API without Direct Pro")
+                                        logger.warning(f"   ⚠️ Campaigns will be displayed with UNKNOWN status (they exist and have data)")
+                                        # Leave campaigns with UNKNOWN status - they exist in Reports API
+                                    else:
+                                        logger.error(f"   ❌ Status query error: {error_info}")
+                                elif "result" in status_data and "Campaigns" in status_data["result"]:
                                     status_campaigns = status_data["result"]["Campaigns"]
                                     status_map = {str(c["Id"]): c for c in status_campaigns}
                                     logger.info(f"   ✅ Successfully fetched status for {len(status_campaigns)} campaigns")
@@ -602,13 +616,14 @@ class YandexDirectAPI:
                                             campaign["type"] = "UNKNOWN"
                                 else:
                                     logger.warning(f"   ⚠️ No campaigns returned from status query")
-                                    if "error" in status_data:
-                                        logger.error(f"   ❌ Status query error: {status_data['error']}")
                             else:
                                 logger.warning(f"   ⚠️ Failed to fetch status: {status_response.status_code}")
                                 try:
                                     error_text = status_response.text
                                     logger.error(f"   ❌ Status query error response: {error_text}")
+                                    # Check if it's a Direct Pro error in response text
+                                    if "3228" in error_text or "Директ Про" in error_text:
+                                        logger.warning(f"   ⚠️ Direct Pro not available. Campaigns will have UNKNOWN status.")
                                 except:
                                     pass
                         except Exception as status_err:

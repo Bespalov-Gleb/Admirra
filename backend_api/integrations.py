@@ -732,29 +732,57 @@ async def get_integration_counters(
             
             try:
                 counters = await metrica_api.get_counters()
+                logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
+                
+                # Normalize for comparison
+                def normalize_login(login):
+                    return login.lower().replace('.', '').replace('-', '') if login else ''
+                
+                target_normalized = normalize_login(target_account)
+                matched_counters = []
+                unmatched_counters = []
                 
                 # Filter by owner_login if possible
                 for counter in counters:
                     owner_login = counter.get('owner_login', '')
-                    # Normalize for comparison
-                    def normalize_login(login):
-                        return login.lower().replace('.', '').replace('-', '') if login else ''
+                    owner_normalized = normalize_login(owner_login)
                     
-                    if normalize_login(owner_login) == normalize_login(target_account) or not owner_login:
-                        counters_list.append({
-                            "id": str(counter.get('id')),
-                            "name": counter.get('name', 'Unknown'),
-                            "site": counter.get('site', ''),
-                            "owner_login": owner_login,
-                            "source": "profile"  # Indicates this counter came from profile
-                        })
+                    # Match if owner matches target OR if no owner_login (trusted counter)
+                    matches = normalize_login(owner_login) == target_normalized or not owner_login
+                    
+                    counter_data = {
+                        "id": str(counter.get('id')),
+                        "name": counter.get('name', 'Unknown'),
+                        "site": counter.get('site', ''),
+                        "owner_login": owner_login,
+                        "source": "profile"  # Indicates this counter came from profile
+                    }
+                    
+                    if matches:
+                        matched_counters.append(counter_data)
+                        logger.info(f"✅ Included counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
+                    else:
+                        unmatched_counters.append(counter_data)
+                        logger.info(f"❌ Excluded counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
+                
+                # If no matched counters but we have unmatched ones, return all with a warning
+                if not matched_counters and unmatched_counters:
+                    logger.warning(f"⚠️ No counters matched profile '{target_account}' after filtering")
+                    logger.warning(f"⚠️ Returning all {len(unmatched_counters)} accessible counters (user can manually select)")
+                    counters_list = unmatched_counters
+                else:
+                    counters_list = matched_counters
+                    if unmatched_counters:
+                        logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
             except Exception as e:
                 logger.error(f"Failed to fetch profile counters: {e}")
                 # If 403, try without profile filter
                 if "403" in str(e) or "access_denied" in str(e).lower():
+                    logger.warning(f"⚠️ Metrika API returned 403 for profile '{target_account}'. Trying fallback without profile filter...")
                     try:
                         fallback_api = YandexMetricaAPI(access_token)
                         counters = await fallback_api.get_counters()
+                        logger.info(f"📊 Fallback API returned {len(counters)} counters (no profile filter)")
                         for counter in counters:
                             counters_list.append({
                                 "id": str(counter.get('id')),
