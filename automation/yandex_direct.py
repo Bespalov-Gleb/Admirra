@@ -1446,6 +1446,9 @@ class YandexDirectAPI:
         """
         Получает баланс рекламного кабинета через Clients.get API.
         
+        CRITICAL: Баланс получается от ПРОФИЛЯ (кабинета), указанного в Client-Login заголовке.
+        Если Client-Login не установлен, возвращается баланс основного кабинета токена.
+        
         Returns:
             Dict с полями:
             - balance: float - баланс в валюте кабинета
@@ -1458,9 +1461,14 @@ class YandexDirectAPI:
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Balance", "Currency", "Amount", "Sum"]
+                "FieldNames": ["Balance", "Currency", "Amount", "Sum", "Login"]
             }
         }
+        
+        # CRITICAL: Log which profile we're requesting balance for
+        client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
+        logger.info(f"💰 Requesting balance for profile: '{client_login_header}'")
+        
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
@@ -1470,6 +1478,10 @@ class YandexDirectAPI:
                         clients = data["result"]["Clients"]
                         if clients and len(clients) > 0:
                             client_data = clients[0]
+                            # CRITICAL: Log which profile's balance we received
+                            profile_login = client_data.get("Login", "UNKNOWN")
+                            logger.info(f"💰 Received balance for profile Login: '{profile_login}' (requested: '{client_login_header}')")
+                            
                             balance = client_data.get("Balance")
                             currency = client_data.get("Currency", "RUB")
                             
@@ -1477,7 +1489,7 @@ class YandexDirectAPI:
                             if balance is not None:
                                 try:
                                     balance_float = float(balance) if isinstance(balance, str) else balance
-                                    logger.info(f"Yandex Direct balance: {balance_float} {currency}")
+                                    logger.info(f"💰 Yandex Direct balance: {balance_float} {currency} for profile '{profile_login}'")
                                     return {
                                         "balance": balance_float,
                                         "currency": currency,
