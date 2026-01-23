@@ -85,6 +85,9 @@ async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7)
     """
     Асинхронная функция для фоновой синхронизации.
     Создает отдельную сессию БД и выполняет синхронизацию без блокировки основного потока.
+    
+    CRITICAL: При первой синхронизации (NEVER статус) автоматически использует 90 дней
+    для загрузки исторических данных целей Метрики.
     """
     db = SessionLocal()
     try:
@@ -92,11 +95,30 @@ async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7)
         if integration:
             try:
                 end_date = datetime.now().date()
-                start_date = end_date - timedelta(days=days)
+                
+                # CRITICAL: For first sync (NEVER status) or if no goals data exists, use 90 days
+                # This ensures we have historical data for goals in the dashboard
+                is_first_sync = integration.sync_status == models.IntegrationSyncStatus.NEVER
+                if is_first_sync and integration.platform == models.IntegrationPlatform.YANDEX_METRIKA:
+                    # Check if we have any goals data
+                    has_goals_data = db.query(models.MetrikaGoals).filter(
+                        models.MetrikaGoals.integration_id == integration_id
+                    ).first() is not None
+                    
+                    if not has_goals_data:
+                        # First sync: use 90 days for historical data
+                        actual_days = 90
+                        logger.info(f"🔄 First sync detected for integration {integration_id}: using 90 days for historical goals data")
+                    else:
+                        actual_days = days
+                else:
+                    actual_days = days
+                
+                start_date = end_date - timedelta(days=actual_days - 1)  # -1 because we include today
                 date_from = start_date.strftime("%Y-%m-%d")
                 date_to = end_date.strftime("%Y-%m-%d")
                 
-                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to})")
+                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to}, {actual_days} days)")
                 await sync_integration(db, integration, date_from, date_to)
                 db.commit()
                 logger.info(f"✅ Background sync completed for integration {integration_id}")
@@ -944,30 +966,36 @@ async def get_integration_goals(
                     }
                     
                     if include_stats:
-                        # Try DB first
-                        db_goal = db.query(models.MetrikaGoals).filter(
+                        # CRITICAL: Always try DB first - no API calls unless data is missing
+                        from sqlalchemy import func
+                        db_stats = db.query(
+                            func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
+                        ).filter(
                             models.MetrikaGoals.integration_id == integration_id,
                             models.MetrikaGoals.goal_id == goal_id,
                             models.MetrikaGoals.date >= datetime.strptime(date_from, "%Y-%m-%d").date(),
                             models.MetrikaGoals.date <= datetime.strptime(date_to, "%Y-%m-%d").date()
                         ).first()
                         
-                        if db_goal:
-                            goal_data["conversions"] = int(db_goal.conversion_count or 0)
-                            goal_data["conversion_rate"] = float(db_goal.conversion_rate or 0.0)
+                        if db_stats and db_stats.total_conversions is not None:
+                            goal_data["conversions"] = int(db_stats.total_conversions or 0)
+                            # Calculate conversion rate from DB if we have clicks data
+                            # For now, set to 0 if not available - we can calculate from YandexStats later
+                            goal_data["conversion_rate"] = 0.0
                         else:
-                            # Fallback to API
+                            # No data in DB - only then fetch from API (should be rare after initial sync)
+                            logger.info(f"No DB data for goal {goal_id}, fetching from API (should only happen on first load)")
                             try:
-                                stats = await metrica_api.get_goals_stats(
+                                from automation.request_queue import get_request_queue
+                                queue = await get_request_queue()
+                                stats = await queue.enqueue('metrica', metrica_api.get_goals_stats,
                                     counter_id, date_from, date_to,
-                                    metrics="ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+                                    metrics=f"ym:s:goal{goal_id}reaches"
                                 )
                                 if stats and len(stats) > 0:
-                                    total_reaches = sum(row.get('metrics', [0, 0])[1] for row in stats)
-                                    total_cr = sum(row.get('metrics', [0, 0])[0] for row in stats)
-                                    avg_cr = total_cr / len(stats) if stats else 0.0
+                                    total_reaches = sum(int(row.get('metrics', [0])[0]) for row in stats if row.get('metrics'))
                                     goal_data["conversions"] = int(total_reaches)
-                                    goal_data["conversion_rate"] = float(avg_cr)
+                                    goal_data["conversion_rate"] = 0.0
                             except Exception as stats_err:
                                 logger.debug(f"Could not fetch stats for goal {goal_id} from counter {counter_id}: {stats_err}")
                     

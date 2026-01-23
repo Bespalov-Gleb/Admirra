@@ -382,13 +382,79 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 except:
                     selected_goals = []
 
+            # CRITICAL: Check if this is first sync or if we need to fetch 90 days of historical data
+            # Check if we have any goals data in DB for this integration
+            has_existing_data = db.query(models.MetrikaGoals).filter(
+                models.MetrikaGoals.integration_id == integration.id
+            ).first() is not None
+            
+            # Determine actual date range: 90 days for first sync, otherwise use provided range
+            sync_date_from = date_from
+            sync_date_to = date_to
+            
+            if not has_existing_data or integration.sync_status == models.IntegrationSyncStatus.NEVER:
+                # First sync: fetch 90 days of historical data
+                end_date_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+                start_date_obj = end_date_obj - timedelta(days=89)  # 90 days total (including today)
+                sync_date_from = start_date_obj.strftime("%Y-%m-%d")
+                sync_date_to = end_date_obj.strftime("%Y-%m-%d")
+                logger.info(f"🔄 First sync for integration {integration.id}: fetching 90 days of goals data ({sync_date_from} to {sync_date_to})")
+            else:
+                logger.info(f"🔄 Regular sync for integration {integration.id}: fetching goals data ({sync_date_from} to {sync_date_to})")
+
             metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
             if selected_goals and len(selected_goals) > 0:
                 goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
 
-            goals_data = await api.get_goals_stats(integration.account_id, date_from, date_to, metrics=metrics)
+            # CRITICAL: Use request queue to avoid 429 errors
+            from automation.request_queue import get_request_queue
+            queue = await get_request_queue()
+            goals_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=metrics)
             
+            # Also sync individual goals if selected
+            if selected_goals and len(selected_goals) > 0:
+                # Sync each goal individually for detailed tracking
+                for goal_id in selected_goals:
+                    try:
+                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        goal_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=goal_metrics)
+                        
+                        # Get goal name from API
+                        goal_info = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id)
+                        goal_name = "Unknown Goal"
+                        for g in goal_info:
+                            if str(g.get("id")) == str(goal_id):
+                                goal_name = g.get("name", f"Goal {goal_id}")
+                                break
+                        
+                        # Save individual goal data
+                        for g in goal_data:
+                            if len(g.get('metrics', [])) > 0:
+                                stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
+                                reaches = int(g['metrics'][0]) if g['metrics'] else 0
+                                
+                                existing = db.query(models.MetrikaGoals).filter(
+                                    models.MetrikaGoals.integration_id == integration.id,
+                                    models.MetrikaGoals.date == stat_date,
+                                    models.MetrikaGoals.goal_id == str(goal_id)
+                                ).first()
+                                
+                                if existing:
+                                    existing.conversion_count = reaches
+                                else:
+                                    db.add(models.MetrikaGoals(
+                                        client_id=integration.client_id,
+                                        integration_id=integration.id,
+                                        date=stat_date,
+                                        goal_id=str(goal_id),
+                                        goal_name=goal_name,
+                                        conversion_count=reaches
+                                    ))
+                    except Exception as goal_err:
+                        logger.warning(f"Failed to sync individual goal {goal_id}: {goal_err}")
+            
+            # Sync aggregated "all" goals data
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 

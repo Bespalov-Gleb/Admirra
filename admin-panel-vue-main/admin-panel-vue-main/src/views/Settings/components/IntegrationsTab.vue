@@ -320,7 +320,7 @@ const testConnection = async (id) => {
 const handleSync = async (id) => {
   syncingId.value = id
   try {
-    await api.post(`integrations/${id}/sync`, { days: 730 })
+    await api.post(`integrations/${id}/sync`, { days: 90 })
     toaster.success('Синхронизация завершена успешно!')
     fetchIntegrations() 
   } catch (error) {

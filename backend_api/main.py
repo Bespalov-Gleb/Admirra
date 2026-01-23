@@ -71,6 +71,20 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при старте приложения"""
+    from automation.request_queue import get_request_queue
+    await get_request_queue()  # Инициализируем очередь запросов
+    logger.info("✅ Application startup complete - request queue initialized")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Очистка при остановке приложения"""
+    from automation.request_queue import shutdown_request_queue
+    await shutdown_request_queue()
+    logger.info("✅ Application shutdown complete - request queue stopped")
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     import json

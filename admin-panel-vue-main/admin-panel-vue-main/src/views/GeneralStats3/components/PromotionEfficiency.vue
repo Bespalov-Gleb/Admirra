@@ -214,10 +214,7 @@
                 {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend.toFixed(1) }}%
               </span>
             </div>
-            <div v-if="goal.conversion_rate !== undefined" class="flex items-center justify-between">
-              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">CR</span>
-              <span class="text-base font-black text-gray-800">{{ goal.conversion_rate.toFixed(2) }}%</span>
-            </div>
+            <!-- CR calculation would require clicks data from YandexStats, skipped for now -->
           </div>
         </div>
       </div>
@@ -308,7 +305,7 @@ const funnelPoints = computed(() => {
   }
 })
 
-// Fetch selected goals for the project
+// Fetch selected goals for the project from database (no API calls to avoid 429)
 const fetchSelectedGoals = async () => {
   if (!props.clientId) {
     selectedGoals.value = []
@@ -317,7 +314,7 @@ const fetchSelectedGoals = async () => {
 
   loadingGoals.value = true
   try {
-    // Get integrations for this client
+    // Get integrations for this client to find selected goals
     const { data: integrations } = await api.get('integrations/', {
       params: { client_id: props.clientId }
     })
@@ -330,13 +327,11 @@ const fetchSelectedGoals = async () => {
     }
 
     // Collect selected goal IDs and primary goal IDs from all integrations
-    const integrationGoalMap = new Map() // integration_id -> { selectedGoalIds: Set, primaryGoalId: string }
+    const selectedGoalIds = new Set()
+    const primaryGoalIds = new Set()
     
     integrations.forEach(integration => {
       try {
-        const selectedGoalIds = new Set()
-        let primaryGoalId = null
-        
         // Parse selected_goals (stored as JSON string)
         if (integration.selected_goals) {
           const goals = typeof integration.selected_goals === 'string' 
@@ -350,120 +345,57 @@ const fetchSelectedGoals = async () => {
         
         // Add primary goal
         if (integration.primary_goal_id) {
-          primaryGoalId = String(integration.primary_goal_id)
-          selectedGoalIds.add(primaryGoalId) // Primary is also selected
-        }
-        
-        if (selectedGoalIds.size > 0) {
-          console.log(`[PromotionEfficiency] Integration ${integration.id} has ${selectedGoalIds.size} selected goals:`, Array.from(selectedGoalIds))
-          integrationGoalMap.set(integration.id, {
-            selectedGoalIds,
-            primaryGoalId,
-            integration
-          })
+          primaryGoalIds.add(String(integration.primary_goal_id))
+          selectedGoalIds.add(String(integration.primary_goal_id)) // Primary is also selected
         }
       } catch (e) {
         console.warn('[PromotionEfficiency] Failed to parse goals for integration:', integration.id, e)
       }
     })
 
-    // If no goals selected in any integration, show empty
-    if (integrationGoalMap.size === 0) {
-      console.log('[PromotionEfficiency] No integrations with selected goals found')
+    // If no goals selected, show empty
+    if (selectedGoalIds.size === 0) {
+      console.log('[PromotionEfficiency] No goals selected in any integration')
       selectedGoals.value = []
       return
     }
 
-    console.log(`[PromotionEfficiency] Fetching goals for ${integrationGoalMap.size} integrations`)
+    console.log(`[PromotionEfficiency] Selected goal IDs:`, Array.from(selectedGoalIds))
+    console.log(`[PromotionEfficiency] Primary goal IDs:`, Array.from(primaryGoalIds))
 
-    // Get date range from summary or use default
+    // Get date range from summary or use default (last 14 days)
     const endDate = new Date().toISOString().split('T')[0]
     const startDate = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-    // Fetch goals for each integration that has selected goals
-    const goalsPromises = Array.from(integrationGoalMap.entries()).map(async ([integrationId, goalData]) => {
-      try {
-        const { data: goals } = await api.get(`integrations/${integrationId}/goals`, {
-          params: {
-            date_from: startDate,
-            date_to: endDate,
-            with_stats: true
-          }
-        })
-        
-        // Filter to only selected goals
-        const selectedGoals = Array.isArray(goals) 
-          ? goals.filter(goal => {
-              const goalIdStr = String(goal.id)
-              const isSelected = goalData.selectedGoalIds.has(goalIdStr)
-              if (!isSelected) {
-                console.log(`[PromotionEfficiency] Goal ${goalIdStr} (${goal.name}) not in selected list for integration ${integrationId}`)
-              }
-              return isSelected
-            })
-          : []
-        
-        console.log(`[PromotionEfficiency] Integration ${integrationId}: found ${selectedGoals.length} selected goals out of ${Array.isArray(goals) ? goals.length : 0} total`)
-        
-        return selectedGoals.map(goal => ({
-          ...goal,
-          is_primary: goal.id === goalData.primaryGoalId,
-          integration_id: integrationId,
-          integration_name: goalData.integration.platform || 'Unknown'
-        }))
-      } catch (err) {
-        console.warn(`[PromotionEfficiency] Failed to fetch goals for integration ${integrationId}:`, err)
-        return []
+    // CRITICAL: Use /dashboard/goals endpoint which reads from DB only (no API calls to Metrika)
+    const { data: allGoalsData } = await api.get('dashboard/goals', {
+      params: {
+        client_id: props.clientId,
+        date_from: startDate,
+        date_to: endDate
       }
     })
 
-    const allGoalsArrays = await Promise.all(goalsPromises)
-    const allGoals = allGoalsArrays.flat()
+    console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} goals from DB`)
 
-    // Aggregate goals by name (same goal from different integrations)
-    const goalsMap = new Map()
-    
-    allGoals.forEach(goal => {
-      const key = goal.name || goal.id
-      if (!goalsMap.has(key)) {
-        goalsMap.set(key, {
-          id: goal.id,
-          name: goal.name || `Цель ${goal.id}`,
-          count: 0,
-          conversion_rate: 0,
-          trend: goal.trend || 0,
-          is_primary: goal.is_primary,
-          integrations: []
-        })
-      }
-      
-      const aggregated = goalsMap.get(key)
-      aggregated.count += goal.conversions || 0
-      aggregated.is_primary = aggregated.is_primary || goal.is_primary
-      aggregated.integrations.push({
-        id: goal.integration_id,
-        name: goal.integration_name,
-        conversions: goal.conversions || 0
+    // Filter to show only selected goals and mark primary ones
+    const filteredGoals = (allGoalsData || [])
+      .filter(goal => {
+        // Match by goal ID
+        return selectedGoalIds.has(String(goal.id)) || selectedGoalIds.has(String(goal.name))
       })
-    })
+      .map(goal => ({
+        ...goal,
+        is_primary: primaryGoalIds.has(String(goal.id)) || primaryGoalIds.has(String(goal.name))
+      }))
 
-    // Calculate average conversion rate
-    goalsMap.forEach((goal, key) => {
-      if (goal.integrations.length > 0) {
-        const totalRate = goal.integrations.reduce((sum, int) => sum + (int.conversions || 0), 0)
-        goal.conversion_rate = totalRate > 0 ? (goal.count / totalRate) * 100 : 0
-      }
-    })
-
-    const finalGoals = Array.from(goalsMap.values()).sort((a, b) => {
-      // Primary goals first, then by conversions
+    console.log(`[PromotionEfficiency] Filtered to ${filteredGoals.length} selected goals`)
+    selectedGoals.value = filteredGoals.sort((a, b) => {
+      // Primary goals first, then by count
       if (a.is_primary && !b.is_primary) return -1
       if (!a.is_primary && b.is_primary) return 1
       return (b.count || 0) - (a.count || 0)
     })
-    
-    console.log(`[PromotionEfficiency] Final aggregated goals:`, finalGoals.length, finalGoals)
-    selectedGoals.value = finalGoals
   } catch (err) {
     console.error('[PromotionEfficiency] Failed to fetch goals:', err)
     selectedGoals.value = []
