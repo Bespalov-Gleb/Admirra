@@ -1458,41 +1458,35 @@ class YandexDirectAPI:
             - amount_available_for_transfer: float - сумма доступная для перевода (если доступна)
             Или None при ошибке
         """
-        # CRITICAL: Для Direct Pro используем AccountManagement API
-        # Согласно документации: URL = api.direct.yandex.ru (без пути)
-        # Метод AccountManagement с Action: "Get" в param
-        url = "https://api.direct.yandex.ru"
+        # CRITICAL: Для Direct Pro используем AccountManagement API версии Live 4
+        # Согласно документации: "Для получения текущего баланса общего счета используйте 
+        # операцию AccountManagement_Get метода AccountManagement API версии Live 4"
+        # URL должен быть полным путем к Live 4 API
+        url = "https://api.direct.yandex.ru/live/v4/json/"
         
         # CRITICAL: Log which profile we're requesting balance for
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
         logger.info(f"💰 Requesting balance via AccountManagement API for profile: '{client_login_header}'")
         logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
         
-        # AccountManagement API требует Action: "Get" и SelectionCriteria
-        # Если указан Client-Login, используем его в Logins
-        # Для агентских аккаунтов: Logins содержит логин агентского аккаунта
-        # AccountIDS может быть пустым (получим данные по всем рекламодателям) или содержать конкретные ID
-        selection_criteria = {}
-        if client_login_header != "NOT SET (main account)":
-            selection_criteria["Logins"] = [client_login_header]
-            # AccountIDS оставляем пустым для получения данных по всем рекламодателям агентского аккаунта
-            # Или можно указать конкретные AccountIDS, если нужны данные только по определенным аккаунтам
-        else:
-            # Для основного аккаунта можно указать AccountIDS
-            # Но если не указано, получим данные по всем аккаунтам
-            pass
-        
         # CRITICAL: Согласно документации, token должен быть в payload (OAuth-токен)
         # Получаем токен из заголовка Authorization
         token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
         
+        # AccountManagement API требует Action: "Get" и Logins в param
+        # Если указан Client-Login, используем его в Logins
+        # Для агентских аккаунтов: Logins содержит логин агентского аккаунта
+        param_data = {
+            "Action": "Get"
+        }
+        
+        if client_login_header != "NOT SET (main account)":
+            param_data["Logins"] = [client_login_header]
+        
         payload = {
             "method": "AccountManagement",
-            "token": token_from_header,
-            "param": {
-                "Action": "Get",
-                "SelectionCriteria": selection_criteria if selection_criteria else {}
-            }
+            "param": param_data,
+            "token": token_from_header
         }
         
         # CRITICAL: AccountManagement API может не требовать Authorization в заголовке, если token в payload
