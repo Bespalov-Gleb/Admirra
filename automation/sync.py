@@ -112,10 +112,36 @@ async def _sync_metrika_goals_for_direct(
     # Sync goals for each counter
     for counter_id in all_counter_ids:
         try:
+            # CRITICAL: First, get list of available goals for this counter
+            # This prevents errors when requesting stats for goals that don't exist
+            available_goals = []
+            goal_names_map = {}
+            try:
+                goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
+                available_goals = [str(g.get("id")) for g in goal_info if g.get("id")]
+                goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in goal_info}
+                logger.info(f"📊 Counter {counter_id} has {len(available_goals)} available goals: {available_goals[:10]}...")
+            except Exception as goals_info_err:
+                logger.warning(f"Failed to fetch available goals for counter {counter_id}: {goals_info_err}")
+                # Continue without filtering - will fail later but at least we tried
+            
+            # CRITICAL: Filter selected_goals to only include goals that exist in this counter
+            valid_goals_for_counter = []
+            if selected_goals and len(selected_goals) > 0:
+                if available_goals:
+                    valid_goals_for_counter = [gid for gid in selected_goals if str(gid) in available_goals]
+                    invalid_goals = [gid for gid in selected_goals if str(gid) not in available_goals]
+                    if invalid_goals:
+                        logger.warning(f"⚠️ Counter {counter_id} does not have these goals (skipping): {invalid_goals}")
+                else:
+                    # If we couldn't get available goals list, use all selected goals (will fail if invalid)
+                    valid_goals_for_counter = selected_goals
+                    logger.warning(f"⚠️ Could not verify goal availability for counter {counter_id}, using all selected goals")
+            
             # Sync aggregated goals
             metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
-            if selected_goals and len(selected_goals) > 0:
-                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
+            if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
+                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in valid_goals_for_counter]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
@@ -125,7 +151,7 @@ async def _sync_metrika_goals_for_direct(
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
                 total_reaches = 0
-                if selected_goals and len(selected_goals) > 0:
+                if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
                     for i in range(1, len(g['metrics'])):
                         total_reaches += int(g['metrics'][i])
                 else:
@@ -151,17 +177,12 @@ async def _sync_metrika_goals_for_direct(
             
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
-            if selected_goals and len(selected_goals) > 0:
-                # First, get all goal names in one batch (if possible)
-                try:
-                    goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
-                    goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in goal_info}
-                except Exception as goals_info_err:
-                    logger.warning(f"Failed to fetch goal names for counter {counter_id}: {goals_info_err}")
-                    goal_names_map = {}
+            # Use only valid goals for this counter (already filtered above)
+            if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
+                # goal_names_map already populated above when fetching available goals
                 
                 # Sync goals one by one with delays
-                for idx, goal_id in enumerate(selected_goals):
+                for idx, goal_id in enumerate(valid_goals_for_counter):
                     try:
                         # Add delay between requests to avoid rate limits
                         if idx > 0:

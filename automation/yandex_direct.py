@@ -1458,24 +1458,31 @@ class YandexDirectAPI:
             - amount_available_for_transfer: float - сумма доступная для перевода (если доступна)
             Или None при ошибке
         """
-        # CRITICAL: Для Direct Pro используем AccountManagement API версии Live 4
-        # Согласно документации: "Для получения текущего баланса общего счета используйте 
-        # операцию AccountManagement_Get метода AccountManagement API версии Live 4"
-        url = "https://api.direct.yandex.ru/live/v4/json/"
+        # CRITICAL: Для Direct Pro используем AccountManagement API
+        # Согласно документации: URL = api.direct.yandex.ru (без пути)
+        # Метод AccountManagement с Action: "Get" в param
+        url = "https://api.direct.yandex.ru"
         
         # CRITICAL: Log which profile we're requesting balance for
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
-        logger.info(f"💰 Requesting balance via AccountManagement API Live 4 for profile: '{client_login_header}'")
+        logger.info(f"💰 Requesting balance via AccountManagement API for profile: '{client_login_header}'")
         logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
         
-        # AccountManagement API Live 4 требует Action: "Get" и SelectionCriteria
+        # AccountManagement API требует Action: "Get" и SelectionCriteria
         # Если указан Client-Login, используем его в Logins
+        # Для агентских аккаунтов: Logins содержит логин агентского аккаунта
+        # AccountIDS может быть пустым (получим данные по всем рекламодателям) или содержать конкретные ID
         selection_criteria = {}
         if client_login_header != "NOT SET (main account)":
             selection_criteria["Logins"] = [client_login_header]
+            # AccountIDS оставляем пустым для получения данных по всем рекламодателям агентского аккаунта
+            # Или можно указать конкретные AccountIDS, если нужны данные только по определенным аккаунтам
+        else:
+            # Для основного аккаунта можно указать AccountIDS
+            # Но если не указано, получим данные по всем аккаунтам
+            pass
         
-        # CRITICAL: Live 4 API использует формат с "param" (не "params") и "token" в payload
-        # Хотя мы используем Bearer в заголовке, для Live 4 может потребоваться token в payload
+        # CRITICAL: Согласно документации, token должен быть в payload (OAuth-токен)
         # Получаем токен из заголовка Authorization
         token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
         
@@ -1488,21 +1495,41 @@ class YandexDirectAPI:
             }
         }
         
-        # CRITICAL: Live 4 API может не требовать Authorization в заголовке, если token в payload
+        # CRITICAL: AccountManagement API может не требовать Authorization в заголовке, если token в payload
         # Но оставим заголовок для совместимости
-        live4_headers = {
+        api_headers = {
             "Accept-Language": "ru",
             "Content-Type": "application/json"
         }
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, headers=live4_headers, timeout=30.0)
-                logger.info(f"💰 Yandex AccountManagement API Live 4 response status: {response.status_code}")
+                response = await client.post(url, json=payload, headers=api_headers, timeout=30.0)
+                logger.info(f"💰 Yandex AccountManagement API response status: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
                     logger.info(f"💰 Yandex AccountManagement API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
+                    
+                    # CRITICAL: AccountManagement API Live 4 может возвращать ошибки в ActionsResult
+                    # Проверяем наличие ошибок перед обработкой данных
+                    if "data" in data and "ActionsResult" in data["data"]:
+                        actions_result = data["data"]["ActionsResult"]
+                        if actions_result and len(actions_result) > 0:
+                            for action in actions_result:
+                                if "Errors" in action and action["Errors"]:
+                                    for error in action["Errors"]:
+                                        fault_code = error.get("FaultCode")
+                                        fault_string = error.get("FaultString", "")
+                                        logger.warning(f"⚠️ AccountManagement API error {fault_code}: {fault_string}")
+                                        
+                                        # Ошибка 515: "Shared account must be connected" - общий счет не подключен
+                                        if fault_code == 515:
+                                            logger.warning(f"⚠️ Profile '{action.get('Login', 'UNKNOWN')}' is a shared account that must be connected. "
+                                                         f"Balance cannot be retrieved via AccountManagement API for shared accounts.")
+                                            # Fallback to Clients.get
+                                            logger.info("Trying Clients.get as fallback...")
+                                            return await self._get_balance_fallback()
                     
                     # AccountManagement API Live 4 возвращает данные в структуре data -> Accounts
                     # (не result, а data для Live 4)
@@ -1513,8 +1540,8 @@ class YandexDirectAPI:
                     else:
                         accounts = None
                     
-                    if accounts:
-                        logger.info(f"💰 Yandex AccountManagement API Live 4 returned {len(accounts)} account(s)")
+                    if accounts and len(accounts) > 0:
+                        logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
                         
                         if accounts and len(accounts) > 0:
                             account_data = accounts[0]
@@ -1563,7 +1590,12 @@ class YandexDirectAPI:
                         
                         return None
                     else:
-                        logger.warning(f"Unexpected response format from Yandex AccountManagement API: {data}")
+                        # Если Accounts пустой, но есть ActionsResult с ошибками, уже обработано выше
+                        if "data" in data and "ActionsResult" in data["data"]:
+                            # Ошибки уже обработаны выше, просто возвращаем None
+                            logger.warning(f"AccountManagement API returned empty Accounts array (errors in ActionsResult)")
+                        else:
+                            logger.warning(f"Unexpected response format from Yandex AccountManagement API: {data}")
                         # Fallback to Clients.get
                         logger.info("Trying Clients.get as fallback...")
                         return await self._get_balance_fallback()
