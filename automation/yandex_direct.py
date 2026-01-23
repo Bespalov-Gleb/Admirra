@@ -1413,7 +1413,7 @@ class YandexDirectAPI:
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Login", "ClientInfo", "ManagedLogins"]
+                "FieldNames": ["Login", "ClientInfo", "ManagedLogins", "ClientId"]
             }
         }
         async with httpx.AsyncClient() as client:
@@ -1473,18 +1473,50 @@ class YandexDirectAPI:
         # Получаем токен из заголовка Authorization
         token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
         
-        # CRITICAL: AccountManagement API работает с аккаунтами верхнего уровня, а не с клиентами
-        # Если указан Client-Login (логин рекламного профиля/клиента), API может не вернуть данные для него
-        # Попробуем использовать Client-Login заголовок при запросе AccountManagement
-        # Без указания Logins в param - возможно, API сам поймет по заголовку
+        # CRITICAL: AccountManagement API работает с AccountIDS, а не с Logins для клиентов
+        # Если указан Client-Login (логин рекламного профиля/клиента), нужно получить его AccountID
+        # AccountID можно получить через Clients.get API с Client-Login заголовком
+        account_ids = None
+        if client_login_header != "NOT SET (main account)":
+            # Получаем информацию о клиенте через Clients.get с Client-Login заголовком
+            # Clients.get должен вернуть ClientId, который можно использовать как AccountID
+            try:
+                logger.info(f"💰 Getting AccountID for client '{client_login_header}' via Clients.get...")
+                clients_info = await self.get_clients()
+                if clients_info and len(clients_info) > 0:
+                    client_data = clients_info[0]
+                    logger.info(f"💰 Clients.get returned: {json.dumps(client_data, indent=2, ensure_ascii=False)[:300]}")
+                    
+                    # Пробуем получить AccountID из разных полей
+                    # ClientId может быть в разных местах в зависимости от структуры ответа
+                    account_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
+                    
+                    if account_id:
+                        account_ids = [account_id]
+                        logger.info(f"✅ Found AccountID {account_id} for client '{client_login_header}'")
+                    else:
+                        logger.warning(f"⚠️ Clients.get did not return ClientId/AccountId for '{client_login_header}'. "
+                                     f"Available fields: {list(client_data.keys())}")
+                        # Если AccountID не найден, попробуем использовать Logins как fallback
+                        logger.info(f"💰 Will try using Logins ['{client_login_header}'] as fallback")
+            except Exception as clients_err:
+                logger.warning(f"Failed to get AccountID via Clients.get: {clients_err}")
+                # Fallback: используем Logins
+                logger.info(f"💰 Will try using Logins ['{client_login_header}'] as fallback")
+        
+        # AccountManagement API требует Action: "Get" и либо AccountIDS, либо Logins в param
         param_data = {
             "Action": "Get"
         }
         
-        # НЕ указываем Logins в param, если это клиент (не аккаунт верхнего уровня)
-        # AccountManagement API должен использовать Client-Login заголовок для фильтрации
-        # Если это не сработает, получим все доступные аккаунты и найдем нужный
-        logger.info(f"💰 AccountManagement request: using Client-Login header '{client_login_header}' for filtering")
+        if account_ids:
+            # Используем AccountIDS для получения баланса конкретного клиента
+            param_data["AccountIDS"] = account_ids
+            logger.info(f"💰 Using AccountIDS {account_ids} for AccountManagement request")
+        elif client_login_header != "NOT SET (main account)":
+            # Fallback: используем Logins (может не сработать для клиентов, только для аккаунтов верхнего уровня)
+            param_data["Logins"] = [client_login_header]
+            logger.info(f"💰 Using Logins ['{client_login_header}'] for AccountManagement request (fallback)")
         
         payload = {
             "method": "AccountManagement",
@@ -1492,8 +1524,7 @@ class YandexDirectAPI:
             "token": token_from_header
         }
         
-        # CRITICAL: AccountManagement API Live 4 может использовать Client-Login заголовок для фильтрации
-        # Добавляем Client-Login в заголовки запроса, если он указан
+        # CRITICAL: AccountManagement API Live 4 может использовать Client-Login заголовок для дополнительной фильтрации
         api_headers = {
             "Accept-Language": "ru",
             "Content-Type": "application/json"
@@ -1543,11 +1574,12 @@ class YandexDirectAPI:
                     if accounts and len(accounts) > 0:
                         logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
                         
-                        # CRITICAL: Если запрашивался конкретный профиль, ищем его в списке аккаунтов
-                        # AccountManagement может вернуть все доступные аккаунты, даже если указан Logins
+                        # CRITICAL: AccountManagement API возвращает аккаунты верхнего уровня, а не клиентов
+                        # Если запрашивался клиент (например, 'istore-habarovsk'), он может быть подаккаунтом
+                        # Нужно получить все аккаунты и найти нужный клиент через Clients.get
                         account_data = None
                         if client_login_header != "NOT SET (main account)":
-                            # Ищем аккаунт с нужным логином
+                            # Сначала ищем аккаунт с нужным логином напрямую
                             for acc in accounts:
                                 if acc.get("Login") == client_login_header:
                                     account_data = acc
@@ -1555,13 +1587,44 @@ class YandexDirectAPI:
                                     break
                             
                             if not account_data:
-                                # Если не нашли, логируем все доступные логины
-                                available_logins = [acc.get("Login", "UNKNOWN") for acc in accounts]
-                                logger.warning(f"⚠️ Requested profile '{client_login_header}' not found in AccountManagement response. "
-                                             f"Available profiles: {available_logins}")
-                                # Используем первый аккаунт как fallback, но с предупреждением
-                                account_data = accounts[0]
-                                logger.warning(f"⚠️ Using first available account '{account_data.get('Login', 'UNKNOWN')}' as fallback")
+                                # Если не нашли, получаем AccountID клиента через Clients.get
+                                logger.info(f"💰 Profile '{client_login_header}' not found in AccountManagement response. "
+                                          f"Trying to get AccountID via Clients.get...")
+                                try:
+                                    clients_info = await self.get_clients()
+                                    if clients_info and len(clients_info) > 0:
+                                        client_data = clients_info[0]
+                                        logger.info(f"💰 Clients.get returned: {json.dumps(client_data, indent=2, ensure_ascii=False)[:300]}")
+                                        
+                                        # Проверяем, что это нужный клиент
+                                        client_login = client_data.get("Login")
+                                        if client_login == client_login_header:
+                                            # Получаем AccountID клиента
+                                            account_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
+                                            if account_id:
+                                                logger.info(f"✅ Found AccountID {account_id} for client '{client_login_header}'")
+                                                # Ищем аккаунт с этим AccountID в ответе AccountManagement
+                                                for acc in accounts:
+                                                    if acc.get("AccountID") == account_id:
+                                                        account_data = acc
+                                                        logger.info(f"✅ Found account with AccountID {account_id} in AccountManagement response")
+                                                        break
+                                            
+                                            if not account_data:
+                                                logger.warning(f"⚠️ AccountID {account_id} for client '{client_login_header}' not found in AccountManagement accounts")
+                                        else:
+                                            logger.warning(f"⚠️ Clients.get returned different login '{client_login}' (requested: '{client_login_header}')")
+                                except Exception as clients_err:
+                                    logger.warning(f"Failed to get AccountID via Clients.get: {clients_err}")
+                                
+                                if not account_data:
+                                    # Если все еще не нашли, логируем все доступные логины
+                                    available_logins = [acc.get("Login", "UNKNOWN") for acc in accounts]
+                                    logger.warning(f"⚠️ Requested profile '{client_login_header}' not found in AccountManagement response. "
+                                                 f"Available profiles: {available_logins}")
+                                    # Используем первый аккаунт как fallback, но с предупреждением
+                                    account_data = accounts[0]
+                                    logger.warning(f"⚠️ Using first available account '{account_data.get('Login', 'UNKNOWN')}' as fallback")
                         else:
                             # Если профиль не указан, используем первый аккаунт
                             account_data = accounts[0]
