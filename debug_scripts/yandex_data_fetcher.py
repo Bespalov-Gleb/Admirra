@@ -51,11 +51,11 @@ async def main():
     print(f"Successfully obtained token: {token[:10]}...")
 
     # 4. Fetch data using existing API class
-    print("\nFetching reports for the last 90 days...")
+    print("\nFetching reports for the last 2 years (730 days)...")
     api = YandexDirectAPI(token)
     
     end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=89)  # 90 days total (including today)
+    start_date = end_date - timedelta(days=730)
     
     date_from = start_date.strftime("%Y-%m-%d")
     date_to = end_date.strftime("%Y-%m-%d")

@@ -82,21 +82,9 @@ class Integration(Base):
     # Goals Support
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)
-    
-    # Metrika Counters Support (for Direct integrations)
-    selected_counters = Column(String, nullable=True) # JSON list of counter IDs
-    
-    # Balance Support
-    balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
-    currency = Column(String(3), default="RUB") # Currency code (RUB, USD, EUR, etc.)
 
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
-
-    @property
-    def client_name(self):
-        """Property to expose client name for API responses."""
-        return self.client.name if self.client else None
 
 class Campaign(Base):
     __tablename__ = "campaigns"
@@ -181,14 +169,10 @@ class MetrikaGoals(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"))
-    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id", ondelete="CASCADE"), nullable=True, index=True)
     date = Column(Date, index=True, nullable=False)
     goal_id = Column(String, nullable=False)
     goal_name = Column(String)
     conversion_count = Column(Integer, default=0)
-    
-    # Relationships
-    integration = relationship("Integration", foreign_keys=[integration_id])
 
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"

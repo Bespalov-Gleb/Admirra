@@ -242,3 +242,4 @@ class UTMValidator:
 # Глобальный экземпляр
 utm_validator = UTMValidator()
 
+

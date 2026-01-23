@@ -81,75 +81,23 @@ def get_vk_auth_url(redirect_uri: str):
 
 from fastapi import BackgroundTasks
 
-async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7):
-    """
-    Асинхронная функция для фоновой синхронизации.
-    Создает отдельную сессию БД и выполняет синхронизацию без блокировки основного потока.
-    
-    CRITICAL: При первой синхронизации (NEVER статус) автоматически использует 90 дней
-    для загрузки исторических данных целей Метрики.
-    """
+def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
+    # Create a new session for the background task
     db = SessionLocal()
     try:
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
         if integration:
             try:
-                end_date = datetime.now().date()
-                
-                # CRITICAL: For first sync (NEVER status) or if no goals data exists, use 90 days
-                # This ensures we have historical data for goals in the dashboard
-                is_first_sync = integration.sync_status == models.IntegrationSyncStatus.NEVER
-                if is_first_sync and integration.platform == models.IntegrationPlatform.YANDEX_METRIKA:
-                    # Check if we have any goals data
-                    has_goals_data = db.query(models.MetrikaGoals).filter(
-                        models.MetrikaGoals.integration_id == integration_id
-                    ).first() is not None
-                    
-                    if not has_goals_data:
-                        # First sync: use 90 days for historical data
-                        actual_days = 90
-                        logger.info(f"🔄 First sync detected for integration {integration_id}: using 90 days for historical goals data")
-                    else:
-                        actual_days = days
-                else:
-                    actual_days = days
-                
-                start_date = end_date - timedelta(days=actual_days - 1)  # -1 because we include today
-                date_from = start_date.strftime("%Y-%m-%d")
-                date_to = end_date.strftime("%Y-%m-%d")
-                
-                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to}, {actual_days} days)")
-                await sync_integration(db, integration, date_from, date_to)
+                # We need to run the async sync function in a sync context or use asyncio.run
+                # Since we are in a background task (which runs in a thread pool), we can use asyncio.run
+                end = datetime.now().date()
+                start = end - timedelta(days=days)
+                asyncio.run(sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
                 db.commit()
-                logger.info(f"✅ Background sync completed for integration {integration_id}")
             except Exception as e:
-                logger.error(f"❌ Background sync failed for {integration_id}: {e}")
-                db.rollback()
-        else:
-            logger.warning(f"Integration {integration_id} not found for background sync")
+                logger.error(f"Background sync failed for {integration_id}: {e}")
     finally:
         db.close()
-
-def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
-    """
-    Синхронная обертка для BackgroundTasks (FastAPI BackgroundTasks требует синхронную функцию).
-    Запускает асинхронную синхронизацию в отдельном event loop.
-    """
-    import asyncio
-    import threading
-    
-    def run_in_thread():
-        """Запускает async функцию в отдельном потоке с новым event loop"""
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        try:
-            new_loop.run_until_complete(run_sync_in_background_async(integration_id, days))
-        finally:
-            new_loop.close()
-    
-    # Запускаем в отдельном потоке, чтобы не блокировать основной
-    thread = threading.Thread(target=run_in_thread, daemon=True)
-    thread.start()
 
 @router.post("/yandex/exchange")
 async def exchange_yandex_token(
@@ -533,7 +481,6 @@ async def trigger_sync(
 ):
     """
     Manually trigger data synchronization for a specific integration.
-    Синхронизация выполняется в фоне, чтобы не блокировать запрос.
     """
     days = request_data.days if request_data else 7
     integration = db.query(models.Integration).join(models.Client).filter(
@@ -543,19 +490,20 @@ async def trigger_sync(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+        
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=days)
     
-    # Запускаем синхронизацию в фоне через asyncio.create_task
-    # CRITICAL: Не используем await - синхронизация выполняется в фоне без блокировки запроса
-    asyncio.create_task(run_sync_in_background_async(integration_id, days))
-    
-    # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
-    integration.sync_status = models.IntegrationSyncStatus.PENDING
-    db.commit()
-    
-    return {
-        "status": "queued", 
-        "message": f"Sync queued for last {days} days. Processing in background..."
-    }
+    date_from = start_date.strftime("%Y-%m-%d")
+    date_to = end_date.strftime("%Y-%m-%d")
+
+    try:
+        await sync_integration(db, integration, date_from, date_to)
+        db.commit()
+        return {"status": "success", "message": f"Synced last {days} days"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 @router.get("/{integration_id}", response_model=schemas.IntegrationResponse)
 def get_integration(
@@ -726,28 +674,21 @@ async def get_integration_counters(
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         # Priority 1: Get counters from selected campaigns via CounterIds
-        logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
         if campaign_ids:
             campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
-            logger.info(f"🔵 Parsed {len(campaign_ids_list)} campaign IDs: {campaign_ids_list}")
             
             campaigns_from_db = db.query(models.Campaign).filter(
                 models.Campaign.integration_id == integration_id,
                 models.Campaign.id.in_([uuid.UUID(cid) for cid in campaign_ids_list if len(cid) == 36])
             ).all()
             
-            logger.info(f"🔵 Found {len(campaigns_from_db)} campaigns in DB")
-            
             external_ids = [str(c.external_id) for c in campaigns_from_db if c.external_id and str(c.external_id).isdigit()]
-            logger.info(f"🔵 Extracted {len(external_ids)} external IDs: {external_ids}")
             
             if external_ids:
                 from automation.yandex_direct import YandexDirectAPI
                 direct_api = YandexDirectAPI(access_token, client_login=target_account)
                 
-                logger.info(f"🔵 Calling get_campaign_counters for {len(external_ids)} campaigns...")
                 campaign_counters_map = await direct_api.get_campaign_counters(external_ids)
-                logger.info(f"🔵 get_campaign_counters returned: {campaign_counters_map}")
                 
                 # Collect all unique counter IDs
                 # CRITICAL: Use different variable name to avoid overwriting counters_list
@@ -755,8 +696,6 @@ async def get_integration_counters(
                 for counter_ids_from_campaign in campaign_counters_map.values():
                     for cid in counter_ids_from_campaign:
                         all_counter_ids.add(str(cid))
-                
-                logger.info(f"🔵 Collected {len(all_counter_ids)} unique counter IDs: {all_counter_ids}")
                 
                 if all_counter_ids:
                     # Fetch counter details from Metrika API
@@ -766,7 +705,6 @@ async def get_integration_counters(
                     # Get all accessible counters to match with IDs
                     try:
                         all_counters = await metrica_api.get_counters()
-                        logger.info(f"🔵 Metrika API returned {len(all_counters)} total counters")
                         
                         # Filter to only counters that match our CounterIds
                         for counter in all_counters:
@@ -783,90 +721,40 @@ async def get_integration_counters(
                                     "source": "campaign"  # Indicates this counter came from campaign CounterIds
                                 })
                         
-                        logger.info(f"✅ Priority 1 SUCCESS: Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
+                        logger.info(f"📊 Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
                     except Exception as e:
-                        logger.error(f"❌ Priority 1 FAILED: Failed to fetch counter details from Metrika: {e}")
-                else:
-                    logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
-            else:
-                logger.warning(f"⚠️ Priority 1: No valid external_ids extracted from campaigns")
-        else:
-            logger.warning(f"⚠️ Priority 1: No campaign_ids provided in request")
+                        logger.error(f"Failed to fetch counter details from Metrika: {e}")
         
         # Priority 2: Fallback to profile-based counters
-        # Use fallback if no counters found from campaigns (either no campaign_ids or no CounterIds in campaigns)
         if not counters_list and target_account:
-            logger.info(f"🔵 Priority 2: No counters from campaigns, falling back to profile-based counters")
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
             
             try:
                 counters = await metrica_api.get_counters()
-                logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
                 
-                # CRITICAL: If campaign_ids were provided but no CounterIds found,
-                # return ALL counters without filtering by owner_login
-                # This is because campaigns might not have CounterIds configured, but user still needs to select counters
-                if campaign_ids:
-                    logger.warning(f"⚠️ Campaigns don't have CounterIds, returning ALL {len(counters)} accessible counters")
-                    for counter in counters:
-                        counters_list.append({
-                            "id": str(counter.get('id')),
-                            "name": counter.get('name', 'Unknown'),
-                            "site": counter.get('site', ''),
-                            "owner_login": counter.get('owner_login', ''),
-                            "source": "profile_fallback_all"  # Indicates all counters returned because campaigns have no CounterIds
-                        })
-                else:
+                # Filter by owner_login if possible
+                for counter in counters:
+                    owner_login = counter.get('owner_login', '')
                     # Normalize for comparison
                     def normalize_login(login):
                         return login.lower().replace('.', '').replace('-', '') if login else ''
                     
-                    target_normalized = normalize_login(target_account)
-                    matched_counters = []
-                    unmatched_counters = []
-                    
-                    # Filter by owner_login if possible
-                    for counter in counters:
-                        owner_login = counter.get('owner_login', '')
-                        owner_normalized = normalize_login(owner_login)
-                        
-                        # Match if owner matches target OR if no owner_login (trusted counter)
-                        matches = normalize_login(owner_login) == target_normalized or not owner_login
-                        
-                        counter_data = {
+                    if normalize_login(owner_login) == normalize_login(target_account) or not owner_login:
+                        counters_list.append({
                             "id": str(counter.get('id')),
                             "name": counter.get('name', 'Unknown'),
                             "site": counter.get('site', ''),
                             "owner_login": owner_login,
                             "source": "profile"  # Indicates this counter came from profile
-                        }
-                        
-                        if matches:
-                            matched_counters.append(counter_data)
-                            logger.info(f"✅ Included counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                        else:
-                            unmatched_counters.append(counter_data)
-                            logger.info(f"❌ Excluded counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                    
-                    # If no matched counters but we have unmatched ones, return all with a warning
-                    if not matched_counters and unmatched_counters:
-                        logger.warning(f"⚠️ No counters matched profile '{target_account}' after filtering")
-                        logger.warning(f"⚠️ Returning all {len(unmatched_counters)} accessible counters (user can manually select)")
-                        counters_list = unmatched_counters
-                    else:
-                        counters_list = matched_counters
-                        if unmatched_counters:
-                            logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
+                        })
             except Exception as e:
                 logger.error(f"Failed to fetch profile counters: {e}")
                 # If 403, try without profile filter
                 if "403" in str(e) or "access_denied" in str(e).lower():
-                    logger.warning(f"⚠️ Metrika API returned 403 for profile '{target_account}'. Trying fallback without profile filter...")
                     try:
                         fallback_api = YandexMetricaAPI(access_token)
                         counters = await fallback_api.get_counters()
-                        logger.info(f"📊 Fallback API returned {len(counters)} counters (no profile filter)")
                         for counter in counters:
                             counters_list.append({
                                 "id": str(counter.get('id')),
@@ -942,17 +830,13 @@ async def get_integration_goals(
             all_goals = []
             from sqlalchemy import func
             
-            # Получаем цели для всех счетчиков параллельно
-            goals_tasks = [metrica_api.get_counter_goals(counter_id) for counter_id in counter_ids_list]
-            goals_results = await asyncio.gather(*goals_tasks, return_exceptions=True)
-            
-            # Обрабатываем результаты
-            for counter_id, goals_result in zip(counter_ids_list, goals_results):
-                if isinstance(goals_result, Exception):
-                    logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_result}")
+            for counter_id in counter_ids_list:
+                try:
+                    goals = await metrica_api.get_counter_goals(counter_id)
+                except Exception as goals_err:
+                    logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
                     continue
                 
-                goals = goals_result
                 for goal in goals:
                     goal_id = str(goal["id"])
                     goal_name = goal.get("name", f"Goal {goal_id}")
@@ -966,36 +850,30 @@ async def get_integration_goals(
                     }
                     
                     if include_stats:
-                        # CRITICAL: Always try DB first - no API calls unless data is missing
-                        from sqlalchemy import func
-                        db_stats = db.query(
-                            func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
-                        ).filter(
+                        # Try DB first
+                        db_goal = db.query(models.MetrikaGoals).filter(
                             models.MetrikaGoals.integration_id == integration_id,
                             models.MetrikaGoals.goal_id == goal_id,
                             models.MetrikaGoals.date >= datetime.strptime(date_from, "%Y-%m-%d").date(),
                             models.MetrikaGoals.date <= datetime.strptime(date_to, "%Y-%m-%d").date()
                         ).first()
                         
-                        if db_stats and db_stats.total_conversions is not None:
-                            goal_data["conversions"] = int(db_stats.total_conversions or 0)
-                            # Calculate conversion rate from DB if we have clicks data
-                            # For now, set to 0 if not available - we can calculate from YandexStats later
-                            goal_data["conversion_rate"] = 0.0
+                        if db_goal:
+                            goal_data["conversions"] = int(db_goal.conversion_count or 0)
+                            goal_data["conversion_rate"] = float(db_goal.conversion_rate or 0.0)
                         else:
-                            # No data in DB - only then fetch from API (should be rare after initial sync)
-                            logger.info(f"No DB data for goal {goal_id}, fetching from API (should only happen on first load)")
+                            # Fallback to API
                             try:
-                                from automation.request_queue import get_request_queue
-                                queue = await get_request_queue()
-                                stats = await queue.enqueue('metrica', metrica_api.get_goals_stats,
+                                stats = await metrica_api.get_goals_stats(
                                     counter_id, date_from, date_to,
-                                    metrics=f"ym:s:goal{goal_id}reaches"
+                                    metrics="ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
                                 )
                                 if stats and len(stats) > 0:
-                                    total_reaches = sum(int(row.get('metrics', [0])[0]) for row in stats if row.get('metrics'))
+                                    total_reaches = sum(row.get('metrics', [0, 0])[1] for row in stats)
+                                    total_cr = sum(row.get('metrics', [0, 0])[0] for row in stats)
+                                    avg_cr = total_cr / len(stats) if stats else 0.0
                                     goal_data["conversions"] = int(total_reaches)
-                                    goal_data["conversion_rate"] = 0.0
+                                    goal_data["conversion_rate"] = float(avg_cr)
                             except Exception as stats_err:
                                 logger.debug(f"Could not fetch stats for goal {goal_id} from counter {counter_id}: {stats_err}")
                     
@@ -1146,9 +1024,9 @@ async def get_integration_goals(
                             goal_id_to_name[goal_id] = goal["goal_name"]
                 
                 from automation.yandex_metrica import YandexMetricaAPI
-                metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
-                
-                try:
+    metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+    
+    try:
                     counters = await metrica_api.get_counters()
                     
                     all_goals = []
@@ -1414,8 +1292,8 @@ async def get_integration_goals(
             error_str = str(api_err)
             if "403" in error_str or "access_denied" in error_str.lower():
                 fallback_api = YandexMetricaAPI(access_token)
-                try:
-                    counters = await fallback_api.get_counters()
+            try:
+                counters = await fallback_api.get_counters()
                     metrica_api = fallback_api
                 except Exception:
                     return []
@@ -1650,8 +1528,6 @@ async def update_integration(
             # Special handling for JSON fields if they come as lists/dicts
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
-            elif key == 'selected_counters' and (isinstance(value, list) or isinstance(value, dict)):
-                value = json.dumps(value)
             setattr(integration, key, value)
             logger.info(f"Set {key} = {value}")
 
@@ -1710,12 +1586,22 @@ async def update_integration(
     
     # OPTIMIZATION: Sync statistics only when integration is finalized (is_active=True)
     # This happens on step 6 (summary) when user completes the integration wizard
-    # CRITICAL: Sync выполняется в фоне, чтобы не блокировать запрос
     if integration_in.get("is_active") is True:
-        # Запускаем синхронизацию в фоне через asyncio.create_task
-        # Это не блокирует запрос и выполняется асинхронно
-        asyncio.create_task(run_sync_in_background_async(integration_id, 30))
-        logger.info(f"🔄 Finalizing integration {integration_id}: queued background sync for 30 days")
+        from datetime import datetime, timedelta
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)  # Sync last 30 days
+            date_from = start_date.strftime("%Y-%m-%d")
+            date_to = end_date.strftime("%Y-%m-%d")
+            
+            logger.info(f"🔄 Finalizing integration {integration_id}: syncing stats ({date_from} to {date_to})")
+            await sync_integration(db, integration, date_from, date_to)
+            db.commit()
+            logger.info(f"✅ Statistics synced for finalized integration {integration_id}")
+        except Exception as e:
+            # Don't fail the whole request if sync fails - user can retry later
+            logger.error(f"❌ Statistics sync failed for finalized integration {integration_id}: {e}")
+            log_event("backend", f"Statistics sync failed: {str(e)}")
     
     return integration
 
@@ -1902,65 +1788,20 @@ async def discover_campaigns(
     
     # CRITICAL: Clean up campaigns from other profiles if profile is selected
     # Delete campaigns that weren't returned by API (they belong to other profiles)
-    # IMPORTANT: Use account_id (selected profile) instead of agency_client_login
-    # CRITICAL FIX: Only delete if we have discovered campaigns AND they are not empty
-    # This prevents deleting campaigns when API returns empty result due to errors or wrong profile
-    # ALSO: Only delete if we actually discovered some campaigns (not empty list)
-    # CRITICAL: Check if profile changed - only delete if we're sure this is a profile change, not a race condition
-    if integration.account_id and integration.account_id.lower() != "unknown" and discovered_campaigns and len(discovered_campaigns) > 0:
+    if integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
         discovered_external_ids = {str(dc["id"]) for dc in discovered_campaigns}
         all_db_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
         
-        # Check if any existing campaigns match discovered campaigns
-        # If none match, it might mean profile changed OR API returned wrong data
-        existing_external_ids = {str(c.external_id) for c in all_db_campaigns}
-        matching_count = len(existing_external_ids & discovered_external_ids)
-        
         deleted_count = 0
-        campaigns_to_delete = []
         for db_campaign in all_db_campaigns:
             if str(db_campaign.external_id) not in discovered_external_ids:
-                campaigns_to_delete.append(db_campaign)
-                logger.warning(f"🗑️ Will delete campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.account_id}")
+                logger.warning(f"🗑️ Deleting campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.agency_client_login}")
+                db.delete(db_campaign)
+                deleted_count += 1
         
-        # CRITICAL: Only delete if:
-        # 1. We have campaigns to delete
-        # 2. We discovered some campaigns (not empty)
-        # 3. At least SOME discovered campaigns match existing ones (profile didn't completely change)
-        # OR if NONE match but we have discovered campaigns (profile definitely changed)
-        if campaigns_to_delete:
-            logger.info(f"🔵 Found {len(campaigns_to_delete)} campaigns to delete (not in API response for profile {integration.account_id})")
-            logger.info(f"🔵 Discovered {len(discovered_campaigns)} campaigns for profile {integration.account_id}")
-            logger.info(f"🔵 Matching campaigns: {matching_count} out of {len(existing_external_ids)} existing")
-            
-            # Only delete if we're confident this is a profile change (no matches) OR if we have some matches (partial overlap)
-            # This prevents deleting when API returns wrong data due to errors
-            if matching_count == 0 and len(discovered_campaigns) > 0:
-                # Profile completely changed - safe to delete old campaigns
-                logger.info(f"🔵 Profile changed completely (0 matches) - deleting {len(campaigns_to_delete)} old campaigns")
-                for db_campaign in campaigns_to_delete:
-                    db.delete(db_campaign)
-                    deleted_count += 1
-            elif matching_count > 0:
-                # Partial overlap - some campaigns match, some don't
-                # This is normal when profile changes or when some campaigns are archived
-                logger.info(f"🔵 Partial overlap ({matching_count} matches) - deleting {len(campaigns_to_delete)} campaigns not in current profile")
-                for db_campaign in campaigns_to_delete:
-                    db.delete(db_campaign)
-                    deleted_count += 1
-            else:
-                logger.warning(f"⚠️ Skipping campaign deletion: no matches and discovered_campaigns might be wrong")
-            
-            if deleted_count > 0:
-                db.commit()
-                logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
-        else:
-            logger.info(f"🔵 No campaigns to delete - all campaigns match discovered campaigns for profile {integration.account_id}")
-    else:
-        if not integration.account_id or integration.account_id.lower() == "unknown":
-            logger.info(f"🔵 Skipping campaign deletion: no valid account_id (profile) selected")
-        elif not discovered_campaigns or len(discovered_campaigns) == 0:
-            logger.warning(f"⚠️ Skipping campaign deletion: discovered_campaigns is empty (might be API error or wrong profile)")
+        if deleted_count > 0:
+            db.commit()
+            logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
     
     # OPTIMIZATION: Statistics sync removed from discover_campaigns
     # Statistics will be synced only when integration is finalized (on step 6)
@@ -2408,38 +2249,27 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         db.add(new_integration)
         db.commit()
         
-        # 3. Trigger initial sync в фоне (не блокируем запрос)
-        # Используем asyncio.create_task для запуска в фоне без ожидания
-        asyncio.create_task(run_sync_in_background_async(new_integration.id, 7))
+        # 3. Trigger initial sync
+        tasks.append(run_sync_in_background_async(new_integration.id))
         imported_count += 1
     
-    # НЕ ждем завершения синхронизации - она выполняется в фоне
+    if tasks:
+        await asyncio.gather(*tasks)
     return imported_count
 
-async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7):
-    """
-    Асинхронная функция для фоновой синхронизации.
-    Создает отдельную сессию БД и выполняет синхронизацию без блокировки основного потока.
-    """
+async def run_sync_in_background_async(integration_id: uuid.UUID):
+    # Helper to run sync without needing background_tasks object
+    # In a real app we'd use Celery, here we just use asyncio.create_task
     db = SessionLocal()
     try:
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
         if integration:
-            try:
-                end_date = datetime.now().date()
-                start_date = end_date - timedelta(days=days)
-                date_from = start_date.strftime("%Y-%m-%d")
-                date_to = end_date.strftime("%Y-%m-%d")
-                
-                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to})")
-                await sync_integration(db, integration, date_from, date_to)
-                db.commit()
-                logger.info(f"✅ Background sync completed for integration {integration_id}")
-            except Exception as e:
-                logger.error(f"❌ Background sync failed for integration {integration_id}: {e}")
-                db.rollback()
-        else:
-            logger.warning(f"Integration {integration_id} not found for background sync")
+            end = datetime.now().date()
+            start = end - timedelta(days=7)
+            await sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+            db.commit()
+    except Exception as e:
+        logger.error(f"Async bg sync failed for {integration_id}: {e}")
     finally:
         db.close()
 

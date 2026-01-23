@@ -171,3 +171,4 @@ class TrashLogger:
 # Глобальный экземпляр
 trash_logger = TrashLogger()
 
+

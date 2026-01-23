@@ -2,7 +2,7 @@ import httpx
 import json
 import asyncio
 from datetime import date, datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import logging
 from core.logging_utils import log_structured
 
@@ -568,21 +568,7 @@ class YandexDirectAPI:
                             
                             if status_response.status_code == 200:
                                 status_data = status_response.json()
-                                
-                                # Check for Direct Pro error (3228)
-                                if "error" in status_data:
-                                    error_info = status_data["error"]
-                                    error_code = error_info.get("error_code")
-                                    error_detail = error_info.get("error_detail", "")
-                                    
-                                    if error_code == 3228:
-                                        logger.warning(f"   ⚠️ Direct Pro not available (error 3228: {error_detail})")
-                                        logger.warning(f"   ⚠️ Cannot fetch status/state for campaigns from Reports API without Direct Pro")
-                                        logger.warning(f"   ⚠️ Campaigns will be displayed with UNKNOWN status (they exist and have data)")
-                                        # Leave campaigns with UNKNOWN status - they exist in Reports API
-                                    else:
-                                        logger.error(f"   ❌ Status query error: {error_info}")
-                                elif "result" in status_data and "Campaigns" in status_data["result"]:
+                                if "result" in status_data and "Campaigns" in status_data["result"]:
                                     status_campaigns = status_data["result"]["Campaigns"]
                                     status_map = {str(c["Id"]): c for c in status_campaigns}
                                     logger.info(f"   ✅ Successfully fetched status for {len(status_campaigns)} campaigns")
@@ -616,14 +602,13 @@ class YandexDirectAPI:
                                             campaign["type"] = "UNKNOWN"
                                 else:
                                     logger.warning(f"   ⚠️ No campaigns returned from status query")
+                                    if "error" in status_data:
+                                        logger.error(f"   ❌ Status query error: {status_data['error']}")
                             else:
                                 logger.warning(f"   ⚠️ Failed to fetch status: {status_response.status_code}")
                                 try:
                                     error_text = status_response.text
                                     logger.error(f"   ❌ Status query error response: {error_text}")
-                                    # Check if it's a Direct Pro error in response text
-                                    if "3228" in error_text or "Директ Про" in error_text:
-                                        logger.warning(f"   ⚠️ Direct Pro not available. Campaigns will have UNKNOWN status.")
                                 except:
                                     pass
                         except Exception as status_err:
@@ -719,22 +704,13 @@ class YandexDirectAPI:
             }
         }
 
-        # Увеличиваем таймаут для больших периодов (90+ дней)
-        # Для 90 дней: 300 секунд (5 минут), для больших периодов - еще больше
-        date_range_days = (dt_to - dt_from).days
-        if date_range_days > 90:
-            timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
-            logger.info(f"Using extended timeout {timeout_seconds}s for {date_range_days}-day period")
-        else:
-            timeout_seconds = 120.0
-        
         async with httpx.AsyncClient() as client:
             for attempt in range(max_retries):
                 response = await client.post(
                     self.report_url,
                     json=report_definition,
                     headers=self.headers,
-                    timeout=timeout_seconds
+                    timeout=120.0
                 )
 
                 # Track and validate API Units (Points)
@@ -1413,7 +1389,7 @@ class YandexDirectAPI:
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Login", "ClientInfo", "ManagedLogins", "ClientId"]
+                "FieldNames": ["Login", "ClientInfo", "ManagedLogins"]
             }
         }
         async with httpx.AsyncClient() as client:
@@ -1441,355 +1417,3 @@ class YandexDirectAPI:
             except Exception as e:
                 logger.error(f"Failed to fetch Yandex clients: {e}")
                 raise
-    
-    async def get_balance(self) -> Optional[Dict[str, Any]]:
-        """
-        Получает баланс рекламного кабинета через AccountManagement API (для Direct Pro).
-        
-        CRITICAL: Для Direct Pro используется метод AccountManagement вместо Clients.get.
-        Баланс получается от ПРОФИЛЯ (кабинета), указанного в Client-Login заголовке.
-        Если Client-Login не установлен, возвращается баланс основного кабинета токена.
-        
-        Returns:
-            Dict с полями:
-            - balance: float - баланс в валюте кабинета (из поля Amount)
-            - currency: str - код валюты (RUB, USD, EUR, etc.)
-            - amount: float - сумма на счете
-            - amount_available_for_transfer: float - сумма доступная для перевода (если доступна)
-            Или None при ошибке
-        """
-        # CRITICAL: Для Direct Pro используем AccountManagement API версии Live 4
-        # Согласно документации: "Для получения текущего баланса общего счета используйте 
-        # операцию AccountManagement_Get метода AccountManagement API версии Live 4"
-        # URL должен быть полным путем к Live 4 API
-        url = "https://api.direct.yandex.ru/live/v4/json/"
-        
-        # CRITICAL: Log which profile we're requesting balance for
-        client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
-        logger.info(f"💰 Requesting balance via AccountManagement API for profile: '{client_login_header}'")
-        logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
-        
-        # CRITICAL: Согласно документации, token должен быть в payload (OAuth-токен)
-        # Получаем токен из заголовка Authorization
-        token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
-        
-        # CRITICAL: Для агентского аккаунта AccountManagement API работает по-другому
-        # Согласно документации: для получения баланса всех клиентов агента нужно использовать
-        # логин агента в параметре Logins и оставить AccountIDS пустым
-        # Это вернёт данные по всем клиентам агента, включая подаккаунты
-        
-        # Сначала получаем все аккаунты без фильтрации, чтобы найти логин агента
-        # Затем используем логин агента для получения всех клиентов
-        param_data = {
-            "Action": "Get"
-        }
-        
-        # Если указан Client-Login (логин клиента), сначала получаем все аккаунты
-        # чтобы найти нужного клиента или определить логин агента
-        if client_login_header != "NOT SET (main account)":
-            # Для клиентов внутри агентского аккаунта используем логин клиента в Logins
-            # API может вернуть данные для этого клиента, если он имеет отдельный счет
-            # Или вернёт данные агента, из которых можно извлечь баланс клиента
-            param_data["Logins"] = [client_login_header]
-            logger.info(f"💰 Using Logins ['{client_login_header}'] for AccountManagement request")
-            logger.info(f"💰 NOTE: For agency accounts, this may return all clients. We'll search for '{client_login_header}' in the response.")
-        else:
-            # Если Client-Login не указан, получаем все аккаунты токена
-            logger.info(f"💰 No Client-Login specified, getting all accounts for token")
-        
-        payload = {
-            "method": "AccountManagement",
-            "param": param_data,
-            "token": token_from_header
-        }
-        
-        # CRITICAL: AccountManagement API Live 4 может использовать Client-Login заголовок для дополнительной фильтрации
-        api_headers = {
-            "Accept-Language": "ru",
-            "Content-Type": "application/json"
-        }
-        if client_login_header != "NOT SET (main account)":
-            api_headers["Client-Login"] = client_login_header
-            logger.info(f"💰 Added Client-Login header to AccountManagement request: '{client_login_header}'")
-        
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, headers=api_headers, timeout=30.0)
-                logger.info(f"💰 Yandex AccountManagement API response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"💰 Yandex AccountManagement API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
-                    
-                    # CRITICAL: AccountManagement API Live 4 может возвращать ошибки в ActionsResult
-                    # Проверяем наличие ошибок перед обработкой данных
-                    if "data" in data and "ActionsResult" in data["data"]:
-                        actions_result = data["data"]["ActionsResult"]
-                        if actions_result and len(actions_result) > 0:
-                            for action in actions_result:
-                                if "Errors" in action and action["Errors"]:
-                                    for error in action["Errors"]:
-                                        fault_code = error.get("FaultCode")
-                                        fault_string = error.get("FaultString", "")
-                                        logger.warning(f"⚠️ AccountManagement API error {fault_code}: {fault_string}")
-                                        
-                                        # Ошибка 515: "Shared account must be connected" - общий счет не подключен
-                                        if fault_code == 515:
-                                            logger.warning(f"⚠️ Profile '{action.get('Login', 'UNKNOWN')}' is a shared account that must be connected. "
-                                                         f"Balance cannot be retrieved via AccountManagement API for shared accounts.")
-                                            # Fallback to Clients.get
-                                            logger.info("Trying Clients.get as fallback...")
-                                            return await self._get_balance_fallback()
-                    
-                    # AccountManagement API Live 4 возвращает данные в структуре data -> Accounts
-                    # (не result, а data для Live 4)
-                    if "data" in data and "Accounts" in data["data"]:
-                        accounts = data["data"]["Accounts"]
-                    elif "result" in data and "Accounts" in data["result"]:
-                        accounts = data["result"]["Accounts"]
-                    else:
-                        accounts = None
-                    
-                    if accounts and len(accounts) > 0:
-                        logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
-                        
-                        # CRITICAL: AccountManagement API возвращает аккаунты верхнего уровня, а не клиентов
-                        # Если запрашивался клиент (например, 'istore-habarovsk'), он может быть подаккаунтом
-                        # Нужно получить все аккаунты и найти нужный клиент через Clients.get
-                        account_data = None
-                        if client_login_header != "NOT SET (main account)":
-                            # Сначала ищем аккаунт с нужным логином напрямую
-                            for acc in accounts:
-                                if acc.get("Login") == client_login_header:
-                                    account_data = acc
-                                    logger.info(f"✅ Found requested profile '{client_login_header}' in AccountManagement response")
-                                    break
-                            
-                            if not account_data:
-                                # Если не нашли, получаем AccountID клиента через Clients.get
-                                logger.info(f"💰 Profile '{client_login_header}' not found in AccountManagement response. "
-                                          f"Trying to get AccountID via Clients.get...")
-                                try:
-                                    clients_info = await self.get_clients()
-                                    if clients_info and len(clients_info) > 0:
-                                        client_data = clients_info[0]
-                                        logger.info(f"💰 Clients.get returned: {json.dumps(client_data, indent=2, ensure_ascii=False)[:300]}")
-                                        
-                                        # Проверяем, что это нужный клиент
-                                        client_login = client_data.get("Login")
-                                        if client_login == client_login_header:
-                                            # Получаем AccountID клиента
-                                            account_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
-                                            if account_id:
-                                                logger.info(f"✅ Found ClientId {account_id} for client '{client_login_header}'")
-                                                # CRITICAL: ClientId (109603565) и AccountID для AccountManagement - это разные сущности
-                                                # AccountManagement возвращает AccountID общих счетов верхнего уровня
-                                                # Клиент 'istore-habarovsk' может не иметь отдельного общего счета
-                                                # Попробуем найти аккаунт с этим AccountID в ответе AccountManagement
-                                                for acc in accounts:
-                                                    acc_id = acc.get("AccountID")
-                                                    if acc_id == account_id:
-                                                        account_data = acc
-                                                        logger.info(f"✅ Found account with AccountID {account_id} in AccountManagement response")
-                                                        break
-                                                
-                                                # Если не нашли по AccountID, возможно клиент использует баланс родительского аккаунта
-                                                # В этом случае AccountManagement может вернуть только родительский аккаунт
-                                                if not account_data:
-                                                    logger.warning(f"⚠️ ClientId {account_id} for client '{client_login_header}' not found in AccountManagement accounts. "
-                                                                 f"This may mean the client uses the parent account's balance.")
-                                                    logger.info(f"💰 AccountManagement returned accounts with AccountIDs: {[acc.get('AccountID') for acc in accounts]}")
-                                                    logger.info(f"💰 ClientId from Clients.get: {account_id}")
-                                                    logger.info(f"💰 These are different entities - ClientId is for client management, AccountID is for shared accounts")
-                                                    
-                                                    # CRITICAL: Если клиент не имеет отдельного общего счета,
-                                                    # его баланс может быть частью родительского аккаунта
-                                                    # В этом случае нужно использовать баланс родительского аккаунта
-                                                    # Но это неправильно - мы должны получить баланс именно клиента
-                                                    # Возможно, нужно использовать другой метод API или формат запроса
-                                        else:
-                                            logger.warning(f"⚠️ Clients.get returned different login '{client_login}' (requested: '{client_login_header}')")
-                                except Exception as clients_err:
-                                    logger.warning(f"Failed to get AccountID via Clients.get: {clients_err}")
-                                
-                                if not account_data:
-                                    # CRITICAL: Если клиент не найден в AccountManagement, это означает, что:
-                                    # 1. Клиент не имеет отдельного общего счета
-                                    # 2. Баланс клиента может быть частью родительского аккаунта
-                                    # 3. AccountManagement API не может вернуть баланс клиента напрямую
-                                    
-                                    # Логируем все доступные логины и AccountIDs
-                                    available_logins = [acc.get("Login", "UNKNOWN") for acc in accounts]
-                                    available_account_ids = [acc.get("AccountID") for acc in accounts]
-                                    logger.warning(f"⚠️ Requested profile '{client_login_header}' not found in AccountManagement response. "
-                                                 f"Available profiles: {available_logins}")
-                                    logger.warning(f"⚠️ Available AccountIDs: {available_account_ids}")
-                                    
-                                    # CRITICAL: Для агентского аккаунта клиент может не иметь отдельного общего счета
-                                    # В этом случае баланс клиента может быть частью родительского аккаунта
-                                    # Согласно документации, для агентского аккаунта нужно использовать логин агента
-                                    # Попробуем использовать логин агента (первый аккаунт) для получения всех клиентов
-                                    if accounts and len(accounts) > 0:
-                                        agent_login = accounts[0].get("Login")
-                                        logger.info(f"💰 Trying to get all clients for agent '{agent_login}'...")
-                                        
-                                        # Делаем второй запрос с логином агента и пустым AccountIDS
-                                        # Это должно вернуть данные по всем клиентам агента
-                                        agent_param_data = {
-                                            "Action": "Get",
-                                            "Logins": [agent_login],
-                                            "AccountIDS": []
-                                        }
-                                        agent_payload = {
-                                            "method": "AccountManagement",
-                                            "param": agent_param_data,
-                                            "token": token_from_header
-                                        }
-                                        
-                                        try:
-                                            agent_response = await client.post(url, json=agent_payload, headers=api_headers, timeout=30.0)
-                                            if agent_response.status_code == 200:
-                                                agent_data = agent_response.json()
-                                                if "data" in agent_data and "Accounts" in agent_data["data"]:
-                                                    all_accounts = agent_data["data"]["Accounts"]
-                                                    logger.info(f"💰 Agent '{agent_login}' has {len(all_accounts)} account(s)")
-                                                    
-                                                    # Ищем клиента в списке всех аккаунтов
-                                                    for acc in all_accounts:
-                                                        if acc.get("Login") == client_login_header:
-                                                            account_data = acc
-                                                            logger.info(f"✅ Found client '{client_login_header}' in agent's accounts")
-                                                            break
-                                                    
-                                                    if not account_data:
-                                                        logger.warning(f"⚠️ Client '{client_login_header}' not found in agent's accounts. "
-                                                                     f"Available logins: {[acc.get('Login', 'UNKNOWN') for acc in all_accounts]}")
-                                        except Exception as agent_err:
-                                            logger.warning(f"Failed to get all clients for agent: {agent_err}")
-                                    
-                                    if not account_data:
-                                        logger.warning(f"⚠️ CRITICAL: ClientId and AccountManagement AccountID are different entities!")
-                                        logger.warning(f"⚠️ Client '{client_login_header}' may not have a separate shared account. "
-                                                     f"Balance may be part of parent account or unavailable via AccountManagement API.")
-                                        
-                                        # Если клиент не найден, используем баланс родительского аккаунта как fallback
-                                        # с явным предупреждением, что это баланс родительского аккаунта
-                                        if accounts and len(accounts) > 0:
-                                            parent_account = accounts[0]
-                                            parent_login = parent_account.get("Login", "UNKNOWN")
-                                            logger.warning(f"⚠️ Using parent account '{parent_login}' balance as fallback for client '{client_login_header}'")
-                                            logger.warning(f"⚠️ NOTE: This is the parent account balance, not the client's balance!")
-                                            account_data = parent_account
-                                        else:
-                                            logger.error(f"❌ Cannot get balance for client '{client_login_header}' via AccountManagement API. "
-                                                       f"Client does not have a separate shared account and no parent account found.")
-                                            return None
-                        else:
-                            # Если профиль не указан, используем первый аккаунт
-                            account_data = accounts[0]
-                        
-                        if account_data:
-                            # CRITICAL: Log which profile's balance we received
-                            profile_login = account_data.get("Login", "UNKNOWN")
-                            logger.info(f"💰 Received balance for profile Login: '{profile_login}' (requested: '{client_login_header}')")
-                            logger.info(f"💰 Full account data: {json.dumps(account_data, indent=2, ensure_ascii=False)}")
-                            
-                            # CRITICAL: Verify that we got balance for the correct profile
-                            if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
-                                logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'. "
-                                             f"This may indicate that '{client_login_header}' is not accessible via AccountManagement API.")
-                            
-                            # CRITICAL: AccountManagement API возвращает Amount (баланс) для Direct Pro
-                            amount = account_data.get("Amount")
-                            currency = account_data.get("Currency", "RUB")
-                            amount_available = account_data.get("AmountAvailableForTransfer")
-                            
-                            if amount is not None:
-                                try:
-                                    balance_float = float(amount) if isinstance(amount, str) else amount
-                                    logger.info(f"💰 Yandex Direct balance (from AccountManagement): {balance_float} {currency} for profile '{profile_login}'")
-                                    result = {
-                                        "balance": balance_float,
-                                        "currency": currency,
-                                        "amount": balance_float
-                                    }
-                                    if amount_available is not None:
-                                        result["amount_available_for_transfer"] = float(amount_available) if isinstance(amount_available, str) else amount_available
-                                    return result
-                                except (ValueError, TypeError) as e:
-                                    logger.warning(f"Failed to parse Amount value: {amount}, error: {e}")
-                                    return None
-                            else:
-                                logger.warning(f"Amount field is not available in AccountManagement response for profile '{profile_login}'")
-                                return None
-                    elif "error" in data:
-                        error_code = data["error"].get("error_code")
-                        error_string = data["error"].get("error_string", "")
-                        error_detail = data["error"].get("error_detail", "")
-                        logger.warning(f"Yandex AccountManagement API error {error_code}: {error_string} - {error_detail}")
-                        
-                        # Если AccountManagement не доступен, пробуем Clients.get как fallback
-                        if error_code == 3228 or "Direct Pro" in error_string or "AccountManagement" in error_detail:
-                            logger.info("AccountManagement requires Direct Pro access, trying Clients.get as fallback...")
-                            return await self._get_balance_fallback()
-                        
-                        return None
-                    else:
-                        # Если Accounts пустой, но есть ActionsResult с ошибками, уже обработано выше
-                        if "data" in data and "ActionsResult" in data["data"]:
-                            # Ошибки уже обработаны выше, просто возвращаем None
-                            logger.warning(f"AccountManagement API returned empty Accounts array (errors in ActionsResult)")
-                        else:
-                            logger.warning(f"Unexpected response format from Yandex AccountManagement API: {data}")
-                        # Fallback to Clients.get
-                        logger.info("Trying Clients.get as fallback...")
-                        return await self._get_balance_fallback()
-                else:
-                    logger.warning(f"Failed to fetch Yandex balance via AccountManagement: {response.status_code} - {response.text[:200]}")
-                    # Fallback to Clients.get
-                    logger.info("Trying Clients.get as fallback...")
-                    return await self._get_balance_fallback()
-            except Exception as e:
-                logger.warning(f"Error fetching Yandex balance via AccountManagement: {e}")
-                # Fallback to Clients.get
-                logger.info("Trying Clients.get as fallback...")
-                return await self._get_balance_fallback()
-    
-    async def _get_balance_fallback(self) -> Optional[Dict[str, Any]]:
-        """
-        Fallback метод для получения баланса через Clients.get (если AccountManagement недоступен).
-        """
-        url = "https://api.direct.yandex.com/json/v5/clients"
-        payload = {
-            "method": "get",
-            "params": {
-                "FieldNames": ["Currency", "Login"]
-            }
-        }
-        
-        client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
-        logger.info(f"💰 Fallback: Requesting balance via Clients.get for profile: '{client_login_header}'")
-        
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    if "result" in data and "Clients" in data["result"]:
-                        clients = data["result"]["Clients"]
-                        
-                        if clients and len(clients) > 0:
-                            client_data = clients[0]
-                            profile_login = client_data.get("Login", "UNKNOWN")
-                            currency = client_data.get("Currency", "RUB")
-                            
-                            logger.warning(f"⚠️ Clients.get API does not return balance field. "
-                                         f"Profile '{profile_login}' balance requires Direct Pro and AccountManagement API.")
-                            
-                            return None
-                    return None
-            except Exception as e:
-                logger.warning(f"Error in fallback balance fetch: {e}")
-                return None

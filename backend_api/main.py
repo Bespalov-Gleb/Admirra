@@ -18,27 +18,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("api")
 
-# Enable automatic table creation with retry logic
-def init_db_with_retry(max_retries=10, retry_delay=2):
-    """
-    Initialize database with retry logic to handle cases when DB is not ready yet.
-    """
-    from sqlalchemy.exc import OperationalError
-    
-    for attempt in range(max_retries):
-        try:
-            models.Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created successfully")
-            return
-        except OperationalError as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-            else:
-                logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
-                raise
-
-init_db_with_retry()
+# Enable automatic table creation
+models.Base.metadata.create_all(bind=engine)
 
 # Fix for bcrypt 4.0.0+ and passlib compatibility
 import bcrypt
@@ -53,15 +34,8 @@ from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
 from backend_api.campaigns import router as campaigns_router
-
-# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
-try:
-    from lead_validator.router import router as lead_validator_router
-    from lead_validator.webhook_router import router as webhook_router
-    LEAD_VALIDATOR_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Lead Validator module not available: {e}. Some endpoints will be disabled.")
-    LEAD_VALIDATOR_AVAILABLE = False
+from lead_validator.router import router as lead_validator_router
+from lead_validator.webhook_router import router as webhook_router
 
 app = FastAPI(
     title="Analytics SAAS API",
@@ -70,20 +44,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
-
-@app.on_event("startup")
-async def startup_event():
-    """Инициализация при старте приложения"""
-    from automation.request_queue import get_request_queue
-    await get_request_queue()  # Инициализируем очередь запросов
-    logger.info("✅ Application startup complete - request queue initialized")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Очистка при остановке приложения"""
-    from automation.request_queue import shutdown_request_queue
-    await shutdown_request_queue()
-    logger.info("✅ Application shutdown complete - request queue stopped")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -99,11 +59,8 @@ app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
-
-# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
-if LEAD_VALIDATOR_AVAILABLE:
-    app.include_router(lead_validator_router, prefix="/api")
-    app.include_router(webhook_router, prefix="/api")  # Публичные webhook'и для Tilda/Marquiz
+app.include_router(lead_validator_router, prefix="/api")
+app.include_router(webhook_router, prefix="/api")
 
 # Configure CORS
 app.add_middleware(

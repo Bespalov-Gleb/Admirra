@@ -1,0 +1,106 @@
+/* Локальные шрифты Play */
+@font-face {
+  font-family: 'Play';
+  src: url('@/assets/fonts/Play-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Play';
+  src: url('@/assets/fonts/Play-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+  Global font size adjustment.
+  Setting root font-size scales all rem-based sizes down.
+  16px * 0.9 = 14.4px approximately.
+*/
+html {
+    font-size: 90%; 
+}
+
+.main-bg-color {
+    background-color: #2d3035;
+}
+
+.text-main-bg-color {
+    color: #2d3035;
+}
+
+.bg-active-menu {
+    background-color: #0090FF;
+}
+
+/* Скрытие скроллбара для всех браузеров */
+::-webkit-scrollbar {
+    display: none;
+}
+
+/* Для Firefox */
+* {
+    scrollbar-width: none;
+}
+
+/* Для IE и Edge */
+* {
+    -ms-overflow-style: none;
+}
+
+/* Класс для скрытия скроллбара */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Стили для tooltip графика - отображение в одну строку */
+.chartjs-tooltip {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.chartjs-tooltip-body {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.chartjs-tooltip-body-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+}
+
+/* Анимации для премиального вида */
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(-5%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s infinite;
+}

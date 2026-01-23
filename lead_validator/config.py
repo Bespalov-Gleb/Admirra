@@ -152,3 +152,4 @@ class LeadValidatorSettings:
 # Глобальный экземпляр настроек
 settings = LeadValidatorSettings()
 
+

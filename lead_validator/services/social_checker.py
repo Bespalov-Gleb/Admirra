@@ -137,3 +137,4 @@ class SocialChecker:
 # Глобальный экземпляр
 social_checker = SocialChecker()
 
+

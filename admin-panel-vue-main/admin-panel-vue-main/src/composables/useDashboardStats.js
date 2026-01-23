@@ -59,7 +59,7 @@ export function useDashboardStats() {
     filters.end_date = end.toISOString().split('T')[0]
   }
 
-  const handlePeriodChange = async () => {
+  const handlePeriodChange = () => {
     if (filters.period === 'custom') return
     const end = new Date()
     const start = new Date()
@@ -74,7 +74,6 @@ export function useDashboardStats() {
     if (filters.start_date !== newStartDate || filters.end_date !== newEndDate) {
       filters.start_date = newStartDate
       filters.end_date = newEndDate
-      
       // Explicitly fetch stats after period change
       fetchStats()
     }
@@ -116,20 +115,7 @@ export function useDashboardStats() {
         api.get('dashboard/campaigns', { params })
       ])
 
-      if (summaryRes.status === 'fulfilled') {
-        const summaryData = summaryRes.value.data
-        console.log('[DashboardStats] Summary data received:', summaryData)
-        console.log('[DashboardStats] Balance:', summaryData.balance, 'Currency:', summaryData.currency)
-        // CRITICAL: Ensure balance and currency are always set, even if backend returns undefined
-        summary.value = {
-          ...summaryData,
-          balance: summaryData.balance ?? 0,
-          currency: summaryData.currency ?? 'RUB'
-        }
-      } else {
-        console.error('[DashboardStats] Failed to fetch summary:', summaryRes.reason)
-      }
-      
+      if (summaryRes.status === 'fulfilled') summary.value = summaryRes.value.data
       if (dynamicsRes.status === 'fulfilled') dynamics.value = dynamicsRes.value.data
       if (topClientsRes.status === 'fulfilled') topClients.value = topClientsRes.value.data
       if (campaignsRes.status === 'fulfilled') campaigns.value = campaignsRes.value.data

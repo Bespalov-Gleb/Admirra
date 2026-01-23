@@ -240,3 +240,4 @@ class DataQualityValidator:
 # Глобальный экземпляр
 data_quality_validator = DataQualityValidator()
 
+

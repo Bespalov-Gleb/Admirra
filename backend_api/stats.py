@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from core.database import get_db
 from core import models, schemas, security
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from typing import List, Optional
 import uuid
 from backend_api.stats_service import StatsService
@@ -45,7 +45,7 @@ async def get_summary(
 
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
-        return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "balance": 0, "currency": "RUB", "trends": None}
+        return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0}
 
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
@@ -384,79 +384,28 @@ async def get_top_clients(
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
     integration_id: Optional[uuid.UUID] = None,  # NEW: Optional filter by integration
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get Metrika goals for the current client from database.
-    CRITICAL: This endpoint reads from DB only - no API calls to avoid 429 errors.
+    Get Metrika goals for the current client.
     Optionally filter by integration_id to get goals for a specific Yandex account.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     if not effective_client_ids: return []
 
-    # Default date range: last 14 days if not specified
-    if not date_to:
-        date_to_obj = datetime.utcnow().date()
-    else:
-        date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
-    
-    if not date_from:
-        date_from_obj = date_to_obj - timedelta(days=13)
-    else:
-        date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
-
     query = db.query(
-        models.MetrikaGoals.goal_id,
         models.MetrikaGoals.goal_name,
         func.sum(models.MetrikaGoals.conversion_count).label("count")
-    ).filter(
-        models.MetrikaGoals.client_id.in_(effective_client_ids),
-        models.MetrikaGoals.date >= date_from_obj,
-        models.MetrikaGoals.date <= date_to_obj
-    )
+    ).filter(models.MetrikaGoals.client_id.in_(effective_client_ids))
     
     # NEW: Filter by integration_id if provided
     if integration_id:
         query = query.filter(models.MetrikaGoals.integration_id == integration_id)
     
-    # Filter out "all" aggregated goals - we want individual goals
-    query = query.filter(models.MetrikaGoals.goal_id != "all")
-    
-    goals = query.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
+    goals = query.group_by(models.MetrikaGoals.goal_name).all()
 
-    # Calculate trend (simplified - compare with previous period)
-    result = []
-    for g in goals:
-        # Get previous period data for trend calculation
-        period_days = (date_to_obj - date_from_obj).days + 1
-        prev_date_from = date_from_obj - timedelta(days=period_days)
-        prev_date_to = date_from_obj - timedelta(days=1)
-        
-        prev_count = db.query(
-            func.sum(models.MetrikaGoals.conversion_count)
-        ).filter(
-            models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.goal_id == g.goal_id,
-            models.MetrikaGoals.date >= prev_date_from,
-            models.MetrikaGoals.date <= prev_date_to
-        ).scalar() or 0
-        
-        current_count = int(g.count or 0)
-        trend = 0.0
-        if prev_count > 0:
-            trend = round(((current_count - prev_count) / prev_count) * 100, 1)
-        
-        result.append({
-            "id": g.goal_id,
-            "name": g.goal_name or f"Goal {g.goal_id}",
-            "count": current_count,
-            "trend": trend
-        })
-    
-    return result
+    return [{"name": g.goal_name, "count": int(g.count or 0), "trend": 15.6} for g in goals]
 
 @router.get("/integrations", response_model=List[schemas.IntegrationStatus])
 def get_integrations_status(

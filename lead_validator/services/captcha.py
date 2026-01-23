@@ -89,3 +89,4 @@ class CaptchaValidator:
 
 captcha_validator = CaptchaValidator()
 
+

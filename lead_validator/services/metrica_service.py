@@ -229,3 +229,4 @@ class MetricaService:
 # Глобальный экземпляр
 metrica_service = MetricaService()
 
+

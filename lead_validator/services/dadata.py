@@ -171,3 +171,4 @@ class DaDataService:
 # Глобальный экземпляр сервиса
 dadata_service = DaDataService()
 
+

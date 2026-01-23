@@ -199,7 +199,6 @@ class TopClient(BaseModel):
     percentage: float
 
 class GoalStat(BaseModel):
-    id: Optional[str] = None  # Goal ID from Metrika
     name: str
     count: int
     trend: float

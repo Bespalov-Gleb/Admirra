@@ -205,44 +205,6 @@ class StatsService:
         ctr = (curr["clks"] / curr["imps"] * 100) if curr["imps"] > 0 else 0
         cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
 
-        # Агрегируем балансы из всех интеграций для выбранных клиентов
-        # CRITICAL: Фильтруем только интеграции с не-NULL балансом
-        # Суммируем балансы всех интеграций (обычно все в одной валюте RUB)
-        # Если валюты разные, суммируем только RUB, иначе берем первую найденную валюту
-        all_balances = db.query(
-            models.Integration.balance,
-            models.Integration.currency
-        ).filter(
-            models.Integration.client_id.in_(client_ids),
-            models.Integration.balance.isnot(None)
-        ).all()
-        
-        if all_balances:
-            # Суммируем балансы, предпочитая RUB
-            total_balance = 0.0
-            balance_currency = "RUB"
-            
-            # Сначала пробуем найти валюту RUB
-            rub_balances = [b for b in all_balances if b.currency == "RUB"]
-            if rub_balances:
-                total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in rub_balances)
-                balance_currency = "RUB"
-            else:
-                # Если RUB нет, суммируем все балансы и берем первую валюту
-                currencies = set(b.currency or "RUB" for b in all_balances)
-                if len(currencies) == 1:
-                    # Все в одной валюте - суммируем все
-                    balance_currency = list(currencies)[0]
-                    total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in all_balances)
-                else:
-                    # Разные валюты - берем первую найденную и суммируем только её
-                    balance_currency = all_balances[0].currency or "RUB"
-                    same_currency_balances = [b for b in all_balances if (b.currency or "RUB") == balance_currency]
-                    total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in same_currency_balances)
-        else:
-            total_balance = 0.0
-            balance_currency = "RUB"
-
         return {
             "expenses": round(curr["costs"], 2),
             "impressions": int(curr["imps"]),
@@ -252,8 +214,9 @@ class StatsService:
             "cpa": round(cpa, 2),
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
-            "balance": round(total_balance, 2),
-            "currency": balance_currency,
+            # NEW: for now balance = 0, currency is fixed RUB until we add wallets
+            "balance": 0.0,
+            "currency": "RUB",
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,

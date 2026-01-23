@@ -132,3 +132,4 @@ class RejectedLead(BaseModel):
     dadata_qc: Optional[int] = None
     phone_type: Optional[str] = None
 
+

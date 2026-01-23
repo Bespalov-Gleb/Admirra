@@ -183,3 +183,4 @@ docker compose exec backend alembic upgrade 7a8b9c0d1e2f
 
 Если возникли вопросы или проблемы, создайте issue в репозитории проекта.
 
+

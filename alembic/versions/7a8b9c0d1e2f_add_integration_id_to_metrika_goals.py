@@ -56,3 +56,4 @@ def downgrade() -> None:
     # Drop column
     op.drop_column('metrika_goals', 'integration_id')
 
+

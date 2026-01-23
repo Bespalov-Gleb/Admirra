@@ -244,3 +244,4 @@ class TelegramNotifier:
 # Глобальный экземпляр
 telegram_notifier = TelegramNotifier()
 
+

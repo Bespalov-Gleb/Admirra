@@ -56,19 +56,11 @@ class YandexMetricaAPI:
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            response = await client.get(self.base_url, params=params, headers=self.headers)
             if response.status_code == 200:
                 data = response.json()
                 return data.get('data', [])
-            elif response.status_code == 429:
-                # Raise exception with status_code for queue to handle
-                error = Exception(f"429 Too Many Requests")
-                error.status_code = 429
-                error.response = response
-                raise error
-            else:
-                logger.warning(f"Yandex Metrica API error {response.status_code}: {response.text[:200]}")
-                return []
+            return []
 
     async def get_counters(self) -> List[Dict[str, Any]]:
         """

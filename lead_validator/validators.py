@@ -384,3 +384,4 @@ class LeadValidator:
 # Глобальный экземпляр
 lead_validator = LeadValidator()
 
+
