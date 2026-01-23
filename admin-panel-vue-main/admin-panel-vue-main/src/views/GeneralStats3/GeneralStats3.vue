@@ -64,7 +64,11 @@
 
     <!-- Эффективность продвижения -->
     <div class="w-full">
-      <PromotionEfficiency :summary="summary" :campaigns="campaigns" />
+      <PromotionEfficiency 
+        :summary="summary" 
+        :campaigns="campaigns" 
+        :client-id="filters.client_id"
+      />
     </div>
 
   </div>

@@ -170,11 +170,69 @@
         </table>
       </div>
     </div>
+
+    <!-- Selected Goals Section -->
+    <div class="mt-8 border-2 border-red-300 bg-red-50/50 rounded-2xl p-6 shadow-sm">
+      <div class="mb-4">
+        <h4 class="text-sm font-black text-gray-900 uppercase tracking-wider mb-1">Выбранные цели из настроек</h4>
+        <p class="text-xs text-gray-600">Статистика по целям, настроенным в интеграциях проекта</p>
+      </div>
+      
+      <div v-if="loadingGoals" class="text-center py-12">
+        <div class="inline-flex items-center gap-3 text-sm text-gray-500">
+          <div class="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+          <span class="font-medium">Загрузка целей...</span>
+        </div>
+      </div>
+      
+      <div v-else-if="selectedGoals.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div 
+          v-for="goal in selectedGoals" 
+          :key="goal.name"
+          class="bg-white rounded-xl p-5 border-2 border-gray-200 shadow-md hover:shadow-lg transition-all hover:border-blue-300"
+        >
+          <div class="flex items-start justify-between mb-3">
+            <h5 class="text-sm font-black text-gray-900 line-clamp-2 flex-1 pr-2">{{ goal.name }}</h5>
+            <span 
+              v-if="goal.is_primary"
+              class="flex-shrink-0 px-2 py-1 bg-blue-100 text-blue-700 text-[9px] font-black uppercase rounded-md border border-blue-300"
+            >
+              Основная
+            </span>
+          </div>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">Конверсии</span>
+              <span class="text-xl font-black text-gray-900">{{ (goal.count || 0).toLocaleString() }}</span>
+            </div>
+            <div v-if="goal.trend !== undefined" class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">Тренд</span>
+              <span 
+                class="text-sm font-black px-2 py-0.5 rounded"
+                :class="goal.trend >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'"
+              >
+                {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend.toFixed(1) }}%
+              </span>
+            </div>
+            <div v-if="goal.conversion_rate !== undefined" class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">CR</span>
+              <span class="text-base font-black text-gray-800">{{ goal.conversion_rate.toFixed(2) }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div v-else class="text-center py-12">
+        <p class="text-sm text-gray-500 font-medium">Цели не выбраны в настройках интеграций</p>
+        <p class="text-xs text-gray-400 mt-2">Настройте цели в разделе интеграций для отображения статистики</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import api from '../../../api/axios'
 
 const props = defineProps({
   summary: {
@@ -184,10 +242,16 @@ const props = defineProps({
   campaigns: {
     type: Array,
     default: () => []
+  },
+  clientId: {
+    type: String,
+    default: null
   }
 })
 
 const isTableVisible = ref(true)
+const selectedGoals = ref([])
+const loadingGoals = ref(false)
 
 const funnelLabels = computed(() => [
   { text: 'Показы', value: (props.summary.impressions || 0).toLocaleString() },
@@ -242,6 +306,99 @@ const funnelPoints = computed(() => {
     // Rect for Stage 3 (Conversions)
     stage3: `800,${yCenter - h3/2} 1000,${yCenter - h3/2} 1000,${yCenter + h3/2} 800,${yCenter + h3/2}`
   }
+})
+
+// Fetch selected goals for the project
+const fetchSelectedGoals = async () => {
+  if (!props.clientId) {
+    selectedGoals.value = []
+    return
+  }
+
+  loadingGoals.value = true
+  try {
+    // Get integrations for this client to find selected goals
+    const { data: integrations } = await api.get('integrations/', {
+      params: { client_id: props.clientId }
+    })
+
+    // Collect all selected goal IDs and primary goal IDs from integrations
+    const selectedGoalIds = new Set()
+    const primaryGoalIds = new Set()
+    
+    integrations.forEach(integration => {
+      try {
+        // Parse selected_goals (stored as JSON string)
+        if (integration.selected_goals) {
+          const goals = typeof integration.selected_goals === 'string' 
+            ? JSON.parse(integration.selected_goals) 
+            : integration.selected_goals
+          
+          if (Array.isArray(goals)) {
+            goals.forEach(goalId => selectedGoalIds.add(goalId))
+          }
+        }
+        
+        // Add primary goal
+        if (integration.primary_goal_id) {
+          primaryGoalIds.add(integration.primary_goal_id)
+          selectedGoalIds.add(integration.primary_goal_id) // Primary is also selected
+        }
+      } catch (e) {
+        console.warn('[PromotionEfficiency] Failed to parse goals for integration:', integration.id, e)
+      }
+    })
+
+    // If no goals selected, show empty
+    if (selectedGoalIds.size === 0) {
+      selectedGoals.value = []
+      return
+    }
+
+    // Get goals statistics from dashboard API
+    const { data: allGoalsData } = await api.get('dashboard/goals', {
+      params: { client_id: props.clientId }
+    })
+
+    // Filter to show only selected goals and mark primary ones
+    const filteredGoals = allGoalsData
+      .filter(goal => {
+        // Match by goal name or ID (depending on API response format)
+        return selectedGoalIds.has(goal.name) || 
+               selectedGoalIds.has(goal.id) ||
+               goal.name === 'Selected Goals' // Special case for aggregated selected goals
+      })
+      .map(goal => ({
+        ...goal,
+        is_primary: primaryGoalIds.has(goal.name) || primaryGoalIds.has(goal.id)
+      }))
+
+    // If we have aggregated "Selected Goals" from MetrikaGoals, use it
+    const aggregatedGoal = allGoalsData.find(g => g.name === 'Selected Goals')
+    if (aggregatedGoal && filteredGoals.length === 0) {
+      selectedGoals.value = [{
+        ...aggregatedGoal,
+        is_primary: false,
+        name: 'Выбранные цели'
+      }]
+    } else {
+      selectedGoals.value = filteredGoals
+    }
+  } catch (err) {
+    console.error('[PromotionEfficiency] Failed to fetch goals:', err)
+    selectedGoals.value = []
+  } finally {
+    loadingGoals.value = false
+  }
+}
+
+// Watch for client_id changes
+watch(() => props.clientId, () => {
+  fetchSelectedGoals()
+}, { immediate: true })
+
+onMounted(() => {
+  fetchSelectedGoals()
 })
 </script>
 
