@@ -215,54 +215,54 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             
             for level, level_stats in level_stats_list:
                 try:
-                     for l in level_stats:
-                         # CRITICAL: Verify that campaign_name belongs to this integration
-                         # This prevents saving stats for campaigns from other profiles
-                         campaign_name = l.get('campaign_name', '')
-                         matching_campaign = db.query(models.Campaign).filter(
-                             models.Campaign.integration_id == integration.id,
-                             models.Campaign.name == campaign_name
-                         ).first()
-                         
-                         if not matching_campaign:
-                             logger.debug(
-                                 f"Skipping {level} stats for campaign '{campaign_name}' - "
-                                 f"not found in DB for integration {integration.id}. "
-                                 f"This campaign likely belongs to a different profile."
-                             )
-                             continue
-                         
-                         if level == "group":
-                             filters = {
-                                 "client_id": integration.client_id,
-                                 "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
-                                 "campaign_name": campaign_name,
-                                 "group_name": l['name']
-                             }
-                             data = {
-                                 "impressions": l['impressions'],
-                                 "clicks": l['clicks'],
-                                 "cost": l['cost'],
-                                 "conversions": l['conversions']
-                             }
-                             _update_or_create_stats(db, models.YandexGroups, filters, data)
-                         else:
-                             filters = {
-                                 "client_id": integration.client_id,
-                                 "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
-                                 "campaign_name": campaign_name,
-                                 "keyword": l['name']
-                             }
-                             data = {
-                                 "impressions": l['impressions'],
-                                 "clicks": l['clicks'],
-                                 "cost": l['cost'],
-                                 "conversions": l['conversions']
-                             }
-                             _update_or_create_stats(db, models.YandexKeywords, filters, data)
-                 except Exception as e:
-                     logger.warning(f"Error syncing {level} stats: {e}")
-                     continue
+                    for l in level_stats:
+                        # CRITICAL: Verify that campaign_name belongs to this integration
+                        # This prevents saving stats for campaigns from other profiles
+                        campaign_name = l.get('campaign_name', '')
+                        matching_campaign = db.query(models.Campaign).filter(
+                            models.Campaign.integration_id == integration.id,
+                            models.Campaign.name == campaign_name
+                        ).first()
+                        
+                        if not matching_campaign:
+                            logger.debug(
+                                f"Skipping {level} stats for campaign '{campaign_name}' - "
+                                f"not found in DB for integration {integration.id}. "
+                                f"This campaign likely belongs to a different profile."
+                            )
+                            continue
+                        
+                        if level == "group":
+                            filters = {
+                                "client_id": integration.client_id,
+                                "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
+                                "campaign_name": campaign_name,
+                                "group_name": l['name']
+                            }
+                            data = {
+                                "impressions": l['impressions'],
+                                "clicks": l['clicks'],
+                                "cost": l['cost'],
+                                "conversions": l['conversions']
+                            }
+                            _update_or_create_stats(db, models.YandexGroups, filters, data)
+                        else:
+                            filters = {
+                                "client_id": integration.client_id,
+                                "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
+                                "campaign_name": campaign_name,
+                                "keyword": l['name']
+                            }
+                            data = {
+                                "impressions": l['impressions'],
+                                "clicks": l['clicks'],
+                                "cost": l['cost'],
+                                "conversions": l['conversions']
+                            }
+                            _update_or_create_stats(db, models.YandexKeywords, filters, data)
+                except Exception as e:
+                    logger.warning(f"Error syncing {level} stats: {e}")
+                    continue
 
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)
