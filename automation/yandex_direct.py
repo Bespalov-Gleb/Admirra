@@ -1458,10 +1458,13 @@ class YandexDirectAPI:
             Или None при ошибке
         """
         url = "https://api.direct.yandex.com/json/v5/clients"
+        # CRITICAL: Balance field is NOT available in Clients.get API for regular accounts
+        # It requires Direct Pro access or may be available through other fields
+        # Using Currency and Login to identify the account, balance may need to be fetched differently
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Balance", "Currency", "Amount", "Sum", "Login"]
+                "FieldNames": ["Currency", "Login", "Amount"]
             }
         }
         
@@ -1494,23 +1497,29 @@ class YandexDirectAPI:
                             if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
                                 logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'")
                             
-                            balance = client_data.get("Balance")
+                            # CRITICAL: Balance field is NOT available in Clients.get for regular accounts
+                            # It requires Direct Pro or may be available through Amount field
+                            # Amount field represents the account balance
+                            amount = client_data.get("Amount")
                             currency = client_data.get("Currency", "RUB")
                             
-                            # Balance может быть в разных форматах (число или строка)
-                            if balance is not None:
+                            # Use Amount as balance (Amount is the account balance)
+                            if amount is not None:
                                 try:
-                                    balance_float = float(balance) if isinstance(balance, str) else balance
-                                    logger.info(f"💰 Yandex Direct balance: {balance_float} {currency} for profile '{profile_login}'")
+                                    balance_float = float(amount) if isinstance(amount, str) else amount
+                                    logger.info(f"💰 Yandex Direct balance (from Amount): {balance_float} {currency} for profile '{profile_login}'")
                                     return {
                                         "balance": balance_float,
                                         "currency": currency,
-                                        "amount": client_data.get("Amount"),
+                                        "amount": amount,
                                         "sum": client_data.get("Sum")
                                     }
                                 except (ValueError, TypeError) as e:
-                                    logger.warning(f"Failed to parse balance value: {balance}, error: {e}")
+                                    logger.warning(f"Failed to parse Amount value: {amount}, error: {e}")
                                     return None
+                            else:
+                                logger.warning(f"Amount field is not available for profile '{profile_login}'. Balance may require Direct Pro access.")
+                                return None
                     elif "error" in data:
                         error_code = data["error"].get("error_code")
                         error_string = data["error"].get("error_string", "")
