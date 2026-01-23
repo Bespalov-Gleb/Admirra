@@ -277,6 +277,7 @@ export function useIntegrationWizard() {
       await api.patch(`/integrations/${lastIntegrationId.value}`, {
         selected_campaign_ids: [...selectedCampaignIds.value],
         all_campaigns: allFromProfile.value,
+        selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
         is_active: true

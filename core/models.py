@@ -83,6 +83,9 @@ class Integration(Base):
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)
     
+    # Metrika Counters Support (for Direct integrations)
+    selected_counters = Column(String, nullable=True) # JSON list of counter IDs
+    
     # Balance Support
     balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
     currency = Column(String(3), default="RUB") # Currency code (RUB, USD, EUR, etc.)

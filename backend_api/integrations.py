@@ -1650,6 +1650,8 @@ async def update_integration(
             # Special handling for JSON fields if they come as lists/dicts
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
+            elif key == 'selected_counters' and (isinstance(value, list) or isinstance(value, dict)):
+                value = json.dumps(value)
             setattr(integration, key, value)
             logger.info(f"Set {key} = {value}")
 

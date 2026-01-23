@@ -34,6 +34,166 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
         log_event("database", f"creating new {model.__tablename__} record", filters)
         db.add(model(**filters, **data))
 
+
+async def _sync_metrika_goals_for_direct(
+    db: Session, 
+    integration: models.Integration, 
+    date_from: str, 
+    date_to: str,
+    access_token: str,
+    selected_profile: str = None
+):
+    """
+    Sync Metrika goals for Yandex Direct integration.
+    Uses counters selected in integration settings (selected_counters), not from campaigns.
+    """
+    # Get selected goals
+    selected_goals = []
+    if integration.selected_goals:
+        try:
+            if isinstance(integration.selected_goals, str):
+                import json
+                selected_goals = json.loads(integration.selected_goals)
+            else:
+                selected_goals = integration.selected_goals
+        except:
+            selected_goals = []
+    
+    if not selected_goals and not integration.primary_goal_id:
+        logger.debug(f"No goals selected for Direct integration {integration.id}, skipping Metrika goals sync")
+        return
+    
+    # CRITICAL: Get counter IDs from integration settings (selected_counters), not from campaigns
+    selected_counter_ids = []
+    if integration.selected_counters:
+        try:
+            if isinstance(integration.selected_counters, str):
+                import json
+                selected_counter_ids = json.loads(integration.selected_counters)
+            else:
+                selected_counter_ids = integration.selected_counters
+        except Exception as e:
+            logger.warning(f"Failed to parse selected_counters for integration {integration.id}: {e}")
+            selected_counter_ids = []
+    
+    if not selected_counter_ids:
+        logger.debug(f"No counters selected in settings for Direct integration {integration.id}, skipping Metrika goals sync")
+        return
+    
+    # Convert to set of strings for consistency
+    all_counter_ids = set(str(cid) for cid in selected_counter_ids)
+    
+    logger.info(f"🔄 Using {len(all_counter_ids)} selected Metrika counters for Direct integration {integration.id}: {list(all_counter_ids)}")
+    
+    # Use Metrika API to sync goals for these counters
+    from automation.yandex_metrica import YandexMetricaAPI
+    metrika_api = YandexMetricaAPI(access_token, client_login=selected_profile)
+    
+    # Check if this is first sync
+    has_existing_data = db.query(models.MetrikaGoals).filter(
+        models.MetrikaGoals.integration_id == integration.id
+    ).first() is not None
+    
+    # Determine date range: 90 days for first sync, otherwise use provided range
+    sync_date_from = date_from
+    sync_date_to = date_to
+    
+    if not has_existing_data or integration.sync_status == models.IntegrationSyncStatus.NEVER:
+        end_date_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+        start_date_obj = end_date_obj - timedelta(days=89)
+        sync_date_from = start_date_obj.strftime("%Y-%m-%d")
+        sync_date_to = end_date_obj.strftime("%Y-%m-%d")
+        logger.info(f"🔄 First sync for Direct integration {integration.id}: fetching 90 days of goals data ({sync_date_from} to {sync_date_to})")
+    
+    # Use request queue
+    from automation.request_queue import get_request_queue
+    queue = await get_request_queue()
+    
+    # Sync goals for each counter
+    for counter_id in all_counter_ids:
+        try:
+            # Sync aggregated goals
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+            if selected_goals and len(selected_goals) > 0:
+                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
+                metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
+            
+            goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
+            
+            # Save aggregated goals
+            for g in goals_data:
+                stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
+                
+                total_reaches = 0
+                if selected_goals and len(selected_goals) > 0:
+                    for i in range(1, len(g['metrics'])):
+                        total_reaches += int(g['metrics'][i])
+                else:
+                    total_reaches = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                
+                existing = db.query(models.MetrikaGoals).filter(
+                    models.MetrikaGoals.integration_id == integration.id,
+                    models.MetrikaGoals.date == stat_date,
+                    models.MetrikaGoals.goal_id == "all"
+                ).first()
+                
+                if existing:
+                    existing.conversion_count = total_reaches
+                else:
+                    db.add(models.MetrikaGoals(
+                        client_id=integration.client_id,
+                        integration_id=integration.id,
+                        date=stat_date,
+                        goal_id="all",
+                        goal_name="Selected Goals" if selected_goals else "All Goals",
+                        conversion_count=total_reaches
+                    ))
+            
+            # Sync individual goals if selected
+            if selected_goals and len(selected_goals) > 0:
+                for goal_id in selected_goals:
+                    try:
+                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
+                        
+                        # Get goal name
+                        goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
+                        goal_name = "Unknown Goal"
+                        for g in goal_info:
+                            if str(g.get("id")) == str(goal_id):
+                                goal_name = g.get("name", f"Goal {goal_id}")
+                                break
+                        
+                        # Save individual goal data
+                        for g in goal_data:
+                            if len(g.get('metrics', [])) > 0:
+                                stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
+                                reaches = int(g['metrics'][0]) if g['metrics'] else 0
+                                
+                                existing = db.query(models.MetrikaGoals).filter(
+                                    models.MetrikaGoals.integration_id == integration.id,
+                                    models.MetrikaGoals.date == stat_date,
+                                    models.MetrikaGoals.goal_id == str(goal_id)
+                                ).first()
+                                
+                                if existing:
+                                    existing.conversion_count = reaches
+                                else:
+                                    db.add(models.MetrikaGoals(
+                                        client_id=integration.client_id,
+                                        integration_id=integration.id,
+                                        date=stat_date,
+                                        goal_id=str(goal_id),
+                                        goal_name=goal_name,
+                                        conversion_count=reaches
+                                    ))
+                    except Exception as goal_err:
+                        logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
+        except Exception as counter_err:
+            logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
+    
+    logger.info(f"✅ Completed Metrika goals sync for Direct integration {integration.id}")
+
 async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):
     """
     Syncs a single integration for a given date range.
@@ -198,6 +358,16 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             from backend_api.cache_service import CacheService
             CacheService.clear()
             logger.info(f"🗑️ Cleared dashboard cache after saving Yandex stats for integration {integration.id}")
+
+            # CRITICAL: Sync Metrika goals for Direct integrations if goals are selected
+            # Goals are linked to Direct campaigns through Metrika counters (CounterIds)
+            if integration.selected_goals or integration.primary_goal_id:
+                try:
+                    logger.info(f"🔄 Syncing Metrika goals for Direct integration {integration.id}")
+                    await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
+                except Exception as goals_err:
+                    logger.warning(f"Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}")
+                    # Don't fail the entire sync if goals sync fails
 
             # Group and Keyword stats - получаем параллельно
             # CRITICAL: Filter by integration_id to avoid saving data from other profiles
