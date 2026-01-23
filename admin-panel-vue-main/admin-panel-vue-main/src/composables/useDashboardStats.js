@@ -75,35 +75,6 @@ export function useDashboardStats() {
       filters.start_date = newStartDate
       filters.end_date = newEndDate
       
-      // Автоматический пересинхрон при смене периода
-      if (filters.client_id) {
-        try {
-          // Получаем список интеграций для текущего проекта
-          const { data: integrations } = await api.get('integrations/')
-          const projectIntegrations = integrations.filter(integration => 
-            integration.client_id === filters.client_id
-          )
-          
-          // Запускаем синхронизацию для всех интеграций проекта в фоне
-          const syncPromises = projectIntegrations.map(integration => 
-            api.post(`integrations/${integration.id}/sync`, { 
-              days: periodDays 
-            }).catch(err => {
-              console.warn(`[DashboardStats] Sync failed for integration ${integration.id}:`, err)
-              return null
-            })
-          )
-          
-          // Запускаем синхронизацию параллельно, но не ждем завершения
-          Promise.allSettled(syncPromises).then(() => {
-            console.log('[DashboardStats] Background sync completed')
-          })
-        } catch (err) {
-          console.warn('[DashboardStats] Failed to trigger auto-sync:', err)
-          // Не блокируем загрузку статистики, если синхронизация не удалась
-        }
-      }
-      
       // Explicitly fetch stats after period change
       fetchStats()
     }
