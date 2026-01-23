@@ -20,12 +20,6 @@
           <PencilSquareIcon class="w-4 h-4" />
           МАССОВОЕ РЕДАКТИРОВАНИЕ
         </button>
-        <button 
-          @click="$emit('addProject')"
-          class="px-4 py-2 text-sm font-black text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors uppercase tracking-wider"
-        >
-          ДОБАВИТЬ ПРОЕКТ
-        </button>
       </div>
     </div>
 
@@ -194,45 +188,14 @@
               <!-- Actions -->
               <td class="px-3 py-4">
                 <div class="flex items-center justify-end">
-                  <div class="relative">
+                  <div class="relative" :ref="el => setMenuRef(project.id, el)">
                     <button 
-                      @click="toggleActionMenu(project.id)"
+                      @click="toggleActionMenu(project.id, $event)"
                       class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
                       title="Действия"
                     >
                       <EllipsisVerticalIcon class="w-5 h-5 text-gray-600" />
                     </button>
-                    
-                    <!-- Dropdown Menu -->
-                    <Transition name="fade-scale">
-                      <div 
-                        v-if="openActionMenuId === project.id"
-                        class="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-1 min-w-[180px]"
-                      >
-                        <button 
-                          @click="handleAction('view', project.id)"
-                          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-3"
-                        >
-                          <EyeIcon class="w-4 h-4" />
-                          Просмотр
-                        </button>
-                        <button 
-                          @click="handleAction('edit', project.id)"
-                          class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-3"
-                        >
-                          <PencilIcon class="w-4 h-4" />
-                          Редактировать
-                        </button>
-                        <div class="h-px bg-gray-100 my-1"></div>
-                        <button 
-                          @click="handleAction('delete', project.id)"
-                          class="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3"
-                        >
-                          <TrashIcon class="w-4 h-4" />
-                          Удалить
-                        </button>
-                      </div>
-                    </Transition>
                   </div>
                 </div>
               </td>
@@ -252,6 +215,41 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Dropdown Menu - Fixed positioning to appear above everything -->
+    <Teleport to="body">
+      <Transition name="fade-scale">
+        <div 
+          v-if="openActionMenuId"
+          :style="menuPosition"
+          class="fixed bg-white border border-gray-100 rounded-xl shadow-xl z-[9999] py-1 min-w-[180px]"
+          @click.stop
+        >
+          <button 
+            @click="handleAction('view', openActionMenuId)"
+            class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-3"
+          >
+            <EyeIcon class="w-4 h-4" />
+            Просмотр
+          </button>
+          <button 
+            @click="handleAction('edit', openActionMenuId)"
+            class="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-3"
+          >
+            <PencilIcon class="w-4 h-4" />
+            Редактировать
+          </button>
+          <div class="h-px bg-gray-100 my-1"></div>
+          <button 
+            @click="handleAction('delete', openActionMenuId)"
+            class="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3"
+          >
+            <TrashIcon class="w-4 h-4" />
+            Удалить
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Pagination -->
     <div v-if="!loading && filteredProjects.length > 0" class="px-8 py-4 border-t border-gray-100 flex items-center justify-between">
@@ -291,7 +289,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, Teleport } from 'vue'
 import { 
   CheckIcon, 
   MagnifyingGlassIcon, 
@@ -325,9 +323,30 @@ const selected = ref([])
 const localSearchQuery = ref(props.searchQuery)
 const itemsPerPage = ref(10)
 const openActionMenuId = ref(null)
+const menuRefs = ref({})
+const menuPosition = ref({})
 
-const toggleActionMenu = (projectId) => {
-  openActionMenuId.value = openActionMenuId.value === projectId ? null : projectId
+const setMenuRef = (projectId, el) => {
+  if (el) {
+    menuRefs.value[projectId] = el
+  }
+}
+
+const toggleActionMenu = (projectId, event) => {
+  if (openActionMenuId.value === projectId) {
+    openActionMenuId.value = null
+    menuPosition.value = {}
+  } else {
+    openActionMenuId.value = projectId
+    // Calculate position based on button click
+    if (event && event.target) {
+      const buttonRect = event.target.closest('button').getBoundingClientRect()
+      menuPosition.value = {
+        top: `${buttonRect.bottom + 4}px`,
+        right: `${window.innerWidth - buttonRect.right}px`,
+      }
+    }
+  }
 }
 
 const handleAction = (action, projectId) => {
@@ -338,17 +357,34 @@ const handleAction = (action, projectId) => {
 }
 
 const handleClickOutside = (event) => {
-  if (!event.target.closest('.relative')) {
+  // Check if click is outside menu and button
+  const isMenuClick = event.target.closest('.fixed.z-\\[9999\\]')
+  const isButtonClick = Object.values(menuRefs.value).some(ref => 
+    ref && ref.contains(event.target)
+  )
+  
+  if (!isMenuClick && !isButtonClick) {
     openActionMenuId.value = null
+    menuPosition.value = {}
+  }
+}
+
+const handleScroll = () => {
+  // Close menu on scroll to avoid positioning issues
+  if (openActionMenuId.value) {
+    openActionMenuId.value = null
+    menuPosition.value = {}
   }
 }
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('scroll', handleScroll, true) // Use capture phase to catch all scrolls
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('scroll', handleScroll, true)
 })
 
 watch(() => props.searchQuery, (newVal) => {

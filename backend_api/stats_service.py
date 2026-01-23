@@ -205,6 +205,30 @@ class StatsService:
         ctr = (curr["clks"] / curr["imps"] * 100) if curr["imps"] > 0 else 0
         cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
 
+        # Агрегируем балансы из всех интеграций для выбранных клиентов
+        balance_query = db.query(
+            func.sum(models.Integration.balance).label("total_balance"),
+            models.Integration.currency
+        ).filter(
+            models.Integration.client_id.in_(client_ids)
+        ).group_by(models.Integration.currency).first()
+        
+        if balance_query and balance_query.total_balance is not None:
+            total_balance = float(balance_query.total_balance)
+            balance_currency = balance_query.currency or "RUB"
+        else:
+            # Если балансы не найдены, пробуем получить из любой интеграции
+            sample_integration = db.query(models.Integration).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Integration.balance.isnot(None)
+            ).first()
+            if sample_integration:
+                total_balance = float(sample_integration.balance) if sample_integration.balance else 0.0
+                balance_currency = sample_integration.currency or "RUB"
+            else:
+                total_balance = 0.0
+                balance_currency = "RUB"
+
         return {
             "expenses": round(curr["costs"], 2),
             "impressions": int(curr["imps"]),
@@ -214,9 +238,8 @@ class StatsService:
             "cpa": round(cpa, 2),
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
-            # NEW: for now balance = 0, currency is fixed RUB until we add wallets
-            "balance": 0.0,
-            "currency": "RUB",
+            "balance": round(total_balance, 2),
+            "currency": balance_currency,
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,

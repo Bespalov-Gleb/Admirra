@@ -719,13 +719,22 @@ class YandexDirectAPI:
             }
         }
 
+        # Увеличиваем таймаут для больших периодов (90+ дней)
+        # Для 90 дней: 300 секунд (5 минут), для больших периодов - еще больше
+        date_range_days = (dt_to - dt_from).days
+        if date_range_days > 90:
+            timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
+            logger.info(f"Using extended timeout {timeout_seconds}s for {date_range_days}-day period")
+        else:
+            timeout_seconds = 120.0
+        
         async with httpx.AsyncClient() as client:
             for attempt in range(max_retries):
                 response = await client.post(
                     self.report_url,
                     json=report_definition,
                     headers=self.headers,
-                    timeout=120.0
+                    timeout=timeout_seconds
                 )
 
                 # Track and validate API Units (Points)
@@ -1432,3 +1441,66 @@ class YandexDirectAPI:
             except Exception as e:
                 logger.error(f"Failed to fetch Yandex clients: {e}")
                 raise
+    
+    async def get_balance(self) -> Optional[Dict[str, Any]]:
+        """
+        Получает баланс рекламного кабинета через Clients.get API.
+        
+        Returns:
+            Dict с полями:
+            - balance: float - баланс в валюте кабинета
+            - currency: str - код валюты (RUB, USD, EUR, etc.)
+            - amount: float - сумма на счете (может отличаться от balance)
+            - sum: float - общая сумма (если доступна)
+            Или None при ошибке
+        """
+        url = "https://api.direct.yandex.com/json/v5/clients"
+        payload = {
+            "method": "get",
+            "params": {
+                "FieldNames": ["Balance", "Currency", "Amount", "Sum"]
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "result" in data and "Clients" in data["result"]:
+                        clients = data["result"]["Clients"]
+                        if clients and len(clients) > 0:
+                            client_data = clients[0]
+                            balance = client_data.get("Balance")
+                            currency = client_data.get("Currency", "RUB")
+                            
+                            # Balance может быть в разных форматах (число или строка)
+                            if balance is not None:
+                                try:
+                                    balance_float = float(balance) if isinstance(balance, str) else balance
+                                    logger.info(f"Yandex Direct balance: {balance_float} {currency}")
+                                    return {
+                                        "balance": balance_float,
+                                        "currency": currency,
+                                        "amount": client_data.get("Amount"),
+                                        "sum": client_data.get("Sum")
+                                    }
+                                except (ValueError, TypeError) as e:
+                                    logger.warning(f"Failed to parse balance value: {balance}, error: {e}")
+                                    return None
+                    elif "error" in data:
+                        error_code = data["error"].get("error_code")
+                        error_string = data["error"].get("error_string", "")
+                        logger.warning(f"Yandex Clients API error {error_code}: {error_string}")
+                        # Не все аккаунты имеют доступ к Balance (требуется Direct Pro или определенные права)
+                        if error_code == 3228:  # API доступен только в режиме Директ Про
+                            logger.info("Balance field requires Direct Pro access, skipping")
+                        return None
+                    else:
+                        logger.warning(f"Unexpected response format from Yandex Clients API: {data}")
+                        return None
+                else:
+                    logger.warning(f"Failed to fetch Yandex balance: {response.status_code} - {response.text[:200]}")
+                    return None
+            except Exception as e:
+                logger.warning(f"Error fetching Yandex balance: {e}")
+                return None

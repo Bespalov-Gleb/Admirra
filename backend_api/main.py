@@ -54,6 +54,15 @@ from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
 from backend_api.campaigns import router as campaigns_router
 
+# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
+try:
+    from lead_validator.router import router as lead_validator_router
+    from lead_validator.webhook_router import router as webhook_router
+    LEAD_VALIDATOR_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Lead Validator module not available: {e}. Some endpoints will be disabled.")
+    LEAD_VALIDATOR_AVAILABLE = False
+
 app = FastAPI(
     title="Analytics SAAS API",
     description="Professional API for Advertising Campaign Analytics. Supports Yandex Direct, VK Ads, and Yandex Metrica.",
@@ -76,6 +85,11 @@ app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
+
+# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
+if LEAD_VALIDATOR_AVAILABLE:
+    app.include_router(lead_validator_router, prefix="/api")
+    app.include_router(webhook_router, prefix="/api")  # Публичные webhook'и для Tilda/Marquiz
 
 # Configure CORS
 app.add_middleware(

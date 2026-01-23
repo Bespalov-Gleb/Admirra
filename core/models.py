@@ -82,6 +82,10 @@ class Integration(Base):
     # Goals Support
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)
+    
+    # Balance Support
+    balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
+    currency = Column(String(3), default="RUB") # Currency code (RUB, USD, EUR, etc.)
 
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")

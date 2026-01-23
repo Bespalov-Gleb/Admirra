@@ -56,9 +56,51 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             )
             
             api = YandexDirectAPI(access_token, client_login=selected_profile)
+            
+            # Параллельно получаем баланс и статистику кампаний
+            log_event("sync", f"fetching yandex report and balance for {integration.id}")
+            balance_task = api.get_balance()
+            stats_task = api.get_report(date_from, date_to)
+            
+            # Ждем оба запроса параллельно
+            balance_data, stats = await asyncio.gather(
+                balance_task,
+                stats_task,
+                return_exceptions=True
+            )
+            
+            # Обрабатываем баланс
+            if isinstance(balance_data, Exception):
+                logger.warning(f"Failed to fetch balance for integration {integration.id}: {balance_data}")
+            elif balance_data:
+                integration.balance = balance_data.get("balance")
+                integration.currency = balance_data.get("currency", "RUB")
+                logger.info(f"Updated balance for integration {integration.id}: {integration.balance} {integration.currency}")
+            else:
+                logger.debug(f"Balance not available for integration {integration.id} (may require Direct Pro)")
+            
+            # Обрабатываем статистику
+            if isinstance(stats, Exception):
+                # If unauthorized and we have a refresh token, try to refresh
+                if ("401" in str(stats) or "Unauthorized" in str(stats)) and integration.refresh_token:
+                    from backend_api.services import IntegrationService
+                    logger.info(f"Refreshing Yandex token for integration {integration.id}")
+                    rt = security.decrypt_token(integration.refresh_token)
+                    new_token_data = await IntegrationService.refresh_yandex_token(rt, YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET)
+                    if new_token_data and "access_token" in new_token_data:
+                        integration.access_token = security.encrypt_token(new_token_data["access_token"])
+                        if "refresh_token" in new_token_data:
+                            integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
+                        db.flush()
+                        # Retry with new token (use same client_login to maintain profile filtering)
+                        api = YandexDirectAPI(new_token_data["access_token"], client_login=selected_profile)
+                        stats = await api.get_report(date_from, date_to)
+                    else:
+                        raise stats
+                else:
+                    raise stats
+            
             try:
-                log_event("sync", f"fetching yandex report for {integration.id}")
-                stats = await api.get_report(date_from, date_to)
                 log_event("sync", f"received {len(stats)} rows from yandex")
                 
                 # EDGE CASE: Empty report handling
@@ -150,11 +192,29 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             CacheService.clear()
             logger.info(f"🗑️ Cleared dashboard cache after saving Yandex stats for integration {integration.id}")
 
-            # Group and Keyword stats follow same pattern
+            # Group and Keyword stats - получаем параллельно
             # CRITICAL: Filter by integration_id to avoid saving data from other profiles
-            for level in ["group", "keyword"]:
-                 try:
-                     level_stats = await api.get_report(date_from, date_to, level=level)
+            group_task = api.get_report(date_from, date_to, level="group")
+            keyword_task = api.get_report(date_from, date_to, level="keyword")
+            
+            group_stats_result, keyword_stats_result = await asyncio.gather(
+                group_task,
+                keyword_task,
+                return_exceptions=True
+            )
+            
+            # Обрабатываем group stats
+            if isinstance(group_stats_result, Exception):
+                logger.warning(f"Error syncing group stats: {group_stats_result}")
+                group_stats_result = []
+            
+            level_stats_list = [
+                ("group", group_stats_result if not isinstance(group_stats_result, Exception) else []),
+                ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else [])
+            ]
+            
+            for level, level_stats in level_stats_list:
+                try:
                      for l in level_stats:
                          # CRITICAL: Verify that campaign_name belongs to this integration
                          # This prevents saving stats for campaigns from other profiles
@@ -207,6 +267,19 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)
             api = VKAdsAPI(access_token, integration.account_id)
+            
+            # Получаем баланс перед синхронизацией статистики
+            try:
+                balance_data = await api.get_balance()
+                if balance_data:
+                    integration.balance = balance_data.get("balance")
+                    integration.currency = balance_data.get("currency", "RUB")
+                    logger.info(f"Updated balance for integration {integration.id}: {integration.balance} {integration.currency}")
+                else:
+                    logger.debug(f"Balance not available for integration {integration.id}")
+            except Exception as balance_err:
+                logger.warning(f"Failed to fetch balance for integration {integration.id}: {balance_err}")
+            
             try:
                 log_event("sync", f"fetching vk statistics for {integration.id}")
                 stats = await api.get_statistics(date_from, date_to)

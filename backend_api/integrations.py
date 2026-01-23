@@ -81,23 +81,53 @@ def get_vk_auth_url(redirect_uri: str):
 
 from fastapi import BackgroundTasks
 
-def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
-    # Create a new session for the background task
+async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7):
+    """
+    Асинхронная функция для фоновой синхронизации.
+    Создает отдельную сессию БД и выполняет синхронизацию без блокировки основного потока.
+    """
     db = SessionLocal()
     try:
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
         if integration:
             try:
-                # We need to run the async sync function in a sync context or use asyncio.run
-                # Since we are in a background task (which runs in a thread pool), we can use asyncio.run
-                end = datetime.now().date()
-                start = end - timedelta(days=days)
-                asyncio.run(sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
+                end_date = datetime.now().date()
+                start_date = end_date - timedelta(days=days)
+                date_from = start_date.strftime("%Y-%m-%d")
+                date_to = end_date.strftime("%Y-%m-%d")
+                
+                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to})")
+                await sync_integration(db, integration, date_from, date_to)
                 db.commit()
+                logger.info(f"✅ Background sync completed for integration {integration_id}")
             except Exception as e:
-                logger.error(f"Background sync failed for {integration_id}: {e}")
+                logger.error(f"❌ Background sync failed for {integration_id}: {e}")
+                db.rollback()
+        else:
+            logger.warning(f"Integration {integration_id} not found for background sync")
     finally:
         db.close()
+
+def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
+    """
+    Синхронная обертка для BackgroundTasks (FastAPI BackgroundTasks требует синхронную функцию).
+    Запускает асинхронную синхронизацию в отдельном event loop.
+    """
+    import asyncio
+    import threading
+    
+    def run_in_thread():
+        """Запускает async функцию в отдельном потоке с новым event loop"""
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            new_loop.run_until_complete(run_sync_in_background_async(integration_id, days))
+        finally:
+            new_loop.close()
+    
+    # Запускаем в отдельном потоке, чтобы не блокировать основной
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
 
 @router.post("/yandex/exchange")
 async def exchange_yandex_token(
@@ -481,6 +511,7 @@ async def trigger_sync(
 ):
     """
     Manually trigger data synchronization for a specific integration.
+    Синхронизация выполняется в фоне, чтобы не блокировать запрос.
     """
     days = request_data.days if request_data else 7
     integration = db.query(models.Integration).join(models.Client).filter(
@@ -490,20 +521,19 @@ async def trigger_sync(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
-        
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=days)
     
-    date_from = start_date.strftime("%Y-%m-%d")
-    date_to = end_date.strftime("%Y-%m-%d")
-
-    try:
-        await sync_integration(db, integration, date_from, date_to)
-        db.commit()
-        return {"status": "success", "message": f"Synced last {days} days"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+    # Запускаем синхронизацию в фоне через asyncio.create_task
+    # CRITICAL: Не используем await - синхронизация выполняется в фоне без блокировки запроса
+    asyncio.create_task(run_sync_in_background_async(integration_id, days))
+    
+    # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
+    integration.sync_status = models.IntegrationSyncStatus.PENDING
+    db.commit()
+    
+    return {
+        "status": "queued", 
+        "message": f"Sync queued for last {days} days. Processing in background..."
+    }
 
 @router.get("/{integration_id}", response_model=schemas.IntegrationResponse)
 def get_integration(
@@ -890,13 +920,17 @@ async def get_integration_goals(
             all_goals = []
             from sqlalchemy import func
             
-            for counter_id in counter_ids_list:
-                try:
-                    goals = await metrica_api.get_counter_goals(counter_id)
-                except Exception as goals_err:
-                    logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
+            # Получаем цели для всех счетчиков параллельно
+            goals_tasks = [metrica_api.get_counter_goals(counter_id) for counter_id in counter_ids_list]
+            goals_results = await asyncio.gather(*goals_tasks, return_exceptions=True)
+            
+            # Обрабатываем результаты
+            for counter_id, goals_result in zip(counter_ids_list, goals_results):
+                if isinstance(goals_result, Exception):
+                    logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_result}")
                     continue
                 
+                goals = goals_result
                 for goal in goals:
                     goal_id = str(goal["id"])
                     goal_name = goal.get("name", f"Goal {goal_id}")
@@ -1646,22 +1680,12 @@ async def update_integration(
     
     # OPTIMIZATION: Sync statistics only when integration is finalized (is_active=True)
     # This happens on step 6 (summary) when user completes the integration wizard
+    # CRITICAL: Sync выполняется в фоне, чтобы не блокировать запрос
     if integration_in.get("is_active") is True:
-        from datetime import datetime, timedelta
-        try:
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)  # Sync last 30 days
-            date_from = start_date.strftime("%Y-%m-%d")
-            date_to = end_date.strftime("%Y-%m-%d")
-            
-            logger.info(f"🔄 Finalizing integration {integration_id}: syncing stats ({date_from} to {date_to})")
-            await sync_integration(db, integration, date_from, date_to)
-            db.commit()
-            logger.info(f"✅ Statistics synced for finalized integration {integration_id}")
-        except Exception as e:
-            # Don't fail the whole request if sync fails - user can retry later
-            logger.error(f"❌ Statistics sync failed for finalized integration {integration_id}: {e}")
-            log_event("backend", f"Statistics sync failed: {str(e)}")
+        # Запускаем синхронизацию в фоне через asyncio.create_task
+        # Это не блокирует запрос и выполняется асинхронно
+        asyncio.create_task(run_sync_in_background_async(integration_id, 30))
+        logger.info(f"🔄 Finalizing integration {integration_id}: queued background sync for 30 days")
     
     return integration
 
@@ -2354,27 +2378,38 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         db.add(new_integration)
         db.commit()
         
-        # 3. Trigger initial sync
-        tasks.append(run_sync_in_background_async(new_integration.id))
+        # 3. Trigger initial sync в фоне (не блокируем запрос)
+        # Используем asyncio.create_task для запуска в фоне без ожидания
+        asyncio.create_task(run_sync_in_background_async(new_integration.id, 7))
         imported_count += 1
     
-    if tasks:
-        await asyncio.gather(*tasks)
+    # НЕ ждем завершения синхронизации - она выполняется в фоне
     return imported_count
 
-async def run_sync_in_background_async(integration_id: uuid.UUID):
-    # Helper to run sync without needing background_tasks object
-    # In a real app we'd use Celery, here we just use asyncio.create_task
+async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7):
+    """
+    Асинхронная функция для фоновой синхронизации.
+    Создает отдельную сессию БД и выполняет синхронизацию без блокировки основного потока.
+    """
     db = SessionLocal()
     try:
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
         if integration:
-            end = datetime.now().date()
-            start = end - timedelta(days=7)
-            await sync_integration(db, integration, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
-            db.commit()
-    except Exception as e:
-        logger.error(f"Async bg sync failed for {integration_id}: {e}")
+            try:
+                end_date = datetime.now().date()
+                start_date = end_date - timedelta(days=days)
+                date_from = start_date.strftime("%Y-%m-%d")
+                date_to = end_date.strftime("%Y-%m-%d")
+                
+                logger.info(f"🔄 Background sync started for integration {integration_id} ({date_from} to {date_to})")
+                await sync_integration(db, integration, date_from, date_to)
+                db.commit()
+                logger.info(f"✅ Background sync completed for integration {integration_id}")
+            except Exception as e:
+                logger.error(f"❌ Background sync failed for integration {integration_id}: {e}")
+                db.rollback()
+        else:
+            logger.warning(f"Integration {integration_id} not found for background sync")
     finally:
         db.close()
 

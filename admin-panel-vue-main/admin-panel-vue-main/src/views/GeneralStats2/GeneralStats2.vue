@@ -194,12 +194,38 @@ const setInitialDates = () => {
   filters.end_date = end.toISOString().split('T')[0]
 }
 
-const handlePeriodChange = () => {
+const handlePeriodChange = async () => {
   const end = new Date()
   const start = new Date()
-  start.setDate(end.getDate() - parseInt(filters.period))
+  const periodDays = parseInt(filters.period)
+  start.setDate(end.getDate() - periodDays)
   filters.start_date = start.toISOString().split('T')[0]
   filters.end_date = end.toISOString().split('T')[0]
+  
+  // Автоматический пересинхрон при смене периода
+  if (filters.client_id) {
+    try {
+      const { data: integrations } = await api.get('integrations/')
+      const projectIntegrations = integrations.filter(integration => 
+        integration.client_id === filters.client_id
+      )
+      
+      const syncPromises = projectIntegrations.map(integration => 
+        api.post(`integrations/${integration.id}/sync`, { 
+          days: periodDays 
+        }).catch(err => {
+          console.warn(`[GeneralStats2] Sync failed for integration ${integration.id}:`, err)
+          return null
+        })
+      )
+      
+      Promise.allSettled(syncPromises).then(() => {
+        console.log('[GeneralStats2] Background sync completed')
+      })
+    } catch (err) {
+      console.warn('[GeneralStats2] Failed to trigger auto-sync:', err)
+    }
+  }
 }
 
 const fetchStats = async () => {

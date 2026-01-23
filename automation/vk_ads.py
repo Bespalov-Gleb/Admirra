@@ -1,7 +1,7 @@
 import httpx
 import logging
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,14 @@ class VKAdsAPI:
                     params["client_id"] = self.account_id
 
                 try:
-                    response = await client.get(url, params=params, headers=self.headers)
+                    # Увеличиваем таймаут для больших периодов (90+ дней)
+                    date_range_days = (datetime.strptime(d_to, "%Y-%m-%d") - datetime.strptime(d_from, "%Y-%m-%d")).days
+                    if date_range_days > 90:
+                        timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
+                    else:
+                        timeout_seconds = 120.0
+                    
+                    response = await client.get(url, params=params, headers=self.headers, timeout=timeout_seconds)
                     if response.status_code == 200:
                         chunk_data = self._parse_response(response.json(), names_map)
                         all_results.extend(chunk_data)
@@ -125,3 +132,49 @@ class VKAdsAPI:
                     "conversions": int(base.get("goals", 0))
                 })
         return results
+    
+    async def get_balance(self) -> Optional[Dict[str, Any]]:
+        """
+        Получает баланс рекламного кабинета VK Ads.
+        
+        Returns:
+            Dict с полями:
+            - balance: float - баланс в валюте кабинета
+            - currency: str - код валюты (RUB, USD, EUR, etc.)
+            Или None при ошибке
+        """
+        # VK Ads API v2: получение информации об аккаунте
+        url = f"{self.base_url}/accounts.json"
+        params = {}
+        if self.account_id:
+            params["client_id"] = self.account_id
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    if items and len(items) > 0:
+                        account = items[0]
+                        # VK Ads API возвращает баланс в разных полях в зависимости от версии API
+                        balance = account.get("balance") or account.get("amount") or account.get("funds")
+                        currency = account.get("currency", "RUB")
+                        
+                        if balance is not None:
+                            try:
+                                balance_float = float(balance) if isinstance(balance, str) else balance
+                                logger.info(f"VK Ads balance: {balance_float} {currency}")
+                                return {
+                                    "balance": balance_float,
+                                    "currency": currency
+                                }
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Failed to parse VK balance value: {balance}, error: {e}")
+                                return None
+                else:
+                    logger.warning(f"Failed to fetch VK Ads balance: {response.status_code} - {response.text[:200]}")
+                    return None
+        except Exception as e:
+            logger.warning(f"Error fetching VK Ads balance: {e}")
+            return None
