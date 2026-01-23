@@ -362,6 +362,12 @@ const fetchSelectedGoals = async () => {
 
     console.log(`[PromotionEfficiency] Selected goal IDs:`, Array.from(selectedGoalIds))
     console.log(`[PromotionEfficiency] Primary goal IDs:`, Array.from(primaryGoalIds))
+    console.log(`[PromotionEfficiency] Integrations with goals:`, integrations.map(i => ({
+      id: i.id,
+      platform: i.platform,
+      selected_goals: i.selected_goals,
+      primary_goal_id: i.primary_goal_id
+    })))
 
     // Get date range from summary or use default (last 14 days)
     const endDate = new Date().toISOString().split('T')[0]
@@ -377,12 +383,19 @@ const fetchSelectedGoals = async () => {
     })
 
     console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} goals from DB`)
+    console.log(`[PromotionEfficiency] Goals from DB:`, allGoalsData)
 
     // Filter to show only selected goals and mark primary ones
     const filteredGoals = (allGoalsData || [])
       .filter(goal => {
-        // Match by goal ID
-        return selectedGoalIds.has(String(goal.id)) || selectedGoalIds.has(String(goal.name))
+        // Match by goal ID (as string)
+        const goalIdStr = String(goal.id || '')
+        const goalNameStr = String(goal.name || '')
+        const isSelected = selectedGoalIds.has(goalIdStr) || selectedGoalIds.has(goalNameStr)
+        if (!isSelected) {
+          console.log(`[PromotionEfficiency] Goal ${goalIdStr} (${goalNameStr}) not in selected list`)
+        }
+        return isSelected
       })
       .map(goal => ({
         ...goal,

@@ -361,13 +361,27 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
             # CRITICAL: Sync Metrika goals for Direct integrations if goals are selected
             # Goals are linked to Direct campaigns through Metrika counters (CounterIds)
-            if integration.selected_goals or integration.primary_goal_id:
+            has_selected_goals = bool(integration.selected_goals) or bool(integration.primary_goal_id)
+            has_selected_counters = bool(integration.selected_counters)
+            
+            logger.info(f"🔄 Checking Metrika goals sync for Direct integration {integration.id}: "
+                       f"has_selected_goals={has_selected_goals}, has_selected_counters={has_selected_counters}, "
+                       f"selected_goals={integration.selected_goals}, selected_counters={integration.selected_counters}")
+            
+            if has_selected_goals and has_selected_counters:
                 try:
                     logger.info(f"🔄 Syncing Metrika goals for Direct integration {integration.id}")
                     await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
+                    db.commit()  # CRITICAL: Commit goals data
+                    logger.info(f"✅ Successfully synced and committed Metrika goals for Direct integration {integration.id}")
                 except Exception as goals_err:
-                    logger.warning(f"Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}")
+                    logger.error(f"❌ Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}", exc_info=True)
                     # Don't fail the entire sync if goals sync fails
+            elif has_selected_goals and not has_selected_counters:
+                logger.warning(f"⚠️ Direct integration {integration.id} has selected goals but no selected_counters. "
+                              f"Goals sync skipped. Please select Metrika counters in integration settings.")
+            elif not has_selected_goals:
+                logger.debug(f"Direct integration {integration.id} has no selected goals, skipping Metrika goals sync")
 
             # Group and Keyword stats - получаем параллельно
             # CRITICAL: Filter by integration_id to avoid saving data from other profiles
