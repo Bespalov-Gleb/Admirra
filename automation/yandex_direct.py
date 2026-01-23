@@ -1458,42 +1458,63 @@ class YandexDirectAPI:
             - amount_available_for_transfer: float - сумма доступная для перевода (если доступна)
             Или None при ошибке
         """
-        # CRITICAL: Для Direct Pro используем AccountManagement API
-        # Это правильный метод для получения баланса через Direct Pro
-        url = "https://api.direct.yandex.com/json/v5/accountmanagement"
+        # CRITICAL: Для Direct Pro используем AccountManagement API версии Live 4
+        # Согласно документации: "Для получения текущего баланса общего счета используйте 
+        # операцию AccountManagement_Get метода AccountManagement API версии Live 4"
+        url = "https://api.direct.yandex.ru/live/v4/json/"
         
         # CRITICAL: Log which profile we're requesting balance for
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
-        logger.info(f"💰 Requesting balance via AccountManagement API for profile: '{client_login_header}'")
+        logger.info(f"💰 Requesting balance via AccountManagement API Live 4 for profile: '{client_login_header}'")
         logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
         
-        # AccountManagement API требует Action: "Get" и SelectionCriteria
+        # AccountManagement API Live 4 требует Action: "Get" и SelectionCriteria
         # Если указан Client-Login, используем его в Logins
         selection_criteria = {}
         if client_login_header != "NOT SET (main account)":
             selection_criteria["Logins"] = [client_login_header]
         
+        # CRITICAL: Live 4 API использует формат с "param" (не "params") и "token" в payload
+        # Хотя мы используем Bearer в заголовке, для Live 4 может потребоваться token в payload
+        # Получаем токен из заголовка Authorization
+        token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
+        
         payload = {
             "method": "AccountManagement",
+            "token": token_from_header,
             "param": {
                 "Action": "Get",
-                "SelectionCriteria": selection_criteria
+                "SelectionCriteria": selection_criteria if selection_criteria else {}
             }
+        }
+        
+        # CRITICAL: Live 4 API может не требовать Authorization в заголовке, если token в payload
+        # Но оставим заголовок для совместимости
+        live4_headers = {
+            "Accept-Language": "ru",
+            "Content-Type": "application/json"
         }
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
-                logger.info(f"💰 Yandex AccountManagement API response status: {response.status_code}")
+                response = await client.post(url, json=payload, headers=live4_headers, timeout=30.0)
+                logger.info(f"💰 Yandex AccountManagement API Live 4 response status: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
                     logger.info(f"💰 Yandex AccountManagement API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
                     
-                    # AccountManagement API возвращает данные в структуре result -> Accounts
-                    if "result" in data and "Accounts" in data["result"]:
+                    # AccountManagement API Live 4 возвращает данные в структуре data -> Accounts
+                    # (не result, а data для Live 4)
+                    if "data" in data and "Accounts" in data["data"]:
+                        accounts = data["data"]["Accounts"]
+                    elif "result" in data and "Accounts" in data["result"]:
                         accounts = data["result"]["Accounts"]
-                        logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
+                    else:
+                        accounts = None
+                    
+                    if accounts:
+                        logger.info(f"💰 Yandex AccountManagement API Live 4 returned {len(accounts)} account(s)")
                         
                         if accounts and len(accounts) > 0:
                             account_data = accounts[0]
