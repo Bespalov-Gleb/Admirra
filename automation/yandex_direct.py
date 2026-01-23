@@ -2,7 +2,7 @@ import httpx
 import json
 import asyncio
 from datetime import date, datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 from core.logging_utils import log_structured
 
