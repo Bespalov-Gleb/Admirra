@@ -1444,96 +1444,154 @@ class YandexDirectAPI:
     
     async def get_balance(self) -> Optional[Dict[str, Any]]:
         """
-        Получает баланс рекламного кабинета через Clients.get API.
+        Получает баланс рекламного кабинета через AccountManagement API (для Direct Pro).
         
-        CRITICAL: Баланс получается от ПРОФИЛЯ (кабинета), указанного в Client-Login заголовке.
+        CRITICAL: Для Direct Pro используется метод AccountManagement вместо Clients.get.
+        Баланс получается от ПРОФИЛЯ (кабинета), указанного в Client-Login заголовке.
         Если Client-Login не установлен, возвращается баланс основного кабинета токена.
         
         Returns:
             Dict с полями:
-            - balance: float - баланс в валюте кабинета
+            - balance: float - баланс в валюте кабинета (из поля Amount)
             - currency: str - код валюты (RUB, USD, EUR, etc.)
-            - amount: float - сумма на счете (может отличаться от balance)
-            - sum: float - общая сумма (если доступна)
+            - amount: float - сумма на счете
+            - amount_available_for_transfer: float - сумма доступная для перевода (если доступна)
             Или None при ошибке
         """
-        url = "https://api.direct.yandex.com/json/v5/clients"
-        # CRITICAL: Balance field is NOT available in Clients.get API for regular accounts
-        # It requires Direct Pro access or may be available through other fields
-        # Using Currency and Login to identify the account, balance may need to be fetched differently
-        payload = {
-            "method": "get",
-            "params": {
-                "FieldNames": ["Currency", "Login", "Amount"]
-            }
-        }
+        # CRITICAL: Для Direct Pro используем AccountManagement API
+        # Это правильный метод для получения баланса через Direct Pro
+        url = "https://api.direct.yandex.com/json/v5/accountmanagement"
         
         # CRITICAL: Log which profile we're requesting balance for
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
-        logger.info(f"💰 Requesting balance for profile: '{client_login_header}'")
+        logger.info(f"💰 Requesting balance via AccountManagement API for profile: '{client_login_header}'")
         logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
+        
+        # AccountManagement API требует Action: "Get" и SelectionCriteria
+        # Если указан Client-Login, используем его в Logins
+        selection_criteria = {}
+        if client_login_header != "NOT SET (main account)":
+            selection_criteria["Logins"] = [client_login_header]
+        
+        payload = {
+            "method": "AccountManagement",
+            "param": {
+                "Action": "Get",
+                "SelectionCriteria": selection_criteria
+            }
+        }
         
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
-                logger.info(f"💰 Yandex Clients API response status: {response.status_code}")
+                logger.info(f"💰 Yandex AccountManagement API response status: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
-                    logger.info(f"💰 Yandex Clients API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
+                    logger.info(f"💰 Yandex AccountManagement API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
                     
-                    if "result" in data and "Clients" in data["result"]:
-                        clients = data["result"]["Clients"]
-                        logger.info(f"💰 Yandex Clients API returned {len(clients)} client(s)")
+                    # AccountManagement API возвращает данные в структуре result -> Accounts
+                    if "result" in data and "Accounts" in data["result"]:
+                        accounts = data["result"]["Accounts"]
+                        logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
                         
-                        if clients and len(clients) > 0:
-                            client_data = clients[0]
+                        if accounts and len(accounts) > 0:
+                            account_data = accounts[0]
                             # CRITICAL: Log which profile's balance we received
-                            profile_login = client_data.get("Login", "UNKNOWN")
+                            profile_login = account_data.get("Login", "UNKNOWN")
                             logger.info(f"💰 Received balance for profile Login: '{profile_login}' (requested: '{client_login_header}')")
-                            logger.info(f"💰 Full client data: {json.dumps(client_data, indent=2, ensure_ascii=False)}")
+                            logger.info(f"💰 Full account data: {json.dumps(account_data, indent=2, ensure_ascii=False)}")
                             
                             # CRITICAL: Verify that we got balance for the correct profile
                             if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
                                 logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'")
                             
-                            # CRITICAL: Balance field is NOT available in Clients.get for regular accounts
-                            # It requires Direct Pro or may be available through Amount field
-                            # Amount field represents the account balance
-                            amount = client_data.get("Amount")
-                            currency = client_data.get("Currency", "RUB")
+                            # CRITICAL: AccountManagement API возвращает Amount (баланс) для Direct Pro
+                            amount = account_data.get("Amount")
+                            currency = account_data.get("Currency", "RUB")
+                            amount_available = account_data.get("AmountAvailableForTransfer")
                             
-                            # Use Amount as balance (Amount is the account balance)
                             if amount is not None:
                                 try:
                                     balance_float = float(amount) if isinstance(amount, str) else amount
-                                    logger.info(f"💰 Yandex Direct balance (from Amount): {balance_float} {currency} for profile '{profile_login}'")
-                                    return {
+                                    logger.info(f"💰 Yandex Direct balance (from AccountManagement): {balance_float} {currency} for profile '{profile_login}'")
+                                    result = {
                                         "balance": balance_float,
                                         "currency": currency,
-                                        "amount": amount,
-                                        "sum": client_data.get("Sum")
+                                        "amount": balance_float
                                     }
+                                    if amount_available is not None:
+                                        result["amount_available_for_transfer"] = float(amount_available) if isinstance(amount_available, str) else amount_available
+                                    return result
                                 except (ValueError, TypeError) as e:
                                     logger.warning(f"Failed to parse Amount value: {amount}, error: {e}")
                                     return None
                             else:
-                                logger.warning(f"Amount field is not available for profile '{profile_login}'. Balance may require Direct Pro access.")
+                                logger.warning(f"Amount field is not available in AccountManagement response for profile '{profile_login}'")
                                 return None
                     elif "error" in data:
                         error_code = data["error"].get("error_code")
                         error_string = data["error"].get("error_string", "")
-                        logger.warning(f"Yandex Clients API error {error_code}: {error_string}")
-                        # Не все аккаунты имеют доступ к Balance (требуется Direct Pro или определенные права)
-                        if error_code == 3228:  # API доступен только в режиме Директ Про
-                            logger.info("Balance field requires Direct Pro access, skipping")
+                        error_detail = data["error"].get("error_detail", "")
+                        logger.warning(f"Yandex AccountManagement API error {error_code}: {error_string} - {error_detail}")
+                        
+                        # Если AccountManagement не доступен, пробуем Clients.get как fallback
+                        if error_code == 3228 or "Direct Pro" in error_string or "AccountManagement" in error_detail:
+                            logger.info("AccountManagement requires Direct Pro access, trying Clients.get as fallback...")
+                            return await self._get_balance_fallback()
+                        
                         return None
                     else:
-                        logger.warning(f"Unexpected response format from Yandex Clients API: {data}")
-                        return None
+                        logger.warning(f"Unexpected response format from Yandex AccountManagement API: {data}")
+                        # Fallback to Clients.get
+                        logger.info("Trying Clients.get as fallback...")
+                        return await self._get_balance_fallback()
                 else:
-                    logger.warning(f"Failed to fetch Yandex balance: {response.status_code} - {response.text[:200]}")
-                    return None
+                    logger.warning(f"Failed to fetch Yandex balance via AccountManagement: {response.status_code} - {response.text[:200]}")
+                    # Fallback to Clients.get
+                    logger.info("Trying Clients.get as fallback...")
+                    return await self._get_balance_fallback()
             except Exception as e:
-                logger.warning(f"Error fetching Yandex balance: {e}")
+                logger.warning(f"Error fetching Yandex balance via AccountManagement: {e}")
+                # Fallback to Clients.get
+                logger.info("Trying Clients.get as fallback...")
+                return await self._get_balance_fallback()
+    
+    async def _get_balance_fallback(self) -> Optional[Dict[str, Any]]:
+        """
+        Fallback метод для получения баланса через Clients.get (если AccountManagement недоступен).
+        """
+        url = "https://api.direct.yandex.com/json/v5/clients"
+        payload = {
+            "method": "get",
+            "params": {
+                "FieldNames": ["Currency", "Login"]
+            }
+        }
+        
+        client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
+        logger.info(f"💰 Fallback: Requesting balance via Clients.get for profile: '{client_login_header}'")
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if "result" in data and "Clients" in data["result"]:
+                        clients = data["result"]["Clients"]
+                        
+                        if clients and len(clients) > 0:
+                            client_data = clients[0]
+                            profile_login = client_data.get("Login", "UNKNOWN")
+                            currency = client_data.get("Currency", "RUB")
+                            
+                            logger.warning(f"⚠️ Clients.get API does not return balance field. "
+                                         f"Profile '{profile_login}' balance requires Direct Pro and AccountManagement API.")
+                            
+                            return None
+                return None
+            except Exception as e:
+                logger.warning(f"Error in fallback balance fetch: {e}")
                 return None
