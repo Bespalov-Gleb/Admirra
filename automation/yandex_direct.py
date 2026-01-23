@@ -1468,19 +1468,31 @@ class YandexDirectAPI:
         # CRITICAL: Log which profile we're requesting balance for
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
         logger.info(f"💰 Requesting balance for profile: '{client_login_header}'")
+        logger.info(f"💰 Request headers: Client-Login='{client_login_header}', Authorization='Bearer ...'")
         
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
+                logger.info(f"💰 Yandex Clients API response status: {response.status_code}")
+                
                 if response.status_code == 200:
                     data = response.json()
+                    logger.info(f"💰 Yandex Clients API response: {json.dumps(data, indent=2, ensure_ascii=False)[:500]}")
+                    
                     if "result" in data and "Clients" in data["result"]:
                         clients = data["result"]["Clients"]
+                        logger.info(f"💰 Yandex Clients API returned {len(clients)} client(s)")
+                        
                         if clients and len(clients) > 0:
                             client_data = clients[0]
                             # CRITICAL: Log which profile's balance we received
                             profile_login = client_data.get("Login", "UNKNOWN")
                             logger.info(f"💰 Received balance for profile Login: '{profile_login}' (requested: '{client_login_header}')")
+                            logger.info(f"💰 Full client data: {json.dumps(client_data, indent=2, ensure_ascii=False)}")
+                            
+                            # CRITICAL: Verify that we got balance for the correct profile
+                            if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
+                                logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'")
                             
                             balance = client_data.get("Balance")
                             currency = client_data.get("Currency", "RUB")

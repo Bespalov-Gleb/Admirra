@@ -214,14 +214,19 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             access_token = security.decrypt_token(integration.access_token)
             
             # CRITICAL: Use exactly тот профиль, который пользователь выбрал на шаге 2.
-            # В UI этот профиль сохраняется в integration.account_id.
-            # agency_client_login раньше использовался как «подстраховка», но это приводило
-            # к рассинхрону, когда в нём оставался старый логин другого профиля.
-            # Теперь для всей фильтрации Direct используем только account_id.
-            selected_profile = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
+            # В UI этот профиль сохраняется в integration.account_id и integration.agency_client_login.
+            # Приоритет: agency_client_login (более точный), затем account_id
+            # Это логин рекламного кабинета (например, "istore-habarovsk"), который используется в Client-Login заголовке
+            selected_profile = None
+            if integration.agency_client_login and integration.agency_client_login.lower() not in ["unknown", "none", ""]:
+                selected_profile = integration.agency_client_login
+            elif integration.account_id and integration.account_id.lower() not in ["unknown", "none", ""]:
+                selected_profile = integration.account_id
+            
             logger.info(
                 f"Syncing Yandex Direct integration {integration.id} "
-                f"with profile (account_id)={selected_profile}, agency_client_login={integration.agency_client_login}"
+                f"with profile: agency_client_login='{integration.agency_client_login}', account_id='{integration.account_id}', "
+                f"selected_profile='{selected_profile}'"
             )
             
             api = YandexDirectAPI(access_token, client_login=selected_profile)
