@@ -1473,15 +1473,18 @@ class YandexDirectAPI:
         # Получаем токен из заголовка Authorization
         token_from_header = self.headers.get("Authorization", "").replace("Bearer ", "")
         
-        # AccountManagement API требует Action: "Get" и Logins в param
-        # Если указан Client-Login, используем его в Logins
-        # Для агентских аккаунтов: Logins содержит логин агентского аккаунта
+        # CRITICAL: AccountManagement API работает с аккаунтами верхнего уровня, а не с клиентами
+        # Если указан Client-Login (логин рекламного профиля/клиента), API может не вернуть данные для него
+        # Попробуем использовать Client-Login заголовок при запросе AccountManagement
+        # Без указания Logins в param - возможно, API сам поймет по заголовку
         param_data = {
             "Action": "Get"
         }
         
-        if client_login_header != "NOT SET (main account)":
-            param_data["Logins"] = [client_login_header]
+        # НЕ указываем Logins в param, если это клиент (не аккаунт верхнего уровня)
+        # AccountManagement API должен использовать Client-Login заголовок для фильтрации
+        # Если это не сработает, получим все доступные аккаунты и найдем нужный
+        logger.info(f"💰 AccountManagement request: using Client-Login header '{client_login_header}' for filtering")
         
         payload = {
             "method": "AccountManagement",
@@ -1489,12 +1492,15 @@ class YandexDirectAPI:
             "token": token_from_header
         }
         
-        # CRITICAL: AccountManagement API может не требовать Authorization в заголовке, если token в payload
-        # Но оставим заголовок для совместимости
+        # CRITICAL: AccountManagement API Live 4 может использовать Client-Login заголовок для фильтрации
+        # Добавляем Client-Login в заголовки запроса, если он указан
         api_headers = {
             "Accept-Language": "ru",
             "Content-Type": "application/json"
         }
+        if client_login_header != "NOT SET (main account)":
+            api_headers["Client-Login"] = client_login_header
+            logger.info(f"💰 Added Client-Login header to AccountManagement request: '{client_login_header}'")
         
         async with httpx.AsyncClient() as client:
             try:
