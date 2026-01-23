@@ -1509,10 +1509,18 @@ class YandexDirectAPI:
             "Action": "Get"
         }
         
+        # CRITICAL: AccountManagement API работает с AccountIDS общих счетов, а не с ClientId клиентов
+        # ClientId (109603565) и AccountID для AccountManagement - это разные сущности
+        # Для клиентов внутри агентского аккаунта может не быть отдельного общего счета
+        # Попробуем использовать AccountIDS, но если это не сработает, API вернет родительский аккаунт
         if account_ids:
             # Используем AccountIDS для получения баланса конкретного клиента
+            # ВАЖНО: Это может быть ClientId, а не AccountID для AccountManagement
+            # API может вернуть родительский аккаунт, если клиент не имеет отдельного счета
             param_data["AccountIDS"] = account_ids
-            logger.info(f"💰 Using AccountIDS {account_ids} for AccountManagement request")
+            logger.info(f"💰 Using AccountIDS {account_ids} (ClientId from Clients.get) for AccountManagement request")
+            logger.warning(f"⚠️ NOTE: ClientId and AccountManagement AccountID may be different entities. "
+                         f"If client doesn't have separate shared account, API may return parent account.")
         elif client_login_header != "NOT SET (main account)":
             # Fallback: используем Logins (может не сработать для клиентов, только для аккаунтов верхнего уровня)
             param_data["Logins"] = [client_login_header]
@@ -1602,29 +1610,59 @@ class YandexDirectAPI:
                                             # Получаем AccountID клиента
                                             account_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
                                             if account_id:
-                                                logger.info(f"✅ Found AccountID {account_id} for client '{client_login_header}'")
-                                                # Ищем аккаунт с этим AccountID в ответе AccountManagement
+                                                logger.info(f"✅ Found ClientId {account_id} for client '{client_login_header}'")
+                                                # CRITICAL: ClientId (109603565) и AccountID для AccountManagement - это разные сущности
+                                                # AccountManagement возвращает AccountID общих счетов верхнего уровня
+                                                # Клиент 'istore-habarovsk' может не иметь отдельного общего счета
+                                                # Попробуем найти аккаунт с этим AccountID в ответе AccountManagement
                                                 for acc in accounts:
-                                                    if acc.get("AccountID") == account_id:
+                                                    acc_id = acc.get("AccountID")
+                                                    if acc_id == account_id:
                                                         account_data = acc
                                                         logger.info(f"✅ Found account with AccountID {account_id} in AccountManagement response")
                                                         break
-                                            
-                                            if not account_data:
-                                                logger.warning(f"⚠️ AccountID {account_id} for client '{client_login_header}' not found in AccountManagement accounts")
+                                                
+                                                # Если не нашли по AccountID, возможно клиент использует баланс родительского аккаунта
+                                                # В этом случае AccountManagement может вернуть только родительский аккаунт
+                                                if not account_data:
+                                                    logger.warning(f"⚠️ ClientId {account_id} for client '{client_login_header}' not found in AccountManagement accounts. "
+                                                                 f"This may mean the client uses the parent account's balance.")
+                                                    logger.info(f"💰 AccountManagement returned accounts with AccountIDs: {[acc.get('AccountID') for acc in accounts]}")
+                                                    logger.info(f"💰 ClientId from Clients.get: {account_id}")
+                                                    logger.info(f"💰 These are different entities - ClientId is for client management, AccountID is for shared accounts")
+                                                    
+                                                    # CRITICAL: Если клиент не имеет отдельного общего счета,
+                                                    # его баланс может быть частью родительского аккаунта
+                                                    # В этом случае нужно использовать баланс родительского аккаунта
+                                                    # Но это неправильно - мы должны получить баланс именно клиента
+                                                    # Возможно, нужно использовать другой метод API или формат запроса
                                         else:
                                             logger.warning(f"⚠️ Clients.get returned different login '{client_login}' (requested: '{client_login_header}')")
                                 except Exception as clients_err:
                                     logger.warning(f"Failed to get AccountID via Clients.get: {clients_err}")
                                 
                                 if not account_data:
-                                    # Если все еще не нашли, логируем все доступные логины
+                                    # CRITICAL: Если клиент не найден в AccountManagement, это означает, что:
+                                    # 1. Клиент не имеет отдельного общего счета
+                                    # 2. Баланс клиента может быть частью родительского аккаунта
+                                    # 3. AccountManagement API не может вернуть баланс клиента напрямую
+                                    
+                                    # Логируем все доступные логины и AccountIDs
                                     available_logins = [acc.get("Login", "UNKNOWN") for acc in accounts]
+                                    available_account_ids = [acc.get("AccountID") for acc in accounts]
                                     logger.warning(f"⚠️ Requested profile '{client_login_header}' not found in AccountManagement response. "
                                                  f"Available profiles: {available_logins}")
-                                    # Используем первый аккаунт как fallback, но с предупреждением
-                                    account_data = accounts[0]
-                                    logger.warning(f"⚠️ Using first available account '{account_data.get('Login', 'UNKNOWN')}' as fallback")
+                                    logger.warning(f"⚠️ Available AccountIDs: {available_account_ids}")
+                                    logger.warning(f"⚠️ ClientId from Clients.get: {account_ids[0] if account_ids else 'N/A'}")
+                                    logger.warning(f"⚠️ CRITICAL: ClientId and AccountManagement AccountID are different entities!")
+                                    logger.warning(f"⚠️ Client '{client_login_header}' may not have a separate shared account. "
+                                                 f"Balance may be part of parent account or unavailable via AccountManagement API.")
+                                    
+                                    # НЕ используем fallback на родительский аккаунт - это неправильно
+                                    # Возвращаем None, чтобы показать, что баланс недоступен
+                                    logger.error(f"❌ Cannot get balance for client '{client_login_header}' via AccountManagement API. "
+                                               f"Client does not have a separate shared account.")
+                                    return None
                         else:
                             # Если профиль не указан, используем первый аккаунт
                             account_data = accounts[0]
