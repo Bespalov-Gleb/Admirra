@@ -3,6 +3,7 @@ import time
 from typing import Callable, Any, Optional
 from collections import deque
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,8 @@ class APIRequestQueue:
     
     def __init__(self):
         # Разные лимитеры для разных API
-        self.metrica_limiter = RateLimiter(max_requests=5, time_window=1.0)  # 5 запросов в секунду для Метрики
+        # CRITICAL: Метрика имеет очень строгие лимиты - уменьшаем до 2 запросов в секунду
+        self.metrica_limiter = RateLimiter(max_requests=2, time_window=1.0)  # 2 запросов в секунду для Метрики
         self.direct_limiter = RateLimiter(max_requests=10, time_window=1.0)  # 10 запросов в секунду для Директа
         self.vk_limiter = RateLimiter(max_requests=10, time_window=1.0)  # 10 запросов в секунду для VK
         self._queue = asyncio.Queue()
@@ -84,6 +86,36 @@ class APIRequestQueue:
                     result = await task['func'](*task.get('args', []), **task.get('kwargs', {}))
                     if task.get('future'):
                         task['future'].set_result(result)
+                except httpx.HTTPStatusError as e:
+                    # httpx.HTTPStatusError имеет response с status_code
+                    status_code = e.response.status_code if e.response else None
+                    if status_code == 429:
+                        # Try to get Retry-After header
+                        retry_after = 60  # Увеличиваем базовую задержку до 60 секунд для Метрики
+                        if e.response and e.response.headers:
+                            retry_after_header = e.response.headers.get('Retry-After', '60')
+                            try:
+                                retry_after = max(int(retry_after_header), 60)  # Минимум 60 секунд
+                            except:
+                                retry_after = 60
+                        
+                        task['retry_count'] = task.get('retry_count', 0) + 1
+                        if task['retry_count'] < 5:  # Увеличиваем до 5 попыток
+                            # Exponential backoff: 60s, 120s, 180s, 240s, 300s
+                            actual_wait = retry_after * task['retry_count']
+                            logger.warning(f"429 error for {api_type} API (attempt {task['retry_count']}/5). Waiting {actual_wait}s before retry")
+                            await asyncio.sleep(actual_wait)
+                            # Повторно добавляем в очередь
+                            await self._queue.put(task)
+                        else:
+                            logger.error(f"Max retries (5) reached for {api_type} API request after 429 errors")
+                            if task.get('future'):
+                                task['future'].set_exception(e)
+                    else:
+                        if task.get('future'):
+                            task['future'].set_exception(e)
+                        else:
+                            logger.error(f"HTTP error in API request queue: {e}")
                 except Exception as e:
                     # Обработка 429 ошибки (может быть в httpx.HTTPStatusError или в response)
                     status_code = None
@@ -91,25 +123,29 @@ class APIRequestQueue:
                         status_code = e.status_code
                     elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
                         status_code = e.response.status_code
+                    elif isinstance(e, Exception) and '429' in str(e):
+                        status_code = 429
                     
                     if status_code == 429:
                         # Try to get Retry-After header
-                        retry_after = 10
+                        retry_after = 60  # Увеличиваем базовую задержку до 60 секунд для Метрики
                         if hasattr(e, 'response') and hasattr(e.response, 'headers'):
-                            retry_after_header = e.response.headers.get('Retry-After', '10')
+                            retry_after_header = e.response.headers.get('Retry-After', '60')
                             try:
-                                retry_after = int(retry_after_header)
+                                retry_after = max(int(retry_after_header), 60)  # Минимум 60 секунд
                             except:
-                                retry_after = 10
+                                retry_after = 60
                         
-                        logger.warning(f"429 error for {api_type} API. Waiting {retry_after}s before retry")
-                        await asyncio.sleep(retry_after)
-                        # Повторно добавляем в очередь (с ограничением попыток)
                         task['retry_count'] = task.get('retry_count', 0) + 1
-                        if task['retry_count'] < 3:  # Максимум 3 попытки
+                        if task['retry_count'] < 5:  # Увеличиваем до 5 попыток
+                            # Exponential backoff: 60s, 120s, 180s, 240s, 300s
+                            actual_wait = retry_after * task['retry_count']
+                            logger.warning(f"429 error for {api_type} API (attempt {task['retry_count']}/5). Waiting {actual_wait}s before retry")
+                            await asyncio.sleep(actual_wait)
+                            # Повторно добавляем в очередь
                             await self._queue.put(task)
                         else:
-                            logger.error(f"Max retries reached for {api_type} API request")
+                            logger.error(f"Max retries (5) reached for {api_type} API request after 429 errors")
                             if task.get('future'):
                                 task['future'].set_exception(e)
                     else:

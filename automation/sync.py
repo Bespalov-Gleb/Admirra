@@ -150,19 +150,27 @@ async def _sync_metrika_goals_for_direct(
                     ))
             
             # Sync individual goals if selected
+            # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             if selected_goals and len(selected_goals) > 0:
-                for goal_id in selected_goals:
+                # First, get all goal names in one batch (if possible)
+                try:
+                    goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
+                    goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in goal_info}
+                except Exception as goals_info_err:
+                    logger.warning(f"Failed to fetch goal names for counter {counter_id}: {goals_info_err}")
+                    goal_names_map = {}
+                
+                # Sync goals one by one with delays
+                for idx, goal_id in enumerate(selected_goals):
                     try:
+                        # Add delay between requests to avoid rate limits
+                        if idx > 0:
+                            await asyncio.sleep(1.0)  # 1 second delay between goal requests
+                        
                         goal_metrics = f"ym:s:goal{goal_id}reaches"
                         goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
-                        # Get goal name
-                        goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
-                        goal_name = "Unknown Goal"
-                        for g in goal_info:
-                            if str(g.get("id")) == str(goal_id):
-                                goal_name = g.get("name", f"Goal {goal_id}")
-                                break
+                        goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
                         
                         # Save individual goal data
                         for g in goal_data:
@@ -189,6 +197,7 @@ async def _sync_metrika_goals_for_direct(
                                     ))
                     except Exception as goal_err:
                         logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
+                        # Continue with next goal even if this one fails
         except Exception as counter_err:
             logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
     
