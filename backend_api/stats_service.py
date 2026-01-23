@@ -206,18 +206,21 @@ class StatsService:
         cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
 
         # Агрегируем балансы из всех интеграций для выбранных клиентов
+        # CRITICAL: Фильтруем только интеграции с не-NULL балансом
+        # Суммируем балансы по валютам, затем берем первую валюту (обычно все в одной валюте)
         balance_query = db.query(
             func.sum(models.Integration.balance).label("total_balance"),
             models.Integration.currency
         ).filter(
-            models.Integration.client_id.in_(client_ids)
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.balance.isnot(None)
         ).group_by(models.Integration.currency).first()
         
         if balance_query and balance_query.total_balance is not None:
             total_balance = float(balance_query.total_balance)
             balance_currency = balance_query.currency or "RUB"
         else:
-            # Если балансы не найдены, пробуем получить из любой интеграции
+            # Если балансы не найдены через агрегацию, пробуем получить из любой интеграции
             sample_integration = db.query(models.Integration).filter(
                 models.Integration.client_id.in_(client_ids),
                 models.Integration.balance.isnot(None)

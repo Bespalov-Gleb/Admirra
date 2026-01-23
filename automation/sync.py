@@ -75,6 +75,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             elif balance_data:
                 integration.balance = balance_data.get("balance")
                 integration.currency = balance_data.get("currency", "RUB")
+                # CRITICAL: Сохраняем баланс сразу после обновления, чтобы он был доступен на дашборде
+                # даже если последующая обработка статистики завершится ошибкой
+                db.flush()
                 logger.info(f"Updated balance for integration {integration.id}: {integration.balance} {integration.currency}")
             else:
                 logger.debug(f"Balance not available for integration {integration.id} (may require Direct Pro)")
@@ -274,6 +277,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 if balance_data:
                     integration.balance = balance_data.get("balance")
                     integration.currency = balance_data.get("currency", "RUB")
+                    # CRITICAL: Сохраняем баланс сразу после обновления, чтобы он был доступен на дашборде
+                    # даже если последующая обработка статистики завершится ошибкой
+                    db.flush()
                     logger.info(f"Updated balance for integration {integration.id}: {integration.balance} {integration.currency}")
                 else:
                     logger.debug(f"Balance not available for integration {integration.id}")
