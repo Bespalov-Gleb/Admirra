@@ -1537,8 +1537,30 @@ class YandexDirectAPI:
                     if accounts and len(accounts) > 0:
                         logger.info(f"💰 Yandex AccountManagement API returned {len(accounts)} account(s)")
                         
-                        if accounts and len(accounts) > 0:
+                        # CRITICAL: Если запрашивался конкретный профиль, ищем его в списке аккаунтов
+                        # AccountManagement может вернуть все доступные аккаунты, даже если указан Logins
+                        account_data = None
+                        if client_login_header != "NOT SET (main account)":
+                            # Ищем аккаунт с нужным логином
+                            for acc in accounts:
+                                if acc.get("Login") == client_login_header:
+                                    account_data = acc
+                                    logger.info(f"✅ Found requested profile '{client_login_header}' in AccountManagement response")
+                                    break
+                            
+                            if not account_data:
+                                # Если не нашли, логируем все доступные логины
+                                available_logins = [acc.get("Login", "UNKNOWN") for acc in accounts]
+                                logger.warning(f"⚠️ Requested profile '{client_login_header}' not found in AccountManagement response. "
+                                             f"Available profiles: {available_logins}")
+                                # Используем первый аккаунт как fallback, но с предупреждением
+                                account_data = accounts[0]
+                                logger.warning(f"⚠️ Using first available account '{account_data.get('Login', 'UNKNOWN')}' as fallback")
+                        else:
+                            # Если профиль не указан, используем первый аккаунт
                             account_data = accounts[0]
+                        
+                        if account_data:
                             # CRITICAL: Log which profile's balance we received
                             profile_login = account_data.get("Login", "UNKNOWN")
                             logger.info(f"💰 Received balance for profile Login: '{profile_login}' (requested: '{client_login_header}')")
@@ -1546,7 +1568,8 @@ class YandexDirectAPI:
                             
                             # CRITICAL: Verify that we got balance for the correct profile
                             if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
-                                logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'")
+                                logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'. "
+                                             f"This may indicate that '{client_login_header}' is not accessible via AccountManagement API.")
                             
                             # CRITICAL: AccountManagement API возвращает Amount (баланс) для Direct Pro
                             amount = account_data.get("Amount")
