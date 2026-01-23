@@ -207,30 +207,41 @@ class StatsService:
 
         # Агрегируем балансы из всех интеграций для выбранных клиентов
         # CRITICAL: Фильтруем только интеграции с не-NULL балансом
-        # Суммируем балансы по валютам, затем берем первую валюту (обычно все в одной валюте)
-        balance_query = db.query(
-            func.sum(models.Integration.balance).label("total_balance"),
+        # Суммируем балансы всех интеграций (обычно все в одной валюте RUB)
+        # Если валюты разные, суммируем только RUB, иначе берем первую найденную валюту
+        all_balances = db.query(
+            models.Integration.balance,
             models.Integration.currency
         ).filter(
             models.Integration.client_id.in_(client_ids),
             models.Integration.balance.isnot(None)
-        ).group_by(models.Integration.currency).first()
+        ).all()
         
-        if balance_query and balance_query.total_balance is not None:
-            total_balance = float(balance_query.total_balance)
-            balance_currency = balance_query.currency or "RUB"
-        else:
-            # Если балансы не найдены через агрегацию, пробуем получить из любой интеграции
-            sample_integration = db.query(models.Integration).filter(
-                models.Integration.client_id.in_(client_ids),
-                models.Integration.balance.isnot(None)
-            ).first()
-            if sample_integration:
-                total_balance = float(sample_integration.balance) if sample_integration.balance else 0.0
-                balance_currency = sample_integration.currency or "RUB"
-            else:
-                total_balance = 0.0
+        if all_balances:
+            # Суммируем балансы, предпочитая RUB
+            total_balance = 0.0
+            balance_currency = "RUB"
+            
+            # Сначала пробуем найти валюту RUB
+            rub_balances = [b for b in all_balances if b.currency == "RUB"]
+            if rub_balances:
+                total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in rub_balances)
                 balance_currency = "RUB"
+            else:
+                # Если RUB нет, суммируем все балансы и берем первую валюту
+                currencies = set(b.currency or "RUB" for b in all_balances)
+                if len(currencies) == 1:
+                    # Все в одной валюте - суммируем все
+                    balance_currency = list(currencies)[0]
+                    total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in all_balances)
+                else:
+                    # Разные валюты - берем первую найденную и суммируем только её
+                    balance_currency = all_balances[0].currency or "RUB"
+                    same_currency_balances = [b for b in all_balances if (b.currency or "RUB") == balance_currency]
+                    total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in same_currency_balances)
+        else:
+            total_balance = 0.0
+            balance_currency = "RUB"
 
         return {
             "expenses": round(curr["costs"], 2),

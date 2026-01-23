@@ -65,11 +65,19 @@ defineEmits(['toggle-metric'])
 
 const { containerRef, dragScrollHandlers } = useDragScroll()
 
-const metrics = computed(() => [
+const metrics = computed(() => {
+  // CRITICAL: Ensure balance is properly converted to number and formatted
+  const balanceValue = typeof props.summary.balance === 'number' 
+    ? props.summary.balance 
+    : parseFloat(props.summary.balance) || 0
+  const currency = props.summary.currency || 'RUB'
+  const currencySymbol = currency === 'RUB' ? '₽' : currency
+  
+  return [
   {
     id: 'balance',
     title: 'Баланс',
-    value: (props.summary.balance || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
+    value: balanceValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currencySymbol,
     trend: 0,
     changePositive: true,
     icon: BanknotesIcon,
@@ -129,7 +137,8 @@ const metrics = computed(() => [
     icon: BanknotesIcon,
     iconColor: 'pink'
   }
-])
+  ]
+})
 </script>
 
 <style scoped>
