@@ -36,7 +36,7 @@
           <div 
             v-for="(config, key) in PLATFORMS" 
             :key="key"
-            @click="!config.comingSoon && updateForm({ platform: key })"
+            @click.stop="handlePlatformClick(key, config)"
             class="relative group p-4 bg-white border-2 rounded-[1.5rem] transition-all duration-300 cursor-pointer overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1"
             :class="[
               modelValue.platform === key ? 'border-blue-600 ring-4 ring-blue-50' : 'border-gray-50 hover:border-blue-200',
@@ -282,6 +282,14 @@ const handleCreateNewAction = () => {
 
 const updateForm = (updates) => {
   emit('update:modelValue', { ...props.modelValue, ...updates })
+}
+
+const handlePlatformClick = (key, config) => {
+  if (config.comingSoon) {
+    return // Don't allow selection of coming soon platforms
+  }
+  console.log('Platform clicked:', key, config)
+  updateForm({ platform: key })
 }
 </script>
 

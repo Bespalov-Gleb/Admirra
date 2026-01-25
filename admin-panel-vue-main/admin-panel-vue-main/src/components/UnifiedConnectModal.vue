@@ -56,7 +56,8 @@
         <!-- Step 1: Configuration (Platform & Project) -->
         <CustomScroll v-if="currentStep === 1" class="flex-grow">
           <IntegrationStep1 
-            v-model="form"
+            :modelValue="form"
+            @update:modelValue="(newForm) => Object.assign(form, newForm)"
             v-model:isCreatingNewProject="isCreatingNewProject"
             :projects="projects"
             :error="error"

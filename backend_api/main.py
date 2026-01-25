@@ -9,6 +9,10 @@ from starlette.responses import FileResponse # Changed from fastapi.responses.Fi
 from core.database import engine
 from core import models
 import os
+from dotenv import load_dotenv
+
+# Load .env file for local development (Docker Compose loads it automatically)
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(

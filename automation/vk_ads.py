@@ -125,6 +125,7 @@ class VKAdsAPI:
                     
                 results.append({
                     "date": row_date,
+                    "campaign_id": str(campaign_id) if campaign_id else "",
                     "campaign_name": campaign_name,
                     "impressions": int(base.get("shows", 0)),
                     "clicks": int(base.get("clicks", 0)),
@@ -132,6 +133,134 @@ class VKAdsAPI:
                     "conversions": int(base.get("goals", 0))
                 })
         return results
+    
+    async def get_accounts(self) -> List[Dict[str, Any]]:
+        """
+        Получает список доступных рекламных аккаунтов (кабинетов).
+        
+        Returns:
+            List[Dict] с полями:
+            - id: str - ID аккаунта
+            - name: str - название аккаунта
+            - status: str - статус аккаунта
+        """
+        url = f"{self.base_url}/ad_accounts.json"
+        params = {}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    return [
+                        {
+                            "id": str(item.get("id")),
+                            "name": item.get("name", f"Аккаунт {item.get('id')}"),
+                            "status": item.get("status", "unknown")
+                        }
+                        for item in items
+                    ]
+                else:
+                    logger.warning(f"Failed to fetch VK accounts: {response.status_code} - {response.text[:200]}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching VK accounts: {e}")
+            return []
+    
+    async def get_agency_clients(self) -> List[Dict[str, Any]]:
+        """
+        Получает список клиентов агентского аккаунта (если токен принадлежит агентству).
+        
+        Returns:
+            List[Dict] с полями:
+            - id: str - ID клиента
+            - name: str - название клиента
+            - status: str - статус клиента
+        """
+        url = f"{self.base_url}/agency/clients.json"
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    return [
+                        {
+                            "id": str(item.get("id")),
+                            "name": item.get("name", f"Клиент {item.get('id')}"),
+                            "status": item.get("status", "unknown")
+                        }
+                        for item in items
+                    ]
+                elif response.status_code == 403:
+                    # 403 означает, что это не агентский аккаунт - это нормально
+                    logger.debug("VK account is not an agency account (403)")
+                    return []
+                else:
+                    logger.warning(f"Failed to fetch VK agency clients: {response.status_code} - {response.text[:200]}")
+                    return []
+        except Exception as e:
+            logger.debug(f"Error fetching VK agency clients (may not be agency): {e}")
+            return []
+    
+    async def get_profiles(self) -> List[Dict[str, Any]]:
+        """
+        Получает список всех доступных профилей (аккаунтов) для выбора.
+        Включает личный аккаунт и agency клиентов (если есть).
+        
+        Returns:
+            List[Dict] с полями:
+            - id: str - ID аккаунта/клиента
+            - name: str - название
+            - type: str - "personal" или "agency_client"
+        """
+        profiles = []
+        seen_ids = set()
+        
+        # 1. Получаем личные аккаунты
+        try:
+            accounts = await self.get_accounts()
+            for account in accounts:
+                account_id = account.get("id")
+                if account_id and account_id not in seen_ids:
+                    profiles.append({
+                        "id": account_id,
+                        "name": f"Личный аккаунт ({account.get('name', account_id)})",
+                        "type": "personal"
+                    })
+                    seen_ids.add(account_id)
+                    logger.info(f"✅ Added personal VK account: {account_id}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch personal VK accounts: {e}")
+        
+        # 2. Получаем agency клиентов (если есть)
+        try:
+            agency_clients = await self.get_agency_clients()
+            for client in agency_clients:
+                client_id = client.get("id")
+                if client_id and client_id not in seen_ids:
+                    profiles.append({
+                        "id": client_id,
+                        "name": f"Клиент агентства ({client.get('name', client_id)})",
+                        "type": "agency_client"
+                    })
+                    seen_ids.add(client_id)
+                    logger.info(f"✅ Added VK agency client: {client_id}")
+        except Exception as e:
+            logger.debug(f"No agency clients found or error: {e}")
+        
+        # Fallback: если ничего не найдено, возвращаем текущий account_id если он есть
+        if not profiles and self.account_id:
+            profiles.append({
+                "id": str(self.account_id),
+                "name": f"Аккаунт ({self.account_id})",
+                "type": "personal"
+            })
+            logger.info(f"✅ Added fallback VK account: {self.account_id}")
+        
+        return profiles
     
     async def get_balance(self) -> Optional[Dict[str, Any]]:
         """
@@ -144,7 +273,8 @@ class VKAdsAPI:
             Или None при ошибке
         """
         # VK Ads API v2: получение информации об аккаунте
-        url = f"{self.base_url}/accounts.json"
+        # Используем ad_accounts.json для получения баланса (тот же эндпоинт, что и для списка аккаунтов)
+        url = f"{self.base_url}/ad_accounts.json"
         params = {}
         if self.account_id:
             params["client_id"] = self.account_id

@@ -571,7 +571,18 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "cost": s['cost'],
                     "conversions": s['conversions']
                 }
+                logger.info(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}")
                 _update_or_create_stats(db, models.VKStats, filters, data)
+            
+            # CRITICAL: Commit stats after processing all campaign stats
+            # This ensures data is saved even if subsequent processing fails
+            db.commit()
+            logger.info(f"✅ Committed VK stats records to database for integration {integration.id}")
+            
+            # Clear cache after saving stats to ensure fresh data on dashboard
+            from backend_api.cache_service import CacheService
+            CacheService.clear()
+            logger.info(f"🗑️ Cleared dashboard cache after saving VK stats for integration {integration.id}")
 
         elif integration.platform == models.IntegrationPlatform.YANDEX_METRIKA:
             if not integration.account_id:

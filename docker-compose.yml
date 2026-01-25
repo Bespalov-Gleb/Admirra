@@ -19,12 +19,21 @@ services:
 
   backend:
     build: .
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres_password@db:5432/saas_project
-      - YANDEX_CLIENT_ID=e2a052c8cac54caeb9b1b05a593be932
-      - YANDEX_CLIENT_SECRET=a3ff5920d00e4ee7b8a8019e33cdaaf0
-      - VK_CLIENT_ID=54416403
-      - VK_CLIENT_SECRET=8oAosCbGdjPM3CP8HCXe
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres_password@db:5432/saas_project}
+      - YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID}
+      - YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET}
+      - VK_CLIENT_ID=${VK_CLIENT_ID}
+      - VK_CLIENT_SECRET=${VK_CLIENT_SECRET}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - DADATA_API_KEY=${DADATA_API_KEY:-}
+      - DADATA_SECRET_KEY=${DADATA_SECRET_KEY:-}
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

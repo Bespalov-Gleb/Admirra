@@ -689,6 +689,55 @@ async def get_integration_profiles(
             log_event("yandex", f"error fetching profiles: {str(e)}", level="error")
             return [{"login": integration.account_id, "name": f"Аккаунт ({integration.account_id})"}]
     
+    elif integration.platform == models.IntegrationPlatform.VK_ADS:
+        log_event("vk", f"fetching profiles for integration {integration_id}")
+        try:
+            from automation.vk_ads import VKAdsAPI
+            vk_api = VKAdsAPI(access_token, integration.account_id)
+            
+            # Получаем все доступные профили (личные аккаунты + agency клиенты)
+            vk_profiles = await vk_api.get_profiles()
+            
+            # Преобразуем в формат, совместимый с Yandex (используем id как login)
+            profiles = []
+            for vk_profile in vk_profiles:
+                profile_id = vk_profile.get("id")
+                profile_name = vk_profile.get("name", f"Аккаунт {profile_id}")
+                profile_type = vk_profile.get("type", "personal")
+                
+                # Используем id как login для совместимости с существующей логикой
+                profiles.append({
+                    "id": profile_id,  # VK использует ID, а не login
+                    "login": profile_id,  # Для совместимости с Yandex форматом
+                    "name": profile_name,
+                    "type": profile_type
+                })
+                logger.info(f"✅ Added VK profile: {profile_id} ({profile_name})")
+            
+            # Fallback если ничего не найдено
+            if not profiles and integration.account_id:
+                profiles.append({
+                    "id": str(integration.account_id),
+                    "login": str(integration.account_id),
+                    "name": f"Аккаунт ({integration.account_id})",
+                    "type": "personal"
+                })
+                logger.info(f"✅ Added fallback VK profile: {integration.account_id}")
+            
+            logger.info(f"TOTAL VK profiles found for integration {integration_id}: {len(profiles)} - {[p['id'] for p in profiles]}")
+            log_event("vk", f"received {len(profiles)} profiles from vk")
+            return profiles
+        except Exception as e:
+            log_event("vk", f"error fetching VK profiles: {str(e)}", level="error")
+            # Fallback на account_id если есть
+            if integration.account_id:
+                return [{
+                    "id": str(integration.account_id),
+                    "login": str(integration.account_id),
+                    "name": f"Аккаунт ({integration.account_id})"
+                }]
+            return []
+    
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
     return [] # Return empty list for other platforms or if no specific logic
 
