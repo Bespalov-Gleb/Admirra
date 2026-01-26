@@ -794,8 +794,10 @@ const initVKAuth = async () => {
     if (!('VKIDSDK' in window)) {
       console.log('[initVKAuth] VK ID SDK not found, loading script...')
       const script = document.createElement('script')
-      script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js'
+      // ИСПРАВЛЕНО: правильный URL к UMD файлу VK ID SDK
+      script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@latest/dist/index.umd.js'
       script.async = true
+      script.crossOrigin = 'anonymous' // Для CORS
       
       const loadPromise = new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
@@ -976,9 +978,15 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
         container.innerHTML = '<div style="text-align: center; padding: 20px;"><div style="border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto;"></div><p style="margin-top: 15px; color: #666;">Обмен кода на токен...</p></div>'
         
         try {
-          // Обмениваем code на токен через бэкенд
+          // ИСПРАВЛЕНО: Используем VKID.Auth.exchangeCode как в документации, затем отправляем токен на бэкенд
+          const tokenData = await VKID.Auth.exchangeCode(code, deviceId)
+          console.log('[initVKAuth] VK ID token exchange successful:', tokenData)
+          
+          // Отправляем токен на бэкенд для сохранения интеграции
           const response = await api.post('integrations/vk/exchange', {
-            code,
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token,
+            expires_in: tokenData.expires_in,
             device_id: deviceId,
             redirect_uri: redirectUri,
             client_name: form.client_name,

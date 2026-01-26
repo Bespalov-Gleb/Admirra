@@ -97,7 +97,7 @@ def get_vk_auth_url(redirect_uri: str):
     return {
         "client_id": VK_CLIENT_ID,
         "redirect_uri": redirect_uri,
-        "sdk_url": "https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"
+        "sdk_url": "https://unpkg.com/@vkid/sdk@latest/dist/index.umd.js"  # ИСПРАВЛЕНО: правильный путь к UMD файлу
     }
 
 from fastapi import BackgroundTasks
@@ -325,147 +325,109 @@ async def exchange_yandex_token(
 
 @router.post("/vk/exchange")
 async def exchange_vk_token_oauth(
-    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "..."}
+    payload: dict, # Expecting {"access_token": "...", "refresh_token": "...", "code": "...", "redirect_uri": "...", "client_name": "..."}
     background_tasks: BackgroundTasks,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Exchange authorization code for VK Ads access token.
+    Сохраняет VK ID токен, полученный через VKID.Auth.exchangeCode на фронтенде.
     
-    ВАЖНО: Для VK Ads API обмен кода на токен происходит через ads.vk.com/api/v2/oauth2/token.json,
-    а не через id.vk.com/oauth2/auth.
+    ВАЖНО: Фронтенд использует VK ID SDK и VKID.Auth.exchangeCode для получения токена.
+    Бэкенд только сохраняет уже полученный токен в базу данных.
     """
-    auth_code = payload.get("code")
+    # Проверяем, есть ли уже готовый токен от VKID.Auth.exchangeCode
+    access_token = payload.get("access_token")
+    refresh_token = payload.get("refresh_token")
+    expires_in = payload.get("expires_in")
+    
     redirect_uri = payload.get("redirect_uri")
     client_name_input = payload.get("client_name")
-    client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
+    client_id_input = payload.get("client_id")
     
-    if not auth_code or not redirect_uri:
-        raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
-
-    logger.info(f"🔄 Exchanging VK authorization code for token...")
-    logger.info(f"   Code: {auth_code[:20]}... (truncated)")
-    logger.info(f"   Redirect URI: {redirect_uri}")
-    logger.info(f"   Client ID: {VK_CLIENT_ID}")
-    logger.info(f"   Token URL: {VK_TOKEN_URL}")
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            # ВАЖНО: VK ID SDK возвращает code, который нужно обменять через id.vk.com/oauth2/token
-            # Сначала получаем VK ID token, затем используем его для доступа к VK Ads API
-            device_id = payload.get("device_id")  # VK ID SDK может передавать device_id
-            
-            # Обмен кода на токен через VK ID endpoint
-            token_payload = {
-                "grant_type": "authorization_code",
-                "code": auth_code,
-                "client_id": VK_CLIENT_ID,
-                "client_secret": VK_CLIENT_SECRET,
-                "redirect_uri": redirect_uri
-            }
-            
-            if device_id:
-                token_payload["device_id"] = device_id
-            
-            logger.info(f"   Request payload keys: {list(token_payload.keys())}")
-            logger.info(f"   Using VK ID token endpoint: {VK_ID_TOKEN_URL}")
-            
-            # Сначала получаем токен через VK ID
-            response = await client.post(VK_ID_TOKEN_URL, data=token_payload, timeout=30.0)
-            
-            logger.info(f"📡 VK Token Exchange Response: {response.status_code}")
-            
-            if response.status_code != 200:
-                logger.error(f"❌ VK Token Exchange Failed: {response.status_code}")
-                logger.error(f"   Response text: {response.text[:500]}")
-                logger.error(f"   Response headers: {dict(response.headers)}")
+    # Если токен уже есть (от VKID.Auth.exchangeCode), используем его
+    if access_token:
+        logger.info(f"✅ Received VK ID token from frontend (VKID.Auth.exchangeCode)")
+        logger.info(f"   Access token received: {bool(access_token)}")
+        logger.info(f"   Refresh token received: {bool(refresh_token)}")
+        logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
+    else:
+        # Fallback: если токена нет, пытаемся обменять code (старый способ)
+        auth_code = payload.get("code")
+        device_id = payload.get("device_id")
+        
+        if not auth_code:
+            raise HTTPException(status_code=400, detail="Either access_token or code is required")
+        
+        logger.info(f"🔄 Exchanging VK authorization code for token (fallback)...")
+        logger.info(f"   Code: {auth_code[:20]}... (truncated)")
+        logger.info(f"   Device ID: {device_id or 'N/A'}")
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                token_payload = {
+                    "grant_type": "authorization_code",
+                    "code": auth_code,
+                    "client_id": VK_CLIENT_ID,
+                    "client_secret": VK_CLIENT_SECRET,
+                    "redirect_uri": redirect_uri or f"{os.getenv('FRONTEND_URL', 'https://admirra.ru')}/auth/vk/callback"
+                }
                 
-                try:
-                    error_data = response.json()
-                    error_code = error_data.get('error', 'unknown_error')
-                    error_description = error_data.get('error_description', 'Unknown error')
-                    
-                    logger.error(f"   Error code: {error_code}")
-                    logger.error(f"   Error description: {error_description}")
-                    logger.error(f"   Full error data: {error_data}")
-                    
-                    # Детальные сообщения об ошибках
-                    error_messages = {
-                        'invalid_client': 'Неверный client_id или client_secret. Проверьте значения в .env файле.',
-                        'invalid_grant': 'Код авторизации истек или уже использован. Попробуйте авторизоваться заново.',
-                        'invalid_redirect_uri': f'redirect_uri не совпадает с настройками приложения. Убедитесь, что в VK Apps указан: {redirect_uri}',
-                        'invalid_scope': 'Неверные права доступа. В настройках приложения должны быть включены: ads, offline',
-                        'access_denied': 'Пользователь отклонил запрос прав доступа.',
-                    }
-                    
-                    user_message = error_messages.get(error_code, f"VK Ads API Error: {error_description}")
-                    logger.error(f"VK OAuth Error: {error_code} - {error_description}")
-                    raise HTTPException(status_code=400, detail=user_message)
-                except ValueError as json_err:
-                    # Если ответ не JSON, возвращаем общую ошибку
-                    logger.error(f"   Failed to parse error response as JSON: {json_err}")
-                    raise HTTPException(status_code=400, detail=f"Failed to exchange token with VK Ads: {response.text[:200]}")
-        except httpx.TimeoutException as timeout_err:
-            logger.error(f"❌ VK Token Exchange Timeout: {timeout_err}")
-            raise HTTPException(status_code=504, detail="VK Ads API timeout. Попробуйте позже.")
-        except httpx.RequestError as req_err:
-            logger.error(f"❌ VK Token Exchange Request Error: {req_err}")
-            raise HTTPException(status_code=503, detail=f"Ошибка подключения к VK Ads API: {str(req_err)}")
-        
-        # Проверяем успешный ответ
-        if response.status_code != 200:
-            # Эта ошибка уже обработана выше, но на всякий случай
-            logger.error(f"❌ Unexpected status code after error handling: {response.status_code}")
-            raise HTTPException(status_code=400, detail=f"VK Ads API вернул ошибку: {response.status_code}")
-            
-        try:
-            token_data = response.json()
-            logger.info(f"✅ Token exchange successful")
-            logger.info(f"   Access token received: {bool(token_data.get('access_token'))}")
-            logger.info(f"   Refresh token received: {bool(token_data.get('refresh_token'))}")
-            logger.info(f"   Token type: {token_data.get('token_type', 'N/A')}")
-            logger.info(f"   Expires in: {token_data.get('expires_in', 'N/A')} seconds")
-        except ValueError as json_err:
-            logger.error(f"❌ Failed to parse token response as JSON: {json_err}")
-            logger.error(f"   Response text: {response.text[:500]}")
-            raise HTTPException(status_code=500, detail="VK Ads API вернул некорректный ответ. Попробуйте позже.")
-        
-        access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
-        
-        if not access_token:
-            logger.error(f"❌ No access_token in response: {token_data}")
-            raise HTTPException(status_code=500, detail="VK Ads API не вернул access_token. Проверьте настройки приложения.")
-        
-        # Try to auto-detect Account ID (Cabinet)
-        vk_account_id = None
-        try:
+                if device_id:
+                    token_payload["device_id"] = device_id
+                
+                logger.info(f"   Using VK ID token endpoint: {VK_ID_TOKEN_URL}")
+                response = await client.post(VK_ID_TOKEN_URL, data=token_payload, timeout=30.0)
+                
+                logger.info(f"📡 VK Token Exchange Response: {response.status_code}")
+                
+                if response.status_code != 200:
+                    logger.error(f"❌ VK Token Exchange Failed: {response.status_code}")
+                    logger.error(f"   Response text: {response.text[:500]}")
+                    raise HTTPException(status_code=400, detail=f"Failed to exchange code: {response.text[:200]}")
+                
+                token_data = response.json()
+                access_token = token_data.get("access_token")
+                refresh_token = token_data.get("refresh_token")
+                
+                if not access_token:
+                    raise HTTPException(status_code=500, detail="VK ID API не вернул access_token")
+            except Exception as exchange_err:
+                logger.error(f"❌ Failed to exchange code: {exchange_err}")
+                raise HTTPException(status_code=400, detail=f"Не удалось обменять код на токен: {str(exchange_err)}")
+    
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Access token is required")
+    
+    # Try to auto-detect Account ID (Cabinet) using the token
+    vk_account_id = None
+    try:
+        async with httpx.AsyncClient() as client:
             acc_response = await client.get(
                 "https://ads.vk.com/api/v2/ad_accounts.json", 
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10.0
             )
             if acc_response.status_code == 200:
                 acc_data = acc_response.json()
                 items = acc_data.get("items", [])
                 if items:
                     raw_id = items[0].get("id")
-                    # CRITICAL: Ensure account_id is a simple numeric string
-                    # VK Ads API should return numeric ID, but validate just in case
                     vk_account_id = str(raw_id)
-                    # Validate it's numeric (VK Ads IDs are numeric strings)
                     if not vk_account_id.isdigit():
                         logger.warning(f"⚠️ VK Account ID '{vk_account_id}' is not purely numeric, but using as-is")
                     logger.info(f"Auto-detected VK Account ID: {vk_account_id}")
-        except Exception as e:
-            logger.error(f"Failed to auto-detect VK Account ID: {e}")
+            else:
+                logger.warning(f"Failed to auto-detect VK Account ID: {acc_response.status_code} - {acc_response.text[:200]}")
+    except Exception as e:
+        logger.warning(f"Failed to auto-detect VK Account ID: {e}")
 
-        # Determine Client Name
-        client_name = client_name_input or "VK Ads Project"
-        
-        # Create/Get Client
-        # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
-        if client_id_input:
+    # Determine Client Name
+    client_name = client_name_input or "VK Ads Project"
+    
+    # Create/Get Client
+    # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
+    if client_id_input:
             try:
                 import uuid as uuid_lib
                 client_uuid = uuid_lib.UUID(client_id_input)
@@ -478,59 +440,59 @@ async def exchange_vk_token_oauth(
                     logger.error(f"Client ID {client_id_input} not found or not owned by user")
                     raise HTTPException(status_code=404, detail=f"Project (Client) not found")
                     
-                logger.info(f"Using existing client: {db_client.name} (ID: {db_client.id})")
-            except ValueError:
-                logger.error(f"Invalid client_id format: {client_id_input}")
-                raise HTTPException(status_code=400, detail="Invalid project ID format")
-        else:
-            # Legacy flow: search by name
-            db_client = db.query(models.Client).filter(
-                models.Client.owner_id == current_user.id,
-                models.Client.name == client_name
-            ).first()
-            
-            if not db_client:
-                db_client = models.Client(owner_id=current_user.id, name=client_name)
-                db.add(db_client)
-                db.flush()
-                logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
-
-        # Save Integration
-        db_integration = db.query(models.Integration).filter(
-            models.Integration.client_id == db_client.id,
-            models.Integration.platform == models.IntegrationPlatform.VK_ADS
+            logger.info(f"Using existing client: {db_client.name} (ID: {db_client.id})")
+        except ValueError:
+            logger.error(f"Invalid client_id format: {client_id_input}")
+            raise HTTPException(status_code=400, detail="Invalid project ID format")
+    else:
+        # Legacy flow: search by name
+        db_client = db.query(models.Client).filter(
+            models.Client.owner_id == current_user.id,
+            models.Client.name == client_name
         ).first()
+        
+        if not db_client:
+            db_client = models.Client(owner_id=current_user.id, name=client_name)
+            db.add(db_client)
+            db.flush()
+            logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
 
-        encrypted_access = security.encrypt_token(access_token)
-        encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-        
-        if db_integration:
-            db_integration.access_token = encrypted_access
-            db_integration.refresh_token = encrypted_refresh
-            db_integration.account_id = vk_account_id
-            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
-        else:
-            db_integration = models.Integration(
-                client_id=db_client.id,
-                platform=models.IntegrationPlatform.VK_ADS,
-                access_token=encrypted_access,
-                refresh_token=encrypted_refresh,
-                account_id=vk_account_id,
-                sync_status=models.IntegrationSyncStatus.NEVER
-            )
-            db.add(db_integration)
-        
-        db.commit()
-        db.refresh(db_integration)
-        
-        # Trigger background sync
-        background_tasks.add_task(run_sync_in_background, db_integration.id)
-        
-        return {
-            "status": "success", 
-            "integration_id": str(db_integration.id),
-            "is_agency": False # VK usually doesn't have the same agency structure as Yandex in this flow
-        }
+    # Save Integration
+    db_integration = db.query(models.Integration).filter(
+        models.Integration.client_id == db_client.id,
+        models.Integration.platform == models.IntegrationPlatform.VK_ADS
+    ).first()
+
+    encrypted_access = security.encrypt_token(access_token)
+    encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+    
+    if db_integration:
+        db_integration.access_token = encrypted_access
+        db_integration.refresh_token = encrypted_refresh
+        db_integration.account_id = vk_account_id
+        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+    else:
+        db_integration = models.Integration(
+            client_id=db_client.id,
+            platform=models.IntegrationPlatform.VK_ADS,
+            access_token=encrypted_access,
+            refresh_token=encrypted_refresh,
+            account_id=vk_account_id,
+            sync_status=models.IntegrationSyncStatus.NEVER
+        )
+        db.add(db_integration)
+    
+    db.commit()
+    db.refresh(db_integration)
+    
+    # Trigger background sync
+    background_tasks.add_task(run_sync_in_background, db_integration.id)
+    
+    return {
+        "status": "success", 
+        "integration_id": str(db_integration.id),
+        "is_agency": False # VK usually doesn't have the same agency structure as Yandex in this flow
+    }
 
 from .services import IntegrationService
 
