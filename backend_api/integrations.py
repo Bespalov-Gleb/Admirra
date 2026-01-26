@@ -74,30 +74,53 @@ def get_yandex_auth_url(redirect_uri: str):
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
     """
-    Возвращает конфигурацию для VK ID SDK (Low-code).
+    Возвращает OAuth URL для авторизации в VK Ads API.
     
-    ВАЖНО: Используем VK ID SDK (Low-code) для авторизации через виджеты.
-    Фронтенд должен использовать VK ID SDK для отображения виджетов авторизации.
+    ВАЖНО: Используем стандартный OAuth flow для VK Ads через ads.vk.com.
+    Токен от VK ID SDK не работает с VK Ads API - нужен отдельный OAuth flow.
     
-    Параметры для VK ID SDK:
-    - app: client_id приложения
-    - redirectUrl: URL для callback после авторизации
-    - responseMode: Callback (получаем code через callback)
-    - source: LOWCODE
-    - scope: права доступа (можно указать через параметр, но для VK Ads может не требоваться)
+    Параметры:
+    - client_id: ID приложения VK Ads
+    - redirect_uri: URL для callback после авторизации
+    - scope: ads offline (для доступа к VK Ads API и получения refresh_token)
+    - response_type: code
     
-    Убедитесь, что в настройках приложения VK ID:
+    Убедитесь, что в настройках приложения VK Ads:
     1. Redirect URL указан точно: {redirect_uri}
     2. Приложение настроено для Web-платформы
+    3. Включены права: ads, offline
     """
-    logger.info(f"🔗 VK ID SDK configuration requested:")
+    import secrets
+    import base64
+    import hashlib
+    
+    logger.info(f"🔗 VK Ads OAuth URL requested:")
     logger.info(f"   Client ID: {VK_CLIENT_ID}")
     logger.info(f"   Redirect URI: {redirect_uri}")
     
+    # Генерируем state для CSRF защиты
+    state = secrets.token_urlsafe(32)
+    
+    # Scope для VK Ads API
+    scope = "ads offline"
+    
+    # Формируем OAuth URL для VK Ads
+    auth_url = (
+        f"https://ads.vk.com/oauth2/authorize"
+        f"?client_id={VK_CLIENT_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&state={state}"
+    )
+    
+    logger.info(f"   Generated OAuth URL: {auth_url[:100]}...")
+    
     return {
+        "url": auth_url,
         "client_id": VK_CLIENT_ID,
         "redirect_uri": redirect_uri,
-        "sdk_url": "https://unpkg.com/@vkid/sdk@2.6.0/dist-sdk/umd/index.js"  # Правильный путь к UMD файлу VK ID SDK
+        "state": state
     }
 
 from fastapi import BackgroundTasks
@@ -331,10 +354,11 @@ async def exchange_vk_token_oauth(
     db: Session = Depends(get_db)
 ):
     """
-    Сохраняет VK ID токен, полученный через VKID.Auth.exchangeCode на фронтенде.
+    Обменивает authorization code на токен VK Ads API и сохраняет его.
     
-    ВАЖНО: Фронтенд использует VK ID SDK и VKID.Auth.exchangeCode для получения токена.
-    Бэкенд только сохраняет уже полученный токен в базу данных.
+    ВАЖНО: Используем стандартный OAuth flow для VK Ads через ads.vk.com.
+    Фронтенд получает authorization code через редирект на OAuth страницу VK Ads,
+    затем отправляет code на бэкенд для обмена на токен через VK Ads API.
     """
     # Проверяем, есть ли уже готовый токен от VKID.Auth.exchangeCode
     access_token = payload.get("access_token")
@@ -345,26 +369,13 @@ async def exchange_vk_token_oauth(
     client_name_input = payload.get("client_name")
     client_id_input = payload.get("client_id")
     
-    # Если токен уже есть (от VKID.Auth.exchangeCode), используем его
-    if access_token:
-        logger.info(f"✅ Received VK ID token from frontend (VKID.Auth.exchangeCode)")
-        logger.info(f"   Access token received: {bool(access_token)}")
-        logger.info(f"   Refresh token received: {bool(refresh_token)}")
-        logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
-        
-        # ВАЖНО: Токен от VK ID SDK может не работать напрямую с VK Ads API
-        # Нужно проверить, работает ли токен с VK Ads API
-        # Если нет - возможно, нужно использовать отдельный OAuth flow для VK Ads
-        logger.warning(f"⚠️ VK ID token may not work with VK Ads API. Testing token validity...")
-    else:
-        # Fallback: если токена нет, пытаемся обменять code (старый способ)
-        auth_code = payload.get("code")
-        device_id = payload.get("device_id")
-        
-        if not auth_code:
-            raise HTTPException(status_code=400, detail="Either access_token or code is required")
-        
-        logger.info(f"🔄 Exchanging VK authorization code for token (fallback)...")
+    # Проверяем, есть ли код авторизации для обмена через VK Ads API
+    auth_code = payload.get("code")
+    device_id = payload.get("device_id")
+    
+    # Если есть код авторизации, обмениваем его на токен через VK Ads API
+    if auth_code:
+        logger.info(f"🔄 Exchanging VK Ads authorization code for token...")
         logger.info(f"   Code: {auth_code[:20]}... (truncated)")
         logger.info(f"   Device ID: {device_id or 'N/A'}")
         
@@ -378,28 +389,40 @@ async def exchange_vk_token_oauth(
                     "redirect_uri": redirect_uri or f"{os.getenv('FRONTEND_URL', 'https://admirra.ru')}/auth/vk/callback"
                 }
                 
-                if device_id:
-                    token_payload["device_id"] = device_id
+                logger.info(f"   Using VK Ads token endpoint: {VK_ADS_TOKEN_URL}")
+                response = await client.post(VK_ADS_TOKEN_URL, data=token_payload, timeout=30.0)
                 
-                logger.info(f"   Using VK ID token endpoint: {VK_ID_TOKEN_URL}")
-                response = await client.post(VK_ID_TOKEN_URL, data=token_payload, timeout=30.0)
-                
-                logger.info(f"📡 VK Token Exchange Response: {response.status_code}")
+                logger.info(f"📡 VK Ads Token Exchange Response: {response.status_code}")
                 
                 if response.status_code != 200:
-                    logger.error(f"❌ VK Token Exchange Failed: {response.status_code}")
+                    logger.error(f"❌ VK Ads Token Exchange Failed: {response.status_code}")
                     logger.error(f"   Response text: {response.text[:500]}")
                     raise HTTPException(status_code=400, detail=f"Failed to exchange code: {response.text[:200]}")
                 
                 token_data = response.json()
                 access_token = token_data.get("access_token")
                 refresh_token = token_data.get("refresh_token")
+                expires_in = token_data.get("expires_in")
                 
                 if not access_token:
-                    raise HTTPException(status_code=500, detail="VK ID API не вернул access_token")
+                    raise HTTPException(status_code=500, detail="VK Ads API не вернул access_token")
+                
+                logger.info(f"✅ VK Ads token received successfully")
+                logger.info(f"   Access token received: {bool(access_token)}")
+                logger.info(f"   Refresh token received: {bool(refresh_token)}")
+                logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
             except Exception as exchange_err:
                 logger.error(f"❌ Failed to exchange code: {exchange_err}")
                 raise HTTPException(status_code=400, detail=f"Не удалось обменять код на токен: {str(exchange_err)}")
+    elif access_token:
+        # Fallback: если токен уже есть (от старого flow), используем его
+        logger.info(f"✅ Received token from frontend (legacy flow)")
+        logger.info(f"   Access token received: {bool(access_token)}")
+        logger.info(f"   Refresh token received: {bool(refresh_token)}")
+        logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
+    else:
+        # Если нет ни кода, ни токена - ошибка
+        raise HTTPException(status_code=400, detail="Either authorization code or access_token is required")
     
     if not access_token:
         raise HTTPException(status_code=400, detail="Access token is required")
