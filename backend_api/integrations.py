@@ -126,13 +126,19 @@ def get_vk_auth_url(redirect_uri: str):
         f"&redirect_uri={redirect_uri}"
     )
     
-    logger.info(f"   Generated VK Ads OAuth URL: {auth_url[:100]}...")
+    logger.info(f"   Generated VK Ads OAuth URL: {auth_url}")
+    logger.info(f"   Full OAuth parameters:")
+    logger.info(f"     - client_id: {VK_CLIENT_ID}")
+    logger.info(f"     - redirect_uri: {redirect_uri}")
+    logger.info(f"     - scope: {scope}")
+    logger.info(f"     - state: {state}")
     
     return {
         "url": auth_url,
         "client_id": VK_CLIENT_ID,
         "redirect_uri": redirect_uri,
-        "state": state
+        "state": state,
+        "scope": scope
     }
 
 from fastapi import BackgroundTasks
@@ -406,13 +412,20 @@ async def exchange_vk_token_oauth(
                 }
                 
                 logger.info(f"   Using VK Ads token endpoint: {VK_ADS_TOKEN_URL}")
+                logger.info(f"   Token payload: grant_type=authorization_code, code={auth_code[:20]}..., client_id={VK_CLIENT_ID}")
                 response = await client.post(VK_ADS_TOKEN_URL, data=token_payload, timeout=30.0)
                 
                 logger.info(f"📡 VK Ads Token Exchange Response: {response.status_code}")
+                logger.info(f"   Response headers: {dict(response.headers)}")
                 
                 if response.status_code != 200:
                     logger.error(f"❌ VK Ads Token Exchange Failed: {response.status_code}")
                     logger.error(f"   Response text: {response.text[:500]}")
+                    try:
+                        error_json = response.json()
+                        logger.error(f"   Error JSON: {error_json}")
+                    except:
+                        pass
                     raise HTTPException(status_code=400, detail=f"Failed to exchange code: {response.text[:200]}")
                 
                 token_data = response.json()
