@@ -416,9 +416,29 @@ const selectPlatform = (key) => {
 
 const close = () => {
   sendRemoteLog('Modal Closed')
-  emit('update:isOpen', false)
+  
+  // Очищаем виджеты VK ID при закрытии модального окна
+  const vkContainers = document.querySelectorAll('#vk-id-widget-container')
+  vkContainers.forEach(container => {
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container)
+    }
+  })
+  
+  // Очищаем iframe виджеты VK ID
+  const vkWidgets = document.querySelectorAll('iframe[src*="vk.com"], iframe[src*="vkid"]')
+  vkWidgets.forEach(widget => {
+    if (widget && widget.parentNode) {
+      widget.parentNode.removeChild(widget)
+    }
+  })
+  
+  // Сбрасываем состояние авторизации
+  loadingAuth.value = false
   error.value = null
   showValidationError.value = false
+  
+  emit('update:isOpen', false)
 }
 
 const selectProject = (project) => {
@@ -759,6 +779,12 @@ const initYandexAuth = async () => {
 }
 
 const initVKAuth = async () => {
+  // Защита от повторных вызовов
+  if (loadingAuth.value) {
+    console.warn('[initVKAuth] Already in progress, ignoring duplicate call')
+    return
+  }
+  
   loadingAuth.value = true
   error.value = null
   
@@ -923,11 +949,21 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
       throw new Error(`Ошибка инициализации конфигурации VK ID SDK: ${configErr.message || configErr}`)
     }
     
-    // Удаляем старый контейнер если есть
-    const oldContainer = document.getElementById('vk-id-widget-container')
-    if (oldContainer && oldContainer.parentNode) {
-      oldContainer.parentNode.removeChild(oldContainer)
-    }
+    // Удаляем все старые контейнеры виджетов если есть
+    const oldContainers = document.querySelectorAll('#vk-id-widget-container')
+    oldContainers.forEach(container => {
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+    })
+    
+    // Также удаляем все iframe виджеты VK ID, которые могли остаться
+    const vkWidgets = document.querySelectorAll('iframe[src*="vk.com"], iframe[src*="vkid"]')
+    vkWidgets.forEach(widget => {
+      if (widget && widget.parentNode) {
+        widget.parentNode.removeChild(widget)
+      }
+    })
     
     // Создаем новый контейнер для виджета
     const container = document.createElement('div')
