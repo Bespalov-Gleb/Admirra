@@ -1,8 +1,8 @@
 <template>
-  <div class="relative">
+  <div ref="containerRef" class="relative date-range-picker-container">
     <!-- Trigger Button -->
     <button
-      @click="isOpen = !isOpen"
+      @click.stop="toggleCalendar"
       class="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:border-blue-500 hover:bg-blue-50/50 transition-all min-w-[200px] justify-between"
     >
       <div class="flex items-center gap-2">
@@ -16,8 +16,8 @@
     <Transition name="fade-scale">
       <div
         v-if="isOpen"
-        v-click-outside="close"
-        class="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-50 min-w-[640px]"
+        class="calendar-popup absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-[9999] min-w-[640px]"
+        @click.stop
       >
         <!-- Quick Period Buttons -->
         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
@@ -145,7 +145,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { CalendarIcon } from '@heroicons/vue/24/outline'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/solid'
 
@@ -159,6 +159,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'change'])
 
+const containerRef = ref(null)
 const isOpen = ref(false)
 const currentDate = ref(new Date())
 const selectedStart = ref(null)
@@ -484,24 +485,32 @@ function applyDates() {
   }
 }
 
+function toggleCalendar() {
+  isOpen.value = !isOpen.value
+}
+
 function close() {
   isOpen.value = false
 }
 
-// Click outside directive
-const vClickOutside = {
-  mounted(el, binding) {
-    el.clickOutsideEvent = (event) => {
-      if (!(el === event.target || el.contains(event.target))) {
-        binding.value()
-      }
-    }
-    document.addEventListener('click', el.clickOutsideEvent)
-  },
-  unmounted(el) {
-    document.removeEventListener('click', el.clickOutsideEvent)
+// Click outside handler
+const handleClickOutside = (event) => {
+  if (!isOpen.value || !containerRef.value) return
+  
+  const button = containerRef.value.querySelector('button')
+  const popup = containerRef.value.querySelector('.calendar-popup')
+  if (popup && !popup.contains(event.target) && button && !button.contains(event.target)) {
+    close()
   }
 }
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // Initialize from props
 watch(() => props.modelValue, (newValue) => {
