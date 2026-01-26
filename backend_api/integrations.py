@@ -351,6 +351,11 @@ async def exchange_vk_token_oauth(
         logger.info(f"   Access token received: {bool(access_token)}")
         logger.info(f"   Refresh token received: {bool(refresh_token)}")
         logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
+        
+        # ВАЖНО: Токен от VK ID SDK может не работать напрямую с VK Ads API
+        # Нужно проверить, работает ли токен с VK Ads API
+        # Если нет - возможно, нужно использовать отдельный OAuth flow для VK Ads
+        logger.warning(f"⚠️ VK ID token may not work with VK Ads API. Testing token validity...")
     else:
         # Fallback: если токена нет, пытаемся обменять code (старый способ)
         auth_code = payload.get("code")

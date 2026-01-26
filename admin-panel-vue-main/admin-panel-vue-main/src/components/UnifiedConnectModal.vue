@@ -942,7 +942,7 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
         redirectUrl: redirectUri,
         responseMode: VKID.ConfigResponseMode.Callback,
         source: VKID.ConfigSource.LOWCODE,
-        scope: '' // Для VK Ads может потребоваться указать scope, но пока оставляем пустым
+        scope: 'ads' // Scope для доступа к VK Ads API
       })
       console.log('[initVKAuth] VK ID SDK config initialized successfully')
     } catch (configErr) {
