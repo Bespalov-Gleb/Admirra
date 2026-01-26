@@ -107,7 +107,7 @@
                 ОСНОВНАЯ
               </button>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-3 gap-4">
               <div>
                 <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Конверсия</span>
                 <span class="text-xl font-black text-gray-900">{{ (goal.count || 0).toLocaleString() }}</span>
@@ -115,6 +115,10 @@
               <div>
                 <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Стоимость</span>
                 <span class="text-xl font-black text-gray-900">{{ formatMoney(goal.cost || 0) }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Стоимость одной</span>
+                <span class="text-xl font-black text-gray-900">{{ formatMoney(calculateCPA(goal)) }}</span>
               </div>
             </div>
           </div>
@@ -252,6 +256,14 @@ const props = defineProps({
   clientId: {
     type: String,
     default: null
+  },
+  startDate: {
+    type: String,
+    default: ''
+  },
+  endDate: {
+    type: String,
+    default: ''
   }
 })
 
@@ -276,6 +288,13 @@ const formatMoney = (val) => {
     currency: props.summary.currency || 'RUB', 
     maximumFractionDigits: 0 
   }).format(val)
+}
+
+const calculateCPA = (goal) => {
+  if (!goal || !goal.count || goal.count === 0 || !goal.cost || goal.cost === 0) {
+    return 0
+  }
+  return goal.cost / goal.count
 }
 
 const formatGoalName = (name) => {
@@ -385,9 +404,17 @@ const fetchSelectedGoals = async () => {
       primary_goal_id: i.primary_goal_id
     })))
 
-    // Get date range from summary or use default (last 14 days)
-    const endDate = new Date().toISOString().split('T')[0]
-    const startDate = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // Use provided dates or default to last 14 days
+    let startDate = props.startDate
+    let endDate = props.endDate
+    
+    if (!startDate || !endDate) {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(end.getDate() - 13)
+      startDate = start.toISOString().split('T')[0]
+      endDate = end.toISOString().split('T')[0]
+    }
 
     // CRITICAL: Use /dashboard/goals endpoint which reads from DB only (no API calls to Metrika)
     const { data: allGoalsData } = await api.get('dashboard/goals', {
@@ -440,22 +467,39 @@ const fetchAutoGoals = async () => {
     return
   }
 
+  // Use provided dates or default to last 14 days
+  let startDate = props.startDate
+  let endDate = props.endDate
+  
+  if (!startDate || !endDate) {
+    const end = new Date()
+    const start = new Date()
+    start.setDate(end.getDate() - 13)
+    startDate = start.toISOString().split('T')[0]
+    endDate = end.toISOString().split('T')[0]
+  }
+
   loadingAutoGoals.value = true
   try {
-    // Get date range from summary or use default (last 14 days)
-    const endDate = new Date().toISOString().split('T')[0]
-    const startDate = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // Calculate date range for fetching (3 months back from endDate to ensure we have enough data for filtering)
+    const fetchEndDate = new Date(endDate)
+    const fetchStartDate = new Date(fetchEndDate)
+    fetchStartDate.setMonth(fetchStartDate.getMonth() - 3) // 3 months back
+    
+    const fetchStartDateStr = fetchStartDate.toISOString().split('T')[0]
+    const fetchEndDateStr = fetchEndDate.toISOString().split('T')[0]
 
-    // Get all goals from Metrika (target visits)
+    // Get all goals from Metrika (target visits) - fetch 3 months of data for caching
+    // But request data for the selected period to get correct aggregated totals
     const { data: allGoalsData } = await api.get('dashboard/goals', {
       params: {
         client_id: props.clientId,
-        date_from: startDate,
+        date_from: startDate, // Use selected period dates for correct aggregation
         date_to: endDate
       }
     })
 
-    console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} auto-goals from Metrika`)
+    console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} auto-goals from Metrika for period ${startDate} to ${endDate}`)
 
     // Get integrations to find primary goals
     const { data: integrations } = await api.get('integrations/', {
@@ -558,6 +602,14 @@ watch(() => props.clientId, () => {
   fetchSelectedGoals()
   fetchAutoGoals()
 }, { immediate: true })
+
+// Watch for date changes to reload goals when period changes
+watch([() => props.startDate, () => props.endDate], () => {
+  if (props.clientId && props.startDate && props.endDate) {
+    fetchSelectedGoals()
+    fetchAutoGoals()
+  }
+})
 
 onMounted(() => {
   fetchSelectedGoals()
