@@ -128,7 +128,14 @@
               <svg viewBox="0 0 200 200" class="w-full h-full">
                 <defs>
                   <filter id="shadow">
-                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+                    <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.15"/>
+                  </filter>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
                   </filter>
                 </defs>
                 <!-- Donut Chart -->
@@ -138,7 +145,7 @@
                     cy="0" 
                     r="80" 
                     fill="none" 
-                    stroke="#e5e7eb" 
+                    stroke="#f3f4f6" 
                     stroke-width="40"
                   />
                   <circle
@@ -149,11 +156,12 @@
                     r="80"
                     fill="none"
                     :stroke="segment.color"
-                    stroke-width="40"
+                    stroke-width="42"
                     :stroke-dasharray="segment.dashArray"
                     :stroke-dashoffset="segment.dashOffset"
                     :transform="`rotate(${segment.startAngle - 90})`"
                     filter="url(#shadow)"
+                    stroke-linecap="round"
                   />
                   <!-- Center Text -->
                   <text 
@@ -177,12 +185,12 @@
                 :key="goal.id"
                 class="flex items-center justify-between text-xs"
               >
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2.5">
                   <div 
-                    class="w-3 h-3 rounded-full"
+                    class="w-3.5 h-3.5 rounded-full shadow-sm border border-white"
                     :style="{ backgroundColor: donutColors[index % donutColors.length] }"
                   ></div>
-                  <span class="text-gray-700 font-medium">{{ formatGoalName(goal.name) }}</span>
+                  <span class="text-gray-800 font-semibold text-xs">{{ formatGoalName(goal.name) }}</span>
                 </div>
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -511,7 +519,19 @@ const totalConversions = computed(() => {
   return autoGoals.value.reduce((sum, goal) => sum + (goal.count || 0), 0)
 })
 
-const donutColors = ['#4b5563', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6']
+// Яркая разноцветная палитра для donut chart
+const donutColors = [
+  '#3b82f6', // Синий
+  '#10b981', // Зеленый
+  '#f59e0b', // Оранжевый
+  '#ef4444', // Красный
+  '#8b5cf6', // Фиолетовый
+  '#ec4899', // Розовый
+  '#06b6d4', // Голубой
+  '#84cc16', // Лайм
+  '#f97316', // Оранжево-красный
+  '#6366f1'  // Индиго
+]
 
 const donutSegments = computed(() => {
   if (autoGoals.value.length === 0 || totalConversions.value === 0) return []
