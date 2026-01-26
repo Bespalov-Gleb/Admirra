@@ -39,6 +39,10 @@ onMounted(async () => {
   const state = route.query.state
   const errorParam = route.query.error
   const errorDescription = route.query.error_description
+  const user_id = route.query.user_id // VK может вернуть user_id
+  
+  console.log('[VKCallback] Query params:', { code, state, errorParam, errorDescription, user_id })
+  console.log('[VKCallback] Full query:', route.query)
   
   // Проверяем ошибки от VK OAuth (VK перенаправляет с ?error=...)
   if (errorParam) {
@@ -50,7 +54,9 @@ onMounted(async () => {
       'invalid_grant': 'Код авторизации истек. Попробуйте авторизоваться заново.',
     }
     
-    error.value = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
+    const errorMessage = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
+    console.error('[VKCallback] VK OAuth error:', errorParam, errorDescription)
+    error.value = errorMessage
     loading.value = false
     // Clean up localStorage
     localStorage.removeItem('vk_auth_state')
@@ -60,6 +66,7 @@ onMounted(async () => {
   // Проверка CSRF защиты: сравниваем state из callback с сохраненным
   const savedState = localStorage.getItem('vk_auth_state')
   if (state && savedState && state !== savedState) {
+    console.error('[VKCallback] State mismatch:', { received: state, saved: savedState })
     error.value = 'Ошибка безопасности: неверный state параметр. Попробуйте авторизоваться заново.'
     loading.value = false
     localStorage.removeItem('vk_auth_state')
@@ -67,6 +74,7 @@ onMounted(async () => {
   }
   
   if (!code) {
+    console.error('[VKCallback] No authorization code in query params')
     error.value = 'Код авторизации не найден. Возможно, вы не завершили процесс авторизации или произошла ошибка.'
     loading.value = false
     localStorage.removeItem('vk_auth_state')
@@ -78,6 +86,13 @@ onMounted(async () => {
     const clientName = localStorage.getItem('vk_auth_client_name')
     const clientId = localStorage.getItem('vk_auth_client_id')
     
+    console.log('[VKCallback] Exchanging code for token...', { 
+      code: code.substring(0, 10) + '...', 
+      redirectUri, 
+      clientName, 
+      clientId 
+    })
+    
     const payload = { 
       code, 
       redirect_uri: redirectUri,
@@ -86,6 +101,7 @@ onMounted(async () => {
     }
     
     const response = await api.post('integrations/vk/exchange', payload)
+    console.log('[VKCallback] Token exchange successful:', response.data)
     const integrationId = response.data.integration_id
     
     // Clean up localStorage
@@ -97,8 +113,24 @@ onMounted(async () => {
     // Redirect to integration wizard step 2 (campaigns, profile selection removed)
     router.push(`/integrations/wizard?resume_integration_id=${integrationId}&initial_step=2`) 
   } catch (err) {
-    console.error(err)
-    error.value = err.response?.data?.detail || 'Не удалось завершить подключение'
+    console.error('[VKCallback] Token exchange error:', err)
+    console.error('[VKCallback] Error response:', err.response)
+    console.error('[VKCallback] Error data:', err.response?.data)
+    
+    // Более детальная обработка ошибок
+    let errorMessage = 'Не удалось завершить подключение'
+    if (err.response?.data?.detail) {
+      errorMessage = err.response.data.detail
+    } else if (err.response?.data?.error) {
+      errorMessage = `Ошибка VK Ads: ${err.response.data.error}`
+      if (err.response.data.error_description) {
+        errorMessage += ` - ${err.response.data.error_description}`
+      }
+    } else if (err.message) {
+      errorMessage = `Ошибка: ${err.message}`
+    }
+    
+    error.value = errorMessage
     localStorage.removeItem('vk_auth_state')
   } finally {
     loading.value = false
