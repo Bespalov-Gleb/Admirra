@@ -412,10 +412,31 @@ async def exchange_vk_token_oauth(
         except httpx.RequestError as req_err:
             logger.error(f"❌ VK Token Exchange Request Error: {req_err}")
             raise HTTPException(status_code=503, detail=f"Ошибка подключения к VK Ads API: {str(req_err)}")
+        
+        # Проверяем успешный ответ
+        if response.status_code != 200:
+            # Эта ошибка уже обработана выше, но на всякий случай
+            logger.error(f"❌ Unexpected status code after error handling: {response.status_code}")
+            raise HTTPException(status_code=400, detail=f"VK Ads API вернул ошибку: {response.status_code}")
             
-        token_data = response.json()
+        try:
+            token_data = response.json()
+            logger.info(f"✅ Token exchange successful")
+            logger.info(f"   Access token received: {bool(token_data.get('access_token'))}")
+            logger.info(f"   Refresh token received: {bool(token_data.get('refresh_token'))}")
+            logger.info(f"   Token type: {token_data.get('token_type', 'N/A')}")
+            logger.info(f"   Expires in: {token_data.get('expires_in', 'N/A')} seconds")
+        except ValueError as json_err:
+            logger.error(f"❌ Failed to parse token response as JSON: {json_err}")
+            logger.error(f"   Response text: {response.text[:500]}")
+            raise HTTPException(status_code=500, detail="VK Ads API вернул некорректный ответ. Попробуйте позже.")
+        
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
+        
+        if not access_token:
+            logger.error(f"❌ No access_token in response: {token_data}")
+            raise HTTPException(status_code=500, detail="VK Ads API не вернул access_token. Проверьте настройки приложения.")
         
         # Try to auto-detect Account ID (Cabinet)
         vk_account_id = None
