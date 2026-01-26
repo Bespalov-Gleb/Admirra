@@ -203,6 +203,7 @@ class GoalStat(BaseModel):
     name: str
     count: int
     trend: float
+    cost: Optional[float] = 0.0  # Cost for this goal (proportional to conversions)
 
 class IntegrationStatus(BaseModel):
     platform: str

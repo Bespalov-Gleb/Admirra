@@ -24,6 +24,7 @@
             :all-campaigns="allCampaigns"
             :loading-campaigns="loadingCampaigns"
             @period-change="handlePeriodChange"
+            @date-change="handleDateChange"
             @export="handleExport"
             @update:campaign-ids="(ids) => filters.campaign_ids = ids"
           />
@@ -169,6 +170,11 @@ const dashboardTitle = computed(() => {
 })
 
 // --- Handlers ---
+
+const handleDateChange = () => {
+  // When custom dates are changed, fetch stats
+  fetchStats()
+}
 
 const handleExport = async () => {
   try {

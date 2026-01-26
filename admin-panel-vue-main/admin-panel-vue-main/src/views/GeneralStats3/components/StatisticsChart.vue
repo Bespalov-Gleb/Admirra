@@ -91,18 +91,15 @@ const selectedDays = computed({
   set: (val) => emit('update:period', val)
 })
 
-// Helper to normalize data for visual display (scale 0-1)
-const normalizeDataset = (data, label, offset = 0) => {
+// Helper to prepare data - use real values without normalization
+const prepareDataset = (data, label) => {
   const cleanData = Array.isArray(data) ? data.map(v => Number(v) || 0) : []
   
   if (cleanData.length === 0) return []
-
-  const max = Math.max(...cleanData, 0)
-  const safeMax = max === 0 ? 1 : max
   
   return cleanData.map((val, index) => ({
     x: props.dynamics.labels[index],
-    y: (val / safeMax) * 0.4 + offset, // Scale down and add offset
+    y: val, // Use real value directly
     realValue: val
   }))
 }
@@ -116,7 +113,7 @@ const allDatasets = computed(() => {
     {
       label: 'Расход',
       key: 'expenses',
-      data: normalizeDataset(d.costs, 'Расход', 0.5),
+      data: prepareDataset(d.costs, 'Расход'),
       borderColor: '#3b82f6',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -124,13 +121,14 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#3b82f6',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 2 : 2.5,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     },
     {
       label: 'Показы',
       key: 'impressions',
-      data: normalizeDataset(d.impressions, 'Показы', 0.4),
+      data: prepareDataset(d.impressions, 'Показы'),
       borderColor: '#f97316',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -138,13 +136,14 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#f97316',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     },
     {
       label: 'Переходы',
       key: 'clicks',
-      data: normalizeDataset(d.clicks, 'Переходы', 0.3),
+      data: prepareDataset(d.clicks, 'Переходы'),
       borderColor: '#22c55e',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -152,13 +151,14 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#22c55e',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     },
     {
       label: 'Лиды',
       key: 'leads',
-      data: normalizeDataset(d.leads, 'Лиды', 0.2),
+      data: prepareDataset(d.leads, 'Лиды'),
       borderColor: '#a855f7',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -166,13 +166,14 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#a855f7',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     },
     {
       label: 'CPC',
       key: 'cpc',
-      data: normalizeDataset(d.cpc, 'CPC', 0.1),
+      data: prepareDataset(d.cpc, 'CPC'),
       borderColor: '#ef4444',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -180,13 +181,14 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#ef4444',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     },
     {
       label: 'CPA',
       key: 'cpa',
-      data: normalizeDataset(d.cpa, 'CPA', 0),
+      data: prepareDataset(d.cpa, 'CPA'),
       borderColor: '#ec4899',
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -194,7 +196,8 @@ const allDatasets = computed(() => {
       pointBackgroundColor: '#ec4899',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0.4,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
       fill: false
     }
   ]
@@ -234,8 +237,7 @@ const chartOptions = computed(() => ({
     intersect: false,
   },
   animation: {
-    duration: 1000,
-    easing: 'easeInOutQuart'
+    duration: 0 // Disable animation for immediate rendering
   },
   plugins: {
     legend: {
@@ -263,12 +265,13 @@ const chartOptions = computed(() => ({
           if (label) {
             label += ': ';
           }
-          const realValue = context.raw.realValue;
-          if (realValue !== undefined) {
+          // Use the actual y value (which is now the real value)
+          const realValue = context.parsed.y !== undefined ? context.parsed.y : (context.raw.realValue || context.raw.y || 0);
+          if (realValue !== undefined && realValue !== null) {
              if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
-              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(realValue);
+              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(realValue);
             } else {
-              label += new Intl.NumberFormat('ru-RU').format(realValue);
+              label += new Intl.NumberFormat('ru-RU').format(Math.round(realValue));
             }
           }
           return label;
@@ -279,9 +282,22 @@ const chartOptions = computed(() => ({
   scales: {
     y: {
       beginAtZero: true,
-      max: 1.1, // Headroom for offsets
       ticks: {
-        display: false
+        display: true,
+        font: {
+          size: isMobile.value ? 9 : 11
+        },
+        color: '#6b7280',
+        callback: function(value) {
+          // Format large numbers
+          if (value >= 1000000) {
+            return (value / 1000000).toFixed(1) + 'M'
+          }
+          if (value >= 1000) {
+            return (value / 1000).toFixed(1) + 'K'
+          }
+          return value
+        }
       },
       grid: {
         color: '#e5e7eb',

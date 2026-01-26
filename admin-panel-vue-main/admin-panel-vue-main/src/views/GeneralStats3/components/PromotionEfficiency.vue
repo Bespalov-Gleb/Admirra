@@ -72,102 +72,130 @@
       </svg>
     </div>
 
-    <!-- Stats Table Section -->
+    <!-- Auto-Goals Table Section -->
     <div class="mt-8">
-      <div class="flex justify-center mb-6">
-        <button 
-          @click="isTableVisible = !isTableVisible"
-          class="text-[11px] font-black text-blue-500 uppercase tracking-widest flex items-center gap-2 hover:opacity-80 transition-opacity"
-        >
-          <svg 
-            class="w-3.5 h-3.5 transition-transform duration-300" 
-            :class="{ 'rotate-180': !isTableVisible }"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7"/>
-          </svg>
-          {{ isTableVisible ? 'Скрыть таблицу' : 'Подробнее' }}
-        </button>
+      <div v-if="loadingAutoGoals" class="text-center py-12">
+        <div class="inline-flex items-center gap-3 text-sm text-gray-500">
+          <div class="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+          <span class="font-medium">Загрузка автоцелей...</span>
+        </div>
       </div>
-
-      <div v-if="isTableVisible" class="overflow-x-auto transition-all duration-500">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
-              <th class="pb-4 pr-4">Кампании</th>
-              <th class="pb-4 px-2 text-right">Статус</th>
-              <th class="pb-4 px-2 text-right">Показы</th>
-              <th class="pb-4 px-2 text-right">Клики</th>
-              <th class="pb-4 px-2 text-right">CTR</th>
-              <th class="pb-4 px-2 text-right">Ср. стоимость клика</th>
-              <th class="pb-4 px-2 text-right">Конверсии</th>
-              <th class="pb-4 px-2 text-right">Конверсии (CR)</th>
-              <th class="pb-4 px-2 text-right">Цена цели</th>
-              <th class="pb-4 px-2 text-right text-nowrap">Расход ↑</th>
-              <th class="pb-4 px-2 text-right">Доходы</th>
-              <th class="pb-4 px-2 text-right">Прибыль</th>
-              <th class="pb-4 px-2 text-right text-nowrap">Рантабельность</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Total Row -->
-            <tr class="group">
-              <td class="py-4 pr-4 font-bold text-sm text-gray-900">Итого</td>
-              <td class="py-4 px-2 text-right text-[10px] font-black uppercase text-gray-400">—</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.impressions || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.clicks || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.ctr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ formatMoney(summary.cpc || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.leads || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.cr || 0).toFixed(2) }}%</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ summary.cpa ? formatMoney(summary.cpa) : '—' }}</td>
-              <td class="py-4 px-2 text-right text-sm font-black text-gray-900">{{ formatMoney(summary.expenses || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ formatMoney(summary.revenue || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700" :class="(summary.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'">
-                {{ formatMoney(summary.profit || 0) }}
-              </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-700">{{ (summary.roi || 0).toFixed(0) }}%</td>
-            </tr>
-            <!-- Campaign Rows -->
-            <tr v-for="cmp in campaigns" :key="cmp.id" class="border-t border-gray-50/50 hover:bg-gray-50/30 transition-colors">
-              <td class="py-4 pr-4 text-sm font-bold text-gray-500 truncate max-w-[200px]" :title="cmp.name">
-                <div class="flex flex-col gap-1">
-                  <span>{{ cmp.name }}</span>
-                  <div class="flex flex-wrap gap-1">
-                    <span v-if="getCTR(cmp) > 5" class="px-1.5 py-0.5 bg-green-50 text-green-600 text-[8px] font-black uppercase rounded border border-green-100 shadow-sm" title="Top CTR">Top CTR</span>
-                    <span v-if="cmp.conversions > 0 && getConversionRate(cmp) > 3" class="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[8px] font-black uppercase rounded border border-purple-100 shadow-sm" title="Высокая конверсия">Эффективно</span>
-                    <span v-if="needsAttention(cmp)" class="px-1.5 py-0.5 bg-yellow-50 text-yellow-600 text-[8px] font-black uppercase rounded border border-yellow-100 shadow-sm animate-pulse" title="Низкий CTR при расходах">Внимание</span>
-                  </div>
+      
+      <div v-else-if="autoGoals.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left: Goals List -->
+        <div class="lg:col-span-2 space-y-4">
+          <div 
+            v-for="goal in autoGoals" 
+            :key="goal.id"
+            class="bg-white rounded-xl p-5 border-2 transition-all hover:shadow-lg"
+            :class="goal.is_primary ? 'border-blue-300 shadow-md' : 'border-gray-200 hover:border-blue-200'"
+          >
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <h5 class="text-sm font-black text-gray-900 mb-1">
+                  {{ formatGoalName(goal.name) }}
+                </h5>
+                <p class="text-xs text-gray-500">ID: {{ goal.id }}</p>
+              </div>
+              <button
+                v-if="goal.is_primary"
+                class="flex-shrink-0 px-3 py-1.5 bg-blue-100 text-blue-700 text-[10px] font-black uppercase rounded-md border border-blue-300 flex items-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                ОСНОВНАЯ
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Конверсия</span>
+                <span class="text-xl font-black text-gray-900">{{ (goal.count || 0).toLocaleString() }}</span>
+              </div>
+              <div>
+                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Стоимость</span>
+                <span class="text-xl font-black text-gray-900">{{ formatMoney(goal.cost || 0) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right: Donut Chart -->
+        <div class="lg:col-span-1">
+          <div class="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-md">
+            <h4 class="text-sm font-black text-gray-900 uppercase tracking-wider mb-4">Разбивка по целям</h4>
+            <div class="relative w-full aspect-square max-w-[280px] mx-auto mb-4">
+              <svg viewBox="0 0 200 200" class="w-full h-full">
+                <defs>
+                  <filter id="shadow">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+                  </filter>
+                </defs>
+                <!-- Donut Chart -->
+                <g transform="translate(100, 100)">
+                  <circle 
+                    cx="0" 
+                    cy="0" 
+                    r="80" 
+                    fill="none" 
+                    stroke="#e5e7eb" 
+                    stroke-width="40"
+                  />
+                  <circle
+                    v-for="(segment, index) in donutSegments"
+                    :key="index"
+                    cx="0"
+                    cy="0"
+                    r="80"
+                    fill="none"
+                    :stroke="segment.color"
+                    stroke-width="40"
+                    :stroke-dasharray="segment.dashArray"
+                    :stroke-dashoffset="segment.dashOffset"
+                    :transform="`rotate(${segment.startAngle - 90})`"
+                    filter="url(#shadow)"
+                  />
+                  <!-- Center Text -->
+                  <text 
+                    x="0" 
+                    y="0" 
+                    text-anchor="middle" 
+                    dominant-baseline="middle" 
+                    font-size="24"
+                    font-weight="900"
+                    fill="#111827"
+                  >
+                    {{ totalConversions }} шт
+                  </text>
+                </g>
+              </svg>
+            </div>
+            <!-- Legend -->
+            <div class="space-y-2">
+              <div 
+                v-for="(goal, index) in autoGoals" 
+                :key="goal.id"
+                class="flex items-center justify-between text-xs"
+              >
+                <div class="flex items-center gap-2">
+                  <div 
+                    class="w-3 h-3 rounded-full"
+                    :style="{ backgroundColor: donutColors[index % donutColors.length] }"
+                  ></div>
+                  <span class="text-gray-700 font-medium">{{ formatGoalName(goal.name) }}</span>
                 </div>
-              </td>
-              <td class="py-4 px-2 text-right">
-                <span 
-                  class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter"
-                  :class="cmp.state === 'ON' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-50 text-gray-400 border border-gray-100'"
-                >
-                  {{ cmp.state === 'ON' ? 'Active' : 'Stopped' }}
-                </span>
-              </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.impressions || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.clicks || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
-                {{ cmp.impressions > 0 ? ((cmp.clicks/cmp.impressions)*100).toFixed(2) : '0.00' }}%
-              </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(cmp.cpc || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ (cmp.conversions || 0).toLocaleString() }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
-                {{ cmp.clicks > 0 ? ((cmp.conversions/cmp.clicks)*100).toFixed(2) : '0.00' }}%
-              </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">
-                {{ cmp.cpa ? formatMoney(cmp.cpa) : '—' }}
-              </td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(cmp.cost || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-gray-500">{{ formatMoney(0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-{{ formatMoney(cmp.cost || 0) }}</td>
-              <td class="py-4 px-2 text-right text-sm font-bold text-red-400">-100%</td>
-            </tr>
-          </tbody>
-        </table>
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div v-else class="text-center py-12">
+        <p class="text-sm text-gray-500 font-medium">Нет данных по автоцелям</p>
+        <p class="text-xs text-gray-400 mt-2">Настройте интеграции с Яндекс.Метрикой для отображения целевых визитов</p>
       </div>
     </div>
 
@@ -248,7 +276,9 @@ const props = defineProps({
 
 const isTableVisible = ref(true)
 const selectedGoals = ref([])
+const autoGoals = ref([]) // Auto-goals from Metrika (target visits)
 const loadingGoals = ref(false)
+const loadingAutoGoals = ref(false)
 
 const funnelLabels = computed(() => [
   { text: 'Показы', value: (props.summary.impressions || 0).toLocaleString() },
@@ -265,6 +295,11 @@ const formatMoney = (val) => {
     currency: props.summary.currency || 'RUB', 
     maximumFractionDigits: 0 
   }).format(val)
+}
+
+const formatGoalName = (name) => {
+  if (!name) return 'Автоцель'
+  return name.startsWith('Автоцель:') ? name : `Автоцель: ${name}`
 }
 
 const getCTR = (cmp) => {
@@ -417,13 +452,99 @@ const fetchSelectedGoals = async () => {
   }
 }
 
+// Fetch auto-goals (target visits from Metrika)
+const fetchAutoGoals = async () => {
+  if (!props.clientId) {
+    autoGoals.value = []
+    return
+  }
+
+  loadingAutoGoals.value = true
+  try {
+    // Get date range from summary or use default (last 14 days)
+    const endDate = new Date().toISOString().split('T')[0]
+    const startDate = new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    // Get all goals from Metrika (target visits)
+    const { data: allGoalsData } = await api.get('dashboard/goals', {
+      params: {
+        client_id: props.clientId,
+        date_from: startDate,
+        date_to: endDate
+      }
+    })
+
+    console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} auto-goals from Metrika`)
+
+    // Get integrations to find primary goals
+    const { data: integrations } = await api.get('integrations/', {
+      params: { client_id: props.clientId }
+    })
+
+    const primaryGoalIds = new Set()
+    integrations?.forEach(integration => {
+      if (integration.primary_goal_id) {
+        primaryGoalIds.add(String(integration.primary_goal_id))
+      }
+    })
+
+    // Map goals and mark primary ones
+    autoGoals.value = (allGoalsData || []).map(goal => ({
+      ...goal,
+      is_primary: primaryGoalIds.has(String(goal.id))
+    })).sort((a, b) => {
+      // Primary goals first, then by count
+      if (a.is_primary && !b.is_primary) return -1
+      if (!a.is_primary && b.is_primary) return 1
+      return (b.count || 0) - (a.count || 0)
+    })
+  } catch (err) {
+    console.error('[PromotionEfficiency] Failed to fetch auto-goals:', err)
+    autoGoals.value = []
+  } finally {
+    loadingAutoGoals.value = false
+  }
+}
+
+// Computed properties for donut chart
+const totalConversions = computed(() => {
+  return autoGoals.value.reduce((sum, goal) => sum + (goal.count || 0), 0)
+})
+
+const donutColors = ['#4b5563', '#6b7280', '#9ca3af', '#d1d5db', '#e5e7eb', '#f3f4f6']
+
+const donutSegments = computed(() => {
+  if (autoGoals.value.length === 0 || totalConversions.value === 0) return []
+  
+  const circumference = 2 * Math.PI * 80 // radius = 80
+  let accumulatedLength = 0
+  
+  return autoGoals.value.map((goal, index) => {
+    const percentage = (goal.count || 0) / totalConversions.value
+    const segmentLength = circumference * percentage
+    const startAngle = (accumulatedLength / circumference) * 360
+    
+    const segment = {
+      color: donutColors[index % donutColors.length],
+      dashArray: `${segmentLength} ${circumference}`,
+      dashOffset: -accumulatedLength,
+      startAngle: startAngle
+    }
+    
+    accumulatedLength += segmentLength
+    return segment
+  })
+})
+
 // Watch for client_id changes
 watch(() => props.clientId, () => {
   fetchSelectedGoals()
+  fetchAutoGoals()
 }, { immediate: true })
 
 onMounted(() => {
   fetchSelectedGoals()
+  fetchAutoGoals()
 })
 </script>
 

@@ -390,9 +390,11 @@ async def get_goals(
     db: Session = Depends(get_db)
 ):
     """
-    Get Metrika goals for the current client from database.
+    Get Metrika goals for the current client from database with cost calculation.
     CRITICAL: This endpoint reads from DB only - no API calls to avoid 429 errors.
     Optionally filter by integration_id to get goals for a specific Yandex account.
+    
+    Cost is calculated by distributing total ad spend proportionally to goal conversions.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     if not effective_client_ids: return []
@@ -407,6 +409,12 @@ async def get_goals(
         date_from_obj = date_to_obj - timedelta(days=13)
     else:
         date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
+
+    # Get total ad spend for cost distribution
+    # Use StatsService to get accurate total cost
+    from backend_api.stats_service import StatsService
+    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
+    total_cost = float(summary.get("expenses", 0) or 0)
 
     query = db.query(
         models.MetrikaGoals.goal_id,
@@ -427,7 +435,10 @@ async def get_goals(
     
     goals = query.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
 
-    # Calculate trend (simplified - compare with previous period)
+    # Calculate total conversions for proportional cost distribution
+    total_conversions = sum(int(g.count or 0) for g in goals)
+
+    # Calculate trend and cost (simplified - compare with previous period)
     result = []
     for g in goals:
         # Get previous period data for trend calculation
@@ -449,11 +460,17 @@ async def get_goals(
         if prev_count > 0:
             trend = round(((current_count - prev_count) / prev_count) * 100, 1)
         
+        # Calculate cost proportionally to conversions
+        cost = 0.0
+        if total_conversions > 0 and total_cost > 0:
+            cost = round((current_count / total_conversions) * total_cost, 2)
+        
         result.append({
             "id": g.goal_id,
             "name": g.goal_name or f"Goal {g.goal_id}",
             "count": current_count,
-            "trend": trend
+            "trend": trend,
+            "cost": cost  # NEW: Add cost field
         })
     
     return result

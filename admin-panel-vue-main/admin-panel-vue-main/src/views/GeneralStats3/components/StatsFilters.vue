@@ -83,32 +83,25 @@
             @change="$emit('period-change')"
             class="w-full h-9 pl-3 pr-8 bg-white/50 border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
           >
-            <option value="7">7 дней</option>
-            <option value="14">14 дней</option>
-            <option value="30">30 дней</option>
-            <option value="90">90 дней</option>
+            <option value="7">Последняя неделя</option>
+            <option value="14">2 недели</option>
+            <option value="30">Месяц</option>
+            <option value="90">Квартал</option>
+            <option value="180">Полгода</option>
+            <option value="365">Год</option>
             <option value="custom">Свой период</option>
           </select>
           <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
         </div>
       </div>
 
-      <!-- Custom Date Inputs -->
+      <!-- Custom Date Range Picker -->
       <div v-if="filters.period === 'custom'" class="flex flex-col gap-1">
         <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Даты</label>
-        <div class="flex items-center gap-1.5 p-1 bg-white border border-gray-100 rounded-[14px]">
-          <input 
-            type="date" 
-            v-model="filters.start_date"
-            class="h-7 w-[105px] px-2 bg-gray-50/50 text-[10px] font-bold text-gray-700 outline-none rounded-lg hover:bg-gray-100 transition-colors"
-          />
-          <div class="w-1.5 h-[1px] bg-gray-300"></div>
-          <input 
-            type="date" 
-            v-model="filters.end_date"
-            class="h-7 w-[105px] px-2 bg-gray-50/50 text-[10px] font-bold text-gray-700 outline-none rounded-lg hover:bg-gray-100 transition-colors"
-          />
-        </div>
+        <DateRangePicker
+          :model-value="{ start: filters.start_date, end: filters.end_date }"
+          @change="handleCustomDateChange"
+        />
       </div>
 
       <!-- Export Button -->
@@ -129,6 +122,7 @@
 <script setup>
 import { computed } from 'vue'
 import { ArrowDownTrayIcon, ChevronDownIcon } from '@heroicons/vue/24/solid'
+import DateRangePicker from '../../../components/ui/DateRangePicker.vue'
 
 const props = defineProps({
   filters: {
@@ -149,7 +143,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['period-change', 'export', 'update:campaign-ids'])
+const emit = defineEmits(['period-change', 'export', 'update:campaign-ids', 'date-change'])
 
 const selectedCampaignId = computed({
   get: () => {
@@ -164,4 +158,15 @@ const selectedCampaignId = computed({
     }
   }
 })
+
+const handleCustomDateChange = (dates) => {
+  if (dates.start) {
+    props.filters.start_date = dates.start
+  }
+  if (dates.end) {
+    props.filters.end_date = dates.end
+  }
+  emit('date-change', dates)
+  emit('period-change')
+}
 </script>

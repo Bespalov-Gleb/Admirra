@@ -60,7 +60,14 @@ export function useDashboardStats() {
   }
 
   const handlePeriodChange = async () => {
-    if (filters.period === 'custom') return
+    if (filters.period === 'custom') {
+      // For custom period, dates are set by DateRangePicker
+      // Just fetch stats if dates are already set
+      if (filters.start_date && filters.end_date) {
+        fetchStats()
+      }
+      return
+    }
     const end = new Date()
     const start = new Date()
     // CRITICAL: If period is "14 days", we want 14 days total (including today)
