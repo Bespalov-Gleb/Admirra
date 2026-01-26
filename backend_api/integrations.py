@@ -104,14 +104,16 @@ def get_vk_auth_url(redirect_uri: str):
     # Scope для VK Ads API
     scope = "ads offline"
     
-    # Формируем OAuth URL для VK Ads
+    # Формируем OAuth URL для VK Ads через стандартный OAuth VK
+    # VK Ads использует стандартный OAuth endpoint oauth.vk.com с scope=ads
     auth_url = (
-        f"https://ads.vk.com/oauth2/authorize"
+        f"https://oauth.vk.com/authorize"
         f"?client_id={VK_CLIENT_ID}"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"
         f"&scope={scope}"
         f"&state={state}"
+        f"&v=5.131"  # Версия API VK
     )
     
     logger.info(f"   Generated OAuth URL: {auth_url[:100]}...")
