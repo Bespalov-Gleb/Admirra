@@ -104,16 +104,25 @@ const prepareDataset = (data, label) => {
   }))
 }
 
-// Compute all datasets from props
+// Helper to calculate max value for a specific dataset
+const getDatasetMax = (data) => {
+  if (!data || data.length === 0) return 100
+  const max = Math.max(...data.map(p => p.y || 0))
+  return max > 0 ? max * 1.1 : 100
+}
+
+// Compute all datasets from props with individual Y-axes
 const allDatasets = computed(() => {
   if (!props.dynamics || !props.dynamics.labels) return []
 
   const d = props.dynamics
+  
   const datasets = [
     {
       label: 'Расход',
       key: 'expenses',
       data: prepareDataset(d.costs, 'Расход'),
+      yAxisID: 'y-expenses', // Assign to specific Y-axis
       borderColor: '#f97316', // Orange - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -129,6 +138,7 @@ const allDatasets = computed(() => {
       label: 'Показы',
       key: 'impressions',
       data: prepareDataset(d.impressions, 'Показы'),
+      yAxisID: 'y-impressions', // Assign to specific Y-axis
       borderColor: '#3b82f6', // Blue - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -144,6 +154,7 @@ const allDatasets = computed(() => {
       label: 'Переходы',
       key: 'clicks',
       data: prepareDataset(d.clicks, 'Переходы'),
+      yAxisID: 'y-clicks', // Assign to specific Y-axis
       borderColor: '#22c55e', // Green - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -159,6 +170,7 @@ const allDatasets = computed(() => {
       label: 'Лиды',
       key: 'leads',
       data: prepareDataset(d.leads, 'Лиды'),
+      yAxisID: 'y-leads', // Assign to specific Y-axis
       borderColor: '#ef4444', // Red - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -174,6 +186,7 @@ const allDatasets = computed(() => {
       label: 'CPC',
       key: 'cpc',
       data: prepareDataset(d.cpc, 'CPC'),
+      yAxisID: 'y-cpc', // Assign to specific Y-axis
       borderColor: '#a855f7', // Purple - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -189,6 +202,7 @@ const allDatasets = computed(() => {
       label: 'CPA',
       key: 'cpa',
       data: prepareDataset(d.cpa, 'CPA'),
+      yAxisID: 'y-cpa', // Assign to specific Y-axis
       borderColor: '#ec4899', // Pink - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
@@ -201,7 +215,12 @@ const allDatasets = computed(() => {
       fill: false
     }
   ]
-
+  
+  // Store max values for each dataset
+  datasets.forEach(dataset => {
+    dataset._maxValue = getDatasetMax(dataset.data)
+  })
+  
   return datasets
 })
 
@@ -211,6 +230,29 @@ const chartData = computed(() => ({
     ? allDatasets.value.filter(dataset => props.selectedMetrics.includes(dataset.key))
     : allDatasets.value
 }))
+
+// Helper to get max value for a specific axis based on visible datasets
+const getAxisMax = (axisId) => {
+  const visibleDatasets = props.selectedMetrics.length > 0
+    ? allDatasets.value.filter(dataset => props.selectedMetrics.includes(dataset.key))
+    : allDatasets.value
+  
+  // Find dataset(s) using this axis
+  const datasetsForAxis = visibleDatasets.filter(d => d.yAxisID === axisId)
+  
+  if (datasetsForAxis.length === 0) return 100
+  
+  // Get max value from all datasets using this axis
+  let max = 0
+  datasetsForAxis.forEach(dataset => {
+    dataset.data.forEach(point => {
+      const value = point.y || 0
+      if (value > max) max = value
+    })
+  })
+  
+  return max > 0 ? max * 1.1 : 100
+}
 
 const handleResize = () => {
   isMobile.value = window.innerWidth < 640
@@ -280,31 +322,113 @@ const chartOptions = computed(() => ({
     }
   },
   scales: {
-    y: {
+    // Individual Y-axes for each metric to allow independent scaling
+    'y-expenses': {
+      type: 'linear',
+      position: 'left',
       beginAtZero: true,
+      max: getAxisMax('y-expenses'),
       ticks: {
         display: true,
-        font: {
-          size: isMobile.value ? 9 : 11
-        },
-        color: '#6b7280',
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#f97316', // Match color to dataset
         callback: function(value) {
-          // Format large numbers
-          if (value >= 1000000) {
-            return (value / 1000000).toFixed(1) + 'M'
-          }
-          if (value >= 1000) {
-            return (value / 1000).toFixed(1) + 'K'
-          }
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
           return value
         }
       },
-      grid: {
+      grid: { 
         color: '#e5e7eb',
         display: true,
         drawBorder: false,
         lineWidth: 1
       }
+    },
+    'y-impressions': {
+      type: 'linear',
+      position: 'right',
+      beginAtZero: true,
+      max: getAxisMax('y-impressions'),
+      ticks: {
+        display: true,
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#3b82f6',
+        callback: function(value) {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+          return value
+        }
+      },
+      grid: { display: false } // Hide grid for right axis to avoid clutter
+    },
+    'y-clicks': {
+      type: 'linear',
+      position: 'left',
+      beginAtZero: true,
+      max: getAxisMax('y-clicks'),
+      ticks: {
+        display: true,
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#22c55e',
+        callback: function(value) {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+          return value
+        }
+      },
+      grid: { display: false }
+    },
+    'y-leads': {
+      type: 'linear',
+      position: 'right',
+      beginAtZero: true,
+      max: getAxisMax('y-leads'),
+      ticks: {
+        display: true,
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#ef4444',
+        callback: function(value) {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+          return value
+        }
+      },
+      grid: { display: false }
+    },
+    'y-cpc': {
+      type: 'linear',
+      position: 'left',
+      beginAtZero: true,
+      max: getAxisMax('y-cpc'),
+      ticks: {
+        display: true,
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#a855f7',
+        callback: function(value) {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+          return value
+        }
+      },
+      grid: { display: false }
+    },
+    'y-cpa': {
+      type: 'linear',
+      position: 'right',
+      beginAtZero: true,
+      max: getAxisMax('y-cpa'),
+      ticks: {
+        display: true,
+        font: { size: isMobile.value ? 9 : 11 },
+        color: '#ec4899',
+        callback: function(value) {
+          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+          return value
+        }
+      },
+      grid: { display: false }
     },
     x: {
       grid: {

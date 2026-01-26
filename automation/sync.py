@@ -139,9 +139,10 @@ async def _sync_metrika_goals_for_direct(
                     logger.warning(f"⚠️ Could not verify goal availability for counter {counter_id}, using all selected goals")
             
             # Sync aggregated goals
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+            # CRITICAL: Use visits (целевые визиты) instead of reaches (достижения цели)
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
             if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in valid_goals_for_counter]
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in valid_goals_for_counter]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
@@ -150,12 +151,13 @@ async def _sync_metrika_goals_for_direct(
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
-                total_reaches = 0
+                # CRITICAL: Now using visits (целевые визиты) instead of reaches
+                total_visits = 0
                 if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
                     for i in range(1, len(g['metrics'])):
-                        total_reaches += int(g['metrics'][i])
+                        total_visits += int(g['metrics'][i])
                 else:
-                    total_reaches = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                    total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
                 
                 existing = db.query(models.MetrikaGoals).filter(
                     models.MetrikaGoals.integration_id == integration.id,
@@ -164,7 +166,7 @@ async def _sync_metrika_goals_for_direct(
                 ).first()
                 
                 if existing:
-                    existing.conversion_count = total_reaches
+                    existing.conversion_count = total_visits
                 else:
                     db.add(models.MetrikaGoals(
                         client_id=integration.client_id,
@@ -172,7 +174,7 @@ async def _sync_metrika_goals_for_direct(
                         date=stat_date,
                         goal_id="all",
                         goal_name="Selected Goals" if selected_goals else "All Goals",
-                        conversion_count=total_reaches
+                        conversion_count=total_visits
                     ))
             
             # Sync individual goals if selected
@@ -188,7 +190,8 @@ async def _sync_metrika_goals_for_direct(
                         if idx > 0:
                             await asyncio.sleep(1.0)  # 1 second delay between goal requests
                         
-                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        # CRITICAL: Use visits (целевые визиты) instead of reaches
+                        goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
@@ -197,7 +200,7 @@ async def _sync_metrika_goals_for_direct(
                         for g in goal_data:
                             if len(g.get('metrics', [])) > 0:
                                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
-                                reaches = int(g['metrics'][0]) if g['metrics'] else 0
+                                visits = int(g['metrics'][0]) if g['metrics'] else 0
                                 
                                 existing = db.query(models.MetrikaGoals).filter(
                                     models.MetrikaGoals.integration_id == integration.id,
@@ -206,7 +209,7 @@ async def _sync_metrika_goals_for_direct(
                                 ).first()
                                 
                                 if existing:
-                                    existing.conversion_count = reaches
+                                    existing.conversion_count = visits
                                 else:
                                     db.add(models.MetrikaGoals(
                                         client_id=integration.client_id,
@@ -214,7 +217,7 @@ async def _sync_metrika_goals_for_direct(
                                         date=stat_date,
                                         goal_id=str(goal_id),
                                         goal_name=goal_name,
-                                        conversion_count=reaches
+                                        conversion_count=visits
                                     ))
                     except Exception as goal_err:
                         logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
@@ -632,9 +635,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             else:
                 logger.info(f"🔄 Regular sync for integration {integration.id}: fetching goals data ({sync_date_from} to {sync_date_to})")
 
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+            # CRITICAL: Use visits (целевые визиты) instead of reaches
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
             if selected_goals and len(selected_goals) > 0:
-                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in selected_goals]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
 
             # CRITICAL: Use request queue to avoid 429 errors
@@ -647,7 +651,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 # Sync each goal individually for detailed tracking
                 for goal_id in selected_goals:
                     try:
-                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        # CRITICAL: Use visits instead of reaches
+                        goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         # Get goal name from API
@@ -662,7 +667,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         for g in goal_data:
                             if len(g.get('metrics', [])) > 0:
                                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
-                                reaches = int(g['metrics'][0]) if g['metrics'] else 0
+                                visits = int(g['metrics'][0]) if g['metrics'] else 0
                                 
                                 existing = db.query(models.MetrikaGoals).filter(
                                     models.MetrikaGoals.integration_id == integration.id,
@@ -671,7 +676,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                                 ).first()
                                 
                                 if existing:
-                                    existing.conversion_count = reaches
+                                    existing.conversion_count = visits
                                 else:
                                     db.add(models.MetrikaGoals(
                                         client_id=integration.client_id,
@@ -679,7 +684,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                                         date=stat_date,
                                         goal_id=str(goal_id),
                                         goal_name=goal_name,
-                                        conversion_count=reaches
+                                        conversion_count=visits
                                     ))
                     except Exception as goal_err:
                         logger.warning(f"Failed to sync individual goal {goal_id}: {goal_err}")
@@ -688,13 +693,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
-                # If specific goals were requested, sum their reaches
-                total_reaches = 0
+                # CRITICAL: Now using visits (целевые визиты) instead of reaches
+                total_visits = 0
                 if selected_goals and len(selected_goals) > 0:
                     for i in range(1, len(g['metrics'])):
-                        total_reaches += int(g['metrics'][i])
+                        total_visits += int(g['metrics'][i])
                 else:
-                    total_reaches = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                    total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
 
                 existing = db.query(models.MetrikaGoals).filter(
                     models.MetrikaGoals.integration_id == integration.id,  # CRITICAL: Check by integration, not client
@@ -703,7 +708,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 ).first()
 
                 if existing:
-                    existing.conversion_count = total_reaches
+                    existing.conversion_count = total_visits
                     existing.integration_id = integration.id  # Update integration_id for existing records
                 else:
                     db.add(models.MetrikaGoals(
@@ -712,7 +717,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         date=stat_date,
                         goal_id="all",
                         goal_name="Selected Goals" if selected_goals else "All Goals",
-                        conversion_count=total_reaches
+                        conversion_count=total_visits
                     ))
 
         # Update status on success

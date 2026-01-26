@@ -43,9 +43,10 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny") -> List[Dict[str, Any]]:
+    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny") -> List[Dict[str, Any]]:
         """
-        Fetches goal conversions from Yandex Metrica.
+        Fetches goal visits (целевые визиты) from Yandex Metrica.
+        CRITICAL: Uses visits instead of reaches to get target visits, not goal achievements.
         """
         params = {
             "ids": counter_id,

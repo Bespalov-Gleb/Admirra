@@ -1157,13 +1157,14 @@ async def get_integration_goals(
                             try:
                                 from automation.request_queue import get_request_queue
                                 queue = await get_request_queue()
+                                # CRITICAL: Use visits (целевые визиты) instead of reaches
                                 stats = await queue.enqueue('metrica', metrica_api.get_goals_stats,
                                     counter_id, date_from, date_to,
-                                    metrics=f"ym:s:goal{goal_id}reaches"
+                                    metrics=f"ym:s:goal{goal_id}visits"
                                 )
                                 if stats and len(stats) > 0:
-                                    total_reaches = sum(int(row.get('metrics', [0])[0]) for row in stats if row.get('metrics'))
-                                    goal_data["conversions"] = int(total_reaches)
+                                    total_visits = sum(int(row.get('metrics', [0])[0]) for row in stats if row.get('metrics'))
+                                    goal_data["conversions"] = int(total_visits)
                                     goal_data["conversion_rate"] = 0.0
                             except Exception as stats_err:
                                 logger.debug(f"Could not fetch stats for goal {goal_id} from counter {counter_id}: {stats_err}")
@@ -1241,7 +1242,8 @@ async def get_integration_goals(
                                 
                                 if not stats or not stats.total_conversions:
                                     try:
-                                        goal_metric = f"ym:s:goal{goal_id}reaches"
+                                        # CRITICAL: Use visits (целевые визиты) instead of reaches
+                                        goal_metric = f"ym:s:goal{goal_id}visits"
                                         goals_stats = await metrica_api.get_goals_stats(
                                             counter_id,
                                             date_from,
@@ -1355,7 +1357,8 @@ async def get_integration_goals(
                                     
                                     if not stats or not stats.total_conversions:
                                         try:
-                                            goal_metric = f"ym:s:goal{goal_id}reaches"
+                                            # CRITICAL: Use visits (целевые визиты) instead of reaches
+                                            goal_metric = f"ym:s:goal{goal_id}visits"
                                             goals_stats = await metrica_api.get_goals_stats(
                                                 counter_id,
                                                 date_from,
@@ -1479,7 +1482,8 @@ async def get_integration_goals(
                                         
                                         if not stats or not stats.total_conversions:
                                             try:
-                                                goal_metric = f"ym:s:goal{goal_id}reaches"
+                                                # CRITICAL: Use visits (целевые визиты) instead of reaches
+                                                goal_metric = f"ym:s:goal{goal_id}visits"
                                                 goals_stats = await metrica_api.get_goals_stats(
                                                     counter_id,
                                                     date_from,
@@ -1724,8 +1728,8 @@ async def get_integration_goals(
                         
                         if not stats or not stats.total_conversions:
                             try:
-                                # Get goal stats directly from Metrika API
-                                goal_metric = f"ym:s:goal{goal['id']}reaches"
+                                # CRITICAL: Use visits (целевые визиты) instead of reaches
+                                goal_metric = f"ym:s:goal{goal['id']}visits"
                                 goals_stats = await metrica_api.get_goals_stats(
                                     counter_id,
                                     date_from,
