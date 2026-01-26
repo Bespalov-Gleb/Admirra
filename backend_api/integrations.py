@@ -24,10 +24,11 @@ YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 # VK Ads Credentials (OAuth 2.0 flow)
 VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
 VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
-# ВАЖНО: VK Ads использует стандартный OAuth VK для авторизации
-# URL авторизации: oauth.vk.com (не ads.vk.com/oauth2)
-# URL обмена токена: ads.vk.com/api/v2/oauth2/token.json
-VK_AUTH_URL = "https://oauth.vk.com/authorize"
+# ВАЖНО: Согласно официальной документации VK Ads API:
+# URL авторизации: https://ads.vk.com/hq/settings/access?action=oauth2
+# URL обмена токена: https://ads.vk.com/api/v2/oauth2/token.json
+# Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API
+VK_AUTH_URL = "https://ads.vk.com/hq/settings/access"
 VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 
 logger = logging.getLogger(__name__)
@@ -74,12 +75,37 @@ def get_yandex_auth_url(redirect_uri: str):
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
     """
-    Generate VK Ads OAuth authorization URL.
+    Generate VK Ads OAuth authorization URL согласно официальной документации.
+    
+    Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API
+    
+    Параметры согласно документации:
+    - action=oauth2 (обязательный параметр в URL)
+    - response_type=code
+    - client_id
+    - state (для CSRF защиты)
+    - scope (список прав доступа)
+    - redirect_uri (должен совпадать с настройками приложения)
+    
+    Убедитесь, что в настройках приложения VK Ads:
+    1. Доверенный Redirect URL указан точно: {redirect_uri}
+    2. Приложение имеет доступ к схеме Authorization Code Grant
     """
+    import secrets
+    import base64
+    
+    # Генерируем state для CSRF защиты (32 байта, кодируем в base64)
+    state_token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+    
     # Scope for VK Ads v2: ads, offline (for long-lived access)
     scope = "ads,offline"
+    
+    # Согласно документации: https://ads.vk.com/hq/settings/access?action=oauth2&response_type=code&client_id={client_id}&state={state}&scope={scopes}&redirect_uri={redirect_uri}
+    auth_url = f"{VK_AUTH_URL}?action=oauth2&response_type=code&client_id={VK_CLIENT_ID}&state={state_token}&scope={scope}&redirect_uri={redirect_uri}"
+    
     return {
-        "url": f"{VK_AUTH_URL}?response_type=code&client_id={VK_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}"
+        "url": auth_url,
+        "state": state_token  # Возвращаем state для проверки на фронтенде
     }
 
 from fastapi import BackgroundTasks

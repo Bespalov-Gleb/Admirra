@@ -36,6 +36,7 @@ const error = ref(null)
 
 onMounted(async () => {
   const code = route.query.code
+  const state = route.query.state
   const errorParam = route.query.error
   const errorDescription = route.query.error_description
   
@@ -51,12 +52,24 @@ onMounted(async () => {
     
     error.value = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
     loading.value = false
+    // Clean up localStorage
+    localStorage.removeItem('vk_auth_state')
+    return
+  }
+  
+  // Проверка CSRF защиты: сравниваем state из callback с сохраненным
+  const savedState = localStorage.getItem('vk_auth_state')
+  if (state && savedState && state !== savedState) {
+    error.value = 'Ошибка безопасности: неверный state параметр. Попробуйте авторизоваться заново.'
+    loading.value = false
+    localStorage.removeItem('vk_auth_state')
     return
   }
   
   if (!code) {
     error.value = 'Код авторизации не найден. Возможно, вы не завершили процесс авторизации или произошла ошибка.'
     loading.value = false
+    localStorage.removeItem('vk_auth_state')
     return
   }
 
@@ -78,6 +91,7 @@ onMounted(async () => {
     // Clean up localStorage
     localStorage.removeItem('vk_auth_client_name')
     localStorage.removeItem('vk_auth_client_id')
+    localStorage.removeItem('vk_auth_state')
     toaster.success('VK Ads успешно подключен!')
     
     // Redirect to integration wizard step 2 (campaigns, profile selection removed)
@@ -85,6 +99,7 @@ onMounted(async () => {
   } catch (err) {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'
+    localStorage.removeItem('vk_auth_state')
   } finally {
     loading.value = false
   }

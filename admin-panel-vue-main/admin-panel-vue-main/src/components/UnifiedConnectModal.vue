@@ -763,9 +763,16 @@ const initVKAuth = async () => {
     if (form.client_name) {
       localStorage.setItem('vk_auth_client_name', form.client_name)
     }
+    if (form.client_id) {
+      localStorage.setItem('vk_auth_client_id', form.client_id)
+    }
     
     const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
     if (data.url) {
+      // Сохраняем state для проверки CSRF защиты в callback
+      if (data.state) {
+        localStorage.setItem('vk_auth_state', data.state)
+      }
       window.location.href = data.url
     }
   } catch (err) {
