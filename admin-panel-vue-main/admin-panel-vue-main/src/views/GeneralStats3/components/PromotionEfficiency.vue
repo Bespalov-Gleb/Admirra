@@ -126,18 +126,6 @@
             <h4 class="text-sm font-black text-gray-900 uppercase tracking-wider mb-4">Разбивка по целям</h4>
             <div class="relative w-full aspect-square max-w-[280px] mx-auto mb-4">
               <svg viewBox="0 0 200 200" class="w-full h-full">
-                <defs>
-                  <filter id="shadow">
-                    <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.15"/>
-                  </filter>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                    <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
                 <!-- Donut Chart -->
                 <g transform="translate(100, 100)">
                   <circle 
@@ -145,8 +133,8 @@
                     cy="0" 
                     r="80" 
                     fill="none" 
-                    stroke="#f3f4f6" 
-                    stroke-width="40"
+                    stroke="#e5e7eb" 
+                    stroke-width="36"
                   />
                   <circle
                     v-for="(segment, index) in donutSegments"
@@ -156,12 +144,10 @@
                     r="80"
                     fill="none"
                     :stroke="segment.color"
-                    stroke-width="42"
+                    stroke-width="36"
                     :stroke-dasharray="segment.dashArray"
                     :stroke-dashoffset="segment.dashOffset"
-                    :transform="`rotate(${segment.startAngle - 90})`"
-                    filter="url(#shadow)"
-                    stroke-linecap="round"
+                    stroke-linecap="butt"
                   />
                   <!-- Center Text -->
                   <text 
@@ -536,22 +522,25 @@ const donutColors = [
 const donutSegments = computed(() => {
   if (autoGoals.value.length === 0 || totalConversions.value === 0) return []
   
-  const circumference = 2 * Math.PI * 80 // radius = 80
-  let accumulatedLength = 0
+  const radius = 80
+  const circumference = 2 * Math.PI * radius
+  const gapSize = 3 // Пробел между сегментами в пикселях
+  const totalGaps = autoGoals.value.length * gapSize
+  const usableCircumference = circumference - totalGaps
+  
+  let accumulatedOffset = 0
   
   return autoGoals.value.map((goal, index) => {
     const percentage = (goal.count || 0) / totalConversions.value
-    const segmentLength = circumference * percentage
-    const startAngle = (accumulatedLength / circumference) * 360
+    const segmentLength = usableCircumference * percentage
     
     const segment = {
       color: donutColors[index % donutColors.length],
-      dashArray: `${segmentLength} ${circumference}`,
-      dashOffset: -accumulatedLength,
-      startAngle: startAngle
+      dashArray: `${segmentLength} ${gapSize}`,
+      dashOffset: -accumulatedOffset
     }
     
-    accumulatedLength += segmentLength
+    accumulatedOffset += segmentLength + gapSize
     return segment
   })
 })
