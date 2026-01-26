@@ -36,9 +36,26 @@ const error = ref(null)
 
 onMounted(async () => {
   const code = route.query.code
+  const errorParam = route.query.error
+  const errorDescription = route.query.error_description
+  
+  // Проверяем ошибки от VK OAuth (VK перенаправляет с ?error=...)
+  if (errorParam) {
+    const errorMessages = {
+      'invalid_client': 'Неверный client_id или client_secret. Проверьте настройки приложения в VK Apps и значения в .env файле.',
+      'invalid_redirect_uri': 'redirect_uri не совпадает с настройками приложения. В VK Apps должен быть указан: https://admirra.ru/auth/vk/callback',
+      'invalid_scope': 'Неверные права доступа. В настройках приложения должны быть включены: ads, offline',
+      'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте авторизоваться снова и разрешите доступ.',
+      'invalid_grant': 'Код авторизации истек. Попробуйте авторизоваться заново.',
+    }
+    
+    error.value = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
+    loading.value = false
+    return
+  }
   
   if (!code) {
-    error.value = 'Код авторизации не найден'
+    error.value = 'Код авторизации не найден. Возможно, вы не завершили процесс авторизации или произошла ошибка.'
     loading.value = false
     return
   }

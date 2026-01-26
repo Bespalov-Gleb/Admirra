@@ -334,8 +334,27 @@ async def exchange_vk_token_oauth(
         })
         
         if response.status_code != 200:
-            logger.error(f"VK Token Exchange Failed: {response.text}")
-            raise HTTPException(status_code=400, detail="Failed to exchange token with VK Ads")
+            logger.error(f"VK Token Exchange Failed: {response.status_code} - {response.text}")
+            try:
+                error_data = response.json()
+                error_code = error_data.get('error', 'unknown_error')
+                error_description = error_data.get('error_description', 'Unknown error')
+                
+                # Детальные сообщения об ошибках
+                error_messages = {
+                    'invalid_client': 'Неверный client_id или client_secret. Проверьте значения в .env файле.',
+                    'invalid_grant': 'Код авторизации истек или уже использован. Попробуйте авторизоваться заново.',
+                    'invalid_redirect_uri': f'redirect_uri не совпадает с настройками приложения. Убедитесь, что в VK Apps указан: {redirect_uri}',
+                    'invalid_scope': 'Неверные права доступа. В настройках приложения должны быть включены: ads, offline',
+                    'access_denied': 'Пользователь отклонил запрос прав доступа.',
+                }
+                
+                user_message = error_messages.get(error_code, f"VK Ads API Error: {error_description}")
+                logger.error(f"VK OAuth Error: {error_code} - {error_description}")
+                raise HTTPException(status_code=400, detail=user_message)
+            except ValueError:
+                # Если ответ не JSON, возвращаем общую ошибку
+                raise HTTPException(status_code=400, detail=f"Failed to exchange token with VK Ads: {response.text[:200]}")
             
         token_data = response.json()
         access_token = token_data.get("access_token")
