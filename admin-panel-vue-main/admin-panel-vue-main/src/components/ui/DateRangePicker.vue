@@ -2,6 +2,7 @@
   <div ref="containerRef" class="relative date-range-picker-container">
     <!-- Trigger Button -->
     <button
+      ref="buttonRef"
       @click.stop="toggleCalendar"
       class="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:border-blue-500 hover:bg-blue-50/50 transition-all min-w-[200px] justify-between"
     >
@@ -13,12 +14,14 @@
     </button>
 
     <!-- Calendar Popup -->
-    <Transition name="fade-scale">
-      <div
-        v-if="isOpen"
-        class="calendar-popup absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-[9999] min-w-[640px]"
-        @click.stop
-      >
+    <Teleport to="body">
+      <Transition name="fade-scale">
+        <div
+          v-if="isOpen"
+          class="calendar-popup fixed bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[640px]"
+          :style="calendarPosition"
+          @click.stop
+        >
         <!-- Quick Period Buttons -->
         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
           <button
@@ -140,12 +143,14 @@
           </button>
         </div>
       </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { Teleport } from 'vue'
 import { CalendarIcon } from '@heroicons/vue/24/outline'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/solid'
 
@@ -160,6 +165,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const containerRef = ref(null)
+const buttonRef = ref(null)
 const isOpen = ref(false)
 const currentDate = ref(new Date())
 const selectedStart = ref(null)
@@ -167,6 +173,7 @@ const selectedEnd = ref(null)
 const selectedQuickPeriod = ref(null)
 const startDateInput = ref('')
 const endDateInput = ref('')
+const calendarPosition = ref({ top: '0px', left: '0px' })
 
 const weekDays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС']
 
@@ -485,8 +492,42 @@ function applyDates() {
   }
 }
 
+function updateCalendarPosition() {
+  if (!buttonRef.value || !isOpen.value) return
+  
+  nextTick(() => {
+    const rect = buttonRef.value.getBoundingClientRect()
+    const calendarWidth = 640 // min-w-[640px]
+    const padding = 16
+    
+    // Calculate left position: shift left by 200px, but ensure it doesn't go off-screen
+    let left = rect.left - 200
+    
+    // Ensure calendar doesn't go off the left edge
+    if (left < padding) {
+      left = padding
+    }
+    
+    // Ensure calendar doesn't go off the right edge
+    if (left + calendarWidth > window.innerWidth - padding) {
+      left = window.innerWidth - calendarWidth - padding
+    }
+    
+    // Position below button
+    const top = rect.bottom + 8
+    
+    calendarPosition.value = {
+      top: `${top}px`,
+      left: `${left}px`
+    }
+  })
+}
+
 function toggleCalendar() {
   isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    updateCalendarPosition()
+  }
 }
 
 function close() {
@@ -506,10 +547,14 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('resize', updateCalendarPosition)
+  window.addEventListener('scroll', updateCalendarPosition, true)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('resize', updateCalendarPosition)
+  window.removeEventListener('scroll', updateCalendarPosition, true)
 })
 
 // Initialize from props
