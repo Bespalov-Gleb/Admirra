@@ -93,6 +93,7 @@ def get_vk_auth_url(redirect_uri: str):
     """
     import secrets
     import base64
+    from urllib.parse import urlencode
     
     # Генерируем state для CSRF защиты (32 байта, кодируем в base64)
     state_token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
@@ -100,8 +101,26 @@ def get_vk_auth_url(redirect_uri: str):
     # Scope for VK Ads v2: ads, offline (for long-lived access)
     scope = "ads,offline"
     
+    # Формируем параметры URL
+    params = {
+        "action": "oauth2",
+        "response_type": "code",
+        "client_id": VK_CLIENT_ID,
+        "state": state_token,
+        "scope": scope,
+        "redirect_uri": redirect_uri
+    }
+    
     # Согласно документации: https://ads.vk.com/hq/settings/access?action=oauth2&response_type=code&client_id={client_id}&state={state}&scope={scopes}&redirect_uri={redirect_uri}
-    auth_url = f"{VK_AUTH_URL}?action=oauth2&response_type=code&client_id={VK_CLIENT_ID}&state={state_token}&scope={scope}&redirect_uri={redirect_uri}"
+    auth_url = f"{VK_AUTH_URL}?{urlencode(params)}"
+    
+    logger.info(f"🔗 Generated VK Ads auth URL:")
+    logger.info(f"   Base URL: {VK_AUTH_URL}")
+    logger.info(f"   Client ID: {VK_CLIENT_ID}")
+    logger.info(f"   Redirect URI: {redirect_uri}")
+    logger.info(f"   Scope: {scope}")
+    logger.info(f"   State: {state_token[:20]}... (truncated)")
+    logger.info(f"   Full URL: {auth_url[:200]}... (truncated)")
     
     return {
         "url": auth_url,

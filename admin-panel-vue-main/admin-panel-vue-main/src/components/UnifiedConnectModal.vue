@@ -760,6 +760,11 @@ const initVKAuth = async () => {
   try {
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     
+    console.log('[initVKAuth] Starting VK Ads authorization...')
+    console.log('[initVKAuth] Redirect URI:', redirectUri)
+    console.log('[initVKAuth] Client name:', form.client_name)
+    console.log('[initVKAuth] Client ID:', form.client_id)
+    
     if (form.client_name) {
       localStorage.setItem('vk_auth_client_name', form.client_name)
     }
@@ -768,16 +773,27 @@ const initVKAuth = async () => {
     }
     
     const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    console.log('[initVKAuth] Auth URL received:', data.url ? 'Yes' : 'No')
+    console.log('[initVKAuth] State received:', data.state ? 'Yes' : 'No')
+    
     if (data.url) {
       // Сохраняем state для проверки CSRF защиты в callback
       if (data.state) {
         localStorage.setItem('vk_auth_state', data.state)
+        console.log('[initVKAuth] State saved to localStorage')
       }
+      console.log('[initVKAuth] Redirecting to VK Ads authorization page...')
+      console.log('[initVKAuth] Full URL:', data.url)
       window.location.href = data.url
+    } else {
+      console.error('[initVKAuth] No URL received from backend')
+      error.value = 'Не удалось получить URL авторизации VK Ads'
+      loadingAuth.value = false
     }
   } catch (err) {
-    console.error(err)
-    error.value = 'Не удалось инициализировать авторизацию VK'
+    console.error('[initVKAuth] Error:', err)
+    console.error('[initVKAuth] Error response:', err.response)
+    error.value = err.response?.data?.detail || 'Не удалось инициализировать авторизацию VK'
     loadingAuth.value = false
   }
 }
