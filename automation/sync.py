@@ -521,10 +521,44 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 stats = await api.get_statistics(date_from, date_to)
                 log_event("sync", f"received {len(stats)} rows from vk")
             except Exception as e:
-                # VK Refresh using Client Credentials
-                if integration.platform_client_id and integration.platform_client_secret:
+                # VK Token Refresh: Try refresh_token first (OAuth flow), then fallback to client_credentials
+                # Согласно документации VK ID: Access token живет 1 час, refresh_token используется для обновления
+                if ("401" in str(e) or "Unauthorized" in str(e)) and integration.refresh_token:
                     from backend_api.services import IntegrationService
-                    logger.info(f"Refreshing VK token for integration {integration.id}")
+                    logger.info(f"🔄 Refreshing VK token using refresh_token for integration {integration.id}")
+                    rt = security.decrypt_token(integration.refresh_token)
+                    # Используем VK_CLIENT_ID и VK_CLIENT_SECRET из integrations.py
+                    from backend_api.integrations import VK_CLIENT_ID, VK_CLIENT_SECRET
+                    new_token_data = await IntegrationService.refresh_vk_token(rt, VK_CLIENT_ID, VK_CLIENT_SECRET)
+                    
+                    if new_token_data and "access_token" in new_token_data:
+                        integration.access_token = security.encrypt_token(new_token_data["access_token"])
+                        if "refresh_token" in new_token_data:
+                            integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
+                        db.flush()
+                        api = VKAdsAPI(new_token_data["access_token"], integration.account_id)
+                        stats = await api.get_statistics(date_from, date_to)
+                        logger.info(f"✅ VK token refreshed successfully, retrying statistics fetch")
+                    else:
+                        logger.warning(f"⚠️ VK refresh_token failed, trying client_credentials fallback")
+                        # Fallback to client_credentials if refresh_token fails
+                        if integration.platform_client_id and integration.platform_client_secret:
+                            cid = security.decrypt_token(integration.platform_client_id)
+                            cs = security.decrypt_token(integration.platform_client_secret)
+                            vk_data = await IntegrationService.exchange_vk_token(cid, cs)
+                            if vk_data and "access_token" in vk_data:
+                                integration.access_token = security.encrypt_token(vk_data["access_token"])
+                                db.flush()
+                                api = VKAdsAPI(vk_data["access_token"], integration.account_id)
+                                stats = await api.get_statistics(date_from, date_to)
+                            else:
+                                raise e
+                        else:
+                            raise e
+                # Fallback: VK Refresh using Client Credentials (if no refresh_token available)
+                elif integration.platform_client_id and integration.platform_client_secret:
+                    from backend_api.services import IntegrationService
+                    logger.info(f"🔄 Refreshing VK token using client_credentials for integration {integration.id}")
                     cid = security.decrypt_token(integration.platform_client_id)
                     cs = security.decrypt_token(integration.platform_client_secret)
                     vk_data = await IntegrationService.exchange_vk_token(cid, cs)
@@ -533,8 +567,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         db.flush()
                         api = VKAdsAPI(vk_data["access_token"], integration.account_id)
                         stats = await api.get_statistics(date_from, date_to)
-                    else: raise e
-                else: raise e
+                    else:
+                        raise e
+                else:
+                    raise e
 
             for s in stats:
                 campaign_external_id = str(s.get('campaign_id', ''))
