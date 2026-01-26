@@ -24,15 +24,11 @@ YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 # VK Ads Credentials
 VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
 VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
-# ВАЖНО: Для VK Ads API используется специальный OAuth flow
-# URL авторизации: oauth.vk.com/authorize (стандартный OAuth ВКонтакте - все еще работает для VK Ads API)
-# URL обмена токена: ads.vk.com/api/v2/oauth2/token.json (специфичный для VK Ads)
-# Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API
-# 
-# ПРИМЕЧАНИЕ: Хотя OAuth ВКонтакте устарел для обычной авторизации пользователей,
-# для VK Ads API он все еще может использоваться, или используется Client Credentials Grant
-VK_AUTH_URL = "https://oauth.vk.com/authorize"  # Стандартный OAuth ВКонтакте (работает для VK Ads)
-VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"  # Обмен кода на токен через VK Ads API
+# ВАЖНО: Используем VK ID SDK (Low-code) для авторизации
+# VK ID SDK работает через id.vk.com/oauth2/token для обмена кода на токен
+# Документация: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/web/setup
+VK_ID_TOKEN_URL = "https://id.vk.com/oauth2/token"  # VK ID SDK token exchange endpoint
+VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"  # VK Ads API token exchange (может использоваться после получения VK ID token)
 
 logger = logging.getLogger(__name__)
 
@@ -78,58 +74,30 @@ def get_yandex_auth_url(redirect_uri: str):
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
     """
-    Generate VK Ads OAuth authorization URL.
+    Возвращает конфигурацию для VK ID SDK (Low-code).
     
-    ВАЖНО: Для VK Ads API используется стандартный OAuth ВКонтакте (oauth.vk.com),
-    который все еще работает для VK Ads API, даже если устарел для обычной авторизации пользователей.
+    ВАЖНО: Используем VK ID SDK (Low-code) для авторизации через виджеты.
+    Фронтенд должен использовать VK ID SDK для отображения виджетов авторизации.
     
-    Параметры для OAuth ВКонтакте:
-    - response_type=code
-    - client_id
-    - redirect_uri (должен совпадать с настройками приложения)
-    - scope (список прав доступа: ads, offline)
-    - state (для CSRF защиты)
-    - display=page (опционально)
+    Параметры для VK ID SDK:
+    - app: client_id приложения
+    - redirectUrl: URL для callback после авторизации
+    - responseMode: Callback (получаем code через callback)
+    - source: LOWCODE
+    - scope: права доступа (можно указать через параметр, но для VK Ads может не требоваться)
     
-    Убедитесь, что в настройках приложения VK Apps:
-    1. Доверенный Redirect URL указан точно: {redirect_uri}
-    2. Приложение имеет тип "Веб-сайт" или "Standalone"
-    3. Включены права доступа: ads, offline (если доступны в настройках)
+    Убедитесь, что в настройках приложения VK ID:
+    1. Redirect URL указан точно: {redirect_uri}
+    2. Приложение настроено для Web-платформы
     """
-    import secrets
-    import base64
-    from urllib.parse import urlencode
-    
-    # Генерируем state для CSRF защиты (32 байта, кодируем в base64)
-    state_token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
-    
-    # Scope for VK Ads: ads (доступ к VK Ads API), offline (для получения refresh_token)
-    scope = "ads,offline"
-    
-    # Формируем параметры URL для стандартного OAuth ВКонтакте
-    params = {
-        "client_id": VK_CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": scope,
-        "state": state_token,
-        "display": "page"  # Отображение в отдельном окне/странице
-    }
-    
-    # Используем стандартный OAuth ВКонтакте URL (oauth.vk.com) для VK Ads API
-    auth_url = f"{VK_AUTH_URL}?{urlencode(params)}"
-    
-    logger.info(f"🔗 Generated VK Ads auth URL (using standard OAuth ВКонтакте):")
-    logger.info(f"   Base URL: {VK_AUTH_URL}")
+    logger.info(f"🔗 VK ID SDK configuration requested:")
     logger.info(f"   Client ID: {VK_CLIENT_ID}")
     logger.info(f"   Redirect URI: {redirect_uri}")
-    logger.info(f"   Scope: {scope}")
-    logger.info(f"   State: {state_token[:20]}... (truncated)")
-    logger.info(f"   Full URL: {auth_url[:200]}... (truncated)")
     
     return {
-        "url": auth_url,
-        "state": state_token  # Возвращаем state для проверки на фронтенде
+        "client_id": VK_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "sdk_url": "https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"
     }
 
 from fastapi import BackgroundTasks
@@ -384,7 +352,11 @@ async def exchange_vk_token_oauth(
     
     async with httpx.AsyncClient() as client:
         try:
-            # Для VK Ads API обмен кода на токен происходит через ads.vk.com/api/v2/oauth2/token.json
+            # ВАЖНО: VK ID SDK возвращает code, который нужно обменять через id.vk.com/oauth2/token
+            # Сначала получаем VK ID token, затем используем его для доступа к VK Ads API
+            device_id = payload.get("device_id")  # VK ID SDK может передавать device_id
+            
+            # Обмен кода на токен через VK ID endpoint
             token_payload = {
                 "grant_type": "authorization_code",
                 "code": auth_code,
@@ -393,8 +365,14 @@ async def exchange_vk_token_oauth(
                 "redirect_uri": redirect_uri
             }
             
+            if device_id:
+                token_payload["device_id"] = device_id
+            
             logger.info(f"   Request payload keys: {list(token_payload.keys())}")
-            response = await client.post(VK_TOKEN_URL, data=token_payload, timeout=30.0)
+            logger.info(f"   Using VK ID token endpoint: {VK_ID_TOKEN_URL}")
+            
+            # Сначала получаем токен через VK ID
+            response = await client.post(VK_ID_TOKEN_URL, data=token_payload, timeout=30.0)
             
             logger.info(f"📡 VK Token Exchange Response: {response.status_code}")
             
