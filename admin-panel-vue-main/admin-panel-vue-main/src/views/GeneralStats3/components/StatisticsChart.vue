@@ -271,165 +271,231 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
 
-const chartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: {
-    mode: 'index',
-    intersect: false,
-  },
-  animation: {
-    duration: 0 // Disable animation for immediate rendering
-  },
-  plugins: {
-    legend: {
-      display: false
-    },
-    tooltip: {
-      enabled: true,
+// Calculate number of visible metrics
+const visibleMetricsCount = computed(() => {
+  if (props.selectedMetrics.length === 0) {
+    return allDatasets.value.length
+  }
+  return props.selectedMetrics.length
+})
+
+// Get visible datasets in order
+const visibleDatasets = computed(() => {
+  if (props.selectedMetrics.length === 0) {
+    return allDatasets.value
+  }
+  return allDatasets.value.filter(dataset => props.selectedMetrics.includes(dataset.key))
+})
+
+// Determine which axes to show based on count
+const shouldShowAxis = (axisId) => {
+  const count = visibleMetricsCount.value
+  
+  if (count === 0) return false
+  if (count === 1) {
+    // Show only the first metric's axis (regardless of left/right position)
+    const firstDataset = visibleDatasets.value[0]
+    return firstDataset && firstDataset.yAxisID === axisId
+  }
+  if (count === 2) {
+    // Show first metric's axis on left, second on right
+    const firstDataset = visibleDatasets.value[0]
+    const secondDataset = visibleDatasets.value[1]
+    if (firstDataset && firstDataset.yAxisID === axisId) return true
+    if (secondDataset && secondDataset.yAxisID === axisId) return true
+    return false
+  }
+  // 3+ metrics: hide all axes
+  return false
+}
+
+const chartOptions = computed(() => {
+  const count = visibleMetricsCount.value
+  
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
       mode: 'index',
       intersect: false,
-      usePointStyle: true,
-      boxWidth: 12,
-      boxHeight: 12,
-      boxPadding: 8,
-      padding: 16,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      titleColor: '#ffffff',
-      bodyColor: '#ffffff',
-      borderColor: 'transparent',
-      borderWidth: 0,
-      cornerRadius: 10,
-      displayColors: true,
-      callbacks: {
-        label: function(context) {
-          let label = context.dataset.label || '';
-          if (label) {
-            label += ': ';
-          }
-          // Use the actual y value (which is now the real value)
-          const realValue = context.parsed.y !== undefined ? context.parsed.y : (context.raw.realValue || context.raw.y || 0);
-          if (realValue !== undefined && realValue !== null) {
-             if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
-              label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(realValue);
-            } else {
-              label += new Intl.NumberFormat('ru-RU').format(Math.round(realValue));
+    },
+    animation: {
+      duration: 0 // Disable animation for immediate rendering
+    },
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        enabled: true,
+        mode: 'index',
+        intersect: false,
+        usePointStyle: true,
+        boxWidth: 12,
+        boxHeight: 12,
+        boxPadding: 8,
+        padding: 16,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
+        borderColor: 'transparent',
+        borderWidth: 0,
+        cornerRadius: 10,
+        displayColors: true,
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
             }
+            // Use the actual y value (which is now the real value)
+            const realValue = context.parsed.y !== undefined ? context.parsed.y : (context.raw.realValue || context.raw.y || 0);
+            if (realValue !== undefined && realValue !== null) {
+               if (['Расход', 'CPC', 'CPA'].includes(context.dataset.label)) {
+                label += new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(realValue);
+              } else {
+                label += new Intl.NumberFormat('ru-RU').format(Math.round(realValue));
+              }
+            }
+            return label;
           }
-          return label;
         }
       }
-    }
-  },
-  scales: {
-    // Individual Y-axes for each metric to allow independent scaling
-    'y-expenses': {
-      type: 'linear',
-      position: 'left',
-      beginAtZero: true,
-      max: getAxisMax('y-expenses'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#f97316', // Match color to dataset
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+    },
+    scales: {
+      // Individual Y-axes for each metric to allow independent scaling
+      'y-expenses': {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        max: getAxisMax('y-expenses'),
+        ticks: {
+          display: shouldShowAxis('y-expenses'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#f97316', // Match color to dataset
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          color: '#e5e7eb',
+          display: shouldShowAxis('y-expenses'),
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { 
-        color: '#e5e7eb',
-        display: true,
-        drawBorder: false,
-        lineWidth: 1
-      }
-    },
-    'y-impressions': {
-      type: 'linear',
-      position: 'right',
-      beginAtZero: true,
-      max: getAxisMax('y-impressions'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#3b82f6',
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+      'y-impressions': {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        max: getAxisMax('y-impressions'),
+        ticks: {
+          display: shouldShowAxis('y-impressions'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#3b82f6',
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          display: shouldShowAxis('y-impressions'),
+          color: '#e5e7eb',
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { display: false } // Hide grid for right axis to avoid clutter
-    },
-    'y-clicks': {
-      type: 'linear',
-      position: 'left',
-      beginAtZero: true,
-      max: getAxisMax('y-clicks'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#22c55e',
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+      'y-clicks': {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        max: getAxisMax('y-clicks'),
+        ticks: {
+          display: shouldShowAxis('y-clicks'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#22c55e',
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          display: shouldShowAxis('y-clicks'),
+          color: '#e5e7eb',
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { display: false }
-    },
-    'y-leads': {
-      type: 'linear',
-      position: 'right',
-      beginAtZero: true,
-      max: getAxisMax('y-leads'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#ef4444',
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+      'y-leads': {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        max: getAxisMax('y-leads'),
+        ticks: {
+          display: shouldShowAxis('y-leads'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#ef4444',
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          display: shouldShowAxis('y-leads'),
+          color: '#e5e7eb',
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { display: false }
-    },
-    'y-cpc': {
-      type: 'linear',
-      position: 'left',
-      beginAtZero: true,
-      max: getAxisMax('y-cpc'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#a855f7',
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+      'y-cpc': {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        max: getAxisMax('y-cpc'),
+        ticks: {
+          display: shouldShowAxis('y-cpc'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#a855f7',
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          display: shouldShowAxis('y-cpc'),
+          color: '#e5e7eb',
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { display: false }
-    },
-    'y-cpa': {
-      type: 'linear',
-      position: 'right',
-      beginAtZero: true,
-      max: getAxisMax('y-cpa'),
-      ticks: {
-        display: true,
-        font: { size: isMobile.value ? 9 : 11 },
-        color: '#ec4899',
-        callback: function(value) {
-          if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-          if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-          return value
+      'y-cpa': {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        max: getAxisMax('y-cpa'),
+        ticks: {
+          display: shouldShowAxis('y-cpa'),
+          font: { size: isMobile.value ? 9 : 11 },
+          color: '#ec4899',
+          callback: function(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+            return value
+          }
+        },
+        grid: { 
+          display: shouldShowAxis('y-cpa'),
+          color: '#e5e7eb',
+          drawBorder: false,
+          lineWidth: 1
         }
       },
-      grid: { display: false }
-    },
     x: {
       grid: {
         display: false
