@@ -428,18 +428,18 @@ async def exchange_vk_token_oauth(
     # Create/Get Client
     # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
     if client_id_input:
-            try:
-                import uuid as uuid_lib
-                client_uuid = uuid_lib.UUID(client_id_input)
-                db_client = db.query(models.Client).filter(
-                    models.Client.id == client_uuid,
-                    models.Client.owner_id == current_user.id
-                ).first()
-                
-                if not db_client:
-                    logger.error(f"Client ID {client_id_input} not found or not owned by user")
-                    raise HTTPException(status_code=404, detail=f"Project (Client) not found")
-                    
+        try:
+            import uuid as uuid_lib
+            client_uuid = uuid_lib.UUID(client_id_input)
+            db_client = db.query(models.Client).filter(
+                models.Client.id == client_uuid,
+                models.Client.owner_id == current_user.id
+            ).first()
+            
+            if not db_client:
+                logger.error(f"Client ID {client_id_input} not found or not owned by user")
+                raise HTTPException(status_code=404, detail=f"Project (Client) not found")
+            
             logger.info(f"Using existing client: {db_client.name} (ID: {db_client.id})")
         except ValueError:
             logger.error(f"Invalid client_id format: {client_id_input}")
