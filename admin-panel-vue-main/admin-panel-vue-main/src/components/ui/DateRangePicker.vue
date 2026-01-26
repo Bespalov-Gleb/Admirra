@@ -180,11 +180,11 @@ const quickPeriods = [
 ]
 
 const displayText = computed(() => {
-  if (selectedStart && selectedEnd) {
-    return `${formatDateForDisplay(selectedStart)} — ${formatDateForDisplay(selectedEnd)}`
+  if (selectedStart.value && selectedEnd.value) {
+    return `${formatDateForDisplay(selectedStart.value)} — ${formatDateForDisplay(selectedEnd.value)}`
   }
-  if (selectedStart) {
-    return `${formatDateForDisplay(selectedStart)} — ...`
+  if (selectedStart.value) {
+    return `${formatDateForDisplay(selectedStart.value)} — ...`
   }
   return 'Выберите период'
 })
@@ -274,21 +274,27 @@ function getDayClasses(day) {
     return 'text-gray-300 cursor-not-allowed'
   }
   
-  if (!selectedStart) {
+  if (!selectedStart.value) {
     return 'text-gray-700 hover:bg-gray-100'
   }
   
-  const dateStr = formatDate(day.date)
-  const startStr = formatDate(selectedStart)
+  // Ensure day.date is a Date object
+  const dayDate = day.date instanceof Date ? day.date : new Date(day.date)
+  if (isNaN(dayDate.getTime())) {
+    return 'text-gray-700 hover:bg-gray-100'
+  }
+  
+  const dateStr = formatDate(dayDate)
+  const startStr = formatDate(selectedStart.value)
   const isStart = startStr === dateStr
-  const isEnd = selectedEnd && formatDate(selectedEnd) === dateStr
+  const isEnd = selectedEnd.value && formatDate(selectedEnd.value) === dateStr
   
   // Check if date is in range (between start and end)
   let isInRange = false
-  if (selectedStart && selectedEnd) {
-    const dayTime = day.date.getTime()
-    const startTime = selectedStart.getTime()
-    const endTime = selectedEnd.getTime()
+  if (selectedStart.value && selectedEnd.value) {
+    const dayTime = dayDate.getTime()
+    const startTime = selectedStart.value instanceof Date ? selectedStart.value.getTime() : new Date(selectedStart.value).getTime()
+    const endTime = selectedEnd.value instanceof Date ? selectedEnd.value.getTime() : new Date(selectedEnd.value).getTime()
     isInRange = dayTime > startTime && dayTime < endTime
   }
   
@@ -308,21 +314,26 @@ function getDayClasses(day) {
 function selectDate(date) {
   if (!date) return
   
-  const dateStr = formatDate(date)
+  // Ensure date is a Date object
+  const dateObj = date instanceof Date ? date : new Date(date)
+  if (isNaN(dateObj.getTime())) return
+  
+  const dateStr = formatDate(dateObj)
   
   if (!selectedStart.value || (selectedStart.value && selectedEnd.value)) {
     // Start new selection
-    selectedStart.value = new Date(date)
+    selectedStart.value = new Date(dateObj)
     selectedEnd.value = null
     selectedQuickPeriod.value = null
   } else if (selectedStart.value && !selectedEnd.value) {
     // Complete selection
-    if (date < selectedStart.value) {
+    const startDate = selectedStart.value instanceof Date ? selectedStart.value : new Date(selectedStart.value)
+    if (dateObj < startDate) {
       // If clicked date is before start, swap them
-      selectedEnd.value = new Date(selectedStart.value)
-      selectedStart.value = new Date(date)
+      selectedEnd.value = new Date(startDate)
+      selectedStart.value = new Date(dateObj)
     } else {
-      selectedEnd.value = new Date(date)
+      selectedEnd.value = new Date(dateObj)
     }
     updateInputs()
   }
@@ -373,17 +384,23 @@ function nextMonth() {
 
 function formatDate(date) {
   if (!date) return ''
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  // Ensure date is a Date object
+  const dateObj = date instanceof Date ? date : new Date(date)
+  if (isNaN(dateObj.getTime())) return ''
+  const year = dateObj.getFullYear()
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const day = String(dateObj.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
 function formatDateForDisplay(date) {
   if (!date) return ''
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const year = date.getFullYear()
+  // Ensure date is a Date object
+  const dateObj = date instanceof Date ? date : new Date(date)
+  if (isNaN(dateObj.getTime())) return ''
+  const day = String(dateObj.getDate()).padStart(2, '0')
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const year = dateObj.getFullYear()
   return `${day}.${month}.${year}`
 }
 
@@ -412,8 +429,11 @@ function parseStartDate() {
   const date = parseDateInput(startDateInput.value)
   if (date) {
     selectedStart.value = date
-    if (selectedEnd.value && date > selectedEnd.value) {
-      selectedEnd.value = null
+    if (selectedEnd.value) {
+      const endDate = selectedEnd.value instanceof Date ? selectedEnd.value : new Date(selectedEnd.value)
+      if (date > endDate) {
+        selectedEnd.value = null
+      }
     }
     updateInputs()
   } else {
@@ -424,9 +444,14 @@ function parseStartDate() {
 function parseEndDate() {
   const date = parseDateInput(endDateInput.value)
   if (date) {
-    if (selectedStart.value && date < selectedStart.value) {
-      selectedEnd.value = new Date(selectedStart.value)
-      selectedStart.value = date
+    if (selectedStart.value) {
+      const startDate = selectedStart.value instanceof Date ? selectedStart.value : new Date(selectedStart.value)
+      if (date < startDate) {
+        selectedEnd.value = new Date(startDate)
+        selectedStart.value = date
+      } else {
+        selectedEnd.value = date
+      }
     } else {
       selectedEnd.value = date
     }
@@ -481,20 +506,36 @@ const vClickOutside = {
 // Initialize from props
 watch(() => props.modelValue, (newValue) => {
   if (newValue?.start) {
-    selectedStart.value = new Date(newValue.start)
+    const startDate = new Date(newValue.start)
+    if (!isNaN(startDate.getTime())) {
+      selectedStart.value = startDate
+    }
+  } else {
+    selectedStart.value = null
   }
   if (newValue?.end) {
-    selectedEnd.value = new Date(newValue.end)
+    const endDate = new Date(newValue.end)
+    if (!isNaN(endDate.getTime())) {
+      selectedEnd.value = endDate
+    }
+  } else {
+    selectedEnd.value = null
   }
   updateInputs()
 }, { immediate: true })
 
 onMounted(() => {
   if (props.modelValue?.start) {
-    selectedStart.value = new Date(props.modelValue.start)
+    const startDate = new Date(props.modelValue.start)
+    if (!isNaN(startDate.getTime())) {
+      selectedStart.value = startDate
+    }
   }
   if (props.modelValue?.end) {
-    selectedEnd.value = new Date(props.modelValue.end)
+    const endDate = new Date(props.modelValue.end)
+    if (!isNaN(endDate.getTime())) {
+      selectedEnd.value = endDate
+    }
   }
   updateInputs()
 })
