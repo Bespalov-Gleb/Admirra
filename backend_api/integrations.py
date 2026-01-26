@@ -24,11 +24,10 @@ YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 # VK Ads Credentials (OAuth 2.0 flow)
 VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
 VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
-# VK Ads OAuth URL - если получаете 404, проверьте:
-# 1. Приложение зарегистрировано в VK Apps (https://vk.com/apps?act=manage)
-# 2. В настройках приложения указан правильный redirect_uri
-# 3. Приложение имеет доступ к VK Ads API
-VK_AUTH_URL = "https://ads.vk.com/oauth2/authorize"
+# ВАЖНО: VK Ads использует стандартный OAuth VK для авторизации
+# URL авторизации: oauth.vk.com (не ads.vk.com/oauth2)
+# URL обмена токена: ads.vk.com/api/v2/oauth2/token.json
+VK_AUTH_URL = "https://oauth.vk.com/authorize"
 VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 
 logger = logging.getLogger(__name__)
