@@ -52,9 +52,9 @@ export function useDashboardStats() {
     const end = new Date()
     const start = new Date()
     // CRITICAL: If period is "14 days", we want 14 days total (including today)
-    // So we subtract (period - 1) days to get the correct start date
+    // So we subtract (period - 2) days to get the correct start date (going back one more day)
     const periodDays = parseInt(filters.period)
-    start.setDate(end.getDate() - (periodDays - 1))
+    start.setDate(end.getDate() - (periodDays - 2)) // For 14 days: go back 12 days to get 14 days including today
     filters.start_date = start.toISOString().split('T')[0]
     filters.end_date = end.toISOString().split('T')[0]
   }
@@ -71,9 +71,9 @@ export function useDashboardStats() {
     const end = new Date()
     const start = new Date()
     // CRITICAL: If period is "14 days", we want 14 days total (including today)
-    // So we subtract (period - 1) days to get the correct start date
+    // So we subtract (period - 2) days to get the correct start date (going back one more day)
     const periodDays = parseInt(filters.period)
-    start.setDate(end.getDate() - (periodDays - 1))
+    start.setDate(end.getDate() - (periodDays - 2)) // For 14 days: go back 12 days to get 14 days including today
     const newStartDate = start.toISOString().split('T')[0]
     const newEndDate = end.toISOString().split('T')[0]
     
