@@ -310,8 +310,6 @@ const shouldShowAxis = (axisId) => {
 }
 
 const chartOptions = computed(() => {
-  const count = visibleMetricsCount.value
-  
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -374,9 +372,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#f97316', // Match color to dataset
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -396,9 +394,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#3b82f6',
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -418,9 +416,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#22c55e',
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -440,9 +438,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#ef4444',
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -462,9 +460,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#a855f7',
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -484,9 +482,9 @@ const chartOptions = computed(() => {
           font: { size: isMobile.value ? 9 : 11 },
           color: '#ec4899',
           callback: function(value) {
-            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-            if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-            return value
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value;
           }
         },
         grid: { 
@@ -496,22 +494,24 @@ const chartOptions = computed(() => {
           lineWidth: 1
         }
       },
-    x: {
-      grid: {
-        display: false
-      },
-      ticks: {
-        display: true,
-        font: {
-          size: isMobile.value ? 9 : 11
+      x: {
+        grid: {
+          display: false
         },
-        color: '#6b7280',
-        maxRotation: 0,
-        minRotation: 0
+        ticks: {
+          display: true,
+          font: {
+            size: isMobile.value ? 9 : 11
+          },
+          color: '#6b7280',
+          maxRotation: 0,
+          minRotation: 0
+        }
       }
     }
   }
-}))
+})
+
 </script>
 
 <style>
