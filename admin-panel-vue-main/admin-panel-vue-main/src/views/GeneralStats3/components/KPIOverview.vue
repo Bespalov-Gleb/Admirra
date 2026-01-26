@@ -18,7 +18,7 @@
             :change-positive="metric.changePositive"
             :icon="metric.icon"
             :icon-color="metric.iconColor"
-            :is-selected="selectedMetric === metric.id"
+            :is-selected="selectedMetrics.includes(metric.id)"
             @click="$emit('toggle-metric', metric.id)"
           />
         </div>
@@ -47,9 +47,9 @@ const props = defineProps({
     type: Object,
     required: true
   },
-  selectedMetric: {
-    type: String,
-    default: null
+  selectedMetrics: {
+    type: Array,
+    default: () => []
   },
   loading: {
     type: Boolean,
@@ -90,7 +90,8 @@ const metrics = computed(() => {
     trend: Math.abs(props.summary.trends?.expenses || 0),
     changePositive: (props.summary.trends?.expenses || 0) <= 0,
     icon: CurrencyDollarIcon,
-    iconColor: 'orange'
+    iconColor: 'orange',
+    chartColor: '#f97316' // Orange
   },
   {
     id: 'impressions',
@@ -99,7 +100,8 @@ const metrics = computed(() => {
     trend: props.summary.trends?.impressions || 0,
     changePositive: (props.summary.trends?.impressions || 0) >= 0,
     icon: EyeIcon,
-    iconColor: 'blue'
+    iconColor: 'blue',
+    chartColor: '#3b82f6' // Blue
   },
   {
     id: 'clicks',
@@ -108,7 +110,8 @@ const metrics = computed(() => {
     trend: props.summary.trends?.clicks || 0,
     changePositive: (props.summary.trends?.clicks || 0) >= 0,
     icon: ArrowPathIcon,
-    iconColor: 'green'
+    iconColor: 'green',
+    chartColor: '#22c55e' // Green
   },
   {
     id: 'leads',
@@ -117,7 +120,8 @@ const metrics = computed(() => {
     trend: props.summary.trends?.leads || 0,
     changePositive: (props.summary.trends?.leads || 0) >= 0,
     icon: UserGroupIcon,
-    iconColor: 'red'
+    iconColor: 'red',
+    chartColor: '#ef4444' // Red
   },
   {
     id: 'cpc',
@@ -126,7 +130,8 @@ const metrics = computed(() => {
     trend: Math.abs(props.summary.trends?.cpc || 0),
     changePositive: (props.summary.trends?.cpc || 0) <= 0,
     icon: HandRaisedIcon,
-    iconColor: 'purple'
+    iconColor: 'purple',
+    chartColor: '#a855f7' // Purple
   },
   {
     id: 'cpa',

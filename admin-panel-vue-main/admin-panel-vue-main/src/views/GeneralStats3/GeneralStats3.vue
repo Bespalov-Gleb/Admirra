@@ -40,7 +40,7 @@
       <KPIOverview
         v-else-if="summary && summary.expenses !== undefined"
         :summary="summary"
-        :selected-metric="selectedMetric"
+        :selected-metrics="selectedMetrics"
         :loading="loading"
         @toggle-metric="toggleMetric"
         class="mb-8"
@@ -57,7 +57,7 @@
       </div>
       <StatisticsChart 
         :dynamics="dynamics" 
-        :selected-metric="selectedMetric"
+        :selected-metrics="selectedMetrics"
         :period="filters.period"
         @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
       />
@@ -133,10 +133,17 @@ watch(() => filters.client_id, (newId) => {
 
 // --- State & UI Logic ---
 
-const selectedMetric = ref(null)
+const selectedMetrics = ref([]) // Array of selected metrics
 
 const toggleMetric = (metric) => {
-  selectedMetric.value = selectedMetric.value === metric ? null : metric
+  const index = selectedMetrics.value.indexOf(metric)
+  if (index > -1) {
+    // Remove if already selected
+    selectedMetrics.value.splice(index, 1)
+  } else {
+    // Add if not selected
+    selectedMetrics.value.push(metric)
+  }
 }
 
 const dynamicSubtitle = computed(() => {

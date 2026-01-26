@@ -17,7 +17,7 @@
     <div class="flex items-center gap-6 flex-wrap justify-center sm:justify-start">
       <template v-for="dataset in allDatasets" :key="dataset.key">
         <div 
-          v-if="!selectedMetric || selectedMetric === dataset.key"
+          v-if="selectedMetrics.length === 0 || selectedMetrics.includes(dataset.key)"
           class="flex items-center gap-2"
         >
           <div :style="{ backgroundColor: dataset.borderColor }" class="w-2.5 h-2.5 rounded-full"></div>
@@ -61,9 +61,9 @@ const props = defineProps({
       cpa: []
     })
   },
-  selectedMetric: {
-    type: String,
-    default: null // 'expenses', 'impressions', 'clicks', 'leads', 'cpc', 'cpa' or null
+  selectedMetrics: {
+    type: Array,
+    default: () => [] // Array of selected metric keys: ['expenses', 'impressions', etc.]
   },
   period: {
     type: [String, Number],
@@ -114,11 +114,11 @@ const allDatasets = computed(() => {
       label: 'Расход',
       key: 'expenses',
       data: prepareDataset(d.costs, 'Расход'),
-      borderColor: '#3b82f6',
+      borderColor: '#f97316', // Orange - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
       pointRadius: isMobile.value ? 5 : 6,
-      pointBackgroundColor: '#3b82f6',
+      pointBackgroundColor: '#f97316',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 2 : 2.5,
       tension: 0, // No smoothing - sharp lines
@@ -129,11 +129,11 @@ const allDatasets = computed(() => {
       label: 'Показы',
       key: 'impressions',
       data: prepareDataset(d.impressions, 'Показы'),
-      borderColor: '#f97316',
+      borderColor: '#3b82f6', // Blue - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
       pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#f97316',
+      pointBackgroundColor: '#3b82f6',
       pointBorderColor: '#ffffff',
       pointBorderWidth: isMobile.value ? 1.5 : 2,
       tension: 0, // No smoothing - sharp lines
@@ -144,7 +144,7 @@ const allDatasets = computed(() => {
       label: 'Переходы',
       key: 'clicks',
       data: prepareDataset(d.clicks, 'Переходы'),
-      borderColor: '#22c55e',
+      borderColor: '#22c55e', // Green - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
       pointRadius: isMobile.value ? 3 : 4,
@@ -159,22 +159,7 @@ const allDatasets = computed(() => {
       label: 'Лиды',
       key: 'leads',
       data: prepareDataset(d.leads, 'Лиды'),
-      borderColor: '#a855f7',
-      backgroundColor: 'transparent',
-      borderWidth: isMobile.value ? 2 : 2.5,
-      pointRadius: isMobile.value ? 3 : 4,
-      pointBackgroundColor: '#a855f7',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: isMobile.value ? 1.5 : 2,
-      tension: 0, // No smoothing - sharp lines
-      stepped: false,
-      fill: false
-    },
-    {
-      label: 'CPC',
-      key: 'cpc',
-      data: prepareDataset(d.cpc, 'CPC'),
-      borderColor: '#ef4444',
+      borderColor: '#ef4444', // Red - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
       pointRadius: isMobile.value ? 3 : 4,
@@ -186,10 +171,25 @@ const allDatasets = computed(() => {
       fill: false
     },
     {
+      label: 'CPC',
+      key: 'cpc',
+      data: prepareDataset(d.cpc, 'CPC'),
+      borderColor: '#a855f7', // Purple - matches card color
+      backgroundColor: 'transparent',
+      borderWidth: isMobile.value ? 2 : 2.5,
+      pointRadius: isMobile.value ? 3 : 4,
+      pointBackgroundColor: '#a855f7',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: isMobile.value ? 1.5 : 2,
+      tension: 0, // No smoothing - sharp lines
+      stepped: false,
+      fill: false
+    },
+    {
       label: 'CPA',
       key: 'cpa',
       data: prepareDataset(d.cpa, 'CPA'),
-      borderColor: '#ec4899',
+      borderColor: '#ec4899', // Pink - matches card color
       backgroundColor: 'transparent',
       borderWidth: isMobile.value ? 2 : 2.5,
       pointRadius: isMobile.value ? 3 : 4,
@@ -207,8 +207,8 @@ const allDatasets = computed(() => {
 
 const chartData = computed(() => ({
   labels: props.dynamics.labels || [],
-  datasets: props.selectedMetric
-    ? allDatasets.value.filter(dataset => dataset.key === props.selectedMetric)
+  datasets: props.selectedMetrics.length > 0
+    ? allDatasets.value.filter(dataset => props.selectedMetrics.includes(dataset.key))
     : allDatasets.value
 }))
 

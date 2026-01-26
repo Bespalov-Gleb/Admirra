@@ -412,7 +412,6 @@ async def get_goals(
 
     # Get total ad spend for cost distribution
     # Use StatsService to get accurate total cost
-    from backend_api.stats_service import StatsService
     summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
     total_cost = float(summary.get("expenses", 0) or 0)
 
