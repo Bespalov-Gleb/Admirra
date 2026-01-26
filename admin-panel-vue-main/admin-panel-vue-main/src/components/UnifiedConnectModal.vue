@@ -791,34 +791,70 @@ const initVKAuth = async () => {
     console.log('[initVKAuth] Config received:', data)
     
     // Загружаем VK ID SDK если еще не загружен
-    if (!window.VKIDSDK) {
+    if (!('VKIDSDK' in window)) {
+      console.log('[initVKAuth] VK ID SDK not found, loading script...')
       const script = document.createElement('script')
       script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js'
+      script.async = true
       
       const loadPromise = new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if ('VKIDSDK' in window) {
+            clearInterval(checkInterval)
+            clearTimeout(timeoutId)
+            console.log('[initVKAuth] VK ID SDK detected in window')
+            resolve()
+          }
+        }, 100) // Проверяем каждые 100мс
+        
         script.onload = () => {
-          clearTimeout(timeoutId)
-          console.log('[initVKAuth] VK ID SDK script loaded')
-          resolve()
+          console.log('[initVKAuth] VK ID SDK script loaded, waiting for VKIDSDK...')
+          // Даем время на инициализацию SDK
+          setTimeout(() => {
+            if ('VKIDSDK' in window) {
+              clearInterval(checkInterval)
+              clearTimeout(timeoutId)
+              console.log('[initVKAuth] VK ID SDK ready')
+              resolve()
+            }
+          }, 1000)
         }
+        
         script.onerror = () => {
+          clearInterval(checkInterval)
           clearTimeout(timeoutId)
-          console.error('[initVKAuth] Failed to load VK ID SDK')
+          console.error('[initVKAuth] Failed to load VK ID SDK script')
           reject(new Error('Failed to load VK ID SDK script'))
         }
+        
+        // Таймаут на проверку
+        setTimeout(() => {
+          if (!('VKIDSDK' in window)) {
+            clearInterval(checkInterval)
+            clearTimeout(timeoutId)
+            console.error('[initVKAuth] Timeout waiting for VKIDSDK after script load')
+            reject(new Error('VKIDSDK not available after script load'))
+          }
+        }, 10000) // 10 секунд на загрузку
       })
       
       document.head.appendChild(script)
       
       try {
         await loadPromise
+        // Дополнительная проверка
+        if (!('VKIDSDK' in window)) {
+          throw new Error('VKIDSDK still not available after load')
+        }
         initializeVKIDSDK(data.client_id, redirectUri, timeoutId)
       } catch (loadErr) {
-        error.value = 'Не удалось загрузить VK ID SDK. Проверьте подключение к интернету.'
+        console.error('[initVKAuth] Load error:', loadErr)
+        error.value = `Не удалось загрузить VK ID SDK: ${loadErr.message}. Проверьте консоль браузера и подключение к интернету.`
         loadingAuth.value = false
       }
     } else {
       clearTimeout(timeoutId)
+      console.log('[initVKAuth] VK ID SDK already loaded')
       initializeVKIDSDK(data.client_id, redirectUri, timeoutId)
     }
   } catch (err) {
@@ -832,11 +868,20 @@ const initVKAuth = async () => {
 
 const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
   try {
+    // Проверяем наличие VKIDSDK в window
+    if (!('VKIDSDK' in window)) {
+      throw new Error('VKIDSDK not found in window object')
+    }
+    
     const VKID = window.VKIDSDK
     
     if (!VKID) {
-      throw new Error('VK ID SDK not loaded')
+      throw new Error('VK ID SDK object is null or undefined')
     }
+    
+    console.log('[initVKAuth] VKID object:', VKID)
+    console.log('[initVKAuth] VKID.Config:', VKID.Config)
+    console.log('[initVKAuth] VKID.OneTap:', VKID.OneTap)
     
     // Инициализируем конфигурацию VK ID SDK
     VKID.Config.init({
