@@ -85,22 +85,19 @@ onMounted(async () => {
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     const clientName = localStorage.getItem('vk_auth_client_name')
     const clientId = localStorage.getItem('vk_auth_client_id')
-    const codeVerifier = localStorage.getItem('vk_auth_code_verifier') // PKCE code_verifier для OAuth VK ID 2.1
     
     console.log('[VKCallback] Exchanging code for token...', { 
       code: code.substring(0, 10) + '...', 
       redirectUri, 
       clientName, 
-      clientId,
-      codeVerifier: codeVerifier ? 'Yes' : 'No'
+      clientId
     })
     
     const payload = { 
       code, 
       redirect_uri: redirectUri,
       client_name: clientName,
-      client_id: clientId, // CRITICAL: Pass client_id to link integration to correct project
-      code_verifier: codeVerifier // PKCE code_verifier для OAuth VK ID 2.1
+      client_id: clientId // CRITICAL: Pass client_id to link integration to correct project
     }
     
     const response = await api.post('integrations/vk/exchange', payload)
@@ -111,7 +108,6 @@ onMounted(async () => {
     localStorage.removeItem('vk_auth_client_name')
     localStorage.removeItem('vk_auth_client_id')
     localStorage.removeItem('vk_auth_state')
-    localStorage.removeItem('vk_auth_code_verifier')
     toaster.success('VK Ads успешно подключен!')
     
     // Redirect to integration wizard step 2 (campaigns, profile selection removed)

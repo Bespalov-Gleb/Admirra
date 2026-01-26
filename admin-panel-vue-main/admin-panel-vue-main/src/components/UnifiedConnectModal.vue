@@ -775,18 +775,12 @@ const initVKAuth = async () => {
     const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
     console.log('[initVKAuth] Auth URL received:', data.url ? 'Yes' : 'No')
     console.log('[initVKAuth] State received:', data.state ? 'Yes' : 'No')
-    console.log('[initVKAuth] Code verifier received:', data.code_verifier ? 'Yes' : 'No')
     
     if (data.url) {
       // Сохраняем state для проверки CSRF защиты в callback
       if (data.state) {
         localStorage.setItem('vk_auth_state', data.state)
         console.log('[initVKAuth] State saved to localStorage')
-      }
-      // Сохраняем code_verifier для PKCE (OAuth VK ID 2.1)
-      if (data.code_verifier) {
-        localStorage.setItem('vk_auth_code_verifier', data.code_verifier)
-        console.log('[initVKAuth] Code verifier saved to localStorage')
       }
       console.log('[initVKAuth] Redirecting to VK Ads authorization page...')
       console.log('[initVKAuth] Full URL:', data.url)
