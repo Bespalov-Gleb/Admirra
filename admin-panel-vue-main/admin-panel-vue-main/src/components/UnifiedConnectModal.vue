@@ -794,10 +794,11 @@ const initVKAuth = async () => {
     if (!('VKIDSDK' in window)) {
       console.log('[initVKAuth] VK ID SDK not found, loading script...')
       const script = document.createElement('script')
-      // ИСПРАВЛЕНО: правильный URL к UMD файлу VK ID SDK
-      script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@latest/dist/index.umd.js'
+      // Правильный URL к UMD файлу VK ID SDK согласно документации
+        script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@2.6.0/dist-sdk/umd/index.js'
       script.async = true
       script.crossOrigin = 'anonymous' // Для CORS
+      script.nonce = document.querySelector('meta[name="csp-nonce"]')?.content || undefined // Для CSP если используется
       
       const loadPromise = new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
@@ -895,6 +896,9 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
     })
     
     console.log('[initVKAuth] VK ID SDK initialized')
+    
+    // Сбрасываем loadingAuth после успешной инициализации SDK
+    loadingAuth.value = false
     
     // Удаляем старый контейнер если есть
     const oldContainer = document.getElementById('vk-id-widget-container')
@@ -1029,10 +1033,11 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
       
       // Проверяем через 3 секунды, что виджет отобразился
       setTimeout(() => {
-        if (loadingAuth.value && container && container.children.length <= 1) {
+        if (container && container.children.length <= 1) {
           // Виджет не отобразился (только кнопка закрытия)
           console.warn('[initVKAuth] Widget may not have rendered properly')
-          // Не останавливаем загрузку, возможно виджет просто невидим для неавторизованных пользователей
+          // Показываем сообщение пользователю, что виджет может быть невидим
+          // Это нормально для неавторизованных пользователей VK
         }
       }, 3000)
       

@@ -97,7 +97,7 @@ def get_vk_auth_url(redirect_uri: str):
     return {
         "client_id": VK_CLIENT_ID,
         "redirect_uri": redirect_uri,
-        "sdk_url": "https://unpkg.com/@vkid/sdk@latest/dist/index.umd.js"  # ИСПРАВЛЕНО: правильный путь к UMD файлу
+        "sdk_url": "https://unpkg.com/@vkid/sdk@2.6.0/dist-sdk/umd/index.js"  # Правильный путь к UMD файлу VK ID SDK
     }
 
 from fastapi import BackgroundTasks
