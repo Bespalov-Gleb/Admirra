@@ -497,6 +497,10 @@ const initVKAuth = async () => {
       if (data.state) {
         localStorage.setItem('vk_auth_state', data.state)
       }
+      // Сохраняем code_verifier для PKCE (OAuth VK ID 2.1)
+      if (data.code_verifier) {
+        localStorage.setItem('vk_auth_code_verifier', data.code_verifier)
+      }
       window.location.href = data.url
     }
   } catch (err) {

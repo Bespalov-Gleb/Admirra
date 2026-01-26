@@ -21,15 +21,18 @@ YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a801
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 
-# VK Ads Credentials (OAuth 2.0 flow)
+# VK Ads Credentials (OAuth 2.1 / VK ID flow)
 VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
 VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
-# ВАЖНО: Согласно официальной документации VK Ads API:
-# URL авторизации: https://ads.vk.com/hq/settings/access?action=oauth2
-# URL обмена токена: https://ads.vk.com/api/v2/oauth2/token.json
+# КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: OAuth ВКонтакте устаревший!
+# Получение Access token пользователя теперь возможно только через OAuth VK ID
+# URL авторизации: id.vk.com/oauth2/auth (OAuth VK ID 2.1)
+# URL обмена токена: id.vk.com/oauth2/auth (для обмена кода на токен) или ads.vk.com/api/v2/oauth2/token.json
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API
-VK_AUTH_URL = "https://ads.vk.com/hq/settings/access"
-VK_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
+# 
+# ВАЖНО: VK Ads API использует OAuth VK ID (id.vk.com), а не устаревший oauth.vk.com
+VK_AUTH_URL = "https://id.vk.com/oauth2/auth"
+VK_TOKEN_URL = "https://id.vk.com/oauth2/auth"  # Обмен кода на токен через VK ID OAuth
 
 logger = logging.getLogger(__name__)
 
@@ -75,56 +78,71 @@ def get_yandex_auth_url(redirect_uri: str):
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
     """
-    Generate VK Ads OAuth authorization URL согласно официальной документации.
+    Generate VK Ads OAuth authorization URL using OAuth VK ID 2.1.
     
-    Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API
+    КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: OAuth ВКонтакте устаревший!
+    Получение Access token пользователя теперь возможно только через OAuth VK ID.
     
-    Параметры согласно документации:
-    - action=oauth2 (обязательный параметр в URL)
+    VK Ads API использует OAuth VK ID (id.vk.com) для авторизации пользователей.
+    Обмен кода на токен также происходит через id.vk.com/oauth2/auth.
+    
+    Параметры для OAuth VK ID 2.1:
     - response_type=code
     - client_id
-    - state (для CSRF защиты)
-    - scope (список прав доступа)
     - redirect_uri (должен совпадать с настройками приложения)
+    - scope (список прав доступа: ads, offline)
+    - state (для CSRF защиты)
+    - code_challenge и code_challenge_method (PKCE для безопасности, опционально)
     
-    Убедитесь, что в настройках приложения VK Ads:
+    Убедитесь, что в настройках приложения VK Apps:
     1. Доверенный Redirect URL указан точно: {redirect_uri}
-    2. Приложение имеет доступ к схеме Authorization Code Grant
+    2. Приложение имеет тип "Веб-сайт" или "Standalone"
+    3. Включены права доступа: ads, offline (в разделе "Доступы" приложения)
     """
     import secrets
     import base64
+    import hashlib
     from urllib.parse import urlencode
     
     # Генерируем state для CSRF защиты (32 байта, кодируем в base64)
     state_token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
     
-    # Scope for VK Ads v2: ads, offline (for long-lived access)
+    # Генерируем PKCE code_verifier и code_challenge для безопасности
+    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('utf-8').rstrip('=')
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    ).decode('utf-8').rstrip('=')
+    
+    # Scope for VK Ads: ads (доступ к VK Ads API), offline (для получения refresh_token)
     scope = "ads,offline"
     
-    # Формируем параметры URL
+    # Формируем параметры URL для OAuth VK ID 2.1
     params = {
-        "action": "oauth2",
-        "response_type": "code",
         "client_id": VK_CLIENT_ID,
-        "state": state_token,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
         "scope": scope,
-        "redirect_uri": redirect_uri
+        "state": state_token,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256"  # PKCE метод
     }
     
-    # Согласно документации: https://ads.vk.com/hq/settings/access?action=oauth2&response_type=code&client_id={client_id}&state={state}&scope={scopes}&redirect_uri={redirect_uri}
+    # Используем OAuth VK ID URL (id.vk.com), а не устаревший oauth.vk.com
     auth_url = f"{VK_AUTH_URL}?{urlencode(params)}"
     
-    logger.info(f"🔗 Generated VK Ads auth URL:")
+    logger.info(f"🔗 Generated VK Ads auth URL (using OAuth VK ID 2.1):")
     logger.info(f"   Base URL: {VK_AUTH_URL}")
     logger.info(f"   Client ID: {VK_CLIENT_ID}")
     logger.info(f"   Redirect URI: {redirect_uri}")
     logger.info(f"   Scope: {scope}")
     logger.info(f"   State: {state_token[:20]}... (truncated)")
+    logger.info(f"   Code Challenge: {code_challenge[:20]}... (truncated)")
     logger.info(f"   Full URL: {auth_url[:200]}... (truncated)")
     
     return {
         "url": auth_url,
-        "state": state_token  # Возвращаем state для проверки на фронтенде
+        "state": state_token,  # Возвращаем state для проверки на фронтенде
+        "code_verifier": code_verifier  # Сохраняем для обмена кода на токен
     }
 
 from fastapi import BackgroundTasks
@@ -352,33 +370,36 @@ async def exchange_yandex_token(
 
 @router.post("/vk/exchange")
 async def exchange_vk_token_oauth(
-    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "..."}
+    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "...", "code_verifier": "..."}
     background_tasks: BackgroundTasks,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Exchange authorization code for VK Ads access token.
+    Exchange authorization code for VK Ads access token using OAuth VK ID 2.1.
+    
+    КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: OAuth ВКонтакте устаревший!
+    Теперь используется OAuth VK ID 2.1 с поддержкой PKCE.
     """
     auth_code = payload.get("code")
     redirect_uri = payload.get("redirect_uri")
     client_name_input = payload.get("client_name")
     client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
+    code_verifier = payload.get("code_verifier")  # PKCE code_verifier для безопасности
     
     if not auth_code or not redirect_uri:
         raise HTTPException(status_code=400, detail="Authorization code and redirect_uri are required")
 
-    logger.info(f"🔄 Exchanging VK authorization code for token...")
+    logger.info(f"🔄 Exchanging VK ID authorization code for token (OAuth VK ID 2.1)...")
     logger.info(f"   Code: {auth_code[:20]}... (truncated)")
     logger.info(f"   Redirect URI: {redirect_uri}")
     logger.info(f"   Client ID: {VK_CLIENT_ID}")
     logger.info(f"   Token URL: {VK_TOKEN_URL}")
+    logger.info(f"   Code Verifier provided: {bool(code_verifier)}")
     
     async with httpx.AsyncClient() as client:
         try:
-            # Согласно документации VK Ads API, для Authorization Code Grant
-            # может не требоваться client_secret в теле запроса
-            # Попробуем сначала без client_secret, если не сработает - добавим
+            # OAuth VK ID 2.1 требует PKCE (code_verifier) для обмена кода на токен
             token_payload = {
                 "grant_type": "authorization_code",
                 "code": auth_code,
@@ -386,8 +407,14 @@ async def exchange_vk_token_oauth(
                 "redirect_uri": redirect_uri
             }
             
-            # Некоторые реализации OAuth требуют client_secret для безопасности
-            # Попробуем с client_secret сначала
+            # Добавляем PKCE code_verifier, если он был передан
+            if code_verifier:
+                token_payload["code_verifier"] = code_verifier
+            else:
+                logger.warning("⚠️ Code verifier not provided. PKCE is recommended for security.")
+            
+            # Для OAuth VK ID может не требоваться client_secret, но попробуем с ним
+            # Если не сработает, попробуем без него
             token_payload["client_secret"] = VK_CLIENT_SECRET
             
             logger.info(f"   Request payload keys: {list(token_payload.keys())}")
