@@ -116,14 +116,20 @@ def get_vk_auth_url(redirect_uri: str):
     # Формируем OAuth URL для VK Ads API согласно документации
     # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
     # Правильный URL: https://ads.vk.com/hq/settings/access?action=oauth2
+    # ВАЖНО: redirect_uri должен быть URL-encoded
+    from urllib.parse import quote
+    
+    encoded_redirect_uri = quote(redirect_uri, safe='')
+    encoded_scope = quote(scope, safe='')
+    
     auth_url = (
         f"https://ads.vk.com/hq/settings/access"
         f"?action=oauth2"
         f"&response_type=code"
         f"&client_id={VK_CLIENT_ID}"
         f"&state={state}"
-        f"&scope={scope}"
-        f"&redirect_uri={redirect_uri}"
+        f"&scope={encoded_scope}"
+        f"&redirect_uri={encoded_redirect_uri}"
     )
     
     logger.info(f"   Generated VK Ads OAuth URL: {auth_url}")
