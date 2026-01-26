@@ -76,19 +76,22 @@ def get_vk_auth_url(redirect_uri: str):
     """
     Возвращает OAuth URL для авторизации в VK Ads API.
     
-    ВАЖНО: Используем стандартный OAuth flow для VK Ads через ads.vk.com.
-    Токен от VK ID SDK не работает с VK Ads API - нужен отдельный OAuth flow.
+    Использует Authorization Code Grant согласно документации VK Ads API:
+    https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
+    
+    Правильный URL: https://ads.vk.com/hq/settings/access?action=oauth2
     
     Параметры:
     - client_id: ID приложения VK Ads
-    - redirect_uri: URL для callback после авторизации
-    - scope: ads offline (для доступа к VK Ads API и получения refresh_token)
+    - redirect_uri: URL для callback после авторизации (должен быть зарегистрирован в настройках приложения)
+    - scope: read_ads,read_payments,create_ads (права доступа для работы с VK Ads API)
     - response_type: code
+    - state: CSRF защита
     
     Убедитесь, что в настройках приложения VK Ads:
     1. Redirect URL указан точно: {redirect_uri}
-    2. Приложение настроено для Web-платформы
-    3. Включены права: ads, offline
+    2. Приложение имеет доступ к Authorization Code Grant (предоставляется по запросу)
+    3. Включены права: read_ads, read_payments, create_ads (или соответствующие права для агентств/менеджеров)
     """
     import secrets
     import base64
@@ -101,22 +104,29 @@ def get_vk_auth_url(redirect_uri: str):
     # Генерируем state для CSRF защиты
     state = secrets.token_urlsafe(32)
     
-    # Scope для VK Ads API
-    scope = "ads offline"
+    # Scope для VK Ads API согласно документации
+    # Для обычного пользователя-рекламодателя:
+    # - read_ads: чтение статистики и РК
+    # - read_payments: чтение денежных транзакций и баланса
+    # - create_ads: создание и редактирование настроек РК, баннеров, аудиторий
+    # Для агентств: create_clients, read_clients, create_agency_payments
+    # Для менеджеров: read_manager_clients, edit_manager_clients, read_payments
+    scope = "read_ads,read_payments,create_ads"
     
-    # Формируем OAuth URL для VK Ads через стандартный OAuth VK
-    # VK Ads использует стандартный OAuth endpoint oauth.vk.com с scope=ads
+    # Формируем OAuth URL для VK Ads API согласно документации
+    # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
+    # Правильный URL: https://ads.vk.com/hq/settings/access?action=oauth2
     auth_url = (
-        f"https://oauth.vk.com/authorize"
-        f"?client_id={VK_CLIENT_ID}"
-        f"&redirect_uri={redirect_uri}"
+        f"https://ads.vk.com/hq/settings/access"
+        f"?action=oauth2"
         f"&response_type=code"
-        f"&scope={scope}"
+        f"&client_id={VK_CLIENT_ID}"
         f"&state={state}"
-        f"&v=5.131"  # Версия API VK
+        f"&scope={scope}"
+        f"&redirect_uri={redirect_uri}"
     )
     
-    logger.info(f"   Generated OAuth URL: {auth_url[:100]}...")
+    logger.info(f"   Generated VK Ads OAuth URL: {auth_url[:100]}...")
     
     return {
         "url": auth_url,
@@ -358,9 +368,13 @@ async def exchange_vk_token_oauth(
     """
     Обменивает authorization code на токен VK Ads API и сохраняет его.
     
-    ВАЖНО: Используем стандартный OAuth flow для VK Ads через ads.vk.com.
-    Фронтенд получает authorization code через редирект на OAuth страницу VK Ads,
-    затем отправляет code на бэкенд для обмена на токен через VK Ads API.
+    Использует Authorization Code Grant согласно документации VK Ads API:
+    https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
+    
+    Endpoint: POST https://ads.vk.com/api/v2/oauth2/token.json
+    Параметры: grant_type=authorization_code, code={code}, client_id={client_id}
+    
+    Примечание: client_secret НЕ требуется для Authorization Code Grant в VK Ads API.
     """
     # Проверяем, есть ли уже готовый токен от VKID.Auth.exchangeCode
     access_token = payload.get("access_token")
@@ -376,19 +390,19 @@ async def exchange_vk_token_oauth(
     device_id = payload.get("device_id")
     
     # Если есть код авторизации, обмениваем его на токен через VK Ads API
+    # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
     if auth_code:
         logger.info(f"🔄 Exchanging VK Ads authorization code for token...")
         logger.info(f"   Code: {auth_code[:20]}... (truncated)")
-        logger.info(f"   Device ID: {device_id or 'N/A'}")
         
         async with httpx.AsyncClient() as client:
             try:
+                # Согласно документации VK Ads API, для Authorization Code Grant нужны только:
+                # grant_type, code, client_id (client_secret НЕ требуется для этого flow)
                 token_payload = {
                     "grant_type": "authorization_code",
                     "code": auth_code,
-                    "client_id": VK_CLIENT_ID,
-                    "client_secret": VK_CLIENT_SECRET,
-                    "redirect_uri": redirect_uri or f"{os.getenv('FRONTEND_URL', 'https://admirra.ru')}/auth/vk/callback"
+                    "client_id": VK_CLIENT_ID
                 }
                 
                 logger.info(f"   Using VK Ads token endpoint: {VK_ADS_TOKEN_URL}")
