@@ -795,7 +795,7 @@ const initVKAuth = async () => {
       console.log('[initVKAuth] VK ID SDK not found, loading script...')
       const script = document.createElement('script')
       // Правильный URL к UMD файлу VK ID SDK согласно документации
-        script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@2.6.0/dist-sdk/umd/index.js'
+      script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@2.6.0/dist-sdk/umd/index.js'
       script.async = true
       script.crossOrigin = 'anonymous' // Для CORS
       script.nonce = document.querySelector('meta[name="csp-nonce"]')?.content || undefined // Для CSP если используется
@@ -823,11 +823,12 @@ const initVKAuth = async () => {
           }, 1000)
         }
         
-        script.onerror = () => {
+        script.onerror = (err) => {
           clearInterval(checkInterval)
           clearTimeout(timeoutId)
-          console.error('[initVKAuth] Failed to load VK ID SDK script')
-          reject(new Error('Failed to load VK ID SDK script'))
+          console.error('[initVKAuth] Failed to load VK ID SDK script:', err)
+          console.error('[initVKAuth] Script URL:', script.src)
+          reject(new Error(`Не удалось загрузить VK ID SDK. Проверьте консоль браузера и подключение к интернету. URL: ${script.src}`))
         }
         
         // Таймаут на проверку
@@ -849,8 +850,17 @@ const initVKAuth = async () => {
         if (!('VKIDSDK' in window)) {
           throw new Error('VKIDSDK still not available after load')
         }
+        
+        // Проверяем, что VKIDSDK содержит необходимые объекты
+        const VKID = window.VKIDSDK
+        if (!VKID || !VKID.Config || !VKID.OneTap) {
+          throw new Error('VK ID SDK загружен, но не содержит необходимые компоненты (Config, OneTap)')
+        }
+        
+        console.log('[initVKAuth] VK ID SDK fully loaded and validated')
         initializeVKIDSDK(data.client_id, redirectUri, timeoutId)
       } catch (loadErr) {
+        clearTimeout(timeoutId)
         console.error('[initVKAuth] Load error:', loadErr)
         error.value = `Не удалось загрузить VK ID SDK: ${loadErr.message}. Проверьте консоль браузера и подключение к интернету.`
         loadingAuth.value = false
@@ -886,19 +896,32 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
     console.log('[initVKAuth] VKID.Config:', VKID.Config)
     console.log('[initVKAuth] VKID.OneTap:', VKID.OneTap)
     
-    // Инициализируем конфигурацию VK ID SDK
-    VKID.Config.init({
-      app: parseInt(clientId),
+    // Проверяем валидность clientId
+    const appId = parseInt(clientId)
+    if (!appId || isNaN(appId)) {
+      throw new Error(`Неверный Client ID: ${clientId}. Убедитесь, что ID приложения VK указан правильно.`)
+    }
+    
+    console.log('[initVKAuth] Initializing VK ID SDK with config:', {
+      app: appId,
       redirectUrl: redirectUri,
-      responseMode: VKID.ConfigResponseMode.Callback,
-      source: VKID.ConfigSource.LOWCODE,
-      scope: '' // Для VK Ads может потребоваться указать scope, но пока оставляем пустым
+      responseMode: 'Callback',
+      source: 'LOWCODE'
     })
     
-    console.log('[initVKAuth] VK ID SDK initialized')
-    
-    // Сбрасываем loadingAuth после успешной инициализации SDK
-    loadingAuth.value = false
+    // Инициализируем конфигурацию VK ID SDK
+    try {
+      VKID.Config.init({
+        app: appId,
+        redirectUrl: redirectUri,
+        responseMode: VKID.ConfigResponseMode.Callback,
+        source: VKID.ConfigSource.LOWCODE,
+        scope: '' // Для VK Ads может потребоваться указать scope, но пока оставляем пустым
+      })
+      console.log('[initVKAuth] VK ID SDK config initialized successfully')
+    } catch (configErr) {
+      throw new Error(`Ошибка инициализации конфигурации VK ID SDK: ${configErr.message || configErr}`)
+    }
     
     // Удаляем старый контейнер если есть
     const oldContainer = document.getElementById('vk-id-widget-container')
@@ -968,7 +991,7 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
           <div style="text-align: center; padding: 20px;">
             <h3 style="color: #ef4444; margin-bottom: 10px;">Ошибка авторизации</h3>
             <p style="color: #666; margin-bottom: 20px;">${error.value}</p>
-            <button onclick="this.closest('#vk-id-widget-container').remove(); window.location.reload();" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Закрыть</button>
+            <button onclick="this.closest('#vk-id-widget-container').remove(); loadingAuth.value = false;" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Закрыть</button>
           </div>
         `
       })
@@ -1029,22 +1052,29 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
         }
       })
       
-      console.log('[initVKAuth] VK ID One Tap widget rendered')
+      console.log('[initVKAuth] VK ID One Tap widget render called')
       
-      // Проверяем через 3 секунды, что виджет отобразился
+      // Сбрасываем loadingAuth после успешного вызова render
+      // Виджет может отобразиться не сразу, но это нормально
+      loadingAuth.value = false
+      
+      // Проверяем через 2 секунды, что виджет отобразился
       setTimeout(() => {
-        if (container && container.children.length <= 1) {
+        const widgetElements = container.querySelectorAll('iframe, [data-vkid], .vkid-widget')
+        if (container && container.children.length <= 1 && widgetElements.length === 0) {
           // Виджет не отобразился (только кнопка закрытия)
-          console.warn('[initVKAuth] Widget may not have rendered properly')
-          // Показываем сообщение пользователю, что виджет может быть невидим
-          // Это нормально для неавторизованных пользователей VK
+          console.warn('[initVKAuth] Widget may not have rendered properly - no widget elements found')
+          // Это может быть нормально для неавторизованных пользователей VK
+          // Виджет может быть скрыт или не отображаться в некоторых случаях
+        } else {
+          console.log('[initVKAuth] Widget rendered successfully, found elements:', widgetElements.length)
         }
-      }, 3000)
+      }, 2000)
       
     } catch (renderErr) {
       if (timeoutId) clearTimeout(timeoutId)
       console.error('[initVKAuth] Failed to render widget:', renderErr)
-      error.value = 'Не удалось отобразить виджет авторизации VK ID'
+      error.value = `Не удалось отобразить виджет авторизации VK ID: ${renderErr.message || renderErr}`
       loadingAuth.value = false
       if (container && container.parentNode) {
         container.parentNode.removeChild(container)
@@ -1055,6 +1085,18 @@ const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
     console.error('[initVKAuth] Failed to initialize VK ID SDK:', err)
     error.value = err.message || 'Не удалось инициализировать VK ID SDK'
     loadingAuth.value = false
+    
+    // Показываем ошибку пользователю
+    const errorContainer = document.getElementById('vk-id-widget-container')
+    if (errorContainer) {
+      errorContainer.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+          <h3 style="color: #ef4444; margin-bottom: 10px;">Ошибка инициализации</h3>
+          <p style="color: #666; margin-bottom: 20px;">${error.value}</p>
+          <button onclick="this.closest('#vk-id-widget-container').remove();" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Закрыть</button>
+        </div>
+      `
+    }
   }
 }
 </script>
