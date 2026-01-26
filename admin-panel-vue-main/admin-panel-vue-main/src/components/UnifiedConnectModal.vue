@@ -760,6 +760,17 @@ const initYandexAuth = async () => {
 
 const initVKAuth = async () => {
   loadingAuth.value = true
+  error.value = null
+  
+  // Таймаут для предотвращения бесконечной загрузки
+  const timeoutId = setTimeout(() => {
+    if (loadingAuth.value) {
+      console.error('[initVKAuth] Timeout waiting for VK ID SDK')
+      error.value = 'Превышено время ожидания загрузки VK ID SDK. Попробуйте обновить страницу.'
+      loadingAuth.value = false
+    }
+  }, 15000) // 15 секунд таймаут
+  
   try {
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     
@@ -783,19 +794,35 @@ const initVKAuth = async () => {
     if (!window.VKIDSDK) {
       const script = document.createElement('script')
       script.src = data.sdk_url || 'https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js'
-      script.onload = () => {
-        initializeVKIDSDK(data.client_id, redirectUri)
-      }
-      script.onerror = () => {
-        console.error('[initVKAuth] Failed to load VK ID SDK')
-        error.value = 'Не удалось загрузить VK ID SDK'
+      
+      const loadPromise = new Promise((resolve, reject) => {
+        script.onload = () => {
+          clearTimeout(timeoutId)
+          console.log('[initVKAuth] VK ID SDK script loaded')
+          resolve()
+        }
+        script.onerror = () => {
+          clearTimeout(timeoutId)
+          console.error('[initVKAuth] Failed to load VK ID SDK')
+          reject(new Error('Failed to load VK ID SDK script'))
+        }
+      })
+      
+      document.head.appendChild(script)
+      
+      try {
+        await loadPromise
+        initializeVKIDSDK(data.client_id, redirectUri, timeoutId)
+      } catch (loadErr) {
+        error.value = 'Не удалось загрузить VK ID SDK. Проверьте подключение к интернету.'
         loadingAuth.value = false
       }
-      document.head.appendChild(script)
     } else {
-      initializeVKIDSDK(data.client_id, redirectUri)
+      clearTimeout(timeoutId)
+      initializeVKIDSDK(data.client_id, redirectUri, timeoutId)
     }
   } catch (err) {
+    clearTimeout(timeoutId)
     console.error('[initVKAuth] Error:', err)
     console.error('[initVKAuth] Error response:', err.response)
     error.value = err.response?.data?.detail || 'Не удалось инициализировать авторизацию VK'
@@ -803,7 +830,7 @@ const initVKAuth = async () => {
   }
 }
 
-const initializeVKIDSDK = (clientId, redirectUri) => {
+const initializeVKIDSDK = (clientId, redirectUri, timeoutId) => {
   try {
     const VKID = window.VKIDSDK
     
@@ -822,84 +849,153 @@ const initializeVKIDSDK = (clientId, redirectUri) => {
     
     console.log('[initVKAuth] VK ID SDK initialized')
     
+    // Удаляем старый контейнер если есть
+    const oldContainer = document.getElementById('vk-id-widget-container')
+    if (oldContainer && oldContainer.parentNode) {
+      oldContainer.parentNode.removeChild(oldContainer)
+    }
+    
+    // Создаем новый контейнер для виджета
+    const container = document.createElement('div')
+    container.id = 'vk-id-widget-container'
+    container.style.position = 'fixed'
+    container.style.top = '50%'
+    container.style.left = '50%'
+    container.style.transform = 'translate(-50%, -50%)'
+    container.style.zIndex = '10000'
+    container.style.background = 'white'
+    container.style.padding = '30px'
+    container.style.borderRadius = '16px'
+    container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.2)'
+    container.style.minWidth = '400px'
+    container.style.maxWidth = '500px'
+    
+    // Добавляем кнопку закрытия
+    const closeButton = document.createElement('button')
+    closeButton.innerHTML = '✕'
+    closeButton.style.position = 'absolute'
+    closeButton.style.top = '10px'
+    closeButton.style.right = '10px'
+    closeButton.style.background = 'none'
+    closeButton.style.border = 'none'
+    closeButton.style.fontSize = '24px'
+    closeButton.style.cursor = 'pointer'
+    closeButton.style.color = '#666'
+    closeButton.style.width = '30px'
+    closeButton.style.height = '30px'
+    closeButton.style.display = 'flex'
+    closeButton.style.alignItems = 'center'
+    closeButton.style.justifyContent = 'center'
+    closeButton.onclick = () => {
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+      loadingAuth.value = false
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+    container.appendChild(closeButton)
+    
+    document.body.appendChild(container)
+    
     // Создаем виджет One Tap
     const oneTap = new VKID.OneTap()
     
-    // Находим контейнер для виджета (можно создать динамически)
-    let container = document.getElementById('vk-id-widget-container')
-    if (!container) {
-      container = document.createElement('div')
-      container.id = 'vk-id-widget-container'
-      container.style.position = 'fixed'
-      container.style.top = '50%'
-      container.style.left = '50%'
-      container.style.transform = 'translate(-50%, -50%)'
-      container.style.zIndex = '10000'
-      container.style.background = 'white'
-      container.style.padding = '20px'
-      container.style.borderRadius = '12px'
-      container.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)'
-      document.body.appendChild(container)
-    }
-    
-    // Рендерим виджет
-    oneTap.render({
-      container: container,
-      showAlternativeLogin: true
-    })
-    .on(VKID.WidgetEvents.ERROR, (error) => {
-      console.error('[initVKAuth] VK ID SDK error:', error)
-      error.value = error.message || 'Ошибка авторизации VK ID'
+    // Рендерим виджет с обработкой ошибок
+    try {
+      oneTap.render({
+        container: container,
+        showAlternativeLogin: true
+      })
+      .on(VKID.WidgetEvents.ERROR, (err) => {
+        if (timeoutId) clearTimeout(timeoutId)
+        console.error('[initVKAuth] VK ID SDK error:', err)
+        error.value = err?.message || err?.error_description || 'Ошибка авторизации VK ID'
+        loadingAuth.value = false
+        
+        // Показываем ошибку в контейнере
+        container.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <h3 style="color: #ef4444; margin-bottom: 10px;">Ошибка авторизации</h3>
+            <p style="color: #666; margin-bottom: 20px;">${error.value}</p>
+            <button onclick="this.closest('#vk-id-widget-container').remove(); window.location.reload();" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Закрыть</button>
+          </div>
+        `
+      })
+      .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
+        if (timeoutId) clearTimeout(timeoutId)
+        console.log('[initVKAuth] VK ID login success:', payload)
+        const code = payload.code
+        const deviceId = payload.device_id
+        
+        // Показываем индикатор загрузки
+        container.innerHTML = '<div style="text-align: center; padding: 20px;"><div style="border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto;"></div><p style="margin-top: 15px; color: #666;">Обмен кода на токен...</p></div>'
+        
+        try {
+          // Обмениваем code на токен через бэкенд
+          const response = await api.post('integrations/vk/exchange', {
+            code,
+            device_id: deviceId,
+            redirect_uri: redirectUri,
+            client_name: form.client_name,
+            client_id: form.client_id
+          })
+          
+          console.log('[initVKAuth] Token exchange successful:', response.data)
+          
+          // Удаляем контейнер виджета
+          if (container && container.parentNode) {
+            container.parentNode.removeChild(container)
+          }
+          
+          // Переходим к следующему шагу
+          const integrationId = response.data.integration_id
+          if (integrationId) {
+            router.push(`/integrations/wizard?resume_integration_id=${integrationId}&initial_step=2`)
+          } else {
+            nextStep()
+          }
+          
+          loadingAuth.value = false
+        } catch (exchangeErr) {
+          console.error('[initVKAuth] Token exchange error:', exchangeErr)
+          error.value = exchangeErr.response?.data?.detail || 'Не удалось обменять код на токен'
+          loadingAuth.value = false
+          
+          // Показываем ошибку
+          container.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+              <h3 style="color: #ef4444; margin-bottom: 10px;">Ошибка обмена токена</h3>
+              <p style="color: #666; margin-bottom: 20px;">${error.value}</p>
+              <button onclick="this.closest('#vk-id-widget-container').remove();" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Закрыть</button>
+            </div>
+          `
+        }
+      })
+      
+      console.log('[initVKAuth] VK ID One Tap widget rendered')
+      
+      // Проверяем через 3 секунды, что виджет отобразился
+      setTimeout(() => {
+        if (loadingAuth.value && container && container.children.length <= 1) {
+          // Виджет не отобразился (только кнопка закрытия)
+          console.warn('[initVKAuth] Widget may not have rendered properly')
+          // Не останавливаем загрузку, возможно виджет просто невидим для неавторизованных пользователей
+        }
+      }, 3000)
+      
+    } catch (renderErr) {
+      if (timeoutId) clearTimeout(timeoutId)
+      console.error('[initVKAuth] Failed to render widget:', renderErr)
+      error.value = 'Не удалось отобразить виджет авторизации VK ID'
       loadingAuth.value = false
       if (container && container.parentNode) {
         container.parentNode.removeChild(container)
       }
-    })
-    .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
-      console.log('[initVKAuth] VK ID login success:', payload)
-      const code = payload.code
-      const deviceId = payload.device_id
-      
-      try {
-        // Обмениваем code на токен через бэкенд
-        const response = await api.post('integrations/vk/exchange', {
-          code,
-          device_id: deviceId,
-          redirect_uri: redirectUri,
-          client_name: form.client_name,
-          client_id: form.client_id
-        })
-        
-        console.log('[initVKAuth] Token exchange successful:', response.data)
-        
-        // Удаляем контейнер виджета
-        if (container && container.parentNode) {
-          container.parentNode.removeChild(container)
-        }
-        
-        // Переходим к следующему шагу
-        const integrationId = response.data.integration_id
-        if (integrationId) {
-          router.push(`/integrations/wizard?resume_integration_id=${integrationId}&initial_step=2`)
-        } else {
-          nextStep()
-        }
-        
-        loadingAuth.value = false
-      } catch (exchangeErr) {
-        console.error('[initVKAuth] Token exchange error:', exchangeErr)
-        error.value = exchangeErr.response?.data?.detail || 'Не удалось обменять код на токен'
-        loadingAuth.value = false
-        if (container && container.parentNode) {
-          container.parentNode.removeChild(container)
-        }
-      }
-    })
-    
-    console.log('[initVKAuth] VK ID One Tap widget rendered')
+    }
   } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId)
     console.error('[initVKAuth] Failed to initialize VK ID SDK:', err)
-    error.value = 'Не удалось инициализировать VK ID SDK'
+    error.value = err.message || 'Не удалось инициализировать VK ID SDK'
     loadingAuth.value = false
   }
 }
@@ -939,5 +1035,10 @@ const initializeVKIDSDK = (clientId, redirectUri) => {
   20%, 80% { transform: translate3d(2px, 0, 0); }
   30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
   40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>
