@@ -128,26 +128,13 @@
               <svg viewBox="0 0 200 200" class="w-full h-full">
                 <!-- Donut Chart -->
                 <g transform="translate(100, 100)">
-                  <circle 
-                    cx="0" 
-                    cy="0" 
-                    r="80" 
-                    fill="none" 
-                    stroke="#e5e7eb" 
-                    stroke-width="36"
-                  />
-                  <circle
+                  <path
                     v-for="(segment, index) in donutSegments"
                     :key="index"
-                    cx="0"
-                    cy="0"
-                    r="80"
-                    fill="none"
-                    :stroke="segment.color"
-                    stroke-width="36"
-                    :stroke-dasharray="segment.dashArray"
-                    :stroke-dashoffset="segment.dashOffset"
-                    stroke-linecap="butt"
+                    :d="segment.path"
+                    :fill="segment.color"
+                    stroke="white"
+                    stroke-width="2"
                   />
                   <!-- Center Text -->
                   <text 
@@ -519,28 +506,49 @@ const donutColors = [
   '#6366f1'  // Индиго
 ]
 
+// Функция для создания path сегмента donut chart
+const createDonutSegment = (startAngle, endAngle, outerRadius, innerRadius) => {
+  const startAngleRad = (startAngle - 90) * (Math.PI / 180)
+  const endAngleRad = (endAngle - 90) * (Math.PI / 180)
+  
+  const x1 = outerRadius * Math.cos(startAngleRad)
+  const y1 = outerRadius * Math.sin(startAngleRad)
+  const x2 = outerRadius * Math.cos(endAngleRad)
+  const y2 = outerRadius * Math.sin(endAngleRad)
+  
+  const x3 = innerRadius * Math.cos(endAngleRad)
+  const y3 = innerRadius * Math.sin(endAngleRad)
+  const x4 = innerRadius * Math.cos(startAngleRad)
+  const y4 = innerRadius * Math.sin(startAngleRad)
+  
+  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0
+  
+  return `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${x4} ${y4} Z`
+}
+
 const donutSegments = computed(() => {
   if (autoGoals.value.length === 0 || totalConversions.value === 0) return []
   
-  const radius = 80
-  const circumference = 2 * Math.PI * radius
-  const gapSize = 3 // Пробел между сегментами в пикселях
-  const totalGaps = autoGoals.value.length * gapSize
-  const usableCircumference = circumference - totalGaps
+  const outerRadius = 80
+  const innerRadius = 62 // Внутренний радиус для donut
+  const gapAngle = 2 // Угол пробела между сегментами в градусах
   
-  let accumulatedOffset = 0
+  let currentAngle = 0
   
   return autoGoals.value.map((goal, index) => {
     const percentage = (goal.count || 0) / totalConversions.value
-    const segmentLength = usableCircumference * percentage
+    const segmentAngle = (360 - (gapAngle * autoGoals.value.length)) * percentage
+    const startAngle = currentAngle
+    const endAngle = currentAngle + segmentAngle
     
     const segment = {
       color: donutColors[index % donutColors.length],
-      dashArray: `${segmentLength} ${gapSize}`,
-      dashOffset: -accumulatedOffset
+      path: createDonutSegment(startAngle, endAngle, outerRadius, innerRadius),
+      startAngle: startAngle,
+      endAngle: endAngle
     }
     
-    accumulatedOffset += segmentLength + gapSize
+    currentAngle = endAngle + gapAngle
     return segment
   })
 })
