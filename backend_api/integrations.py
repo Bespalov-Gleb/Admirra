@@ -468,7 +468,13 @@ async def exchange_vk_token_oauth(
                 acc_data = acc_response.json()
                 items = acc_data.get("items", [])
                 if items:
-                    vk_account_id = str(items[0].get("id"))
+                    raw_id = items[0].get("id")
+                    # CRITICAL: Ensure account_id is a simple numeric string
+                    # VK Ads API should return numeric ID, but validate just in case
+                    vk_account_id = str(raw_id)
+                    # Validate it's numeric (VK Ads IDs are numeric strings)
+                    if not vk_account_id.isdigit():
+                        logger.warning(f"⚠️ VK Account ID '{vk_account_id}' is not purely numeric, but using as-is")
                     logger.info(f"Auto-detected VK Account ID: {vk_account_id}")
         except Exception as e:
             logger.error(f"Failed to auto-detect VK Account ID: {e}")
@@ -1816,6 +1822,38 @@ async def update_integration(
     
     logger.info(f"Updating integration {integration_id} with data: {integration_in}")
     logger.info(f"Before update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+    
+    # CRITICAL: For VK Ads, validate and normalize account_id format
+    # VK Ads account_id should be a simple numeric string (e.g., "592676405")
+    # If it comes in format like "vkads_592676405@vk@8493881", extract the numeric part
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        if 'account_id' in integration_in and integration_in['account_id']:
+            account_id_raw = str(integration_in['account_id'])
+            logger.info(f"🔵 VK Ads account_id received: '{account_id_raw}'")
+            
+            # Check if it's in wrong format (vkads_XXX@vk@YYY)
+            if '@vk@' in account_id_raw or account_id_raw.startswith('vkads_'):
+                # Extract numeric ID - try to find the main account ID
+                # Format might be: "vkads_592676405@vk@8493881" -> extract "592676405"
+                import re
+                # Try to extract numeric ID after "vkads_" or before "@vk@"
+                match = re.search(r'vkads_(\d+)', account_id_raw)
+                if not match:
+                    match = re.search(r'(\d+)', account_id_raw)  # Fallback: any numeric sequence
+                
+                if match:
+                    normalized_id = match.group(1)
+                    logger.warning(f"⚠️ VK Ads account_id in wrong format '{account_id_raw}', normalized to '{normalized_id}'")
+                    integration_in['account_id'] = normalized_id
+                    if 'agency_client_login' in integration_in:
+                        integration_in['agency_client_login'] = normalized_id
+                else:
+                    logger.error(f"❌ Could not extract numeric ID from VK account_id: '{account_id_raw}'")
+                    raise HTTPException(status_code=400, detail=f"Неверный формат account_id для VK Ads: {account_id_raw}. Ожидается числовой ID (например, '592676405').")
+            else:
+                # Already in correct format, but ensure it's numeric
+                if not account_id_raw.isdigit():
+                    logger.warning(f"⚠️ VK Ads account_id '{account_id_raw}' is not purely numeric, but using as-is")
     
     # 1. Обновляем поля самой интеграции
     for key, value in integration_in.items():
