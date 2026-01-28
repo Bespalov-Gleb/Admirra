@@ -22,6 +22,9 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.MANAGER)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Пользовательский FinanceToken для Яндекс.Директа (или его база)
+    # Используется при запросе баланса через AccountManagement API.
+    yandex_finance_token = Column(String, nullable=True)
 
     clients = relationship("Client", back_populates="owner")
 

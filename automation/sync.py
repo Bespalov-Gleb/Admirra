@@ -253,7 +253,16 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 f"selected_profile='{selected_profile}'"
             )
             
-            api = YandexDirectAPI(access_token, client_login=selected_profile)
+            # Попробуем взять пользовательский FinanceToken для Яндекс.Директа
+            # из настроек владельца проекта (User.yandex_finance_token).
+            finance_token = None
+            try:
+                if integration.client and integration.client.owner:
+                    finance_token = getattr(integration.client.owner, "yandex_finance_token", None)
+            except Exception:
+                finance_token = None
+
+            api = YandexDirectAPI(access_token, client_login=selected_profile, finance_token=finance_token)
             
             # Параллельно получаем баланс и статистику кампаний
             log_event("sync", f"fetching yandex report and balance for {integration.id}")

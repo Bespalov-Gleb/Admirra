@@ -9,6 +9,8 @@ class UserBase(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    # Пользовательский FinanceToken для Яндекс.Директа (или его база)
+    yandex_finance_token: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -32,6 +34,17 @@ class UserLogin(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+
+class UserUpdateSettings(BaseModel):
+    """
+    Обновление настроек текущего пользователя.
+    Пока даём редактировать только безопасные поля (имя, фамилия, FinanceToken).
+    """
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    yandex_finance_token: Optional[str] = None
 
 from core import models
 

@@ -17,17 +17,27 @@
           />
         </div>
 
-        <div class="flex-grow xl:flex xl:justify-end min-w-0">
-          <StatsFilters 
-            :filters="filters"
-            :clients="clients"
-            :all-campaigns="allCampaigns"
-            :loading-campaigns="loadingCampaigns"
-            @period-change="handlePeriodChange"
-            @date-change="handleDateChange"
-            @export="handleExport"
-            @update:campaign-ids="(ids) => filters.campaign_ids = ids"
-          />
+        <div class="flex-grow xl:flex xl:items-center xl:justify-end min-w-0 gap-4">
+          <div class="flex-1">
+            <StatsFilters 
+              :filters="filters"
+              :clients="clients"
+              :all-campaigns="allCampaigns"
+              :loading-campaigns="loadingCampaigns"
+              @period-change="handlePeriodChange"
+              @date-change="handleDateChange"
+              @export="handleExport"
+              @update:campaign-ids="(ids) => filters.campaign_ids = ids"
+            />
+          </div>
+          <label class="mt-4 xl:mt-0 inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
+            <input
+              v-model="includeVat"
+              type="checkbox"
+              class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+            />
+            <span>Учитывать НДС</span>
+          </label>
         </div>
       </div>
 
@@ -42,6 +52,7 @@
         :summary="summary"
         :selected-metrics="selectedMetrics"
         :loading="loading"
+        :include-vat="includeVat"
         @toggle-metric="toggleMetric"
         class="mb-8"
       />
@@ -116,6 +127,14 @@ const { currentProjectId, setCurrentProject } = useProjects()
 const toaster = useToaster()
 const route = useRoute()
 const router = useRouter()
+
+const includeVat = ref(false)
+
+// Auto-sync stats when VAT checkbox changes
+watch(includeVat, () => {
+  // Reuse existing fetch logic so both KPI и графики обновляются
+  fetchStats()
+})
 
 // --- Project Synchronization ---
 

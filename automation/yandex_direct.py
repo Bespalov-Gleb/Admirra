@@ -1,6 +1,7 @@
 import httpx
 import json
 import asyncio
+import os
 from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 import logging
@@ -9,7 +10,7 @@ from core.logging_utils import log_structured
 logger = logging.getLogger(__name__)
 
 class YandexDirectAPI:
-    def __init__(self, access_token: str, client_login: str = None):
+    def __init__(self, access_token: str, client_login: str = None, finance_token: Optional[str] = None):
         """
         Initialize Yandex Direct API client.
         
@@ -25,6 +26,8 @@ class YandexDirectAPI:
             "Accept-Language": "ru",
             "processingMode": "auto"
         }
+        # Пользовательский FinanceToken (или его база), если задан снаружи
+        self.finance_token = finance_token
         
         # Set Client-Login header if profile is specified
         # This is CRITICAL for filtering campaigns by selected profile
@@ -1508,6 +1511,19 @@ class YandexDirectAPI:
             "Accept-Language": "ru",
             "Content-Type": "application/json"
         }
+
+        # OPTIONAL: Finance token support
+        # Поддержка добавления финансового токена, который вы рассчитываете сами
+        # по инструкции из раздела "Finance token" в документации Яндекс.Директа.
+        # Сначала пробуем взять токен из self.finance_token (настройки пользователя),
+        # затем используем переменную окружения YANDEX_DIRECT_FINANCE_TOKEN как fallback.
+        finance_token = self.finance_token or os.getenv("YANDEX_DIRECT_FINANCE_TOKEN")
+        if finance_token:
+            # В разных примерах токен передают либо в теле запроса, либо в заголовке.
+            # Добавляем оба варианта, чтобы упростить интеграцию.
+            payload["FinanceToken"] = finance_token
+            api_headers["Finance-Token"] = finance_token
+            logger.info("💰 Using FinanceToken from env YANDEX_DIRECT_FINANCE_TOKEN for AccountManagement request")
         if client_login_header != "NOT SET (main account)":
             api_headers["Client-Login"] = client_login_header
             logger.info(f"💰 Added Client-Login header to AccountManagement request: '{client_login_header}'")

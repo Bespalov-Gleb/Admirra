@@ -78,42 +78,37 @@
             </div>
 
             <Input
-              v-model="userData.fullName"
-              label="Полное имя"
-              placeholder="Введите полное имя"
-              :readonly="!isEditMode"
-            />
-
-            <Input
               v-model="userData.email"
               label="Email"
               type="email"
               placeholder="Введите email"
-              :readonly="!isEditMode"
+              :readonly="true"
             />
 
             <Input
-              v-model="userData.phone"
-              label="Телефон"
-              type="tel"
-              placeholder="+7 (999) 999-99-99"
+              v-model="userData.username"
+              label="Логин"
+              placeholder="Введите логин"
               :readonly="!isEditMode"
             />
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">О себе</label>
+              <label class="block text-sm font-medium text-gray-700 mb-2">FinanceToken для Яндекс.Директа</label>
               <textarea
-                v-model="userData.bio"
+                v-model="userData.yandexFinanceToken"
                 :readonly="!isEditMode"
-                rows="4"
-                placeholder="Расскажите о себе"
+                rows="3"
+                placeholder="Вставьте сюда ваш FinanceToken из настроек Яндекс.Директа"
                 :class="[
-                  'w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors resize-none',
+                  'w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors resize-none font-mono text-xs',
                   isEditMode
                     ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
                     : 'border-gray-300 bg-gray-100 cursor-not-allowed'
                 ]"
               ></textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                Токен будет использоваться только для чтения баланса через AccountManagement API.
+              </p>
             </div>
           </div>
 
@@ -173,56 +168,10 @@
           </div>
         </div>
 
-        <!-- Настройки уведомлений -->
+        <!-- Настройки уведомлений (заглушка, пока без бэкенда) -->
         <div class="bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Уведомления</h2>
-
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-gray-900">Email уведомления</p>
-                <p class="text-xs text-gray-500 mt-1">Получать уведомления на email</p>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input
-                  v-model="notifications.email"
-                  type="checkbox"
-                  class="sr-only peer"
-                />
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-gray-900">Push уведомления</p>
-                <p class="text-xs text-gray-500 mt-1">Получать push уведомления в браузере</p>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input
-                  v-model="notifications.push"
-                  type="checkbox"
-                  class="sr-only peer"
-                />
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-gray-900">Уведомления о проектах</p>
-                <p class="text-xs text-gray-500 mt-1">Получать уведомления об изменениях в проектах</p>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input
-                  v-model="notifications.projects"
-                  type="checkbox"
-                  class="sr-only peer"
-                />
-                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
+          <p class="text-sm text-gray-500">Настройки уведомлений будут доступны в следующей версии.</p>
         </div>
       </div>
     </div>
@@ -281,13 +230,14 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { UserIcon } from '@heroicons/vue/24/outline'
 import { CameraIcon } from '@heroicons/vue/24/solid'
 import Input from '../Settings/components/Input.vue'
 import Modal from '../../components/Modal.vue'
 import ChangePasswordModal from '../Settings/components/ChangePasswordModal.vue'
 import Alert from '../../components/Alert.vue'
+import api from '../../api/axios'
 
 const isEditMode = ref(false)
 const showChangePasswordModal = ref(false)
@@ -296,27 +246,21 @@ const showAlert = ref(false)
 const alertMessage = ref('')
 
 const userData = ref({
-  firstName: 'Имя',
-  lastName: 'Фамилия',
-  fullName: 'Имя Фамилия',
-  email: 'email@example.com',
-  phone: '+7 (999) 999-99-99',
-  bio: 'О себе...',
-  role: 'Администратор',
-  lastPasswordChange: '15 января 2024',
+  id: null,
+  firstName: '',
+  lastName: '',
+  username: '',
+  email: '',
+  role: '',
+  yandexFinanceToken: '',
+  lastPasswordChange: '—',
   twoFactorEnabled: false
 })
 
 const stats = ref({
-  projects: 12,
-  active: 8,
-  completed: 4
-})
-
-const notifications = ref({
-  email: true,
-  push: false,
-  projects: true
+  projects: 0,
+  active: 0,
+  completed: 0
 })
 
 const toggleEditMode = () => {
@@ -325,13 +269,33 @@ const toggleEditMode = () => {
 
 const cancelEdit = () => {
   isEditMode.value = false
-  // Здесь можно восстановить исходные данные
+  // Перечитываем данные профиля с сервера
+  loadProfile()
 }
 
-const saveChanges = () => {
-  // Здесь можно добавить логику сохранения
-  isEditMode.value = false
-  showAlertMessage('Изменения успешно сохранены')
+const saveChanges = async () => {
+  try {
+    const payload = {
+      username: userData.value.username || null,
+      first_name: userData.value.firstName || null,
+      last_name: userData.value.lastName || null,
+      yandex_finance_token: userData.value.yandexFinanceToken || null
+    }
+    const { data } = await api.put('/auth/me', payload)
+    // Обновляем локальное состояние из ответа
+    userData.value.firstName = data.first_name || ''
+    userData.value.lastName = data.last_name || ''
+    userData.value.username = data.username || ''
+    userData.value.email = data.email
+    userData.value.role = data.role
+    userData.value.yandexFinanceToken = data.yandex_finance_token || ''
+
+    isEditMode.value = false
+    showAlertMessage('Изменения успешно сохранены')
+  } catch (e) {
+    console.error('Failed to save profile changes:', e)
+    showAlertMessage('Не удалось сохранить изменения')
+  }
 }
 
 const toggleTwoFactor = () => {
@@ -364,5 +328,24 @@ const showAlertMessage = (message) => {
     showAlert.value = false
   }, 3000)
 }
+
+const loadProfile = async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    userData.value.id = data.id
+    userData.value.firstName = data.first_name || ''
+    userData.value.lastName = data.last_name || ''
+    userData.value.username = data.username || ''
+    userData.value.email = data.email
+    userData.value.role = data.role
+    userData.value.yandexFinanceToken = data.yandex_finance_token || ''
+  } catch (e) {
+    console.error('Failed to load profile:', e)
+  }
+}
+
+onMounted(() => {
+  loadProfile()
+})
 </script>
 

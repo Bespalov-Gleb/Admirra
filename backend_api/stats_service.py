@@ -38,10 +38,8 @@ class StatsService:
                 func.sum(models.YandexStats.conversions).label("total_conversions")
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids)
-                # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
-                # is_active is a user selection flag, not a data filtering flag
             )
-
+            
             v_q = db.query(
                 func.sum(models.VKStats.cost).label("total_cost"),
                 func.sum(models.VKStats.impressions).label("total_impressions"),
@@ -49,8 +47,6 @@ class StatsService:
                 func.sum(models.VKStats.conversions).label("total_conversions")
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(client_ids)
-                # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
-                # is_active is a user selection flag, not a data filtering flag
             )
 
             # CRITICAL: Always filter by integration_id to prevent mixing data from different profiles
@@ -74,6 +70,12 @@ class StatsService:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
+                # When "all campaigns" option is selected on the dashboard,
+                # we должны учитывать только кампании, которые пользователь включил в проект (is_active = True).
+                # Для отдельных кампаний этот фильтр не нужен, так как они приходят из выпадающего списка уже отфильтрованными.
+                y_q = y_q.filter(models.Campaign.is_active.is_(True))
+                v_q = v_q.filter(models.Campaign.is_active.is_(True))
+
                 # CRITICAL: When no campaigns selected, filter by all integrations of the client
                 # This ensures we don't mix data from different profiles/integrations
                 if len(client_ids) == 1:
