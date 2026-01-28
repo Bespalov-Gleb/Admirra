@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -89,6 +90,32 @@ async def shutdown_event():
     from automation.request_queue import shutdown_request_queue
     await shutdown_request_queue()
     logger.info("✅ Application shutdown complete - request queue stopped")
+
+
+@app.middleware("http")
+async def request_id_logging_middleware(request: Request, call_next):
+    """
+    Добавляет X-Request-ID к каждому запросу и логирует его.
+    Если заголовок уже пришёл от прокси, переиспользуем его.
+    """
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    start_time = time.time()
+
+    # Пробрасываем request_id дальше по пайплайну (если где-то пригодится)
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+
+    duration_ms = (time.time() - start_time) * 1000
+    response.headers["X-Request-ID"] = request_id
+
+    logger.info(
+        f"[{request_id}] {request.client.host if request.client else '-'} "
+        f"{request.method} {request.url.path} -> {response.status_code} "
+        f"({duration_ms:.1f} ms)"
+    )
+
+    return response
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
