@@ -1,16 +1,22 @@
 """
 Webhook роутер для интеграции с Tilda и Marquiz.
 Преобразует данные из форм/квизов в формат LeadInput и передаёт на валидацию.
+Также поддерживает webhook для проектов телефонии.
 """
 
 import logging
 import re
+import json
+import uuid
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from lead_validator.schemas import LeadInput, ValidationResult
 from lead_validator.validators import lead_validator
+from core.database import get_db
+from core import models
 
 logger = logging.getLogger("lead_validator.webhook")
 
@@ -333,6 +339,96 @@ async def marquiz_webhook(data: MarquizWebhookData, request: Request) -> Validat
 # ============================================================================
 # Info Endpoint
 # ============================================================================
+
+# ============================================================================
+# Phone Project Webhook Endpoint
+# ============================================================================
+
+@router.post(
+    "/phone/{project_id}",
+    response_model=ValidationResult,
+    summary="Webhook для проекта телефонии",
+    description="""
+    Принимает данные заявки для конкретного проекта телефонии.
+    
+    URL формируется автоматически при создании проекта:
+    /api/webhook/phone/{project_id}
+    
+    Поддерживает любые данные формы (Tilda, Marquiz, кастомные формы).
+    """
+)
+async def phone_project_webhook(
+    project_id: str,
+    data: dict,
+    request: Request,
+    db: Session = Depends(get_db)
+) -> ValidationResult:
+    """Обработка webhook для проекта телефонии"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    
+    # Находим проект
+    project = db.query(models.PhoneProject).filter(
+        models.PhoneProject.id == project_uuid,
+        models.PhoneProject.is_active == True
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Phone project not found or inactive")
+    
+    logger.info(f"Phone project webhook received: project={project.name}, phone={data.get('phone')}")
+    
+    # Извлекаем основные поля (поддерживаем разные форматы)
+    phone = data.get("phone") or data.get("Phone") or data.get("PHONE")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+    
+    email = data.get("email") or data.get("Email") or data.get("EMAIL")
+    name = data.get("name") or data.get("Name") or data.get("NAME")
+    
+    # Извлекаем UTM из данных или referer
+    referer = request.headers.get("referer", "")
+    utm = extract_utm_from_url(referer)
+    utm_source = data.get("utm_source") or utm.get("utm_source")
+    utm_medium = data.get("utm_medium") or utm.get("utm_medium")
+    utm_campaign = data.get("utm_campaign") or utm.get("utm_campaign")
+    utm_content = data.get("utm_content") or utm.get("utm_content")
+    utm_term = data.get("utm_term") or utm.get("utm_term")
+    
+    # Преобразуем в LeadInput
+    lead = LeadInput(
+        phone=phone,
+        email=email,
+        name=name,
+        utm_source=utm_source,
+        utm_medium=utm_medium,
+        utm_campaign=utm_campaign,
+        utm_content=utm_content,
+        utm_term=utm_term,
+        ym_uid=data.get("ym_uid") or data.get("_ym_uid"),
+        browser_timezone=data.get("browser_timezone") or data.get("timezone")
+    )
+    
+    # Получаем IP клиента
+    client_ip = _get_client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    
+    # Валидируем с сохранением в базу
+    result = await lead_validator.validate(
+        lead, 
+        client_ip=client_ip,
+        user_agent=user_agent,
+        referer=referer,
+        project_id=project_uuid,
+        db=db,
+        form_data=data  # Сохраняем все данные формы
+    )
+    
+    logger.info(f"Phone project lead result: success={result.success}, phone={phone}")
+    return result
+
 
 @router.get(
     "/info",

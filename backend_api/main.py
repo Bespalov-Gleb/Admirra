@@ -57,6 +57,7 @@ from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
 from backend_api.campaigns import router as campaigns_router
+from backend_api.phone_projects import router as phone_projects_router
 
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 try:
@@ -103,6 +104,7 @@ app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
+app.include_router(phone_projects_router, prefix="/api")
 
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 if LEAD_VALIDATOR_AVAILABLE:

@@ -4,19 +4,44 @@ import { useAuth } from '../composables/useAuth'
 const routes = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/signin'
   },
   {
-    path: '/login',
-    name: 'Login',
-    component: () => import('../views/Auth/Login.vue'),
+    path: '/signin',
+    name: 'SignIn',
+    component: () => import('../views/Auth/SignIn.vue'),
     meta: { layout: 'auth' }
+  },
+  {
+    path: '/signup',
+    name: 'SignUp',
+    component: () => import('../views/Auth/SignUp.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('../views/Auth/ResetPassword.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/two-step-verification',
+    name: 'TwoStepVerification',
+    component: () => import('../views/Auth/TwoStepVerification.vue'),
+    meta: { layout: 'auth' }
+  },
+  // Старые пути для обратной совместимости
+  {
+    path: '/login',
+    redirect: '/signin'
   },
   {
     path: '/register',
-    name: 'Register',
-    component: () => import('../views/Auth/Register.vue'),
-    meta: { layout: 'auth' }
+    redirect: '/signup'
+  },
+  {
+    path: '/forgot-password',
+    redirect: '/reset-password'
   },
   {
     path: '/auth/yandex/callback',
@@ -54,6 +79,11 @@ const routes = [
     path: '/phone-api',
     name: 'PhoneAPI',
     component: () => import('../views/PhoneAPI/PhoneAPI.vue')
+  },
+  {
+    path: '/phone-projects',
+    name: 'PhoneProjects',
+    component: () => import('../views/PhoneProjects/PhoneProjects.vue')
   },
   {
     path: '/channels',
@@ -126,14 +156,14 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
-  const isLoginPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register' || normalizedPath === '/preview-banner'
+  const isLoginPage = normalizedPath === '/signin' || normalizedPath === '/signup' || normalizedPath === '/reset-password' || normalizedPath === '/two-step-verification' || normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register' || normalizedPath === '/forgot-password' || normalizedPath === '/preview-banner'
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
   // Если пользователь не авторизован и пытается зайти не на страницу логина
   if (!isAuth && !isLoginPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
-    next('/login')
+    next('/signin')
   }
   // Если пользователь авторизован и пытается зайти на страницу логина
   else if (isAuth && isLoginPage) {

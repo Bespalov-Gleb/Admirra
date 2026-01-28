@@ -219,3 +219,133 @@ class MonthlyReport(Base):
     avg_cpa = Column(Numeric(20, 2), default=0)
 
     client = relationship("Client", back_populates="monthly_reports")
+
+# ============================================================================
+# Phone Validation Models
+# ============================================================================
+
+class PhoneProject(Base):
+    """
+    Проект для валидации телефонов.
+    Аналогично Client для интеграций, но для телефонии.
+    Проекты независимы - разные node.
+    """
+    __tablename__ = "phone_projects"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True, index=True)  # Связь с клиентом (опционально)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    
+    # Настройки проекта
+    webhook_url = Column(String, nullable=True)  # Уникальный URL для webhook этого проекта
+    webhook_secret = Column(String, nullable=True)  # Секрет для подписи webhook запросов
+    
+    # Настройки выгрузки
+    crm_webhook_url = Column(String, nullable=True)  # URL для отправки в CRM
+    email_recipients = Column(String, nullable=True)  # JSON массив email адресов
+    telegram_chat_id = Column(String, nullable=True)  # Telegram chat ID для уведомлений
+    
+    # Настройки валидации
+    enable_social_check = Column(Boolean, default=False)  # Проверка соцсетей
+    enable_gosuslugi_check = Column(Boolean, default=False)  # Проверка Госуслуг
+    enable_metrica_export = Column(Boolean, default=True)  # Отправка в Яндекс.Метрику
+    
+    # Метаданные
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    owner = relationship("User", foreign_keys=[owner_id])
+    client = relationship("Client", foreign_keys=[client_id])
+    leads = relationship("Lead", back_populates="project", cascade="all, delete-orphan")
+
+
+class LeadStatus(enum.Enum):
+    """Статус заявки"""
+    PENDING = "PENDING"  # В обработке
+    VALID = "VALID"  # Валидная заявка
+    SPAM = "SPAM"  # Помечена как спам
+    INVALID = "INVALID"  # Не прошла валидацию
+
+
+class Lead(Base):
+    """
+    Заявка (лид) с полными данными для валидации.
+    Сохраняется в базу со всеми параметрами из скриншота.
+    """
+    __tablename__ = "leads"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("phone_projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Основные данные
+    phone = Column(String, nullable=False, index=True)
+    email = Column(String, nullable=True, index=True)
+    name = Column(String, nullable=True)
+    surname = Column(String, nullable=True)  # Фамилия (заполняется из соцсетей/Госуслуг)
+    
+    # Данные из заявки (ответы на вопросы, дополнительные поля)
+    form_data = Column(String, nullable=True)  # JSON с дополнительными данными формы
+    
+    # UTM метки
+    utm_source = Column(String, nullable=True)
+    utm_medium = Column(String, nullable=True)
+    utm_campaign = Column(String, nullable=True)
+    utm_content = Column(String, nullable=True)
+    utm_term = Column(String, nullable=True)
+    
+    # Технические данные
+    client_ip = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    referer = Column(String, nullable=True)
+    geo_country = Column(String, nullable=True)
+    browser_timezone = Column(String, nullable=True)
+    ym_uid = Column(String, nullable=True)  # Яндекс.Метрика client ID
+    fingerprint = Column(String, nullable=True)  # Browser fingerprint
+    
+    # Данные валидации (стадия 1)
+    is_valid = Column(Boolean, default=False)  # Прошла ли валидацию
+    validation_reason = Column(String, nullable=True)  # Причина отклонения или подтверждения
+    phone_type = Column(String, nullable=True)  # Мобильный/Стационарный
+    phone_provider = Column(String, nullable=True)  # Оператор связи
+    phone_region = Column(String, nullable=True)  # Регион
+    phone_city = Column(String, nullable=True)  # Город
+    dadata_qc = Column(Integer, nullable=True)  # Код качества DaData
+    
+    # Данные обогащения (стадия 2)
+    main_operator = Column(String, nullable=True)  # Основной оператор
+    registrant_info = Column(String, nullable=True)  # На кого зарегистрирован
+    
+    # Проверка соцсетей
+    has_telegram = Column(Boolean, nullable=True)
+    has_whatsapp = Column(Boolean, nullable=True)
+    has_tiktok = Column(Boolean, nullable=True)  # TT
+    has_vk = Column(Boolean, nullable=True)  # BK
+    social_accounts_data = Column(String, nullable=True)  # JSON с данными аккаунтов
+    
+    # Проверка Госуслуг
+    has_gosuslugi = Column(Boolean, nullable=True)
+    gosuslugi_name = Column(String, nullable=True)  # Имя из Госуслуг
+    gosuslugi_surname = Column(String, nullable=True)  # Фамилия из Госуслуг
+    
+    # Статус и пометки
+    status = Column(Enum(LeadStatus), default=LeadStatus.PENDING, index=True)
+    is_spam = Column(Boolean, default=False, index=True)
+    is_verified = Column(Boolean, default=False)  # Пометка "проверено"
+    
+    # Выгрузка
+    exported_to_crm = Column(Boolean, default=False)
+    exported_to_email = Column(Boolean, default=False)
+    exported_to_telegram = Column(Boolean, default=False)
+    exported_to_metrica = Column(Boolean, default=False)
+    export_timestamp = Column(DateTime(timezone=True), nullable=True)
+    
+    # Метаданные
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    project = relationship("PhoneProject", back_populates="leads")

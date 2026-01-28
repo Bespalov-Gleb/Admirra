@@ -21,14 +21,16 @@ logger = logging.getLogger("lead_validator.social_checker")
 class SocialCheckResult:
     """Результат проверки телефона в соцсетях"""
     phone: str
-    has_telegram: Optional[bool] = None
-    has_whatsapp: Optional[bool] = None
-    has_viber: Optional[bool] = None
-    has_vk: Optional[bool] = None
+    has_telegram: Optional[bool] = None  # TG
+    has_whatsapp: Optional[bool] = None  # WA
+    has_tiktok: Optional[bool] = None  # TT
+    has_vk: Optional[bool] = None  # BK
+    has_viber: Optional[bool] = None  # MAKC (возможно, Viber)
     
     # Дополнительные данные если найдены
     telegram_username: Optional[str] = None
     vk_profile_url: Optional[str] = None
+    tiktok_username: Optional[str] = None
     
     # Статус проверки
     checked: bool = False

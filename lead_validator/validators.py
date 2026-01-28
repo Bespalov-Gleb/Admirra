@@ -5,7 +5,10 @@
 
 import logging
 import time
+import json
+import uuid
 from typing import Optional, Tuple
+from sqlalchemy.orm import Session
 from lead_validator.config import settings
 from lead_validator.schemas import LeadInput, ValidationResult, RejectedLead
 from lead_validator.services.dadata import dadata_service, DaDataPhoneResponse
@@ -19,6 +22,8 @@ from lead_validator.services.request_validator import request_validator
 from lead_validator.services.data_quality import data_quality_validator
 from lead_validator.services.analytics import analytics_service
 from lead_validator.services.email_mx_validator import email_mx_validator, timezone_validator
+from lead_validator.services.social_checker import social_checker
+from lead_validator.services.gosuslugi_checker import gosuslugi_checker
 
 logger = logging.getLogger("lead_validator.validators")
 
@@ -43,7 +48,10 @@ class LeadValidator:
         lead: LeadInput,
         client_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
-        referer: Optional[str] = None
+        referer: Optional[str] = None,
+        project_id: Optional[uuid.UUID] = None,
+        db: Optional[Session] = None,
+        form_data: Optional[dict] = None
     ) -> ValidationResult:
         """
         Главный метод валидации лида.
@@ -138,7 +146,12 @@ class LeadValidator:
                     lead, 
                     dadata_result, 
                     start_time,
-                    note="dadata_unavailable"
+                    note="dadata_unavailable",
+                    project_id=project_id,
+                    db=db,
+                    form_data=form_data,
+                    user_agent=user_agent,
+                    referer=referer
                 )
             else:
                 return await self._reject(
@@ -191,6 +204,12 @@ class LeadValidator:
                 content=lead.utm_content,
                 term=lead.utm_term
             )
+            
+            # Если есть проект, получаем его настройки
+            project = None
+            if project_id and db:
+                from core import models
+                project = db.query(models.PhoneProject).filter_by(id=project_id).first()
             utm_result = utm_validator.validate(
                 utm_data, 
                 client_ip=client_ip,
@@ -207,7 +226,16 @@ class LeadValidator:
                 logger.warning(f"UTM warning for {lead.phone}: {utm_result.warning}")
         
         # === ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ===
-        return await self._accept(lead, dadata_result, start_time)
+        return await self._accept(
+            lead, 
+            dadata_result, 
+            start_time,
+            project_id=project_id,
+            db=db,
+            form_data=form_data,
+            user_agent=user_agent,
+            referer=referer
+        )
     
     async def _check_antibot(self, lead: LeadInput) -> Optional[str]:
         """
@@ -276,7 +304,12 @@ class LeadValidator:
         lead: LeadInput, 
         reason: str, 
         start_time: float,
-        dadata: Optional[DaDataPhoneResponse] = None
+        dadata: Optional[DaDataPhoneResponse] = None,
+        project_id: Optional[uuid.UUID] = None,
+        db: Optional[Session] = None,
+        form_data: Optional[dict] = None,
+        user_agent: Optional[str] = None,
+        referer: Optional[str] = None
     ) -> ValidationResult:
         """
         Отклонить лид и залогировать.
@@ -314,6 +347,50 @@ class LeadValidator:
         except Exception as e:
             logger.error(f"Failed to log rejected lead: {e}")
         
+        # Сохраняем заявку в базу (со статусом SPAM или INVALID)
+        if project_id and db:
+            try:
+                from core import models
+                lead_record = models.Lead(
+                    project_id=project_id,
+                    phone=lead.phone,
+                    email=lead.email,
+                    name=lead.name,
+                    utm_source=lead.utm_source,
+                    utm_medium=lead.utm_medium,
+                    utm_campaign=lead.utm_campaign,
+                    utm_content=lead.utm_content,
+                    utm_term=lead.utm_term,
+                    client_ip=lead.client_ip,
+                    user_agent=user_agent,
+                    referer=referer,
+                    geo_country=lead.geo_country,
+                    browser_timezone=lead.browser_timezone,
+                    ym_uid=lead.ym_uid,
+                    form_data=json.dumps(form_data) if form_data else None,
+                    is_valid=False,
+                    validation_reason=reason,
+                    phone_type=dadata.type if dadata else None,
+                    phone_provider=dadata.provider if dadata else None,
+                    phone_region=dadata.region if dadata else None,
+                    phone_city=dadata.city if dadata else None,
+                    dadata_qc=dadata.qc if dadata else None,
+                    status=models.LeadStatus.SPAM if "spam" in reason.lower() else models.LeadStatus.INVALID,
+                    is_spam="spam" in reason.lower()
+                )
+                db.add(lead_record)
+                db.commit()
+                logger.info(f"Rejected lead saved to database: {lead_record.id}")
+                
+                # Выгружаем в CRM/почту/телеграм если нужно
+                project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+                if project:
+                    await self._export_lead(lead_record, project, db)
+            except Exception as e:
+                logger.error(f"Failed to save rejected lead to database: {e}")
+                if db:
+                    db.rollback()
+        
         return ValidationResult(
             success=False,
             rejection_reason=reason,
@@ -327,7 +404,12 @@ class LeadValidator:
         lead: LeadInput, 
         dadata: Optional[DaDataPhoneResponse],
         start_time: float,
-        note: Optional[str] = None
+        note: Optional[str] = None,
+        project_id: Optional[uuid.UUID] = None,
+        db: Optional[Session] = None,
+        form_data: Optional[dict] = None,
+        user_agent: Optional[str] = None,
+        referer: Optional[str] = None
     ) -> ValidationResult:
         """
         Принять лид, отправить в Telegram, сохранить хеш.
@@ -362,23 +444,201 @@ class LeadValidator:
         except Exception as e:
             logger.error(f"Failed to send Telegram notification: {e}")
         
+        # === СТАДИЯ 2: Обогащение данных (если есть проект) ===
+        project = None
+        if project_id and db:
+            from core import models
+            project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+        
+        # Сохраняем заявку в базу данных
+        lead_record = None
+        if project_id and db:
+            try:
+                # Создаём запись заявки
+                lead_record = models.Lead(
+                    project_id=project_id,
+                    phone=lead.phone,
+                    email=lead.email,
+                    name=lead.name,
+                    utm_source=lead.utm_source,
+                    utm_medium=lead.utm_medium,
+                    utm_campaign=lead.utm_campaign,
+                    utm_content=lead.utm_content,
+                    utm_term=lead.utm_term,
+                    client_ip=lead.client_ip,
+                    user_agent=user_agent,
+                    referer=referer,
+                    geo_country=lead.geo_country,
+                    browser_timezone=lead.browser_timezone,
+                    ym_uid=lead.ym_uid,
+                    form_data=json.dumps(form_data) if form_data else None,
+                    is_valid=True,
+                    validation_reason="passed_all_checks",
+                    phone_type=dadata.type if dadata else None,
+                    phone_provider=dadata.provider if dadata else None,
+                    phone_region=dadata.region if dadata else None,
+                    phone_city=dadata.city if dadata else None,
+                    dadata_qc=dadata.qc if dadata else None,
+                    status=models.LeadStatus.VALID
+                )
+                
+                # Если включена проверка соцсетей
+                if project and project.enable_social_check:
+                    social_result = await social_checker.check_phone(lead.phone)
+                    lead_record.has_telegram = social_result.has_telegram
+                    lead_record.has_whatsapp = social_result.has_whatsapp
+                    lead_record.has_tiktok = social_result.has_tiktok if hasattr(social_result, 'has_tiktok') else None
+                    lead_record.has_vk = social_result.has_vk
+                    
+                    # Сохраняем данные аккаунтов
+                    social_data = {}
+                    if social_result.has_telegram and hasattr(social_result, 'telegram_username'):
+                        social_data['telegram'] = {'username': social_result.telegram_username}
+                    if social_result.has_vk and hasattr(social_result, 'vk_profile_url'):
+                        social_data['vk'] = {'profile_url': social_result.vk_profile_url}
+                    if social_data:
+                        lead_record.social_accounts_data = json.dumps(social_data)
+                    
+                    # Заполняем имя/фамилию из соцсетей если нет
+                    if not lead_record.name and social_result.has_telegram:
+                        # TODO: Получить имя из Telegram API если доступно
+                        pass
+                
+                # Если включена проверка Госуслуг
+                if project and project.enable_gosuslugi_check:
+                    gosuslugi_result = await gosuslugi_checker.check(lead.phone)
+                    lead_record.has_gosuslugi = gosuslugi_result.has_registration
+                    if gosuslugi_result.has_registration:
+                        lead_record.gosuslugi_name = gosuslugi_result.name
+                        lead_record.gosuslugi_surname = gosuslugi_result.surname
+                        # Заполняем имя/фамилию если нет
+                        if not lead_record.name and gosuslugi_result.name:
+                            lead_record.name = gosuslugi_result.name
+                        if not lead_record.surname and gosuslugi_result.surname:
+                            lead_record.surname = gosuslugi_result.surname
+                
+                db.add(lead_record)
+                db.commit()
+                db.refresh(lead_record)
+                
+                logger.info(f"Lead saved to database: {lead_record.id}")
+                
+                # Выгружаем данные в CRM/почту/телеграм
+                if project:
+                    await self._export_lead(lead_record, project, db)
+                
+            except Exception as e:
+                logger.error(f"Failed to save lead to database: {e}")
+                db.rollback()
+        
         # Отправляем конверсию в Яндекс.Метрику
         try:
             # Используем ym_uid если есть, иначе IP как fallback
             client_id = lead.ym_uid or lead.client_ip or "unknown"
-            await metrica_service.send_quality_lead(client_id)
+            if project and project.enable_metrica_export:
+                await metrica_service.send_quality_lead(client_id)
         except Exception as e:
             logger.error(f"Failed to send Metrica conversion: {e}")
         
         return ValidationResult(
             success=True,
-            lead_id=f"lead_{int(time.time())}",  # Простой ID
+            lead_id=str(lead_record.id) if lead_record else None,
             execution_time_ms=round(execution_time, 2),
             phone_type=dadata.type if dadata else None,
             phone_provider=dadata.provider if dadata else None,
             phone_region=dadata.region if dadata else None,
             dadata_qc=dadata.qc if dadata else None
         )
+
+
+    async def _export_lead(
+        self,
+        lead_record: 'models.Lead',
+        project: 'models.PhoneProject',
+        db: Session
+    ):
+        """
+        Выгружает заявку в CRM/почту/телеграм с пометками.
+        """
+        import httpx
+        from datetime import datetime
+        
+        # Формируем данные для выгрузки
+        export_data = {
+            "phone": lead_record.phone,
+            "email": lead_record.email,
+            "name": lead_record.name,
+            "surname": lead_record.surname,
+            "status": "проверено" if lead_record.is_verified else ("потенциальный спам" if lead_record.is_spam else "валидная заявка"),
+            "is_verified": lead_record.is_verified,
+            "is_spam": lead_record.is_spam,
+            "phone_type": lead_record.phone_type,
+            "phone_provider": lead_record.phone_provider,
+            "phone_region": lead_record.phone_region,
+            "has_telegram": lead_record.has_telegram,
+            "has_whatsapp": lead_record.has_whatsapp,
+            "has_gosuslugi": lead_record.has_gosuslugi,
+            "utm_source": lead_record.utm_source,
+            "utm_campaign": lead_record.utm_campaign,
+            "created_at": lead_record.created_at.isoformat() if lead_record.created_at else None
+        }
+        
+        # Выгрузка в CRM (webhook)
+        if project.crm_webhook_url and not lead_record.exported_to_crm:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        project.crm_webhook_url,
+                        json=export_data,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    if response.status_code in (200, 201):
+                        lead_record.exported_to_crm = True
+                        logger.info(f"Lead exported to CRM: {lead_record.id}")
+            except Exception as e:
+                logger.error(f"Failed to export lead to CRM: {e}")
+        
+        # Выгрузка в почту
+        if project.email_recipients and not lead_record.exported_to_email:
+            try:
+                recipients = json.loads(project.email_recipients) if project.email_recipients else []
+                # TODO: Реализовать отправку email
+                # from lead_validator.services.email_sender import email_sender
+                # await email_sender.send_lead_notification(recipients, export_data)
+                lead_record.exported_to_email = True
+                logger.info(f"Lead exported to email: {lead_record.id}")
+            except Exception as e:
+                logger.error(f"Failed to export lead to email: {e}")
+        
+        # Выгрузка в Telegram (если указан chat_id проекта)
+        if project.telegram_chat_id and not lead_record.exported_to_telegram:
+            try:
+                # Используем telegram_notifier, но с chat_id проекта
+                message = f"📞 Новая заявка из проекта '{project.name}':\n"
+                message += f"Телефон: {lead_record.phone}\n"
+                if lead_record.name:
+                    message += f"Имя: {lead_record.name}\n"
+                if lead_record.email:
+                    message += f"Email: {lead_record.email}\n"
+                message += f"Статус: {export_data['status']}\n"
+                
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    telegram_token = settings.TELEGRAM_BOT_TOKEN
+                    if telegram_token:
+                        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                        await client.post(url, json={
+                            "chat_id": project.telegram_chat_id,
+                            "text": message
+                        })
+                        lead_record.exported_to_telegram = True
+                        logger.info(f"Lead exported to Telegram: {lead_record.id}")
+            except Exception as e:
+                logger.error(f"Failed to export lead to Telegram: {e}")
+        
+        # Обновляем timestamp выгрузки
+        if any([lead_record.exported_to_crm, lead_record.exported_to_email, lead_record.exported_to_telegram]):
+            lead_record.export_timestamp = datetime.now()
+            db.commit()
 
 
 # Глобальный экземпляр
