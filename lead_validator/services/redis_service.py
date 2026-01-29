@@ -215,6 +215,97 @@ class RedisService:
             logger.error(f"Redis mark_email error: {e}")
             return False
     
+    async def check_phone_rate_limit(self, phone: str) -> bool:
+        """
+        Проверяет rate limit по телефону (Уровень 3 по ТЗ).
+        Одна заявка в сутки — нормально. Пять заявок за час — накрутка или бот.
+        
+        Args:
+            phone: Номер телефона
+            
+        Returns:
+            True если лимит НЕ превышен (можно продолжать)
+            False если лимит превышен
+        """
+        client = await self._get_client()
+        if client is None:
+            return self.fail_open  # True = пропускаем, False = блокируем
+            
+        try:
+            phone_hash = self.hash_phone(phone)
+            key = f"lead:rate:phone:{phone_hash}"
+            window = settings.RATE_LIMIT_PHONE_WINDOW_SEC
+            limit = settings.RATE_LIMIT_PER_PHONE_PER_HOUR
+            
+            # Увеличиваем счётчик
+            current = await client.incr(key)
+            
+            # При первом запросе устанавливаем TTL
+            if current == 1:
+                await client.expire(key, window)
+                
+            if current > limit:
+                logger.warning(f"Phone rate limit exceeded: {phone_hash[:16]}... ({current}/{limit} per hour)")
+                return False
+                
+            logger.debug(f"Phone rate limit check: {phone_hash[:16]}... {current}/{limit}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Redis phone_rate_limit error: {e}")
+            return self.fail_open
+    
+    async def _get_cached_result(self, key: str) -> Optional[dict]:
+        """
+        Получить закешированный результат из Redis.
+        
+        Args:
+            key: Ключ кеша
+            
+        Returns:
+            dict с данными или None если не найдено
+        """
+        if not self.enabled:
+            return None
+        
+        client = await self._get_client()
+        if client is None:
+            return None
+        
+        try:
+            import json
+            cached = await client.get(key)
+            if cached:
+                return json.loads(cached)
+            return None
+        except Exception as e:
+            logger.debug(f"Redis get cache error: {e}")
+            return None
+    
+    async def _cache_result(self, key: str, data: dict, ttl: int = 604800):
+        """
+        Сохранить результат в кеш Redis.
+        
+        Args:
+            key: Ключ кеша
+            data: Данные для кеширования (должны быть JSON-сериализуемы)
+            ttl: Время жизни в секундах (по умолчанию 7 дней)
+        """
+        if not self.enabled:
+            return
+        
+        client = await self._get_client()
+        if client is None:
+            return
+        
+        try:
+            import json
+            json_data = json.dumps(data, default=str)  # default=str для datetime и других типов
+            await client.setex(key, ttl, json_data)
+            logger.debug(f"Cached result for key {key} with TTL {ttl}s")
+        except Exception as e:
+            logger.debug(f"Redis cache error: {e}")
+    
     async def close(self):
         """Закрыть соединение с Redis"""
         if self._client:

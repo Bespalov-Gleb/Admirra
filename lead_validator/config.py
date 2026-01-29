@@ -72,10 +72,15 @@ class LeadValidatorSettings:
     # Антибот настройки
     MIN_FORM_FILL_TIME_SEC: int = 3
     MAX_FORM_FILL_TIME_SEC: int = 3600
+    JS_TOKEN_ENABLED: bool = True  # Проверка JavaScript-токена
     
     # Rate Limiting
     RATE_LIMIT_PER_IP: int = 10
     RATE_LIMIT_WINDOW_SEC: int = 3600
+    
+    # Rate Limiting по телефону (Уровень 3 по ТЗ)
+    RATE_LIMIT_PER_PHONE_PER_HOUR: int = 5  # Максимум 5 заявок в час с одного номера
+    RATE_LIMIT_PHONE_WINDOW_SEC: int = 3600  # Окно 1 час
     
     # Дедупликация
     PHONE_DUPLICATE_TTL_SEC: int = 86400
@@ -94,6 +99,33 @@ class LeadValidatorSettings:
     
     # MX-запись email (проверка существования почтового сервера)
     MX_CHECK_ENABLED: bool = True
+    
+    # Проверка соцсетей
+    # VK API (бесплатно, но ограниченно)
+    VK_API_TOKEN: str = ""  # Service token для VK API (не Ads API)
+    
+    # GetContact API (платно)
+    GETCONTACT_API_KEY: str = ""
+    
+    # NumBuster API (платно)
+    NUMBUSTER_API_KEY: str = ""
+    
+    # Спам-номера (Уровень 5)
+    SPRAVPORTAL_API_KEY: str = ""  # SpravPortal WhoCalls API
+    KASPERSKY_API_KEY: str = ""  # Kaspersky Who Calls API
+    
+    # Bitrix24 CRM (Уровень 3)
+    BITRIX24_WEBHOOK_URL: str = ""  # Webhook URL для доступа к API
+    
+    # Автоматические оповещения (Уровень 8)
+    ALERT_THRESHOLD_PERCENT: float = 50.0  # Порог для алерта (% мусора)
+    ALERT_LOOKBACK_DAYS: int = 7  # Период анализа (дней)
+    ALERT_MIN_LEADS: int = 5  # Минимальное кол-во заявок для алерта
+    
+    # Динамический чёрный список площадок (Уровень 8)
+    PLACEMENT_BLACKLIST_THRESHOLD: float = 70.0  # Порог для добавления в чёрный список (% мусора)
+    PLACEMENT_BLACKLIST_MIN_LEADS: int = 10  # Минимальное кол-во заявок
+    PLACEMENT_BLACKLIST_TTL_DAYS: int = 21  # Время жизни в чёрном списке (дней)
     
     def __post_init__(self):
         """Загрузка значений из переменных окружения."""
@@ -124,10 +156,13 @@ class LeadValidatorSettings:
         # Антибот
         self.MIN_FORM_FILL_TIME_SEC = _get_env_int("MIN_FORM_FILL_TIME_SEC", 3)
         self.MAX_FORM_FILL_TIME_SEC = _get_env_int("MAX_FORM_FILL_TIME_SEC", 3600)
+        self.JS_TOKEN_ENABLED = _get_env_bool("JS_TOKEN_ENABLED", True)
         
         # Rate Limiting
         self.RATE_LIMIT_PER_IP = _get_env_int("RATE_LIMIT_PER_IP", 10)
         self.RATE_LIMIT_WINDOW_SEC = _get_env_int("RATE_LIMIT_WINDOW_SEC", 3600)
+        self.RATE_LIMIT_PER_PHONE_PER_HOUR = _get_env_int("RATE_LIMIT_PER_PHONE_PER_HOUR", 5)
+        self.RATE_LIMIT_PHONE_WINDOW_SEC = _get_env_int("RATE_LIMIT_PHONE_WINDOW_SEC", 3600)
         
         # Дедупликация
         self.PHONE_DUPLICATE_TTL_SEC = _get_env_int("PHONE_DUPLICATE_TTL_SEC", 86400)
@@ -147,6 +182,31 @@ class LeadValidatorSettings:
         self.UTM_BLACKLISTED_PLACEMENTS = [
             p.strip() for p in blacklist_str.split(",") if p.strip()
         ]
+        
+        # MX-запись
+        self.MX_CHECK_ENABLED = _get_env_bool("MX_CHECK_ENABLED", True)
+        
+        # Проверка соцсетей
+        self.VK_API_TOKEN = _get_env("VK_API_TOKEN", "")
+        self.GETCONTACT_API_KEY = _get_env("GETCONTACT_API_KEY", "")
+        self.NUMBUSTER_API_KEY = _get_env("NUMBUSTER_API_KEY", "")
+        
+        # Спам-номера
+        self.SPRAVPORTAL_API_KEY = _get_env("SPRAVPORTAL_API_KEY", "")
+        self.KASPERSKY_API_KEY = _get_env("KASPERSKY_API_KEY", "")
+        
+        # Bitrix24 CRM
+        self.BITRIX24_WEBHOOK_URL = _get_env("BITRIX24_WEBHOOK_URL", "")
+        
+        # Автоматические оповещения
+        self.ALERT_THRESHOLD_PERCENT = _get_env_float("ALERT_THRESHOLD_PERCENT", 50.0)
+        self.ALERT_LOOKBACK_DAYS = _get_env_int("ALERT_LOOKBACK_DAYS", 7)
+        self.ALERT_MIN_LEADS = _get_env_int("ALERT_MIN_LEADS", 5)
+        
+        # Динамический чёрный список площадок
+        self.PLACEMENT_BLACKLIST_THRESHOLD = _get_env_float("PLACEMENT_BLACKLIST_THRESHOLD", 70.0)
+        self.PLACEMENT_BLACKLIST_MIN_LEADS = _get_env_int("PLACEMENT_BLACKLIST_MIN_LEADS", 10)
+        self.PLACEMENT_BLACKLIST_TTL_DAYS = _get_env_int("PLACEMENT_BLACKLIST_TTL_DAYS", 21)
 
 
 # Глобальный экземпляр настроек

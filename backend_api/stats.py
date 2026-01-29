@@ -84,7 +84,15 @@ async def get_dynamics(
 
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
-        return {"labels": [], "costs": [], "clicks": []}
+        return {
+            "labels": [], 
+            "costs": [], 
+            "clicks": [],
+            "impressions": [],
+            "leads": [],
+            "cpc": [],
+            "cpa": []
+        }
     
     print(f"DEBUG: get_dynamics - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
     

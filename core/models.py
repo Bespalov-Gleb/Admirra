@@ -51,6 +51,7 @@ class IntegrationPlatform(enum.Enum):
     YANDEX_DIRECT = "YANDEX_DIRECT"
     VK_ADS = "VK_ADS"
     YANDEX_METRIKA = "YANDEX_METRIKA"
+    MYTARGET = "MYTARGET"
 
 class IntegrationSyncStatus(enum.Enum):
     SUCCESS = "SUCCESS"

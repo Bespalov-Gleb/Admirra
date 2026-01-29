@@ -39,7 +39,7 @@ class StatsService:
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids)
             )
-            
+
             v_q = db.query(
                 func.sum(models.VKStats.cost).label("total_cost"),
                 func.sum(models.VKStats.impressions).label("total_impressions"),

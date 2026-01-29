@@ -35,6 +35,10 @@ class LeadInput(BaseModel):
         None,
         description="Токен Yandex SmartCaptcha"
     )
+    js_token: Optional[str] = Field(
+        None,
+        description="JavaScript-токен, генерируемый на фронтенде при загрузке страницы"
+    )
     
     # UTM метки для аналитики
     utm_source: Optional[str] = None

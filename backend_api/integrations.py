@@ -5,6 +5,7 @@ from core import models, schemas, security
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import VKAdsAPI
+from automation.mytarget import MyTargetAPI
 from typing import List, Optional
 import uuid
 import httpx
@@ -29,6 +30,14 @@ VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
 # Документация: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/web/setup
 VK_ID_TOKEN_URL = "https://id.vk.com/oauth2/token"  # VK ID SDK token exchange endpoint
 VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"  # VK Ads API token exchange (может использоваться после получения VK ID token)
+
+# myTarget Credentials (Authorization Code Grant)
+# Для песочницы используем target-sandbox.my.com
+# Для боевого окружения - target.my.com или target.vk.ru
+MYTARGET_CLIENT_ID = os.getenv("MYTARGET_CLIENT_ID", "")
+MYTARGET_CLIENT_SECRET = os.getenv("MYTARGET_CLIENT_SECRET", "")
+MYTARGET_AUTH_URL = os.getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize")
+MYTARGET_TOKEN_URL = os.getenv("MYTARGET_TOKEN_URL", "https://target-sandbox.my.com/api/v2/oauth2/token.json")
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +154,68 @@ def get_vk_auth_url(redirect_uri: str):
         "redirect_uri": redirect_uri,
         "state": state,
         "scope": scope
+    }
+
+@router.get("/mytarget/auth-url")
+def get_mytarget_auth_url(redirect_uri: str):
+    """
+    Возвращает OAuth URL для авторизации в myTarget API.
+    
+    Использует Authorization Code Grant согласно документации myTarget API.
+    Для песочницы: https://target-sandbox.my.com
+    Для боевого окружения: https://target.my.com или https://target.vk.ru
+    
+    Параметры:
+    - client_id: ID приложения myTarget
+    - redirect_uri: URL для callback после авторизации (должен быть зарегистрирован в настройках приложения)
+    - response_type: code
+    - state: CSRF защита
+    
+    Убедитесь, что в настройках приложения myTarget:
+    1. Redirect URL указан точно: {redirect_uri}
+    2. Приложение имеет доступ к Authorization Code Grant (предоставляется по запросу)
+    3. Зарегистрировано в песочнице: https://target-sandbox.my.com
+    """
+    import secrets
+    
+    if not MYTARGET_CLIENT_ID:
+        raise HTTPException(
+            status_code=500, 
+            detail="MYTARGET_CLIENT_ID не настроен. Укажите его в переменных окружения."
+        )
+    
+    logger.info(f"🔗 myTarget OAuth URL requested:")
+    logger.info(f"   Client ID: {MYTARGET_CLIENT_ID}")
+    logger.info(f"   Redirect URI: {redirect_uri}")
+    
+    # Генерируем state для CSRF защиты
+    state = secrets.token_urlsafe(32)
+    
+    # Формируем OAuth URL для myTarget API
+    # Документация: https://target.vk.ru/help/advertisers/api_authorization/ru
+    from urllib.parse import quote
+    
+    encoded_redirect_uri = quote(redirect_uri, safe='')
+    
+    auth_url = (
+        f"{MYTARGET_AUTH_URL}"
+        f"?response_type=code"
+        f"&client_id={MYTARGET_CLIENT_ID}"
+        f"&state={state}"
+        f"&redirect_uri={encoded_redirect_uri}"
+    )
+    
+    logger.info(f"   Generated myTarget OAuth URL: {auth_url}")
+    logger.info(f"   Full OAuth parameters:")
+    logger.info(f"     - client_id: {MYTARGET_CLIENT_ID}")
+    logger.info(f"     - redirect_uri: {redirect_uri}")
+    logger.info(f"     - state: {state}")
+    
+    return {
+        "url": auth_url,
+        "client_id": MYTARGET_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "state": state
     }
 
 from fastapi import BackgroundTasks
@@ -555,6 +626,173 @@ async def exchange_vk_token_oauth(
         "status": "success", 
         "integration_id": str(db_integration.id),
         "is_agency": False # VK usually doesn't have the same agency structure as Yandex in this flow
+    }
+
+@router.post("/mytarget/exchange")
+async def exchange_mytarget_token(
+    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "...", "client_id": "..."}
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Обменивает authorization code на токен myTarget API и сохраняет его.
+    
+    Использует Authorization Code Grant согласно документации myTarget API:
+    https://target.vk.ru/help/advertisers/api_authorization/ru
+    
+    Endpoint: POST https://target-sandbox.my.com/api/v2/oauth2/token.json (для песочницы)
+    Параметры: grant_type=authorization_code, code={code}, client_id={client_id}, client_secret={client_secret}, redirect_uri={redirect_uri}
+    """
+    if not MYTARGET_CLIENT_ID or not MYTARGET_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=500,
+            detail="MYTARGET_CLIENT_ID и MYTARGET_CLIENT_SECRET должны быть настроены в переменных окружения."
+        )
+    
+    auth_code = payload.get("code")
+    redirect_uri = payload.get("redirect_uri")
+    client_name_input = payload.get("client_name")
+    client_id_input = payload.get("client_id")
+    
+    if not auth_code or not redirect_uri:
+        log_event("backend", "Failed to exchange myTarget token: missing code or redirect_uri")
+        raise HTTPException(status_code=400, detail="Missing code or redirect_uri")
+    
+    log_event("backend", f"Exchanging myTarget code for client_name: {client_name_input}, client_id: {client_id_input}")
+    
+    # 1. Exchange code for token
+    async with httpx.AsyncClient() as client:
+        # myTarget требует client_secret для Authorization Code Grant
+        token_payload = {
+            "grant_type": "authorization_code",
+            "code": auth_code,
+            "client_id": MYTARGET_CLIENT_ID,
+            "client_secret": MYTARGET_CLIENT_SECRET,
+            "redirect_uri": redirect_uri  # Должен совпадать с тем, что использовался в auth-url
+        }
+        
+        logger.info(f"🔄 Exchanging myTarget authorization code for token...")
+        logger.info(f"   Using token endpoint: {MYTARGET_TOKEN_URL}")
+        logger.info(f"   Code: {auth_code[:20]}... (truncated)")
+        
+        response = await client.post(MYTARGET_TOKEN_URL, data=token_payload, timeout=30.0)
+        
+        if response.status_code != 200:
+            logger.error(f"❌ myTarget Token Exchange Failed: {response.status_code}")
+            logger.error(f"   Response text: {response.text[:500]}")
+            try:
+                error_json = response.json()
+                logger.error(f"   Error JSON: {error_json}")
+            except:
+                pass
+            raise HTTPException(status_code=400, detail=f"Failed to exchange token with myTarget: {response.text[:200]}")
+        
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in")
+        
+        if not access_token:
+            raise HTTPException(status_code=500, detail="myTarget API не вернул access_token")
+        
+        logger.info(f"✅ myTarget token received successfully")
+        logger.info(f"   Access token received: {bool(access_token)}")
+        logger.info(f"   Refresh token received: {bool(refresh_token)}")
+        logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
+    
+    # 2. Try to get user info / account info from myTarget API
+    mytarget_account_id = None
+    try:
+        async with httpx.AsyncClient() as client:
+            # Попытка получить информацию об аккаунте
+            # Документация myTarget API может отличаться, используем стандартный endpoint
+            acc_response = await client.get(
+                "https://target-sandbox.my.com/api/v2/user.json",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10.0
+            )
+            if acc_response.status_code == 200:
+                acc_data = acc_response.json()
+                # Структура ответа может отличаться, адаптируем под реальный API
+                mytarget_account_id = acc_data.get("id") or acc_data.get("user_id") or acc_data.get("account_id")
+                if mytarget_account_id:
+                    mytarget_account_id = str(mytarget_account_id)
+                    logger.info(f"Auto-detected myTarget Account ID: {mytarget_account_id}")
+            else:
+                logger.warning(f"Failed to auto-detect myTarget Account ID: {acc_response.status_code} - {acc_response.text[:200]}")
+    except Exception as e:
+        logger.warning(f"Failed to auto-detect myTarget Account ID: {e}")
+    
+    # 3. Determine Client Name
+    client_name = client_name_input or "myTarget Project"
+    
+    # 4. Create/Get Client
+    if client_id_input:
+        try:
+            import uuid as uuid_lib
+            client_uuid = uuid_lib.UUID(client_id_input)
+            db_client = db.query(models.Client).filter(
+                models.Client.id == client_uuid,
+                models.Client.owner_id == current_user.id
+            ).first()
+            
+            if not db_client:
+                logger.error(f"Client ID {client_id_input} not found or not owned by user")
+                raise HTTPException(status_code=404, detail=f"Project (Client) not found")
+            
+            log_event("backend", f"Using existing client: {db_client.name} (ID: {db_client.id})")
+        except ValueError:
+            log_event("backend", f"Invalid client_id format: {client_id_input}", level="error")
+            raise HTTPException(status_code=400, detail="Invalid project ID format")
+    else:
+        # Legacy flow: search by name
+        db_client = db.query(models.Client).filter(
+            models.Client.owner_id == current_user.id,
+            models.Client.name == client_name
+        ).first()
+        
+        if not db_client:
+            db_client = models.Client(owner_id=current_user.id, name=client_name)
+            db.add(db_client)
+            db.flush()
+            log_event("backend", f"Created new client: {db_client.name} (ID: {db_client.id})")
+    
+    # 5. Save Integration
+    db_integration = db.query(models.Integration).filter(
+        models.Integration.client_id == db_client.id,
+        models.Integration.platform == models.IntegrationPlatform.MYTARGET
+    ).first()
+    
+    encrypted_access = security.encrypt_token(access_token)
+    encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+    
+    if db_integration:
+        db_integration.access_token = encrypted_access
+        db_integration.refresh_token = encrypted_refresh
+        db_integration.account_id = mytarget_account_id
+        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+    else:
+        db_integration = models.Integration(
+            client_id=db_client.id,
+            platform=models.IntegrationPlatform.MYTARGET,
+            access_token=encrypted_access,
+            refresh_token=encrypted_refresh,
+            account_id=mytarget_account_id,
+            sync_status=models.IntegrationSyncStatus.NEVER
+        )
+        db.add(db_integration)
+    
+    db.commit()
+    db.refresh(db_integration)
+    
+    # 6. Trigger background sync
+    background_tasks.add_task(run_sync_in_background, db_integration.id)
+    
+    return {
+        "status": "success",
+        "integration_id": str(db_integration.id),
+        "is_agency": False
     }
 
 from .services import IntegrationService

@@ -1,17 +1,33 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-8">
-    <div class="max-w-6xl mx-auto">
-      <!-- Header -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Квалификатор лидов</h1>
-        <p class="text-gray-500">Тестирование валидации лидов и настройка webhook интеграций</p>
+  <div class="space-y-6 overflow-x-hidden w-full">
+    <!-- Header -->
+    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+        Квалификатор
+      </label>
+      <div class="flex items-center gap-3 mt-0.5">
+        <div class="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200 hidden xs:block">
+          <ClipboardDocumentCheckIcon class="w-4 h-4 text-white" />
+        </div>
+        <div class="flex flex-col min-w-0">
+          <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight truncate">
+            Квалификатор лидов
+          </h1>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
+            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+              Тестирование валидации лидов и настройка webhook интеграций
+            </p>
+          </div>
+        </div>
       </div>
+    </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Left Column: Test Form -->
-        <div class="space-y-6">
-          <!-- Test Lead Form Card -->
-          <div class="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Left Column: Test Form -->
+      <div class="space-y-6">
+        <!-- Test Lead Form Card -->
+        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
             <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
               <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                 <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,7 +125,7 @@
               <button
                 type="submit"
                 :disabled="loading"
-                class="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-xl transition flex items-center justify-center gap-2"
+                class="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2"
               >
                 <svg v-if="loading" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -120,8 +136,8 @@
             </form>
           </div>
 
-          <!-- Result Card -->
-          <div v-if="result" :class="['rounded-3xl p-6 shadow-sm border transition-all', result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']">
+        <!-- Result Card -->
+        <div v-if="result" :class="['rounded-[32px] p-6 shadow-sm border transition-all', result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']">
             <div class="flex items-start gap-4">
               <div :class="['w-12 h-12 rounded-xl flex items-center justify-center', result.success ? 'bg-green-100' : 'bg-red-100']">
                 <svg v-if="result.success" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -161,10 +177,10 @@
           </div>
         </div>
 
-        <!-- Right Column: Webhook Info & History -->
-        <div class="space-y-6">
-          <!-- Webhook URLs Card -->
-          <div class="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+      <!-- Right Column: Webhook Info & History -->
+      <div class="space-y-6">
+        <!-- Webhook URLs Card -->
+        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
             <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
               <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                 <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -209,8 +225,8 @@
             </div>
           </div>
 
-          <!-- History Card -->
-          <div class="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+        <!-- History Card -->
+        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-bold text-gray-900 flex items-center gap-3">
                 <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -236,7 +252,7 @@
               <div 
                 v-for="(item, index) in history" 
                 :key="index"
-                :class="['p-3 rounded-xl border', item.success ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100']"
+                :class="['p-4 rounded-xl border transition-all hover:shadow-sm', item.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']"
               >
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
@@ -254,12 +270,12 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../api/axios'
+import { ClipboardDocumentCheckIcon } from '@heroicons/vue/24/outline'
 
 // API base URL для webhook (полный URL, так как используется вне приложения)
 const API_BASE = window.location.origin

@@ -168,9 +168,13 @@ class TelegramNotifier:
             
         return False
     
-    async def send_message(self, text: str) -> bool:
+    async def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
         """
-        Отправка произвольного сообщения (для отладки/уведомлений).
+        Отправка произвольного сообщения (для отладки/уведомлений/алертов).
+        
+        Args:
+            text: Текст сообщения
+            parse_mode: Режим форматирования (Markdown, HTML, или None)
         """
         if not self.enabled:
             logger.warning("Telegram disabled, message not sent")
@@ -182,22 +186,30 @@ class TelegramNotifier:
             
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
+                payload = {
+                    "chat_id": self.chat_id,
+                    "text": text
+                }
+                if parse_mode:
+                    payload["parse_mode"] = parse_mode
+                
                 response = await client.post(
                     self._get_url("sendMessage"),
-                    json={
-                        "chat_id": self.chat_id,
-                        "text": text
-                    }
+                    json=payload
                 )
                 
                 if response.status_code == 200:
-                    logger.info("Test message sent successfully")
-                    return True
+                    result = response.json()
+                    if result.get("ok"):
+                        logger.info("Message sent successfully")
+                        return True
+                    else:
+                        logger.error(f"Telegram API error: {result}")
                 else:
-                    logger.error(f"Test message failed: {response.status_code} - {response.text}")
+                    logger.error(f"Message failed: {response.status_code} - {response.text}")
                     
         except Exception as e:
-            logger.error(f"Test message error: {e}")
+            logger.error(f"Message error: {e}")
             
         return False
     

@@ -19,16 +19,16 @@
 
         <div class="flex-grow xl:flex xl:items-center xl:justify-end min-w-0 gap-4">
           <div class="flex-1">
-            <StatsFilters 
-              :filters="filters"
-              :clients="clients"
-              :all-campaigns="allCampaigns"
-              :loading-campaigns="loadingCampaigns"
-              @period-change="handlePeriodChange"
-              @date-change="handleDateChange"
-              @export="handleExport"
-              @update:campaign-ids="(ids) => filters.campaign_ids = ids"
-            />
+          <StatsFilters 
+            :filters="filters"
+            :clients="clients"
+            :all-campaigns="allCampaigns"
+            :loading-campaigns="loadingCampaigns"
+            @period-change="handlePeriodChange"
+            @date-change="handleDateChange"
+            @export="handleExport"
+            @update:campaign-ids="(ids) => filters.campaign_ids = ids"
+          />
           </div>
           <label class="mt-4 xl:mt-0 inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
             <input

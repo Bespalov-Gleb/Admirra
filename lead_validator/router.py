@@ -10,7 +10,12 @@ from lead_validator.schemas import LeadInput, ValidationResult
 from lead_validator.validators import lead_validator
 from lead_validator.services.trash_logger import trash_logger
 from lead_validator.services.telegram import telegram_notifier
+from lead_validator.services.analytics import analytics_service
+from lead_validator.services.placement_blacklist import placement_blacklist
 from core import models, security
+from fastapi.responses import JSONResponse, Response
+from datetime import datetime, timedelta
+from typing import Optional
 
 logger = logging.getLogger("lead_validator.router")
 
@@ -214,7 +219,7 @@ async def test_utm(
         content=utm_content
     )
     
-    result = utm_validator.validate(utm_data, geo_country=geo_country)
+    result = await utm_validator.validate(utm_data, geo_country=geo_country)
     
     return {
         "is_valid": result.is_valid,
@@ -440,4 +445,146 @@ def _get_client_ip(request: Request) -> str:
         return request.client.host
     
     return "unknown"
+
+
+@router.get(
+    "/reports/quality",
+    summary="Отчёт по качеству трафика для подрядчиков",
+    description="""
+    Генерирует отчёт по качеству трафика за указанный период.
+    
+    Содержит:
+    - Топ-10 худших площадок по коэффициенту мусора
+    - Распределение причин отклонения
+    - Динамику качества трафика по неделям
+    - Список площадок в чёрном списке
+    
+    Форматы: JSON (по умолчанию) или Excel (format=excel)
+    """
+)
+async def get_quality_report(
+    days: int = 7,
+    format: str = "json",
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """
+    Генерация отчёта по качеству трафика.
+    
+    Args:
+        days: Период анализа в днях (по умолчанию 7)
+        format: Формат отчёта (json или excel)
+    """
+    try:
+        # Генерируем отчёт
+        report = analytics_service.generate_weekly_report()
+        
+        # Получаем чёрный список площадок
+        blacklist = await placement_blacklist.get_blacklist()
+        
+        # Формируем данные отчёта
+        report_data = {
+            "period": {
+                "start": report.period_start.isoformat(),
+                "end": report.period_end.isoformat(),
+                "days": days
+            },
+            "overall": {
+                "total_leads": report.total_leads,
+                "total_rejected": report.total_rejected,
+                "rejection_rate": round(report.overall_rejection_rate, 2)
+            },
+            "top_bad_sources": [
+                {
+                    "source": s.source,
+                    "campaign": s.campaign,
+                    "content": s.content,
+                    "total_leads": s.total_leads,
+                    "rejected_leads": s.rejected_leads,
+                    "rejection_rate": round(s.rejection_rate, 2),
+                    "rejection_reasons": s.rejection_reasons
+                }
+                for s in report.bad_sources[:10]
+            ],
+            "rejection_reasons": report.top_rejection_reasons,
+            "blacklisted_placements": blacklist,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        if format.lower() == "excel":
+            # Генерируем Excel файл
+            import io
+            import pandas as pd
+            
+            # Создаём Excel с несколькими листами
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # Лист 1: Плохие источники
+                if report.bad_sources:
+                    bad_sources_df = pd.DataFrame([
+                        {
+                            "Источник": s.source,
+                            "Кампания": s.campaign,
+                            "Площадка": s.content,
+                            "Всего заявок": s.total_leads,
+                            "Отклонено": s.rejected_leads,
+                            "Процент мусора": round(s.rejection_rate, 2)
+                        }
+                        for s in report.bad_sources
+                    ])
+                    bad_sources_df.to_excel(writer, sheet_name="Плохие источники", index=False)
+                
+                # Лист 2: Причины отклонения
+                if report.top_rejection_reasons:
+                    reasons_df = pd.DataFrame([
+                        {"Причина": reason, "Количество": count}
+                        for reason, count in report.top_rejection_reasons.items()
+                    ])
+                    reasons_df.to_excel(writer, sheet_name="Причины отклонения", index=False)
+                
+                # Лист 3: Чёрный список
+                if blacklist:
+                    blacklist_df = pd.DataFrame(blacklist)
+                    blacklist_df.to_excel(writer, sheet_name="Чёрный список", index=False)
+            
+            output.seek(0)
+            filename = f"quality_report_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            
+            return Response(
+                content=output.read(),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+        else:
+            # JSON формат
+            return JSONResponse(content=report_data)
+            
+    except Exception as e:
+        logger.error(f"Error generating quality report: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@router.get(
+    "/reports/blacklist",
+    summary="Список площадок в чёрном списке",
+    description="Возвращает список всех площадок в динамическом чёрном списке"
+)
+async def get_blacklist(
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """Получить список площадок в чёрном списке."""
+    try:
+        blacklist = await placement_blacklist.get_blacklist()
+        return {
+            "count": len(blacklist),
+            "placements": blacklist
+        }
+    except Exception as e:
+        logger.error(f"Error getting blacklist: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 

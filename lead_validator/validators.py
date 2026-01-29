@@ -24,6 +24,8 @@ from lead_validator.services.analytics import analytics_service
 from lead_validator.services.email_mx_validator import email_mx_validator, timezone_validator
 from lead_validator.services.social_checker import social_checker
 from lead_validator.services.gosuslugi_checker import gosuslugi_checker
+from lead_validator.services.spam_checker import spam_checker
+from lead_validator.services.bitrix_service import bitrix_service
 
 logger = logging.getLogger("lead_validator.validators")
 
@@ -93,15 +95,24 @@ class LeadValidator:
         if rejection:
             return await self._reject(lead, rejection, start_time)
         
-        # === Уровень 3: Rate Limiting ===
+        # === Уровень 3: Rate Limiting по IP ===
         if client_ip:
             allowed = await redis_service.check_rate_limit(client_ip)
             if not allowed:
                 return await self._reject(
                     lead, 
-                    "rate_limit_exceeded", 
+                    "rate_limit_exceeded_ip", 
                     start_time
                 )
+        
+        # === Уровень 3.5: Rate Limiting по телефону ===
+        allowed_phone = await redis_service.check_phone_rate_limit(lead.phone)
+        if not allowed_phone:
+            return await self._reject(
+                lead,
+                "rate_limit_exceeded_phone",
+                start_time
+            )
         
         # === Уровень 4: Дедупликация телефона ===
         is_duplicate = await redis_service.is_duplicate(lead.phone)
@@ -113,6 +124,17 @@ class LeadValidator:
             is_email_dup = await redis_service.is_email_duplicate(lead.email)
             if is_email_dup:
                 return await self._reject(lead, "duplicate_email", start_time)
+        
+        # === Уровень 4.6: Проверка в CRM (Bitrix24) ===
+        # Информационная проверка - не отклоняем, но логируем если контакт найден
+        bitrix_duplicate = await bitrix_service.find_duplicates(phone=lead.phone, email=lead.email)
+        if bitrix_duplicate.has_duplicate:
+            logger.info(
+                f"Found existing Bitrix24 contact {bitrix_duplicate.contact_id} "
+                f"by {bitrix_duplicate.duplicate_type} for {lead.phone[:10]}..."
+            )
+            # Можно создать новое дело для существующего контакта или обновить контакт
+            # Это делается в _accept или _export_lead
         
         # === Уровень 4.6: MX-записи email домена ===
         if lead.email and settings.MX_CHECK_ENABLED:
@@ -195,6 +217,19 @@ class LeadValidator:
                 email_type = dadata_service.get_email_type(email_result)
                 logger.info(f"Email type for {lead.phone}: {email_type}")
         
+        # === Уровень 5.5: Проверка на спам-номера ===
+        spam_result = await spam_checker.check_phone(lead.phone)
+        if spam_result.is_spam:
+            return await self._reject(
+                lead,
+                f"spam_phone:{spam_result.category or 'unknown'}",
+                start_time,
+                dadata=dadata_result
+            )
+        # Если номер в белом списке - логируем, но не отклоняем
+        if spam_result.is_whitelisted:
+            logger.info(f"Phone {lead.phone[:10]}... is whitelisted, skipping spam check")
+        
         # === Уровень 6: UTM валидация ===
         if settings.UTM_VALIDATION_ENABLED:
             utm_data = UTMData(
@@ -210,7 +245,7 @@ class LeadValidator:
             if project_id and db:
                 from core import models
                 project = db.query(models.PhoneProject).filter_by(id=project_id).first()
-            utm_result = utm_validator.validate(
+            utm_result = await utm_validator.validate(
                 utm_data, 
                 client_ip=client_ip,
                 geo_country=lead.geo_country
@@ -248,6 +283,12 @@ class LeadValidator:
         if lead.honeypot:
             logger.info(f"Honeypot triggered: {lead.phone}")
             return "honeypot_filled"
+        
+        # Проверка JavaScript-токена
+        if settings.JS_TOKEN_ENABLED:
+            if not lead.js_token or len(lead.js_token.strip()) < 10:
+                logger.info(f"Missing or invalid JS token for {lead.phone}")
+                return "js_token_missing_or_invalid"
         
         # Проверка timestamp
         if lead.timestamp is not None:
@@ -487,15 +528,17 @@ class LeadValidator:
                     social_result = await social_checker.check_phone(lead.phone)
                     lead_record.has_telegram = social_result.has_telegram
                     lead_record.has_whatsapp = social_result.has_whatsapp
-                    lead_record.has_tiktok = social_result.has_tiktok if hasattr(social_result, 'has_tiktok') else None
+                    lead_record.has_tiktok = social_result.has_tiktok
                     lead_record.has_vk = social_result.has_vk
                     
                     # Сохраняем данные аккаунтов
                     social_data = {}
-                    if social_result.has_telegram and hasattr(social_result, 'telegram_username'):
+                    if social_result.has_telegram and social_result.telegram_username:
                         social_data['telegram'] = {'username': social_result.telegram_username}
-                    if social_result.has_vk and hasattr(social_result, 'vk_profile_url'):
+                    if social_result.has_vk and social_result.vk_profile_url:
                         social_data['vk'] = {'profile_url': social_result.vk_profile_url}
+                    if social_result.has_tiktok and social_result.tiktok_username:
+                        social_data['tiktok'] = {'username': social_result.tiktok_username}
                     if social_data:
                         lead_record.social_accounts_data = json.dumps(social_data)
                     

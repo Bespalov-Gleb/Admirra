@@ -13,6 +13,7 @@ from typing import Optional, Tuple, List
 from dataclasses import dataclass
 
 from lead_validator.config import settings
+from lead_validator.services.placement_blacklist import placement_blacklist
 
 logger = logging.getLogger("lead_validator.utm_validator")
 
@@ -74,7 +75,7 @@ class UTMValidator:
             f"blacklisted placements"
         )
     
-    def validate(
+    async def validate(
         self, 
         utm: UTMData, 
         client_ip: Optional[str] = None,
@@ -101,7 +102,7 @@ class UTMValidator:
             warnings.append(format_result)
         
         # === Проверка 2: Чёрный список площадок ===
-        blacklist_result = self._check_blacklist(utm)
+        blacklist_result = await self._check_blacklist(utm)
         if blacklist_result:
             logger.info(f"UTM blacklisted: {blacklist_result} from IP {client_ip}")
             return UTMValidationResult(
@@ -166,24 +167,32 @@ class UTMValidator:
         
         return "; ".join(issues) if issues else None
     
-    def _check_blacklist(self, utm: UTMData) -> Optional[str]:
-        """Проверить чёрный список площадок."""
-        if not self.blacklisted_placements:
-            return None
+    async def _check_blacklist(self, utm: UTMData) -> Optional[str]:
+        """Проверить чёрный список площадок (статический + динамический)."""
+        # 1. Проверка статического чёрного списка (из конфига)
+        if self.blacklisted_placements:
+            # Проверяем utm_content (обычно содержит ID площадки)
+            if utm.content:
+                content_lower = utm.content.lower()
+                for placement in self.blacklisted_placements:
+                    if placement.lower() in content_lower:
+                        return f"static:{placement}"
+            
+            # Проверяем utm_campaign (иногда ID площадки там)
+            if utm.campaign:
+                campaign_lower = utm.campaign.lower()
+                for placement in self.blacklisted_placements:
+                    if placement.lower() in campaign_lower:
+                        return f"static:{placement}"
         
-        # Проверяем utm_content (обычно содержит ID площадки)
-        if utm.content:
-            content_lower = utm.content.lower()
-            for placement in self.blacklisted_placements:
-                if placement.lower() in content_lower:
-                    return placement
-        
-        # Проверяем utm_campaign (иногда ID площадки там)
-        if utm.campaign:
-            campaign_lower = utm.campaign.lower()
-            for placement in self.blacklisted_placements:
-                if placement.lower() in campaign_lower:
-                    return placement
+        # 2. Проверка динамического чёрного списка (из Redis)
+        is_dynamic_blacklisted = await placement_blacklist.is_blacklisted(
+            utm.source,
+            utm.campaign,
+            utm.content
+        )
+        if is_dynamic_blacklisted:
+            return f"dynamic:{utm.source}/{utm.campaign}/{utm.content}"
         
         return None
     

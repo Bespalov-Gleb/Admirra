@@ -40,6 +40,10 @@
                   >
                 </div>
               </div>
+              <!-- Error Message -->
+              <div v-if="errorMessage" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p class="text-sm text-red-600">{{ errorMessage }}</p>
+              </div>
               <form @submit.prevent="handleRegister">
                 <div class="space-y-5">
                   <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -159,20 +163,20 @@
                       >
                         <div class="relative">
                           <input
-                            v-model="agreeToTerms"
+                            v-model="registerForm.agree"
                             type="checkbox"
                             id="checkboxLabelOne"
                             class="sr-only"
                           />
                           <div
                             :class="
-                              agreeToTerms
+                              registerForm.agree
                                 ? 'border-brand-500 bg-brand-500'
                                 : 'bg-white border-gray-300'
                             "
                             class="mr-3 flex h-5 w-5 items-center justify-center rounded border"
                           >
-                            <span :class="agreeToTerms ? '' : 'opacity-0'">
+                            <span :class="registerForm.agree ? '' : 'opacity-0'">
                               <svg
                                 width="14"
                                 height="14"
@@ -256,12 +260,7 @@ import logoAuth from '@/assets/imgs/logo/AdMirra.png'
 
 const router = useRouter()
 const { register } = useAuth()
-const firstName = ref('')
-const lastName = ref('')
-const email = ref('')
-const password = ref('')
 const showPassword = ref(false)
-const agreeToTerms = ref(false)
 const loading = ref(false)
 
 const registerForm = reactive({
@@ -272,6 +271,8 @@ const registerForm = reactive({
   agree: false
 })
 
+const errorMessage = ref('')
+
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value
 }
@@ -280,21 +281,62 @@ const isValidEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+const triggerError = (message) => {
+  errorMessage.value = message
+  setTimeout(() => {
+    errorMessage.value = ''
+  }, 5000)
+}
+
 const handleRegister = async () => {
-  if (!registerForm.username) return
-  if (!registerForm.email) return
-  if (!isValidEmail(registerForm.email)) return
-  if (!registerForm.password) return
-  if (registerForm.password.length < 6) return
-  if (!registerForm.agree) return
+  // Валидация
+  if (!registerForm.username) {
+    triggerError('Введите ваше имя')
+    return
+  }
+  if (!registerForm.email) {
+    triggerError('Введите Email')
+    return
+  }
+  if (!isValidEmail(registerForm.email)) {
+    triggerError('Введите корректный Email')
+    return
+  }
+  if (!registerForm.password) {
+    triggerError('Введите пароль')
+    return
+  }
+  if (registerForm.password.length < 6) {
+    triggerError('Пароль должен быть не менее 6 символов')
+    return
+  }
+  if (!registerForm.agree) {
+    triggerError('Вы должны согласиться с условиями')
+    return
+  }
 
   loading.value = true
+  errorMessage.value = ''
   
-  const result = await register(registerForm.email, registerForm.password, registerForm.username)
-  
-  loading.value = false
-  if (result.success) {
-    router.push('/two-step-verification')
+  try {
+    const result = await register(
+      registerForm.email, 
+      registerForm.password, 
+      registerForm.username,
+      registerForm.username, // first_name
+      registerForm.lastName  // last_name
+    )
+    
+    if (result.success) {
+      router.push('/two-step-verification')
+    } else {
+      triggerError(result.message || 'Ошибка регистрации')
+    }
+  } catch (error) {
+    console.error('Registration error:', error)
+    triggerError('Произошла ошибка при регистрации')
+  } finally {
+    loading.value = false
   }
 }
 </script>

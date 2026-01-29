@@ -1,38 +1,62 @@
 <template>
-  <div class="space-y-4 sm:space-y-6">
+  <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок с кнопкой создания -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Проекты телефонии</h1>
-        <p class="text-sm text-gray-600 mt-1">Управление проектами для валидации телефонов</p>
+    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
+      <div class="min-w-0 flex-shrink-0">
+        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+          Телефония
+        </label>
+        <div class="flex items-center gap-3 mt-0.5">
+          <div class="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-200 hidden xs:block">
+            <PhoneIcon class="w-4 h-4 text-white" />
+          </div>
+          <div class="flex flex-col min-w-0">
+            <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight truncate">
+              Проекты телефонии
+            </h1>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
+              <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+                Управление проектами для валидации телефонов
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-      <button
-        @click="showCreateModal = true"
-        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        Создать проект
-      </button>
+      <div class="flex items-center gap-3">
+        <button
+          @click="showCreateModal = true"
+          class="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 font-semibold text-sm"
+        >
+          <PlusIcon class="w-5 h-5" />
+          Создать проект
+        </button>
+      </div>
     </div>
 
     <!-- Список проектов -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-      <p class="mt-4 text-gray-600">Загрузка проектов...</p>
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-for="i in 3" :key="i" class="bg-white rounded-[40px] p-8 animate-pulse">
+        <div class="h-6 bg-gray-200 rounded-lg mb-4"></div>
+        <div class="h-4 bg-gray-200 rounded-lg mb-6"></div>
+        <div class="space-y-3">
+          <div class="h-4 bg-gray-200 rounded"></div>
+          <div class="h-4 bg-gray-200 rounded"></div>
+        </div>
+      </div>
     </div>
 
-    <div v-else-if="projects.length === 0" class="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-      </svg>
-      <h3 class="text-lg font-semibold text-gray-900 mb-2">Нет проектов</h3>
-      <p class="text-gray-600 mb-4">Создайте первый проект для валидации телефонов</p>
+    <div v-else-if="projects.length === 0" class="text-center py-16 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm">
+      <div class="w-20 h-20 mx-auto mb-6 bg-blue-100 rounded-full flex items-center justify-center">
+        <PhoneIcon class="w-10 h-10 text-blue-600" />
+      </div>
+      <h3 class="text-xl font-bold text-gray-900 mb-2">Нет проектов</h3>
+      <p class="text-gray-600 mb-6 max-w-md mx-auto">Создайте первый проект для валидации телефонов и начните получать качественные лиды</p>
       <button
         @click="showCreateModal = true"
-        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        class="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-semibold flex items-center gap-2 mx-auto"
       >
+        <PlusIcon class="w-5 h-5" />
         Создать проект
       </button>
     </div>
@@ -41,48 +65,49 @@
       <div
         v-for="project in projects"
         :key="project.id"
-        class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6"
+        class="bg-white rounded-[40px] border border-gray-100 shadow-sm hover:shadow-md transition-all p-8"
       >
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex-1">
-            <h3 class="text-lg font-semibold text-gray-900 mb-1">{{ project.name }}</h3>
-            <p v-if="project.description" class="text-sm text-gray-600">{{ project.description }}</p>
+        <div class="flex items-start justify-between mb-6">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <PhoneIcon class="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 class="text-lg font-bold text-gray-900 truncate">{{ project.name }}</h3>
+            </div>
+            <p v-if="project.description" class="text-sm text-gray-600 line-clamp-2">{{ project.description }}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <span
-              :class="project.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
-              class="px-2 py-1 text-xs font-medium rounded"
-            >
-              {{ project.is_active ? 'Активен' : 'Неактивен' }}
-            </span>
-          </div>
+          <span
+            :class="project.is_active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'"
+            class="px-3 py-1 text-xs font-semibold rounded-full border flex-shrink-0"
+          >
+            {{ project.is_active ? 'Активен' : 'Неактивен' }}
+          </span>
         </div>
 
         <!-- Настройки проекта -->
-        <div class="space-y-2 mb-4">
-          <div class="flex items-center gap-2 text-sm text-gray-600">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            <span v-if="project.webhook_url" class="truncate">{{ project.webhook_url }}</span>
-            <span v-else class="text-gray-400">Webhook не настроен</span>
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">
+            <LinkIcon class="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span v-if="project.webhook_url" class="truncate text-xs font-mono">{{ project.webhook_url }}</span>
+            <span v-else class="text-gray-400 text-xs">Webhook не настроен</span>
           </div>
           <div class="flex flex-wrap gap-2">
             <span
               v-if="project.enable_social_check"
-              class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
+              class="px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full"
             >
               Соцсети
             </span>
             <span
               v-if="project.enable_gosuslugi_check"
-              class="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded"
+              class="px-3 py-1 text-xs font-semibold bg-purple-100 text-purple-700 rounded-full"
             >
               Госуслуги
             </span>
             <span
               v-if="project.enable_metrica_export"
-              class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded"
+              class="px-3 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded-full"
             >
               Метрика
             </span>
@@ -90,24 +115,24 @@
         </div>
 
         <!-- Действия -->
-        <div class="flex items-center gap-2 pt-4 border-t border-gray-200">
-          <button
-            @click="editProject(project)"
-            class="flex-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          >
-            Редактировать
-          </button>
+        <div class="flex items-center gap-2 pt-6 border-t border-gray-200">
           <button
             @click="viewProject(project)"
-            class="flex-1 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
           >
             Просмотр
           </button>
           <button
-            @click="deleteProject(project)"
-            class="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            @click="editProject(project)"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all"
           >
-            Удалить
+            Редактировать
+          </button>
+          <button
+            @click="deleteProject(project)"
+            class="px-4 py-2.5 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-all"
+          >
+            <TrashIcon class="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -116,18 +141,31 @@
     <!-- Модальное окно создания/редактирования -->
     <div
       v-if="showCreateModal || editingProject"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       @click.self="closeModal"
     >
-      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="p-6">
-          <h2 class="text-xl font-bold text-gray-900 mb-4">
-            {{ editingProject ? 'Редактировать проект' : 'Создать проект' }}
-          </h2>
-
-          <form @submit.prevent="saveProject" class="space-y-4">
+      <div class="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-8">
+          <div class="flex items-center justify-between mb-6">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
+              <h2 class="text-2xl font-black text-gray-900">
+                {{ editingProject ? 'Редактировать проект' : 'Создать проект' }}
+              </h2>
+              <p class="text-sm text-gray-500 mt-1">
+                {{ editingProject ? 'Обновите настройки проекта' : 'Настройте новый проект для валидации лидов' }}
+              </p>
+            </div>
+            <button
+              @click="closeModal"
+              class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <XMarkIcon class="w-6 h-6" />
+            </button>
+          </div>
+
+          <form @submit.prevent="saveProject" class="space-y-6">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Название проекта <span class="text-red-500">*</span>
               </label>
               <input
@@ -135,19 +173,19 @@
                 type="text"
                 required
                 placeholder="Введите название проекта"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               />
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Описание
               </label>
               <textarea
                 v-model="projectForm.description"
                 rows="3"
                 placeholder="Описание проекта (необязательно)"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
               ></textarea>
             </div>
 
@@ -243,19 +281,20 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-end gap-3 pt-4 border-t">
+            <div class="flex items-center justify-end gap-3 pt-6 border-t border-gray-200">
               <button
                 type="button"
                 @click="closeModal"
-                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                class="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all font-semibold"
               >
                 Отмена
               </button>
               <button
                 type="submit"
                 :disabled="saving"
-                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                class="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 font-semibold shadow-sm hover:shadow-md flex items-center gap-2"
               >
+                <span v-if="saving" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 {{ saving ? 'Сохранение...' : (editingProject ? 'Сохранить' : 'Создать') }}
               </button>
             </div>
@@ -267,51 +306,52 @@
     <!-- Модальное окно просмотра проекта -->
     <div
       v-if="viewingProject"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       @click.self="viewingProject = null"
     >
-      <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-bold text-gray-900">{{ viewingProject.name }}</h2>
+      <div class="bg-white rounded-[32px] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-8">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h2 class="text-2xl font-black text-gray-900">{{ viewingProject.name }}</h2>
+              <p v-if="viewingProject.description" class="text-sm text-gray-500 mt-1">{{ viewingProject.description }}</p>
+            </div>
             <button
               @click="viewingProject = null"
-              class="text-gray-400 hover:text-gray-600"
+              class="text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <XMarkIcon class="w-6 h-6" />
             </button>
           </div>
 
           <!-- Вкладки -->
-          <div class="border-b mb-4">
-            <div class="flex gap-4">
+          <div class="border-b border-gray-200 mb-6">
+            <div class="flex gap-1">
               <button
                 @click="activeTab = 'info'"
-                :class="activeTab === 'info' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-600'"
-                class="px-4 py-2 border-b-2 font-medium transition-colors"
+                :class="activeTab === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+                class="px-4 py-2.5 border-b-2 font-semibold text-sm transition-all rounded-t-xl"
               >
                 Информация
               </button>
               <button
                 @click="activeTab = 'webhook'"
-                :class="activeTab === 'webhook' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-600'"
-                class="px-4 py-2 border-b-2 font-medium transition-colors"
+                :class="activeTab === 'webhook' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+                class="px-4 py-2.5 border-b-2 font-semibold text-sm transition-all rounded-t-xl"
               >
                 Webhook
               </button>
               <button
                 @click="activeTab = 'leads'"
-                :class="activeTab === 'leads' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-600'"
-                class="px-4 py-2 border-b-2 font-medium transition-colors"
+                :class="activeTab === 'leads' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+                class="px-4 py-2.5 border-b-2 font-semibold text-sm transition-all rounded-t-xl"
               >
                 Заявки
               </button>
               <button
                 @click="activeTab = 'manual'"
-                :class="activeTab === 'manual' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-600'"
-                class="px-4 py-2 border-b-2 font-medium transition-colors"
+                :class="activeTab === 'manual' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'"
+                class="px-4 py-2.5 border-b-2 font-semibold text-sm transition-all rounded-t-xl"
               >
                 Ручной ввод
               </button>
@@ -403,8 +443,9 @@
               <button
                 type="submit"
                 :disabled="submittingManualLead"
-                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                class="w-full px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 font-semibold shadow-sm hover:shadow-md flex items-center justify-center gap-2"
               >
+                <span v-if="submittingManualLead" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 {{ submittingManualLead ? 'Проверка...' : 'Проверить' }}
               </button>
             </form>
@@ -419,6 +460,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
+import { PhoneIcon, PlusIcon, LinkIcon, TrashIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 
 const toaster = useToaster()
 const projects = ref([])

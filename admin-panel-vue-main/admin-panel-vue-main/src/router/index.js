@@ -56,6 +56,12 @@ const routes = [
     meta: { layout: 'auth' }
   },
   {
+    path: '/auth/mytarget/callback',
+    name: 'MyTargetCallback',
+    component: () => import('../views/Auth/MyTargetCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/dashboard/general',
     name: 'GeneralStats',
     component: () => import('../views/GeneralStats/GeneralStats.vue')
@@ -84,6 +90,21 @@ const routes = [
     path: '/phone-projects',
     name: 'PhoneProjects',
     component: () => import('../views/PhoneProjects/PhoneProjects.vue')
+  },
+  {
+    path: '/phone-leads',
+    name: 'PhoneLeads',
+    component: () => import('../views/PhoneLeads/PhoneLeads.vue')
+  },
+  {
+    path: '/phone-stats',
+    name: 'PhoneStats',
+    component: () => import('../views/PhoneStats/PhoneStats.vue')
+  },
+  {
+    path: '/phone-reports',
+    name: 'PhoneReports',
+    component: () => import('../views/PhoneReports/PhoneReports.vue')
   },
   {
     path: '/channels',

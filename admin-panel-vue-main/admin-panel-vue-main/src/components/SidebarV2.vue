@@ -225,9 +225,20 @@ const menuSections = [
     title: 'УПРАВЛЕНИЕ',
     items: [
       { name: 'Команда', path: '/team', icon: Group },
-      { name: 'Квалификатор лидов', path: '/phone-api', icon: PhoneIcon },
       { name: 'Продукты', path: '/products', icon: Product },
       { name: 'Каналы', path: '/channels', icon: Channels },
+      {
+        name: 'Телефония',
+        icon: PhoneIcon,
+        path: '/phone-projects',
+        children: [
+          { name: 'Проекты', path: '/phone-projects' },
+          { name: 'Квалификатор', path: '/phone-api' },
+          { name: 'Лиды', path: '/phone-leads' },
+          { name: 'Статистика', path: '/phone-stats' },
+          { name: 'Отчёты', path: '/phone-reports' },
+        ]
+      },
     ]
   },
   {
@@ -249,7 +260,7 @@ const handleLinkClick = (path) => {
 
 // Автоматически открывать выпадающее меню, если текущий маршрут имеет вложенность
 watch(() => route?.path, (path) => {
-  if (path && path.startsWith('/dashboard')) {
+  if (path && (path.startsWith('/dashboard') || path.startsWith('/phone'))) {
     isSubmenuOpen.value = true
   } else {
     isSubmenuOpen.value = false
@@ -262,6 +273,10 @@ const isActive = (path) => {
   if (path === '/dashboard') {
      // Parent activation check
      return route.path.startsWith('/dashboard')
+  }
+  if (path === '/phone-projects') {
+    // Parent activation check for phone section
+    return route.path.startsWith('/phone')
   }
   if (path === '/dashboard/projects') {
     return route.path === '/dashboard/projects' || route.path === '/projects'

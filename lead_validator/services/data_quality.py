@@ -235,6 +235,40 @@ class DataQualityValidator:
         """Добавить имя в стоп-лист."""
         self.garbage_names.add(name.lower())
         logger.info(f"Added garbage name: {name}")
+    
+    @staticmethod
+    def normalize_name(name: Optional[str]) -> Optional[str]:
+        """
+        Нормализация имени для корректного поиска дубликатов.
+        
+        Выполняет:
+        - Приведение к единому регистру (title case)
+        - Удаление лишних пробелов
+        - Замена ё на е
+        - Удаление спецсимволов (кроме дефиса и апострофа)
+        
+        Args:
+            name: Исходное имя
+            
+        Returns:
+            Нормализованное имя или None
+        """
+        if not name:
+            return None
+        
+        # Удаляем лишние пробелы
+        normalized = " ".join(name.split())
+        
+        # Заменяем ё на е
+        normalized = normalized.replace("ё", "е").replace("Ё", "Е")
+        
+        # Приводим к title case (первая буква заглавная, остальные строчные)
+        normalized = normalized.title()
+        
+        # Удаляем спецсимволы (кроме дефиса и апострофа)
+        normalized = re.sub(r"[^\w\s\-']", "", normalized)
+        
+        return normalized.strip() if normalized.strip() else None
 
 
 # Глобальный экземпляр
