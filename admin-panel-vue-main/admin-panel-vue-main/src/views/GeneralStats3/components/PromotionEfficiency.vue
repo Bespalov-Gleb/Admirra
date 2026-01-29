@@ -183,60 +183,6 @@
         <p class="text-xs text-gray-400 mt-2">Настройте интеграции с Яндекс.Метрикой для отображения целевых визитов</p>
       </div>
     </div>
-
-    <!-- Selected Goals Section -->
-    <div class="mt-8 border-2 border-red-300 bg-red-50/50 rounded-2xl p-6 shadow-sm">
-      <div class="mb-4">
-        <h4 class="text-sm font-black text-gray-900 uppercase tracking-wider mb-1">Выбранные цели из настроек</h4>
-        <p class="text-xs text-gray-600">Статистика по целям, настроенным в интеграциях проекта</p>
-      </div>
-      
-      <div v-if="loadingGoals" class="text-center py-12">
-        <div class="inline-flex items-center gap-3 text-sm text-gray-500">
-          <div class="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
-          <span class="font-medium">Загрузка целей...</span>
-        </div>
-      </div>
-      
-      <div v-else-if="selectedGoals.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <div 
-          v-for="goal in selectedGoals" 
-          :key="goal.name"
-          class="bg-white rounded-xl p-5 border-2 border-gray-200 shadow-md hover:shadow-lg transition-all hover:border-blue-300"
-        >
-          <div class="flex items-start justify-between mb-3">
-            <h5 class="text-sm font-black text-gray-900 line-clamp-2 flex-1 pr-2">{{ goal.name }}</h5>
-            <span 
-              v-if="goal.is_primary"
-              class="flex-shrink-0 px-2 py-1 bg-blue-100 text-blue-700 text-[9px] font-black uppercase rounded-md border border-blue-300"
-            >
-              Основная
-            </span>
-          </div>
-          <div class="space-y-2.5">
-            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
-              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">Конверсии</span>
-              <span class="text-xl font-black text-gray-900">{{ (goal.count || 0).toLocaleString() }}</span>
-            </div>
-            <div v-if="goal.trend !== undefined" class="flex items-center justify-between">
-              <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider">Тренд</span>
-              <span 
-                class="text-sm font-black px-2 py-0.5 rounded"
-                :class="goal.trend >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'"
-              >
-                {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend.toFixed(1) }}%
-              </span>
-            </div>
-            <!-- CR calculation would require clicks data from YandexStats, skipped for now -->
-          </div>
-        </div>
-      </div>
-      
-      <div v-else class="text-center py-12">
-        <p class="text-sm text-gray-500 font-medium">Цели не выбраны в настройках интеграций</p>
-        <p class="text-xs text-gray-400 mt-2">Настройте цели в разделе интеграций для отображения статистики</p>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -268,9 +214,7 @@ const props = defineProps({
 })
 
 const isTableVisible = ref(true)
-const selectedGoals = ref([])
 const autoGoals = ref([]) // Auto-goals from Metrika (target visits)
-const loadingGoals = ref(false)
 const loadingAutoGoals = ref(false)
 
 const funnelLabels = computed(() => [
@@ -340,125 +284,6 @@ const funnelPoints = computed(() => {
   }
 })
 
-// Fetch selected goals for the project from database (no API calls to avoid 429)
-const fetchSelectedGoals = async () => {
-  if (!props.clientId) {
-    selectedGoals.value = []
-    return
-  }
-
-  loadingGoals.value = true
-  try {
-    // Get integrations for this client to find selected goals
-    const { data: integrations } = await api.get('integrations/', {
-      params: { client_id: props.clientId }
-    })
-
-    console.log('[PromotionEfficiency] Found integrations:', integrations?.length || 0)
-
-    if (!integrations || integrations.length === 0) {
-      selectedGoals.value = []
-      return
-    }
-
-    // Collect selected goal IDs and primary goal IDs from all integrations
-    const selectedGoalIds = new Set()
-    const primaryGoalIds = new Set()
-    
-    integrations.forEach(integration => {
-      try {
-        // Parse selected_goals (stored as JSON string)
-        if (integration.selected_goals) {
-          const goals = typeof integration.selected_goals === 'string' 
-            ? JSON.parse(integration.selected_goals) 
-            : integration.selected_goals
-          
-          if (Array.isArray(goals)) {
-            goals.forEach(goalId => selectedGoalIds.add(String(goalId)))
-          }
-        }
-        
-        // Add primary goal
-        if (integration.primary_goal_id) {
-          primaryGoalIds.add(String(integration.primary_goal_id))
-          selectedGoalIds.add(String(integration.primary_goal_id)) // Primary is also selected
-        }
-      } catch (e) {
-        console.warn('[PromotionEfficiency] Failed to parse goals for integration:', integration.id, e)
-      }
-    })
-
-    // If no goals selected, show empty
-    if (selectedGoalIds.size === 0) {
-      console.log('[PromotionEfficiency] No goals selected in any integration')
-      selectedGoals.value = []
-      return
-    }
-
-    console.log(`[PromotionEfficiency] Selected goal IDs:`, Array.from(selectedGoalIds))
-    console.log(`[PromotionEfficiency] Primary goal IDs:`, Array.from(primaryGoalIds))
-    console.log(`[PromotionEfficiency] Integrations with goals:`, integrations.map(i => ({
-      id: i.id,
-      platform: i.platform,
-      selected_goals: i.selected_goals,
-      primary_goal_id: i.primary_goal_id
-    })))
-
-    // Use provided dates or default to last 14 days
-    let startDate = props.startDate
-    let endDate = props.endDate
-    
-    if (!startDate || !endDate) {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(end.getDate() - 13)
-      startDate = start.toISOString().split('T')[0]
-      endDate = end.toISOString().split('T')[0]
-    }
-
-    // CRITICAL: Use /dashboard/goals endpoint which reads from DB only (no API calls to Metrika)
-    const { data: allGoalsData } = await api.get('dashboard/goals', {
-      params: {
-        client_id: props.clientId,
-        date_from: startDate,
-        date_to: endDate
-      }
-    })
-
-    console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} goals from DB`)
-    console.log(`[PromotionEfficiency] Goals from DB:`, allGoalsData)
-
-    // Filter to show only selected goals and mark primary ones
-    const filteredGoals = (allGoalsData || [])
-      .filter(goal => {
-        // Match by goal ID (as string)
-        const goalIdStr = String(goal.id || '')
-        const goalNameStr = String(goal.name || '')
-        const isSelected = selectedGoalIds.has(goalIdStr) || selectedGoalIds.has(goalNameStr)
-        if (!isSelected) {
-          console.log(`[PromotionEfficiency] Goal ${goalIdStr} (${goalNameStr}) not in selected list`)
-        }
-        return isSelected
-      })
-      .map(goal => ({
-        ...goal,
-        is_primary: primaryGoalIds.has(String(goal.id)) || primaryGoalIds.has(String(goal.name))
-      }))
-
-    console.log(`[PromotionEfficiency] Filtered to ${filteredGoals.length} selected goals`)
-    selectedGoals.value = filteredGoals.sort((a, b) => {
-      // Primary goals first, then by count
-      if (a.is_primary && !b.is_primary) return -1
-      if (!a.is_primary && b.is_primary) return 1
-      return (b.count || 0) - (a.count || 0)
-    })
-  } catch (err) {
-    console.error('[PromotionEfficiency] Failed to fetch goals:', err)
-    selectedGoals.value = []
-  } finally {
-    loadingGoals.value = false
-  }
-}
 
 // Fetch auto-goals (target visits from Metrika)
 const fetchAutoGoals = async () => {
@@ -599,20 +424,17 @@ const donutSegments = computed(() => {
 
 // Watch for client_id changes
 watch(() => props.clientId, () => {
-  fetchSelectedGoals()
   fetchAutoGoals()
 }, { immediate: true })
 
 // Watch for date changes to reload goals when period changes
 watch([() => props.startDate, () => props.endDate], () => {
   if (props.clientId && props.startDate && props.endDate) {
-    fetchSelectedGoals()
     fetchAutoGoals()
   }
 })
 
 onMounted(() => {
-  fetchSelectedGoals()
   fetchAutoGoals()
 })
 </script>
