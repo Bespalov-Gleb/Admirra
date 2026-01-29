@@ -45,22 +45,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Diagnostic log
       const currentPath = window.location.pathname
-      console.warn(`Axios: Unauthenticated request (401) from path: ${currentPath}`)
-
-      // Check if we are on an auth page (Login or Root)
       // Normalize path (remove trailing slash)
       const normalizedPath = currentPath.replace(/\/$/, '') || '/'
-      const isAuthPage = normalizedPath === '/login' || normalizedPath === '/'
+      const isAuthPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/signup' || normalizedPath === '/signin'
 
-      if (!isAuthPage) {
-        // console.warn('Axios: Unauthorized access to protected route. Auto-logout disabled for debugging.')
-        localStorage.removeItem('auth_token')
-        window.location.href = '/login'
-      } else {
-        console.log('Axios: 401 encountered on auth page, staying here.')
+      // На страницах авторизации 401 - это нормально, не логируем как ошибку
+      if (isAuthPage) {
+        // Тихий отказ, не логируем
+        return Promise.reject(error)
       }
+
+      // На защищенных страницах - это ошибка авторизации
+      console.warn(`Axios: Unauthenticated request (401) from path: ${currentPath}`)
+      localStorage.removeItem('auth_token')
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

@@ -90,11 +90,23 @@ export function useDashboardStats() {
   // --- API Calls ---
 
   const fetchClients = async () => {
+    // Проверяем наличие токена перед запросом
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      console.log('[DashboardStats] No auth token, skipping clients fetch')
+      return
+    }
+
     loadingClients.value = true
     try {
       const { data } = await api.get('clients/')
       clients.value = data
     } catch (err) {
+      // Игнорируем 401 ошибки (неавторизованный пользователь)
+      if (err.response?.status === 401) {
+        console.log('[DashboardStats] Unauthorized, skipping clients fetch')
+        return
+      }
       console.error('[DashboardStats] Error fetching clients:', err)
     } finally {
       loadingClients.value = false
@@ -102,6 +114,14 @@ export function useDashboardStats() {
   }
 
   const fetchStats = async () => {
+    // Проверяем наличие токена перед запросом
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      console.log('[DashboardStats] No auth token, skipping stats fetch')
+      loading.value = false
+      return
+    }
+
     loading.value = true
     error.value = null
 
@@ -142,9 +162,19 @@ export function useDashboardStats() {
       if (campaignsRes.status === 'fulfilled') campaigns.value = campaignsRes.value.data
 
       if (summaryRes.status === 'rejected' && dynamicsRes.status === 'rejected') {
-        error.value = 'Failed to load statistics'
+        // Проверяем, не 401 ли это (неавторизованный пользователь)
+        const isUnauthorized = summaryRes.reason?.response?.status === 401 || 
+                              dynamicsRes.reason?.response?.status === 401
+        if (!isUnauthorized) {
+          error.value = 'Failed to load statistics'
+        }
       }
     } catch (err) {
+      // Игнорируем 401 ошибки (неавторизованный пользователь)
+      if (err.response?.status === 401) {
+        console.log('[DashboardStats] Unauthorized, skipping stats fetch')
+        return
+      }
       console.error('[DashboardStats] Unexpected error:', err)
       error.value = 'An unexpected error occurred'
     } finally {

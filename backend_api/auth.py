@@ -11,35 +11,50 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user with email, optional username, and password.
     """
-    # Check email uniqueness
-    db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user_email:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    import logging
+    logger = logging.getLogger("api")
     
-    # Check username uniqueness if provided
-    if user.username:
-        db_user_name = db.query(models.User).filter(models.User.username == user.username).first()
-        if db_user_name:
-            raise HTTPException(status_code=400, detail="Username already taken")
-    
-    hashed_password = security.get_password_hash(user.password)
-    new_user = models.User(
-        email=user.email,
-        username=user.username,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        password_hash=hashed_password,
-        role=models.UserRole.MANAGER
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # Auto-login after registration
-    access_token = security.create_access_token(
-        data={"sub": new_user.email}
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    try:
+        logger.info(f"Registration attempt for email: {user.email}, username: {user.username}")
+        
+        # Check email uniqueness
+        db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
+        if db_user_email:
+            logger.warning(f"Registration failed: Email {user.email} already registered")
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Check username uniqueness if provided
+        if user.username:
+            db_user_name = db.query(models.User).filter(models.User.username == user.username).first()
+            if db_user_name:
+                logger.warning(f"Registration failed: Username {user.username} already taken")
+                raise HTTPException(status_code=400, detail="Username already taken")
+        
+        hashed_password = security.get_password_hash(user.password)
+        new_user = models.User(
+            email=user.email,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            password_hash=hashed_password,
+            role=models.UserRole.MANAGER
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        logger.info(f"User registered successfully: {user.email} (ID: {new_user.id})")
+        
+        # Auto-login after registration
+        access_token = security.create_access_token(
+            data={"sub": new_user.email}
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error for {user.email}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 @router.post("/login", response_model=schemas.Token)
 def login_for_access_token(

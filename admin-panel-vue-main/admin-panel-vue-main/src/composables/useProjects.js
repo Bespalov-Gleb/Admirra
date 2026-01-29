@@ -8,6 +8,13 @@ const isLoading = ref(false)
 export function useProjects() {
   
   const fetchProjects = async () => {
+    // Проверяем наличие токена перед запросом
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      console.log('[useProjects] No auth token, skipping projects fetch')
+      return
+    }
+
     isLoading.value = true
     try {
       const { data } = await axios.get('/clients/')
@@ -23,6 +30,11 @@ export function useProjects() {
         }
       }
     } catch (error) {
+      // Игнорируем 401 ошибки (неавторизованный пользователь)
+      if (error.response?.status === 401) {
+        console.log('[useProjects] Unauthorized, skipping projects fetch')
+        return
+      }
       console.error('Failed to fetch projects:', error)
     } finally {
       isLoading.value = false

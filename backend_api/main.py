@@ -120,10 +120,11 @@ async def request_id_logging_middleware(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     import json
-    logger.error(f"Validation Error: {exc.errors()}")
+    logger.error(f"Validation Error on {request.url.path}: {exc.errors()}")
+    logger.error(f"Request body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "body": str(exc.body)},
+        content={"detail": exc.errors(), "body": str(exc.body) if hasattr(exc, 'body') else None},
     )
 
 app.include_router(auth_router, prefix="/api")
