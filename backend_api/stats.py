@@ -169,9 +169,24 @@ async def get_dynamics(
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
     # Metrica Goals dynamics
+    # CRITICAL: Get integration_ids for filtering MetrikaGoals
+    m_integration_ids = None
+    if u_campaign_ids:
+        # Get integration_ids from selected campaigns
+        campaign_integrations = db.query(models.Campaign.integration_id).filter(
+            models.Campaign.id.in_(u_campaign_ids)
+        ).distinct().all()
+        m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+    elif len(effective_client_ids) == 1:
+        # When "all campaigns" is selected, get all integrations for the client
+        client_integrations = db.query(models.Integration.id).filter(
+            models.Integration.client_id.in_(effective_client_ids)
+        ).distinct().all()
+        m_integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+    
     m_stats = []
-    if not u_campaign_ids and platform in ["all", "yandex"]:
-        m_stats = db.query(
+    if platform in ["all", "yandex"]:
+        m_query = db.query(
             models.MetrikaGoals.date,
             func.sum(models.MetrikaGoals.conversion_count).label("leads")
         ).filter(
@@ -179,7 +194,13 @@ async def get_dynamics(
             models.MetrikaGoals.goal_id == "all",
             models.MetrikaGoals.date >= d_start,
             models.MetrikaGoals.date <= d_end
-        ).group_by(models.MetrikaGoals.date).all()
+        )
+        
+        # CRITICAL: Filter MetrikaGoals by integration_id to match campaign selection
+        if m_integration_ids:
+            m_query = m_query.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
+        
+        m_stats = m_query.group_by(models.MetrikaGoals.date).all()
 
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
     for i in range((d_end - d_start).days + 1):
@@ -195,12 +216,17 @@ async def get_dynamics(
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
         
         # Lead logic matching aggregate_summary
+        # CRITICAL: Always prefer Metrika goals if available (they're more accurate)
+        # Now we filter MetrikaGoals by integration_id, so we can use them even when campaigns are selected
         platform_le = int((y_s.leads if y_s else 0) + (v_s.leads if v_s else 0))
-        if u_campaign_ids:
-            le = platform_le
+        metrika_le = int(m_s.leads if m_s else 0)
+        
+        # Use Metrika if available, otherwise fallback to platform conversions
+        # This ensures consistency between "all campaigns" and specific campaign selection
+        if metrika_le > 0:
+            le = metrika_le
         else:
-            metrika_le = int(m_s.leads if m_s else 0)
-            le = max(metrika_le, platform_le)
+            le = platform_le
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)

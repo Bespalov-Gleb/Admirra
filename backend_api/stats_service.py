@@ -104,6 +104,14 @@ class StatsService:
                 models.MetrikaGoals.client_id.in_(client_ids),
                 models.MetrikaGoals.goal_id == "all"
             )
+            
+            # CRITICAL: Filter MetrikaGoals by integration_id when campaigns are selected
+            # This ensures we get Metrika data for the same integration as the selected campaigns
+            if campaign_ids and integration_ids:
+                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
+            elif not campaign_ids and integration_ids:
+                # When "all campaigns" is selected, filter by client's integrations
+                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
 
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
@@ -153,16 +161,18 @@ class StatsService:
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
             # Smart Conversion logic: 
-            # If we have Metrica goals for these clients, they are usually more precise "Leads".
-            # BUT: If user is filtering by campaign_id, MetricaGoals table doesn't have campaign attribution yet.
-            # In that case, we MUST use Direct's conversion count.
-            if campaign_ids:
-                convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            # If we have Metrica goals for these clients/integrations, they are usually more precise "Leads".
+            # Now we filter MetrikaGoals by integration_id when campaigns are selected, so we can use Metrika data in both cases.
+            # Always prefer Metrika goals if available (they're more accurate), otherwise use platform conversions.
+            metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
+            platform_convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            
+            # Use Metrika if available, otherwise fallback to platform conversions
+            # This ensures consistency between "all campaigns" and specific campaign selection
+            if metrica_convs > 0:
+                convs = metrica_convs
             else:
-                # Use Metrica goals if available, otherwise fallback to platform conversions
-                metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
-                platform_convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
-                convs = max(metrica_convs, platform_convs) 
+                convs = platform_convs 
             
             return {"costs": costs, "imps": imps, "clks": clks, "convs": convs}
 
