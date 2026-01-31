@@ -167,17 +167,31 @@ class StatsService:
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
             # Smart Conversion logic: 
-            # If we have Metrica goals for these clients/integrations, they are usually more precise "Leads".
-            # Now we filter MetrikaGoals by integration_id when campaigns are selected, so we can use Metrika data in both cases.
-            # Always prefer Metrika goals if available (they're more accurate), otherwise use platform conversions.
+            # CRITICAL: Для VK Ads НЕ используем Metrika goals - только conversions из VKStats (vk.goals = Результат)
+            # Для Yandex Direct используем Metrika goals если доступны (они более точные), иначе platform conversions
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
-            platform_convs = int((y_s.total_conversions if y_s else 0) or 0) + int((v_s.total_conversions if v_s else 0) or 0)
+            yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
+            vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
+            platform_convs = yandex_convs + vk_convs
             
-            # Use Metrika if available, otherwise fallback to platform conversions
-            # This ensures consistency between "all campaigns" and specific campaign selection
-            if metrica_convs > 0:
-                convs = metrica_convs
+            # CRITICAL: Для VK платформы используем только conversions из VKStats
+            if platform == "vk":
+                convs = vk_convs
+            # Для Yandex или "all" используем Metrika goals если доступны (только для Yandex), иначе platform conversions
+            elif platform in ["all", "yandex"]:
+                # Используем Metrika goals только если они есть И есть данные от Yandex
+                # Если выбрана только VK платформа, Metrika goals не должны использоваться
+                if metrica_convs > 0 and yandex_convs > 0:
+                    # Для Yandex используем Metrika, для VK - platform conversions
+                    convs = metrica_convs + vk_convs
+                elif metrica_convs > 0:
+                    # Только Metrika (если нет Yandex данных, но есть Metrika - возможно старые данные)
+                    convs = metrica_convs
+                else:
+                    # Используем platform conversions (Yandex + VK)
+                    convs = platform_convs
             else:
+                # Fallback для других платформ
                 convs = platform_convs 
             
             # CRITICAL: Для VK Ads используем взвешенное среднее CPC и CPA из сохраненных значений

@@ -98,31 +98,68 @@ class VKAdsAPI:
                 if self.account_id:
                     params["client_id"] = self.account_id
 
-                try:
-                    # Увеличиваем таймаут для больших периодов (90+ дней)
-                    date_range_days = (datetime.strptime(d_to, "%Y-%m-%d") - datetime.strptime(d_from, "%Y-%m-%d")).days
-                    if date_range_days > 90:
-                        timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
-                    else:
-                        timeout_seconds = 120.0
-                    
-                    response = await client.get(url, params=params, headers=self.headers, timeout=timeout_seconds)
-                    if response.status_code == 200:
-                        chunk_data = self._parse_response(response.json(), names_map)
-                        all_results.extend(chunk_data)
-                    elif response.status_code == 400:
-                        # Согласно документации, 400 может быть для:
-                        # - ERR_WRONG_PARAMETER - некорректное значение параметра
-                        # - ERR_LIMIT_EXCEEDED - превышен лимит запрашиваемых дат или количества объектов
-                        # - ERR_WRONG_DATE - некорректная дата
-                        logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text[:200]}")
-                    else:
-                        logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text[:200]}")
-                except Exception as e:
-                    logger.error(f"VK Ads API Exception for range {d_from}-{d_to}: {e}")
+                # CRITICAL: Retry logic for 429 Rate Limit errors
+                max_retries = 3
+                retry_delay = 5  # Начальная задержка в секундах
                 
-                # Sleep to avoid 429 Too Many Requests (VK limit is strict)
-                await asyncio.sleep(1)
+                for attempt in range(max_retries):
+                    try:
+                        # Увеличиваем таймаут для больших периодов (90+ дней)
+                        date_range_days = (datetime.strptime(d_to, "%Y-%m-%d") - datetime.strptime(d_from, "%Y-%m-%d")).days
+                        if date_range_days > 90:
+                            timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
+                        else:
+                            timeout_seconds = 120.0
+                        
+                        response = await client.get(url, params=params, headers=self.headers, timeout=timeout_seconds)
+                        
+                        if response.status_code == 200:
+                            chunk_data = self._parse_response(response.json(), names_map)
+                            all_results.extend(chunk_data)
+                            break  # Успешно получили данные, выходим из retry цикла
+                        elif response.status_code == 429:
+                            # Rate limit exceeded - ждем и повторяем
+                            try:
+                                error_data = response.json()
+                                remaining = error_data.get("remaining", {}).get("1", 0)
+                                limits = error_data.get("limits", {}).get("1", 2)
+                                logger.warning(f"⚠️ VK Ads API rate limit exceeded for range {d_from}-{d_to}. Remaining: {remaining}/{limits}. Waiting {retry_delay * (attempt + 1)}s before retry {attempt + 1}/{max_retries}...")
+                            except:
+                                logger.warning(f"⚠️ VK Ads API rate limit exceeded for range {d_from}-{d_to}. Waiting {retry_delay * (attempt + 1)}s before retry {attempt + 1}/{max_retries}...")
+                            
+                            if attempt < max_retries - 1:
+                                # Exponential backoff: увеличиваем задержку с каждой попыткой
+                                wait_time = retry_delay * (attempt + 1)
+                                await asyncio.sleep(wait_time)
+                                continue
+                            else:
+                                logger.error(f"❌ VK Ads API rate limit exceeded after {max_retries} attempts for range {d_from}-{d_to}. Skipping this chunk.")
+                                break
+                        elif response.status_code == 400:
+                            # Согласно документации, 400 может быть для:
+                            # - ERR_WRONG_PARAMETER - некорректное значение параметра
+                            # - ERR_LIMIT_EXCEEDED - превышен лимит запрашиваемых дат или количества объектов
+                            # - ERR_WRONG_DATE - некорректная дата
+                            logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text[:200]}")
+                            break  # Не повторяем для 400 ошибок
+                        else:
+                            logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text[:200]}")
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay)
+                                continue
+                            else:
+                                break
+                    except Exception as e:
+                        logger.error(f"VK Ads API Exception for range {d_from}-{d_to} (attempt {attempt + 1}/{max_retries}): {e}")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                            continue
+                        else:
+                            break
+                
+                # CRITICAL: Увеличиваем задержку между запросами для избежания 429 ошибок
+                # VK Ads имеет строгие лимиты: обычно 2 запроса в секунду
+                await asyncio.sleep(2)  # Увеличено с 1 до 2 секунд
                     
         return all_results
 
