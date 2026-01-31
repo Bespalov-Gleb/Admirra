@@ -506,6 +506,28 @@ async def exchange_vk_token_oauth(
                     try:
                         error_json = response.json()
                         logger.error(f"   Error JSON: {error_json}")
+                        
+                        # Специальная обработка ошибки token_limit_exceeded
+                        if error_json.get("error") == "token_limit_exceeded":
+                            error_description = error_json.get("error_description", "")
+                            user_id = error_json.get("user_id", "N/A")
+                            logger.error(f"⚠️ VK Ads Token Limit Exceeded for user_id: {user_id}")
+                            logger.error(f"   Client ID: {VK_CLIENT_ID}")
+                            logger.error(f"   Description: {error_description}")
+                            
+                            raise HTTPException(
+                                status_code=400,
+                                detail=(
+                                    f"Достигнут лимит активных токенов доступа для вашего приложения VK Ads.\n\n"
+                                    f"Решение:\n"
+                                    f"1. Напишите в поддержку VK Ads: ads_api@vk.team\n"
+                                    f"2. Укажите ваш Client ID: {VK_CLIENT_ID}\n"
+                                    f"3. Запросите увеличение лимита или отзыв старых токенов\n\n"
+                                    f"Также проверьте настройки приложения VK Ads и отзовите неиспользуемые токены."
+                                )
+                            )
+                    except HTTPException:
+                        raise
                     except:
                         pass
                     raise HTTPException(status_code=400, detail=f"Failed to exchange code: {response.text[:200]}")
@@ -2811,7 +2833,7 @@ async def test_integration_connection(
         return {"status": "error", "message": str(e)}
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_integration(
+async def delete_integration(
     integration_id: uuid.UUID,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -2819,6 +2841,9 @@ def delete_integration(
     """
     Remove an integration by its ID and all related data.
     This includes campaigns, statistics, keywords, groups, and goals.
+    
+    CRITICAL: For VK Ads integrations, attempts to revoke the access token
+    before deletion to free up token slots and prevent token_limit_exceeded errors.
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
@@ -2827,6 +2852,44 @@ def delete_integration(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+    
+    # CRITICAL: For VK Ads, revoke the token before deletion to free up token slots
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        logger.info(f"🔄 Attempting to revoke VK Ads token before deleting integration {integration_id}...")
+        try:
+            access_token = None
+            refresh_token = None
+            
+            # Получаем токены из интеграции (они зашифрованы)
+            if integration.access_token:
+                try:
+                    access_token = security.decrypt_token(integration.access_token)
+                except Exception as decrypt_err:
+                    logger.warning(f"⚠️ Could not decrypt access_token for revocation: {decrypt_err}")
+            
+            if integration.refresh_token:
+                try:
+                    refresh_token = security.decrypt_token(integration.refresh_token)
+                except Exception as decrypt_err:
+                    logger.warning(f"⚠️ Could not decrypt refresh_token for revocation: {decrypt_err}")
+            
+            # Пытаемся отозвать токен
+            from backend_api.services import IntegrationService
+            revoked = await IntegrationService.revoke_vk_token(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                client_id=VK_CLIENT_ID
+            )
+            
+            if revoked:
+                logger.info(f"✅ VK Ads token revoked successfully for integration {integration_id}")
+            else:
+                logger.warning(f"⚠️ Could not revoke VK Ads token for integration {integration_id}, but continuing with deletion")
+                
+        except Exception as revoke_err:
+            # Не прерываем удаление интеграции, даже если отзыв токена не удался
+            logger.error(f"❌ Error revoking VK Ads token for integration {integration_id}: {revoke_err}")
+            logger.info(f"   Continuing with integration deletion despite token revocation error")
         
     # Get all campaigns for this integration to clean up related data
     campaigns = db.query(models.Campaign).filter(
