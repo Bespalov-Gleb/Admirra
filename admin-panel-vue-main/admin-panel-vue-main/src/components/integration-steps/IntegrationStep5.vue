@@ -126,8 +126,18 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
-              <p class="text-sm font-bold text-gray-600 mb-2">Цели не найдены</p>
-              <p class="text-xs text-gray-400">Данные синхронизируются в фоне. Если цели есть в Яндекс.Метрике,<br/>они появятся через несколько секунд.</p>
+              <p class="text-sm font-bold text-gray-600 mb-2" v-if="platform === 'VK_ADS'">
+                Цели Метрики не требуются
+              </p>
+              <p class="text-sm font-bold text-gray-600 mb-2" v-else>
+                Цели не найдены
+              </p>
+              <p class="text-xs text-gray-400" v-if="platform === 'VK_ADS'">
+                Для VK Ads цели Яндекс.Метрики не используются. Вы можете продолжить без выбора целей.
+              </p>
+              <p class="text-xs text-gray-400" v-else>
+                Данные синхронизируются в фоне. Если цели есть в Яндекс.Метрике,<br/>они появятся через несколько секунд.
+              </p>
             </td>
           </tr>
         </tbody>
@@ -135,7 +145,7 @@
     </div>
 
     <!-- Error Hint -->
-    <div v-if="showValidationError && !primaryGoalId" class="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
+    <div v-if="showValidationError && !primaryGoalId && platform !== 'VK_ADS'" class="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
       <ExclamationTriangleIcon class="w-5 h-5 text-red-500" />
       <span class="text-[12px] font-bold text-red-600">Пожалуйста, выберите основную цель (нажмите на звездочку)</span>
     </div>
