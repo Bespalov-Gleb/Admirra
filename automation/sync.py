@@ -259,7 +259,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             try:
                 if integration.client and integration.client.owner:
                     finance_token = getattr(integration.client.owner, "yandex_finance_token", None)
-            except Exception:
+                    if finance_token:
+                        logger.info(f"💰 Found FinanceToken in user settings for integration {integration.id} (owner: {integration.client.owner.email})")
+                        logger.debug(f"💰 FinanceToken length: {len(finance_token)} characters")
+                    else:
+                        logger.warning(f"⚠️ FinanceToken not found in user settings for integration {integration.id} (owner: {integration.client.owner.email})")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to get FinanceToken from user settings: {e}")
                 finance_token = None
 
             api = YandexDirectAPI(access_token, client_login=selected_profile, finance_token=finance_token)
@@ -278,20 +284,32 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             
             # Обрабатываем баланс
             if isinstance(balance_data, Exception):
-                logger.warning(f"Failed to fetch balance for integration {integration.id}: {balance_data}")
+                logger.error(f"❌ Failed to fetch balance for integration {integration.id}: {balance_data}")
+                logger.error(f"❌ Exception type: {type(balance_data).__name__}")
+                import traceback
+                logger.error(f"❌ Exception traceback: {traceback.format_exc()}")
             elif balance_data:
-                integration.balance = balance_data.get("balance")
-                integration.currency = balance_data.get("currency", "RUB")
-                # CRITICAL: Сохраняем баланс сразу после обновления с commit, чтобы он был доступен на дашборде
-                # даже если последующая обработка статистики завершится ошибкой
-                db.commit()
-                # CRITICAL: Очищаем кеш дашборда сразу после обновления баланса, чтобы изменения были видны сразу
-                from backend_api.cache_service import CacheService
-                CacheService.clear()
-                logger.info(f"✅ Updated and committed balance for integration {integration.id}: {integration.balance} {integration.currency}")
-                logger.info(f"🗑️ Cleared dashboard cache after updating balance")
+                balance_value = balance_data.get("balance")
+                currency_value = balance_data.get("currency", "RUB")
+                logger.info(f"💰 Received balance data for integration {integration.id}: balance={balance_value}, currency={currency_value}")
+                logger.info(f"💰 Full balance_data: {balance_data}")
+                
+                if balance_value is not None:
+                    integration.balance = balance_value
+                    integration.currency = currency_value
+                    # CRITICAL: Сохраняем баланс сразу после обновления с commit, чтобы он был доступен на дашборде
+                    # даже если последующая обработка статистики завершится ошибкой
+                    db.commit()
+                    # CRITICAL: Очищаем кеш дашборда сразу после обновления баланса, чтобы изменения были видны сразу
+                    from backend_api.cache_service import CacheService
+                    CacheService.clear()
+                    logger.info(f"✅ Updated and committed balance for integration {integration.id}: {integration.balance} {integration.currency}")
+                    logger.info(f"🗑️ Cleared dashboard cache after updating balance")
+                else:
+                    logger.warning(f"⚠️ Balance data received but balance value is None for integration {integration.id}")
             else:
-                logger.debug(f"Balance not available for integration {integration.id} (may require Direct Pro)")
+                logger.warning(f"⚠️ Balance not available for integration {integration.id} (may require Direct Pro or FinanceToken)")
+                logger.warning(f"⚠️ FinanceToken was {'provided' if finance_token else 'NOT provided'} for this request")
             
             # Обрабатываем статистику
             if isinstance(stats, Exception):

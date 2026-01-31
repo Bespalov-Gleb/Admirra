@@ -43,10 +43,22 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny") -> List[Dict[str, Any]]:
+    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny", filter_by_direct: bool = True) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
         CRITICAL: Uses visits instead of reaches to get target visits, not goal achievements.
+        
+        Args:
+            counter_id: ID счетчика Метрики
+            date_from: Начальная дата (YYYY-MM-DD)
+            date_to: Конечная дата (YYYY-MM-DD)
+            metrics: Метрики для запроса
+            filter_by_direct: Если True, фильтрует данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
+        
+        Согласно документации Яндекс.Метрики API:
+        - Параметр `filters` используется для фильтрации данных
+        - `ym:s:lastSignAdvEngine` - последняя рекламная система
+        - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
         """
         params = {
             "ids": counter_id,
@@ -55,6 +67,21 @@ class YandexMetricaAPI:
             "date1": date_from,
             "date2": date_to
         }
+        
+        # CRITICAL: Фильтруем данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
+        # Согласно документации Яндекс.Метрики API:
+        # - Параметр filters использует синтаксис: "ym:s:lastSignAdvEngine=='Yandex Direct'"
+        # - Для нескольких значений можно использовать оператор OR или IN
+        # - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
+        if filter_by_direct:
+            # Фильтр для Яндекс.Директ и Яндекс.Директ (неопределено)
+            # Пробуем использовать оператор IN для включения обоих значений
+            # Если IN не поддерживается, используем OR
+            # Формат: "ym:s:lastSignAdvEngine IN ('Yandex Direct', 'Yandex Direct (undefined)')"
+            # Или: "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
+            filters = "ym:s:lastSignAdvEngine IN ('Yandex Direct', 'Yandex Direct (undefined)')"
+            params["filters"] = filters
+            logger.info(f"📊 Applying Yandex Direct filter to Metrika goals query: {filters}")
 
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)

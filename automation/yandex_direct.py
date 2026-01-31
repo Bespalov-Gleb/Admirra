@@ -1523,7 +1523,15 @@ class YandexDirectAPI:
             # Добавляем оба варианта, чтобы упростить интеграцию.
             payload["FinanceToken"] = finance_token
             api_headers["Finance-Token"] = finance_token
-            logger.info("💰 Using FinanceToken from env YANDEX_DIRECT_FINANCE_TOKEN for AccountManagement request")
+            # CRITICAL: Логируем источник finance_token для диагностики
+            if self.finance_token:
+                logger.info(f"💰 Using FinanceToken from user settings (yandex_finance_token) for AccountManagement request")
+                logger.debug(f"💰 FinanceToken length: {len(finance_token)} characters")
+            else:
+                logger.info(f"💰 Using FinanceToken from environment variable YANDEX_DIRECT_FINANCE_TOKEN for AccountManagement request")
+        else:
+            logger.warning(f"⚠️ FinanceToken not provided (neither from user settings nor environment). "
+                         f"Balance may not be available if AccountManagement API requires it.")
         if client_login_header != "NOT SET (main account)":
             api_headers["Client-Login"] = client_login_header
             logger.info(f"💰 Added Client-Login header to AccountManagement request: '{client_login_header}'")
