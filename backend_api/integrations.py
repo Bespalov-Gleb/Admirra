@@ -2275,7 +2275,7 @@ async def discover_campaigns(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
     
-    # CRITICAL: Refresh integration from DB to ensure we have the latest agency_client_login
+    # CRITICAL: Refresh integration from DB to ensure we have the latest account_id and agency_client_login
     # This is important because the profile might have been updated just before this call
     db.refresh(integration)
     
@@ -2284,6 +2284,14 @@ async def discover_campaigns(
     logger.info(f"   account_id: '{integration.account_id}'")
     logger.info(f"   agency_client_login: '{integration.agency_client_login}'")
     logger.info(f"   platform: {integration.platform}")
+    
+    # CRITICAL: For VK Ads, ensure account_id is set before fetching campaigns
+    # If account_id is not set, campaigns will be fetched from all accessible cabinets
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        if not integration.account_id or integration.account_id.lower() == "unknown":
+            logger.warning(f"⚠️ VK Ads: No cabinet selected (account_id is None or 'unknown'). Campaigns will be fetched from all accessible cabinets.")
+        else:
+            logger.info(f"✅ VK Ads: Cabinet selected (account_id: {integration.account_id}). Campaigns will be filtered by this cabinet.")
     
     # CRITICAL: If profile is selected, delete campaigns from other profiles
     # This prevents "RSY - Hot_3" type campaigns from appearing
@@ -2407,8 +2415,23 @@ async def discover_campaigns(
         
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
-        api = VKAdsAPI(access_token, integration.account_id)
+        # CRITICAL: Для VK Ads используем account_id (выбранный кабинет) для фильтрации кампаний
+        # Согласно документации VK Ads API, параметр client_id используется для фильтрации кампаний по кабинету
+        selected_cabinet_id = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
+        
+        if selected_cabinet_id:
+            logger.info(f"🔵 VK Ads: Using selected cabinet (account_id) for filtering campaigns: {selected_cabinet_id}")
+        else:
+            logger.warning(f"⚠️ VK Ads: No cabinet selected (account_id is None or 'unknown'). Will fetch campaigns from all accessible cabinets.")
+        
+        api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
         discovered_campaigns = await api.get_campaigns()
+        
+        if selected_cabinet_id:
+            logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns for cabinet {selected_cabinet_id}")
+        else:
+            logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns (no cabinet filter applied)")
+        
         log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
         
     # Save to DB
