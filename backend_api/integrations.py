@@ -542,6 +542,7 @@ async def exchange_vk_token_oauth(
     vk_account_id = None
     try:
         async with httpx.AsyncClient() as client:
+            # Method 1: Try /api/v2/ad_accounts.json (may return 404 for some accounts)
             acc_response = await client.get(
                 "https://ads.vk.com/api/v2/ad_accounts.json", 
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -593,10 +594,41 @@ async def exchange_vk_token_oauth(
                             vk_account_id = raw_id_str
                     
                     logger.info(f"Final VK Account ID: {vk_account_id}")
+            elif acc_response.status_code == 404:
+                # Method 2: If ad_accounts.json returns 404, try to get account_id from campaigns
+                logger.info(f"⚠️ /api/v2/ad_accounts.json returned 404, trying alternative method...")
+                campaigns_response = await client.get(
+                    "https://ads.vk.com/api/v2/ad_plans.json",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={"limit": 1},  # Get just one campaign to extract account_id
+                    timeout=10.0
+                )
+                if campaigns_response.status_code == 200:
+                    campaigns_data = campaigns_response.json()
+                    items = campaigns_data.get("items", [])
+                    if items:
+                        # Try to get account_id from campaign data
+                        campaign = items[0]
+                        # Some VK Ads API responses include account_id in campaign data
+                        if "account_id" in campaign:
+                            vk_account_id = str(campaign["account_id"])
+                            logger.info(f"✅ Got account_id from campaign data: {vk_account_id}")
+                        elif "client_id" in campaign:
+                            vk_account_id = str(campaign["client_id"])
+                            logger.info(f"✅ Got account_id from campaign client_id: {vk_account_id}")
+                        else:
+                            logger.warning(f"⚠️ Campaign data doesn't contain account_id or client_id: {campaign.keys()}")
+                else:
+                    logger.warning(f"⚠️ Failed to fetch campaigns for account_id detection: {campaigns_response.status_code}")
             else:
                 logger.warning(f"Failed to auto-detect VK Account ID: {acc_response.status_code} - {acc_response.text[:200]}")
     except Exception as e:
         logger.warning(f"Failed to auto-detect VK Account ID: {e}")
+    
+    # If still no account_id, we'll proceed without it - VK Ads API can work without explicit account_id
+    # The account_id will be determined from the token's scope
+    if not vk_account_id:
+        logger.info(f"ℹ️ VK Account ID not detected. Integration will work with token's default account.")
 
     # Determine Client Name
     client_name = client_name_input or "VK Ads Project"

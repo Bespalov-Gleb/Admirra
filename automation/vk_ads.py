@@ -251,6 +251,42 @@ class VKAdsAPI:
         except Exception as e:
             logger.debug(f"No agency clients found or error: {e}")
         
+        # 3. Fallback: Если ничего не найдено, используем account_id из интеграции
+        if not profiles and self.account_id:
+            profiles.append({
+                "id": str(self.account_id),
+                "name": f"Аккаунт ({self.account_id})",
+                "type": "personal"
+            })
+            logger.info(f"✅ Added fallback VK profile from account_id: {self.account_id}")
+        
+        # 4. Fallback: Если account_id не определен, пытаемся получить его из первой кампании
+        if not profiles:
+            try:
+                campaigns = await self.get_campaigns()
+                if campaigns:
+                    # Попробуем извлечь account_id из данных кампании
+                    # Для VK Ads, account_id может быть в данных кампании или мы используем токен по умолчанию
+                    logger.info(f"⚠️ No profiles found, but {len(campaigns)} campaigns available. Using default account.")
+                    profiles.append({
+                        "id": "default",
+                        "name": "Аккаунт по умолчанию",
+                        "type": "personal"
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to get campaigns for fallback profile: {e}")
+        
+        # 5. Final fallback: Создаем профиль "default" если ничего не найдено
+        if not profiles:
+            logger.warning("⚠️ No VK profiles found, creating default profile")
+            profiles.append({
+                "id": "default",
+                "name": "Аккаунт по умолчанию",
+                "type": "personal"
+            })
+        
+        return profiles
+        
         # Fallback: если ничего не найдено, возвращаем текущий account_id если он есть
         if not profiles and self.account_id:
             profiles.append({
