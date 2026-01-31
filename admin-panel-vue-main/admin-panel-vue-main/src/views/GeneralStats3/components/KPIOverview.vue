@@ -70,13 +70,23 @@ defineEmits(['toggle-metric'])
 const { containerRef, dragScrollHandlers } = useDragScroll()
 
 const metrics = computed(() => {
-  // CRITICAL: Check if balance is null or undefined - show dash in that case
+  // CRITICAL: Check if balance is null, undefined, or 0 - show dash in that case
   const hasBalance = props.summary.balance !== null && props.summary.balance !== undefined
-  const rawBalance = hasBalance 
-    ? (typeof props.summary.balance === 'number' 
-        ? props.summary.balance 
-        : parseFloat(props.summary.balance) || 0)
-    : null
+  let rawBalance = null
+  
+  if (hasBalance) {
+    if (typeof props.summary.balance === 'number') {
+      rawBalance = props.summary.balance
+    } else {
+      const parsed = parseFloat(props.summary.balance)
+      rawBalance = isNaN(parsed) ? null : parsed
+    }
+    // CRITICAL: Если баланс равен 0, считаем его как отсутствующий
+    if (rawBalance === 0 || rawBalance === 0.0) {
+      rawBalance = null
+    }
+  }
+  
   const rawExpenses = props.summary.expenses || 0
   const vatFactor = props.includeVat ? 1.22 : 1
   const balanceValue = rawBalance !== null ? rawBalance * vatFactor : null
@@ -84,8 +94,8 @@ const metrics = computed(() => {
   const currency = props.summary.currency || 'RUB'
   const currencySymbol = currency === 'RUB' ? '₽' : currency
   
-  // Format balance value: show dash if balance is null/undefined
-  const balanceDisplayValue = balanceValue !== null
+  // Format balance value: show dash if balance is null/undefined/0
+  const balanceDisplayValue = balanceValue !== null && balanceValue !== 0
     ? balanceValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currencySymbol
     : '—' // Прочерк
   
