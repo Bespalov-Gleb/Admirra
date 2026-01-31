@@ -324,16 +324,17 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.warning(f"⚠️ Balance not available for integration {integration.id} (may require Direct Pro or FinanceToken, or profile mismatch)")
                 logger.warning(f"⚠️ FinanceToken was {'provided' if finance_token else 'NOT provided'} for this request")
                 logger.warning(f"⚠️ Selected profile: '{selected_profile}'")
-                # Очищаем баланс, если он был сохранен ранее
-                if integration.balance is not None:
-                    integration.balance = None
-                    integration.currency = None
-                    db.commit()
-                    logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance not available or profile mismatch)")
-                    # Очищаем кеш дашборда, чтобы изменения были видны сразу
-                    from backend_api.cache_service import CacheService
-                    CacheService.clear()
-                    logger.info(f"🗑️ Cleared dashboard cache after clearing balance")
+                # CRITICAL: Очищаем баланс ВСЕГДА, даже если он уже None или 0.0
+                # Это гарантирует, что старые значения не останутся в БД
+                old_balance = integration.balance
+                integration.balance = None
+                integration.currency = None
+                db.commit()
+                logger.info(f"🗑️ Cleared balance for integration {integration.id} (was: {old_balance}, now: None) - balance not available or profile mismatch")
+                # Очищаем кеш дашборда, чтобы изменения были видны сразу
+                from backend_api.cache_service import CacheService
+                CacheService.clear()
+                logger.info(f"🗑️ Cleared dashboard cache after clearing balance")
             
             # Обрабатываем статистику
             if isinstance(stats, Exception):

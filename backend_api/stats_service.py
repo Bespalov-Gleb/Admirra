@@ -218,9 +218,24 @@ class StatsService:
         cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
 
         # Агрегируем балансы из интеграций для выбранных клиентов
-        # CRITICAL: Если выбраны кампании, фильтруем балансы только по интеграциям этих кампаний
+        # CRITICAL: Всегда фильтруем балансы по интеграциям активных кампаний
         # Это гарантирует, что баланс берется только из интеграции выбранного профиля
-        # Если кампании не выбраны, берем балансы всех интеграций клиента
+        # Даже когда выбраны "Все кампании", берем баланс только из интеграций с активными кампаниями
+        
+        # Сначала получаем integration_ids из активных кампаний
+        active_campaigns_query = db.query(models.Campaign.integration_id).join(
+            models.Integration
+        ).filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Campaign.is_active.is_(True)
+        )
+        
+        # Если выбраны конкретные кампании, фильтруем по ним
+        if campaign_ids:
+            active_campaigns_query = active_campaigns_query.filter(models.Campaign.id.in_(campaign_ids))
+        
+        active_integration_ids = [ci[0] for ci in active_campaigns_query.distinct().all() if ci[0]]
+        
         balance_query = db.query(
             models.Integration.balance,
             models.Integration.currency
@@ -229,54 +244,58 @@ class StatsService:
             models.Integration.balance.isnot(None)
         )
         
-        # CRITICAL: Если выбраны кампании, фильтруем балансы по интеграциям этих кампаний
+        # CRITICAL: Фильтруем балансы только по интеграциям с активными кампаниями
         # Это гарантирует, что баланс берется только из интеграции выбранного профиля
-        if campaign_ids:
-            # Получаем integration_ids из выбранных кампаний
-            campaign_integration_ids = db.query(models.Campaign.integration_id).filter(
-                models.Campaign.id.in_(campaign_ids)
-            ).distinct().all()
-            integration_ids_for_balance = [ci[0] for ci in campaign_integration_ids if ci[0]]
-            
-            if integration_ids_for_balance:
-                balance_query = balance_query.filter(models.Integration.id.in_(integration_ids_for_balance))
-                import logging
-                debug_logger = logging.getLogger(__name__)
-                debug_logger.info(f"💰 Filtering balances by integration_ids: {integration_ids_for_balance}")
-            else:
-                # Если для выбранных кампаний нет интеграций, баланс недоступен
-                import logging
-                debug_logger = logging.getLogger(__name__)
-                debug_logger.warning(f"⚠️ No integrations found for selected campaigns. Balance will be None.")
-                all_balances = []
-                total_balance = None
-                balance_currency = None
-                # Пропускаем дальнейшую обработку балансов
-                return {
-                    "expenses": round(curr["costs"], 2),
-                    "impressions": int(curr["imps"]),
-                    "clicks": int(curr["clks"]),
-                    "leads": int(curr["convs"]),
-                    "cpc": round(cpc, 2),
-                    "cpa": round(cpa, 2),
-                    "ctr": round(ctr, 2),
-                    "cr": round(cr, 2),
-                    "balance": None,
-                    "currency": None,
-                    "revenue": 0.0,
-                    "profit": -round(curr["costs"], 2),
-                    "roi": -100.0 if curr["costs"] > 0 else 0.0,
-                    "trends": trends
-                }
+        if active_integration_ids:
+            balance_query = balance_query.filter(models.Integration.id.in_(active_integration_ids))
+            import logging
+            debug_logger = logging.getLogger(__name__)
+            debug_logger.info(f"💰 Filtering balances by active integration_ids: {active_integration_ids}")
+        else:
+            # Если нет активных кампаний, баланс недоступен
+            import logging
+            debug_logger = logging.getLogger(__name__)
+            debug_logger.warning(f"⚠️ No active campaigns found. Balance will be None.")
+            all_balances = []
+            total_balance = None
+            balance_currency = None
+            # Пропускаем дальнейшую обработку балансов
+            return {
+                "expenses": round(curr["costs"], 2),
+                "impressions": int(curr["imps"]),
+                "clicks": int(curr["clks"]),
+                "leads": int(curr["convs"]),
+                "cpc": round(cpc, 2),
+                "cpa": round(cpa, 2),
+                "ctr": round(ctr, 2),
+                "cr": round(cr, 2),
+                "balance": None,
+                "currency": None,
+                "revenue": 0.0,
+                "profit": -round(curr["costs"], 2),
+                "roi": -100.0 if curr["costs"] > 0 else 0.0,
+                "trends": trends
+            }
         
         all_balances = balance_query.all()
         
         # CRITICAL: Логируем найденные балансы для отладки
         import logging
         debug_logger = logging.getLogger(__name__)
-        debug_logger.info(f"💰 Found {len(all_balances)} integration(s) with balance for client_ids: {client_ids}")
-        for b in all_balances:
-            debug_logger.info(f"💰   Balance: {b.balance} {b.currency}")
+        debug_logger.info(f"💰 Balance query: client_ids={client_ids}, campaign_ids={campaign_ids}")
+        debug_logger.info(f"💰 Found {len(all_balances)} integration(s) with balance")
+        
+        # CRITICAL: Если балансы найдены, но они все 0.0 - считаем их как отсутствующие
+        # Это предотвращает показ "0,00 ₽" когда баланс не получен для профиля
+        if all_balances:
+            # Фильтруем балансы - исключаем те, которые равны 0.0
+            non_zero_balances = [b for b in all_balances if b.balance is not None and float(b.balance) != 0.0]
+            if not non_zero_balances:
+                debug_logger.warning(f"⚠️ All balances are 0.0 or None. Treating as no balance available.")
+                all_balances = []
+            else:
+                for b in non_zero_balances:
+                    debug_logger.info(f"💰   Balance: {b.balance} {b.currency}")
         
         if all_balances:
             # Суммируем балансы, предпочитая RUB
