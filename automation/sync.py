@@ -288,6 +288,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.error(f"❌ Exception type: {type(balance_data).__name__}")
                 import traceback
                 logger.error(f"❌ Exception traceback: {traceback.format_exc()}")
+                # Очищаем баланс, если он был сохранен ранее
+                if integration.balance is not None:
+                    integration.balance = None
+                    integration.currency = None
+                    db.commit()
+                    logger.info(f"🗑️ Cleared balance for integration {integration.id} due to error")
             elif balance_data:
                 balance_value = balance_data.get("balance")
                 currency_value = balance_data.get("currency", "RUB")
@@ -307,9 +313,21 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.info(f"🗑️ Cleared dashboard cache after updating balance")
                 else:
                     logger.warning(f"⚠️ Balance data received but balance value is None for integration {integration.id}")
+                    # Очищаем баланс, если он был сохранен ранее
+                    if integration.balance is not None:
+                        integration.balance = None
+                        integration.currency = None
+                        db.commit()
+                        logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance value is None)")
             else:
-                logger.warning(f"⚠️ Balance not available for integration {integration.id} (may require Direct Pro or FinanceToken)")
+                logger.warning(f"⚠️ Balance not available for integration {integration.id} (may require Direct Pro or FinanceToken, or profile mismatch)")
                 logger.warning(f"⚠️ FinanceToken was {'provided' if finance_token else 'NOT provided'} for this request")
+                # Очищаем баланс, если он был сохранен ранее
+                if integration.balance is not None:
+                    integration.balance = None
+                    integration.currency = None
+                    db.commit()
+                    logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance not available)")
             
             # Обрабатываем статистику
             if isinstance(stats, Exception):

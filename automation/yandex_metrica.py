@@ -71,15 +71,14 @@ class YandexMetricaAPI:
         # CRITICAL: Фильтруем данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
         # Согласно документации Яндекс.Метрики API:
         # - Параметр filters использует синтаксис: "ym:s:lastSignAdvEngine=='Yandex Direct'"
-        # - Для нескольких значений можно использовать оператор OR или IN
+        # - Для нескольких значений используется оператор OR
         # - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
+        # - Важно: значения должны быть в одинарных кавычках
         if filter_by_direct:
             # Фильтр для Яндекс.Директ и Яндекс.Директ (неопределено)
-            # Пробуем использовать оператор IN для включения обоих значений
-            # Если IN не поддерживается, используем OR
-            # Формат: "ym:s:lastSignAdvEngine IN ('Yandex Direct', 'Yandex Direct (undefined)')"
-            # Или: "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
-            filters = "ym:s:lastSignAdvEngine IN ('Yandex Direct', 'Yandex Direct (undefined)')"
+            # Используем оператор OR для включения обоих значений
+            # Формат согласно документации: "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
+            filters = "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
             params["filters"] = filters
             logger.info(f"📊 Applying Yandex Direct filter to Metrika goals query: {filters}")
 

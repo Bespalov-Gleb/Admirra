@@ -252,8 +252,10 @@ class StatsService:
                     same_currency_balances = [b for b in all_balances if (b.currency or "RUB") == balance_currency]
                     total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in same_currency_balances)
         else:
-            total_balance = 0.0
-            balance_currency = "RUB"
+            # CRITICAL: Если балансов нет (все None), возвращаем None вместо 0.0
+            # Это позволяет фронтенду скрыть баланс на дашборде
+            total_balance = None
+            balance_currency = None
 
         return {
             "expenses": round(curr["costs"], 2),
@@ -264,7 +266,7 @@ class StatsService:
             "cpa": round(cpa, 2),
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
-            "balance": round(total_balance, 2),
+            "balance": round(total_balance, 2) if total_balance is not None else None,
             "currency": balance_currency,
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),

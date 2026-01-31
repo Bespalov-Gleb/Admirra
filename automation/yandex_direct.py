@@ -1590,9 +1590,9 @@ class YandexDirectAPI:
                                     break
                             
                             if not account_data:
-                                # Если не нашли, получаем AccountID клиента через Clients.get
+                                # Если не нашли, получаем ClientId клиента через Clients.get
                                 logger.info(f"💰 Profile '{client_login_header}' not found in AccountManagement response. "
-                                          f"Trying to get AccountID via Clients.get...")
+                                          f"Trying to get ClientId via Clients.get...")
                                 try:
                                     clients_info = await self.get_clients()
                                     if clients_info and len(clients_info) > 0:
@@ -1602,28 +1602,59 @@ class YandexDirectAPI:
                                         # Проверяем, что это нужный клиент
                                         client_login = client_data.get("Login")
                                         if client_login == client_login_header:
-                                            # Получаем AccountID клиента
-                                            account_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
-                                            if account_id:
-                                                logger.info(f"✅ Found ClientId {account_id} for client '{client_login_header}'")
+                                            # Получаем ClientId клиента
+                                            client_id = client_data.get("ClientId") or client_data.get("AccountId") or client_data.get("Id")
+                                            if client_id:
+                                                logger.info(f"✅ Found ClientId {client_id} for client '{client_login_header}'")
+                                                
+                                                # CRITICAL: Попробуем запросить баланс напрямую для этого ClientId
+                                                # Используем ClientId в параметре AccountIDS для AccountManagement
+                                                logger.info(f"💰 Trying to get balance directly for ClientId {client_id}...")
+                                                client_param_data = {
+                                                    "Action": "Get",
+                                                    "AccountIDS": [client_id]  # Используем ClientId вместо Login
+                                                }
+                                                client_payload = {
+                                                    "method": "AccountManagement",
+                                                    "param": client_param_data,
+                                                    "token": token_from_header
+                                                }
+                                                
+                                                try:
+                                                    client_response = await client.post(url, json=client_payload, headers=api_headers, timeout=30.0)
+                                                    if client_response.status_code == 200:
+                                                        client_response_data = client_response.json()
+                                                        if "data" in client_response_data and "Accounts" in client_response_data["data"]:
+                                                            client_accounts = client_response_data["data"]["Accounts"]
+                                                            if client_accounts and len(client_accounts) > 0:
+                                                                # Ищем аккаунт с нужным Login
+                                                                for acc in client_accounts:
+                                                                    if acc.get("Login") == client_login_header:
+                                                                        account_data = acc
+                                                                        logger.info(f"✅ Found client '{client_login_header}' balance using ClientId {client_id}")
+                                                                        break
+                                                except Exception as client_id_err:
+                                                    logger.warning(f"Failed to get balance using ClientId {client_id}: {client_id_err}")
+                                                
                                                 # CRITICAL: ClientId (109603565) и AccountID для AccountManagement - это разные сущности
                                                 # AccountManagement возвращает AccountID общих счетов верхнего уровня
-                                                # Клиент 'istore-habarovsk' может не иметь отдельного общего счета
+                                                # Клиент может не иметь отдельного общего счета
                                                 # Попробуем найти аккаунт с этим AccountID в ответе AccountManagement
-                                                for acc in accounts:
-                                                    acc_id = acc.get("AccountID")
-                                                    if acc_id == account_id:
-                                                        account_data = acc
-                                                        logger.info(f"✅ Found account with AccountID {account_id} in AccountManagement response")
-                                                        break
+                                                if not account_data:
+                                                    for acc in accounts:
+                                                        acc_id = acc.get("AccountID")
+                                                        if acc_id == client_id:
+                                                            account_data = acc
+                                                            logger.info(f"✅ Found account with AccountID {client_id} in AccountManagement response")
+                                                            break
                                                 
                                                 # Если не нашли по AccountID, возможно клиент использует баланс родительского аккаунта
                                                 # В этом случае AccountManagement может вернуть только родительский аккаунт
                                                 if not account_data:
-                                                    logger.warning(f"⚠️ ClientId {account_id} for client '{client_login_header}' not found in AccountManagement accounts. "
+                                                    logger.warning(f"⚠️ ClientId {client_id} for client '{client_login_header}' not found in AccountManagement accounts. "
                                                                  f"This may mean the client uses the parent account's balance.")
                                                     logger.info(f"💰 AccountManagement returned accounts with AccountIDs: {[acc.get('AccountID') for acc in accounts]}")
-                                                    logger.info(f"💰 ClientId from Clients.get: {account_id}")
+                                                    logger.info(f"💰 ClientId from Clients.get: {client_id}")
                                                     logger.info(f"💰 These are different entities - ClientId is for client management, AccountID is for shared accounts")
                                                     
                                                     # CRITICAL: Если клиент не имеет отдельного общего счета,
@@ -1696,18 +1727,12 @@ class YandexDirectAPI:
                                         logger.warning(f"⚠️ Client '{client_login_header}' may not have a separate shared account. "
                                                      f"Balance may be part of parent account or unavailable via AccountManagement API.")
                                         
-                                        # Если клиент не найден, используем баланс родительского аккаунта как fallback
-                                        # с явным предупреждением, что это баланс родительского аккаунта
-                                        if accounts and len(accounts) > 0:
-                                            parent_account = accounts[0]
-                                            parent_login = parent_account.get("Login", "UNKNOWN")
-                                            logger.warning(f"⚠️ Using parent account '{parent_login}' balance as fallback for client '{client_login_header}'")
-                                            logger.warning(f"⚠️ NOTE: This is the parent account balance, not the client's balance!")
-                                            account_data = parent_account
-                                        else:
-                                            logger.error(f"❌ Cannot get balance for client '{client_login_header}' via AccountManagement API. "
-                                                       f"Client does not have a separate shared account and no parent account found.")
-                                            return None
+                                        # CRITICAL: Если клиент не найден, НЕ используем баланс родительского аккаунта
+                                        # Это может ввести в заблуждение, так как баланс родительского аккаунта не является балансом клиента
+                                        # Вместо этого возвращаем None, чтобы баланс не отображался на дашборде
+                                        logger.warning(f"⚠️ Client '{client_login_header}' not found in AccountManagement. "
+                                                     f"Balance will be hidden on dashboard to avoid confusion.")
+                                        return None
                         else:
                             # Если профиль не указан, используем первый аккаунт
                             account_data = accounts[0]
@@ -1719,9 +1744,12 @@ class YandexDirectAPI:
                             logger.info(f"💰 Full account data: {json.dumps(account_data, indent=2, ensure_ascii=False)}")
                             
                             # CRITICAL: Verify that we got balance for the correct profile
+                            # Если баланс получен для другого профиля, не возвращаем его
                             if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
                                 logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'. "
                                              f"This may indicate that '{client_login_header}' is not accessible via AccountManagement API.")
+                                logger.warning(f"⚠️ NOT saving balance for wrong profile. Balance will be hidden on dashboard.")
+                                return None  # Не возвращаем баланс, если он для другого профиля
                             
                             # CRITICAL: AccountManagement API возвращает Amount (баланс) для Direct Pro
                             amount = account_data.get("Amount")

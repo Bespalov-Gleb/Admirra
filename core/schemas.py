@@ -137,8 +137,9 @@ class StatsSummary(BaseModel):
     ctr: float = 0
     cr: float = 0
     # NEW: dashboard expects balance & currency for proper display
-    balance: float = 0
-    currency: str = "RUB"
+    # CRITICAL: balance can be None if not available for the selected profile
+    balance: Optional[float] = None
+    currency: Optional[str] = None
     trends: Optional[StatsTrend] = None
 
 # Client Schemas

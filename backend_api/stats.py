@@ -117,7 +117,7 @@ def check_data_availability(
         logger.error(f"Error checking data availability: {e}")
         return False
 
-async def sync_integration_background(
+async def sync_integration_background_async(
     integration_id: uuid.UUID,
     date_from_str: str,
     date_to_str: str
@@ -155,6 +155,30 @@ async def sync_integration_background(
         db.rollback()
     finally:
         db.close()
+
+def sync_integration_background(
+    integration_id: uuid.UUID,
+    date_from_str: str,
+    date_to_str: str
+):
+    """
+    Синхронная обертка для запуска синхронизации в отдельном потоке.
+    Запускает асинхронную синхронизацию в отдельном event loop, чтобы не блокировать основной event loop FastAPI.
+    """
+    import threading
+    
+    def run_in_thread():
+        """Запускает async функцию в отдельном потоке с новым event loop"""
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            new_loop.run_until_complete(sync_integration_background_async(integration_id, date_from_str, date_to_str))
+        finally:
+            new_loop.close()
+    
+    # Запускаем в отдельном потоке, чтобы не блокировать основной
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
 
 def ensure_data_synced_async(
     db: Session,
@@ -216,11 +240,10 @@ def ensure_data_synced_async(
     
     for integration in integrations:
         try:
-            # Запускаем синхронизацию в фоне через asyncio.create_task
-            # Это не блокирует текущий запрос
-            asyncio.create_task(
-                sync_integration_background(integration.id, date_from_str, date_to_str)
-            )
+            # CRITICAL: Используем sync_integration_background, которая запускает синхронизацию
+            # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
+            # Это гарантирует, что долгие операции синхронизации не заблокируют сайт.
+            sync_integration_background(integration.id, date_from_str, date_to_str)
             logger.info(f"📤 Background sync task created for integration {integration.id}")
         except Exception as e:
             logger.error(f"❌ Error creating background sync task for integration {integration.id}: {e}")

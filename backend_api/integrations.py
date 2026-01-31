@@ -1000,6 +1000,9 @@ async def trigger_sync(
     """
     Manually trigger data synchronization for a specific integration.
     Синхронизация выполняется в фоне, чтобы не блокировать запрос.
+    
+    CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
+    в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
     """
     days = request_data.days if request_data else 7
     integration = db.query(models.Integration).join(models.Client).filter(
@@ -1010,9 +1013,10 @@ async def trigger_sync(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
     
-    # Запускаем синхронизацию в фоне через asyncio.create_task
-    # CRITICAL: Не используем await - синхронизация выполняется в фоне без блокировки запроса
-    asyncio.create_task(run_sync_in_background_async(integration_id, days))
+    # CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
+    # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
+    # Это гарантирует, что долгие операции синхронизации не заблокируют сайт.
+    run_sync_in_background(integration_id, days)
     
     # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
     integration.sync_status = models.IntegrationSyncStatus.PENDING
@@ -2273,9 +2277,9 @@ async def update_integration(
     # This happens on step 6 (summary) when user completes the integration wizard
     # CRITICAL: Sync выполняется в фоне, чтобы не блокировать запрос
     if integration_in.get("is_active") is True:
-        # Запускаем синхронизацию в фоне через asyncio.create_task
-        # Это не блокирует запрос и выполняется асинхронно
-        asyncio.create_task(run_sync_in_background_async(integration_id, 30))
+        # CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
+        # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
+        run_sync_in_background(integration_id, 30)
         logger.info(f"🔄 Finalizing integration {integration_id}: queued background sync for 30 days")
     
     return integration
@@ -3034,8 +3038,9 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         db.commit()
         
         # 3. Trigger initial sync в фоне (не блокируем запрос)
-        # Используем asyncio.create_task для запуска в фоне без ожидания
-        asyncio.create_task(run_sync_in_background_async(new_integration.id, 7))
+        # CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
+        # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
+        run_sync_in_background(new_integration.id, 7)
         imported_count += 1
     
     # НЕ ждем завершения синхронизации - она выполняется в фоне
