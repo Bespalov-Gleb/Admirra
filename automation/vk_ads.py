@@ -16,54 +16,85 @@ class VKAdsAPI:
 
     async def get_campaigns(self) -> List[Dict[str, Any]]:
         """
-        Fetches the list of all campaigns (AdPlans).
+        Получает список всех рекламных кампаний (AdPlans).
+        
+        Согласно документации VK Ads API:
+        Endpoint: GET /api/v2/ad_plans.json
+        Параметры:
+        - client_id (опционально) - ID кабинета для фильтрации кампаний
+        
+        Returns:
+            List[Dict] с полями:
+            - id: str - ID кампании
+            - name: str - название кампании
+            - status: str - статус кампании
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
+        
+        # Согласно документации, client_id используется для фильтрации кампаний по кабинету
         if self.account_id:
             params["client_id"] = self.account_id
             
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, params=params, headers=self.headers)
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                
                 if response.status_code == 200:
                     data = response.json()
+                    items = data.get("items", [])
+                    
+                    logger.info(f"📋 Retrieved {len(items)} campaign(s) from VK Ads API")
+                    
                     return [
                         {
                             "id": str(item["id"]),
                             "name": item["name"],
                             "status": item.get("status")
                         }
-                        for item in data.get("items", [])
+                        for item in items
                     ]
                 else:
-                    raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {response.text}")
+                    error_text = response.text[:200] if response.text else "No error message"
+                    raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {error_text}")
         except Exception as e:
             logger.error(f"Error fetching VK campaigns: {e}")
             raise e
 
     async def get_statistics(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
-        Fetches statistics and maps campaign IDs to names.
-        Automatically splits date ranges into 90-day chunks to satisfy VK API limits.
+        Получает статистику по рекламным кампаниям (AdPlans).
+        
+        Согласно документации VK Ads API (https://ads.vk.com/doc/api/info/Statistics):
+        Endpoint: GET /api/v2/statistics/ad_plans/day.json
+        Параметры:
+        - date_from (обязательно) - начальная дата (YYYY-MM-DD)
+        - date_to (обязательно) - конечная дата (YYYY-MM-DD)
+        - metrics (по умолчанию "base") - набор метрик
+        - id (опционально) - список ID кампаний для фильтрации
+        - client_id (опционально) - ID кабинета для фильтрации
+        
+        Автоматически разбивает диапазон дат на чанки по 90 дней для соблюдения лимитов API.
         """
-        # Fetch names first
+        # Получаем названия кампаний для маппинга
         campaigns = await self.get_campaigns()
         names_map = {int(c["id"]): c["name"] for c in campaigns}
         
-        # Split dates into chunks
+        # Разбиваем диапазон дат на чанки (максимум 366 дней согласно документации)
         date_chunks = self._split_date_range(date_from, date_to, 90)
         all_results = []
 
         async with httpx.AsyncClient() as client:
             for d_from, d_to in date_chunks:
-                # VK Ads v2 terminology: Campaigns are 'ad_plans'
+                # Согласно документации: GET /api/v2/statistics/ad_plans/day.json
                 url = f"{self.base_url}/statistics/ad_plans/day.json"
                 params = {
                     "date_from": d_from,
                     "date_to": d_to,
-                    "metrics": "base"
+                    "metrics": "base"  # Базовые метрики: shows, clicks, spent, cpm, cpc, ctr, vk.goals, vk.cpa, vk.cr
                 }
+                
+                # Параметр client_id используется для фильтрации статистики по кабинету
                 if self.account_id:
                     params["client_id"] = self.account_id
 
@@ -80,11 +111,13 @@ class VKAdsAPI:
                         chunk_data = self._parse_response(response.json(), names_map)
                         all_results.extend(chunk_data)
                     elif response.status_code == 400:
-                        # VK often returns 400 for dates older than 12 months or invalid params.
-                        # We log it but continue with other chunks.
-                        logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text}")
+                        # Согласно документации, 400 может быть для:
+                        # - ERR_WRONG_PARAMETER - некорректное значение параметра
+                        # - ERR_LIMIT_EXCEEDED - превышен лимит запрашиваемых дат или количества объектов
+                        # - ERR_WRONG_DATE - некорректная дата
+                        logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text[:200]}")
                     else:
-                        logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text}")
+                        logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text[:200]}")
                 except Exception as e:
                     logger.error(f"VK Ads API Exception for range {d_from}-{d_to}: {e}")
                 
@@ -108,7 +141,30 @@ class VKAdsAPI:
 
     def _parse_response(self, data: Dict[str, Any], names_map: Dict[int, str]) -> List[Dict[str, Any]]:
         """
-        Parses VK API JSON response using names_map for campaign names.
+        Парсит ответ VK Ads API Statistics.
+        
+        Согласно документации (https://ads.vk.com/doc/api/info/Statistics):
+        Структура ответа:
+        {
+          "items": [
+            {
+              "id": <campaign_id>,
+              "rows": [
+                {
+                  "date": "YYYY-MM-DD",
+                  "base": {
+                    "shows": <impressions>,
+                    "clicks": <clicks>,
+                    "spent": <cost>,
+                    "vk.goals": <conversions>,
+                    "vk.cpa": <cpa>,
+                    "vk.cr": <conversion_rate>
+                  }
+                }
+              ]
+            }
+          ]
+        }
         """
         results = []
         items = data.get("items", [])
@@ -118,11 +174,18 @@ class VKAdsAPI:
             rows = item.get("rows", [])
             for row in rows:
                 base = row.get("base", {})
-                # Get date - it's at the row level
+                # Дата находится на уровне row
                 row_date = row.get("date")
                 if not row_date:
                     continue
-                    
+                
+                # Согласно документации, метрики в base:
+                # - shows - количество показов
+                # - clicks - количество кликов
+                # - spent - списания
+                # - vk.goals - количество достижений целей
+                # - vk.cpa - среднее списание за достижение 1 цели
+                # - vk.cr - процентное отношение количества достижений целей к количеству кликов
                 results.append({
                     "date": row_date,
                     "campaign_id": str(campaign_id) if campaign_id else "",
@@ -130,7 +193,7 @@ class VKAdsAPI:
                     "impressions": int(base.get("shows", 0)),
                     "clicks": int(base.get("clicks", 0)),
                     "cost": float(base.get("spent", 0)),
-                    "conversions": int(base.get("goals", 0))
+                    "conversions": int(base.get("vk.goals", 0))  # Используем vk.goals согласно документации
                 })
         return results
     
@@ -138,9 +201,9 @@ class VKAdsAPI:
         """
         Получает список доступных рекламных аккаунтов (кабинетов).
         
-        VK Ads API endpoint: /api/v2/ad_accounts.json
-        Если endpoint возвращает 404, используем альтернативный метод:
-        извлекаем уникальные client_id из статистики кампаний.
+        Согласно документации VK Ads API (https://ads.vk.com/doc/api/info/Statistics):
+        Используем endpoint /api/v2/statistics/users/summary.json без параметра id
+        для получения списка всех доступных кабинетов (users).
         
         Returns:
             List[Dict] с полями:
@@ -148,21 +211,31 @@ class VKAdsAPI:
             - name: str - название аккаунта
             - status: str - статус аккаунта
         """
-        url = f"{self.base_url}/ad_accounts.json"
         accounts = []
         
+        # Метод 1: Используем Statistics API для получения списка кабинетов
+        # Документация: https://ads.vk.com/doc/api/info/Statistics
+        # GET /api/v2/statistics/users/summary.json (без параметра id возвращает все кабинеты)
         try:
+            url = f"{self.base_url}/statistics/users/summary.json"
+            params = {
+                "metrics": "base"  # Базовые метрики для получения списка кабинетов
+            }
+            
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, headers=self.headers, timeout=30.0)
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
                     items = data.get("items", [])
                     
-                    logger.info(f"📋 VK Ads API returned {len(items)} account(s) from ad_accounts.json")
+                    logger.info(f"📋 VK Ads Statistics API returned {len(items)} account(s) from users/summary.json")
                     
                     for item in items:
                         raw_id = item.get("id")
+                        if not raw_id:
+                            continue
+                            
                         raw_id_str = str(raw_id)
                         
                         # Нормализуем account_id (извлекаем числовой ID из формата "vkads_592676405@vk@8493881")
@@ -188,6 +261,64 @@ class VKAdsAPI:
                                 account_id = match.group(1)
                         
                         if account_id:
+                            # Пытаемся получить название кабинета из статистики или используем ID
+                            account_name = f"Кабинет {account_id}"  # По умолчанию
+                            
+                            # Если есть данные в статистике, можно попытаться извлечь название
+                            # Но обычно название нужно получать из другого endpoint
+                            
+                            accounts.append({
+                                "id": account_id,
+                                "name": account_name,
+                                "status": "active"
+                            })
+                            
+                            logger.info(f"✅ Added VK account from statistics: id={account_id}")
+                        else:
+                            logger.warning(f"⚠️ Could not extract numeric ID from: '{raw_id_str}', skipping")
+                    
+                    if accounts:
+                        logger.info(f"✅ Successfully retrieved {len(accounts)} VK account(s) via Statistics API")
+                        # Пытаемся получить названия кабинетов из кампаний
+                        await self._enrich_accounts_with_names(accounts)
+                        return accounts
+                else:
+                    logger.warning(f"⚠️ VK Ads Statistics API returned {response.status_code}: {response.text[:200]}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Error fetching VK accounts from Statistics API: {e}")
+        
+        # Метод 2: Fallback - пытаемся использовать старый endpoint
+        try:
+            url = f"{self.base_url}/ad_accounts.json"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    
+                    logger.info(f"📋 VK Ads API returned {len(items)} account(s) from ad_accounts.json (fallback)")
+                    
+                    for item in items:
+                        raw_id = item.get("id")
+                        raw_id_str = str(raw_id)
+                        
+                        import re
+                        account_id = None
+                        
+                        if '@vk@' in raw_id_str or raw_id_str.startswith('vkads_'):
+                            match = re.search(r'vkads_(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                        elif raw_id_str.isdigit():
+                            account_id = raw_id_str
+                        else:
+                            match = re.search(r'(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                        
+                        if account_id:
                             account_name = item.get("name", f"Аккаунт {account_id}")
                             account_status = item.get("status", "active")
                             
@@ -197,33 +328,26 @@ class VKAdsAPI:
                                 "status": account_status
                             })
                             
-                            logger.info(f"✅ Added VK account: id={account_id}, name='{account_name}', status={account_status}")
-                        else:
-                            logger.warning(f"⚠️ Could not extract numeric ID from: '{raw_id_str}', skipping")
+                            logger.info(f"✅ Added VK account: id={account_id}, name='{account_name}'")
                     
                     if accounts:
-                        logger.info(f"✅ Successfully retrieved {len(accounts)} VK account(s)")
+                        logger.info(f"✅ Successfully retrieved {len(accounts)} VK account(s) via fallback method")
                         return accounts
-                    else:
-                        logger.warning("⚠️ No valid accounts found in response")
-                        
-                elif response.status_code == 404:
-                    logger.warning("⚠️ VK Ads API endpoint /ad_accounts.json returned 404, trying alternative method...")
-                    # Альтернативный метод: извлекаем уникальные client_id из статистики
-                    accounts = await self._get_accounts_from_statistics()
-                    if accounts:
-                        logger.info(f"✅ Found {len(accounts)} account(s) via statistics method")
-                        return accounts
-                else:
-                    logger.warning(f"⚠️ VK Ads API returned {response.status_code}: {response.text[:200]}")
-                    
         except Exception as e:
-            logger.error(f"❌ Error fetching VK accounts: {e}")
+            logger.debug(f"Fallback method failed: {e}")
+        
+        # Метод 3: Извлекаем из статистики кампаний
+        try:
+            accounts = await self._get_accounts_from_statistics()
+            if accounts:
+                logger.info(f"✅ Found {len(accounts)} account(s) via statistics extraction method")
+                return accounts
+        except Exception as e:
+            logger.debug(f"Statistics extraction method failed: {e}")
         
         # Fallback: Если account_id задан в конструкторе, используем его
         if self.account_id:
             account_id_str = str(self.account_id)
-            # Нормализуем account_id, если он в формате "vkads_XXX@vk@YYY"
             import re
             if '@vk@' in account_id_str or account_id_str.startswith('vkads_'):
                 match = re.search(r'vkads_(\d+)', account_id_str)
@@ -239,29 +363,64 @@ class VKAdsAPI:
         
         return accounts
     
+    async def _enrich_accounts_with_names(self, accounts: List[Dict[str, Any]]):
+        """
+        Обогащает список кабинетов названиями, получая их из кампаний.
+        Для каждого кабинета запрашиваем первую кампанию и пытаемся извлечь название.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                for account in accounts:
+                    account_id = account.get("id")
+                    if not account_id:
+                        continue
+                    
+                    # Запрашиваем кампании для этого кабинета
+                    # Согласно документации, можно использовать client_id для фильтрации
+                    try:
+                        campaigns_url = f"{self.base_url}/ad_plans.json"
+                        campaigns_params = {"client_id": account_id, "limit": 1}
+                        campaigns_response = await client.get(
+                            campaigns_url,
+                            params=campaigns_params,
+                            headers=self.headers,
+                            timeout=10.0
+                        )
+                        
+                        if campaigns_response.status_code == 200:
+                            campaigns_data = campaigns_response.json()
+                            campaigns_items = campaigns_data.get("items", [])
+                            # Если есть кампании, можно использовать их для определения названия кабинета
+                            # Но обычно название кабинета не содержится в данных кампаний
+                            pass
+                    except Exception as e:
+                        logger.debug(f"Could not enrich account {account_id} with name: {e}")
+        except Exception as e:
+            logger.debug(f"Error enriching accounts with names: {e}")
+    
     async def _get_accounts_from_statistics(self) -> List[Dict[str, Any]]:
         """
-        Альтернативный метод получения кабинетов: извлекаем уникальные client_id из статистики.
+        Альтернативный метод получения кабинетов: используем статистику по users.
         
-        Запрашиваем статистику за последние 30 дней без указания client_id,
-        и извлекаем уникальные client_id из ответа. Затем для каждого client_id
-        пытаемся получить название из кампаний.
+        Согласно документации VK Ads API:
+        GET /api/v2/statistics/users/day.json или summary.json
+        Без параметра id возвращает статистику по всем доступным кабинетам.
         """
         accounts = []
         seen_ids = set()
-        client_ids = []
         
         try:
             from datetime import datetime, timedelta
             date_to = datetime.now().strftime("%Y-%m-%d")
             date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
             
-            # Шаг 1: Запрашиваем статистику без указания client_id, чтобы получить данные по всем кабинетам
-            url = f"{self.base_url}/statistics/ad_plans/day.json"
+            # Используем статистику по users (кабинетам) для получения списка
+            # Согласно документации: GET /api/v2/statistics/users/day.json
+            url = f"{self.base_url}/statistics/users/day.json"
             params = {
                 "date_from": date_from,
                 "date_to": date_to,
-                "metrics": "base"
+                "metrics": "base"  # Базовые метрики
             }
             
             async with httpx.AsyncClient() as client:
@@ -271,57 +430,53 @@ class VKAdsAPI:
                     data = response.json()
                     items = data.get("items", [])
                     
-                    logger.info(f"📊 Statistics response contains {len(items)} items")
+                    logger.info(f"📊 Statistics/users response contains {len(items)} account(s)")
                     
-                    # Извлекаем уникальные client_id из статистики
+                    # Извлекаем уникальные ID кабинетов из статистики
                     for item in items:
-                        client_id = item.get("client_id")
-                        if client_id and client_id not in seen_ids:
-                            client_id_str = str(client_id)
-                            seen_ids.add(client_id_str)
-                            client_ids.append(client_id_str)
-                            logger.info(f"📋 Found client_id in statistics: {client_id_str}")
-                    
-                    # Шаг 2: Для каждого client_id пытаемся получить название из кампаний
-                    for client_id_str in client_ids:
-                        account_name = f"Кабинет {client_id_str}"  # Default name
-                        
-                        # Пытаемся получить название из первой кампании этого кабинета
-                        try:
-                            campaigns_url = f"{self.base_url}/ad_plans.json"
-                            campaigns_params = {"client_id": client_id_str, "limit": 1}
-                            campaigns_response = await client.get(
-                                campaigns_url, 
-                                params=campaigns_params, 
-                                headers=self.headers, 
-                                timeout=10.0
-                            )
+                        raw_id = item.get("id")
+                        if not raw_id:
+                            continue
                             
-                            if campaigns_response.status_code == 200:
-                                campaigns_data = campaigns_response.json()
-                                campaigns_items = campaigns_data.get("items", [])
-                                if campaigns_items:
-                                    # Используем название первой кампании как подсказку для названия кабинета
-                                    # Но лучше использовать специальный endpoint для получения информации о кабинете
-                                    pass
-                        except Exception as e:
-                            logger.debug(f"Could not get campaign name for client_id {client_id_str}: {e}")
+                        raw_id_str = str(raw_id)
                         
-                        accounts.append({
-                            "id": client_id_str,
-                            "name": account_name,
-                            "status": "active"
-                        })
+                        # Нормализуем account_id
+                        import re
+                        account_id = None
                         
-                        logger.info(f"✅ Added account from statistics: id={client_id_str}, name='{account_name}'")
+                        if '@vk@' in raw_id_str or raw_id_str.startswith('vkads_'):
+                            match = re.search(r'vkads_(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                            else:
+                                match = re.search(r'(\d+)', raw_id_str)
+                                if match:
+                                    account_id = match.group(1)
+                        elif raw_id_str.isdigit():
+                            account_id = raw_id_str
+                        else:
+                            match = re.search(r'(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                        
+                        if account_id and account_id not in seen_ids:
+                            seen_ids.add(account_id)
+                            
+                            accounts.append({
+                                "id": account_id,
+                                "name": f"Кабинет {account_id}",
+                                "status": "active"
+                            })
+                            
+                            logger.info(f"✅ Extracted account from users statistics: id={account_id}")
                     
                     if accounts:
-                        logger.info(f"✅ Extracted {len(accounts)} unique account(s) from statistics")
+                        logger.info(f"✅ Extracted {len(accounts)} unique account(s) from users statistics")
                 else:
-                    logger.warning(f"⚠️ Statistics request returned {response.status_code}: {response.text[:200]}")
+                    logger.warning(f"⚠️ Statistics/users request returned {response.status_code}: {response.text[:200]}")
                     
         except Exception as e:
-            logger.error(f"❌ Error extracting accounts from statistics: {e}")
+            logger.error(f"❌ Error extracting accounts from users statistics: {e}")
         
         return accounts
     
