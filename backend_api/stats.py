@@ -235,10 +235,19 @@ def ensure_data_synced_async(
         integrations = [i for i in integrations if i.id in integration_ids]
     
     # Запускаем синхронизацию для каждой интеграции в фоне (не ждем завершения)
+    # CRITICAL: Ограничиваем количество одновременных синхронизаций, чтобы не исчерпать пул соединений
+    # Максимум 5 одновременных синхронизаций (остальные будут ждать освобождения соединений)
+    MAX_CONCURRENT_SYNCS = 5
     date_from_str = d_start.strftime("%Y-%m-%d")
     date_to_str = d_end.strftime("%Y-%m-%d")
     
-    for integration in integrations:
+    # Запускаем синхронизацию только для первых MAX_CONCURRENT_SYNCS интеграций
+    # Остальные будут синхронизированы при следующем запросе
+    integrations_to_sync = integrations[:MAX_CONCURRENT_SYNCS]
+    if len(integrations) > MAX_CONCURRENT_SYNCS:
+        logger.warning(f"⚠️ Too many integrations ({len(integrations)}). Syncing only first {MAX_CONCURRENT_SYNCS}. Rest will sync on next request.")
+    
+    for integration in integrations_to_sync:
         try:
             # CRITICAL: Используем sync_integration_background, которая запускает синхронизацию
             # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.

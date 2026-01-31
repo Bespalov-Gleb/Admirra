@@ -294,7 +294,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     integration.currency = None
                     db.commit()
                     logger.info(f"🗑️ Cleared balance for integration {integration.id} due to error")
-            elif balance_data:
+            elif balance_data is not None:
                 balance_value = balance_data.get("balance")
                 currency_value = balance_data.get("currency", "RUB")
                 logger.info(f"💰 Received balance data for integration {integration.id}: balance={balance_value}, currency={currency_value}")
@@ -320,14 +320,20 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         db.commit()
                         logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance value is None)")
             else:
+                # CRITICAL: balance_data is None - это означает, что баланс не получен (profile mismatch или другой профиль)
                 logger.warning(f"⚠️ Balance not available for integration {integration.id} (may require Direct Pro or FinanceToken, or profile mismatch)")
                 logger.warning(f"⚠️ FinanceToken was {'provided' if finance_token else 'NOT provided'} for this request")
+                logger.warning(f"⚠️ Selected profile: '{selected_profile}'")
                 # Очищаем баланс, если он был сохранен ранее
                 if integration.balance is not None:
                     integration.balance = None
                     integration.currency = None
                     db.commit()
-                    logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance not available)")
+                    logger.info(f"🗑️ Cleared balance for integration {integration.id} (balance not available or profile mismatch)")
+                    # Очищаем кеш дашборда, чтобы изменения были видны сразу
+                    from backend_api.cache_service import CacheService
+                    CacheService.clear()
+                    logger.info(f"🗑️ Cleared dashboard cache after clearing balance")
             
             # Обрабатываем статистику
             if isinstance(stats, Exception):

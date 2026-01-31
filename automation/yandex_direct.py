@@ -1745,10 +1745,13 @@ class YandexDirectAPI:
                             
                             # CRITICAL: Verify that we got balance for the correct profile
                             # Если баланс получен для другого профиля, не возвращаем его
-                            if client_login_header != "NOT SET (main account)" and profile_login != client_login_header:
-                                logger.warning(f"⚠️ Profile mismatch! Requested '{client_login_header}' but got balance for '{profile_login}'. "
-                                             f"This may indicate that '{client_login_header}' is not accessible via AccountManagement API.")
-                                logger.warning(f"⚠️ NOT saving balance for wrong profile. Balance will be hidden on dashboard.")
+                            # Сравниваем логины с учетом регистра и пробелов
+                            requested_login_normalized = str(client_login_header).strip().lower() if client_login_header != "NOT SET (main account)" else None
+                            profile_login_normalized = str(profile_login).strip().lower()
+                            
+                            if requested_login_normalized and profile_login_normalized != requested_login_normalized:
+                                logger.error(f"❌ Profile mismatch detected! Requested '{client_login_header}' (normalized: '{requested_login_normalized}') but got balance for '{profile_login}' (normalized: '{profile_login_normalized}').")
+                                logger.error(f"❌ NOT returning balance for wrong profile. Balance will be hidden on dashboard.")
                                 return None  # Не возвращаем баланс, если он для другого профиля
                             
                             # CRITICAL: AccountManagement API возвращает Amount (баланс) для Direct Pro
@@ -1759,7 +1762,7 @@ class YandexDirectAPI:
                             if amount is not None:
                                 try:
                                     balance_float = float(amount) if isinstance(amount, str) else amount
-                                    logger.info(f"💰 Yandex Direct balance (from AccountManagement): {balance_float} {currency} for profile '{profile_login}'")
+                                    logger.info(f"✅ Yandex Direct balance (from AccountManagement): {balance_float} {currency} for profile '{profile_login}' (matches requested '{client_login_header}')")
                                     result = {
                                         "balance": balance_float,
                                         "currency": currency,
