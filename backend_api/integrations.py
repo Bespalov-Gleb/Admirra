@@ -549,13 +549,50 @@ async def exchange_vk_token_oauth(
             )
             if acc_response.status_code == 200:
                 acc_data = acc_response.json()
+                logger.info(f"📡 VK Ads ad_accounts.json response: {acc_data}")
                 items = acc_data.get("items", [])
+                logger.info(f"📋 Found {len(items)} account(s) in response")
                 if items:
+                    # Log all items for debugging
+                    for idx, item in enumerate(items):
+                        logger.info(f"   Account #{idx}: id={item.get('id')}, name={item.get('name')}, status={item.get('status')}")
+                    
                     raw_id = items[0].get("id")
-                    vk_account_id = str(raw_id)
-                    if not vk_account_id.isdigit():
-                        logger.warning(f"⚠️ VK Account ID '{vk_account_id}' is not purely numeric, but using as-is")
-                    logger.info(f"Auto-detected VK Account ID: {vk_account_id}")
+                    raw_id_str = str(raw_id)
+                    logger.info(f"🔵 Raw VK Account ID from API: '{raw_id_str}' (type: {type(raw_id)})")
+                    
+                    # CRITICAL: Normalize account_id format
+                    # VK Ads API may return ID in format "vkads_592676405@vk@8493881"
+                    # We need to extract the numeric part "592676405"
+                    import re
+                    if '@vk@' in raw_id_str or raw_id_str.startswith('vkads_'):
+                        # Extract numeric ID from format "vkads_592676405@vk@8493881"
+                        match = re.search(r'vkads_(\d+)', raw_id_str)
+                        if not match:
+                            # Fallback: extract first numeric sequence
+                            match = re.search(r'(\d+)', raw_id_str)
+                        
+                        if match:
+                            vk_account_id = match.group(1)
+                            logger.info(f"✅ Normalized VK Account ID: '{raw_id_str}' -> '{vk_account_id}'")
+                        else:
+                            logger.error(f"❌ Could not extract numeric ID from: '{raw_id_str}'")
+                            vk_account_id = raw_id_str  # Fallback to original
+                    elif raw_id_str.isdigit():
+                        # Already in correct format
+                        vk_account_id = raw_id_str
+                        logger.info(f"✅ VK Account ID is already numeric: '{vk_account_id}'")
+                    else:
+                        # Try to extract any numeric sequence
+                        match = re.search(r'(\d+)', raw_id_str)
+                        if match:
+                            vk_account_id = match.group(1)
+                            logger.warning(f"⚠️ Extracted numeric ID from non-standard format: '{raw_id_str}' -> '{vk_account_id}'")
+                        else:
+                            logger.warning(f"⚠️ VK Account ID '{raw_id_str}' is not numeric, using as-is")
+                            vk_account_id = raw_id_str
+                    
+                    logger.info(f"Final VK Account ID: {vk_account_id}")
             else:
                 logger.warning(f"Failed to auto-detect VK Account ID: {acc_response.status_code} - {acc_response.text[:200]}")
     except Exception as e:
