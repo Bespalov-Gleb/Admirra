@@ -22,14 +22,15 @@ YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a801
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 
-# VK Ads Credentials
-VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "54416403")
-VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "8oAosCbGdjPM3CP8HCXe")
-# ВАЖНО: Используем VK ID SDK (Low-code) для авторизации
-# VK ID SDK работает через id.vk.com/oauth2/token для обмена кода на токен
-# Документация: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/web/setup
-VK_ID_TOKEN_URL = "https://id.vk.com/oauth2/token"  # VK ID SDK token exchange endpoint
-VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"  # VK Ads API token exchange (может использоваться после получения VK ID token)
+# VK Ads Credentials (Authorization Code Grant)
+# Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
+VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "MZzDprGbNsWFXiUf")
+VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "IrMSpXAmwarxeL3ElBaKeJa4tJAcfplfs1wOFQY81gAkTm2SmZ5M7QqVOvEyRgizdhWEM8HvzRNIFhb8fKppwjLZd2Y6DXxUhqDMkiCZ5tSUsMui3Cu5K6dgAAGWQGDmZTPtNMcCuxY54snEKQBEVOI6MC7LAzOpeY5pgUdNtEgfAuh9NgezVurPWHowo7mSUXydDOIFl73LsGmy4lXD1UNotp6szljPePjsy8O2hkX")
+# Authorization Code Grant для VK Ads API
+# Auth URL: https://ads.vk.com/hq/settings/access?action=oauth2
+# Token URL: https://ads.vk.com/api/v2/oauth2/token.json
+VK_ADS_AUTH_URL = "https://ads.vk.com/hq/settings/access"
+VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 
 # myTarget Credentials (Authorization Code Grant)
 # Для песочницы используем target-sandbox.my.com
@@ -480,13 +481,17 @@ async def exchange_vk_token_oauth(
         
         async with httpx.AsyncClient() as client:
             try:
-                # Согласно документации VK Ads API, для Authorization Code Grant нужны только:
+                # Согласно документации VK Ads API, для Authorization Code Grant нужны:
                 # grant_type, code, client_id (client_secret НЕ требуется для этого flow)
+                # redirect_uri рекомендуется передавать для совместимости, если он был указан при запросе авторизации
                 token_payload = {
                     "grant_type": "authorization_code",
                     "code": auth_code,
                     "client_id": VK_CLIENT_ID
                 }
+                # Добавляем redirect_uri, если он был передан (для совместимости)
+                if redirect_uri:
+                    token_payload["redirect_uri"] = redirect_uri
                 
                 logger.info(f"   Using VK Ads token endpoint: {VK_ADS_TOKEN_URL}")
                 logger.info(f"   Token payload: grant_type=authorization_code, code={auth_code[:20]}..., client_id={VK_CLIENT_ID}")
