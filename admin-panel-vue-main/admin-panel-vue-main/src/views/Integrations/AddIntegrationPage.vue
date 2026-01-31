@@ -40,12 +40,12 @@
           <div class="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 z-0"></div>
           <div 
             class="absolute top-1/2 left-0 h-0.5 bg-blue-600 transition-all duration-500 -translate-y-1/2 z-0"
-            :style="{ width: `${((currentStep - 1) / 5) * 100}%` }"
+            :style="{ width: `${((getVisualStepNumber(currentStep) - 1) / (totalSteps - 1)) * 100}%` }"
           ></div>
 
           <!-- Steps -->
           <div 
-            v-for="step in 6" 
+            v-for="step in visibleSteps" 
             :key="step"
             class="relative z-10 flex flex-col items-center gap-3"
           >
@@ -56,7 +56,7 @@
                 currentStep === step ? 'ring-4 ring-blue-50' : ''
               ]"
             >
-              {{ step }}
+              {{ getVisualStepNumber(step) }}
             </div>
             <span 
               class="absolute -bottom-7 whitespace-nowrap text-[9px] font-black uppercase tracking-widest transition-all duration-300"
@@ -106,9 +106,9 @@
                 @next="nextStep"
               />
 
-              <!-- Step 4: Counters selection -->
+              <!-- Step 4: Counters selection (skipped for VK_ADS) -->
               <IntegrationStep4Counters 
-                v-else-if="currentStep === 4"
+                v-else-if="currentStep === 4 && form.platform !== 'VK_ADS'"
                 :counters="counters"
                 :selectedIds="selectedCounterIds"
                 :loading="loadingStates.counters"
@@ -119,9 +119,9 @@
                 @next="nextStep"
               />
 
-              <!-- Step 5: Goals selection -->
+              <!-- Step 5: Goals selection (skipped for VK_ADS) -->
               <IntegrationStep5 
-                v-else-if="currentStep === 5"
+                v-else-if="currentStep === 5 && form.platform !== 'VK_ADS'"
                 :goals="goals"
                 :primaryGoalId="form.primary_goal_id"
                 :selectedGoalIds="selectedGoalIds"
@@ -200,9 +200,9 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
-          <!-- Step 4: Next button (counters -> goals) -->
+          <!-- Step 4: Next button (counters -> goals, skipped for VK_ADS) -->
           <button 
-            v-else-if="currentStep === 4"
+            v-else-if="currentStep === 4 && form.platform !== 'VK_ADS'"
             @click="nextStep"
             :disabled="isNextDisabled"
             class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
@@ -211,9 +211,9 @@
             <ArrowRightIcon class="w-4 h-4" />
           </button>
 
-          <!-- Step 5: Next button (goals -> summary) -->
+          <!-- Step 5: Next button (goals -> summary, skipped for VK_ADS) -->
           <button 
-            v-else-if="currentStep === 5"
+            v-else-if="currentStep === 5 && form.platform !== 'VK_ADS'"
             @click="nextStep"
             :disabled="isNextDisabled"
             class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
@@ -316,6 +316,43 @@ const stepLabels = {
   6: 'Сводка'
 }
 
+// Computed property to get visible steps based on platform
+const visibleSteps = computed(() => {
+  if (form.platform === 'VK_ADS') {
+    // For VK Ads, skip steps 4 and 5 (counters and goals)
+    // Show steps 1, 2, 3, 6 (but 6 will be displayed as 4)
+    return [1, 2, 3, 6]
+  }
+  return [1, 2, 3, 4, 5, 6]
+})
+
+// Computed property to get total number of steps
+const totalSteps = computed(() => {
+  return form.platform === 'VK_ADS' ? 4 : 6
+})
+
+// Helper function to get step number for display (maps logical step to visual step)
+const getVisualStepNumber = (logicalStep) => {
+  if (form.platform === 'VK_ADS') {
+    // For VK Ads: 1->1, 2->2, 3->3, 6->4
+    if (logicalStep <= 3) return logicalStep
+    if (logicalStep === 6) return 4
+    return logicalStep
+  }
+  return logicalStep
+}
+
+// Helper function to get logical step from visual step
+const getLogicalStepFromVisual = (visualStep) => {
+  if (form.platform === 'VK_ADS') {
+    // For VK Ads: 1->1, 2->2, 3->3, 4->6
+    if (visualStep <= 3) return visualStep
+    if (visualStep === 4) return 6
+    return visualStep
+  }
+  return visualStep
+}
+
 // Loading state computed properties
 const loadingProfiles = computed(() => loadingStates.profiles)
 const loadingCampaigns = computed(() => loadingStates.campaigns || isSyncingData.value)
@@ -412,10 +449,21 @@ const nextStep = async () => {
     if (lastIntegrationId.value) {
       fetchCounters(lastIntegrationId.value)
     }
+  } else if (currentStep.value === 3) {
+    // Step 3 -> Next: For VK_ADS, skip steps 4 and 5, go directly to step 6
+    // For other platforms, go to step 4 (counters)
+    if (form.platform === 'VK_ADS') {
+      currentStep.value = 6
+    } else {
+      currentStep.value = 4
+      if (lastIntegrationId.value) {
+        fetchCounters(lastIntegrationId.value)
+      }
+    }
   } else if (currentStep.value === 4) {
     // Step 4 -> 5: Counters selected, validate and load goals
-    // For VK_ADS, counters are not required (VK Ads doesn't use Yandex Metrika)
-    if (form.platform !== 'VK_ADS' && selectedCounterIds.value.length === 0) {
+    // This step is skipped for VK_ADS, so we only handle other platforms here
+    if (selectedCounterIds.value.length === 0) {
       toaster.error('Пожалуйста, выберите хотя бы один счетчик')
       return
     }
@@ -425,8 +473,8 @@ const nextStep = async () => {
     }
   } else if (currentStep.value === 5) {
     // Step 5 -> 6: Goals selected, go to summary
-    // For VK_ADS, goals are not required (VK Ads doesn't use Yandex Metrika goals)
-    if (form.platform !== 'VK_ADS' && !form.primary_goal_id) {
+    // This step is skipped for VK_ADS, so we only handle other platforms here
+    if (!form.primary_goal_id) {
       toaster.error('Пожалуйста, выберите основную цель')
       return
     }
@@ -435,7 +483,17 @@ const nextStep = async () => {
 }
 
 const prevStep = () => {
-  if (currentStep.value > 1) currentStep.value--
+  if (currentStep.value > 1) {
+    // For VK_ADS, skip steps 4 and 5 when going back
+    if (form.platform === 'VK_ADS' && currentStep.value === 6) {
+      currentStep.value = 3
+    } else if (form.platform === 'VK_ADS' && currentStep.value === 4) {
+      // This shouldn't happen, but handle it just in case
+      currentStep.value = 3
+    } else {
+      currentStep.value--
+    }
+  }
 }
 
 // Update form data (handle reactive updates)

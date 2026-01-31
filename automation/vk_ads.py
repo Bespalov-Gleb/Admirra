@@ -616,20 +616,133 @@ class VKAdsAPI:
         """
         Получает баланс рекламного кабинета VK Ads.
         
+        Согласно документации VK Ads API:
+        - Endpoint для баланса: /api/v2/billing/balance.json (если доступен)
+        - Альтернатива: вычисление баланса из TransactionGroups
+        - Fallback: /api/v2/ad_accounts.json
+        
         Returns:
             Dict с полями:
             - balance: float - баланс в валюте кабинета
             - currency: str - код валюты (RUB, USD, EUR, etc.)
             Или None при ошибке
         """
-        # VK Ads API v2: получение информации об аккаунте
-        # Используем ad_accounts.json для получения баланса (тот же эндпоинт, что и для списка аккаунтов)
-        url = f"{self.base_url}/ad_accounts.json"
-        params = {}
-        if self.account_id:
-            params["client_id"] = self.account_id
-        
+        # Метод 1: Пытаемся получить баланс через billing/balance.json
         try:
+            url = f"{self.base_url}/billing/balance.json"
+            params = {}
+            if self.account_id:
+                params["client_id"] = self.account_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    # Структура ответа может быть разной
+                    # Попробуем разные варианты структуры
+                    balance = None
+                    currency = "RUB"
+                    
+                    # Вариант 1: баланс в корне ответа
+                    if "balance" in data:
+                        balance = data.get("balance")
+                        currency = data.get("currency", "RUB")
+                    # Вариант 2: баланс в items[0]
+                    elif "items" in data and len(data.get("items", [])) > 0:
+                        item = data["items"][0]
+                        balance = item.get("balance") or item.get("amount") or item.get("funds")
+                        currency = item.get("currency", "RUB")
+                    # Вариант 3: баланс в result
+                    elif "result" in data:
+                        result = data["result"]
+                        balance = result.get("balance") or result.get("amount") or result.get("funds")
+                        currency = result.get("currency", "RUB")
+                    
+                    if balance is not None:
+                        try:
+                            balance_float = float(balance) if isinstance(balance, str) else balance
+                            logger.info(f"✅ VK Ads balance from billing/balance.json: {balance_float} {currency}")
+                            return {
+                                "balance": balance_float,
+                                "currency": currency
+                            }
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Failed to parse VK balance value: {balance}, error: {e}")
+                elif response.status_code == 404:
+                    logger.debug(f"⚠️ billing/balance.json endpoint not found (404), trying alternative methods...")
+                else:
+                    logger.debug(f"⚠️ billing/balance.json returned {response.status_code}: {response.text[:200]}")
+        except Exception as e:
+            logger.debug(f"Error fetching balance from billing/balance.json: {e}")
+        
+        # Метод 2: Вычисляем баланс из TransactionGroups
+        # Согласно документации: https://ads.vk.com/doc/api/resource/TransactionGroups
+        # Суммируем транзакции типа "deposit" (пополнения) и вычитаем "charge" (списания)
+        try:
+            url = f"{self.base_url}/billing/transaction_groups.json"
+            params = {
+                "limit": 1000,  # Получаем последние транзакции
+                "sorting": "-date"  # Сортируем по дате (новые сначала)
+            }
+            if self.account_id:
+                params["client_id"] = self.account_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    
+                    if items:
+                        # Вычисляем баланс: суммируем все транзакции
+                        # deposit (пополнения) - положительные, charge (списания) - отрицательные
+                        total_balance = 0.0
+                        currency = "RUB"
+                        
+                        for item in items:
+                            trans_type = item.get("type", "")
+                            amount_str = item.get("amount", "0")
+                            item_currency = item.get("currency", "RUB")
+                            
+                            # Используем валюту из первой транзакции
+                            if not currency or currency == "RUB":
+                                currency = item_currency
+                            
+                            try:
+                                amount = float(amount_str) if isinstance(amount_str, str) else amount_str
+                                
+                                if trans_type == "deposit":
+                                    # Пополнение - добавляем к балансу
+                                    total_balance += amount
+                                elif trans_type == "charge":
+                                    # Списание - вычитаем из баланса
+                                    total_balance -= amount
+                                # Другие типы транзакций игнорируем или обрабатываем по необходимости
+                                
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Failed to parse transaction amount: {amount_str}, error: {e}")
+                                continue
+                        
+                        if total_balance != 0.0 or len(items) > 0:  # Возвращаем баланс даже если он 0
+                            logger.info(f"✅ VK Ads balance calculated from TransactionGroups: {total_balance} {currency} ({len(items)} transactions)")
+                            return {
+                                "balance": total_balance,
+                                "currency": currency
+                            }
+                elif response.status_code == 404:
+                    logger.debug(f"⚠️ billing/transaction_groups.json endpoint not found (404), trying fallback...")
+                else:
+                    logger.debug(f"⚠️ billing/transaction_groups.json returned {response.status_code}: {response.text[:200]}")
+        except Exception as e:
+            logger.debug(f"Error calculating balance from TransactionGroups: {e}")
+        
+        # Метод 3: Fallback - используем ad_accounts.json (старый метод)
+        try:
+            url = f"{self.base_url}/ad_accounts.json"
+            params = {}
+            if self.account_id:
+                params["client_id"] = self.account_id
+            
             async with httpx.AsyncClient() as client:
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
@@ -644,7 +757,7 @@ class VKAdsAPI:
                         if balance is not None:
                             try:
                                 balance_float = float(balance) if isinstance(balance, str) else balance
-                                logger.info(f"VK Ads balance: {balance_float} {currency}")
+                                logger.info(f"✅ VK Ads balance from ad_accounts.json: {balance_float} {currency}")
                                 return {
                                     "balance": balance_float,
                                     "currency": currency
@@ -653,8 +766,9 @@ class VKAdsAPI:
                                 logger.warning(f"Failed to parse VK balance value: {balance}, error: {e}")
                                 return None
                 else:
-                    logger.warning(f"Failed to fetch VK Ads balance: {response.status_code} - {response.text[:200]}")
-                    return None
+                    logger.warning(f"⚠️ Failed to fetch VK Ads balance from ad_accounts.json: {response.status_code} - {response.text[:200]}")
         except Exception as e:
-            logger.warning(f"Error fetching VK Ads balance: {e}")
-            return None
+            logger.warning(f"Error fetching VK Ads balance from ad_accounts.json: {e}")
+        
+        logger.warning(f"❌ Could not fetch VK Ads balance using any method")
+        return None
