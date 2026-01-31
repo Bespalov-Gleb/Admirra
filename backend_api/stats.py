@@ -11,8 +11,219 @@ from .cache_service import cache_response
 import csv
 import io
 from fastapi.responses import StreamingResponse
+import logging
+import asyncio
+from automation.sync import sync_integration
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+def check_data_availability(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: date,
+    d_end: date,
+    platform: str = "all",
+    campaign_ids: Optional[List[uuid.UUID]] = None
+) -> bool:
+    """
+    Проверяет наличие данных в БД за указанный период.
+    Возвращает True, если данные есть, False - если данных нет или период выходит за рамки сохраненных данных.
+    """
+    try:
+        # Проверяем наличие данных для Yandex Direct
+        if platform in ["all", "yandex"]:
+            y_query = db.query(func.count(models.YandexStats.id)).join(
+                models.Campaign, models.YandexStats.campaign_id == models.Campaign.id
+            ).filter(
+                models.YandexStats.client_id.in_(client_ids),
+                models.YandexStats.date >= d_start,
+                models.YandexStats.date <= d_end
+            )
+            if campaign_ids:
+                y_query = y_query.filter(models.Campaign.id.in_(campaign_ids))
+            y_count = y_query.scalar() or 0
+            
+            if y_count > 0:
+                # Проверяем, что данные покрывают весь запрошенный период
+                # Проверяем минимальную и максимальную даты в БД
+                y_date_range = db.query(
+                    func.min(models.YandexStats.date).label('min_date'),
+                    func.max(models.YandexStats.date).label('max_date')
+                ).join(
+                    models.Campaign, models.YandexStats.campaign_id == models.Campaign.id
+                ).filter(
+                    models.YandexStats.client_id.in_(client_ids),
+                    models.YandexStats.date >= d_start,
+                    models.YandexStats.date <= d_end
+                )
+                if campaign_ids:
+                    y_date_range = y_date_range.filter(models.Campaign.id.in_(campaign_ids))
+                date_range = y_date_range.first()
+                
+                if date_range and date_range.min_date and date_range.max_date:
+                    # Если минимальная дата в БД больше запрошенной начальной даты - данных не хватает
+                    if date_range.min_date > d_start:
+                        logger.info(f"⚠️ Data gap detected: DB min_date={date_range.min_date}, requested start={d_start}")
+                        return False
+                    # Если максимальная дата в БД меньше запрошенной конечной даты - данных не хватает
+                    if date_range.max_date < d_end:
+                        logger.info(f"⚠️ Data gap detected: DB max_date={date_range.max_date}, requested end={d_end}")
+                        return False
+                    return True
+        
+        # Проверяем наличие данных для VK Ads
+        if platform in ["all", "vk"]:
+            v_query = db.query(func.count(models.VKStats.id)).join(
+                models.Campaign, models.VKStats.campaign_id == models.Campaign.id
+            ).filter(
+                models.VKStats.client_id.in_(client_ids),
+                models.VKStats.date >= d_start,
+                models.VKStats.date <= d_end
+            )
+            if campaign_ids:
+                v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
+            v_count = v_query.scalar() or 0
+            
+            if v_count > 0:
+                # Проверяем, что данные покрывают весь запрошенный период
+                v_date_range = db.query(
+                    func.min(models.VKStats.date).label('min_date'),
+                    func.max(models.VKStats.date).label('max_date')
+                ).join(
+                    models.Campaign, models.VKStats.campaign_id == models.Campaign.id
+                ).filter(
+                    models.VKStats.client_id.in_(client_ids),
+                    models.VKStats.date >= d_start,
+                    models.VKStats.date <= d_end
+                )
+                if campaign_ids:
+                    v_date_range = v_date_range.filter(models.Campaign.id.in_(campaign_ids))
+                date_range = v_date_range.first()
+                
+                if date_range and date_range.min_date and date_range.max_date:
+                    if date_range.min_date > d_start:
+                        logger.info(f"⚠️ VK Data gap detected: DB min_date={date_range.min_date}, requested start={d_start}")
+                        return False
+                    if date_range.max_date < d_end:
+                        logger.info(f"⚠️ VK Data gap detected: DB max_date={date_range.max_date}, requested end={d_end}")
+                        return False
+                    return True
+        
+        # Если для выбранной платформы нет данных - возвращаем False
+        return False
+    except Exception as e:
+        logger.error(f"Error checking data availability: {e}")
+        return False
+
+async def sync_integration_background(
+    integration_id: uuid.UUID,
+    date_from_str: str,
+    date_to_str: str
+):
+    """
+    Асинхронная функция для синхронизации интеграции в фоне.
+    Создает новую сессию БД для фоновой задачи.
+    """
+    from core.database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        integration = db.query(models.Integration).filter(
+            models.Integration.id == integration_id
+        ).first()
+        
+        if not integration:
+            logger.warning(f"Integration {integration_id} not found for background sync")
+            return
+        
+        logger.info(f"🔄 Background sync started for integration {integration.id} ({integration.platform}) for period {date_from_str} to {date_to_str}")
+        
+        await sync_integration(db, integration, date_from_str, date_to_str)
+        db.commit()
+        
+        logger.info(f"✅ Background sync completed for integration {integration.id}")
+        
+        # Очищаем кеш дашборда после синхронизации
+        from backend_api.cache_service import CacheService
+        CacheService.clear()
+        logger.info(f"🗑️ Cleared dashboard cache after sync for integration {integration.id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in background sync for integration {integration_id}: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+def ensure_data_synced_async(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: date,
+    d_end: date,
+    platform: str = "all",
+    campaign_ids: Optional[List[uuid.UUID]] = None
+):
+    """
+    Проверяет наличие данных в БД за указанный период и запускает синхронизацию в фоне, если данных нет.
+    НЕ БЛОКИРУЕТ запрос - синхронизация выполняется асинхронно.
+    """
+    # Проверяем наличие данных
+    has_data = check_data_availability(db, client_ids, d_start, d_end, platform, campaign_ids)
+    
+    if has_data:
+        logger.info(f"✅ Data available in DB for period {d_start} to {d_end}")
+        return
+    
+    logger.info(f"⚠️ Data not available in DB for period {d_start} to {d_end}. Starting background sync...")
+    
+    # Получаем все интеграции для этих клиентов
+    integrations = db.query(models.Integration).filter(
+        models.Integration.client_id.in_(client_ids)
+    ).all()
+    
+    if not integrations:
+        logger.warning(f"No integrations found for client_ids: {client_ids}")
+        return
+    
+    # Фильтруем интеграции по платформе
+    if platform == "yandex":
+        integrations = [i for i in integrations if i.platform == models.IntegrationPlatform.YANDEX_DIRECT]
+    elif platform == "vk":
+        integrations = [i for i in integrations if i.platform == models.IntegrationPlatform.VK_ADS]
+    elif platform == "all":
+        # Для "all" синхронизируем все платформы
+        integrations = [i for i in integrations if i.platform in [
+            models.IntegrationPlatform.YANDEX_DIRECT,
+            models.IntegrationPlatform.VK_ADS
+        ]]
+    
+    if not integrations:
+        logger.warning(f"No integrations found for platform: {platform}")
+        return
+    
+    # Если указаны campaign_ids, фильтруем интеграции по этим кампаниям
+    if campaign_ids:
+        campaign_integrations = db.query(models.Campaign.integration_id).filter(
+            models.Campaign.id.in_(campaign_ids)
+        ).distinct().all()
+        integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+        integrations = [i for i in integrations if i.id in integration_ids]
+    
+    # Запускаем синхронизацию для каждой интеграции в фоне (не ждем завершения)
+    date_from_str = d_start.strftime("%Y-%m-%d")
+    date_to_str = d_end.strftime("%Y-%m-%d")
+    
+    for integration in integrations:
+        try:
+            # Запускаем синхронизацию в фоне через asyncio.create_task
+            # Это не блокирует текущий запрос
+            asyncio.create_task(
+                sync_integration_background(integration.id, date_from_str, date_to_str)
+            )
+            logger.info(f"📤 Background sync task created for integration {integration.id}")
+        except Exception as e:
+            logger.error(f"❌ Error creating background sync task for integration {integration.id}: {e}")
 
 @router.get("/summary", response_model=schemas.StatsSummary)
 @cache_response(ttl=900)
@@ -49,6 +260,10 @@ async def get_summary(
 
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
+    
+    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
+    # Синхронизация выполняется асинхронно и не блокирует запрос
+    ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
     
     print(f"DEBUG: get_summary - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
     return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
@@ -99,6 +314,10 @@ async def get_dynamics(
     # Defaults
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
+    
+    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
+    # Синхронизация выполняется асинхронно и не блокирует запрос
+    ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
     y_stats = db.query(
         models.YandexStats.date,
@@ -276,6 +495,11 @@ async def get_campaign_stats(
 
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    
+    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
+    # Синхронизация выполняется асинхронно и не блокирует запрос
+    if d_start:  # Только если указана начальная дата
+        ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
     return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
