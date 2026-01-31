@@ -1217,6 +1217,11 @@ async def get_integration_counters(
     
     counters_list = []
     
+    # VK Ads doesn't use Yandex Metrika counters
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
+        return {"counters": []}
+    
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
         # Priority 1: Get counters from selected campaigns via CounterIds
         logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
@@ -1407,6 +1412,11 @@ async def get_integration_goals(
     access_token = security.decrypt_token(integration.access_token)
     # Флаг, надо ли вообще считать конверсии (DB + Metrika API).
     include_stats = bool(date_from and date_to and with_stats)
+    
+    # VK Ads doesn't use Yandex Metrika goals
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        logger.info(f"ℹ️ VK Ads integration - Yandex Metrika goals are not applicable. Returning empty list.")
+        return []
     
     # Determine target_account for profile filtering (used in both paths)
     if account_id:

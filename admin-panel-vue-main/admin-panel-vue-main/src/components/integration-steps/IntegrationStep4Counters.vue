@@ -96,8 +96,18 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <p class="text-sm font-bold text-gray-600 mb-2">Счетчики не найдены</p>
-                <p class="text-xs text-gray-400">Проверьте, что у выбранных кампаний есть привязанные счетчики Метрики</p>
+                <p class="text-sm font-bold text-gray-600 mb-2" v-if="platform === 'VK_ADS'">
+                  Счетчики Метрики не требуются
+                </p>
+                <p class="text-sm font-bold text-gray-600 mb-2" v-else>
+                  Счетчики не найдены
+                </p>
+                <p class="text-xs text-gray-400" v-if="platform === 'VK_ADS'">
+                  Для VK Ads счетчики Яндекс.Метрики не используются. Вы можете продолжить без выбора счетчиков.
+                </p>
+                <p class="text-xs text-gray-400" v-else>
+                  Проверьте, что у выбранных кампаний есть привязанные счетчики Метрики
+                </p>
               </td>
             </tr>
           </tbody>
@@ -115,7 +125,11 @@ import Skeleton from '../ui/Skeleton.vue'
 const props = defineProps({
   counters: Array,
   selectedIds: Array,
-  loading: Boolean
+  loading: Boolean,
+  platform: {
+    type: String,
+    default: 'YANDEX_DIRECT'
+  }
 })
 
 const emit = defineEmits(['toggle', 'bulkSelect', 'bulkDeselect', 'next'])

@@ -112,6 +112,7 @@
                 :counters="counters"
                 :selectedIds="selectedCounterIds"
                 :loading="loadingStates.counters"
+                :platform="form.platform"
                 @toggle="toggleCounterSelection"
                 @bulkSelect="bulkSelectCounters"
                 @bulkDeselect="bulkDeselectCounters"
@@ -336,7 +337,11 @@ const isNextDisabled = computed(() => {
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
   if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
-  if (currentStep.value === 4) return selectedCounterIds.value.length === 0 || loadingStates.counters
+  // For VK_ADS, counters are not required (VK Ads doesn't use Yandex Metrika)
+  if (currentStep.value === 4) {
+    if (form.platform === 'VK_ADS') return false // Allow skipping counters for VK Ads
+    return selectedCounterIds.value.length === 0 || loadingStates.counters
+  }
   if (currentStep.value === 5) return !form.primary_goal_id || loadingStates.goals
   if (currentStep.value === 6) return false // Summary step - no validation needed
   return false
@@ -405,7 +410,8 @@ const nextStep = async () => {
     }
   } else if (currentStep.value === 4) {
     // Step 4 -> 5: Counters selected, validate and load goals
-    if (selectedCounterIds.value.length === 0) {
+    // For VK_ADS, counters are not required (VK Ads doesn't use Yandex Metrika)
+    if (form.platform !== 'VK_ADS' && selectedCounterIds.value.length === 0) {
       toaster.error('Пожалуйста, выберите хотя бы один счетчик')
       return
     }
@@ -415,7 +421,8 @@ const nextStep = async () => {
     }
   } else if (currentStep.value === 5) {
     // Step 5 -> 6: Goals selected, go to summary
-    if (!form.primary_goal_id) {
+    // For VK_ADS, goals are not required (VK Ads doesn't use Yandex Metrika goals)
+    if (form.platform !== 'VK_ADS' && !form.primary_goal_id) {
       toaster.error('Пожалуйста, выберите основную цель')
       return
     }
