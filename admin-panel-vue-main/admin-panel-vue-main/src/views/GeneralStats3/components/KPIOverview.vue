@@ -70,22 +70,30 @@ defineEmits(['toggle-metric'])
 const { containerRef, dragScrollHandlers } = useDragScroll()
 
 const metrics = computed(() => {
-  // CRITICAL: Ensure balance is properly converted to number and formatted
-  const rawBalance = typeof props.summary.balance === 'number' 
-    ? props.summary.balance 
-    : parseFloat(props.summary.balance) || 0
+  // CRITICAL: Check if balance is null or undefined - show dash in that case
+  const hasBalance = props.summary.balance !== null && props.summary.balance !== undefined
+  const rawBalance = hasBalance 
+    ? (typeof props.summary.balance === 'number' 
+        ? props.summary.balance 
+        : parseFloat(props.summary.balance) || 0)
+    : null
   const rawExpenses = props.summary.expenses || 0
   const vatFactor = props.includeVat ? 1.22 : 1
-  const balanceValue = rawBalance * vatFactor
+  const balanceValue = rawBalance !== null ? rawBalance * vatFactor : null
   const expensesValue = rawExpenses * vatFactor
   const currency = props.summary.currency || 'RUB'
   const currencySymbol = currency === 'RUB' ? '₽' : currency
+  
+  // Format balance value: show dash if balance is null/undefined
+  const balanceDisplayValue = balanceValue !== null
+    ? balanceValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currencySymbol
+    : '—' // Прочерк
   
   return [
   {
     id: 'balance',
     title: 'Баланс',
-    value: balanceValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currencySymbol,
+    value: balanceDisplayValue,
     trend: 0,
     changePositive: true,
     icon: BanknotesIcon,
