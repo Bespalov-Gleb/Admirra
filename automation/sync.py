@@ -660,9 +660,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "impressions": s['impressions'],
                     "clicks": s['clicks'],
                     "cost": s['cost'],
-                    "conversions": s['conversions']
+                    "conversions": s['conversions'],  # vk.goals = Результат (лиды)
+                    "cpc": s.get('cpc'),  # Средняя цена клика из VK API
+                    "cpa": s.get('cpa')   # vk.cpa = Средняя цена цели из VK API
                 }
-                logger.info(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}")
+                logger.info(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
                 _update_or_create_stats(db, models.VKStats, filters, data)
             
             # CRITICAL: Commit stats after processing all campaign stats

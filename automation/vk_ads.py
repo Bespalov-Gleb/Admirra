@@ -183,9 +183,29 @@ class VKAdsAPI:
                 # - shows - количество показов
                 # - clicks - количество кликов
                 # - spent - списания
-                # - vk.goals - количество достижений целей
-                # - vk.cpa - среднее списание за достижение 1 цели
+                # - cpc - средняя цена клика (eCPC)
+                # - vk.goals - количество достижений целей (Результат/Лиды)
+                # - vk.cpa - среднее списание за достижение 1 цели (Средняя цена цели)
                 # - vk.cr - процентное отношение количества достижений целей к количеству кликов
+                vk_cpc = base.get("cpc")
+                vk_cpa = base.get("vk.cpa")
+                
+                # Если cpc не указан в API, рассчитываем как cost/clicks
+                if vk_cpc is None or vk_cpc == 0:
+                    clicks_val = int(base.get("clicks", 0))
+                    cost_val = float(base.get("spent", 0))
+                    vk_cpc = cost_val / clicks_val if clicks_val > 0 else 0.0
+                else:
+                    vk_cpc = float(vk_cpc)
+                
+                # Если vk.cpa не указан в API, рассчитываем как cost/conversions
+                if vk_cpa is None or vk_cpa == 0:
+                    conversions_val = int(base.get("vk.goals", 0))
+                    cost_val = float(base.get("spent", 0))
+                    vk_cpa = cost_val / conversions_val if conversions_val > 0 else 0.0
+                else:
+                    vk_cpa = float(vk_cpa)
+                
                 results.append({
                     "date": row_date,
                     "campaign_id": str(campaign_id) if campaign_id else "",
@@ -193,7 +213,9 @@ class VKAdsAPI:
                     "impressions": int(base.get("shows", 0)),
                     "clicks": int(base.get("clicks", 0)),
                     "cost": float(base.get("spent", 0)),
-                    "conversions": int(base.get("vk.goals", 0))  # Используем vk.goals согласно документации
+                    "conversions": int(base.get("vk.goals", 0)),  # vk.goals = Результат (лиды)
+                    "cpc": vk_cpc,  # Средняя цена клика (eCPC)
+                    "cpa": vk_cpa   # vk.cpa = Средняя цена цели
                 })
         return results
     

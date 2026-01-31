@@ -175,7 +175,9 @@ class VKStats(Base):
     impressions = Column(BigInteger, default=0)
     clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
-    conversions = Column(BigInteger, default=0)
+    conversions = Column(BigInteger, default=0)  # vk.goals - Результат (лиды)
+    cpc = Column(Numeric(20, 2), nullable=True)  # Средняя цена клика из VK API
+    cpa = Column(Numeric(20, 2), nullable=True)  # vk.cpa - Средняя цена цели из VK API
 
     client = relationship("Client", back_populates="vk_stats")
     campaign = relationship("Campaign", back_populates="vk_stats")
