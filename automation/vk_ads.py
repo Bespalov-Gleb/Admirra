@@ -139,7 +139,8 @@ class VKAdsAPI:
         Получает список доступных рекламных аккаунтов (кабинетов).
         
         VK Ads API endpoint: /api/v2/ad_accounts.json
-        Возвращает список всех доступных рекламных кабинетов для пользователя.
+        Если endpoint возвращает 404, используем альтернативный метод:
+        извлекаем уникальные client_id из статистики кампаний.
         
         Returns:
             List[Dict] с полями:
@@ -207,7 +208,12 @@ class VKAdsAPI:
                         logger.warning("⚠️ No valid accounts found in response")
                         
                 elif response.status_code == 404:
-                    logger.warning("⚠️ VK Ads API endpoint /ad_accounts.json returned 404 (endpoint may not be available for this account type)")
+                    logger.warning("⚠️ VK Ads API endpoint /ad_accounts.json returned 404, trying alternative method...")
+                    # Альтернативный метод: извлекаем уникальные client_id из статистики
+                    accounts = await self._get_accounts_from_statistics()
+                    if accounts:
+                        logger.info(f"✅ Found {len(accounts)} account(s) via statistics method")
+                        return accounts
                 else:
                     logger.warning(f"⚠️ VK Ads API returned {response.status_code}: {response.text[:200]}")
                     
@@ -230,6 +236,92 @@ class VKAdsAPI:
                 "status": "active"
             })
             logger.info(f"✅ Using account_id from constructor as fallback: {account_id_str}")
+        
+        return accounts
+    
+    async def _get_accounts_from_statistics(self) -> List[Dict[str, Any]]:
+        """
+        Альтернативный метод получения кабинетов: извлекаем уникальные client_id из статистики.
+        
+        Запрашиваем статистику за последние 30 дней без указания client_id,
+        и извлекаем уникальные client_id из ответа. Затем для каждого client_id
+        пытаемся получить название из кампаний.
+        """
+        accounts = []
+        seen_ids = set()
+        client_ids = []
+        
+        try:
+            from datetime import datetime, timedelta
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+            
+            # Шаг 1: Запрашиваем статистику без указания client_id, чтобы получить данные по всем кабинетам
+            url = f"{self.base_url}/statistics/ad_plans/day.json"
+            params = {
+                "date_from": date_from,
+                "date_to": date_to,
+                "metrics": "base"
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    
+                    logger.info(f"📊 Statistics response contains {len(items)} items")
+                    
+                    # Извлекаем уникальные client_id из статистики
+                    for item in items:
+                        client_id = item.get("client_id")
+                        if client_id and client_id not in seen_ids:
+                            client_id_str = str(client_id)
+                            seen_ids.add(client_id_str)
+                            client_ids.append(client_id_str)
+                            logger.info(f"📋 Found client_id in statistics: {client_id_str}")
+                    
+                    # Шаг 2: Для каждого client_id пытаемся получить название из кампаний
+                    for client_id_str in client_ids:
+                        account_name = f"Кабинет {client_id_str}"  # Default name
+                        
+                        # Пытаемся получить название из первой кампании этого кабинета
+                        try:
+                            campaigns_url = f"{self.base_url}/ad_plans.json"
+                            campaigns_params = {"client_id": client_id_str, "limit": 1}
+                            campaigns_response = await client.get(
+                                campaigns_url, 
+                                params=campaigns_params, 
+                                headers=self.headers, 
+                                timeout=10.0
+                            )
+                            
+                            if campaigns_response.status_code == 200:
+                                campaigns_data = campaigns_response.json()
+                                campaigns_items = campaigns_data.get("items", [])
+                                if campaigns_items:
+                                    # Используем название первой кампании как подсказку для названия кабинета
+                                    # Но лучше использовать специальный endpoint для получения информации о кабинете
+                                    pass
+                        except Exception as e:
+                            logger.debug(f"Could not get campaign name for client_id {client_id_str}: {e}")
+                        
+                        accounts.append({
+                            "id": client_id_str,
+                            "name": account_name,
+                            "status": "active"
+                        })
+                        
+                        logger.info(f"✅ Added account from statistics: id={client_id_str}, name='{account_name}'")
+                    
+                    if accounts:
+                        logger.info(f"✅ Extracted {len(accounts)} unique account(s) from statistics")
+                else:
+                    logger.warning(f"⚠️ Statistics request returned {response.status_code}: {response.text[:200]}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Error extracting accounts from statistics: {e}")
         
         return accounts
     
