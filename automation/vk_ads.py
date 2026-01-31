@@ -138,35 +138,100 @@ class VKAdsAPI:
         """
         Получает список доступных рекламных аккаунтов (кабинетов).
         
+        VK Ads API endpoint: /api/v2/ad_accounts.json
+        Возвращает список всех доступных рекламных кабинетов для пользователя.
+        
         Returns:
             List[Dict] с полями:
-            - id: str - ID аккаунта
+            - id: str - ID аккаунта (нормализованный числовой ID)
             - name: str - название аккаунта
             - status: str - статус аккаунта
         """
         url = f"{self.base_url}/ad_accounts.json"
-        params = {}
+        accounts = []
         
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                response = await client.get(url, headers=self.headers, timeout=30.0)
+                
                 if response.status_code == 200:
                     data = response.json()
                     items = data.get("items", [])
-                    return [
-                        {
-                            "id": str(item.get("id")),
-                            "name": item.get("name", f"Аккаунт {item.get('id')}"),
-                            "status": item.get("status", "unknown")
-                        }
-                        for item in items
-                    ]
+                    
+                    logger.info(f"📋 VK Ads API returned {len(items)} account(s) from ad_accounts.json")
+                    
+                    for item in items:
+                        raw_id = item.get("id")
+                        raw_id_str = str(raw_id)
+                        
+                        # Нормализуем account_id (извлекаем числовой ID из формата "vkads_592676405@vk@8493881")
+                        import re
+                        account_id = None
+                        
+                        if '@vk@' in raw_id_str or raw_id_str.startswith('vkads_'):
+                            # Формат: "vkads_592676405@vk@8493881" -> извлекаем "592676405"
+                            match = re.search(r'vkads_(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                            else:
+                                # Fallback: извлекаем первую числовую последовательность
+                                match = re.search(r'(\d+)', raw_id_str)
+                                if match:
+                                    account_id = match.group(1)
+                        elif raw_id_str.isdigit():
+                            account_id = raw_id_str
+                        else:
+                            # Пытаемся извлечь любую числовую последовательность
+                            match = re.search(r'(\d+)', raw_id_str)
+                            if match:
+                                account_id = match.group(1)
+                        
+                        if account_id:
+                            account_name = item.get("name", f"Аккаунт {account_id}")
+                            account_status = item.get("status", "active")
+                            
+                            accounts.append({
+                                "id": account_id,
+                                "name": account_name,
+                                "status": account_status
+                            })
+                            
+                            logger.info(f"✅ Added VK account: id={account_id}, name='{account_name}', status={account_status}")
+                        else:
+                            logger.warning(f"⚠️ Could not extract numeric ID from: '{raw_id_str}', skipping")
+                    
+                    if accounts:
+                        logger.info(f"✅ Successfully retrieved {len(accounts)} VK account(s)")
+                        return accounts
+                    else:
+                        logger.warning("⚠️ No valid accounts found in response")
+                        
+                elif response.status_code == 404:
+                    logger.warning("⚠️ VK Ads API endpoint /ad_accounts.json returned 404 (endpoint may not be available for this account type)")
                 else:
-                    logger.warning(f"Failed to fetch VK accounts: {response.status_code} - {response.text[:200]}")
-                    return []
+                    logger.warning(f"⚠️ VK Ads API returned {response.status_code}: {response.text[:200]}")
+                    
         except Exception as e:
-            logger.error(f"Error fetching VK accounts: {e}")
-            return []
+            logger.error(f"❌ Error fetching VK accounts: {e}")
+        
+        # Fallback: Если account_id задан в конструкторе, используем его
+        if self.account_id:
+            account_id_str = str(self.account_id)
+            # Нормализуем account_id, если он в формате "vkads_XXX@vk@YYY"
+            import re
+            if '@vk@' in account_id_str or account_id_str.startswith('vkads_'):
+                match = re.search(r'vkads_(\d+)', account_id_str)
+                if match:
+                    account_id_str = match.group(1)
+            
+            accounts.append({
+                "id": account_id_str,
+                "name": f"Аккаунт {account_id_str}",
+                "status": "active"
+            })
+            logger.info(f"✅ Using account_id from constructor as fallback: {account_id_str}")
+        
+        return accounts
     
     async def get_agency_clients(self) -> List[Dict[str, Any]]:
         """
@@ -219,19 +284,21 @@ class VKAdsAPI:
         profiles = []
         seen_ids = set()
         
-        # 1. Получаем личные аккаунты
+        # 1. Получаем личные аккаунты (кабинеты)
         try:
             accounts = await self.get_accounts()
             for account in accounts:
                 account_id = account.get("id")
                 if account_id and account_id not in seen_ids:
+                    # Используем оригинальное название кабинета из API
+                    account_name = account.get("name", f"Аккаунт {account_id}")
                     profiles.append({
                         "id": account_id,
-                        "name": f"Личный аккаунт ({account.get('name', account_id)})",
+                        "name": account_name,  # Показываем оригинальное название кабинета
                         "type": "personal"
                     })
                     seen_ids.add(account_id)
-                    logger.info(f"✅ Added personal VK account: {account_id}")
+                    logger.info(f"✅ Added VK account: id={account_id}, name='{account_name}'")
         except Exception as e:
             logger.warning(f"Failed to fetch personal VK accounts: {e}")
         
