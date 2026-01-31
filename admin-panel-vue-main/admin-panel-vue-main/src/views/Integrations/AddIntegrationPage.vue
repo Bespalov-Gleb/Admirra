@@ -342,7 +342,11 @@ const isNextDisabled = computed(() => {
     if (form.platform === 'VK_ADS') return false // Allow skipping counters for VK Ads
     return selectedCounterIds.value.length === 0 || loadingStates.counters
   }
-  if (currentStep.value === 5) return !form.primary_goal_id || loadingStates.goals
+  // For VK_ADS, goals are not required (VK Ads doesn't use Yandex Metrika goals)
+  if (currentStep.value === 5) {
+    if (form.platform === 'VK_ADS') return false // Allow skipping goals for VK Ads
+    return !form.primary_goal_id || loadingStates.goals
+  }
   if (currentStep.value === 6) return false // Summary step - no validation needed
   return false
 })
