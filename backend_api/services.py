@@ -104,102 +104,103 @@ class IntegrationService:
             return None
 
     @staticmethod
-    async def revoke_vk_token(access_token: str = None, refresh_token: str = None, client_id: str = None) -> bool:
+    async def revoke_vk_token(
+        access_token: str = None, 
+        refresh_token: str = None, 
+        client_id: str = None,
+        client_secret: str = None,
+        user_id: str = None
+    ) -> bool:
         """
-        Отзывает токен доступа VK Ads API.
+        Отзывает токен доступа VK Ads API согласно официальной документации.
         
-        Пытается отозвать токен через VK Ads API. Если токен уже истек или был отозван,
-        это не считается ошибкой - цель достигнута (токен не активен).
+        Согласно документации VK Ads API:
+        POST /api/v2/oauth2/token/delete.json
+        Параметры: client_id, client_secret, username или user_id
+        
+        Если параметр username/user_id не передан, то будут удалены токены аккаунта,
+        для которого был выдан доступ к API.
         
         Args:
-            access_token: Access token для отзыва (приоритет)
-            refresh_token: Refresh token для отзыва (если access_token недоступен)
-            client_id: Client ID приложения (опционально, для логирования)
+            access_token: Access token (не используется напрямую, но сохраняется для логирования)
+            refresh_token: Refresh token (не используется напрямую, но сохраняется для логирования)
+            client_id: Client ID приложения (обязателен)
+            client_secret: Client Secret приложения (обязателен)
+            user_id: VK Ads user_id пользователя, для которого нужно удалить токены (опционально)
         
         Returns:
             bool: True если токен успешно отозван или уже неактивен, False при ошибке
         """
-        if not access_token and not refresh_token:
-            logger.warning("⚠️ No token provided for revocation (both access_token and refresh_token are None)")
+        if not client_id or not client_secret:
+            logger.warning("⚠️ client_id and client_secret are required for VK Ads token revocation")
             return False
         
-        token_to_revoke = access_token or refresh_token
-        token_type = "access_token" if access_token else "refresh_token"
-        
-        logger.info(f"🔄 Attempting to revoke VK Ads {token_type}...")
-        logger.info(f"   Client ID: {client_id or 'N/A'}")
+        logger.info(f"🔄 Attempting to revoke VK Ads tokens using official API...")
+        logger.info(f"   Client ID: {client_id}")
+        logger.info(f"   User ID: {user_id or 'N/A (will revoke tokens for token owner)'}")
         
         try:
             async with httpx.AsyncClient() as client:
-                # Метод 1: Попытка отозвать через стандартный OAuth2 revoke endpoint
-                # Обычно это POST /oauth2/revoke или DELETE запрос
-                revoke_urls = [
-                    "https://ads.vk.com/api/v2/oauth2/revoke",
-                    "https://ads.vk.com/api/v2/oauth2/token.json"  # С grant_type=revoke_token
-                ]
+                # Согласно официальной документации VK Ads API:
+                # POST /api/v2/oauth2/token/delete.json
+                # Параметры: client_id, client_secret, username или user_id
+                revoke_url = "https://ads.vk.com/api/v2/oauth2/token/delete.json"
                 
-                for revoke_url in revoke_urls:
+                payload = {
+                    "client_id": client_id,
+                    "client_secret": client_secret
+                }
+                
+                # Добавляем user_id если доступен
+                # Если user_id не передан, будут удалены токены аккаунта, для которого был выдан доступ к API
+                if user_id:
+                    payload["user_id"] = user_id
+                    logger.info(f"   Revoking tokens for specific user_id: {user_id}")
+                else:
+                    logger.info(f"   Revoking tokens for token owner (user_id not provided)")
+                
+                response = await client.post(revoke_url, data=payload, timeout=10.0)
+                
+                logger.info(f"📡 VK Ads token revocation response: {response.status_code}")
+                
+                # 200 означает успешный отзыв
+                if response.status_code == 200:
                     try:
-                        # Попытка 1: POST с token в теле запроса
-                        payload = {
-                            "token": token_to_revoke,
-                            "token_type_hint": token_type
-                        }
-                        if client_id:
-                            payload["client_id"] = client_id
-                        
-                        response = await client.post(revoke_url, data=payload, timeout=10.0)
-                        
-                        # 200 или 204 означает успешный отзыв
-                        if response.status_code in [200, 204]:
-                            logger.info(f"✅ VK Ads token revoked successfully via {revoke_url}")
-                            return True
-                        
-                        # 400 может означать, что токен уже недействителен (это нормально)
-                        if response.status_code == 400:
-                            try:
-                                error_data = response.json()
-                                error_code = error_data.get('error', '')
-                                if 'invalid' in error_code.lower() or 'expired' in error_code.lower():
-                                    logger.info(f"ℹ️ VK Ads token already invalid/expired (status 400) - considered revoked")
-                                    return True
-                            except:
-                                pass
-                        
-                        # 401 означает, что токен уже недействителен (это нормально)
-                        if response.status_code == 401:
-                            logger.info(f"ℹ️ VK Ads token already invalid (status 401) - considered revoked")
-                            return True
-                        
-                        # 404 означает, что endpoint не существует - пробуем следующий
-                        if response.status_code == 404:
-                            logger.debug(f"⚠️ Revoke endpoint {revoke_url} returned 404, trying next method...")
-                            continue
-                        
-                        # Другие ошибки логируем, но продолжаем попытки
-                        logger.warning(f"⚠️ Revoke attempt via {revoke_url} returned {response.status_code}: {response.text[:200]}")
-                        
-                    except httpx.RequestError as req_err:
-                        logger.debug(f"⚠️ Request error for {revoke_url}: {req_err}")
-                        continue
-                
-                # Метод 2: Если стандартные методы не сработали, пробуем через DELETE запрос
-                # (некоторые OAuth2 реализации используют DELETE для отзыва)
-                try:
-                    delete_url = f"https://ads.vk.com/api/v2/oauth2/tokens/{token_to_revoke}"
-                    response = await client.delete(delete_url, timeout=10.0)
-                    if response.status_code in [200, 204, 404]:
-                        logger.info(f"✅ VK Ads token revoked via DELETE method")
+                        response_data = response.json()
+                        logger.info(f"✅ VK Ads tokens revoked successfully")
+                        logger.info(f"   Response: {response_data}")
                         return True
-                except:
-                    pass
+                    except:
+                        logger.info(f"✅ VK Ads tokens revoked successfully (no JSON response)")
+                        return True
                 
-                # Если все методы не сработали, считаем что токен может быть уже недействителен
-                # или VK Ads не предоставляет публичный API для отзыва
-                logger.warning(f"⚠️ Could not revoke VK Ads token via standard methods. Token may already be invalid or VK Ads doesn't provide public revoke API.")
-                logger.warning(f"   This is not critical - token will expire naturally or can be revoked manually in VK Ads settings.")
-                return True  # Считаем успешным, так как цель - освободить слот токена
+                # 400 может означать, что токены уже недействительны или не найдены (это нормально)
+                if response.status_code == 400:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get('error_description') or error_data.get('error', '')
+                        logger.info(f"ℹ️ VK Ads token revocation returned 400: {error_msg}")
+                        # Если токены уже недействительны или не найдены, считаем успешным
+                        if 'invalid' in error_msg.lower() or 'not found' in error_msg.lower() or 'expired' in error_msg.lower():
+                            logger.info(f"ℹ️ VK Ads tokens already invalid/not found (status 400) - considered revoked")
+                            return True
+                    except:
+                        pass
+                    logger.warning(f"⚠️ VK Ads token revocation returned 400: {response.text[:200]}")
+                    return False
                 
+                # 401 означает ошибку авторизации (неверный client_id/client_secret)
+                if response.status_code == 401:
+                    logger.error(f"❌ VK Ads token revocation failed: Invalid client_id or client_secret (401)")
+                    return False
+                
+                # Другие ошибки
+                logger.warning(f"⚠️ VK Ads token revocation returned {response.status_code}: {response.text[:200]}")
+                return False
+                
+        except httpx.RequestError as req_err:
+            logger.error(f"❌ Network error revoking VK Ads token: {req_err}")
+            return False
         except Exception as e:
             logger.error(f"❌ Error revoking VK Ads token: {e}")
             # Не считаем это критической ошибкой - удаление интеграции должно продолжиться

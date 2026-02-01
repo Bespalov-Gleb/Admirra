@@ -473,6 +473,9 @@ async def exchange_vk_token_oauth(
     auth_code = payload.get("code")
     device_id = payload.get("device_id")
     
+    # Initialize vk_user_id (will be extracted from token_data if available)
+    vk_user_id = None
+    
     # Если есть код авторизации, обмениваем его на токен через VK Ads API
     # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
     if auth_code:
@@ -536,6 +539,7 @@ async def exchange_vk_token_oauth(
                 access_token = token_data.get("access_token")
                 refresh_token = token_data.get("refresh_token")
                 expires_in = token_data.get("expires_in")
+                vk_user_id = token_data.get("user_id")  # VK Ads user_id for token revocation
                 
                 if not access_token:
                     raise HTTPException(status_code=500, detail="VK Ads API не вернул access_token")
@@ -544,6 +548,7 @@ async def exchange_vk_token_oauth(
                 logger.info(f"   Access token received: {bool(access_token)}")
                 logger.info(f"   Refresh token received: {bool(refresh_token)}")
                 logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
+                logger.info(f"   User ID: {vk_user_id or 'N/A'}")
             except Exception as exchange_err:
                 logger.error(f"❌ Failed to exchange code: {exchange_err}")
                 raise HTTPException(status_code=400, detail=f"Не удалось обменять код на токен: {str(exchange_err)}")
@@ -560,6 +565,8 @@ async def exchange_vk_token_oauth(
     if not access_token:
         raise HTTPException(status_code=400, detail="Access token is required")
     
+    # vk_user_id is already initialized above and extracted from token_data if code exchange was used
+    # If token comes directly (legacy flow), vk_user_id will remain None
     # Try to auto-detect Account ID (Cabinet) using the token
     vk_account_id = None
     try:
@@ -688,29 +695,105 @@ async def exchange_vk_token_oauth(
             logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
 
     # Save Integration
-    db_integration = db.query(models.Integration).filter(
-        models.Integration.client_id == db_client.id,
-        models.Integration.platform == models.IntegrationPlatform.VK_ADS
-    ).first()
-
-    encrypted_access = security.encrypt_token(access_token)
-    encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+    # CRITICAL: For VK Ads, check if there's already an integration with the same account_id for this user
+    # This prevents creating duplicate integrations for the same VK Ads account, which would consume token slots
+    # and lead to token_limit_exceeded errors
+    db_integration = None
     
-    if db_integration:
-        db_integration.access_token = encrypted_access
-        db_integration.refresh_token = encrypted_refresh
-        db_integration.account_id = vk_account_id
-        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+    if vk_account_id:
+        # First, try to find existing integration with the same account_id for this user
+        # (across all clients owned by this user)
+        existing_integration = db.query(models.Integration).join(
+            models.Client
+        ).filter(
+            models.Client.owner_id == current_user.id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+            models.Integration.account_id == vk_account_id
+        ).first()
+        
+        if existing_integration:
+            logger.info(f"✅ Found existing VK Ads integration with account_id={vk_account_id} for user {current_user.id}")
+            logger.info(f"   Existing integration ID: {existing_integration.id}, Client: {existing_integration.client.name}")
+            logger.info(f"   New client: {db_client.name}")
+            
+            # CRITICAL: If existing integration belongs to a different client, we have two options:
+            # 1. Use existing integration and update its token (reuse token)
+            # 2. Create new integration for new client (but this wastes token slots)
+            # We choose option 1: reuse existing integration and update token
+            # This prevents token_limit_exceeded errors
+            logger.info(f"🔄 Reusing existing VK Ads integration {existing_integration.id} for account_id={vk_account_id}")
+            logger.info(f"   Updating token and linking to new client: {db_client.name}")
+            
+            db_integration = existing_integration
+            # Update token and client_id
+            encrypted_access = security.encrypt_token(access_token)
+            encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+            db_integration.access_token = encrypted_access
+            db_integration.refresh_token = encrypted_refresh
+            db_integration.client_id = db_client.id  # Link to new client
+            db_integration.account_id = vk_account_id
+            if vk_user_id:
+                db_integration.vk_user_id = vk_user_id
+            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        else:
+            # No existing integration with this account_id, check for integration in this specific client
+            db_integration = db.query(models.Integration).filter(
+                models.Integration.client_id == db_client.id,
+                models.Integration.platform == models.IntegrationPlatform.VK_ADS
+            ).first()
+            
+            if db_integration:
+                # Update existing integration for this client
+                encrypted_access = security.encrypt_token(access_token)
+                encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+                db_integration.access_token = encrypted_access
+                db_integration.refresh_token = encrypted_refresh
+                db_integration.account_id = vk_account_id
+                if vk_user_id:
+                    db_integration.vk_user_id = vk_user_id
+                db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+            else:
+                # Create new integration
+                encrypted_access = security.encrypt_token(access_token)
+                encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+                db_integration = models.Integration(
+                    client_id=db_client.id,
+                    platform=models.IntegrationPlatform.VK_ADS,
+                    access_token=encrypted_access,
+                    refresh_token=encrypted_refresh,
+                    account_id=vk_account_id,
+                    vk_user_id=vk_user_id,
+                    sync_status=models.IntegrationSyncStatus.NEVER
+                )
+                db.add(db_integration)
     else:
-        db_integration = models.Integration(
-            client_id=db_client.id,
-            platform=models.IntegrationPlatform.VK_ADS,
-            access_token=encrypted_access,
-            refresh_token=encrypted_refresh,
-            account_id=vk_account_id,
-            sync_status=models.IntegrationSyncStatus.NEVER
-        )
-        db.add(db_integration)
+        # No account_id detected, use client-specific check (legacy behavior)
+        db_integration = db.query(models.Integration).filter(
+            models.Integration.client_id == db_client.id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS
+        ).first()
+
+        encrypted_access = security.encrypt_token(access_token)
+        encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
+        
+        if db_integration:
+            db_integration.access_token = encrypted_access
+            db_integration.refresh_token = encrypted_refresh
+            db_integration.account_id = vk_account_id
+            if vk_user_id:
+                db_integration.vk_user_id = vk_user_id
+            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        else:
+            db_integration = models.Integration(
+                client_id=db_client.id,
+                platform=models.IntegrationPlatform.VK_ADS,
+                access_token=encrypted_access,
+                refresh_token=encrypted_refresh,
+                account_id=vk_account_id,
+                vk_user_id=vk_user_id,
+                sync_status=models.IntegrationSyncStatus.NEVER
+            )
+            db.add(db_integration)
     
     db.commit()
     db.refresh(db_integration)
@@ -2877,12 +2960,16 @@ async def delete_integration(
                 except Exception as decrypt_err:
                     logger.warning(f"⚠️ Could not decrypt refresh_token for revocation: {decrypt_err}")
             
-            # Пытаемся отозвать токен
+            # Пытаемся отозвать токен согласно официальной документации VK Ads API
+            # POST /api/v2/oauth2/token/delete.json
+            # Параметры: client_id, client_secret, username или user_id
             from backend_api.services import IntegrationService
             revoked = await IntegrationService.revoke_vk_token(
                 access_token=access_token,
                 refresh_token=refresh_token,
-                client_id=VK_CLIENT_ID
+                client_id=VK_CLIENT_ID,
+                client_secret=VK_CLIENT_SECRET,
+                user_id=integration.vk_user_id  # VK Ads user_id for token revocation
             )
             
             if revoked:
