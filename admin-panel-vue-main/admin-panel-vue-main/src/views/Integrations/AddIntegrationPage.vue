@@ -141,6 +141,7 @@
                 :selectedCounters="counters.filter(c => selectedCounterIds.includes(c.id))"
                 :selectedGoals="goals.filter(g => selectedGoalIds.includes(g.id) || g.id === form.primary_goal_id)"
                 :primaryGoalId="form.primary_goal_id"
+                :platform="form.platform"
               />
             </div>
           </Transition>
@@ -440,17 +441,12 @@ const nextStep = async () => {
     currentStep.value = 3
     fetchCampaigns(lastIntegrationId.value)
   } else if (currentStep.value === 3) {
-    // Step 3 -> 4: Campaigns selected, validate and load counters
+    // Step 3 -> Next: Campaigns selected, validate
     if (!allFromProfile.value && selectedCampaignIds.value.length === 0) {
       toaster.error('Пожалуйста, выберите хотя бы одну кампанию')
       return
     }
-    currentStep.value = 4
-    if (lastIntegrationId.value) {
-      fetchCounters(lastIntegrationId.value)
-    }
-  } else if (currentStep.value === 3) {
-    // Step 3 -> Next: For VK_ADS, skip steps 4 and 5, go directly to step 6
+    // For VK_ADS, skip steps 4 and 5, go directly to step 6 (summary)
     // For other platforms, go to step 4 (counters)
     if (form.platform === 'VK_ADS') {
       currentStep.value = 6

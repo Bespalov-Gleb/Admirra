@@ -89,15 +89,15 @@ async def revoke_vk_tokens_without_user_id() -> bool:
             
             logger.info(f"📡 Ответ VK Ads API: {response.status_code}")
             
-            # 200 означает успешный отзыв
-            if response.status_code == 200:
+            # 200 или 204 означает успешный отзыв (204 = No Content - успешное выполнение без тела ответа)
+            if response.status_code in [200, 204]:
                 try:
                     response_data = response.json()
                     logger.info(f"✅ Все токены VK Ads успешно отозваны для аккаунта приложения")
                     logger.info(f"   Ответ API: {response_data}")
                     return True
                 except:
-                    logger.info(f"✅ Все токены VK Ads успешно отозваны для аккаунта приложения")
+                    logger.info(f"✅ Все токены VK Ads успешно отозваны для аккаунта приложения (статус {response.status_code})")
                     return True
             
             # 400 может означать, что токены уже недействительны или не найдены
@@ -209,15 +209,15 @@ async def revoke_vk_tokens_by_user_id(user_id: str) -> bool:
             
             logger.info(f"📡 Ответ VK Ads API: {response.status_code}")
             
-            # 200 означает успешный отзыв
-            if response.status_code == 200:
+            # 200 или 204 означает успешный отзыв (204 = No Content - успешное выполнение без тела ответа)
+            if response.status_code in [200, 204]:
                 try:
                     response_data = response.json()
                     logger.info(f"✅ Все токены VK Ads успешно отозваны для user_id: {user_id}")
                     logger.info(f"   Ответ API: {response_data}")
                     return True
                 except:
-                    logger.info(f"✅ Все токены VK Ads успешно отозваны для user_id: {user_id}")
+                    logger.info(f"✅ Все токены VK Ads успешно отозваны для user_id: {user_id} (статус {response.status_code})")
                     return True
             
             # 400 может означать, что токены уже недействительны или не найдены

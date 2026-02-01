@@ -26,7 +26,7 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-100">Яндекс Директ</span>
+            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-100">{{ platformLabel }}</span>
             <span class="text-[11px] font-bold text-gray-400 italic">Активный проект</span>
           </div>
         </div>
@@ -54,8 +54,8 @@
           </div>
         </div>
 
-        <!-- Selected Counters -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
+        <!-- Selected Counters (only for Yandex) -->
+        <div v-if="selectedCounters.length > 0" class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 bg-purple-50 rounded-2xl flex items-center justify-center">
               <ChartBarIcon class="w-5 h-5 text-purple-600" />
@@ -80,8 +80,8 @@
 
       <!-- Right Column: Profile & Goals -->
       <div class="space-y-6">
-        <!-- Selected Goals -->
-        <div class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
+        <!-- Selected Goals (only for Yandex) -->
+        <div v-if="selectedGoals.length > 0 || primaryGoalId" class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 bg-orange-50 rounded-2xl flex items-center justify-center">
               <PresentationChartLineIcon class="w-5 h-5 text-orange-600" />
@@ -106,6 +106,19 @@
                 <CheckIcon class="w-3 h-3 text-blue-500" stroke-width="3" />
                 <span class="text-[11px] font-bold text-gray-600 truncate">{{ goal.name }}</span>
               </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Empty state for VK Ads (no goals) -->
+        <div v-else class="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-gray-50 rounded-2xl flex items-center justify-center">
+              <PresentationChartLineIcon class="w-5 h-5 text-gray-400" />
+            </div>
+            <div>
+              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
+              <h3 class="text-[14px] font-black text-gray-500">Не требуется для VK Ads</h3>
             </div>
           </div>
         </div>
@@ -179,7 +192,18 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  primaryGoalId: [String, Number]
+  primaryGoalId: [String, Number],
+  platform: {
+    type: String,
+    default: 'YANDEX_DIRECT'
+  }
+})
+
+const platformLabel = computed(() => {
+  if (props.platform === 'VK_ADS') return 'VK Ads'
+  if (props.platform === 'YANDEX_DIRECT') return 'Яндекс Директ'
+  if (props.platform === 'YANDEX_METRIKA') return 'Яндекс Метрика'
+  return props.platform
 })
 
 const primaryGoalName = computed(() => {
