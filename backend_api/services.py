@@ -159,7 +159,14 @@ class IntegrationService:
                 else:
                     logger.info(f"   Revoking tokens for token owner (user_id not provided)")
                 
-                response = await client.post(revoke_url, data=payload, timeout=10.0)
+                # CRITICAL: Используем data= для application/x-www-form-urlencoded, не json=
+                # Согласно документации VK Ads API, параметры передаются как form data
+                response = await client.post(
+                    revoke_url,
+                    data=payload,  # data= для form-urlencoded
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    timeout=10.0
+                )
                 
                 logger.info(f"📡 VK Ads token revocation response: {response.status_code}")
                 
