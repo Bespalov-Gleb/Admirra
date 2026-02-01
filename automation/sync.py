@@ -624,7 +624,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 else:
                     raise e
 
-            for s in stats:
+            # CRITICAL: Batch processing to avoid long transactions that block the database
+            # Commit in batches of 200 records to prevent blocking the site during long syncs
+            BATCH_SIZE = 200
+            total_stats = len(stats)
+            processed_count = 0
+            
+            for idx, s in enumerate(stats):
                 campaign_external_id = str(s.get('campaign_id', ''))
                 campaign_name = s.get('campaign_name', 'Unknown VK Campaign')
                 
@@ -664,13 +670,32 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "cpc": s.get('cpc'),  # Средняя цена клика из VK API
                     "cpa": s.get('cpa')   # vk.cpa = Средняя цена цели из VK API
                 }
-                logger.info(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
+                logger.debug(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
+                
+                # CRITICAL: Log if conversions, cpc or cpa are 0 or None to help with debugging
+                if s['conversions'] == 0:
+                    logger.warning(f"⚠️ VK campaign '{campaign.name}' has 0 conversions on {s['date']} - this may be expected if no goals were reached")
+                if s.get('cpc') == 0 or s.get('cpc') is None:
+                    logger.debug(f"🔍 VK campaign '{campaign.name}' has CPC=0 or None on {s['date']} (clicks={s['clicks']}, cost={s['cost']})")
+                if s.get('cpa') == 0 or s.get('cpa') is None:
+                    logger.debug(f"🔍 VK campaign '{campaign.name}' has CPA=0 or None on {s['date']} (conversions={s['conversions']}, cost={s['cost']})")
                 _update_or_create_stats(db, models.VKStats, filters, data)
+                processed_count += 1
+                
+                # CRITICAL: Commit in batches to avoid long transactions
+                # This prevents blocking the database and allows the site to remain responsive
+                if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_stats:
+                    try:
+                        db.commit()
+                        logger.info(f"✅ Committed batch {((idx + 1) // BATCH_SIZE) + 1}: {processed_count}/{total_stats} VK stats records saved for integration {integration.id}")
+                        # Small delay between batches to allow other operations
+                        await asyncio.sleep(0.1)
+                    except Exception as batch_err:
+                        logger.error(f"❌ Error committing batch for integration {integration.id}: {batch_err}")
+                        db.rollback()
+                        raise
             
-            # CRITICAL: Commit stats after processing all campaign stats
-            # This ensures data is saved even if subsequent processing fails
-            db.commit()
-            logger.info(f"✅ Committed VK stats records to database for integration {integration.id}")
+            logger.info(f"✅ Successfully committed all {processed_count} VK stats records to database for integration {integration.id}")
             
             # Clear cache after saving stats to ensure fresh data on dashboard
             from backend_api.cache_service import CacheService

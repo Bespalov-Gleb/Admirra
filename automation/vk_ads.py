@@ -221,14 +221,22 @@ class VKAdsAPI:
                 # - clicks - количество кликов
                 # - spent - списания
                 # - cpc - средняя цена клика (eCPC)
-                # - vk.goals - количество достижений целей (Результат/Лиды)
-                # - vk.cpa - среднее списание за достижение 1 цели (Средняя цена цели)
-                # - vk.cr - процентное отношение количества достижений целей к количеству кликов
+                # - vk.goals - количество достижений целей (Результат/Лиды) [ВЛОЖЕННАЯ СТРУКТУРА: base["vk"]["goals"]]
+                # - vk.cpa - среднее списание за достижение 1 цели (Средняя цена цели) [ВЛОЖЕННАЯ СТРУКТУРА: base["vk"]["cpa"]]
+                # - vk.cr - процентное отношение количества достижений целей к количеству кликов [ВЛОЖЕННАЯ СТРУКТУРА: base["vk"]["cr"]]
+                
+                # CRITICAL: VK API возвращает вложенную структуру для метрик целей: base["vk"]["goals"], base["vk"]["cpa"], base["vk"]["cr"]
+                vk_section = base.get("vk", {})
+                
+                # Получаем CPC из base (не вложенный)
                 vk_cpc = base.get("cpc")
-                vk_cpa = base.get("vk.cpa")
+                # Получаем CPA из вложенной структуры base["vk"]["cpa"]
+                vk_cpa = vk_section.get("cpa")
+                # Получаем conversions из вложенной структуры base["vk"]["goals"]
+                conversions_val = int(vk_section.get("goals", 0))
                 
                 # Если cpc не указан в API, рассчитываем как cost/clicks
-                if vk_cpc is None or vk_cpc == 0:
+                if vk_cpc is None or vk_cpc == 0 or (isinstance(vk_cpc, str) and float(vk_cpc) == 0):
                     clicks_val = int(base.get("clicks", 0))
                     cost_val = float(base.get("spent", 0))
                     vk_cpc = cost_val / clicks_val if clicks_val > 0 else 0.0
@@ -236,8 +244,7 @@ class VKAdsAPI:
                     vk_cpc = float(vk_cpc)
                 
                 # Если vk.cpa не указан в API, рассчитываем как cost/conversions
-                if vk_cpa is None or vk_cpa == 0:
-                    conversions_val = int(base.get("vk.goals", 0))
+                if vk_cpa is None or vk_cpa == 0 or (isinstance(vk_cpa, str) and float(vk_cpa) == 0):
                     cost_val = float(base.get("spent", 0))
                     vk_cpa = cost_val / conversions_val if conversions_val > 0 else 0.0
                 else:
@@ -250,9 +257,9 @@ class VKAdsAPI:
                     "impressions": int(base.get("shows", 0)),
                     "clicks": int(base.get("clicks", 0)),
                     "cost": float(base.get("spent", 0)),
-                    "conversions": int(base.get("vk.goals", 0)),  # vk.goals = Результат (лиды)
+                    "conversions": conversions_val,  # vk.goals = Результат (лиды) - из base["vk"]["goals"]
                     "cpc": vk_cpc,  # Средняя цена клика (eCPC)
-                    "cpa": vk_cpa   # vk.cpa = Средняя цена цели
+                    "cpa": vk_cpa   # vk.cpa = Средняя цена цели - из base["vk"]["cpa"]
                 })
         return results
     
