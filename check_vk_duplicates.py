@@ -2,12 +2,8 @@
 Скрипт для проверки дубликатов в таблице vk_stats
 Проверяет наличие нескольких записей для одной кампании и даты
 """
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from trafic_agent.core.database import SessionLocal
-from trafic_agent.core import models
+from core.database import SessionLocal
+from core import models
 from sqlalchemy import func, and_
 
 def check_duplicates():
