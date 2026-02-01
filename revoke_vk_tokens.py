@@ -40,7 +40,7 @@ VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "IrMSpXAmwarxeL3ElBaKeJa4tJAcfp
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from core.database import SessionLocal
-from core import models
+from core import models, security
 
 
 async def revoke_vk_tokens_by_user_id(user_id: str) -> bool:
@@ -221,11 +221,19 @@ def find_vk_user_ids_by_email(email: str) -> List[str]:
     """
     db = SessionLocal()
     try:
-        # Находим пользователя по email
-        user = db.query(models.User).filter(models.User.email == email).first()
+        # Находим пользователя по email (case-insensitive поиск)
+        user = db.query(models.User).filter(
+            models.User.email.ilike(email)
+        ).first()
         
         if not user:
             logger.error(f"❌ Пользователь с email {email} не найден в базе данных")
+            logger.info("")
+            logger.info("📋 Доступные пользователи в базе данных:")
+            all_users = db.query(models.User).all()
+            for u in all_users:
+                logger.info(f"   - {u.email} (ID: {u.id})")
+            logger.info("")
             return []
         
         logger.info(f"✅ Найден пользователь: {user.email} (ID: {user.id})")
@@ -270,6 +278,183 @@ def find_vk_user_ids_by_email(email: str) -> List[str]:
         db.close()
 
 
+async def get_user_id_from_token(access_token: str) -> Optional[str]:
+    """
+    Получает user_id из access_token через VK Ads API.
+    
+    Args:
+        access_token: Access token VK Ads
+        
+    Returns:
+        Optional[str]: user_id или None при ошибке
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            # Пробуем получить информацию о пользователе через разные endpoints
+            endpoints = [
+                "https://ads.vk.com/api/v2/statistics/users/summary.json",
+                "https://ads.vk.com/api/v2/ad_accounts.json"
+            ]
+            
+            headers = {"Authorization": f"Bearer {access_token}"}
+            
+            for endpoint in endpoints:
+                try:
+                    response = await client.get(endpoint, headers=headers, timeout=10.0)
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Пробуем извлечь user_id из ответа
+                        # В разных endpoints user_id может быть в разных местах
+                        if "user_id" in data:
+                            return str(data["user_id"])
+                        if "items" in data and len(data["items"]) > 0:
+                            item = data["items"][0]
+                            if "user_id" in item:
+                                return str(item["user_id"])
+                            if "id" in item:
+                                # id может быть в формате "vkads_USERID@vk@..."
+                                id_str = str(item["id"])
+                                # Пробуем извлечь user_id из формата
+                                import re
+                                match = re.search(r'vkads_(\d+)', id_str)
+                                if match:
+                                    return match.group(1)
+                except:
+                    continue
+            
+            # Если не получилось через стандартные endpoints, пробуем через VK ID API
+            # (если токен поддерживает это)
+            try:
+                vk_id_response = await client.get(
+                    "https://api.vk.com/method/users.get",
+                    params={"access_token": access_token, "v": "5.131"},
+                    timeout=10.0
+                )
+                if vk_id_response.status_code == 200:
+                    vk_data = vk_id_response.json()
+                    if "response" in vk_data and len(vk_data["response"]) > 0:
+                        user_id = vk_data["response"][0].get("id")
+                        if user_id:
+                            return str(user_id)
+            except:
+                pass
+            
+            return None
+    except Exception as e:
+        logger.debug(f"Ошибка при получении user_id из токена: {e}")
+        return None
+
+
+def find_all_vk_user_ids_from_tokens() -> List[str]:
+    """
+    Находит все уникальные vk_user_id из существующих токенов в базе данных.
+    Пытается получить user_id из токенов через VK Ads API.
+    
+    Returns:
+        List[str]: Список уникальных vk_user_id
+    """
+    db = SessionLocal()
+    user_ids = set()
+    
+    try:
+        # Находим все интеграции VK Ads
+        integrations = db.query(models.Integration).filter(
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+            models.Integration.access_token.isnot(None)
+        ).all()
+        
+        if not integrations:
+            logger.warning("⚠️ Интеграции VK Ads не найдены в базе данных")
+            return []
+        
+        logger.info(f"📋 Найдено {len(integrations)} интеграций VK Ads с токенами")
+        logger.info("🔄 Получение user_id из токенов через VK Ads API...")
+        
+        async def process_integration(integration):
+            try:
+                access_token = security.decrypt_token(integration.access_token)
+                user_id = await get_user_id_from_token(access_token)
+                if user_id:
+                    user_ids.add(user_id)
+                    logger.info(f"   ✅ Интеграция {integration.id}: user_id={user_id}")
+                    return user_id
+                else:
+                    logger.warning(f"   ⚠️ Интеграция {integration.id}: не удалось получить user_id из токена")
+                    # Если в БД уже есть vk_user_id, используем его
+                    if integration.vk_user_id:
+                        user_ids.add(str(integration.vk_user_id))
+                        logger.info(f"   ✅ Используем vk_user_id из БД: {integration.vk_user_id}")
+                        return integration.vk_user_id
+                    return None
+            except Exception as e:
+                logger.warning(f"   ⚠️ Ошибка при обработке интеграции {integration.id}: {e}")
+                # Если в БД уже есть vk_user_id, используем его
+                if integration.vk_user_id:
+                    user_ids.add(str(integration.vk_user_id))
+                    logger.info(f"   ✅ Используем vk_user_id из БД: {integration.vk_user_id}")
+                return None
+        
+        # Обрабатываем все интеграции асинхронно
+        async def process_all():
+            tasks = [process_integration(integration) for integration in integrations]
+            await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Запускаем асинхронную обработку
+        asyncio.run(process_all())
+        
+        if not user_ids:
+            logger.warning("⚠️ Не удалось получить ни одного user_id из токенов")
+            return []
+        
+        logger.info(f"✅ Найдено {len(user_ids)} уникальных user_id: {list(user_ids)}")
+        return list(user_ids)
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при поиске user_id из токенов: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+    finally:
+        db.close()
+
+
+def list_all_vk_integrations() -> None:
+    """
+    Выводит список всех интеграций VK Ads с их vk_user_id.
+    """
+    db = SessionLocal()
+    try:
+        integrations = db.query(models.Integration).join(
+            models.Client
+        ).join(
+            models.User
+        ).filter(
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS
+        ).all()
+        
+        if not integrations:
+            logger.info("📋 Интеграции VK Ads не найдены в базе данных")
+            return
+        
+        logger.info(f"📋 Найдено {len(integrations)} интеграций VK Ads:")
+        logger.info("")
+        
+        for integration in integrations:
+            user = integration.client.owner if integration.client else None
+            logger.info(f"   Интеграция ID: {integration.id}")
+            logger.info(f"   Пользователь: {user.email if user else 'N/A'} (ID: {user.id if user else 'N/A'})")
+            logger.info(f"   vk_user_id: {integration.vk_user_id or 'НЕ УСТАНОВЛЕН'}")
+            logger.info(f"   account_id: {integration.account_id or 'N/A'}")
+            logger.info("")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении списка интеграций: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
+
+
 async def main():
     """Основная функция скрипта."""
     import argparse
@@ -303,12 +488,31 @@ async def main():
         "--username",
         help="Логин пользователя VK Ads для отзыва токенов (используется напрямую, без поиска в БД)"
     )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Показать список всех интеграций VK Ads с их vk_user_id"
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Отозвать все токены для всех пользователей (получает user_id из токенов через API)"
+    )
     
     args = parser.parse_args()
     
+    # Если запрошен список интеграций
+    if args.list:
+        logger.info("=" * 60)
+        logger.info("📋 Список всех интеграций VK Ads")
+        logger.info("=" * 60)
+        logger.info("")
+        list_all_vk_integrations()
+        sys.exit(0)
+    
     # Проверяем аргументы
-    if not args.email and not args.user_id and not args.username:
-        parser.error("Необходимо указать email, --user-id или --username")
+    if not args.email and not args.user_id and not args.username and not args.all:
+        parser.error("Необходимо указать email, --user-id, --username или --all")
     
     logger.info("=" * 60)
     logger.info("🔄 Отзыв токенов VK Ads")
@@ -318,8 +522,28 @@ async def main():
     success_count = 0
     total_count = 0
     
+    # Если запрошен отзыв всех токенов
+    if args.all:
+        logger.info("📌 Отзыв всех токенов VK Ads для всех пользователей")
+        logger.info("🔄 Получение user_id из токенов через VK Ads API...")
+        user_ids = find_all_vk_user_ids_from_tokens()
+        
+        if not user_ids:
+            logger.error("❌ Не удалось получить user_id из токенов")
+            logger.info("   Попробуйте использовать --user-id или --username напрямую")
+            sys.exit(1)
+        
+        total_count = len(user_ids)
+        
+        # Отзываем токены для каждого найденного user_id
+        for user_id in user_ids:
+            logger.info("")
+            logger.info(f"🔄 Отзыв токенов для user_id: {user_id}")
+            if await revoke_vk_tokens_by_user_id(user_id):
+                success_count += 1
+    
     # Если указан user_id напрямую
-    if args.user_id:
+    elif args.user_id:
         logger.info(f"📌 Использование user_id напрямую: {args.user_id}")
         total_count = 1
         if await revoke_vk_tokens_by_user_id(args.user_id):
