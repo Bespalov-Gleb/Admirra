@@ -43,6 +43,89 @@ from core.database import SessionLocal
 from core import models, security
 
 
+async def revoke_vk_tokens_without_user_id() -> bool:
+    """
+    Отзывает все токены VK Ads без указания user_id.
+    
+    Согласно документации VK Ads API:
+    "Если параметр username/user_id не передан, то будут удалены токены аккаунта,
+    для которого был выдан доступ к API."
+    
+    Это удалит токены только для аккаунта приложения, а не для всех пользователей.
+    
+    Returns:
+        bool: True если токены успешно отозваны, False при ошибке
+    """
+    if not VK_CLIENT_ID or not VK_CLIENT_SECRET:
+        logger.error("❌ VK_CLIENT_ID и VK_CLIENT_SECRET должны быть установлены в .env")
+        return False
+    
+    logger.info(f"🔄 Отзыв всех токенов VK Ads для аккаунта приложения (без user_id)")
+    logger.info(f"   Client ID: {VK_CLIENT_ID}")
+    logger.warning("   ⚠️ ВНИМАНИЕ: Это отзовет токены только для аккаунта приложения, не для всех пользователей!")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            revoke_url = "https://ads.vk.com/api/v2/oauth2/token/delete.json"
+            
+            payload = {
+                "client_id": VK_CLIENT_ID,
+                "client_secret": VK_CLIENT_SECRET
+                # user_id не передаем - удалятся токены для аккаунта приложения
+            }
+            
+            logger.info(f"📡 Отправка запроса на отзыв токенов...")
+            logger.info(f"   URL: {revoke_url}")
+            logger.info(f"   Payload: client_id={VK_CLIENT_ID} (без user_id)")
+            
+            response = await client.post(revoke_url, data=payload, timeout=30.0)
+            
+            logger.info(f"📡 Ответ VK Ads API: {response.status_code}")
+            
+            # 200 означает успешный отзыв
+            if response.status_code == 200:
+                try:
+                    response_data = response.json()
+                    logger.info(f"✅ Все токены VK Ads успешно отозваны для аккаунта приложения")
+                    logger.info(f"   Ответ API: {response_data}")
+                    return True
+                except:
+                    logger.info(f"✅ Все токены VK Ads успешно отозваны для аккаунта приложения")
+                    return True
+            
+            # 400 может означать, что токены уже недействительны или не найдены
+            if response.status_code == 400:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get('error_description') or error_data.get('error', '')
+                    logger.warning(f"⚠️ VK Ads API вернул 400: {error_msg}")
+                    if 'invalid' in error_msg.lower() or 'not found' in error_msg.lower() or 'expired' in error_msg.lower():
+                        logger.info(f"ℹ️ Токены уже недействительны или не найдены - цель достигнута")
+                        return True
+                except:
+                    pass
+                logger.error(f"❌ Ошибка отзыва токенов: {response.text[:200]}")
+                return False
+            
+            # 401 означает ошибку авторизации (неверный client_id/client_secret)
+            if response.status_code == 401:
+                logger.error(f"❌ Ошибка авторизации: Неверный client_id или client_secret (401)")
+                return False
+            
+            # Другие ошибки
+            logger.error(f"❌ Ошибка отзыва токенов: {response.status_code} - {response.text[:200]}")
+            return False
+            
+    except httpx.RequestError as req_err:
+        logger.error(f"❌ Ошибка сети при отзыве токенов: {req_err}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Неожиданная ошибка при отзыве токенов: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 async def revoke_vk_tokens_by_user_id(user_id: str) -> bool:
     """
     Отзывает все токены VK Ads для указанного user_id.
