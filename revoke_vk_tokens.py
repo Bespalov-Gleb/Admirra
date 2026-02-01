@@ -372,26 +372,33 @@ async def find_all_vk_user_ids_from_tokens() -> List[str]:
         
         async def process_integration(integration):
             try:
+                # Сначала проверяем, есть ли vk_user_id в БД (если поле существует)
+                vk_user_id_from_db = None
+                if hasattr(integration, 'vk_user_id'):
+                    vk_user_id_from_db = getattr(integration, 'vk_user_id', None)
+                    if vk_user_id_from_db:
+                        user_ids.add(str(vk_user_id_from_db))
+                        logger.info(f"   ✅ Интеграция {integration.id}: используем vk_user_id из БД: {vk_user_id_from_db}")
+                        return vk_user_id_from_db
+                
+                # Пытаемся получить user_id из токена через API
                 access_token = security.decrypt_token(integration.access_token)
                 user_id = await get_user_id_from_token(access_token)
                 if user_id:
                     user_ids.add(user_id)
-                    logger.info(f"   ✅ Интеграция {integration.id}: user_id={user_id}")
+                    logger.info(f"   ✅ Интеграция {integration.id}: user_id={user_id} (получен из API)")
                     return user_id
                 else:
                     logger.warning(f"   ⚠️ Интеграция {integration.id}: не удалось получить user_id из токена")
-                    # Если в БД уже есть vk_user_id, используем его
-                    if integration.vk_user_id:
-                        user_ids.add(str(integration.vk_user_id))
-                        logger.info(f"   ✅ Используем vk_user_id из БД: {integration.vk_user_id}")
-                        return integration.vk_user_id
                     return None
             except Exception as e:
                 logger.warning(f"   ⚠️ Ошибка при обработке интеграции {integration.id}: {e}")
                 # Если в БД уже есть vk_user_id, используем его
-                if integration.vk_user_id:
-                    user_ids.add(str(integration.vk_user_id))
-                    logger.info(f"   ✅ Используем vk_user_id из БД: {integration.vk_user_id}")
+                if hasattr(integration, 'vk_user_id'):
+                    vk_user_id_from_db = getattr(integration, 'vk_user_id', None)
+                    if vk_user_id_from_db:
+                        user_ids.add(str(vk_user_id_from_db))
+                        logger.info(f"   ✅ Используем vk_user_id из БД: {vk_user_id_from_db}")
                 return None
         
         # Обрабатываем все интеграции асинхронно
@@ -494,6 +501,11 @@ async def main():
         action="store_true",
         help="Отозвать все токены для всех пользователей (получает user_id из токенов через API)"
     )
+    parser.add_argument(
+        "--force-all",
+        action="store_true",
+        help="Отозвать все токены для аккаунта приложения (без user_id - удалит только токены приложения)"
+    )
     
     args = parser.parse_args()
     
@@ -507,8 +519,8 @@ async def main():
         sys.exit(0)
     
     # Проверяем аргументы
-    if not args.email and not args.user_id and not args.username and not args.all:
-        parser.error("Необходимо указать email, --user-id, --username или --all")
+    if not args.email and not args.user_id and not args.username and not args.all and not args.force_all:
+        parser.error("Необходимо указать email, --user-id, --username, --all или --force-all")
     
     logger.info("=" * 60)
     logger.info("🔄 Отзыв токенов VK Ads")
@@ -518,15 +530,33 @@ async def main():
     success_count = 0
     total_count = 0
     
+    # Если запрошен принудительный отзыв всех токенов приложения
+    if args.force_all:
+        logger.info("📌 Принудительный отзыв всех токенов VK Ads для аккаунта приложения")
+        logger.warning("   ⚠️ ВНИМАНИЕ: Это удалит токены только для аккаунта приложения!")
+        total_count = 1
+        if await revoke_vk_tokens_without_user_id():
+            success_count = 1
+    
     # Если запрошен отзыв всех токенов
-    if args.all:
+    elif args.all:
         logger.info("📌 Отзыв всех токенов VK Ads для всех пользователей")
         logger.info("🔄 Получение user_id из токенов через VK Ads API...")
         user_ids = await find_all_vk_user_ids_from_tokens()
         
         if not user_ids:
-            logger.error("❌ Не удалось получить user_id из токенов")
-            logger.info("   Попробуйте использовать --user-id или --username напрямую")
+            logger.warning("⚠️ Не удалось получить user_id из токенов")
+            logger.info("")
+            logger.info("📌 Альтернативный вариант: отозвать токены для аккаунта приложения")
+            logger.info("   Это удалит токены только для аккаунта приложения, не для всех пользователей.")
+            logger.info("   Продолжить? (y/n): ", end="")
+            
+            # В неинтерактивном режиме просто предупреждаем
+            logger.warning("   ⚠️ Пропущено (неинтерактивный режим)")
+            logger.info("")
+            logger.info("   Попробуйте:")
+            logger.info("   1. Использовать --user-id или --username напрямую")
+            logger.info("   2. Или запустить с --force-all для отзыва токенов приложения")
             sys.exit(1)
         
         total_count = len(user_ids)
