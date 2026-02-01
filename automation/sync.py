@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from core.database import SessionLocal
 from core import models, security
 from core.logging_utils import log_event
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
     """
     Helper to update an existing record or create a new one.
+    Handles race conditions with unique index by retrying on IntegrityError.
     """
     existing = db.query(model).filter_by(**filters).first()
     if existing:
@@ -32,7 +34,21 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
             setattr(existing, key, value)
     else:
         log_event("database", f"creating new {model.__tablename__} record", filters)
-        db.add(model(**filters, **data))
+        try:
+            db.add(model(**filters, **data))
+            db.flush()  # Flush to trigger unique constraint check immediately
+        except IntegrityError:
+            # Handle race condition: if another process created the record between query and insert
+            # Re-query and update instead
+            db.rollback()
+            existing = db.query(model).filter_by(**filters).first()
+            if existing:
+                log_event("database", f"updating {model.__tablename__} record (retry after conflict)", filters)
+                for key, value in data.items():
+                    setattr(existing, key, value)
+            else:
+                # Re-raise if still not found (shouldn't happen)
+                raise
 
 
 async def _sync_metrika_goals_for_direct(
