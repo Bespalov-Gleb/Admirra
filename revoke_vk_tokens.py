@@ -345,7 +345,7 @@ async def get_user_id_from_token(access_token: str) -> Optional[str]:
         return None
 
 
-def find_all_vk_user_ids_from_tokens() -> List[str]:
+async def find_all_vk_user_ids_from_tokens() -> List[str]:
     """
     Находит все уникальные vk_user_id из существующих токенов в базе данных.
     Пытается получить user_id из токенов через VK Ads API.
@@ -395,12 +395,8 @@ def find_all_vk_user_ids_from_tokens() -> List[str]:
                 return None
         
         # Обрабатываем все интеграции асинхронно
-        async def process_all():
-            tasks = [process_integration(integration) for integration in integrations]
-            await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Запускаем асинхронную обработку
-        asyncio.run(process_all())
+        tasks = [process_integration(integration) for integration in integrations]
+        await asyncio.gather(*tasks, return_exceptions=True)
         
         if not user_ids:
             logger.warning("⚠️ Не удалось получить ни одного user_id из токенов")
@@ -526,7 +522,7 @@ async def main():
     if args.all:
         logger.info("📌 Отзыв всех токенов VK Ads для всех пользователей")
         logger.info("🔄 Получение user_id из токенов через VK Ads API...")
-        user_ids = find_all_vk_user_ids_from_tokens()
+        user_ids = await find_all_vk_user_ids_from_tokens()
         
         if not user_ids:
             logger.error("❌ Не удалось получить user_id из токенов")
