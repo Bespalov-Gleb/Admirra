@@ -589,6 +589,18 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             campaigns_updated = 0
             try:
                 vk_campaigns = await api.get_campaigns()
+                campaign_ids = [str(c.get("id")) for c in vk_campaigns if c.get("id")]
+                
+                # Пытаемся получить целевые действия из статистики
+                # Используем последние 30 дней для получения актуальных целей
+                from datetime import datetime, timedelta
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=30)
+                goal_actions_map = await api.get_goal_actions_from_statistics(
+                    campaign_ids, 
+                    start_date.strftime("%Y-%m-%d"),
+                    end_date.strftime("%Y-%m-%d")
+                )
                 
                 for c in vk_campaigns:
                     external_id = str(c.get("id") or "")
@@ -611,8 +623,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         if c.get("name") and campaign.name != c.get("name"):
                             campaign.name = c.get("name")
 
-                    goal_action_id = c.get("goal_action_id")
-                    goal_action_name = c.get("goal_action_name")
+                    # Пробуем получить целевое действие из статистики
+                    goal_action_id, goal_action_name = goal_actions_map.get(external_id, (None, None))
+                    
+                    # Если не нашли в статистике, пробуем из ответа ad_plans
+                    if not goal_action_id and not goal_action_name:
+                        goal_action_id = c.get("goal_action_id")
+                        goal_action_name = c.get("goal_action_name")
+                    
                     if goal_action_id or goal_action_name:
                         campaign.vk_goal_action_id = goal_action_id
                         campaign.vk_goal_action_name = goal_action_name

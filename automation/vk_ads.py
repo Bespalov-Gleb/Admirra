@@ -81,26 +81,21 @@ class VKAdsAPI:
         
         Согласно документации VK Ads API (https://ads.vk.com/doc/api):
         Endpoint: GET /api/v2/ad_plans.json
-        Параметры:
-        - client_id (опционально) - ID кабинета для фильтрации кампаний
-        - ids (опционально) - список ID кампаний для получения детальной информации
         
-        Для получения целевых действий может потребоваться:
-        1. Использовать метод AdPlan для каждой кампании отдельно
-        2. Или получить через Goals API
+        ВАЖНО: VK Ads API не возвращает целевые действия в ad_plans.json.
+        Целевые действия нужно получать из статистики с группировкой по целям.
         
         Returns:
             List[Dict] с полями:
             - id: str - ID кампании
             - name: str - название кампании
             - status: str - статус кампании
-            - goal_action_id: str - ID целевого действия
-            - goal_action_name: str - название целевого действия
+            - goal_action_id: str - ID целевого действия (будет заполнено из статистики)
+            - goal_action_name: str - название целевого действия (будет заполнено из статистики)
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
         
-        # Согласно документации, client_id используется для фильтрации кампаний по кабинету
         if self.account_id:
             params["client_id"] = self.account_id
             
@@ -113,59 +108,16 @@ class VKAdsAPI:
                     items = data.get("items", [])
                     
                     campaigns = []
-                    campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
-                    
-                    # Пытаемся получить детальную информацию о кампаниях через AdPlan
-                    goal_actions_map = {}
-                    goals_found_count = 0
-                    
-                    if campaign_ids:
-                        try:
-                            # Получаем детальную информацию о кампаниях для извлечения целевых действий
-                            detail_url = f"{self.base_url}/ad_plans.json"
-                            detail_params = {
-                                "ids": ",".join(campaign_ids[:50])  # Ограничиваем до 50 кампаний за раз
-                            }
-                            if self.account_id:
-                                detail_params["client_id"] = self.account_id
-                            
-                            detail_response = await client.get(detail_url, params=detail_params, headers=self.headers, timeout=30.0)
-                            if detail_response.status_code == 200:
-                                detail_data = detail_response.json()
-                                detail_items = detail_data.get("items", [])
-                                
-                                for detail_item in detail_items:
-                                    camp_id = str(detail_item.get("id", ""))
-                                    goal_id, goal_name = self._extract_goal_action(detail_item)
-                                    if goal_id or goal_name:
-                                        goal_actions_map[camp_id] = (goal_id, goal_name)
-                                        goals_found_count += 1
-                        except Exception as detail_err:
-                            pass  # Тихий fallback
-                    
-                    # Если в детальной информации не нашли, пробуем из базового ответа
                     for item in items:
-                        item_id = str(item.get("id", ""))
-                        goal_id, goal_name = goal_actions_map.get(item_id, (None, None))
-                        
-                        if not goal_id and not goal_name:
-                            goal_id, goal_name = self._extract_goal_action(item)
-                            if goal_id or goal_name:
-                                goals_found_count += 1
-                        
                         campaigns.append({
-                            "id": item_id,
+                            "id": str(item["id"]),
                             "name": item["name"],
                             "status": item.get("status"),
-                            "goal_action_id": goal_id,
-                            "goal_action_name": goal_name
+                            "goal_action_id": None,  # Будет заполнено из статистики
+                            "goal_action_name": None  # Будет заполнено из статистики
                         })
                     
-                    # Важная информация в конце
-                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found_count}")
-                    if goals_found_count == 0 and len(campaigns) > 0:
-                        logger.warning(f"⚠️ ВНИМАНИЕ: Целевые действия не найдены ни в одной кампании! Доступные поля в ответе API: {list(items[0].keys()) if items else 'нет данных'}")
-                    
+                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний из ad_plans.json")
                     return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
@@ -174,6 +126,97 @@ class VKAdsAPI:
         except Exception as e:
             logger.error(f"Error fetching VK campaigns: {e}")
             raise e
+    
+    async def get_goal_actions_from_statistics(self, campaign_ids: List[str], date_from: str, date_to: str) -> Dict[str, tuple]:
+        """
+        Получает целевые действия из статистики с группировкой по целям.
+        
+        Согласно документации VK Ads API, статистика может содержать информацию о целях.
+        Endpoint: GET /api/v2/statistics/ad_plans/day.json
+        Параметры:
+        - group_by: "goal" или "objective" для группировки по целям
+        
+        Returns:
+            Dict[str, tuple] - {campaign_id: (goal_id, goal_name)}
+        """
+        goal_actions_map = {}
+        
+        if not campaign_ids:
+            return goal_actions_map
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                # Пробуем получить статистику с группировкой по целям
+                url = f"{self.base_url}/statistics/ad_plans/day.json"
+                params = {
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "metrics": "base",
+                    "id": ",".join(campaign_ids[:50]) if campaign_ids else None,
+                }
+                
+                if self.account_id:
+                    params["client_id"] = self.account_id
+                
+                # Пробуем разные варианты group_by
+                for group_by_param in ["goal", "objective", "goal_id"]:
+                    try:
+                        test_params = params.copy()
+                        test_params["group_by"] = group_by_param
+                        
+                        response = await client.get(url, params=test_params, headers=self.headers, timeout=30.0)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            items = data.get("items", [])
+                            
+                            for item in items:
+                                campaign_id = str(item.get("id", ""))
+                                # В статистике с группировкой по целям может быть поле goal или objective
+                                goal_id = item.get("goal_id") or item.get("goal", {}).get("id") if isinstance(item.get("goal"), dict) else None
+                                goal_name = item.get("goal_name") or item.get("goal", {}).get("name") if isinstance(item.get("goal"), dict) else None
+                                
+                                if goal_id or goal_name:
+                                    if campaign_id not in goal_actions_map:
+                                        goal_actions_map[campaign_id] = (str(goal_id) if goal_id else None, goal_name)
+                            
+                            if goal_actions_map:
+                                logger.info(f"✅ Найдено {len(goal_actions_map)} целевых действий в статистике (group_by={group_by_param})")
+                                break
+                        elif response.status_code == 400:
+                            # Параметр не поддерживается, пробуем следующий
+                            continue
+                    except Exception as e:
+                        continue
+                
+                # Если не нашли через group_by, пробуем получить через метод AdPlan для каждой кампании
+                if not goal_actions_map and len(campaign_ids) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
+                    logger.info(f"🔄 Пробуем получить целевые действия через AdPlan для {len(campaign_ids)} кампаний...")
+                    for camp_id in campaign_ids[:20]:  # Ограничиваем до 20
+                        try:
+                            ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
+                            ad_plan_params = {}
+                            if self.account_id:
+                                ad_plan_params["client_id"] = self.account_id
+                            
+                            ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
+                            if ad_plan_response.status_code == 200:
+                                ad_plan_data = ad_plan_response.json()
+                                ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                goal_id, goal_name = self._extract_goal_action(ad_plan_item)
+                                if goal_id or goal_name:
+                                    goal_actions_map[camp_id] = (goal_id, goal_name)
+                            
+                            await asyncio.sleep(0.5)  # Задержка между запросами
+                        except Exception:
+                            continue
+                    
+                    if goal_actions_map:
+                        logger.info(f"✅ Найдено {len(goal_actions_map)} целевых действий через AdPlan")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось получить целевые действия: {e}")
+        
+        return goal_actions_map
 
     async def get_goals(self, campaign_ids: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
         """
