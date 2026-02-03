@@ -585,11 +585,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.warning(f"Failed to fetch balance for integration {integration.id}: {balance_err}")
 
             # Синхронизируем список кампаний и их целевые действия
+            goal_actions_synced = 0
+            campaigns_updated = 0
             try:
                 vk_campaigns = await api.get_campaigns()
-                logger.info(f"📋 Syncing {len(vk_campaigns)} VK campaigns with goal actions for integration {integration.id}")
                 
-                goal_actions_found = 0
                 for c in vk_campaigns:
                     external_id = str(c.get("id") or "")
                     if not external_id:
@@ -616,16 +616,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     if goal_action_id or goal_action_name:
                         campaign.vk_goal_action_id = goal_action_id
                         campaign.vk_goal_action_name = goal_action_name
-                        goal_actions_found += 1
-                        logger.debug(f"✅ Campaign {external_id} '{campaign.name}': goal_action_id={goal_action_id}, goal_action_name={goal_action_name}")
-                    else:
-                        logger.debug(f"⚠️ Campaign {external_id} '{campaign.name}': no goal action found in API response")
+                        goal_actions_synced += 1
+                    campaigns_updated += 1
                 
-                logger.info(f"📊 Found goal actions for {goal_actions_found}/{len(vk_campaigns)} campaigns")
                 db.commit()
             except Exception as campaigns_err:
-                logger.warning(f"Failed to sync VK campaigns/goal actions for integration {integration.id}: {campaigns_err}")
-                logger.exception(campaigns_err)  # Полный traceback для отладки
+                logger.error(f"❌ Ошибка синхронизации кампаний VK: {campaigns_err}")
                 db.rollback()
             
             try:
@@ -732,13 +728,6 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 }
                 logger.debug(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
                 
-                # CRITICAL: Log if conversions, cpc or cpa are 0 or None to help with debugging
-                if s['conversions'] == 0:
-                    logger.warning(f"⚠️ VK campaign '{campaign.name}' has 0 conversions on {s['date']} - this may be expected if no goals were reached")
-                if s.get('cpc') == 0 or s.get('cpc') is None:
-                    logger.debug(f"🔍 VK campaign '{campaign.name}' has CPC=0 or None on {s['date']} (clicks={s['clicks']}, cost={s['cost']})")
-                if s.get('cpa') == 0 or s.get('cpa') is None:
-                    logger.debug(f"🔍 VK campaign '{campaign.name}' has CPA=0 or None on {s['date']} (conversions={s['conversions']}, cost={s['cost']})")
                 _update_or_create_stats(db, models.VKStats, filters, data)
                 processed_count += 1
                 
@@ -747,20 +736,29 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_stats:
                     try:
                         db.commit()
-                        logger.info(f"✅ Committed batch {((idx + 1) // BATCH_SIZE) + 1}: {processed_count}/{total_stats} VK stats records saved for integration {integration.id}")
-                        # Small delay between batches to allow other operations
+                        # Логируем только каждую 10-ю пачку, чтобы не засорять вывод
+                        if (idx + 1) % (BATCH_SIZE * 10) == 0 or (idx + 1) == total_stats:
+                            logger.info(f"💾 VK stats: {processed_count}/{total_stats} записей обработано...")
                         await asyncio.sleep(0.1)
                     except Exception as batch_err:
                         logger.error(f"❌ Error committing batch for integration {integration.id}: {batch_err}")
                         db.rollback()
                         raise
             
-            logger.info(f"✅ Successfully committed all {processed_count} VK stats records to database for integration {integration.id}")
-            
             # Clear cache after saving stats to ensure fresh data on dashboard
             from backend_api.cache_service import CacheService
             CacheService.clear()
-            logger.info(f"🗑️ Cleared dashboard cache after saving VK stats for integration {integration.id}")
+            
+            # ИТОГОВАЯ СВОДКА В КОНЦЕ
+            logger.info("=" * 80)
+            logger.info(f"✅ VK ADS СИНХРОНИЗАЦИЯ ЗАВЕРШЕНА для интеграции {integration.id}")
+            logger.info(f"   📊 Статистика: {processed_count} записей сохранено")
+            logger.info(f"   📋 Кампании: {campaigns_updated} обновлено")
+            logger.info(f"   🎯 Целевые действия: {goal_actions_synced} синхронизировано")
+            if goal_actions_synced == 0:
+                logger.warning(f"   ⚠️ ВНИМАНИЕ: Целевые действия не найдены!")
+                logger.warning(f"   💡 Проверь структуру ответа API - возможно нужен другой endpoint")
+            logger.info("=" * 80)
 
         elif integration.platform == models.IntegrationPlatform.YANDEX_METRIKA:
             if not integration.account_id:

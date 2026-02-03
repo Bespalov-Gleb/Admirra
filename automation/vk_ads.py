@@ -112,23 +112,16 @@ class VKAdsAPI:
                     data = response.json()
                     items = data.get("items", [])
                     
-                    logger.info(f"📋 Retrieved {len(items)} campaign(s) from VK Ads API")
-                    
-                    # Логируем первый элемент для отладки
-                    if items and len(items) > 0:
-                        logger.debug(f"🔍 Sample campaign data (first item keys): {list(items[0].keys())}")
-                        logger.debug(f"🔍 Sample campaign data (first item): {str(items[0])[:500]}")
-                    
                     campaigns = []
                     campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
                     
                     # Пытаемся получить детальную информацию о кампаниях через AdPlan
-                    # Согласно документации VK Ads API, метод AdPlan может содержать больше полей
                     goal_actions_map = {}
+                    goals_found_count = 0
+                    
                     if campaign_ids:
                         try:
                             # Получаем детальную информацию о кампаниях для извлечения целевых действий
-                            # Используем метод AdPlan для получения полной информации
                             detail_url = f"{self.base_url}/ad_plans.json"
                             detail_params = {
                                 "ids": ",".join(campaign_ids[:50])  # Ограничиваем до 50 кампаний за раз
@@ -140,29 +133,25 @@ class VKAdsAPI:
                             if detail_response.status_code == 200:
                                 detail_data = detail_response.json()
                                 detail_items = detail_data.get("items", [])
-                                logger.info(f"📋 Retrieved detailed info for {len(detail_items)} campaign(s)")
                                 
                                 for detail_item in detail_items:
                                     camp_id = str(detail_item.get("id", ""))
                                     goal_id, goal_name = self._extract_goal_action(detail_item)
                                     if goal_id or goal_name:
                                         goal_actions_map[camp_id] = (goal_id, goal_name)
-                                        logger.debug(f"✅ Found goal action for campaign {camp_id}: {goal_id} - {goal_name}")
+                                        goals_found_count += 1
                         except Exception as detail_err:
-                            logger.warning(f"⚠️ Failed to get detailed campaign info: {detail_err}")
+                            pass  # Тихий fallback
                     
+                    # Если в детальной информации не нашли, пробуем из базового ответа
                     for item in items:
                         item_id = str(item.get("id", ""))
-                        # Сначала проверяем детальную информацию
                         goal_id, goal_name = goal_actions_map.get(item_id, (None, None))
                         
-                        # Если не нашли в детальной информации, пробуем извлечь из базового ответа
                         if not goal_id and not goal_name:
                             goal_id, goal_name = self._extract_goal_action(item)
-                        
-                        # Дополнительное логирование, если цель не найдена
-                        if not goal_id and not goal_name:
-                            logger.debug(f"⚠️ No goal action found for campaign {item_id} '{item.get('name')}'. Available keys: {list(item.keys())}")
+                            if goal_id or goal_name:
+                                goals_found_count += 1
                         
                         campaigns.append({
                             "id": item_id,
@@ -171,6 +160,12 @@ class VKAdsAPI:
                             "goal_action_id": goal_id,
                             "goal_action_name": goal_name
                         })
+                    
+                    # Важная информация в конце
+                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found_count}")
+                    if goals_found_count == 0 and len(campaigns) > 0:
+                        logger.warning(f"⚠️ ВНИМАНИЕ: Целевые действия не найдены ни в одной кампании! Доступные поля в ответе API: {list(items[0].keys()) if items else 'нет данных'}")
+                    
                     return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
