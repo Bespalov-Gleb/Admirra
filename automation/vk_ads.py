@@ -117,29 +117,29 @@ class VKAdsAPI:
                         logger.info(f"🔍 Поля в базовом ответе ad_plans.json: {first_item_keys}")
                         
                         if "objective" in items[0]:
-                        # objective уже есть в ответе
-                        for item in items:
-                            objective = item.get("objective")
-                            goal_id = None
-                            goal_name = None
-                            
-                            if objective:
-                                if isinstance(objective, str):
-                                    goal_name = objective
-                                    goal_id = objective
-                                elif isinstance(objective, dict):
-                                    goal_id = str(objective.get("id", ""))
-                                    goal_name = objective.get("name") or objective.get("title")
-                            
-                            campaigns.append({
-                                "id": str(item["id"]),
-                                "name": item["name"],
-                                "status": item.get("status"),
-                                "goal_action_id": goal_id,
-                                "goal_action_name": goal_name
-                            })
-                            if goal_id or goal_name:
-                                goals_found += 1
+                            # objective уже есть в ответе
+                            for item in items:
+                                objective = item.get("objective")
+                                goal_id = None
+                                goal_name = None
+                                
+                                if objective:
+                                    if isinstance(objective, str):
+                                        goal_name = objective
+                                        goal_id = objective
+                                    elif isinstance(objective, dict):
+                                        goal_id = str(objective.get("id", ""))
+                                        goal_name = objective.get("name") or objective.get("title")
+                                
+                                campaigns.append({
+                                    "id": str(item["id"]),
+                                    "name": item["name"],
+                                    "status": item.get("status"),
+                                    "goal_action_id": goal_id,
+                                    "goal_action_name": goal_name
+                                })
+                                if goal_id or goal_name:
+                                    goals_found += 1
                     else:
                         # objective нет в ответе, получаем через метод AdPlan для каждой кампании
                         campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
