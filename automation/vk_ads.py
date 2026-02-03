@@ -112,7 +112,11 @@ class VKAdsAPI:
                     goals_found = 0
                     
                     # Проверяем, есть ли поле objective в базовом ответе
-                    if items and len(items) > 0 and "objective" in items[0]:
+                    if items and len(items) > 0:
+                        first_item_keys = list(items[0].keys())
+                        logger.info(f"🔍 Поля в базовом ответе ad_plans.json: {first_item_keys}")
+                        
+                        if "objective" in items[0]:
                         # objective уже есть в ответе
                         for item in items:
                             objective = item.get("objective")
@@ -152,6 +156,16 @@ class VKAdsAPI:
                                 if ad_plan_response.status_code == 200:
                                     ad_plan_data = ad_plan_response.json()
                                     ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                    
+                                    # Логируем структуру ответа для первых 2 кампаний
+                                    if idx < 2:
+                                        all_keys = list(ad_plan_item.keys())
+                                        logger.info(f"🔍 AdPlan {camp_id}: доступные поля ({len(all_keys)}): {all_keys}")
+                                        if "objective" in ad_plan_item:
+                                            obj_value = ad_plan_item.get("objective")
+                                            logger.info(f"🔍 AdPlan {camp_id}: objective = '{obj_value}' (тип: {type(obj_value)})")
+                                        else:
+                                            logger.warning(f"⚠️ AdPlan {camp_id}: поле 'objective' отсутствует!")
                                     
                                     objective = ad_plan_item.get("objective")
                                     goal_id = None
