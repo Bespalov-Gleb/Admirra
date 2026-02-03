@@ -587,6 +587,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             # Синхронизируем список кампаний и их целевые действия
             try:
                 vk_campaigns = await api.get_campaigns()
+                logger.info(f"📋 Syncing {len(vk_campaigns)} VK campaigns with goal actions for integration {integration.id}")
+                
+                goal_actions_found = 0
                 for c in vk_campaigns:
                     external_id = str(c.get("id") or "")
                     if not external_id:
@@ -613,9 +616,16 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     if goal_action_id or goal_action_name:
                         campaign.vk_goal_action_id = goal_action_id
                         campaign.vk_goal_action_name = goal_action_name
+                        goal_actions_found += 1
+                        logger.debug(f"✅ Campaign {external_id} '{campaign.name}': goal_action_id={goal_action_id}, goal_action_name={goal_action_name}")
+                    else:
+                        logger.debug(f"⚠️ Campaign {external_id} '{campaign.name}': no goal action found in API response")
+                
+                logger.info(f"📊 Found goal actions for {goal_actions_found}/{len(vk_campaigns)} campaigns")
                 db.commit()
             except Exception as campaigns_err:
                 logger.warning(f"Failed to sync VK campaigns/goal actions for integration {integration.id}: {campaigns_err}")
+                logger.exception(campaigns_err)  # Полный traceback для отладки
                 db.rollback()
             
             try:

@@ -33,21 +33,31 @@ class VKAdsAPI:
         return (str(value), str(value))
 
     def _extract_goal_action(self, item: Dict[str, Any]) -> tuple:
+        """
+        Извлекает информацию о целевом действии из объекта кампании.
+        Проверяет различные возможные поля и форматы данных.
+        """
+        # Прямые поля (наиболее вероятные)
         direct_id = (
             item.get("goal_id")
             or item.get("goal_action_id")
             or item.get("target_action_id")
             or item.get("objective_id")
+            or item.get("objective", {}).get("id") if isinstance(item.get("objective"), dict) else None
+            or item.get("goal", {}).get("id") if isinstance(item.get("goal"), dict) else None
         )
         direct_name = (
             item.get("goal_name")
             or item.get("goal_action_name")
             or item.get("target_action_name")
             or item.get("objective_name")
+            or item.get("objective", {}).get("name") if isinstance(item.get("objective"), dict) else None
+            or item.get("goal", {}).get("name") if isinstance(item.get("goal"), dict) else None
         )
         if direct_id or direct_name:
             return (str(direct_id) if direct_id is not None else None, direct_name or str(direct_id))
 
+        # Проверяем вложенные объекты
         for key in [
             "goal",
             "target_action",
@@ -69,16 +79,23 @@ class VKAdsAPI:
         """
         Получает список всех рекламных кампаний (AdPlans).
         
-        Согласно документации VK Ads API:
+        Согласно документации VK Ads API (https://ads.vk.com/doc/api):
         Endpoint: GET /api/v2/ad_plans.json
         Параметры:
         - client_id (опционально) - ID кабинета для фильтрации кампаний
+        - ids (опционально) - список ID кампаний для получения детальной информации
+        
+        Для получения целевых действий может потребоваться:
+        1. Использовать метод AdPlan для каждой кампании отдельно
+        2. Или получить через Goals API
         
         Returns:
             List[Dict] с полями:
             - id: str - ID кампании
             - name: str - название кампании
             - status: str - статус кампании
+            - goal_action_id: str - ID целевого действия
+            - goal_action_name: str - название целевого действия
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
@@ -97,11 +114,58 @@ class VKAdsAPI:
                     
                     logger.info(f"📋 Retrieved {len(items)} campaign(s) from VK Ads API")
                     
+                    # Логируем первый элемент для отладки
+                    if items and len(items) > 0:
+                        logger.debug(f"🔍 Sample campaign data (first item keys): {list(items[0].keys())}")
+                        logger.debug(f"🔍 Sample campaign data (first item): {str(items[0])[:500]}")
+                    
                     campaigns = []
+                    campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
+                    
+                    # Пытаемся получить детальную информацию о кампаниях через AdPlan
+                    # Согласно документации VK Ads API, метод AdPlan может содержать больше полей
+                    goal_actions_map = {}
+                    if campaign_ids:
+                        try:
+                            # Получаем детальную информацию о кампаниях для извлечения целевых действий
+                            # Используем метод AdPlan для получения полной информации
+                            detail_url = f"{self.base_url}/ad_plans.json"
+                            detail_params = {
+                                "ids": ",".join(campaign_ids[:50])  # Ограничиваем до 50 кампаний за раз
+                            }
+                            if self.account_id:
+                                detail_params["client_id"] = self.account_id
+                            
+                            detail_response = await client.get(detail_url, params=detail_params, headers=self.headers, timeout=30.0)
+                            if detail_response.status_code == 200:
+                                detail_data = detail_response.json()
+                                detail_items = detail_data.get("items", [])
+                                logger.info(f"📋 Retrieved detailed info for {len(detail_items)} campaign(s)")
+                                
+                                for detail_item in detail_items:
+                                    camp_id = str(detail_item.get("id", ""))
+                                    goal_id, goal_name = self._extract_goal_action(detail_item)
+                                    if goal_id or goal_name:
+                                        goal_actions_map[camp_id] = (goal_id, goal_name)
+                                        logger.debug(f"✅ Found goal action for campaign {camp_id}: {goal_id} - {goal_name}")
+                        except Exception as detail_err:
+                            logger.warning(f"⚠️ Failed to get detailed campaign info: {detail_err}")
+                    
                     for item in items:
-                        goal_id, goal_name = self._extract_goal_action(item)
+                        item_id = str(item.get("id", ""))
+                        # Сначала проверяем детальную информацию
+                        goal_id, goal_name = goal_actions_map.get(item_id, (None, None))
+                        
+                        # Если не нашли в детальной информации, пробуем извлечь из базового ответа
+                        if not goal_id and not goal_name:
+                            goal_id, goal_name = self._extract_goal_action(item)
+                        
+                        # Дополнительное логирование, если цель не найдена
+                        if not goal_id and not goal_name:
+                            logger.debug(f"⚠️ No goal action found for campaign {item_id} '{item.get('name')}'. Available keys: {list(item.keys())}")
+                        
                         campaigns.append({
-                            "id": str(item["id"]),
+                            "id": item_id,
                             "name": item["name"],
                             "status": item.get("status"),
                             "goal_action_id": goal_id,
@@ -110,10 +174,63 @@ class VKAdsAPI:
                     return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
+                    logger.error(f"❌ VK Ads API error: {response.status_code} - {error_text}")
                     raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {error_text}")
         except Exception as e:
             logger.error(f"Error fetching VK campaigns: {e}")
             raise e
+
+    async def get_goals(self, campaign_ids: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
+        """
+        Получает список целей (Goals) для кампаний.
+        
+        Согласно документации VK Ads API (https://ads.vk.com/doc/api):
+        Endpoint: GET /api/v2/goals.json
+        Параметры:
+        - client_id (опционально) - ID кабинета
+        - ids (опционально) - список ID целей
+        
+        Returns:
+            Dict[str, Dict] - словарь {goal_id: {id, name, ...}}
+        """
+        url = f"{self.base_url}/goals.json"
+        params = {}
+        
+        if self.account_id:
+            params["client_id"] = self.account_id
+        
+        if campaign_ids:
+            # Пока не используем campaign_ids, так как Goals API может не поддерживать фильтрацию по кампаниям
+            pass
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    items = data.get("items", [])
+                    
+                    logger.info(f"📋 Retrieved {len(items)} goal(s) from VK Ads API")
+                    
+                    goals_map = {}
+                    for item in items:
+                        goal_id = str(item.get("id", ""))
+                        goal_name = item.get("name") or item.get("title") or f"Goal {goal_id}"
+                        goals_map[goal_id] = {
+                            "id": goal_id,
+                            "name": goal_name,
+                            "type": item.get("type"),
+                            "category": item.get("category")
+                        }
+                    
+                    return goals_map
+                else:
+                    logger.warning(f"⚠️ Failed to fetch VK goals: {response.status_code} - {response.text[:200]}")
+                    return {}
+        except Exception as e:
+            logger.warning(f"⚠️ Error fetching VK goals: {e}")
+            return {}
 
     async def get_statistics(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
