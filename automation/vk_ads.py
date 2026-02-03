@@ -136,7 +136,7 @@ class VKAdsAPI:
                                 
                                 campaigns.append({
                                     "id": str(item["id"]),
-                                    "name": item["name"],
+                                    "name": item.get("name") or f"Campaign {item.get('id')}",
                                     "status": item.get("status"),
                                     "goal_action_id": goal_id,
                                     "goal_action_name": goal_name
@@ -146,66 +146,66 @@ class VKAdsAPI:
                         else:
                             # objective нет в ответе, получаем через метод AdPlan для каждой кампании
                             campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
-                        
-                        # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
-                        logger.info(f"🔍 Получаю детали для {len(campaign_ids[:50])} кампаний через AdPlan...")
-                        for idx, camp_id in enumerate(campaign_ids[:50]):
-                            try:
-                                # Согласно документации: GET /api/v2/ad_plans/{id}.json
-                                ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
-                                
-                                ad_plan_response = await client.get(ad_plan_url, headers=self.headers, timeout=10.0)
-                                if ad_plan_response.status_code == 200:
-                                    ad_plan_data = ad_plan_response.json()
+                            
+                            # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
+                            logger.info(f"🔍 Получаю детали для {len(campaign_ids[:50])} кампаний через AdPlan...")
+                            for idx, camp_id in enumerate(campaign_ids[:50]):
+                                try:
+                                    # Согласно документации: GET /api/v2/ad_plans/{id}.json
+                                    ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
                                     
-                                    # Логируем структуру ответа для первых 2 кампаний
-                                    if idx < 2:
-                                        logger.info(f"🔍 AdPlan {camp_id}: структура ответа (верхний уровень): {list(ad_plan_data.keys())}")
-                                    
-                                    # Пробуем разные варианты структуры ответа
-                                    ad_plan_item = None
-                                    if "item" in ad_plan_data:
-                                        ad_plan_item = ad_plan_data["item"]
-                                    elif "items" in ad_plan_data and len(ad_plan_data["items"]) > 0:
-                                        ad_plan_item = ad_plan_data["items"][0]
-                                    elif isinstance(ad_plan_data, dict) and "id" in ad_plan_data:
-                                        ad_plan_item = ad_plan_data
-                                    else:
-                                        logger.warning(f"⚠️ AdPlan {camp_id}: неожиданная структура ответа: {list(ad_plan_data.keys())}")
-                                        continue
-                                    
-                                    # Логируем структуру ответа для первых 2 кампаний
-                                    if idx < 2:
-                                        all_keys = list(ad_plan_item.keys())
-                                        logger.info(f"🔍 AdPlan {camp_id}: доступные поля ({len(all_keys)}): {all_keys}")
-                                        if "objective" in ad_plan_item:
-                                            obj_value = ad_plan_item.get("objective")
-                                            logger.info(f"🔍 AdPlan {camp_id}: objective = '{obj_value}' (тип: {type(obj_value)})")
+                                    ad_plan_response = await client.get(ad_plan_url, headers=self.headers, timeout=10.0)
+                                    if ad_plan_response.status_code == 200:
+                                        ad_plan_data = ad_plan_response.json()
+                                        
+                                        # Логируем структуру ответа для первых 2 кампаний
+                                        if idx < 2:
+                                            logger.info(f"🔍 AdPlan {camp_id}: структура ответа (верхний уровень): {list(ad_plan_data.keys())}")
+                                        
+                                        # Пробуем разные варианты структуры ответа
+                                        ad_plan_item = None
+                                        if "item" in ad_plan_data:
+                                            ad_plan_item = ad_plan_data["item"]
+                                        elif "items" in ad_plan_data and len(ad_plan_data["items"]) > 0:
+                                            ad_plan_item = ad_plan_data["items"][0]
+                                        elif isinstance(ad_plan_data, dict) and "id" in ad_plan_data:
+                                            ad_plan_item = ad_plan_data
                                         else:
-                                            logger.warning(f"⚠️ AdPlan {camp_id}: поле 'objective' отсутствует!")
+                                            logger.warning(f"⚠️ AdPlan {camp_id}: неожиданная структура ответа: {list(ad_plan_data.keys())}")
+                                            continue
+                                        
+                                        # Логируем структуру ответа для первых 2 кампаний
+                                        if idx < 2:
+                                            all_keys = list(ad_plan_item.keys())
+                                            logger.info(f"🔍 AdPlan {camp_id}: доступные поля ({len(all_keys)}): {all_keys}")
+                                            if "objective" in ad_plan_item:
+                                                obj_value = ad_plan_item.get("objective")
+                                                logger.info(f"🔍 AdPlan {camp_id}: objective = '{obj_value}' (тип: {type(obj_value)})")
+                                            else:
+                                                logger.warning(f"⚠️ AdPlan {camp_id}: поле 'objective' отсутствует!")
+                                        
+                                        objective = ad_plan_item.get("objective")
+                                        goal_id = None
+                                        goal_name = None
+                                        
+                                        if objective:
+                                            if isinstance(objective, str):
+                                                goal_name = objective
+                                                goal_id = objective
+                                            elif isinstance(objective, dict):
+                                                goal_id = str(objective.get("id", ""))
+                                                goal_name = objective.get("name") or objective.get("title")
+                                        
+                                        goal_actions_map[camp_id] = (goal_id, goal_name)
+                                        if goal_id or goal_name:
+                                            goals_found += 1
                                     
-                                    objective = ad_plan_item.get("objective")
-                                    goal_id = None
-                                    goal_name = None
-                                    
-                                    if objective:
-                                        if isinstance(objective, str):
-                                            goal_name = objective
-                                            goal_id = objective
-                                        elif isinstance(objective, dict):
-                                            goal_id = str(objective.get("id", ""))
-                                            goal_name = objective.get("name") or objective.get("title")
-                                    
-                                    goal_actions_map[camp_id] = (goal_id, goal_name)
-                                    if goal_id or goal_name:
-                                        goals_found += 1
-                                
-                                # Задержка между запросами (каждые 5 запросов)
-                                if (idx + 1) % 5 == 0:
-                                    await asyncio.sleep(0.5)
-                            except Exception:
-                                continue
-                        
+                                    # Задержка между запросами (каждые 5 запросов)
+                                    if (idx + 1) % 5 == 0:
+                                        await asyncio.sleep(0.5)
+                                except Exception:
+                                    continue
+                            
                             # Формируем список кампаний с целевыми действиями
                             for item in items:
                                 camp_id = str(item.get("id", ""))
