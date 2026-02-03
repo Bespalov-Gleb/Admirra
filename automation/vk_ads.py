@@ -107,6 +107,9 @@ class VKAdsAPI:
                     data = response.json()
                     items = data.get("items", [])
                     
+                    logger.info(f"🔍 VK Ads API ответ: получено {len(items)} элементов в 'items'")
+                    logger.info(f"🔍 Структура ответа: ключи верхнего уровня: {list(data.keys())}")
+                    
                     campaigns = []
                     goal_actions_map = {}
                     goals_found = 0
@@ -145,17 +148,31 @@ class VKAdsAPI:
                         campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
                         
                         # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
+                        logger.info(f"🔍 Получаю детали для {len(campaign_ids[:50])} кампаний через AdPlan...")
                         for idx, camp_id in enumerate(campaign_ids[:50]):
                             try:
+                                # Согласно документации: GET /api/v2/ad_plans/{id}.json
                                 ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
-                                ad_plan_params = {}
-                                if self.account_id:
-                                    ad_plan_params["client_id"] = self.account_id
                                 
-                                ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
+                                ad_plan_response = await client.get(ad_plan_url, headers=self.headers, timeout=10.0)
                                 if ad_plan_response.status_code == 200:
                                     ad_plan_data = ad_plan_response.json()
-                                    ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                    
+                                    # Логируем структуру ответа для первых 2 кампаний
+                                    if idx < 2:
+                                        logger.info(f"🔍 AdPlan {camp_id}: структура ответа (верхний уровень): {list(ad_plan_data.keys())}")
+                                    
+                                    # Пробуем разные варианты структуры ответа
+                                    ad_plan_item = None
+                                    if "item" in ad_plan_data:
+                                        ad_plan_item = ad_plan_data["item"]
+                                    elif "items" in ad_plan_data and len(ad_plan_data["items"]) > 0:
+                                        ad_plan_item = ad_plan_data["items"][0]
+                                    elif isinstance(ad_plan_data, dict) and "id" in ad_plan_data:
+                                        ad_plan_item = ad_plan_data
+                                    else:
+                                        logger.warning(f"⚠️ AdPlan {camp_id}: неожиданная структура ответа: {list(ad_plan_data.keys())}")
+                                        continue
                                     
                                     # Логируем структуру ответа для первых 2 кампаний
                                     if idx < 2:
