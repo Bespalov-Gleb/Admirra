@@ -77,21 +77,20 @@ class VKAdsAPI:
 
     async def get_campaigns(self) -> List[Dict[str, Any]]:
         """
-        Получает список всех рекламных кампаний (AdPlans).
+        Получает список всех рекламных кампаний (AdPlans) с целевыми действиями.
         
-        Согласно документации VK Ads API (https://ads.vk.com/doc/api):
-        Endpoint: GET /api/v2/ad_plans.json
-        
-        ВАЖНО: VK Ads API не возвращает целевые действия в ad_plans.json.
-        Целевые действия нужно получать из статистики с группировкой по целям.
+        Согласно документации VK Ads API (https://ads.vk.com/doc/api/object/AdPlan):
+        - Endpoint: GET /api/v2/ad_plans.json - список кампаний
+        - Endpoint: GET /api/v2/ad_plans/{id}.json - детальная информация о кампании
+        - Поле 'objective' (string, readable) - "Цель рекламной кампании"
         
         Returns:
             List[Dict] с полями:
             - id: str - ID кампании
             - name: str - название кампании
             - status: str - статус кампании
-            - goal_action_id: str - ID целевого действия (будет заполнено из статистики)
-            - goal_action_name: str - название целевого действия (будет заполнено из статистики)
+            - goal_action_id: str - ID целевого действия (из поля objective)
+            - goal_action_name: str - название целевого действия (из поля objective)
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
@@ -101,6 +100,7 @@ class VKAdsAPI:
             
         try:
             async with httpx.AsyncClient() as client:
+                # Сначала получаем список кампаний
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
@@ -108,16 +108,87 @@ class VKAdsAPI:
                     items = data.get("items", [])
                     
                     campaigns = []
-                    for item in items:
-                        campaigns.append({
-                            "id": str(item["id"]),
-                            "name": item["name"],
-                            "status": item.get("status"),
-                            "goal_action_id": None,  # Будет заполнено из статистики
-                            "goal_action_name": None  # Будет заполнено из статистики
-                        })
+                    goal_actions_map = {}
+                    goals_found = 0
                     
-                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний из ad_plans.json")
+                    # Проверяем, есть ли поле objective в базовом ответе
+                    if items and len(items) > 0 and "objective" in items[0]:
+                        # objective уже есть в ответе
+                        for item in items:
+                            objective = item.get("objective")
+                            goal_id = None
+                            goal_name = None
+                            
+                            if objective:
+                                if isinstance(objective, str):
+                                    goal_name = objective
+                                    goal_id = objective
+                                elif isinstance(objective, dict):
+                                    goal_id = str(objective.get("id", ""))
+                                    goal_name = objective.get("name") or objective.get("title")
+                            
+                            campaigns.append({
+                                "id": str(item["id"]),
+                                "name": item["name"],
+                                "status": item.get("status"),
+                                "goal_action_id": goal_id,
+                                "goal_action_name": goal_name
+                            })
+                            if goal_id or goal_name:
+                                goals_found += 1
+                    else:
+                        # objective нет в ответе, получаем через метод AdPlan для каждой кампании
+                        campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
+                        
+                        # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
+                        for idx, camp_id in enumerate(campaign_ids[:50]):
+                            try:
+                                ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
+                                ad_plan_params = {}
+                                if self.account_id:
+                                    ad_plan_params["client_id"] = self.account_id
+                                
+                                ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
+                                if ad_plan_response.status_code == 200:
+                                    ad_plan_data = ad_plan_response.json()
+                                    ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                    
+                                    objective = ad_plan_item.get("objective")
+                                    goal_id = None
+                                    goal_name = None
+                                    
+                                    if objective:
+                                        if isinstance(objective, str):
+                                            goal_name = objective
+                                            goal_id = objective
+                                        elif isinstance(objective, dict):
+                                            goal_id = str(objective.get("id", ""))
+                                            goal_name = objective.get("name") or objective.get("title")
+                                    
+                                    goal_actions_map[camp_id] = (goal_id, goal_name)
+                                    if goal_id or goal_name:
+                                        goals_found += 1
+                                
+                                # Задержка между запросами (каждые 5 запросов)
+                                if (idx + 1) % 5 == 0:
+                                    await asyncio.sleep(0.5)
+                            except Exception:
+                                continue
+                        
+                        # Формируем список кампаний с целевыми действиями
+                        for item in items:
+                            camp_id = str(item.get("id", ""))
+                            goal_id, goal_name = goal_actions_map.get(camp_id, (None, None))
+                            
+                            campaigns.append({
+                                "id": camp_id,
+                                "name": item["name"],
+                                "status": item.get("status"),
+                                "goal_action_id": goal_id,
+                                "goal_action_name": goal_name
+                            })
+                    
+                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found}")
                     return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
