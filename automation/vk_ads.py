@@ -143,9 +143,9 @@ class VKAdsAPI:
                                 })
                                 if goal_id or goal_name:
                                     goals_found += 1
-                    else:
-                        # objective нет в ответе, получаем через метод AdPlan для каждой кампании
-                        campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
+                        else:
+                            # objective нет в ответе, получаем через метод AdPlan для каждой кампании
+                            campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
                         
                         # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
                         logger.info(f"🔍 Получаю детали для {len(campaign_ids[:50])} кампаний через AdPlan...")
@@ -206,18 +206,20 @@ class VKAdsAPI:
                             except Exception:
                                 continue
                         
-                        # Формируем список кампаний с целевыми действиями
-                        for item in items:
-                            camp_id = str(item.get("id", ""))
-                            goal_id, goal_name = goal_actions_map.get(camp_id, (None, None))
-                            
-                            campaigns.append({
-                                "id": camp_id,
-                                "name": item["name"],
-                                "status": item.get("status"),
-                                "goal_action_id": goal_id,
-                                "goal_action_name": goal_name
-                            })
+                            # Формируем список кампаний с целевыми действиями
+                            for item in items:
+                                camp_id = str(item.get("id", ""))
+                                goal_id, goal_name = goal_actions_map.get(camp_id, (None, None))
+                                
+                                campaigns.append({
+                                    "id": camp_id,
+                                    "name": item.get("name") or f"Campaign {camp_id}",
+                                    "status": item.get("status"),
+                                    "goal_action_id": goal_id,
+                                    "goal_action_name": goal_name
+                                })
+                    else:
+                        logger.warning("⚠️ VK Ads: базовый список кампаний пуст (items=0).")
                     
                     logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found}")
                     return campaigns
