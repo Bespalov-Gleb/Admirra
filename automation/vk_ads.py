@@ -94,6 +94,8 @@ class VKAdsAPI:
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
+        # Пытаемся запросить расширенные поля. Если API не поддерживает, будет fallback.
+        requested_fields = "objective,goal,goal_id,goal_name,target_action"
         
         if self.account_id:
             params["client_id"] = self.account_id
@@ -101,7 +103,12 @@ class VKAdsAPI:
         try:
             async with httpx.AsyncClient() as client:
                 # Сначала получаем список кампаний
-                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                list_params = params.copy()
+                list_params["fields"] = requested_fields
+                response = await client.get(url, params=list_params, headers=self.headers, timeout=30.0)
+                if response.status_code == 400:
+                    # fallback без fields, если параметр не поддерживается
+                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -153,8 +160,20 @@ class VKAdsAPI:
                                 try:
                                     # Согласно документации: GET /api/v2/ad_plans/{id}.json
                                     ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
+                                    ad_plan_params = {"fields": requested_fields}
+                                    if self.account_id:
+                                        ad_plan_params["client_id"] = self.account_id
                                     
-                                    ad_plan_response = await client.get(ad_plan_url, headers=self.headers, timeout=10.0)
+                                    ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
+                                    if ad_plan_response.status_code == 400:
+                                        # fallback без fields
+                                        fallback_params = {"client_id": self.account_id} if self.account_id else None
+                                        ad_plan_response = await client.get(
+                                            ad_plan_url,
+                                            params=fallback_params,
+                                            headers=self.headers,
+                                            timeout=10.0
+                                        )
                                     if ad_plan_response.status_code == 200:
                                         ad_plan_data = ad_plan_response.json()
                                         
@@ -252,44 +271,51 @@ class VKAdsAPI:
             async with httpx.AsyncClient() as client:
                 # Пробуем получить статистику с группировкой по целям
                 url = f"{self.base_url}/statistics/ad_plans/day.json"
-                params = {
+                base_params = {
                     "date_from": date_from,
                     "date_to": date_to,
-                    "metrics": "base",
                     "id": ",".join(campaign_ids[:50]) if campaign_ids else None,
                 }
                 
                 if self.account_id:
-                    params["client_id"] = self.account_id
+                    base_params["client_id"] = self.account_id
                 
-                # Пробуем разные варианты group_by
+                # Пробуем разные варианты group_by и metrics
+                metrics_options = ["base", "base,goals", "goals"]
                 for group_by_param in ["goal", "objective", "goal_id"]:
                     try:
-                        test_params = params.copy()
-                        test_params["group_by"] = group_by_param
+                        for metrics in metrics_options:
+                            test_params = base_params.copy()
+                            test_params["group_by"] = group_by_param
+                            test_params["metrics"] = metrics
                         
-                        response = await client.get(url, params=test_params, headers=self.headers, timeout=30.0)
+                            response = await client.get(url, params=test_params, headers=self.headers, timeout=30.0)
                         
-                        if response.status_code == 200:
-                            data = response.json()
-                            items = data.get("items", [])
+                            if response.status_code == 200:
+                                data = response.json()
+                                items = data.get("items", [])
                             
-                            for item in items:
-                                campaign_id = str(item.get("id", ""))
-                                # В статистике с группировкой по целям может быть поле goal или objective
-                                goal_id = item.get("goal_id") or item.get("goal", {}).get("id") if isinstance(item.get("goal"), dict) else None
-                                goal_name = item.get("goal_name") or item.get("goal", {}).get("name") if isinstance(item.get("goal"), dict) else None
+                                for item in items:
+                                    campaign_id = str(item.get("id", ""))
+                                    # В статистике с группировкой по целям может быть поле goal или objective
+                                    goal_id = item.get("goal_id") or item.get("goal", {}).get("id") if isinstance(item.get("goal"), dict) else None
+                                    goal_name = item.get("goal_name") or item.get("goal", {}).get("name") if isinstance(item.get("goal"), dict) else None
+                                    
+                                    if goal_id or goal_name:
+                                        if campaign_id not in goal_actions_map:
+                                            goal_actions_map[campaign_id] = (str(goal_id) if goal_id else None, goal_name)
                                 
-                                if goal_id or goal_name:
-                                    if campaign_id not in goal_actions_map:
-                                        goal_actions_map[campaign_id] = (str(goal_id) if goal_id else None, goal_name)
-                            
-                            if goal_actions_map:
-                                logger.info(f"✅ Найдено {len(goal_actions_map)} целевых действий в статистике (group_by={group_by_param})")
-                                break
-                        elif response.status_code == 400:
-                            # Параметр не поддерживается, пробуем следующий
-                            continue
+                                if goal_actions_map:
+                                    logger.info(
+                                        f"✅ Найдено {len(goal_actions_map)} целевых действий "
+                                        f"в статистике (group_by={group_by_param}, metrics={metrics})"
+                                    )
+                                    break
+                            elif response.status_code == 400:
+                                # Параметр не поддерживается, пробуем следующий
+                                continue
+                        if goal_actions_map:
+                            break
                     except Exception as e:
                         continue
                 
