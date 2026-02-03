@@ -24,10 +24,13 @@
             :clients="clients"
             :all-campaigns="allCampaigns"
             :loading-campaigns="loadingCampaigns"
+            :vk-goal-actions="vkGoalActions"
+            :loading-vk-goal-actions="loadingVkGoalActions"
             @period-change="handlePeriodChange"
             @date-change="handleDateChange"
             @export="handleExport"
             @update:campaign-ids="(ids) => filters.campaign_ids = ids"
+            @update:goal-action-ids="(ids) => filters.vk_goal_action_ids = ids"
           />
           </div>
           <label class="mt-4 xl:mt-0 inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
@@ -120,7 +123,9 @@ const {
   filters,
   handlePeriodChange,
   fetchStats,
-  loadingCampaigns
+  loadingCampaigns,
+  vkGoalActions,
+  loadingVkGoalActions
 } = useDashboardStats()
 
 const { currentProjectId, setCurrentProject } = useProjects()
@@ -211,7 +216,10 @@ const handleExport = async () => {
       end_date: filters.end_date,
       platform: filters.channel,
       client_id: filters.client_id || undefined,
-      campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined
+      campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined,
+      goal_action_ids: (filters.channel === 'vk' && filters.vk_goal_action_ids.length > 0)
+        ? filters.vk_goal_action_ids
+        : undefined
     }
 
     const response = await api.get('dashboard/export/csv', {

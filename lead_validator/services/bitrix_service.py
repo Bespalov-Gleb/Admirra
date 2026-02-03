@@ -253,3 +253,4 @@ class BitrixService:
 # Глобальный экземпляр
 bitrix_service = BitrixService()
 
+

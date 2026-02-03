@@ -236,3 +236,4 @@ class PlacementBlacklist:
 # Глобальный экземпляр
 placement_blacklist = PlacementBlacklist()
 
+

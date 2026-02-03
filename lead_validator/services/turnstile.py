@@ -94,3 +94,4 @@ class TurnstileValidator:
 # Глобальный экземпляр
 turnstile_validator = TurnstileValidator()
 
+

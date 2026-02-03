@@ -296,6 +296,8 @@ const loading = ref(false)
 const result = ref(null)
 const history = ref([])
 const testMode = ref(true) // По умолчанию тестовый режим
+const jsToken = ref(generateJsToken())
+const formStartTs = ref(Math.floor(Date.now() / 1000))
 
 // Webhook URLs
 const webhookUrls = ref({
@@ -315,6 +317,15 @@ onMounted(() => {
   }
 })
 
+function generateJsToken() {
+  if (window?.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  }
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+}
+
 // Validate lead
 async function validateLead() {
   loading.value = true
@@ -328,7 +339,9 @@ async function validateLead() {
       utm_source: form.value.utm_source || undefined,
       utm_medium: form.value.utm_medium || undefined,
       utm_campaign: form.value.utm_campaign || undefined,
-      utm_content: form.value.utm_content || undefined
+      utm_content: form.value.utm_content || undefined,
+      js_token: jsToken.value,
+      timestamp: formStartTs.value
     }
 
     // Выбираем эндпоинт в зависимости от режима
@@ -339,6 +352,8 @@ async function validateLead() {
       const params = { phone: form.value.phone }
       if (form.value.email) params.email = form.value.email
       if (form.value.name) params.name = form.value.name
+      params.js_token = jsToken.value
+      params.timestamp = formStartTs.value
       
       const response = await api.post('lead/test-validate', null, { params })
       data = response.data
@@ -389,6 +404,8 @@ async function validateLead() {
     }
   } finally {
     loading.value = false
+    jsToken.value = generateJsToken()
+    formStartTs.value = Math.floor(Date.now() / 1000)
   }
 }
 

@@ -111,6 +111,8 @@ class Campaign(Base):
     external_id = Column(String, nullable=False) # Campaign ID from the platform
     name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    vk_goal_action_id = Column(String, nullable=True)  # VK Ads goal/action identifier
+    vk_goal_action_name = Column(String, nullable=True)  # VK Ads goal/action display name
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     integration = relationship("Integration", back_populates="campaigns")

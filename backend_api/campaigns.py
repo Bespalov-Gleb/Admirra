@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from core.database import get_db
 from core import models, schemas, security
 from typing import List, Optional, Dict
@@ -12,6 +13,7 @@ def get_campaigns(
     integration_id: Optional[uuid.UUID] = None,
     client_id: Optional[uuid.UUID] = None,
     platform: Optional[str] = None,  # Filter by platform (yandex_direct, vk_ads, etc.)
+    goal_action_ids: Optional[List[str]] = Query(None),  # VK Ads goal/action filter
     only_active: bool = False,       # NEW: show only campaigns выбранные в интеграции (is_active=True)
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -39,11 +41,46 @@ def get_campaigns(
         target_platform = platform_map.get(platform.lower())
         if target_platform:
             query = query.filter(models.Integration.platform == target_platform)
+    if goal_action_ids:
+        query = query.filter(models.Campaign.vk_goal_action_id.in_(goal_action_ids))
     if only_active:
         # В дашбордах мы хотим видеть только кампании, которые пользователь отметил в интеграции
         query = query.filter(models.Campaign.is_active == True)
         
     return query.all()
+
+@router.get("/vk-goal-actions", response_model=List[schemas.VkGoalAction])
+def get_vk_goal_actions(
+    client_id: Optional[uuid.UUID] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    query = db.query(
+        models.Campaign.vk_goal_action_id,
+        models.Campaign.vk_goal_action_name
+    ).join(models.Integration).join(models.Client).filter(
+        models.Client.owner_id == current_user.id,
+        models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        or_(
+            models.Campaign.vk_goal_action_id.isnot(None),
+            models.Campaign.vk_goal_action_name.isnot(None)
+        )
+    )
+
+    if client_id:
+        query = query.filter(models.Integration.client_id == client_id)
+
+    actions = {}
+    for goal_id, goal_name in query.distinct().all():
+        action_id = goal_id or goal_name
+        action_name = goal_name or goal_id
+        if action_id and action_name and action_id not in actions:
+            actions[action_id] = action_name
+
+    return [
+        {"id": action_id, "name": action_name}
+        for action_id, action_name in sorted(actions.items(), key=lambda x: x[1].lower())
+    ]
 
 @router.patch("/{campaign_id}", response_model=schemas.CampaignResponse)
 def update_campaign(

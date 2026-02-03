@@ -27,3 +27,4 @@ def downgrade() -> None:
     """Remove vk_user_id column from integrations table."""
     op.drop_column('integrations', 'vk_user_id')
 
+

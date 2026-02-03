@@ -290,3 +290,4 @@ class MyTargetAPI:
             logger.warning(f"Error fetching myTarget balance: {e}")
             return None
 
+

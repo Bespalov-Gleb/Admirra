@@ -361,22 +361,38 @@ async def phone_project_webhook(
     project_id: str,
     data: dict,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret: Optional[str] = None
 ) -> ValidationResult:
     """Обработка webhook для проекта телефонии"""
+    project = None
+
+    # 1) Пытаемся интерпретировать как UUID проекта
     try:
         project_uuid = uuid.UUID(project_id)
+        project = db.query(models.PhoneProject).filter(
+            models.PhoneProject.id == project_uuid,
+            models.PhoneProject.is_active == True
+        ).first()
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid project ID format")
-    
-    # Находим проект
-    project = db.query(models.PhoneProject).filter(
-        models.PhoneProject.id == project_uuid,
-        models.PhoneProject.is_active == True
-    ).first()
+        project = None
+
+    # 2) Фоллбек: ищем по сохраненному webhook_url (для legacy URL)
+    if project is None:
+        webhook_path = f"/webhook/phone/{project_id}"
+        project = db.query(models.PhoneProject).filter(
+            models.PhoneProject.webhook_url == webhook_path,
+            models.PhoneProject.is_active == True
+        ).first()
     
     if not project:
         raise HTTPException(status_code=404, detail="Phone project not found or inactive")
+
+    # Проверяем секрет (header или query)
+    provided_secret = request.headers.get("x-webhook-secret") or secret
+    if project.webhook_secret:
+        if not provided_secret or provided_secret != project.webhook_secret:
+            raise HTTPException(status_code=401, detail="Invalid webhook secret")
     
     logger.info(f"Phone project webhook received: project={project.name}, phone={data.get('phone')}")
     

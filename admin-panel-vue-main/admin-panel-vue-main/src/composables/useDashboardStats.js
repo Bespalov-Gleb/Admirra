@@ -34,7 +34,9 @@ export function useDashboardStats() {
   const loading = ref(true)
   const loadingClients = ref(false)
   const loadingCampaigns = ref(false)
+  const loadingVkGoalActions = ref(false)
   const error = ref(null)
+  const vkGoalActions = ref([])
 
   // Filters state
   const filters = reactive({
@@ -42,6 +44,7 @@ export function useDashboardStats() {
     period: '14',
     client_id: null,
     campaign_ids: [],
+    vk_goal_action_ids: [],
     start_date: '',
     end_date: new Date().toISOString().split('T')[0]
   })
@@ -133,7 +136,10 @@ export function useDashboardStats() {
         client_id: filters.client_id || undefined,
         // CRITICAL: Only send campaign_ids if there are any selected
         // Empty array should not be sent (backend treats it as "no filter")
-        campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined
+        campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined,
+        goal_action_ids: (filters.channel === 'vk' && shouldFilterVkGoals())
+          ? filters.vk_goal_action_ids
+          : undefined
       }
 
       const [summaryRes, dynamicsRes, topClientsRes, campaignsRes] = await Promise.allSettled([
@@ -204,6 +210,10 @@ export function useDashboardStats() {
       if (filters.channel !== 'all') {
         params.platform = filters.channel
       }
+
+      if (filters.channel === 'vk' && shouldFilterVkGoals()) {
+        params.goal_action_ids = filters.vk_goal_action_ids
+      }
       
       const { data } = await api.get('campaigns/', { params })
       
@@ -220,6 +230,41 @@ export function useDashboardStats() {
     }
   }
 
+  const shouldFilterVkGoals = () => {
+    if (filters.channel !== 'vk') return false
+    if (!vkGoalActions.value.length) return false
+    if (!filters.vk_goal_action_ids || filters.vk_goal_action_ids.length === 0) return false
+    return filters.vk_goal_action_ids.length < vkGoalActions.value.length
+  }
+
+  const fetchVkGoalActions = async () => {
+    if (filters.channel !== 'vk' || !filters.client_id) {
+      vkGoalActions.value = []
+      filters.vk_goal_action_ids = []
+      return
+    }
+    loadingVkGoalActions.value = true
+    try {
+      const { data } = await api.get('campaigns/vk-goal-actions', {
+        params: { client_id: filters.client_id }
+      })
+      vkGoalActions.value = Array.isArray(data) ? data : []
+      const allIds = vkGoalActions.value.map(g => g.id).filter(Boolean)
+      if (!filters.vk_goal_action_ids || filters.vk_goal_action_ids.length === 0) {
+        filters.vk_goal_action_ids = allIds
+      } else {
+        const normalized = filters.vk_goal_action_ids.filter(id => allIds.includes(id))
+        filters.vk_goal_action_ids = normalized.length > 0 ? normalized : allIds
+      }
+    } catch (err) {
+      console.error('[DashboardStats] Error fetching VK goal actions:', err)
+      vkGoalActions.value = []
+      filters.vk_goal_action_ids = []
+    } finally {
+      loadingVkGoalActions.value = false
+    }
+  }
+
   // --- Watchers ---
   
   // 1. Project or Channel change -> Reset campaign selection and Fetch Pool
@@ -231,6 +276,7 @@ export function useDashboardStats() {
         filters.campaign_ids = []
       }
       fetchCampaignPool()
+      fetchVkGoalActions()
     }
   )
 
@@ -241,7 +287,8 @@ export function useDashboardStats() {
       filters.end_date, 
       filters.client_id, 
       filters.channel, 
-      filters.campaign_ids
+      filters.campaign_ids,
+      filters.vk_goal_action_ids
     ],
     (newVal, oldVal) => {
       // Only fetch if dates are actually set (not empty strings)
@@ -252,10 +299,23 @@ export function useDashboardStats() {
     { deep: true }
   )
 
+  // 3. VK goal actions change -> Refresh campaign pool
+  watch(
+    () => filters.vk_goal_action_ids,
+    () => {
+      if (filters.channel === 'vk' && filters.client_id) {
+        filters.campaign_ids = []
+        fetchCampaignPool()
+      }
+    },
+    { deep: true }
+  )
+
   onMounted(() => {
     setInitialDates()
     fetchClients()
     fetchCampaignPool()
+    fetchVkGoalActions()
     fetchStats()
   })
 
@@ -268,6 +328,8 @@ export function useDashboardStats() {
     clients,
     loading: computed(() => loading.value || loadingClients.value),
     loadingCampaigns,
+    loadingVkGoalActions,
+    vkGoalActions,
     error,
     filters,
     handlePeriodChange,

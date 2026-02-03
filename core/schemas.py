@@ -110,6 +110,8 @@ class CampaignUpdate(BaseModel):
 class CampaignResponse(CampaignBase):
     id: UUID
     integration_id: UUID
+    vk_goal_action_id: Optional[str] = None
+    vk_goal_action_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -186,6 +188,10 @@ class CampaignStat(BaseModel):
     conversions: int
     cpc: float
     cpa: float
+
+class VkGoalAction(BaseModel):
+    id: str
+    name: str
 
 class KeywordStat(BaseModel):
     keyword: str

@@ -49,6 +49,9 @@ class LeadValidatorSettings:
     DADATA_API_KEY: str = ""
     DADATA_SECRET_KEY: str = ""
     DADATA_TIMEOUT: float = 5.0
+    DADATA_CACHE_TTL_SEC: int = 86400
+    DADATA_RETRY_ATTEMPTS: int = 2
+    DADATA_RETRY_BACKOFF_SEC: float = 0.5
     
     # Redis для дедупликации и rate limiting
     REDIS_URL: str = "redis://localhost:6379"
@@ -106,9 +109,11 @@ class LeadValidatorSettings:
     
     # GetContact API (платно)
     GETCONTACT_API_KEY: str = ""
+    GETCONTACT_API_URL: str = ""
     
     # NumBuster API (платно)
     NUMBUSTER_API_KEY: str = ""
+    NUMBUSTER_API_URL: str = ""
     
     # Спам-номера (Уровень 5)
     SPRAVPORTAL_API_KEY: str = ""  # SpravPortal WhoCalls API
@@ -116,6 +121,19 @@ class LeadValidatorSettings:
     
     # Bitrix24 CRM (Уровень 3)
     BITRIX24_WEBHOOK_URL: str = ""  # Webhook URL для доступа к API
+
+    # Госуслуги (внешний провайдер)
+    GOSUSLUGI_API_URL: str = ""
+    GOSUSLUGI_API_KEY: str = ""
+    GOSUSLUGI_TIMEOUT: float = 5.0
+
+    # Email уведомления
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_USE_TLS: bool = True
     
     # Автоматические оповещения (Уровень 8)
     ALERT_THRESHOLD_PERCENT: float = 50.0  # Порог для алерта (% мусора)
@@ -133,6 +151,9 @@ class LeadValidatorSettings:
         self.DADATA_API_KEY = _get_env("DADATA_API_KEY")
         self.DADATA_SECRET_KEY = _get_env("DADATA_SECRET_KEY")
         self.DADATA_TIMEOUT = _get_env_float("DADATA_TIMEOUT", 5.0)
+        self.DADATA_CACHE_TTL_SEC = _get_env_int("DADATA_CACHE_TTL_SEC", 86400)
+        self.DADATA_RETRY_ATTEMPTS = _get_env_int("DADATA_RETRY_ATTEMPTS", 2)
+        self.DADATA_RETRY_BACKOFF_SEC = _get_env_float("DADATA_RETRY_BACKOFF_SEC", 0.5)
         
         # Redis
         self.REDIS_URL = _get_env("REDIS_URL", "redis://localhost:6379")
@@ -189,7 +210,9 @@ class LeadValidatorSettings:
         # Проверка соцсетей
         self.VK_API_TOKEN = _get_env("VK_API_TOKEN", "")
         self.GETCONTACT_API_KEY = _get_env("GETCONTACT_API_KEY", "")
+        self.GETCONTACT_API_URL = _get_env("GETCONTACT_API_URL", "")
         self.NUMBUSTER_API_KEY = _get_env("NUMBUSTER_API_KEY", "")
+        self.NUMBUSTER_API_URL = _get_env("NUMBUSTER_API_URL", "")
         
         # Спам-номера
         self.SPRAVPORTAL_API_KEY = _get_env("SPRAVPORTAL_API_KEY", "")
@@ -197,6 +220,19 @@ class LeadValidatorSettings:
         
         # Bitrix24 CRM
         self.BITRIX24_WEBHOOK_URL = _get_env("BITRIX24_WEBHOOK_URL", "")
+
+        # Госуслуги
+        self.GOSUSLUGI_API_URL = _get_env("GOSUSLUGI_API_URL", "")
+        self.GOSUSLUGI_API_KEY = _get_env("GOSUSLUGI_API_KEY", "")
+        self.GOSUSLUGI_TIMEOUT = _get_env_float("GOSUSLUGI_TIMEOUT", 5.0)
+
+        # Email
+        self.SMTP_HOST = _get_env("SMTP_HOST", "")
+        self.SMTP_PORT = _get_env_int("SMTP_PORT", 587)
+        self.SMTP_USER = _get_env("SMTP_USER", "")
+        self.SMTP_PASSWORD = _get_env("SMTP_PASSWORD", "")
+        self.SMTP_FROM = _get_env("SMTP_FROM", "")
+        self.SMTP_USE_TLS = _get_env_bool("SMTP_USE_TLS", True)
         
         # Автоматические оповещения
         self.ALERT_THRESHOLD_PERCENT = _get_env_float("ALERT_THRESHOLD_PERCENT", 50.0)

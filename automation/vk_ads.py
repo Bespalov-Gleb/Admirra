@@ -14,6 +14,57 @@ class VKAdsAPI:
         }
         self.account_id = account_id
 
+    @staticmethod
+    def _parse_goal_value(value: Any) -> tuple:
+        if value is None:
+            return None, None
+        if isinstance(value, dict):
+            goal_id = (
+                value.get("id")
+                or value.get("goal_id")
+                or value.get("action_id")
+                or value.get("code")
+                or value.get("type")
+            )
+            goal_name = value.get("name") or value.get("title") or value.get("label")
+            if goal_name is None and goal_id is not None:
+                goal_name = str(goal_id)
+            return (str(goal_id) if goal_id is not None else None, goal_name)
+        return (str(value), str(value))
+
+    def _extract_goal_action(self, item: Dict[str, Any]) -> tuple:
+        direct_id = (
+            item.get("goal_id")
+            or item.get("goal_action_id")
+            or item.get("target_action_id")
+            or item.get("objective_id")
+        )
+        direct_name = (
+            item.get("goal_name")
+            or item.get("goal_action_name")
+            or item.get("target_action_name")
+            or item.get("objective_name")
+        )
+        if direct_id or direct_name:
+            return (str(direct_id) if direct_id is not None else None, direct_name or str(direct_id))
+
+        for key in [
+            "goal",
+            "target_action",
+            "objective",
+            "goal_type",
+            "conversion_goal",
+            "optimization_event",
+            "event_type",
+            "action_type",
+        ]:
+            if key in item:
+                goal_id, goal_name = self._parse_goal_value(item.get(key))
+                if goal_id or goal_name:
+                    return (goal_id, goal_name)
+
+        return (None, None)
+
     async def get_campaigns(self) -> List[Dict[str, Any]]:
         """
         Получает список всех рекламных кампаний (AdPlans).
@@ -46,14 +97,17 @@ class VKAdsAPI:
                     
                     logger.info(f"📋 Retrieved {len(items)} campaign(s) from VK Ads API")
                     
-                    return [
-                        {
+                    campaigns = []
+                    for item in items:
+                        goal_id, goal_name = self._extract_goal_action(item)
+                        campaigns.append({
                             "id": str(item["id"]),
                             "name": item["name"],
-                            "status": item.get("status")
-                        }
-                        for item in items
-                    ]
+                            "status": item.get("status"),
+                            "goal_action_id": goal_id,
+                            "goal_action_name": goal_name
+                        })
+                    return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
                     raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {error_text}")

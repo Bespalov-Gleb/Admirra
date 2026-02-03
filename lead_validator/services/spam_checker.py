@@ -287,3 +287,4 @@ class SpamChecker:
 # Глобальный экземпляр
 spam_checker = SpamChecker()
 
+

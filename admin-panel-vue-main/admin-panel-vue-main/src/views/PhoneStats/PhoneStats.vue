@@ -185,20 +185,11 @@ watch(selectedPeriod, () => {
 const fetchStats = async () => {
   try {
     loading.value = true
-    // TODO: Заменить на реальный API endpoint когда будет готов
-    // const response = await api.get('lead/stats', {
-    //   params: { days: selectedPeriod.value }
-    // })
-    // stats.value = response.data
-    
-    // Временные данные для демонстрации
-    stats.value = {
-      total: 0,
-      accepted: 0,
-      rejected: 0,
-      rejection_rate: 0
-    }
-    projectStats.value = []
+    const response = await api.get('phone-stats/', {
+      params: { days: selectedPeriod.value }
+    })
+    stats.value = response.data.stats
+    projectStats.value = response.data.project_stats || []
   } catch (error) {
     console.error('Error fetching stats:', error)
     toaster.error('Не удалось загрузить статистику')
@@ -207,4 +198,5 @@ const fetchStats = async () => {
   }
 }
 </script>
+
 

@@ -276,3 +276,4 @@ class AnalyticsService:
 # Глобальный экземпляр
 analytics_service = AnalyticsService()
 
+

@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 import time
 import uuid
@@ -53,21 +54,28 @@ if not hasattr(bcrypt, "__about__"):
 import mimetypes
 mimetypes.add_type('application/javascript', '.js')
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from backend_api.auth import router as auth_router
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
 from backend_api.campaigns import router as campaigns_router
 from backend_api.phone_projects import router as phone_projects_router
+from backend_api.phone_leads import router as phone_leads_router
+from backend_api.phone_stats import router as phone_stats_router
 
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 try:
     from lead_validator.router import router as lead_validator_router
     from lead_validator.webhook_router import router as webhook_router
+    from lead_validator.tasks.alert_scheduler import run_daily_alerts, run_weekly_report
     LEAD_VALIDATOR_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Lead Validator module not available: {e}. Some endpoints will be disabled.")
     LEAD_VALIDATOR_AVAILABLE = False
+
+lead_scheduler: Optional[AsyncIOScheduler] = None
 
 app = FastAPI(
     title="Analytics SAAS API",
@@ -84,12 +92,27 @@ async def startup_event():
     await get_request_queue()  # Инициализируем очередь запросов
     logger.info("✅ Application startup complete - request queue initialized")
 
+    # Планировщик для задач телефонии
+    global lead_scheduler
+    if LEAD_VALIDATOR_AVAILABLE:
+        lead_scheduler = AsyncIOScheduler()
+        lead_scheduler.add_job(run_daily_alerts, "cron", hour=9, minute=0, id="lead_daily_alerts")
+        lead_scheduler.add_job(run_weekly_report, "cron", day_of_week="mon", hour=9, minute=30, id="lead_weekly_report")
+        lead_scheduler.start()
+        logger.info("✅ Lead validator scheduler started")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Очистка при остановке приложения"""
     from automation.request_queue import shutdown_request_queue
     await shutdown_request_queue()
     logger.info("✅ Application shutdown complete - request queue stopped")
+
+    global lead_scheduler
+    if lead_scheduler:
+        lead_scheduler.shutdown()
+        lead_scheduler = None
+        logger.info("✅ Lead validator scheduler stopped")
 
 
 @app.middleware("http")
@@ -133,6 +156,8 @@ app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(phone_projects_router, prefix="/api")
+app.include_router(phone_leads_router, prefix="/api")
+app.include_router(phone_stats_router, prefix="/api")
 
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 if LEAD_VALIDATOR_AVAILABLE:

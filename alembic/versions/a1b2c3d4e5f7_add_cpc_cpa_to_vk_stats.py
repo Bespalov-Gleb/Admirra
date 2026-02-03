@@ -30,3 +30,4 @@ def downgrade() -> None:
     op.drop_column("vk_stats", "cpa")
     op.drop_column("vk_stats", "cpc")
 
+

@@ -99,3 +99,4 @@ if __name__ == "__main__":
     success = test_registration(email, password, username, first_name, last_name)
     sys.exit(0 if success else 1)
 
+

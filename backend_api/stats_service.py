@@ -14,7 +14,15 @@ class StatsService:
         return [c.id for c in db.query(models.Client).filter_by(owner_id=user_id).all()]
 
     @staticmethod
-    def aggregate_summary(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all", campaign_ids: Optional[List[uuid.UUID]] = None):
+    def aggregate_summary(
+        db: Session,
+        client_ids: List[uuid.UUID],
+        d_start: Optional[datetime.date],
+        d_end: datetime.date,
+        platform: str = "all",
+        campaign_ids: Optional[List[uuid.UUID]] = None,
+        vk_goal_action_ids: Optional[List[str]] = None
+    ):
         if not client_ids:
             return {
                 "expenses": 0,
@@ -81,6 +89,9 @@ class StatsService:
                 # Для отдельных кампаний этот фильтр не нужен, так как они приходят из выпадающего списка уже отфильтрованными.
                 y_q = y_q.filter(models.Campaign.is_active.is_(True))
                 v_q = v_q.filter(models.Campaign.is_active.is_(True))
+
+            if vk_goal_action_ids:
+                v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
 
                 # CRITICAL: When no campaigns selected, filter by all integrations of the client
                 # This ensures we don't mix data from different profiles/integrations
@@ -429,7 +440,15 @@ class StatsService:
         }
 
     @staticmethod
-    def get_campaign_stats(db: Session, client_ids: List[uuid.UUID], d_start: Optional[datetime.date], d_end: datetime.date, platform: str = "all", campaign_ids: Optional[List[uuid.UUID]] = None):
+    def get_campaign_stats(
+        db: Session,
+        client_ids: List[uuid.UUID],
+        d_start: Optional[datetime.date],
+        d_end: datetime.date,
+        platform: str = "all",
+        campaign_ids: Optional[List[uuid.UUID]] = None,
+        vk_goal_action_ids: Optional[List[str]] = None
+    ):
         if not client_ids:
             return []
 
@@ -489,6 +508,8 @@ class StatsService:
 
             if campaign_ids:
                 v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
+            if vk_goal_action_ids:
+                v_query = v_query.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
 
             if d_start:
                 v_query = v_query.filter(models.VKStats.date >= d_start)

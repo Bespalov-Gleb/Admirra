@@ -1,18 +1,26 @@
 """
-Проверка регистрации телефона в Госуслугах.
+Проверка регистрации телефона в Госуслугах через внешний провайдер.
 
-ЗАГЛУШКА: Требуется интеграция с API Госуслуг или сторонними сервисами.
-Возможные варианты:
-- Официальный API Госуслуг (требует специального доступа)
-- Сторонние сервисы проверки (платные)
-- Парсинг публичных данных (ограниченный функционал)
+Интеграция настраивается через env:
+- GOSUSLUGI_API_URL
+- GOSUSLUGI_API_KEY
+- GOSUSLUGI_TIMEOUT
 
-Данный модуль легко расширить после выбора конкретного провайдера.
+Ожидаемый формат ответа (любой из вариантов полей):
+{
+  "registered": true,
+  "name": "Иван",
+  "surname": "Иванов",
+  "middle_name": "Иванович"
+}
 """
 
 import logging
 from typing import Optional
 from dataclasses import dataclass
+
+import httpx
+from lead_validator.config import settings
 
 logger = logging.getLogger("lead_validator.gosuslugi_checker")
 
@@ -47,7 +55,10 @@ class GosuslugiChecker:
     """
     
     def __init__(self):
-        self.enabled = False  # Пока отключено, нет API
+        self.api_url = settings.GOSUSLUGI_API_URL
+        self.api_key = settings.GOSUSLUGI_API_KEY
+        self.timeout = settings.GOSUSLUGI_TIMEOUT
+        self.enabled = bool(self.api_url and self.api_key)
         
     async def check(self, phone: str) -> GosuslugiCheckResult:
         """
@@ -65,28 +76,40 @@ class GosuslugiChecker:
             result.error = "Gosuslugi checker not configured"
             logger.debug(f"Gosuslugi check skipped for {phone}: not configured")
             return result
-            
-        # TODO: Реализовать реальные проверки
-        # 
-        # Пример для официального API Госуслуг (если доступен):
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.post(
-        #         "https://api.gosuslugi.ru/v1/check-phone",
-        #         headers={"Authorization": f"Bearer {api_key}"},
-        #         json={"phone": phone}
-        #     )
-        #     if response.status_code == 200:
-        #         data = response.json()
-        #         result.has_registration = data.get("registered", False)
-        #         if result.has_registration:
-        #             result.name = data.get("first_name")
-        #             result.surname = data.get("last_name")
-        #             result.middle_name = data.get("middle_name")
-        #         result.checked = True
-        
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.api_url,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json={"phone": phone}
+                )
+
+                if response.status_code == 200:
+                    data = response.json() or {}
+                    registered = data.get("registered")
+                    if registered is None:
+                        registered = data.get("has_registration")
+                    result.has_registration = bool(registered)
+                    if result.has_registration:
+                        result.name = data.get("name") or data.get("first_name")
+                        result.surname = data.get("surname") or data.get("last_name")
+                        result.middle_name = data.get("middle_name")
+                    result.checked = True
+                else:
+                    result.error = f"gosuslugi_http_{response.status_code}"
+                    logger.warning(f"Gosuslugi API error: {response.status_code} - {response.text[:200]}")
+        except httpx.TimeoutException:
+            result.error = "gosuslugi_timeout"
+            logger.warning(f"Gosuslugi timeout for {phone}")
+        except Exception as e:
+            result.error = "gosuslugi_error"
+            logger.error(f"Gosuslugi unexpected error: {e}")
+
         return result
 
 
 # Глобальный экземпляр
 gosuslugi_checker = GosuslugiChecker()
+
 

@@ -112,9 +112,8 @@ def create_phone_project(
     """Создать новый проект телефонии"""
     import json
     
-    # Генерируем уникальный webhook URL и секрет
+    # Генерируем секрет для webhook (URL сформируем после создания проекта)
     webhook_secret = secrets.token_urlsafe(32)
-    webhook_path = f"/webhook/phone/{uuid.uuid4().hex[:16]}"
     
     # Преобразуем email_recipients в JSON строку
     email_recipients_json = None
@@ -134,7 +133,7 @@ def create_phone_project(
         client_id=project_data.client_id,
         name=project_data.name,
         description=project_data.description,
-        webhook_url=webhook_path,
+        webhook_url=None,
         webhook_secret=webhook_secret,
         crm_webhook_url=project_data.crm_webhook_url,
         email_recipients=email_recipients_json,
@@ -145,6 +144,11 @@ def create_phone_project(
     )
     
     db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    # Формируем webhook URL на основе ID проекта
+    project.webhook_url = f"/webhook/phone/{project.id}"
     db.commit()
     db.refresh(project)
     

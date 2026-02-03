@@ -393,6 +393,23 @@
               </div>
               <p class="text-xs text-gray-500 mt-1">Используйте этот URL для настройки webhook в Tilda, Marquiz и других сервисах</p>
             </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Webhook Secret</label>
+              <div class="flex items-center gap-2">
+                <input
+                  :value="viewingProject?.webhook_secret || ''"
+                  readonly
+                  class="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                />
+                <button
+                  @click="copyWebhookSecret"
+                  class="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                >
+                  Копировать
+                </button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Добавьте секрет в заголовок <code class="font-mono">X-Webhook-Secret</code></p>
+            </div>
           </div>
 
           <div v-if="activeTab === 'leads'" class="space-y-4">
@@ -491,11 +508,22 @@ const manualLeadForm = reactive({
   email: '',
   name: ''
 })
+const manualLeadJsToken = ref(generateJsToken())
+const manualLeadStartTs = ref(Math.floor(Date.now() / 1000))
 
 const webhookFullUrl = computed(() => {
   if (!viewingProject?.webhook_url) return ''
   return `${window.location.origin}/api${viewingProject.webhook_url}`
 })
+
+function generateJsToken() {
+  if (window?.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  }
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+}
 
 onMounted(async () => {
   await Promise.all([fetchProjects(), fetchClients()])
@@ -618,6 +646,20 @@ const copyWebhookUrl = async () => {
   }
 }
 
+const copyWebhookSecret = async () => {
+  try {
+    const secret = viewingProject.value?.webhook_secret || ''
+    if (!secret) {
+      toaster.error('Webhook secret недоступен')
+      return
+    }
+    await navigator.clipboard.writeText(secret)
+    toaster.success('Webhook secret скопирован в буфер обмена')
+  } catch (error) {
+    toaster.error('Не удалось скопировать secret')
+  }
+}
+
 const submitManualLead = async () => {
   if (!manualLeadForm.phone) {
     toaster.error('Введите телефон')
@@ -637,10 +679,14 @@ const submitManualLead = async () => {
     const payload = {
       phone: manualLeadForm.phone,
       email: manualLeadForm.email || undefined,
-      name: manualLeadForm.name || undefined
+      name: manualLeadForm.name || undefined,
+      js_token: manualLeadJsToken.value,
+      timestamp: manualLeadStartTs.value
     }
 
-    await api.post(`webhook${webhookUrl}`, payload)
+    const webhookSecret = viewingProject.value?.webhook_secret
+    const headers = webhookSecret ? { 'X-Webhook-Secret': webhookSecret } : {}
+    await api.post(`webhook${webhookUrl}`, payload, { headers })
     toaster.success('Заявка отправлена на проверку')
     
     // Сброс формы
@@ -649,6 +695,8 @@ const submitManualLead = async () => {
       email: '',
       name: ''
     })
+    manualLeadJsToken.value = generateJsToken()
+    manualLeadStartTs.value = Math.floor(Date.now() / 1000)
   } catch (error) {
     console.error('Error submitting manual lead:', error)
     toaster.error(error.response?.data?.detail || 'Не удалось отправить заявку')

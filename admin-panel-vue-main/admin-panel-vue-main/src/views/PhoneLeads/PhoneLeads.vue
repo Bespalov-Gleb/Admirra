@@ -202,12 +202,8 @@ const fetchLeads = async () => {
     if (filters.value.start_date) params.start_date = filters.value.start_date
     if (filters.value.end_date) params.end_date = filters.value.end_date
 
-    // TODO: Заменить на реальный API endpoint когда будет готов
-    // const response = await api.get('leads/', { params })
-    // leads.value = response.data
-    
-    // Временные данные для демонстрации
-    leads.value = []
+    const response = await api.get('phone-leads/', { params })
+    leads.value = response.data
   } catch (error) {
     console.error('Error fetching leads:', error)
     toaster.error('Не удалось загрузить лиды')
@@ -238,4 +234,5 @@ const getProjectName = (projectId) => {
   return project?.name || '-'
 }
 </script>
+
 

@@ -583,6 +583,40 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.debug(f"Balance not available for integration {integration.id}")
             except Exception as balance_err:
                 logger.warning(f"Failed to fetch balance for integration {integration.id}: {balance_err}")
+
+            # Синхронизируем список кампаний и их целевые действия
+            try:
+                vk_campaigns = await api.get_campaigns()
+                for c in vk_campaigns:
+                    external_id = str(c.get("id") or "")
+                    if not external_id:
+                        continue
+                    campaign = db.query(models.Campaign).filter_by(
+                        integration_id=integration.id,
+                        external_id=external_id
+                    ).first()
+                    if not campaign:
+                        campaign = models.Campaign(
+                            integration_id=integration.id,
+                            external_id=external_id,
+                            name=c.get("name") or f"Campaign {external_id}",
+                            is_active=True
+                        )
+                        db.add(campaign)
+                        db.flush()
+                    else:
+                        if c.get("name") and campaign.name != c.get("name"):
+                            campaign.name = c.get("name")
+
+                    goal_action_id = c.get("goal_action_id")
+                    goal_action_name = c.get("goal_action_name")
+                    if goal_action_id or goal_action_name:
+                        campaign.vk_goal_action_id = goal_action_id
+                        campaign.vk_goal_action_name = goal_action_name
+                db.commit()
+            except Exception as campaigns_err:
+                logger.warning(f"Failed to sync VK campaigns/goal actions for integration {integration.id}: {campaigns_err}")
+                db.rollback()
             
             try:
                 log_event("sync", f"fetching vk statistics for {integration.id}")

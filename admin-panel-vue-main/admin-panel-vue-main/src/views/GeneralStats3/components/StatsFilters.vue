@@ -70,6 +70,55 @@
           <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
         </div>
       </div>
+
+      <div v-if="filters.channel === 'vk'" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
+        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Целевое действие</label>
+        <div class="relative">
+          <button
+            type="button"
+            class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between"
+            :disabled="loadingVkGoalActions"
+            @click="toggleGoals"
+          >
+            <span>
+              <template v-if="loadingVkGoalActions">Загрузка...</template>
+              <template v-else-if="!vkGoalActions.length">Нет действий</template>
+              <template v-else-if="allGoalsSelected">Все действия ({{ vkGoalActions.length }})</template>
+              <template v-else>Выбрано: {{ selectedGoalIds.length }}</template>
+            </span>
+            <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400" />
+          </button>
+
+          <div
+            v-if="showGoals && vkGoalActions.length"
+            class="absolute z-20 mt-2 w-full bg-white border border-gray-100 rounded-[14px] shadow-lg p-2 max-h-64 overflow-y-auto"
+          >
+            <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                :checked="allGoalsSelected"
+                @change="toggleAllGoals($event)"
+              />
+              <span>Выбрать все</span>
+            </label>
+            <div class="h-px bg-gray-100 my-1"></div>
+            <label
+              v-for="goal in vkGoalActions"
+              :key="goal.id"
+              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700"
+            >
+              <input
+                type="checkbox"
+                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                :checked="selectedGoalIds.includes(goal.id)"
+                @change="toggleGoal(goal.id)"
+              />
+              <span class="truncate" :title="goal.name">{{ goal.name }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Time & Action Group -->
@@ -120,7 +169,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowDownTrayIcon, ChevronDownIcon } from '@heroicons/vue/24/solid'
 import DateRangePicker from '../../../components/ui/DateRangePicker.vue'
 
@@ -140,10 +189,18 @@ const props = defineProps({
   loadingCampaigns: {
     type: Boolean,
     default: false
+  },
+  vkGoalActions: {
+    type: Array,
+    default: () => []
+  },
+  loadingVkGoalActions: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['period-change', 'export', 'update:campaign-ids', 'date-change'])
+const emit = defineEmits(['period-change', 'export', 'update:campaign-ids', 'update:goal-action-ids', 'date-change'])
 
 const selectedCampaignId = computed({
   get: () => {
@@ -158,6 +215,34 @@ const selectedCampaignId = computed({
     }
   }
 })
+
+const showGoals = ref(false)
+const selectedGoalIds = computed(() => props.filters.vk_goal_action_ids || [])
+const allGoalsSelected = computed(() => {
+  if (!props.vkGoalActions.length) return false
+  return selectedGoalIds.value.length === props.vkGoalActions.length
+})
+
+const toggleGoals = () => {
+  if (!props.vkGoalActions.length) return
+  showGoals.value = !showGoals.value
+}
+
+const toggleAllGoals = (event) => {
+  const checked = event.target.checked
+  const allIds = props.vkGoalActions.map(g => g.id)
+  emit('update:goal-action-ids', checked ? allIds : [])
+}
+
+const toggleGoal = (goalId) => {
+  const current = new Set(selectedGoalIds.value)
+  if (current.has(goalId)) {
+    current.delete(goalId)
+  } else {
+    current.add(goalId)
+  }
+  emit('update:goal-action-ids', Array.from(current))
+}
 
 const handleCustomDateChange = (dates) => {
   if (dates.start) {

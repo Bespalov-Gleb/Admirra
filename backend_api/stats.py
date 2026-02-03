@@ -264,6 +264,7 @@ async def get_summary(
     end_date: str = None,
     client_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all", # 'yandex', 'vk', 'all'
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -286,6 +287,12 @@ async def get_summary(
                 except: pass
         if not u_campaign_ids: u_campaign_ids = None
 
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
+
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "balance": 0, "currency": "RUB", "trends": None}
@@ -298,7 +305,7 @@ async def get_summary(
     ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
     
     print(f"DEBUG: get_summary - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
-    return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
+    return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
 @cache_response(ttl=900)
@@ -307,6 +314,7 @@ async def get_dynamics(
     end_date: str = None,
     client_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -328,6 +336,12 @@ async def get_dynamics(
                 try: u_campaign_ids.append(uuid.UUID(cid))
                 except: pass
         if not u_campaign_ids: u_campaign_ids = None
+
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
 
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
@@ -407,6 +421,8 @@ async def get_dynamics(
         integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
         if integration_ids:
             v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    elif u_goal_action_ids:
+        v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
         # CRITICAL: When no campaigns selected, filter by all integrations of the client
         # This prevents mixing data from different profiles/integrations
@@ -500,6 +516,7 @@ async def get_campaign_stats(
     end_date: str = None,
     client_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -521,6 +538,12 @@ async def get_campaign_stats(
                 try: u_campaign_ids.append(uuid.UUID(cid))
                 except: pass
         if not u_campaign_ids: u_campaign_ids = None
+
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
 
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
@@ -784,6 +807,7 @@ async def export_stats_csv(
     end_date: str = None,
     client_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -806,6 +830,12 @@ async def export_stats_csv(
                 except: pass
         if not u_campaign_ids: u_campaign_ids = None
 
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
+
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return StreamingResponse(io.StringIO("No data"), media_type="text/csv")
@@ -813,7 +843,7 @@ async def export_stats_csv(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     
-    stats = StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
+    stats = StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
     
     output = io.StringIO()
     # Add BOM for Excel compatibility with UTF-8

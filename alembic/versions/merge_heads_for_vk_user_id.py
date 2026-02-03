@@ -27,3 +27,4 @@ def downgrade() -> None:
     """Downgrade schema."""
     pass
 
+

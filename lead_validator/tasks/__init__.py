@@ -6,3 +6,4 @@ from lead_validator.tasks.alert_scheduler import alert_scheduler, run_daily_aler
 
 __all__ = ["alert_scheduler", "run_daily_alerts", "run_weekly_report"]
 
+

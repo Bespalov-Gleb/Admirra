@@ -19,6 +19,7 @@ from typing import Optional
 from dataclasses import dataclass, asdict
 from lead_validator.config import settings
 from lead_validator.services.redis_service import redis_service
+from lead_validator.config import settings
 import os
 
 logger = logging.getLogger("lead_validator.social_checker")
@@ -58,17 +59,19 @@ class SocialChecker:
     
     def __init__(self):
         # VK API настройки
-        self.vk_api_token = os.getenv("VK_API_TOKEN", "")  # Service token для VK API (не Ads API)
+        self.vk_api_token = settings.VK_API_TOKEN  # Service token для VK API (не Ads API)
         self.vk_api_version = "5.131"
         self.vk_enabled = bool(self.vk_api_token)
         
         # GetContact API настройки
-        self.getcontact_api_key = os.getenv("GETCONTACT_API_KEY", "")
-        self.getcontact_enabled = bool(self.getcontact_api_key)
+        self.getcontact_api_key = settings.GETCONTACT_API_KEY
+        self.getcontact_api_url = settings.GETCONTACT_API_URL
+        self.getcontact_enabled = bool(self.getcontact_api_key and self.getcontact_api_url)
         
         # NumBuster API настройки
-        self.numbuster_api_key = os.getenv("NUMBUSTER_API_KEY", "")
-        self.numbuster_enabled = bool(self.numbuster_api_key)
+        self.numbuster_api_key = settings.NUMBUSTER_API_KEY
+        self.numbuster_api_url = settings.NUMBUSTER_API_URL
+        self.numbuster_enabled = bool(self.numbuster_api_key and self.numbuster_api_url)
         
         # Общая настройка
         self.enabled = self.vk_enabled or self.getcontact_enabled or self.numbuster_enabled
@@ -277,13 +280,12 @@ class SocialChecker:
         Returns:
             dict с результатами или None при ошибке
         """
-        if not self.getcontact_api_key:
+        if not self.getcontact_api_key or not self.getcontact_api_url:
             return None
         
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # GetContact API endpoint (пример, нужно уточнить реальный endpoint)
-                url = "https://api.getcontact.com/v1/lookup"
+                url = self.getcontact_api_url
                 headers = {
                     "Authorization": f"Bearer {self.getcontact_api_key}",
                     "Content-Type": "application/json"
@@ -333,13 +335,12 @@ class SocialChecker:
         Returns:
             dict с результатами или None при ошибке
         """
-        if not self.numbuster_api_key:
+        if not self.numbuster_api_key or not self.numbuster_api_url:
             return None
         
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # NumBuster API endpoint (пример, нужно уточнить реальный endpoint)
-                url = "https://api.numbuster.com/v1/check"
+                url = self.numbuster_api_url
                 headers = {
                     "Authorization": f"Bearer {self.numbuster_api_key}",
                     "Content-Type": "application/json"

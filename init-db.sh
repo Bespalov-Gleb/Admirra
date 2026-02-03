@@ -9,3 +9,4 @@ EOSQL
 
 echo "Database initialization complete. Password set successfully."
 
+

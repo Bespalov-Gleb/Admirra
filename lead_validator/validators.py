@@ -645,11 +645,11 @@ class LeadValidator:
         if project.email_recipients and not lead_record.exported_to_email:
             try:
                 recipients = json.loads(project.email_recipients) if project.email_recipients else []
-                # TODO: Реализовать отправку email
-                # from lead_validator.services.email_sender import email_sender
-                # await email_sender.send_lead_notification(recipients, export_data)
-                lead_record.exported_to_email = True
-                logger.info(f"Lead exported to email: {lead_record.id}")
+                from lead_validator.services.email_sender import email_sender
+                sent = await email_sender.send_lead_notification(recipients, export_data)
+                if sent:
+                    lead_record.exported_to_email = True
+                    logger.info(f"Lead exported to email: {lead_record.id}")
             except Exception as e:
                 logger.error(f"Failed to export lead to email: {e}")
         

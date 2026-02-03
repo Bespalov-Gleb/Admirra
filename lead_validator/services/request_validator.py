@@ -190,3 +190,4 @@ class RequestValidator:
 # Глобальный экземпляр
 request_validator = RequestValidator()
 
+
