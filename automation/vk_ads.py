@@ -10,10 +10,9 @@ logger = logging.getLogger(__name__)
 VK_OBJECTIVE_NAMES = {
     "leadads": "Получение лидов",
     "leads": "Получение лидов",
-    "socialengagement": "Продвижение поста",
+    "socialengagement": "Отправка сообщения",
     "post_engagement": "Продвижение поста",
     "messages": "Отправка сообщения",
-    "send_message": "Отправка сообщения",
     "traffic": "Трафик",
     "conversions": "Конверсии",
     "reach": "Охват",
