@@ -138,6 +138,12 @@ class VKAdsAPI:
                         if "objective" in items[0]:
                             # objective уже есть в ответе
                             for item in items:
+                                item_id = item.get("id")
+                                if not item_id:
+                                    logger.warning(
+                                        f"⚠️ VK Ads: пропущен элемент без id в ad_plans.json: {list(item.keys())}"
+                                    )
+                                    continue
                                 objective = item.get("objective")
                                 goal_id = None
                                 goal_name = None
@@ -151,8 +157,8 @@ class VKAdsAPI:
                                         goal_name = objective.get("name") or objective.get("title")
                                 
                                 campaigns.append({
-                                    "id": str(item["id"]),
-                                    "name": item.get("name") or f"Campaign {item.get('id')}",
+                                    "id": str(item_id),
+                                    "name": item.get("name") or f"Campaign {item_id}",
                                     "status": item.get("status"),
                                     "goal_action_id": goal_id,
                                     "goal_action_name": goal_name
