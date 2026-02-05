@@ -444,6 +444,42 @@ class VKAdsAPI:
                     logger.warning(f"⚠️ VK Ads ad_groups error for param {param_name}: {e}")
                     continue
 
+            # Если фильтры не сработали, пробуем получить все группы постранично и фильтруем локально
+            if not ad_groups:
+                limit = 200
+                offset = 0
+                max_pages = 20
+                campaign_set = set(str(cid) for cid in campaign_ids)
+                for _ in range(max_pages):
+                    params = {"limit": limit, "offset": offset}
+                    if self.account_id:
+                        params["client_id"] = self.account_id
+                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                    if response.status_code != 200:
+                        logger.warning(
+                            f"⚠️ VK Ads ad_groups page error {response.status_code}: "
+                            f"{response.text[:200] if response.text else 'empty response'}"
+                        )
+                        break
+                    data = response.json()
+                    items = data.get("items", [])
+                    if not items:
+                        break
+                    for item in items:
+                        campaign_id = (
+                            item.get("ad_plan_id")
+                            or item.get("adplan_id")
+                            or item.get("campaign_id")
+                            or item.get("plan_id")
+                        )
+                        if campaign_id is not None and str(campaign_id) in campaign_set:
+                            ad_groups.append(item)
+                    offset += len(items)
+                    if len(items) < limit:
+                        break
+                if ad_groups:
+                    logger.info(f"✅ VK Ads: получено {len(ad_groups)} AdGroup (fallback без фильтра)")
+
         return ad_groups
 
     async def get_packages_map(self) -> Dict[str, Dict[str, Any]]:
@@ -525,7 +561,12 @@ class VKAdsAPI:
             if not package:
                 continue
 
-            objective = package.get("objective") or package.get("name")
+            objective = (
+                package.get("objective")
+                or package.get("objective_name")
+                or package.get("target_action")
+                or package.get("name")
+            )
             if objective:
                 goal_actions_map[str(campaign_id)] = (str(package_id), str(objective))
 

@@ -220,7 +220,7 @@ export function useDashboardStats() {
       // Format for dropdown: { id, name }
       allCampaigns.value = data.map(c => ({
         id: c.id,
-        name: c.name
+        name: c.name || `Campaign ${c.external_id || c.id}`
       }))
     } catch (err) {
       console.error('[DashboardStats] Error fetching campaign pool:', err)

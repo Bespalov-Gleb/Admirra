@@ -140,15 +140,15 @@
           
           <!-- Step 1 Auth -->
           <button 
-            v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS' || form.platform === 'MYTARGET')"
-            @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : form.platform === 'VK_ADS' ? initVKAuth() : initMyTargetAuth()"
+            v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
+            @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
             :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
             class="flex-[1.5] py-4 rounded-[1.25rem] text-white font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
-            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : form.platform === 'VK_ADS' ? 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20' : 'bg-[#9333EA] hover:bg-[#7E22CE] shadow-[#9333EA]/20'"
+            :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20'"
           >
             <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span v-else class="flex items-center gap-2">
-              ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС ДИРЕКТ' : form.platform === 'VK_ADS' ? 'VK ADS' : 'MYTARGET' }}
+              ПОДКЛЮЧИТЬ {{ form.platform === 'YANDEX_DIRECT' ? 'ЯНДЕКС ДИРЕКТ' : 'VK ADS' }}
             </span>
           </button>
 
@@ -826,53 +826,6 @@ const initVKAuth = async () => {
   }
 }
 
-const initMyTargetAuth = async () => {
-  // Защита от повторных вызовов
-  if (loadingAuth.value) {
-    console.warn('[initMyTargetAuth] Already in progress, ignoring duplicate call')
-    return
-  }
-  
-  loadingAuth.value = true
-  error.value = null
-  
-  try {
-    const redirectUri = `${window.location.origin}/auth/mytarget/callback`
-    
-    console.log('[initMyTargetAuth] Starting myTarget OAuth authorization...')
-    console.log('[initMyTargetAuth] Redirect URI:', redirectUri)
-    console.log('[initMyTargetAuth] Client name:', form.client_name)
-    console.log('[initMyTargetAuth] Client ID:', form.client_id)
-    
-    if (form.client_name) {
-      localStorage.setItem('mytarget_auth_client_name', form.client_name)
-    }
-    if (form.client_id) {
-      localStorage.setItem('mytarget_auth_client_id', form.client_id)
-    }
-    
-    // Получаем OAuth URL для myTarget
-    const { data } = await api.get(`integrations/mytarget/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
-    console.log('[initMyTargetAuth] OAuth URL received:', data)
-    
-    if (data.url) {
-      // Сохраняем state для проверки CSRF защиты в callback
-      if (data.state) {
-        localStorage.setItem('mytarget_auth_state', data.state)
-      }
-      
-      // Редирект на OAuth страницу myTarget
-      window.location.href = data.url
-    } else {
-      throw new Error('OAuth URL не получен от сервера')
-    }
-  } catch (err) {
-    console.error('[initMyTargetAuth] Error:', err)
-    console.error('[initMyTargetAuth] Error response:', err.response)
-    error.value = err.response?.data?.detail || 'Не удалось инициализировать авторизацию myTarget'
-    loadingAuth.value = false
-  }
-}
 </script>
 
 <style scoped>

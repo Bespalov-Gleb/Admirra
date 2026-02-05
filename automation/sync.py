@@ -610,18 +610,19 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         integration_id=integration.id,
                         external_id=external_id
                     ).first()
+                    incoming_name = c.get("name")
                     if not campaign:
                         campaign = models.Campaign(
                             integration_id=integration.id,
                             external_id=external_id,
-                            name=c.get("name") or f"Campaign {external_id}",
+                            name=incoming_name or f"Campaign {external_id}",
                             is_active=True
                         )
                         db.add(campaign)
                         db.flush()
                     else:
-                        if c.get("name") and campaign.name != c.get("name"):
-                            campaign.name = c.get("name")
+                        if incoming_name and not str(incoming_name).startswith("Campaign ") and campaign.name != incoming_name:
+                            campaign.name = incoming_name
 
                     # Пробуем получить целевое действие из статистики
                     goal_action_id, goal_action_name = goal_actions_map.get(external_id, (None, None))

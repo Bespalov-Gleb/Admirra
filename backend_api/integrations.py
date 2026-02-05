@@ -2553,18 +2553,21 @@ async def discover_campaigns(
             external_id=str(dc["id"])
         ).first()
         
+        incoming_name = dc.get("name")
         if not campaign:
             campaign = models.Campaign(
                 integration_id=integration.id,
                 external_id=str(dc["id"]),
-                name=dc["name"],
+                name=incoming_name or f"Campaign {dc.get('id')}",
                 is_active=False # Discovery creates them as inactive by default
             )
             db.add(campaign)
             saved_count += 1
             logger.info(f"   💾 Created new campaign: ID={dc['id']}, Name='{dc['name']}'")
         else:
-            campaign.name = dc["name"]
+            # Не затираем нормальное имя пустыми/плейсхолдерами
+            if incoming_name and not str(incoming_name).startswith("Campaign "):
+                campaign.name = incoming_name
             updated_count += 1
             logger.info(f"   💾 Updated existing campaign: ID={dc['id']}, Name='{dc['name']}'")
             

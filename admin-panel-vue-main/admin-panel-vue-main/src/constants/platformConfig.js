@@ -17,15 +17,6 @@ export const PLATFORMS = {
     tokenLink: 'https://ads.vk.com/hq/settings',
     isDynamic: false
   },
-  MYTARGET: {
-    label: 'myTarget',
-    description: 'Рекламная платформа myTarget (VK Реклама).',
-    initials: 'MT',
-    className: 'bg-purple-600 text-white border-purple-700',
-    iconColor: 'text-purple-500',
-    tokenLink: 'https://target-sandbox.my.com',
-    isDynamic: false
-  },
   GOOGLE_ADS: {
     label: 'Google Ads',
     description: 'Контекстная реклама в поиске и на сайтах партнеров.',
