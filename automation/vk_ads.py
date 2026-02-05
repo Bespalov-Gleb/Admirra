@@ -15,7 +15,7 @@ class VKAdsAPI:
         self.account_id = account_id
         self.debug_events: List[str] = []
 
-    def _push_debug(self, message: str, limit: int = 25) -> None:
+    def _push_debug(self, message: str, limit: int = 60) -> None:
         self.debug_events.append(message)
         if len(self.debug_events) > limit:
             self.debug_events = self.debug_events[-limit:]
