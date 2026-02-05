@@ -387,9 +387,9 @@ class VKAdsAPI:
         """
         url = f"{self.base_url}/packages.json"
         packages: Dict[str, Dict[str, Any]] = {}
-        limit = 200
+        limit = 50  # VK API max_value для limit = 50
         offset = 0
-        max_pages = 20
+        max_pages = 50  # Увеличиваем кол-во страниц, так как limit меньше
 
         async with httpx.AsyncClient() as client:
             for _ in range(max_pages):
