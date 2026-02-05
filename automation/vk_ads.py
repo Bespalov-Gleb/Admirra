@@ -6,6 +6,23 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+# Маппинг кодов целевых действий VK Ads на человекочитаемые названия
+VK_OBJECTIVE_NAMES = {
+    "leadads": "Получение лидов",
+    "leads": "Получение лидов",
+    "socialengagement": "Продвижение поста",
+    "post_engagement": "Продвижение поста",
+    "messages": "Отправка сообщения",
+    "send_message": "Отправка сообщения",
+    "traffic": "Трафик",
+    "conversions": "Конверсии",
+    "reach": "Охват",
+    "appinstalls": "Установки приложения",
+    "app_installs": "Установки приложения",
+    "video_views": "Просмотры видео",
+    "videoviews": "Просмотры видео",
+}
+
 class VKAdsAPI:
     def __init__(self, access_token: str, account_id: str = None):
         self.base_url = "https://ads.vk.com/api/v2" # Example base URL
@@ -19,6 +36,15 @@ class VKAdsAPI:
         self.debug_events.append(message)
         if len(self.debug_events) > limit:
             self.debug_events = self.debug_events[-limit:]
+    
+    @staticmethod
+    def _get_human_readable_objective(objective_code: str) -> str:
+        """
+        Преобразует код целевого действия в человекочитаемое название.
+        """
+        if not objective_code:
+            return objective_code
+        return VK_OBJECTIVE_NAMES.get(objective_code.lower(), objective_code)
 
     @staticmethod
     def _parse_goal_value(value: Any) -> tuple:
@@ -487,6 +513,10 @@ class VKAdsAPI:
                 self._push_debug("Packages пустой!")
                 return goal_actions_map
 
+            # Создаем Set из ID кампаний для проверки
+            campaign_ids_set = set(str(cid) for cid in campaign_ids)
+            campaigns_with_goals = set()
+            
             for idx, group in enumerate(ad_groups):
                 # Пытаемся определить связь группы с кампанией
                 campaign_id = (
@@ -519,10 +549,23 @@ class VKAdsAPI:
                     or package.get("name")
                 )
                 if objective:
-                    goal_actions_map[str(campaign_id)] = (str(package_id), str(objective))
+                    # Преобразуем код objective в человекочитаемое название
+                    objective_code = str(objective)
+                    objective_name = self._get_human_readable_objective(objective_code)
+                    goal_actions_map[str(campaign_id)] = (objective_code, objective_name)
+                    campaigns_with_goals.add(str(campaign_id))
                     if idx < 3:
-                        self._push_debug(f"group[{idx}] MATCH -> campaign={campaign_id}, pkg={package_id}, obj={objective}")
+                        self._push_debug(f"group[{idx}] MATCH -> campaign={campaign_id}, pkg={package_id}, obj={objective_code} -> name={objective_name}")
 
+            # Проверяем, для каких кампаний НЕ нашлись цели
+            campaigns_without_goals = campaign_ids_set - campaigns_with_goals
+            if campaigns_without_goals:
+                logger.warning(
+                    f"⚠️ VK Ads: для {len(campaigns_without_goals)} кампаний НЕ найдены целевые действия: "
+                    f"{sorted(list(campaigns_without_goals)[:5])}{'...' if len(campaigns_without_goals) > 5 else ''}"
+                )
+                self._push_debug(f"campaigns WITHOUT goals -> {len(campaigns_without_goals)}/{len(campaign_ids)}")
+            
             self._push_debug(f"packages objective -> goals={len(goal_actions_map)}")
             if goal_actions_map:
                 logger.info(f"✅ VK Ads: найдено {len(goal_actions_map)} целевых действий через Packages")

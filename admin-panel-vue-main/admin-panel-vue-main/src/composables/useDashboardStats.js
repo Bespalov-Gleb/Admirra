@@ -234,7 +234,9 @@ export function useDashboardStats() {
     if (filters.channel !== 'vk') return false
     if (!vkGoalActions.value.length) return false
     if (!filters.vk_goal_action_ids || filters.vk_goal_action_ids.length === 0) return false
-    return filters.vk_goal_action_ids.length < vkGoalActions.value.length
+    // ИСПРАВЛЕНО: Всегда применять фильтр, если выбран VK и есть целевые действия
+    // Даже если выбраны "Все действия", нужно фильтровать, чтобы показать ТОЛЬКО кампании с целями
+    return true
   }
 
   const fetchVkGoalActions = async () => {

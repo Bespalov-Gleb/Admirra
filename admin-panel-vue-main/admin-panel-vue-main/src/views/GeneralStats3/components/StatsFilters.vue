@@ -71,32 +71,32 @@
         </div>
       </div>
 
-      <div v-if="filters.channel === 'vk'" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
+      <div v-if="filters.channel === 'vk'" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px] relative z-50">
         <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Целевое действие</label>
         <div class="relative">
           <button
             type="button"
-            class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between"
+            class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between transition-all hover:border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="loadingVkGoalActions"
             @click="toggleGoals"
           >
-            <span>
+            <span class="truncate">
               <template v-if="loadingVkGoalActions">Загрузка...</template>
               <template v-else-if="!vkGoalActions.length">Нет действий</template>
               <template v-else-if="allGoalsSelected">Все действия ({{ vkGoalActions.length }})</template>
               <template v-else>Выбрано: {{ selectedGoalIds.length }}</template>
             </span>
-            <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400" />
+            <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{'rotate-180': showGoals}" />
           </button>
 
           <div
             v-if="showGoals && vkGoalActions.length"
-            class="absolute z-20 mt-2 w-full bg-white border border-gray-100 rounded-[14px] shadow-lg p-2 max-h-64 overflow-y-auto"
+            class="absolute z-[100] top-full mt-2 left-0 right-0 bg-white border border-gray-100 rounded-[14px] shadow-xl p-2 max-h-64 overflow-y-auto"
           >
-            <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700">
+            <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
               <input
                 type="checkbox"
-                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
                 :checked="allGoalsSelected"
                 @change="toggleAllGoals($event)"
               />
@@ -106,11 +106,11 @@
             <label
               v-for="goal in vkGoalActions"
               :key="goal.id"
-              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700"
+              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
             >
               <input
                 type="checkbox"
-                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
                 :checked="selectedGoalIds.includes(goal.id)"
                 @change="toggleGoal(goal.id)"
               />
@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { ArrowDownTrayIcon, ChevronDownIcon } from '@heroicons/vue/24/solid'
 import DateRangePicker from '../../../components/ui/DateRangePicker.vue'
 
@@ -243,6 +243,21 @@ const toggleGoal = (goalId) => {
   }
   emit('update:goal-action-ids', Array.from(current))
 }
+
+// Закрыть выпадающий список при клике вне его
+const handleClickOutside = (event) => {
+  if (showGoals.value && !event.target.closest('.relative.z-50')) {
+    showGoals.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 const handleCustomDateChange = (dates) => {
   if (dates.start) {
