@@ -22,18 +22,21 @@ YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a801
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
+def _update_or_create_stats(db: Session, model, filters: dict, data: dict, verbose: bool = True):
     """
     Helper to update an existing record or create a new one.
     Handles race conditions with unique index by retrying on IntegrityError.
+    verbose: если False, не логировать каждую операцию (для массовых вставок)
     """
     existing = db.query(model).filter_by(**filters).first()
     if existing:
-        log_event("database", f"updating {model.__tablename__} record", filters)
+        if verbose:
+            log_event("database", f"updating {model.__tablename__} record", filters)
         for key, value in data.items():
             setattr(existing, key, value)
     else:
-        log_event("database", f"creating new {model.__tablename__} record", filters)
+        if verbose:
+            log_event("database", f"creating new {model.__tablename__} record", filters)
         try:
             db.add(model(**filters, **data))
             db.flush()  # Flush to trigger unique constraint check immediately
@@ -43,7 +46,8 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict):
             db.rollback()
             existing = db.query(model).filter_by(**filters).first()
             if existing:
-                log_event("database", f"updating {model.__tablename__} record (retry after conflict)", filters)
+                if verbose:
+                    log_event("database", f"updating {model.__tablename__} record (retry after conflict)", filters)
                 for key, value in data.items():
                     setattr(existing, key, value)
             else:
@@ -605,14 +609,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 # НОВОЕ: Получаем целевые действия через AdGroup → package_id → Packages.objective
                 # (согласно рекомендации поддержки VK Ads)
                 try:
-                    logger.info(f"🔵 ВЫЗЫВАЕМ get_goal_actions_from_packages с {len(campaign_ids)} кампаниями")
                     goal_actions_from_packages = await api.get_goal_actions_from_packages(campaign_ids)
-                    logger.info(f"🔵 get_goal_actions_from_packages вернул {len(goal_actions_from_packages)} целей")
                     
                     # Объединяем результаты: приоритет у packages (более точный источник)
                     for camp_id, (pkg_id, pkg_name) in goal_actions_from_packages.items():
                         goal_actions_map[camp_id] = (pkg_id, pkg_name)
-                        logger.info(f"✅ Цель для кампании {camp_id}: {pkg_name} (package {pkg_id})")
                 except Exception as pkg_err:
                     logger.error(f"❌ ОШИБКА при вызове get_goal_actions_from_packages: {pkg_err}", exc_info=True)
                 
@@ -761,7 +762,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 }
                 logger.debug(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
                 
-                _update_or_create_stats(db, models.VKStats, filters, data)
+                _update_or_create_stats(db, models.VKStats, filters, data, verbose=False)
                 processed_count += 1
                 
                 # CRITICAL: Commit in batches to avoid long transactions
