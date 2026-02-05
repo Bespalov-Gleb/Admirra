@@ -73,8 +73,9 @@
 
       <div v-if="filters.channel === 'vk'" ref="vkGoalsContainer" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
         <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Целевое действие</label>
-        <div class="relative" style="z-index: 1000;">
+        <div class="relative">
           <button
+            ref="goalsButton"
             type="button"
             class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between transition-all hover:border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="loadingVkGoalActions"
@@ -88,39 +89,47 @@
             </span>
             <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{'rotate-180': showGoals}" />
           </button>
-
-          <div
-            v-if="showGoals && vkGoalActions.length"
-            class="absolute top-full mt-2 left-0 right-0 bg-white border border-gray-200 rounded-[14px] shadow-2xl p-3 max-h-80 overflow-y-auto"
-            style="z-index: 1001;"
-            @click.stop
-          >
-            <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <input
-                type="checkbox"
-                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
-                :checked="allGoalsSelected"
-                @change="toggleAllGoals($event)"
-              />
-              <span>Выбрать все</span>
-            </label>
-            <div class="h-px bg-gray-100 my-1"></div>
-            <label
-              v-for="goal in vkGoalActions"
-              :key="goal.id"
-              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-            >
-              <input
-                type="checkbox"
-                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
-                :checked="selectedGoalIds.includes(goal.id)"
-                @change="toggleGoal(goal.id)"
-              />
-              <span class="truncate" :title="goal.name">{{ goal.name }}</span>
-            </label>
-          </div>
         </div>
       </div>
+      
+      <!-- Dropdown Portal (Fixed Positioning) -->
+      <Teleport to="body">
+        <div
+          v-if="showGoals && vkGoalActions.length && dropdownPosition"
+          class="fixed bg-white border border-gray-200 rounded-[14px] shadow-2xl p-3 max-h-80 overflow-y-auto"
+          :style="{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+            zIndex: 999999
+          }"
+          @click.stop
+        >
+          <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
+            <input
+              type="checkbox"
+              class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
+              :checked="allGoalsSelected"
+              @change="toggleAllGoals($event)"
+            />
+            <span>Выбрать все</span>
+          </label>
+          <div class="h-px bg-gray-100 my-1"></div>
+          <label
+            v-for="goal in vkGoalActions"
+            :key="goal.id"
+            class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+          >
+            <input
+              type="checkbox"
+              class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
+              :checked="selectedGoalIds.includes(goal.id)"
+              @change="toggleGoal(goal.id)"
+            />
+            <span class="truncate" :title="goal.name">{{ goal.name }}</span>
+          </label>
+        </div>
+      </Teleport>
     </div>
 
     <!-- Time & Action Group -->
@@ -220,14 +229,30 @@ const selectedCampaignId = computed({
 
 const showGoals = ref(false)
 const vkGoalsContainer = ref(null)
+const goalsButton = ref(null)
+const dropdownPosition = ref(null)
+
 const selectedGoalIds = computed(() => props.filters.vk_goal_action_ids || [])
 const allGoalsSelected = computed(() => {
   if (!props.vkGoalActions.length) return false
   return selectedGoalIds.value.length === props.vkGoalActions.length
 })
 
+const updateDropdownPosition = () => {
+  if (!goalsButton.value) return
+  const rect = goalsButton.value.getBoundingClientRect()
+  dropdownPosition.value = {
+    top: rect.bottom + 8,
+    left: rect.left,
+    width: rect.width
+  }
+}
+
 const toggleGoals = () => {
   if (!props.vkGoalActions.length) return
+  if (!showGoals.value) {
+    updateDropdownPosition()
+  }
   showGoals.value = !showGoals.value
 }
 
