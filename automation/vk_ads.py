@@ -549,13 +549,19 @@ class VKAdsAPI:
                     or package.get("name")
                 )
                 if objective:
-                    # Преобразуем код objective в человекочитаемое название
-                    objective_code = str(objective)
-                    objective_name = self._get_human_readable_objective(objective_code)
-                    goal_actions_map[str(campaign_id)] = (objective_code, objective_name)
-                    campaigns_with_goals.add(str(campaign_id))
-                    if idx < 3:
-                        self._push_debug(f"group[{idx}] MATCH -> campaign={campaign_id}, pkg={package_id}, obj={objective_code} -> name={objective_name}")
+                    # Преобразуем objective в строку (может быть списком)
+                    if isinstance(objective, list):
+                        objective_code = objective[0] if objective else None
+                    else:
+                        objective_code = str(objective) if objective else None
+                    
+                    if objective_code:
+                        # Преобразуем код objective в человекочитаемое название
+                        objective_name = self._get_human_readable_objective(objective_code)
+                        goal_actions_map[str(campaign_id)] = (objective_code, objective_name)
+                        campaigns_with_goals.add(str(campaign_id))
+                        if idx < 3:
+                            self._push_debug(f"group[{idx}] MATCH -> campaign={campaign_id}, pkg={package_id}, obj={objective_code} -> name={objective_name}")
 
             # Проверяем, для каких кампаний НЕ нашлись цели
             campaigns_without_goals = campaign_ids_set - campaigns_with_goals

@@ -71,9 +71,9 @@
         </div>
       </div>
 
-      <div v-if="filters.channel === 'vk'" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px] relative z-50">
+      <div v-if="filters.channel === 'vk'" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
         <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Целевое действие</label>
-        <div class="relative">
+        <div class="relative z-[9999]">
           <button
             type="button"
             class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between transition-all hover:border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -91,7 +91,7 @@
 
           <div
             v-if="showGoals && vkGoalActions.length"
-            class="absolute z-[100] top-full mt-2 left-0 right-0 bg-white border border-gray-100 rounded-[14px] shadow-xl p-2 max-h-64 overflow-y-auto"
+            class="absolute z-[9999] top-full mt-2 left-0 right-0 bg-white border border-gray-200 rounded-[14px] shadow-2xl p-3 max-h-80 overflow-y-auto"
           >
             <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
               <input
