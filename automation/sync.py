@@ -779,7 +779,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.warning(f"   💡 Проверь структуру ответа API - возможно нужен другой endpoint")
             if hasattr(api, "debug_events") and api.debug_events:
                 logger.info("   🔎 VK ADS API ОТВЕТЫ (ПОСЛЕДНИЕ):")
-                for event in api.debug_events[-10:]:
+                for event in api.debug_events[-25:]:
                     logger.info(f"     - {event}")
             logger.info("=" * 80)
 

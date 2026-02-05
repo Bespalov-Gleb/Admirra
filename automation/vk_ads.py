@@ -584,10 +584,12 @@ class VKAdsAPI:
             return goal_actions_map
 
         ad_groups = await self.get_ad_groups(campaign_ids)
+        self._push_debug(f"ad_groups result -> items={len(ad_groups)}")
         if not ad_groups:
             return goal_actions_map
 
         packages_map = await self.get_packages_map()
+        self._push_debug(f"packages result -> items={len(packages_map)}")
         if not packages_map:
             return goal_actions_map
 
@@ -622,6 +624,7 @@ class VKAdsAPI:
             logger.info(f"✅ VK Ads: найдено {len(goal_actions_map)} целевых действий через Packages")
         else:
             logger.warning("⚠️ VK Ads: цели через Packages не найдены")
+        self._push_debug(f"packages objective -> goals={len(goal_actions_map)}")
 
         return goal_actions_map
 
