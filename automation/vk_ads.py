@@ -265,7 +265,9 @@ class VKAdsAPI:
                     for idx, camp_id in enumerate(campaign_ids[:20]):  # Ограничиваем до 20
                         try:
                             ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
-                            ad_plan_params = {}
+                            ad_plan_params = {
+                                "fields": "id,name,objective,status"  # Явно запрашиваем objective
+                            }
                             if self.account_id:
                                 ad_plan_params["client_id"] = self.account_id
                             
@@ -318,7 +320,10 @@ class VKAdsAPI:
         async with httpx.AsyncClient() as client:
             for param_name in param_variants:
                 try:
-                    params = {param_name: ",".join(campaign_ids[:50])}
+                    params = {
+                        param_name: ",".join(campaign_ids[:50]),
+                        "fields": "id,name,package_id,ad_plan_id"  # Явно запрашиваем нужные поля
+                    }
                     if self.account_id:
                         params["client_id"] = self.account_id
 
