@@ -95,7 +95,7 @@ class VKAdsAPI:
         url = f"{self.base_url}/ad_plans.json"
         params = {}
         # Пытаемся запросить расширенные поля. Если API не поддерживает, будет fallback.
-        requested_fields = "objective,goal,goal_id,goal_name,target_action"
+        requested_fields = "objective"
         
         if self.account_id:
             params["client_id"] = self.account_id
@@ -107,8 +107,17 @@ class VKAdsAPI:
                 list_params["fields"] = requested_fields
                 response = await client.get(url, params=list_params, headers=self.headers, timeout=30.0)
                 if response.status_code == 400:
-                    # fallback без fields, если параметр не поддерживается
-                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                    logger.warning(
+                        f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans.json: "
+                        f"{response.text[:200] if response.text else 'empty response'}"
+                    )
+                    # Пробуем альтернативное имя параметра
+                    list_params_alt = params.copy()
+                    list_params_alt["field_names"] = requested_fields
+                    response = await client.get(url, params=list_params_alt, headers=self.headers, timeout=30.0)
+                    if response.status_code == 400:
+                        # fallback без fields, если параметр не поддерживается
+                        response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -166,14 +175,29 @@ class VKAdsAPI:
                                     
                                     ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
                                     if ad_plan_response.status_code == 400:
-                                        # fallback без fields
-                                        fallback_params = {"client_id": self.account_id} if self.account_id else None
+                                        logger.warning(
+                                            f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans/{camp_id}.json: "
+                                            f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
+                                        )
+                                        # Пробуем альтернативное имя параметра
+                                        alt_params = {"field_names": requested_fields}
+                                        if self.account_id:
+                                            alt_params["client_id"] = self.account_id
                                         ad_plan_response = await client.get(
                                             ad_plan_url,
-                                            params=fallback_params,
+                                            params=alt_params,
                                             headers=self.headers,
                                             timeout=10.0
                                         )
+                                        if ad_plan_response.status_code == 400:
+                                            # fallback без fields
+                                            fallback_params = {"client_id": self.account_id} if self.account_id else None
+                                            ad_plan_response = await client.get(
+                                                ad_plan_url,
+                                                params=fallback_params,
+                                                headers=self.headers,
+                                                timeout=10.0
+                                            )
                                     if ad_plan_response.status_code == 200:
                                         ad_plan_data = ad_plan_response.json()
                                         
@@ -294,6 +318,17 @@ class VKAdsAPI:
                             if response.status_code == 200:
                                 data = response.json()
                                 items = data.get("items", [])
+                                if not items:
+                                    logger.info(
+                                        f"ℹ️ VK Ads stats пусто (group_by={group_by_param}, metrics={metrics}), "
+                                        f"keys={list(data.keys())}"
+                                    )
+                                elif len(items) > 0 and not goal_actions_map:
+                                    sample = items[0]
+                                    logger.info(
+                                        f"🔍 VK Ads stats sample (group_by={group_by_param}, metrics={metrics}): "
+                                        f"keys={list(sample.keys())}"
+                                    )
                             
                                 for item in items:
                                     campaign_id = str(item.get("id", ""))
@@ -313,13 +348,21 @@ class VKAdsAPI:
                                     break
                             elif response.status_code == 400:
                                 # Параметр не поддерживается, пробуем следующий
+                                logger.info(
+                                    f"ℹ️ VK Ads stats 400 (group_by={group_by_param}, metrics={metrics}): "
+                                    f"{response.text[:200] if response.text else 'empty response'}"
+                                )
                                 continue
                         if goal_actions_map:
                             break
                     except Exception as e:
                         continue
                 
-                # Если не нашли через group_by, пробуем получить через метод AdPlan для каждой кампании
+                # Если не нашли через group_by, пробуем получить через Packages (AdGroup -> package_id -> objective)
+                if not goal_actions_map:
+                    goal_actions_map = await self.get_goal_actions_from_packages(campaign_ids)
+
+                # Если все еще не нашли, пробуем получить через метод AdPlan для каждой кампании
                 if not goal_actions_map and len(campaign_ids) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
                     logger.info(f"🔄 Пробуем получить целевые действия через AdPlan для {len(campaign_ids)} кампаний...")
                     for camp_id in campaign_ids[:20]:  # Ограничиваем до 20
@@ -346,6 +389,145 @@ class VKAdsAPI:
         except Exception as e:
             logger.warning(f"⚠️ Не удалось получить целевые действия: {e}")
         
+        return goal_actions_map
+
+    async def get_ad_groups(self, campaign_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Получает группы объявлений (AdGroup) для указанных кампаний.
+        Используется для получения package_id, который далее связывается с objective.
+        """
+        if not campaign_ids:
+            return []
+
+        url = f"{self.base_url}/ad_groups.json"
+        ad_groups: List[Dict[str, Any]] = []
+
+        # Пробуем разные варианты параметров фильтрации по кампаниям.
+        param_variants = ["ad_plan_id", "ad_plan_ids", "campaign_id", "campaign_ids"]
+
+        async with httpx.AsyncClient() as client:
+            for param_name in param_variants:
+                try:
+                    params = {param_name: ",".join(campaign_ids[:50])}
+                    if self.account_id:
+                        params["client_id"] = self.account_id
+
+                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                    if response.status_code == 400:
+                        logger.info(
+                            f"ℹ️ VK Ads ad_groups 400 for param {param_name}: "
+                            f"{response.text[:200] if response.text else 'empty response'}"
+                        )
+                        continue
+                    if response.status_code != 200:
+                        logger.warning(
+                            f"⚠️ VK Ads ad_groups error {response.status_code} for param {param_name}: "
+                            f"{response.text[:200] if response.text else 'empty response'}"
+                        )
+                        continue
+
+                    data = response.json()
+                    items = data.get("items", [])
+                    if items:
+                        ad_groups.extend(items)
+                        logger.info(f"✅ VK Ads: получено {len(items)} AdGroup (param {param_name})")
+                        break
+                    else:
+                        logger.info(f"ℹ️ VK Ads ad_groups: пустой список (param {param_name})")
+                except Exception as e:
+                    logger.warning(f"⚠️ VK Ads ad_groups error for param {param_name}: {e}")
+                    continue
+
+        return ad_groups
+
+    async def get_packages_map(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Получает список пакетов (Packages) и возвращает мапу по ID.
+        """
+        url = f"{self.base_url}/packages.json"
+        packages: Dict[str, Dict[str, Any]] = {}
+        limit = 200
+        offset = 0
+        max_pages = 20
+
+        async with httpx.AsyncClient() as client:
+            for _ in range(max_pages):
+                params = {"limit": limit, "offset": offset}
+                if self.account_id:
+                    params["client_id"] = self.account_id
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                if response.status_code != 200:
+                    logger.warning(
+                        f"⚠️ VK Ads packages error {response.status_code}: "
+                        f"{response.text[:200] if response.text else 'empty response'}"
+                    )
+                    break
+
+                data = response.json()
+                items = data.get("items", [])
+                if not items:
+                    break
+
+                for item in items:
+                    package_id = item.get("id")
+                    if package_id is None:
+                        continue
+                    packages[str(package_id)] = item
+
+                offset += len(items)
+                if len(items) < limit:
+                    break
+
+        if packages:
+            logger.info(f"✅ VK Ads: получено {len(packages)} пакетов из Packages")
+        else:
+            logger.warning("⚠️ VK Ads: не удалось получить список пакетов из Packages")
+
+        return packages
+
+    async def get_goal_actions_from_packages(self, campaign_ids: List[str]) -> Dict[str, tuple]:
+        """
+        Получает целевые действия через AdGroup -> package_id -> Packages.objective.
+        """
+        goal_actions_map: Dict[str, tuple] = {}
+        if not campaign_ids:
+            return goal_actions_map
+
+        ad_groups = await self.get_ad_groups(campaign_ids)
+        if not ad_groups:
+            return goal_actions_map
+
+        packages_map = await self.get_packages_map()
+        if not packages_map:
+            return goal_actions_map
+
+        for group in ad_groups:
+            # Пытаемся определить связь группы с кампанией
+            campaign_id = (
+                group.get("ad_plan_id")
+                or group.get("adplan_id")
+                or group.get("campaign_id")
+                or group.get("plan_id")
+            )
+            if campaign_id is None:
+                continue
+            package_id = group.get("package_id") or group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None
+            if package_id is None:
+                continue
+
+            package = packages_map.get(str(package_id))
+            if not package:
+                continue
+
+            objective = package.get("objective") or package.get("name")
+            if objective:
+                goal_actions_map[str(campaign_id)] = (str(package_id), str(objective))
+
+        if goal_actions_map:
+            logger.info(f"✅ VK Ads: найдено {len(goal_actions_map)} целевых действий через Packages")
+        else:
+            logger.warning("⚠️ VK Ads: цели через Packages не найдены")
+
         return goal_actions_map
 
     async def get_goals(self, campaign_ids: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
