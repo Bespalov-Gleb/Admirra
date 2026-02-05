@@ -100,8 +100,6 @@ class VKAdsAPI:
         """
         url = f"{self.base_url}/ad_plans.json"
         params = {}
-        # Пытаемся запросить расширенные поля. Если API не поддерживает, будет fallback.
-        requested_fields = "objective"
         
         if self.account_id:
             params["client_id"] = self.account_id
@@ -111,29 +109,9 @@ class VKAdsAPI:
             
         try:
             async with httpx.AsyncClient() as client:
-                # Сначала получаем список кампаний
-                list_params = params.copy()
-                list_params["fields"] = requested_fields
-                self._push_debug(f"Попытка с fields={requested_fields}")
-                response = await client.get(url, params=list_params, headers=self.headers, timeout=30.0)
-                if response.status_code == 400:
-                    self._push_debug(
-                        f"ad_plans.json fields=objective -> 400: {response.text[:200] if response.text else 'empty response'}"
-                    )
-                    logger.warning(
-                        f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans.json: "
-                        f"{response.text[:200] if response.text else 'empty response'}"
-                    )
-                    # Пробуем альтернативное имя параметра
-                    list_params_alt = params.copy()
-                    list_params_alt["field_names"] = requested_fields
-                    response = await client.get(url, params=list_params_alt, headers=self.headers, timeout=30.0)
-                    if response.status_code == 400:
-                        self._push_debug(
-                            f"ad_plans.json field_names=objective -> 400: {response.text[:200] if response.text else 'empty response'}"
-                        )
-                        # fallback без fields, если параметр не поддерживается
-                        response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                # ВАЖНО: НЕ используем fields, потому что VK API с fields=objective возвращает ТОЛЬКО objective без id/name
+                # Запрашиваем базовый список кампаний с дефолтными полями
+                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -145,166 +123,33 @@ class VKAdsAPI:
                     self._push_debug(f"response.text[:500] -> {response.text[:500]}")
                     
                     campaigns = []
-                    goal_actions_map = {}
-                    goals_found = 0
                     
-                    # Проверяем, есть ли поле objective в базовом ответе
+                    # Просто формируем список кампаний с базовыми полями
+                    # objective получим отдельно через AdGroup → Packages
                     if items and len(items) > 0:
                         first_item_keys = list(items[0].keys())
                         self._push_debug(f"ad_plans[0] keys -> {first_item_keys}")
                         self._push_debug(f"ad_plans[0] FULL -> {str(items[0])[:300]}")
                         for i in range(min(3, len(items))):
                             self._push_debug(f"items[{i}] -> {str(items[i])[:200]}")
-                        self._push_debug(f"ad_plans[0] -> id={items[0].get('id')}, name={items[0].get('name')}")
                         
-                        if "objective" in items[0]:
-                            # objective уже есть в ответе
-                            for item in items:
-                                item_id = item.get("id")
-                                if not item_id:
-                                    logger.warning(
-                                        f"⚠️ VK Ads: пропущен элемент без id в ad_plans.json: {list(item.keys())}"
-                                    )
-                                    continue
-                                objective = item.get("objective")
-                                goal_id = None
-                                goal_name = None
-                                
-                                if objective:
-                                    if isinstance(objective, str):
-                                        goal_name = objective
-                                        goal_id = objective
-                                    elif isinstance(objective, dict):
-                                        goal_id = str(objective.get("id", ""))
-                                        goal_name = objective.get("name") or objective.get("title")
-                                
-                                campaigns.append({
-                                    "id": str(item_id),
-                                    "name": item.get("name") or f"Campaign {item_id}",
-                                    "status": item.get("status"),
-                                    "goal_action_id": goal_id,
-                                    "goal_action_name": goal_name
-                                })
-                                if goal_id or goal_name:
-                                    goals_found += 1
-                        else:
-                            # objective нет в ответе, получаем через метод AdPlan для каждой кампании
-                            campaign_ids = [str(item.get("id")) for item in items if item.get("id")]
+                        for item in items:
+                            item_id = item.get("id")
+                            if not item_id:
+                                self._push_debug(f"item БЕЗ id -> keys={list(item.keys())}")
+                                continue
                             
-                            # Ограничиваем до 50 кампаний, чтобы не делать слишком много запросов
-                            logger.info(f"🔍 Получаю детали для {len(campaign_ids[:50])} кампаний через AdPlan...")
-                            for idx, camp_id in enumerate(campaign_ids[:50]):
-                                try:
-                                    # Согласно документации: GET /api/v2/ad_plans/{id}.json
-                                    ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
-                                    ad_plan_params = {"fields": requested_fields}
-                                    if self.account_id:
-                                        ad_plan_params["client_id"] = self.account_id
-                                    
-                                    ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
-                                    if ad_plan_response.status_code == 400:
-                                        self._push_debug(
-                                            f"ad_plans/{camp_id}.json fields=objective -> 400: "
-                                            f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
-                                        )
-                                        logger.warning(
-                                            f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans/{camp_id}.json: "
-                                            f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
-                                        )
-                                        # Пробуем альтернативное имя параметра
-                                        alt_params = {"field_names": requested_fields}
-                                        if self.account_id:
-                                            alt_params["client_id"] = self.account_id
-                                        ad_plan_response = await client.get(
-                                            ad_plan_url,
-                                            params=alt_params,
-                                            headers=self.headers,
-                                            timeout=10.0
-                                        )
-                                        if ad_plan_response.status_code == 400:
-                                            self._push_debug(
-                                                f"ad_plans/{camp_id}.json field_names=objective -> 400: "
-                                                f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
-                                            )
-                                            # fallback без fields
-                                            fallback_params = {"client_id": self.account_id} if self.account_id else None
-                                            ad_plan_response = await client.get(
-                                                ad_plan_url,
-                                                params=fallback_params,
-                                                headers=self.headers,
-                                                timeout=10.0
-                                            )
-                                    if ad_plan_response.status_code == 200:
-                                        ad_plan_data = ad_plan_response.json()
-                                    if idx < 2:
-                                        self._push_debug(
-                                            f"ad_plans/{camp_id}.json -> 200, keys={list(ad_plan_data.keys())}"
-                                        )
-                                        
-                                        # Логируем структуру ответа для первых 2 кампаний
-                                        if idx < 2:
-                                            logger.info(f"🔍 AdPlan {camp_id}: структура ответа (верхний уровень): {list(ad_plan_data.keys())}")
-                                        
-                                        # Пробуем разные варианты структуры ответа
-                                        ad_plan_item = None
-                                        if "item" in ad_plan_data:
-                                            ad_plan_item = ad_plan_data["item"]
-                                        elif "items" in ad_plan_data and len(ad_plan_data["items"]) > 0:
-                                            ad_plan_item = ad_plan_data["items"][0]
-                                        elif isinstance(ad_plan_data, dict) and "id" in ad_plan_data:
-                                            ad_plan_item = ad_plan_data
-                                        else:
-                                            logger.warning(f"⚠️ AdPlan {camp_id}: неожиданная структура ответа: {list(ad_plan_data.keys())}")
-                                            continue
-                                        
-                                        # Логируем структуру ответа для первых 2 кампаний
-                                        if idx < 2:
-                                            all_keys = list(ad_plan_item.keys())
-                                            logger.info(f"🔍 AdPlan {camp_id}: доступные поля ({len(all_keys)}): {all_keys}")
-                                            if "objective" in ad_plan_item:
-                                                obj_value = ad_plan_item.get("objective")
-                                                logger.info(f"🔍 AdPlan {camp_id}: objective = '{obj_value}' (тип: {type(obj_value)})")
-                                            else:
-                                                logger.warning(f"⚠️ AdPlan {camp_id}: поле 'objective' отсутствует!")
-                                        
-                                        objective = ad_plan_item.get("objective")
-                                        goal_id = None
-                                        goal_name = None
-                                        
-                                        if objective:
-                                            if isinstance(objective, str):
-                                                goal_name = objective
-                                                goal_id = objective
-                                            elif isinstance(objective, dict):
-                                                goal_id = str(objective.get("id", ""))
-                                                goal_name = objective.get("name") or objective.get("title")
-                                        
-                                        goal_actions_map[camp_id] = (goal_id, goal_name)
-                                        if goal_id or goal_name:
-                                            goals_found += 1
-                                    
-                                    # Задержка между запросами (каждые 5 запросов)
-                                    if (idx + 1) % 5 == 0:
-                                        await asyncio.sleep(0.5)
-                                except Exception:
-                                    continue
-                            
-                            # Формируем список кампаний с целевыми действиями
-                            for item in items:
-                                camp_id = str(item.get("id", ""))
-                                goal_id, goal_name = goal_actions_map.get(camp_id, (None, None))
-                                
-                                campaigns.append({
-                                    "id": camp_id,
-                                    "name": item.get("name") or f"Campaign {camp_id}",
-                                    "status": item.get("status"),
-                                    "goal_action_id": goal_id,
-                                    "goal_action_name": goal_name
-                                })
+                            campaigns.append({
+                                "id": str(item_id),
+                                "name": item.get("name") or f"Campaign {item_id}",
+                                "status": item.get("status"),
+                                "goal_action_id": None,
+                                "goal_action_name": None
+                            })
                     else:
                         logger.warning("⚠️ VK Ads: базовый список кампаний пуст (items=0).")
                     
-                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found}")
+                    logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний")
                     if campaigns:
                         for i, camp in enumerate(campaigns[:3]):
                             self._push_debug(f"campaign[{i}] -> id={camp.get('id')}, name={camp.get('name')}")
