@@ -13,6 +13,12 @@ class VKAdsAPI:
             "Authorization": f"Bearer {access_token}"
         }
         self.account_id = account_id
+        self.debug_events: List[str] = []
+
+    def _push_debug(self, message: str, limit: int = 25) -> None:
+        self.debug_events.append(message)
+        if len(self.debug_events) > limit:
+            self.debug_events = self.debug_events[-limit:]
 
     @staticmethod
     def _parse_goal_value(value: Any) -> tuple:
@@ -107,6 +113,9 @@ class VKAdsAPI:
                 list_params["fields"] = requested_fields
                 response = await client.get(url, params=list_params, headers=self.headers, timeout=30.0)
                 if response.status_code == 400:
+                    self._push_debug(
+                        f"ad_plans.json fields=objective -> 400: {response.text[:200] if response.text else 'empty response'}"
+                    )
                     logger.warning(
                         f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans.json: "
                         f"{response.text[:200] if response.text else 'empty response'}"
@@ -116,12 +125,18 @@ class VKAdsAPI:
                     list_params_alt["field_names"] = requested_fields
                     response = await client.get(url, params=list_params_alt, headers=self.headers, timeout=30.0)
                     if response.status_code == 400:
+                        self._push_debug(
+                            f"ad_plans.json field_names=objective -> 400: {response.text[:200] if response.text else 'empty response'}"
+                        )
                         # fallback без fields, если параметр не поддерживается
                         response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
                     items = data.get("items", [])
+                    self._push_debug(
+                        f"ad_plans.json -> 200, keys={list(data.keys())}, items={len(items)}"
+                    )
                     
                     logger.info(f"🔍 VK Ads API ответ: получено {len(items)} элементов в 'items'")
                     logger.info(f"🔍 Структура ответа: ключи верхнего уровня: {list(data.keys())}")
@@ -181,6 +196,10 @@ class VKAdsAPI:
                                     
                                     ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
                                     if ad_plan_response.status_code == 400:
+                                        self._push_debug(
+                                            f"ad_plans/{camp_id}.json fields=objective -> 400: "
+                                            f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
+                                        )
                                         logger.warning(
                                             f"⚠️ VK Ads: 'fields' не поддерживается для ad_plans/{camp_id}.json: "
                                             f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
@@ -196,6 +215,10 @@ class VKAdsAPI:
                                             timeout=10.0
                                         )
                                         if ad_plan_response.status_code == 400:
+                                            self._push_debug(
+                                                f"ad_plans/{camp_id}.json field_names=objective -> 400: "
+                                                f"{ad_plan_response.text[:200] if ad_plan_response.text else 'empty response'}"
+                                            )
                                             # fallback без fields
                                             fallback_params = {"client_id": self.account_id} if self.account_id else None
                                             ad_plan_response = await client.get(
@@ -206,6 +229,10 @@ class VKAdsAPI:
                                             )
                                     if ad_plan_response.status_code == 200:
                                         ad_plan_data = ad_plan_response.json()
+                                    if idx < 2:
+                                        self._push_debug(
+                                            f"ad_plans/{camp_id}.json -> 200, keys={list(ad_plan_data.keys())}"
+                                        )
                                         
                                         # Логируем структуру ответа для первых 2 кампаний
                                         if idx < 2:
@@ -324,6 +351,10 @@ class VKAdsAPI:
                             if response.status_code == 200:
                                 data = response.json()
                                 items = data.get("items", [])
+                                if items:
+                                    self._push_debug(
+                                        f"stats ad_plans/day -> 200 group_by={group_by_param} metrics={metrics} items={len(items)}"
+                                    )
                                 if not items:
                                     logger.info(
                                         f"ℹ️ VK Ads stats пусто (group_by={group_by_param}, metrics={metrics}), "
@@ -354,6 +385,10 @@ class VKAdsAPI:
                                     break
                             elif response.status_code == 400:
                                 # Параметр не поддерживается, пробуем следующий
+                                self._push_debug(
+                                    f"stats ad_plans/day -> 400 group_by={group_by_param} metrics={metrics}: "
+                                    f"{response.text[:200] if response.text else 'empty response'}"
+                                )
                                 logger.info(
                                     f"ℹ️ VK Ads stats 400 (group_by={group_by_param}, metrics={metrics}): "
                                     f"{response.text[:200] if response.text else 'empty response'}"
@@ -420,6 +455,9 @@ class VKAdsAPI:
 
                     response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                     if response.status_code == 400:
+                        self._push_debug(
+                            f"ad_groups.json {param_name} -> 400: {response.text[:200] if response.text else 'empty response'}"
+                        )
                         logger.info(
                             f"ℹ️ VK Ads ad_groups 400 for param {param_name}: "
                             f"{response.text[:200] if response.text else 'empty response'}"
@@ -437,6 +475,9 @@ class VKAdsAPI:
                     if items:
                         ad_groups.extend(items)
                         logger.info(f"✅ VK Ads: получено {len(items)} AdGroup (param {param_name})")
+                        self._push_debug(
+                            f"ad_groups.json {param_name} -> 200, items={len(items)}"
+                        )
                         break
                     else:
                         logger.info(f"ℹ️ VK Ads ad_groups: пустой список (param {param_name})")
@@ -479,6 +520,9 @@ class VKAdsAPI:
                         break
                 if ad_groups:
                     logger.info(f"✅ VK Ads: получено {len(ad_groups)} AdGroup (fallback без фильтра)")
+                    self._push_debug(
+                        f"ad_groups.json fallback -> items={len(ad_groups)}"
+                    )
 
         return ad_groups
 
@@ -515,6 +559,10 @@ class VKAdsAPI:
                     if package_id is None:
                         continue
                     packages[str(package_id)] = item
+                if offset == 0:
+                    self._push_debug(
+                        f"packages.json -> 200, items_page={len(items)}, keys={list(items[0].keys()) if items else []}"
+                    )
 
                 offset += len(items)
                 if len(items) < limit:
