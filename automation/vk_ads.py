@@ -149,6 +149,8 @@ class VKAdsAPI:
                     if items and len(items) > 0:
                         first_item_keys = list(items[0].keys())
                         logger.info(f"🔍 Поля в базовом ответе ad_plans.json: {first_item_keys}")
+                        logger.info(f"🔍 Первая кампания полностью: {items[0]}")
+                        self._push_debug(f"ad_plans[0] -> id={items[0].get('id')}, name={items[0].get('name')}")
                         
                         if "objective" in items[0]:
                             # objective уже есть в ответе
@@ -298,6 +300,11 @@ class VKAdsAPI:
                         logger.warning("⚠️ VK Ads: базовый список кампаний пуст (items=0).")
                     
                     logger.info(f"✅ VK Ads: получено {len(campaigns)} кампаний, целевых действий найдено: {goals_found}")
+                    if campaigns:
+                        logger.info(f"🔍 Первые 3 кампании (проверка названий):")
+                        for i, camp in enumerate(campaigns[:3]):
+                            logger.info(f"   {i+1}. ID={camp.get('id')}, Name={camp.get('name')}")
+                            self._push_debug(f"campaign[{i}] -> id={camp.get('id')}, name={camp.get('name')}")
                     return campaigns
                 else:
                     error_text = response.text[:200] if response.text else "No error message"
@@ -580,51 +587,92 @@ class VKAdsAPI:
         Получает целевые действия через AdGroup -> package_id -> Packages.objective.
         """
         goal_actions_map: Dict[str, tuple] = {}
+        
+        logger.info(f"🔵 НАЧИНАЕМ get_goal_actions_from_packages для {len(campaign_ids)} кампаний")
+        self._push_debug(f"get_goal_actions_from_packages START -> campaigns={len(campaign_ids)}")
+        
         if not campaign_ids:
+            logger.warning("⚠️ campaign_ids пустой!")
             return goal_actions_map
 
-        ad_groups = await self.get_ad_groups(campaign_ids)
-        self._push_debug(f"ad_groups result -> items={len(ad_groups)}")
-        if not ad_groups:
-            return goal_actions_map
+        try:
+            logger.info(f"🔵 Запрашиваем AdGroups для кампаний: {campaign_ids[:5]}...")
+            ad_groups = await self.get_ad_groups(campaign_ids)
+            self._push_debug(f"ad_groups result -> items={len(ad_groups)}")
+            logger.info(f"🔵 Получено {len(ad_groups)} AdGroups")
+            
+            if ad_groups and len(ad_groups) > 0:
+                first_group_keys = list(ad_groups[0].keys())
+                logger.info(f"🔵 Поля первой группы: {first_group_keys}")
+                self._push_debug(f"ad_groups[0] keys -> {first_group_keys}")
+            
+            if not ad_groups:
+                logger.warning("⚠️ AdGroups пустой!")
+                return goal_actions_map
 
-        packages_map = await self.get_packages_map()
-        self._push_debug(f"packages result -> items={len(packages_map)}")
-        if not packages_map:
-            return goal_actions_map
+            logger.info(f"🔵 Запрашиваем Packages...")
+            packages_map = await self.get_packages_map()
+            self._push_debug(f"packages result -> items={len(packages_map)}")
+            logger.info(f"🔵 Получено {len(packages_map)} пакетов")
+            
+            if packages_map:
+                first_package = next(iter(packages_map.values()))
+                first_package_keys = list(first_package.keys())
+                logger.info(f"🔵 Поля первого пакета: {first_package_keys}")
+                self._push_debug(f"packages[0] keys -> {first_package_keys}")
+                logger.info(f"🔵 Первый пакет полностью: {first_package}")
+                self._push_debug(f"packages[0] data -> {str(first_package)[:200]}")
+            
+            if not packages_map:
+                logger.warning("⚠️ Packages пустой!")
+                return goal_actions_map
 
-        for group in ad_groups:
-            # Пытаемся определить связь группы с кампанией
-            campaign_id = (
-                group.get("ad_plan_id")
-                or group.get("adplan_id")
-                or group.get("campaign_id")
-                or group.get("plan_id")
-            )
-            if campaign_id is None:
-                continue
-            package_id = group.get("package_id") or group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None
-            if package_id is None:
-                continue
+            logger.info(f"🔵 Обрабатываем {len(ad_groups)} групп...")
+            for idx, group in enumerate(ad_groups):
+                # Пытаемся определить связь группы с кампанией
+                campaign_id = (
+                    group.get("ad_plan_id")
+                    or group.get("adplan_id")
+                    or group.get("campaign_id")
+                    or group.get("plan_id")
+                )
+                if campaign_id is None:
+                    if idx < 3:
+                        logger.warning(f"⚠️ Группа {idx} не имеет campaign_id. Поля: {list(group.keys())}")
+                    continue
+                
+                package_id = group.get("package_id") or (group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None)
+                if package_id is None:
+                    if idx < 3:
+                        logger.warning(f"⚠️ Группа {idx} не имеет package_id. Поля: {list(group.keys())}")
+                    continue
 
-            package = packages_map.get(str(package_id))
-            if not package:
-                continue
+                package = packages_map.get(str(package_id))
+                if not package:
+                    if idx < 3:
+                        logger.warning(f"⚠️ Пакет {package_id} не найден в packages_map")
+                    continue
 
-            objective = (
-                package.get("objective")
-                or package.get("objective_name")
-                or package.get("target_action")
-                or package.get("name")
-            )
-            if objective:
-                goal_actions_map[str(campaign_id)] = (str(package_id), str(objective))
+                objective = (
+                    package.get("objective")
+                    or package.get("objective_name")
+                    or package.get("target_action")
+                    or package.get("name")
+                )
+                if objective:
+                    goal_actions_map[str(campaign_id)] = (str(package_id), str(objective))
+                    if idx < 3:
+                        logger.info(f"✅ Группа {idx}: campaign_id={campaign_id}, package_id={package_id}, objective={objective}")
 
-        if goal_actions_map:
-            logger.info(f"✅ VK Ads: найдено {len(goal_actions_map)} целевых действий через Packages")
-        else:
-            logger.warning("⚠️ VK Ads: цели через Packages не найдены")
-        self._push_debug(f"packages objective -> goals={len(goal_actions_map)}")
+            if goal_actions_map:
+                logger.info(f"✅ VK Ads: найдено {len(goal_actions_map)} целевых действий через Packages")
+            else:
+                logger.warning("⚠️ VK Ads: цели через Packages не найдены")
+            self._push_debug(f"packages objective -> goals={len(goal_actions_map)}")
+
+        except Exception as e:
+            logger.error(f"❌ ОШИБКА в get_goal_actions_from_packages: {e}", exc_info=True)
+            self._push_debug(f"get_goal_actions_from_packages ERROR -> {str(e)[:200]}")
 
         return goal_actions_map
 

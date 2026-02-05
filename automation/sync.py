@@ -604,11 +604,17 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 
                 # НОВОЕ: Получаем целевые действия через AdGroup → package_id → Packages.objective
                 # (согласно рекомендации поддержки VK Ads)
-                goal_actions_from_packages = await api.get_goal_actions_from_packages(campaign_ids)
-                
-                # Объединяем результаты: приоритет у packages (более точный источник)
-                for camp_id, (pkg_id, pkg_name) in goal_actions_from_packages.items():
-                    goal_actions_map[camp_id] = (pkg_id, pkg_name)
+                try:
+                    logger.info(f"🔵 ВЫЗЫВАЕМ get_goal_actions_from_packages с {len(campaign_ids)} кампаниями")
+                    goal_actions_from_packages = await api.get_goal_actions_from_packages(campaign_ids)
+                    logger.info(f"🔵 get_goal_actions_from_packages вернул {len(goal_actions_from_packages)} целей")
+                    
+                    # Объединяем результаты: приоритет у packages (более точный источник)
+                    for camp_id, (pkg_id, pkg_name) in goal_actions_from_packages.items():
+                        goal_actions_map[camp_id] = (pkg_id, pkg_name)
+                        logger.info(f"✅ Цель для кампании {camp_id}: {pkg_name} (package {pkg_id})")
+                except Exception as pkg_err:
+                    logger.error(f"❌ ОШИБКА при вызове get_goal_actions_from_packages: {pkg_err}", exc_info=True)
                 
                 for c in vk_campaigns:
                     external_id = str(c.get("id") or "")
