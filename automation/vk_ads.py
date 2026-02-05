@@ -261,7 +261,8 @@ class VKAdsAPI:
                 # Если все еще не нашли, пробуем получить через метод AdPlan для каждой кампании
                 if not goal_actions_map and len(campaign_ids) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
                     logger.info(f"🔄 Пробуем получить целевые действия через AdPlan для {len(campaign_ids)} кампаний...")
-                    for camp_id in campaign_ids[:20]:  # Ограничиваем до 20
+                    self._push_debug(f"FALLBACK: ad_plan individual requests for {len(campaign_ids)} campaigns")
+                    for idx, camp_id in enumerate(campaign_ids[:20]):  # Ограничиваем до 20
                         try:
                             ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
                             ad_plan_params = {}
@@ -272,14 +273,27 @@ class VKAdsAPI:
                             if ad_plan_response.status_code == 200:
                                 ad_plan_data = ad_plan_response.json()
                                 ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                
+                                # Логируем структуру первых 3 ответов
+                                if idx < 3:
+                                    self._push_debug(f"ad_plan[{camp_id}] keys -> {list(ad_plan_item.keys())}")
+                                    self._push_debug(f"ad_plan[{camp_id}] FULL -> {str(ad_plan_item)[:300]}")
+                                    if "objective" in ad_plan_item:
+                                        self._push_debug(f"ad_plan[{camp_id}] objective -> {ad_plan_item.get('objective')}")
+                                
                                 goal_id, goal_name = self._extract_goal_action(ad_plan_item)
                                 if goal_id or goal_name:
                                     goal_actions_map[camp_id] = (goal_id, goal_name)
+                                    if idx < 3:
+                                        self._push_debug(f"ad_plan[{camp_id}] EXTRACTED -> goal_id={goal_id}, goal_name={goal_name}")
                             
                             await asyncio.sleep(0.5)  # Задержка между запросами
-                        except Exception:
+                        except Exception as e:
+                            if idx < 3:
+                                self._push_debug(f"ad_plan[{camp_id}] ERROR -> {str(e)[:200]}")
                             continue
                     
+                    self._push_debug(f"FALLBACK: found {len(goal_actions_map)} goals via AdPlan")
                     if goal_actions_map:
                         logger.info(f"✅ Найдено {len(goal_actions_map)} целевых действий через AdPlan")
         except Exception as e:
