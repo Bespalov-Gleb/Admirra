@@ -462,6 +462,10 @@ class VKAdsAPI:
                     self._push_debug(
                         f"packages.json -> 200, items_page={len(items)}, keys={list(items[0].keys()) if items else []}"
                     )
+                    # ДИАГНОСТИКА: Показываем первые 10 package ID
+                    if items:
+                        first_pkg_ids = [str(item.get("id")) for item in items[:10] if item.get("id")]
+                        logger.info(f"🔍 Первые 10 package ID: {first_pkg_ids}")
 
                 offset += len(items)
                 if len(items) < limit:
@@ -469,9 +473,55 @@ class VKAdsAPI:
 
         if packages:
             logger.info(f"✅ VK Ads: получено {len(packages)} пакетов из Packages")
+            # ДИАГНОСТИКА: Показываем диапазон ID пакетов
+            all_pkg_ids = sorted([int(pid) for pid in packages.keys() if pid.isdigit()])
+            if all_pkg_ids:
+                logger.info(
+                    f"🔍 Package ID диапазон: min={all_pkg_ids[0]}, max={all_pkg_ids[-1]}, "
+                    f"первые 10: {all_pkg_ids[:10]}, последние 10: {all_pkg_ids[-10:]}"
+                )
         else:
             logger.warning("⚠️ VK Ads: не удалось получить список пакетов из Packages")
 
+        return packages
+
+    async def get_packages_by_ids(self, package_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Получает конкретные пакеты по их ID.
+        Используется когда package_id из AdGroup не найден в общем списке.
+        """
+        packages = {}
+        
+        if not package_ids:
+            return packages
+        
+        async with httpx.AsyncClient() as client:
+            for package_id in package_ids:
+                try:
+                    url = f"{self.base_url}/packages/{package_id}.json"
+                    params = {}
+                    if self.account_id:
+                        params["client_id"] = self.account_id
+                    
+                    response = await client.get(url, params=params, headers=self.headers, timeout=10.0)
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Ответ может быть {"item": {...}} или просто {...}
+                        package_data = data.get("item") or data
+                        if package_data.get("id"):
+                            packages[str(package_id)] = package_data
+                            logger.info(f"✅ Получен пакет {package_id} индивидуальным запросом")
+                    elif response.status_code == 404:
+                        logger.warning(f"⚠️ Пакет {package_id} не найден (404)")
+                    else:
+                        logger.warning(f"⚠️ Ошибка получения пакета {package_id}: {response.status_code}")
+                except Exception as e:
+                    logger.debug(f"Ошибка запроса пакета {package_id}: {e}")
+                    continue
+                
+                # Небольшая задержка между запросами
+                await asyncio.sleep(0.1)
+        
         return packages
 
     async def get_goal_actions_from_packages(self, campaign_ids: List[str]) -> Dict[str, tuple]:
@@ -516,6 +566,41 @@ class VKAdsAPI:
             campaign_ids_set = set(str(cid) for cid in campaign_ids)
             campaigns_with_goals = set()
             
+            # ДИАГНОСТИКА: Собираем все package_id из AdGroups
+            ad_group_package_ids = set()
+            for group in ad_groups:
+                pkg_id = group.get("package_id") or (group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None)
+                if pkg_id:
+                    ad_group_package_ids.add(str(pkg_id))
+            
+            # ДИАГНОСТИКА: Собираем все ID из packages_map
+            packages_map_ids = set(packages_map.keys())
+            
+            # ДИАГНОСТИКА: Находим несовпадения
+            missing_packages = ad_group_package_ids - packages_map_ids
+            if missing_packages:
+                logger.warning(
+                    f"🔍 ДИАГНОСТИКА: В AdGroups используются {len(missing_packages)} package_id, "
+                    f"которых НЕТ в Packages: {sorted(list(missing_packages)[:10])}"
+                )
+                self._push_debug(f"MISSING packages: {sorted(list(missing_packages)[:20])}")
+                
+                # ИСПРАВЛЕНИЕ: Запрашиваем недостающие пакеты индивидуально
+                logger.info(f"🔄 Запрашиваем {len(missing_packages)} недостающих пакетов индивидуально...")
+                missing_packages_data = await self.get_packages_by_ids(list(missing_packages))
+                if missing_packages_data:
+                    logger.info(f"✅ Получено {len(missing_packages_data)} недостающих пакетов")
+                    # Добавляем недостающие пакеты в общий словарь
+                    packages_map.update(missing_packages_data)
+                    packages_map_ids = set(packages_map.keys())  # Обновляем set ID
+                else:
+                    logger.warning(f"⚠️ Не удалось получить недостающие пакеты")
+            
+            logger.info(
+                f"🔍 ДИАГНОСТИКА: AdGroups имеют {len(ad_group_package_ids)} уникальных package_id, "
+                f"Packages содержит {len(packages_map_ids)} пакетов (после догрузки)"
+            )
+            
             for idx, group in enumerate(ad_groups):
                 # Пытаемся определить связь группы с кампанией
                 campaign_id = (
@@ -525,20 +610,36 @@ class VKAdsAPI:
                     or group.get("plan_id")
                 )
                 if campaign_id is None:
-                    if idx < 3:
+                    if idx < 5:
                         self._push_debug(f"group[{idx}] NO campaign_id -> keys={list(group.keys())}")
+                        logger.warning(f"🔍 AdGroup[{idx}] БЕЗ campaign_id: keys={list(group.keys())}")
                     continue
                 
                 package_id = group.get("package_id") or (group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None)
+                
+                # ДИАГНОСТИКА: Логируем для всех групп без package_id
                 if package_id is None:
-                    if idx < 3:
+                    if idx < 5:
                         self._push_debug(f"group[{idx}] NO package_id -> keys={list(group.keys())}")
+                        logger.warning(f"🔍 AdGroup[{idx}] campaign={campaign_id} БЕЗ package_id: {group}")
                     continue
+                
+                # ДИАГНОСТИКА: Логируем для первых 5 групп
+                if idx < 5:
+                    logger.info(f"🔍 AdGroup[{idx}] campaign={campaign_id}, package_id={package_id} (type={type(package_id).__name__})")
 
                 package = packages_map.get(str(package_id))
                 if not package:
+                    # ДИАГНОСТИКА: Логируем ВСЕ случаи, когда package не найден
+                    logger.warning(
+                        f"🔍 AdGroup campaign={campaign_id}, package_id={package_id} → "
+                        f"НЕ НАЙДЕН в packages_map! Проверяем ближайшие ID..."
+                    )
+                    # Показываем несколько ближайших ID из packages_map для сравнения
+                    sample_ids = sorted(list(packages_map.keys())[:10])
+                    logger.warning(f"   Примеры ID в packages_map: {sample_ids}")
                     if idx < 3:
-                        self._push_debug(f"package {package_id} NOT FOUND in packages_map")
+                        self._push_debug(f"package {package_id} NOT FOUND, sample_ids={sample_ids}")
                     continue
 
                 objective = (
