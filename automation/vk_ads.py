@@ -134,9 +134,15 @@ class VKAdsAPI:
             
         try:
             async with httpx.AsyncClient() as client:
-                # ВАЖНО: НЕ используем fields, потому что VK API с fields=objective возвращает ТОЛЬКО objective без id/name
-                # Запрашиваем базовый список кампаний с дефолтными полями
-                response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                # Пробуем запросить с objective, если не сработает - запросим без полей
+                test_params = params.copy()
+                test_params["fields"] = "id,name,status,objective"
+                response = await client.get(url, params=test_params, headers=self.headers, timeout=30.0)
+                
+                # Если 400 (некорректные поля), запросим без fields
+                if response.status_code == 400:
+                    logger.info("ℹ️ VK API не поддерживает fields=objective в ad_plans.json, запрашиваем без полей")
+                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -164,12 +170,21 @@ class VKAdsAPI:
                                 self._push_debug(f"item БЕЗ id -> keys={list(item.keys())}")
                                 continue
                             
+                            # Пытаемся извлечь objective если он есть
+                            goal_id, goal_name = self._extract_goal_action(item)
+                            if goal_id or goal_name:
+                                # Преобразуем код objective в человекочитаемое название
+                                if goal_id and not goal_name:
+                                    goal_name = self._get_human_readable_objective(goal_id)
+                                elif goal_name and not goal_id:
+                                    goal_id = goal_name
+                            
                             campaigns.append({
                                 "id": str(item_id),
                                 "name": item.get("name") or f"Campaign {item_id}",
                                 "status": item.get("status"),
-                                "goal_action_id": None,
-                                "goal_action_name": None
+                                "goal_action_id": goal_id,
+                                "goal_action_name": goal_name
                             })
                     else:
                         logger.warning("⚠️ VK Ads: базовый список кампаний пуст (items=0).")
@@ -279,15 +294,35 @@ class VKAdsAPI:
                     except Exception as e:
                         continue
                 
-                # Если не нашли через group_by, пробуем получить через Packages (AdGroup -> package_id -> objective)
-                if not goal_actions_map:
-                    goal_actions_map = await self.get_goal_actions_from_packages(campaign_ids)
+                # FALLBACK 1: Получаем базовый список кампаний (может содержать objective)
+                campaigns = await self.get_campaigns()
+                campaigns_map = {str(c["id"]): c for c in campaigns}
+                
+                # Используем цели из campaigns как начальные значения
+                for camp_id in campaign_ids:
+                    campaign = campaigns_map.get(str(camp_id))
+                    if campaign and campaign.get("goal_action_id"):
+                        goal_actions_map[str(camp_id)] = (
+                            campaign["goal_action_id"],
+                            campaign.get("goal_action_name") or campaign["goal_action_id"]
+                        )
+                
+                if goal_actions_map:
+                    logger.info(f"✅ Получено {len(goal_actions_map)} целей из базового списка кампаний")
+                
+                # FALLBACK 2: Если не нашли через campaigns, пробуем получить через Packages (AdGroup -> package_id -> objective)
+                missing_goals = set(str(cid) for cid in campaign_ids) - set(goal_actions_map.keys())
+                if missing_goals:
+                    logger.info(f"🔄 Запрашиваем цели через Packages для {len(missing_goals)} кампаний...")
+                    packages_goals = await self.get_goal_actions_from_packages(list(missing_goals))
+                    goal_actions_map.update(packages_goals)
 
-                # Если все еще не нашли, пробуем получить через метод AdPlan для каждой кампании
-                if not goal_actions_map and len(campaign_ids) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
-                    logger.info(f"🔄 Пробуем получить целевые действия через AdPlan для {len(campaign_ids)} кампаний...")
-                    self._push_debug(f"FALLBACK: ad_plan individual requests for {len(campaign_ids)} campaigns")
-                    for idx, camp_id in enumerate(campaign_ids[:20]):  # Ограничиваем до 20
+                # FALLBACK 3: Если все еще есть кампании без целей, пробуем индивидуальные запросы AdPlan
+                missing_goals = set(str(cid) for cid in campaign_ids) - set(goal_actions_map.keys())
+                if missing_goals and len(missing_goals) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
+                    logger.info(f"🔄 Пробуем получить целевые действия через индивидуальные запросы AdPlan для {len(missing_goals)} кампаний...")
+                    self._push_debug(f"FALLBACK 3: ad_plan individual requests for {len(missing_goals)} campaigns")
+                    for idx, camp_id in enumerate(sorted(list(missing_goals))[:20]):  # Ограничиваем до 20
                         try:
                             ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
                             ad_plan_params = {
@@ -310,6 +345,11 @@ class VKAdsAPI:
                                 
                                 goal_id, goal_name = self._extract_goal_action(ad_plan_item)
                                 if goal_id or goal_name:
+                                    # Преобразуем код objective в человекочитаемое название
+                                    if goal_id and not goal_name:
+                                        goal_name = self._get_human_readable_objective(goal_id)
+                                    elif goal_name and not goal_id:
+                                        goal_id = goal_name
                                     goal_actions_map[camp_id] = (goal_id, goal_name)
                                     if idx < 3:
                                         self._push_debug(f"ad_plan[{camp_id}] EXTRACTED -> goal_id={goal_id}, goal_name={goal_name}")
@@ -566,12 +606,31 @@ class VKAdsAPI:
             campaign_ids_set = set(str(cid) for cid in campaign_ids)
             campaigns_with_goals = set()
             
-            # ДИАГНОСТИКА: Собираем все package_id из AdGroups
+            # ДИАГНОСТИКА: Собираем все package_id из AdGroups и подсчитываем кампании с AdGroups
             ad_group_package_ids = set()
+            campaigns_with_ad_groups = set()
             for group in ad_groups:
+                campaign_id = (
+                    group.get("ad_plan_id")
+                    or group.get("adplan_id")
+                    or group.get("campaign_id")
+                    or group.get("plan_id")
+                )
+                if campaign_id:
+                    campaigns_with_ad_groups.add(str(campaign_id))
+                
                 pkg_id = group.get("package_id") or (group.get("package", {}).get("id") if isinstance(group.get("package"), dict) else None)
                 if pkg_id:
                     ad_group_package_ids.add(str(pkg_id))
+            
+            # ДИАГНОСТИКА: Находим кампании без AdGroups
+            campaigns_without_ad_groups = campaign_ids_set - campaigns_with_ad_groups
+            if campaigns_without_ad_groups:
+                logger.warning(
+                    f"⚠️ ДИАГНОСТИКА: {len(campaigns_without_ad_groups)} кампаний БЕЗ AdGroups: "
+                    f"{sorted(list(campaigns_without_ad_groups)[:10])}"
+                )
+                self._push_debug(f"campaigns WITHOUT ad_groups: {sorted(list(campaigns_without_ad_groups)[:20])}")
             
             # ДИАГНОСТИКА: Собираем все ID из packages_map
             packages_map_ids = set(packages_map.keys())
@@ -671,6 +730,42 @@ class VKAdsAPI:
                     f"{sorted(list(campaigns_without_goals)[:5])}{'...' if len(campaigns_without_goals) > 5 else ''}"
                 )
                 self._push_debug(f"campaigns WITHOUT goals -> {len(campaigns_without_goals)}/{len(campaign_ids)}")
+                
+                # FALLBACK: Для кампаний без целей (особенно без AdGroups) пробуем индивидуальные запросы
+                if len(campaigns_without_goals) <= 15:  # Ограничиваем количество
+                    logger.info(f"🔄 Пробуем fallback: запрашиваем objective для {len(campaigns_without_goals)} кампаний...")
+                    async with httpx.AsyncClient() as client:
+                        for idx, camp_id in enumerate(sorted(list(campaigns_without_goals))[:15]):
+                            try:
+                                ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
+                                ad_plan_params = {"fields": "id,name,objective,status"}
+                                if self.account_id:
+                                    ad_plan_params["client_id"] = self.account_id
+                                
+                                ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
+                                if ad_plan_response.status_code == 200:
+                                    ad_plan_data = ad_plan_response.json()
+                                    ad_plan_item = ad_plan_data.get("item") or ad_plan_data
+                                    
+                                    if idx < 3:
+                                        logger.info(f"🔍 Fallback ad_plan[{camp_id}] -> {str(ad_plan_item)[:200]}")
+                                    
+                                    goal_id, goal_name = self._extract_goal_action(ad_plan_item)
+                                    if goal_id or goal_name:
+                                        goal_actions_map[camp_id] = (goal_id, goal_name)
+                                        campaigns_with_goals.add(camp_id)
+                                        logger.info(f"✅ Fallback: найдена цель для кампании {camp_id}: {goal_name}")
+                                
+                                await asyncio.sleep(0.2)  # Задержка между запросами
+                            except Exception as e:
+                                if idx < 3:
+                                    logger.debug(f"Fallback ad_plan[{camp_id}] ERROR: {str(e)[:200]}")
+                                continue
+                    
+                    # Обновляем статистику после fallback
+                    campaigns_without_goals = campaign_ids_set - campaigns_with_goals
+                    if len(campaigns_without_goals) < len(campaign_ids_set):
+                        logger.info(f"✅ После fallback: найдено {len(goal_actions_map)} целей (осталось без целей: {len(campaigns_without_goals)})")
             
             self._push_debug(f"packages objective -> goals={len(goal_actions_map)}")
             if goal_actions_map:
