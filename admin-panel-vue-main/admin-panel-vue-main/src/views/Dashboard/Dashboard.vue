@@ -1,4 +1,7 @@
 <template>
+  <!-- Индикатор синхронизации (не блокирует интерфейс) -->
+  <SyncStatusBanner :show-dismiss-button="true" />
+  
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Состояние, если нет проектов -->
     <div v-if="!loading && clients.length === 0" class="flex items-center justify-center min-h-[60vh] px-4">
@@ -194,6 +197,7 @@ import {
 import CardV3 from './components/CardV3.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
 import CreateProjectBanner from './components/CreateProjectBanner.vue'
+import SyncStatusBanner from '../../components/SyncStatusBanner.vue'
 import MoneyIcon from '../../assets/dash/money.svg'
 import DashEyeIcon from '../../assets/dash/dash-eye.svg'
 import DashArrowIcon from '../../assets/dash/dash-arrow.svg'
