@@ -162,7 +162,61 @@
             </h2>
             
             <div class="prose prose-sm max-w-none">
-              <component :is="currentInstructions" />
+              <!-- HTML Instructions -->
+              <div v-if="selectedPlatform === 'html'" class="space-y-3">
+                <h4 class="font-bold text-gray-900">Шаги установки:</h4>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                  <li>Скопируйте код выше</li>
+                  <li>Вставьте его на вашу страницу</li>
+                  <li>Настройте стили формы под ваш дизайн</li>
+                  <li>Проверьте работу, отправив тестовую заявку</li>
+                </ol>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                  <p class="text-yellow-800">
+                    ⚠️ <strong>Важно:</strong> Убедитесь, что домен вашего сайта добавлен в настройки Turnstile.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Tilda Instructions -->
+              <div v-else-if="selectedPlatform === 'tilda'" class="space-y-3">
+                <h4 class="font-bold text-gray-900">Шаги установки в Tilda:</h4>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                  <li>Откройте настройки страницы (Settings)</li>
+                  <li>Перейдите в "HTML код для вставки"</li>
+                  <li>Вставьте код в секцию "Head"</li>
+                  <li>Добавьте HTML-блок с виджетом капчи перед кнопкой</li>
+                  <li>Вставьте JavaScript код в секцию "Body"</li>
+                  <li>Сохраните и опубликуйте страницу</li>
+                </ol>
+              </div>
+
+              <!-- WordPress Instructions -->
+              <div v-else-if="selectedPlatform === 'wordpress'" class="space-y-3">
+                <h4 class="font-bold text-gray-900">Установка в WordPress:</h4>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                  <li>Установите плагин Contact Form 7</li>
+                  <li>Добавьте код в functions.php вашей темы</li>
+                  <li>Создайте форму с полями из примера</li>
+                  <li>Вставьте shortcode формы на страницу</li>
+                </ol>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <p class="text-blue-800">
+                    💡 <strong>Совет:</strong> Используйте дочернюю тему для безопасного редактирования functions.php
+                  </p>
+                </div>
+              </div>
+
+              <!-- Vue Instructions -->
+              <div v-else-if="selectedPlatform === 'vue'" class="space-y-3">
+                <h4 class="font-bold text-gray-900">Установка в Vue.js:</h4>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                  <li>Скопируйте компонент выше</li>
+                  <li>Создайте файл LeadForm.vue в вашем проекте</li>
+                  <li>Импортируйте и используйте компонент</li>
+                  <li>Настройте стили под ваш дизайн</li>
+                </ol>
+              </div>
             </div>
           </div>
 
@@ -300,6 +354,8 @@ const generatedCode = computed(() => {
   
   const apiUrl = window.location.origin
   const projectKey = selectedProject.value.api_key
+  const scriptOpen = '<' + 'script'
+  const scriptClose = '<' + '/script>'
   
   if (selectedPlatform.value === 'html') {
     return `<!DOCTYPE html>
@@ -307,7 +363,7 @@ const generatedCode = computed(() => {
 <head>
     <title>Форма обратной связи</title>
     <!-- Cloudflare Turnstile -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+    ${scriptOpen} src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer>${scriptClose}>
 </head>
 <body>
     <form id="leadForm">
@@ -323,7 +379,7 @@ const generatedCode = computed(() => {
         <button type="submit">Отправить</button>
     </form>
 
-    <script>
+    ${scriptOpen}>
     let captchaToken = null;
     
     function onTurnstileSuccess(token) {
@@ -365,20 +421,20 @@ const generatedCode = computed(() => {
             alert('Ошибка отправки');
         }
     });
-    </script>
+    ${scriptClose}>
 </body>
 </html>`
   } else if (selectedPlatform.value === 'tilda') {
     return `<!-- В настройках формы Tilda добавьте в "Код для вставки в head": -->
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>
+${scriptOpen} src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer>${scriptClose}>
 
 <!-- В настройках формы добавьте HTML-блок ПЕРЕД кнопкой отправки: -->
 <div class="cf-turnstile" 
      data-sitekey="${turnstileSiteKey.value}"
      data-callback="onTurnstileSuccess"></div>
 
-<!-- В настройки формы добавьте JavaScript (в "Код для вставки перед </body>"): -->
-<script>
+<!-- В настройки формы добавьте JavaScript (в "Код для вставки перед ${scriptClose}>"): -->
+${scriptOpen}>
 let captchaToken = null;
 
 function onTurnstileSuccess(token) {
@@ -402,7 +458,7 @@ $(document).on('tildaform:aftersuccess', function(e, form) {
         })
     });
 });
-</script>`
+${scriptClose}>`
   } else if (selectedPlatform.value === 'wordpress') {
     return `<?php
 // Добавьте в functions.php вашей темы:
@@ -457,7 +513,7 @@ function submit_lead_handler() {
   </form>
 </template>
 
-<script setup>
+${scriptOpen} setup>
 import { ref, onMounted } from 'vue'
 
 const form = ref({ name: '', phone: '', email: '' })
@@ -506,7 +562,7 @@ const submitLead = async () => {
     alert('Ошибка отправки')
   }
 }
-</script>`
+${scriptClose}>`
   }
   
   return ''
@@ -523,78 +579,6 @@ const copyCode = async () => {
     toaster.error('Не удалось скопировать')
   }
 }
-
-// Instructions components (inline)
-const currentInstructions = computed(() => {
-  const instructions = {
-    html: {
-      template: `
-        <div class="space-y-3">
-          <h4 class="font-bold text-gray-900">Шаги установки:</h4>
-          <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
-            <li>Скопируйте код выше</li>
-            <li>Вставьте его на вашу страницу</li>
-            <li>Настройте стили формы под ваш дизайн</li>
-            <li>Проверьте работу, отправив тестовую заявку</li>
-          </ol>
-          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
-            <p class="text-yellow-800">
-              ⚠️ <strong>Важно:</strong> Убедитесь, что домен вашего сайта добавлен в настройки Turnstile.
-            </p>
-          </div>
-        </div>
-      `
-    },
-    tilda: {
-      template: `
-        <div class="space-y-3">
-          <h4 class="font-bold text-gray-900">Шаги установки в Tilda:</h4>
-          <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
-            <li>Откройте настройки страницы (Settings)</li>
-            <li>Перейдите в "HTML код для вставки"</li>
-            <li>Вставьте код в секцию "Head"</li>
-            <li>Добавьте HTML-блок с виджетом капчи перед кнопкой</li>
-            <li>Вставьте JavaScript код в секцию "Body"</li>
-            <li>Сохраните и опубликуйте страницу</li>
-          </ol>
-        </div>
-      `
-    },
-    wordpress: {
-      template: `
-        <div class="space-y-3">
-          <h4 class="font-bold text-gray-900">Установка в WordPress:</h4>
-          <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
-            <li>Установите плагин Contact Form 7</li>
-            <li>Добавьте код в functions.php вашей темы</li>
-            <li>Создайте форму с полями из примера</li>
-            <li>Вставьте shortcode формы на страницу</li>
-          </ol>
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-            <p class="text-blue-800">
-              💡 <strong>Совет:</strong> Используйте дочернюю тему для безопасного редактирования functions.php
-            </p>
-          </div>
-        </div>
-      `
-    },
-    vue: {
-      template: `
-        <div class="space-y-3">
-          <h4 class="font-bold text-gray-900">Установка в Vue.js:</h4>
-          <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
-            <li>Скопируйте компонент выше</li>
-            <li>Создайте файл LeadForm.vue в вашем проекте</li>
-            <li>Импортируйте и используйте компонент</li>
-            <li>Настройте стили под ваш дизайн</li>
-          </ol>
-        </div>
-      `
-    }
-  }
-  
-  return { template: instructions[selectedPlatform.value]?.template || '' }
-})
 
 onMounted(() => {
   loadProjects()
