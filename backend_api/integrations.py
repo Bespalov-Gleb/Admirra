@@ -2963,59 +2963,59 @@ async def delete_integration(
                 except Exception as decrypt_err:
                     logger.warning(f"⚠️ Could not decrypt refresh_token for revocation: {decrypt_err}")
             
-        # Определяем user_id для отзыва токена
-        user_id_for_revoke = integration.vk_user_id
-        
-        # ИСПРАВЛЕНИЕ: Если vk_user_id не установлен, пробуем использовать agency_client_login
-        if not user_id_for_revoke and integration.agency_client_login:
-            user_id_for_revoke = integration.agency_client_login
-            logger.info(f"   vk_user_id not set, using agency_client_login for revocation: {user_id_for_revoke}")
-        
-        # Если все еще нет user_id, пробуем извлечь из токена
-        if not user_id_for_revoke and access_token:
-            try:
-                logger.info(f"   Attempting to extract user_id from access_token...")
-                async with httpx.AsyncClient() as client:
-                    # Пробуем получить user info через VK Ads API
-                    user_info_response = await client.get(
-                        "https://ads.vk.com/api/v2/statistics/users/summary.json",
-                        headers={"Authorization": f"Bearer {access_token}"},
-                        timeout=10.0
-                    )
-                    if user_info_response.status_code == 200:
-                        user_data = user_info_response.json()
-                        items = user_data.get("items", [])
-                        if items:
-                            raw_id = items[0].get("id")
-                            if raw_id:
-                                import re
-                                # Извлекаем user_id из формата "vkads_USERID@vk@..."
-                                match = re.search(r'vkads_(\d+)|@(\w+)@agency_client', str(raw_id))
-                                if match:
-                                    user_id_for_revoke = match.group(1) or str(raw_id)
-                                    logger.info(f"   ✅ Extracted user_id from token: {user_id_for_revoke}")
-                                else:
-                                    user_id_for_revoke = str(raw_id)
-                                    logger.info(f"   ✅ Using raw ID from token: {user_id_for_revoke}")
-            except Exception as extract_err:
-                logger.debug(f"   Could not extract user_id from token: {extract_err}")
-        
-        # Пытаемся отозвать токен согласно официальной документации VK Ads API
-        # POST /api/v2/oauth2/token/delete.json
-        # Параметры: client_id, client_secret, username или user_id
-        from backend_api.services import IntegrationService
-        revoked = await IntegrationService.revoke_vk_token(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            client_id=VK_CLIENT_ID,
-            client_secret=VK_CLIENT_SECRET,
-            user_id=user_id_for_revoke  # VK Ads user_id/username for token revocation
-        )
-        
-        if revoked:
-            logger.info(f"✅ VK Ads token revoked successfully for integration {integration_id}")
-        else:
-            logger.warning(f"⚠️ Could not revoke VK Ads token for integration {integration_id}, but continuing with deletion")
+            # Определяем user_id для отзыва токена
+            user_id_for_revoke = integration.vk_user_id
+            
+            # ИСПРАВЛЕНИЕ: Если vk_user_id не установлен, пробуем использовать agency_client_login
+            if not user_id_for_revoke and integration.agency_client_login:
+                user_id_for_revoke = integration.agency_client_login
+                logger.info(f"   vk_user_id not set, using agency_client_login for revocation: {user_id_for_revoke}")
+            
+            # Если все еще нет user_id, пробуем извлечь из токена
+            if not user_id_for_revoke and access_token:
+                try:
+                    logger.info(f"   Attempting to extract user_id from access_token...")
+                    async with httpx.AsyncClient() as client:
+                        # Пробуем получить user info через VK Ads API
+                        user_info_response = await client.get(
+                            "https://ads.vk.com/api/v2/statistics/users/summary.json",
+                            headers={"Authorization": f"Bearer {access_token}"},
+                            timeout=10.0
+                        )
+                        if user_info_response.status_code == 200:
+                            user_data = user_info_response.json()
+                            items = user_data.get("items", [])
+                            if items:
+                                raw_id = items[0].get("id")
+                                if raw_id:
+                                    import re
+                                    # Извлекаем user_id из формата "vkads_USERID@vk@..."
+                                    match = re.search(r'vkads_(\d+)|@(\w+)@agency_client', str(raw_id))
+                                    if match:
+                                        user_id_for_revoke = match.group(1) or str(raw_id)
+                                        logger.info(f"   ✅ Extracted user_id from token: {user_id_for_revoke}")
+                                    else:
+                                        user_id_for_revoke = str(raw_id)
+                                        logger.info(f"   ✅ Using raw ID from token: {user_id_for_revoke}")
+                except Exception as extract_err:
+                    logger.debug(f"   Could not extract user_id from token: {extract_err}")
+            
+            # Пытаемся отозвать токен согласно официальной документации VK Ads API
+            # POST /api/v2/oauth2/token/delete.json
+            # Параметры: client_id, client_secret, username или user_id
+            from backend_api.services import IntegrationService
+            revoked = await IntegrationService.revoke_vk_token(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                client_id=VK_CLIENT_ID,
+                client_secret=VK_CLIENT_SECRET,
+                user_id=user_id_for_revoke  # VK Ads user_id/username for token revocation
+            )
+            
+            if revoked:
+                logger.info(f"✅ VK Ads token revoked successfully for integration {integration_id}")
+            else:
+                logger.warning(f"⚠️ Could not revoke VK Ads token for integration {integration_id}, but continuing with deletion")
                 
         except Exception as revoke_err:
             # Не прерываем удаление интеграции, даже если отзыв токена не удался
