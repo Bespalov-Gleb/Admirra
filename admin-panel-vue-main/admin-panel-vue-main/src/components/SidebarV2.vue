@@ -46,7 +46,7 @@
           <div v-for="item in section.items" :key="item.name" class="relative group">
             <!-- Кнопка меню -->
             <button
-              @click="item.children ? toggleDashboard() : handleLinkClick(item.path)"
+              @click="item.children ? toggleSubmenu(item.submenuKey) : handleLinkClick(item.path)"
               :class="[
                 'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left transition-colors',
                 isCollapsed && 'justify-center',
@@ -60,7 +60,7 @@
                 v-if="!isCollapsed && item.children"
                 :class="[
                   'w-4 h-4 transition-transform',
-                  !isSubmenuOpen && 'rotate-180'
+                  !isSubmenuOpenForKey(item.submenuKey) && 'rotate-180'
                 ]"
               />
             </button>
@@ -75,7 +75,7 @@
             </div>
 
             <!-- Выпадающее меню -->
-            <div v-if="item.children && !isCollapsed && isSubmenuOpen">
+            <div v-if="item.children && !isCollapsed && isSubmenuOpenForKey(item.submenuKey)">
               <button
                 v-for="child in item.children"
                 :key="child.path"
@@ -197,7 +197,8 @@ const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMo
 const { forceLogout } = useAuth()
 const route = useRoute()
 const router = useRouter()
-const isSubmenuOpen = ref(false)
+const isDashboardSubmenuOpen = ref(false)
+const isPhoneSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
 const menuSections = [
@@ -208,6 +209,7 @@ const menuSections = [
         name: 'Аналитика',
         icon: ChartBarIcon,
         path: '/dashboard',
+        submenuKey: 'dashboard',
         children: [
           { name: 'Аналитика проекта', path: '/dashboard/general-3' },
           { name: 'Сформировать отчет', path: '/dashboard/general-2' },
@@ -230,10 +232,12 @@ const menuSections = [
       {
         name: 'Телефония',
         icon: PhoneIcon,
-        path: '/phone-projects',
+        path: '/phone',
+        submenuKey: 'phone',
         children: [
           { name: 'Проекты', path: '/phone-projects' },
           { name: 'Квалификатор', path: '/phone-api' },
+          { name: 'Интеграция', path: '/phone-integration' },
           { name: 'Лиды', path: '/phone-leads' },
           { name: 'Статистика', path: '/phone-stats' },
           { name: 'Отчёты', path: '/phone-reports' },
@@ -260,48 +264,60 @@ const handleLinkClick = (path) => {
 
 // Автоматически открывать выпадающее меню, если текущий маршрут имеет вложенность
 watch(() => route?.path, (path) => {
-  if (path && (path.startsWith('/dashboard') || path.startsWith('/phone'))) {
-    isSubmenuOpen.value = true
+  if (path && path.startsWith('/dashboard')) {
+    isDashboardSubmenuOpen.value = true
   } else {
-    isSubmenuOpen.value = false
+    isDashboardSubmenuOpen.value = false
+  }
+  
+  if (path && path.startsWith('/phone')) {
+    isPhoneSubmenuOpen.value = true
+  } else {
+    isPhoneSubmenuOpen.value = false
   }
 }, { immediate: true })
 
 // Вычисляемое свойство для проверки активного маршрута
 const isActive = (path) => {
   if (!route?.path) return false
-  if (path === '/dashboard') {
-     // Parent activation check
-     return route.path.startsWith('/dashboard')
-  }
-  if (path === '/phone-projects') {
-    // Parent activation check for phone section
-    return route.path.startsWith('/phone')
-  }
-  if (path === '/dashboard/projects') {
-    return route.path === '/dashboard/projects' || route.path === '/projects'
-  }
+  // Для родительских элементов с submenu не подсвечиваем их
+  // Подсвечиваем только если это точное совпадение пути
   return route.path === path
 }
 
 const handleToggleCollapse = () => {
   toggleCollapse()
   if (isCollapsed.value) {
-    isSubmenuOpen.value = false
+    isDashboardSubmenuOpen.value = false
+    isPhoneSubmenuOpen.value = false
   }
 }
 
-const toggleDashboard = () => {
+// Проверка, открыто ли submenu для данного ключа
+const isSubmenuOpenForKey = (key) => {
+  if (key === 'dashboard') return isDashboardSubmenuOpen.value
+  if (key === 'phone') return isPhoneSubmenuOpen.value
+  return false
+}
+
+// Переключение submenu для данного ключа
+const toggleSubmenu = (key) => {
   // Если меню свернуто, разворачиваем его и открываем выпадающее меню
   if (isCollapsed.value) {
     toggleCollapse()
-    // Используем nextTick, чтобы дождаться разворачивания меню
+    // Используем setTimeout, чтобы дождаться разворачивания меню
     setTimeout(() => {
-      isSubmenuOpen.value = true
+      if (key === 'dashboard') isDashboardSubmenuOpen.value = true
+      if (key === 'phone') isPhoneSubmenuOpen.value = true
     }, 100)
   } else {
     // Если меню развернуто, просто переключаем выпадающее меню
-    isSubmenuOpen.value = !isSubmenuOpen.value
+    if (key === 'dashboard') {
+      isDashboardSubmenuOpen.value = !isDashboardSubmenuOpen.value
+    }
+    if (key === 'phone') {
+      isPhoneSubmenuOpen.value = !isPhoneSubmenuOpen.value
+    }
   }
 }
 
