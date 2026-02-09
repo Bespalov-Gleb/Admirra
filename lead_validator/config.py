@@ -67,10 +67,19 @@ class LeadValidatorSettings:
     AIRTABLE_BASE_ID: Optional[str] = None
     AIRTABLE_TABLE_NAME: str = "rejected_leads"
     
-    # CAPTCHA (Yandex SmartCaptcha)
-    SMARTCAPTCHA_CLIENT_KEY: Optional[str] = None
-    SMARTCAPTCHA_SERVER_KEY: Optional[str] = None
-    SMARTCAPTCHA_ENABLED: bool = False
+    # CAPTCHA провайдеры (по приоритету)
+    # 1. Cloudflare Turnstile (рекомендуется, бесплатно)
+    TURNSTILE_SITE_KEY: Optional[str] = None  # Для фронтенда
+    TURNSTILE_SECRET_KEY: Optional[str] = None  # Для бэкенда
+    
+    # 2. Google reCAPTCHA v2/v3
+    RECAPTCHA_SITE_KEY: Optional[str] = None  # Для фронтенда
+    RECAPTCHA_SECRET_KEY: Optional[str] = None  # Для бэкенда
+    RECAPTCHA_MIN_SCORE: float = 0.5  # Минимальный score для v3 (0.0-1.0)
+    
+    # 3. Yandex SmartCaptcha (запасной вариант)
+    SMARTCAPTCHA_CLIENT_KEY: Optional[str] = None  # Для фронтенда
+    SMARTCAPTCHA_SERVER_KEY: Optional[str] = None  # Для бэкенда
     
     # Антибот настройки
     MIN_FORM_FILL_TIME_SEC: int = 3
@@ -170,9 +179,14 @@ class LeadValidatorSettings:
         self.AIRTABLE_TABLE_NAME = _get_env("AIRTABLE_TABLE_NAME", "rejected_leads")
         
         # CAPTCHA (Yandex SmartCaptcha)
+        # CAPTCHA
+        self.TURNSTILE_SITE_KEY = _get_env("TURNSTILE_SITE_KEY") or None
+        self.TURNSTILE_SECRET_KEY = _get_env("TURNSTILE_SECRET_KEY") or None
+        self.RECAPTCHA_SITE_KEY = _get_env("RECAPTCHA_SITE_KEY") or None
+        self.RECAPTCHA_SECRET_KEY = _get_env("RECAPTCHA_SECRET_KEY") or None
+        self.RECAPTCHA_MIN_SCORE = _get_env_float("RECAPTCHA_MIN_SCORE", 0.5)
         self.SMARTCAPTCHA_CLIENT_KEY = _get_env("SMARTCAPTCHA_CLIENT_KEY") or None
         self.SMARTCAPTCHA_SERVER_KEY = _get_env("SMARTCAPTCHA_SERVER_KEY") or None
-        self.SMARTCAPTCHA_ENABLED = _get_env_bool("SMARTCAPTCHA_ENABLED", False)
         
         # Антибот
         self.MIN_FORM_FILL_TIME_SEC = _get_env_int("MIN_FORM_FILL_TIME_SEC", 3)

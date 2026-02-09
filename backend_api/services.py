@@ -151,11 +151,21 @@ class IntegrationService:
                     "client_secret": client_secret
                 }
                 
-                # Добавляем user_id если доступен
+                # Добавляем user_id или username если доступен
                 # Если user_id не передан, будут удалены токены аккаунта, для которого был выдан доступ к API
                 if user_id:
-                    payload["user_id"] = user_id
-                    logger.info(f"   Revoking tokens for specific user_id: {user_id}")
+                    # Проверяем, это числовой ID или username (agency_client format)
+                    if user_id.isdigit():
+                        payload["user_id"] = user_id
+                        logger.info(f"   Revoking tokens for specific user_id: {user_id}")
+                    elif '@' in user_id or '_' in user_id:
+                        # Это может быть username в формате "login@agency_client" или "vkads_ID@vk@..."
+                        payload["username"] = user_id
+                        logger.info(f"   Revoking tokens for specific username: {user_id}")
+                    else:
+                        # Пробуем как username
+                        payload["username"] = user_id
+                        logger.info(f"   Revoking tokens for username: {user_id}")
                 else:
                     logger.info(f"   Revoking tokens for token owner (user_id not provided)")
                 
@@ -169,6 +179,44 @@ class IntegrationService:
                 )
                 
                 logger.info(f"📡 VK Ads token revocation response: {response.status_code}")
+                
+                # Если получили 400 и использовали username, пробуем как user_id (или наоборот)
+                if response.status_code == 400 and user_id:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get('error_description') or error_data.get('error', '')
+                        logger.debug(f"   First attempt failed: {error_msg}")
+                        
+                        # Пробуем альтернативный метод
+                        alternative_payload = {
+                            "client_id": client_id,
+                            "client_secret": client_secret
+                        }
+                        
+                        if "username" in payload:
+                            # Пробовали username, теперь пробуем user_id
+                            alternative_payload["user_id"] = user_id
+                            logger.info(f"   Retrying with user_id instead of username...")
+                        elif "user_id" in payload:
+                            # Пробовали user_id, теперь пробуем username
+                            alternative_payload["username"] = user_id
+                            logger.info(f"   Retrying with username instead of user_id...")
+                        else:
+                            # Нечего пробовать
+                            alternative_payload = None
+                        
+                        if alternative_payload:
+                            response = await client.post(
+                                revoke_url,
+                                data=alternative_payload,
+                                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                                timeout=10.0
+                            )
+                            logger.info(f"   Retry response: {response.status_code}")
+                    except:
+                        pass
+                
+                logger.info(f"📡 Final VK Ads token revocation response: {response.status_code}")
                 
                 # 200 означает успешный отзыв
                 if response.status_code == 200:

@@ -6,21 +6,6 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-# Маппинг кодов целевых действий VK Ads на человекочитаемые названия
-VK_OBJECTIVE_NAMES = {
-    "leadads": "Получение лидов",
-    "leads": "Получение лидов",
-    "socialengagement": "Отправка сообщения",
-    "post_engagement": "Продвижение поста",
-    "messages": "Отправка сообщения",
-    "traffic": "Трафик",
-    "conversions": "Конверсии",
-    "reach": "Охват",
-    "appinstalls": "Установки приложения",
-    "app_installs": "Установки приложения",
-    "video_views": "Просмотры видео",
-    "videoviews": "Просмотры видео",
-}
 
 class VKAdsAPI:
     def __init__(self, access_token: str, account_id: str = None):
@@ -39,11 +24,12 @@ class VKAdsAPI:
     @staticmethod
     def _get_human_readable_objective(objective_code: str) -> str:
         """
-        Преобразует код целевого действия в человекочитаемое название.
+        Очищает код целевого действия от скобок и точек.
         """
         if not objective_code:
             return objective_code
-        return VK_OBJECTIVE_NAMES.get(objective_code.lower(), objective_code)
+        # Убираем скобки и точки
+        return objective_code.replace('(', '').replace(')', '').replace('.', '')
 
     @staticmethod
     def _parse_goal_value(value: Any) -> tuple:

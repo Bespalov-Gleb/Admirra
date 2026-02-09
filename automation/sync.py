@@ -9,7 +9,6 @@ from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import VKAdsAPI
 from automation.reports import generate_weekly_report, generate_monthly_report
 from automation.google_sheets import GoogleSheetsService
-from datetime import datetime, timedelta
 import asyncio
 import logging
 import json
@@ -597,7 +596,6 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 
                 # Пытаемся получить целевые действия из статистики
                 # Используем последние 30 дней для получения актуальных целей
-                from datetime import datetime, timedelta
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=30)
                 goal_actions_map = await api.get_goal_actions_from_statistics(

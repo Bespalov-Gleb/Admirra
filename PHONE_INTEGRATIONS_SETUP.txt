@@ -49,14 +49,33 @@ ENV:
   - Документация: https://core.telegram.org/bots/api
 
 
-4) SMARTCAPTCHA (YANDEX)
+4) CAPTCHA (CLOUDFLARE TURNSTILE ИЛИ RECAPTCHA)
 ENV:
+  - TURNSTILE_SITE_KEY (для фронтенда)
+  - TURNSTILE_SECRET_KEY (для бэкенда)
+  
+  Альтернатива - Google reCAPTCHA:
+  - RECAPTCHA_SITE_KEY
+  - RECAPTCHA_SECRET_KEY
+  - RECAPTCHA_MIN_SCORE (опц., default: 0.5)
+  
+  Альтернатива - Yandex SmartCaptcha:
   - SMARTCAPTCHA_CLIENT_KEY
   - SMARTCAPTCHA_SERVER_KEY
-  - SMARTCAPTCHA_ENABLED=true/false
+
 ГДЕ ПОЛУЧИТЬ:
-  - Yandex Cloud: https://console.cloud.yandex.ru/
-  - Документация: https://cloud.yandex.ru/docs/smartcaptcha/
+  - Cloudflare Turnstile (РЕКОМЕНДУЕТСЯ, БЕСПЛАТНО):
+    https://dash.cloudflare.com/ → Turnstile → Add site
+    Быстрее и лучше чем reCAPTCHA, не раздражает пользователей
+    
+  - Google reCAPTCHA:
+    https://www.google.com/recaptcha/admin/create
+    Выберите v3 (невидимая) или v2 (с галочкой "Я не робот")
+    
+  - Yandex SmartCaptcha (для российских сайтов):
+    https://console.cloud.yandex.ru/
+    
+  - Документация: см. файл CAPTCHA_SETUP.md
 
 
 5) REDIS (ДЕДУПЛИКАЦИЯ, RATE LIMIT, КЕШ)
