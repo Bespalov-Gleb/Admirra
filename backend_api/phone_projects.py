@@ -38,6 +38,11 @@ class PhoneProjectCreate(BaseModel):
     enable_social_check: bool = False
     enable_gosuslugi_check: bool = False
     enable_metrica_export: bool = True
+    
+    # Настройки CAPTCHA (клиент использует свои ключи)
+    captcha_provider: Optional[str] = 'none'  # turnstile, recaptcha, smartcaptcha, none
+    captcha_site_key: Optional[str] = None  # Публичный ключ
+    captcha_secret_key: Optional[str] = None  # Секретный ключ
 
 
 class PhoneProjectUpdate(BaseModel):
@@ -56,6 +61,11 @@ class PhoneProjectUpdate(BaseModel):
     enable_gosuslugi_check: Optional[bool] = None
     enable_metrica_export: Optional[bool] = None
     is_active: Optional[bool] = None
+    
+    # Настройки CAPTCHA
+    captcha_provider: Optional[str] = None
+    captcha_site_key: Optional[str] = None
+    captcha_secret_key: Optional[str] = None
 
 
 class PhoneProjectResponse(BaseModel):
@@ -76,6 +86,11 @@ class PhoneProjectResponse(BaseModel):
     enable_social_check: bool
     enable_gosuslugi_check: bool
     enable_metrica_export: bool
+    
+    # Настройки CAPTCHA
+    captcha_provider: Optional[str]
+    captcha_site_key: Optional[str]
+    captcha_secret_key: Optional[str]  # Возвращаем для настройки, но не показываем в коде клиента
     
     # Метаданные
     created_at: datetime
@@ -140,7 +155,10 @@ def create_phone_project(
         telegram_chat_id=project_data.telegram_chat_id,
         enable_social_check=project_data.enable_social_check,
         enable_gosuslugi_check=project_data.enable_gosuslugi_check,
-        enable_metrica_export=project_data.enable_metrica_export
+        enable_metrica_export=project_data.enable_metrica_export,
+        captcha_provider=project_data.captcha_provider,
+        captcha_site_key=project_data.captcha_site_key,
+        captcha_secret_key=project_data.captcha_secret_key
     )
     
     db.add(project)
@@ -235,6 +253,14 @@ def update_phone_project(
         project.enable_metrica_export = project_data.enable_metrica_export
     if project_data.is_active is not None:
         project.is_active = project_data.is_active
+    
+    # Настройки CAPTCHA
+    if project_data.captcha_provider is not None:
+        project.captcha_provider = project_data.captcha_provider
+    if project_data.captcha_site_key is not None:
+        project.captcha_site_key = project_data.captcha_site_key
+    if project_data.captcha_secret_key is not None:
+        project.captcha_secret_key = project_data.captcha_secret_key
     
     db.commit()
     db.refresh(project)

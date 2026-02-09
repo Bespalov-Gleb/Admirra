@@ -261,6 +261,11 @@ class PhoneProject(Base):
     enable_gosuslugi_check = Column(Boolean, default=False)  # Проверка Госуслуг
     enable_metrica_export = Column(Boolean, default=True)  # Отправка в Яндекс.Метрику
     
+    # Настройки CAPTCHA (клиент использует свои ключи)
+    captcha_provider = Column(String, nullable=True, default='none')  # turnstile, recaptcha, smartcaptcha, none
+    captcha_site_key = Column(String, nullable=True)  # Публичный ключ (показывается в коде клиента)
+    captcha_secret_key = Column(String, nullable=True)  # Секретный ключ (только для backend валидации)
+    
     # Метаданные
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

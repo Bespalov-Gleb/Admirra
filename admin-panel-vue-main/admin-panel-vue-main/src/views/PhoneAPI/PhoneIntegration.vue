@@ -74,6 +74,87 @@
               </p>
             </div>
 
+            <!-- CAPTCHA Settings -->
+            <div class="border-t pt-4">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <ShieldCheckIcon class="w-4 h-4 text-purple-600" />
+                Настройки CAPTCHA
+              </h3>
+              
+              <!-- Provider Selection -->
+              <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  Провайдер CAPTCHA
+                </label>
+                <select
+                  v-model="settings.captcha_provider"
+                  class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                >
+                  <option value="none">Без CAPTCHA</option>
+                  <option value="turnstile">Cloudflare Turnstile (рекомендуется)</option>
+                  <option value="recaptcha">Google reCAPTCHA</option>
+                  <option value="smartcaptcha">Yandex SmartCaptcha</option>
+                </select>
+              </div>
+
+              <!-- CAPTCHA Keys (only if provider is not 'none') -->
+              <template v-if="settings.captcha_provider !== 'none'">
+                <div class="mb-3">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Site Key (публичный)
+                  </label>
+                  <input
+                    v-model="settings.captcha_site_key"
+                    type="text"
+                    placeholder="0x4AAA..."
+                    class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm font-mono"
+                  >
+                  <p class="text-xs text-gray-500 mt-1">
+                    Будет показан в коде интеграции
+                  </p>
+                </div>
+
+                <div class="mb-3">
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Secret Key (секретный)
+                  </label>
+                  <input
+                    v-model="settings.captcha_secret_key"
+                    type="password"
+                    placeholder="0x4AAA..."
+                    class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm font-mono"
+                  >
+                  <p class="text-xs text-gray-500 mt-1">
+                    Хранится на сервере, не показывается клиенту
+                  </p>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p class="text-xs text-blue-800">
+                    💡 <strong>Как получить ключи:</strong><br>
+                    <template v-if="settings.captcha_provider === 'turnstile'">
+                      1. Зайдите на <a href="https://dash.cloudflare.com/" target="_blank" class="underline">Cloudflare Dashboard</a><br>
+                      2. Turnstile → Create Widget<br>
+                      3. Добавьте ваш домен<br>
+                      4. Скопируйте Site Key и Secret Key
+                    </template>
+                    <template v-else-if="settings.captcha_provider === 'recaptcha'">
+                      1. Зайдите на <a href="https://www.google.com/recaptcha/admin" target="_blank" class="underline">Google reCAPTCHA</a><br>
+                      2. Зарегистрируйте новый сайт<br>
+                      3. Выберите reCAPTCHA v2 (галочка)<br>
+                      4. Скопируйте ключи
+                    </template>
+                    <template v-else-if="settings.captcha_provider === 'smartcaptcha'">
+                      1. Зайдите в <a href="https://console.cloud.yandex.ru/folders" target="_blank" class="underline">Yandex Cloud</a><br>
+                      2. SmartCaptcha → Создать капчу<br>
+                      3. Укажите домены<br>
+                      4. Скопируйте ключи
+                    </template>
+                  </p>
+                </div>
+              </template>
+            </div>
+
             <!-- Validation Options -->
             <div class="space-y-2">
               <label class="flex items-center gap-2 cursor-pointer">
@@ -220,34 +301,6 @@
             </div>
           </div>
 
-          <!-- CAPTCHA Setup -->
-          <div class="bg-gradient-to-br from-blue-50 to-purple-50 rounded-[32px] p-6 border border-blue-100">
-            <h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <ShieldCheckIcon class="w-5 h-5 text-blue-600" />
-              Настройка CAPTCHA (Cloudflare Turnstile)
-            </h3>
-            
-            <div class="space-y-3 text-sm">
-              <p class="text-gray-700">
-                Для защиты от ботов используется <strong>Cloudflare Turnstile</strong>.
-              </p>
-              
-              <div class="bg-white rounded-lg p-4 border border-blue-200">
-                <p class="font-medium text-gray-900 mb-2">📋 Ваши ключи:</p>
-                <div class="space-y-2 text-xs font-mono">
-                  <div>
-                    <span class="text-gray-600">Site Key:</span>
-                    <code class="block bg-gray-100 p-2 rounded mt-1 break-all">{{ turnstileSiteKey }}</code>
-                  </div>
-                </div>
-              </div>
-
-              <div class="text-xs text-gray-600 space-y-1">
-                <p>💡 Turnstile автоматически определяет ботов и не требует решения головоломок от пользователей.</p>
-                <p>🔒 Ключи уже настроены на backend и готовы к использованию.</p>
-              </div>
-            </div>
-          </div>
         </template>
       </div>
     </div>
@@ -280,7 +333,10 @@ const settings = ref({
   crm_webhook_url: '',
   enable_social_check: false,
   enable_spam_check: false,
-  enable_bitrix_check: false
+  enable_bitrix_check: false,
+  captcha_provider: 'none',
+  captcha_site_key: '',
+  captcha_secret_key: ''
 })
 const savingSettings = ref(false)
 
@@ -295,9 +351,6 @@ const platforms = [
 
 // Copy functionality
 const copied = ref(false)
-
-// CAPTCHA keys (from backend config)
-const turnstileSiteKey = ref('0x4AAAAAACZQbyeTmZnHHbSJ')
 
 // Load projects
 const loadProjects = async () => {
@@ -326,7 +379,10 @@ const loadProjectDetails = async () => {
       crm_webhook_url: response.data.crm_webhook_url || '',
       enable_social_check: response.data.enable_social_check || false,
       enable_spam_check: response.data.enable_spam_check || false,
-      enable_bitrix_check: response.data.enable_bitrix_check || false
+      enable_bitrix_check: response.data.enable_bitrix_check || false,
+      captcha_provider: response.data.captcha_provider || 'none',
+      captcha_site_key: response.data.captcha_site_key || '',
+      captcha_secret_key: response.data.captcha_secret_key || ''
     }
   } catch (error) {
     console.error('Error loading project:', error)
@@ -356,6 +412,8 @@ const generatedCode = computed(() => {
   const projectKey = selectedProject.value.api_key
   const scriptOpen = '<' + 'script'
   const scriptClose = '<' + '/script>'
+  const siteKey = settings.value.captcha_site_key || 'YOUR_SITE_KEY'
+  const provider = settings.value.captcha_provider || 'none'
   
   if (selectedPlatform.value === 'html') {
     return `<!DOCTYPE html>
@@ -373,7 +431,7 @@ const generatedCode = computed(() => {
         
         <!-- Cloudflare Turnstile Widget -->
         <div class="cf-turnstile" 
-             data-sitekey="${turnstileSiteKey.value}"
+             data-sitekey="${siteKey}"
              data-callback="onTurnstileSuccess"></div>
         
         <button type="submit">Отправить</button>
@@ -430,7 +488,7 @@ ${scriptOpen} src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer>
 
 <!-- В настройках формы добавьте HTML-блок ПЕРЕД кнопкой отправки: -->
 <div class="cf-turnstile" 
-     data-sitekey="${turnstileSiteKey.value}"
+     data-sitekey="${siteKey}"
      data-callback="onTurnstileSuccess"></div>
 
 <!-- В настройки формы добавьте JavaScript (в "Код для вставки перед ${scriptClose}>"): -->
@@ -473,7 +531,7 @@ add_action('wp_enqueue_scripts', 'add_turnstile_script');
 // [text* your-name placeholder "Имя"]
 // [tel* your-phone placeholder "Телефон"]
 // [email your-email placeholder "Email"]
-// <div class="cf-turnstile" data-sitekey="${turnstileSiteKey.value}"></div>
+// <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
 // [submit "Отправить"]
 
 // 3. Обработка отправки (ajax):
@@ -517,7 +575,7 @@ ${scriptOpen} setup>
 import { ref, onMounted } from 'vue'
 
 const form = ref({ name: '', phone: '', email: '' })
-const turnstileSiteKey = '${turnstileSiteKey.value}'
+const turnstileSiteKey = '${siteKey}'
 let captchaToken = null
 
 // Подключаем Turnstile скрипт
