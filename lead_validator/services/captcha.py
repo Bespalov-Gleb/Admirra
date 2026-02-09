@@ -142,7 +142,6 @@ async def validate_recaptcha(token: str, client_ip: Optional[str] = None) -> Tup
 
 
 async def validate_smartcaptcha(token: str, client_ip: Optional[str] = None) -> Tuple[bool, str]:
-async def validate_smartcaptcha(token: str, client_ip: Optional[str] = None) -> Tuple[bool, str]:
     """
     Проверяет токен Yandex SmartCaptcha.
     
