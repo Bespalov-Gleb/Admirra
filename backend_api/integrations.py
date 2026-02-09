@@ -3011,11 +3011,11 @@ async def delete_integration(
             client_secret=VK_CLIENT_SECRET,
             user_id=user_id_for_revoke  # VK Ads user_id/username for token revocation
         )
-            
-            if revoked:
-                logger.info(f"✅ VK Ads token revoked successfully for integration {integration_id}")
-            else:
-                logger.warning(f"⚠️ Could not revoke VK Ads token for integration {integration_id}, but continuing with deletion")
+        
+        if revoked:
+            logger.info(f"✅ VK Ads token revoked successfully for integration {integration_id}")
+        else:
+            logger.warning(f"⚠️ Could not revoke VK Ads token for integration {integration_id}, but continuing with deletion")
                 
         except Exception as revoke_err:
             # Не прерываем удаление интеграции, даже если отзыв токена не удался
