@@ -1,19 +1,20 @@
-"""Add CAPTCHA fields to PhoneProject
+"""Add CAPTCHA fields to PhoneProject and merge heads
 
 Revision ID: add_captcha_fields
-Revises: 
+Revises: f5a6b7c8d9e0, 3f9c7a1b2d34
 Create Date: 2026-02-09
 
 """
 from alembic import op
 import sqlalchemy as sa
+from typing import Sequence, Union
 
 
 # revision identifiers, used by Alembic.
-revision = 'add_captcha_fields'
-down_revision = None  # Замените на ID предыдущей миграции, если она есть
-branch_labels = None
-depends_on = None
+revision: str = 'add_captcha_fields'
+down_revision: Union[str, Sequence[str], None] = ('f5a6b7c8d9e0', '3f9c7a1b2d34')  # Объединяем две головы
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
