@@ -509,13 +509,14 @@ async def get_dynamics(
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
         
-        # CRITICAL: Лиды для Yandex — всегда из Метрики. Для VK — из VKStats.
+        # Лиды для Yandex — Метрика приоритетна; fallback на Direct если Metrika пусто
         metrika_le = int(m_s.leads if m_s else 0)
+        yandex_le = int(y_s.leads if y_s else 0)
         vk_le = int(v_s.leads if v_s else 0)
         if platform == "vk":
             le = vk_le
         else:
-            le = metrika_le + vk_le
+            le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)

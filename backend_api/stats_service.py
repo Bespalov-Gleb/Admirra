@@ -179,18 +179,19 @@ class StatsService:
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
-            # CRITICAL: Лиды и конверсии для Yandex ВСЕГДА из Метрики (MetrikaGoals), не из Директа.
-            # Для VK Ads — только conversions из VKStats (vk.goals = Результат).
+            # CRITICAL: Лиды и конверсии для Yandex — из Метрики (MetrikaGoals).
+            # Fallback на Direct если Metrika ещё не синхронизирована (пусто 0).
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
+            yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
             
             if platform == "vk":
                 convs = vk_convs
             elif platform in ["all", "yandex"]:
-                # Yandex: всегда Метрика, никогда Директ
-                convs = metrica_convs + vk_convs
+                # Yandex: Метрика приоритетна; если пусто — временно Direct (пока Metrika не синхронизирована)
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs
             else:
-                convs = metrica_convs + vk_convs 
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs 
             
             # CRITICAL: Для VK Ads используем взвешенное среднее CPC и CPA из сохраненных значений
             # Это гарантирует правильный расчет "средняя цена клика" и "средняя цена цели"
@@ -204,11 +205,13 @@ class StatsService:
             # Взвешенное среднее CPA для VK: sum(cpa * conversions) / sum(conversions)
             vk_avg_cpa = vk_weighted_cpa_sum / vk_conversions if vk_conversions > 0 else 0.0
             
-            # Для Yandex: CPC из Директа, CPA — из Метрики (cost / metrica_convs)
+            # CPA для Yandex: Метрика приоритетна; fallback на Direct если Metrika пусто
+            yandex_convs_for_cpa = metrica_convs if metrica_convs > 0 else yandex_convs
+            # Для Yandex: CPC из Директа, CPA — из Метрики (fallback Direct)
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
             yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0
-            yandex_avg_cpa = yandex_cost / metrica_convs if metrica_convs > 0 else 0.0
+            yandex_avg_cpa = yandex_cost / yandex_convs_for_cpa if yandex_convs_for_cpa > 0 else 0.0
             
             # Объединяем CPC и CPA для обеих платформ
             # Если есть данные от обеих платформ, используем взвешенное среднее
@@ -228,8 +231,6 @@ class StatsService:
             else:
                 avg_cpc = 0.0
             
-            # CRITICAL: CPA для Yandex считаем по Метрике (cost / metrica_convs), не по Директу
-            yandex_convs_for_cpa = metrica_convs  # Yandex: всегда Метрика
             total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions
             
             if total_platform_conversions_for_cpa > 0:
@@ -506,8 +507,11 @@ class StatsService:
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
-                # Конверсии из Метрики, пропорционально расходу кампании
-                convs = round(total_metrika_convs * (cost / total_yandex_cost)) if total_yandex_cost > 0 and total_metrika_convs > 0 else 0
+                # Конверсии: Метрика (пропорционально); fallback — Direct
+                if total_metrika_convs > 0 and total_yandex_cost > 0:
+                    convs = round(total_metrika_convs * (cost / total_yandex_cost))
+                else:
+                    convs = int(r.conversions or 0)
                 campaigns.append({
                     "id": str(r.campaign_id),
                     "name": f"[ЯД] {r.campaign_name}",

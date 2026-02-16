@@ -173,9 +173,10 @@ async def _sync_metrika_goals_for_direct(
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
+            logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # Save aggregated goals
-            for g in goals_data:
+            for g in (goals_data or []):
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
                 # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
@@ -493,7 +494,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.info(f"🔄 Syncing Metrika goals for Direct integration {integration.id}")
                     await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
                     db.commit()  # CRITICAL: Commit goals data
+                    from backend_api.cache_service import CacheService
+                    CacheService.clear()
                     logger.info(f"✅ Successfully synced and committed Metrika goals for Direct integration {integration.id}")
+                    logger.info(f"🗑️ Cleared dashboard cache after Metrika goals sync")
                 except Exception as goals_err:
                     logger.error(f"❌ Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}", exc_info=True)
                     # Don't fail the entire sync if goals sync fails
