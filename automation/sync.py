@@ -231,6 +231,9 @@ async def _sync_metrika_goals_for_direct(
                     _f.write(json.dumps({"id":"sync_agg","timestamp":__import__("time").time()*1000,"location":"sync.py:save_aggregate","message":"Sync saved aggregate goals","data":{"agg_rows_saved":_agg_saved,"sample_total_visits":_sample_visits,"integration_client_id":str(integration.client_id),"integration_id":str(integration.id),"counter_id":counter_id},"hypothesisId":"A","runId":"post-fix"}) + "\n")
             except Exception: pass
             # #endregion
+            # Commit aggregate goals immediately so dashboard shows data even if individual goals sync fails or is slow
+            db.commit()
+            logger.info(f"📊 Committed {_agg_saved} aggregate goal rows for counter {counter_id}")
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             # Use only valid goals for this counter (already filtered above)
@@ -252,8 +255,8 @@ async def _sync_metrika_goals_for_direct(
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
                         
-                        # Save individual goal data
-                        for g in goal_data:
+                        # Save individual goal data (goal_data may be None on API error)
+                        for g in (goal_data or []):
                             if len(g.get('metrics', [])) > 0:
                                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                                 visits = int(g['metrics'][0]) if g['metrics'] else 0
