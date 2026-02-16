@@ -81,6 +81,7 @@ class YandexMetricaAPI:
             params["filters"] = filters
             logger.debug(f"📊 Metrika goals filter: {filters}")
 
+        logger.info(f"📊 Metrika Stat API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to}")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:

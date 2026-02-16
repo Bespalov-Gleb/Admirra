@@ -132,13 +132,13 @@ async def _sync_metrika_goals_for_direct(
     for counter_id in all_counter_ids:
         try:
             # CRITICAL: First, get list of available goals for this counter
-            # This prevents errors when requesting stats for goals that don't exist
+            # Вызываем напрямую (без очереди) — Management API отделён от Stat API, не блокирует очередь
             available_goals = []
             goal_names_map = {}
             try:
-                goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
-                available_goals = [str(g.get("id")) for g in goal_info if g.get("id")]
-                goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in goal_info}
+                goal_info = await metrika_api.get_counter_goals(counter_id)
+                available_goals = [str(g.get("id")) for g in (goal_info or []) if g.get("id")]
+                goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in (goal_info or [])}
                 logger.info(f"📊 Counter {counter_id} has {len(available_goals)} available goals: {available_goals[:10]}...")
             except Exception as goals_info_err:
                 logger.warning(f"Failed to fetch available goals for counter {counter_id}: {goals_info_err}")
@@ -172,6 +172,7 @@ async def _sync_metrika_goals_for_direct(
                 goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
+            logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics, filter_by_direct=True)
             if not goals_data and (goals_for_aggregate or not selected_goals):
                 # Fallback: без фильтра по Директу (если с фильтром пусто — возможно другой атрибут в API)
