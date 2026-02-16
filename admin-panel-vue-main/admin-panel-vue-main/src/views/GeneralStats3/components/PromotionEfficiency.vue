@@ -287,10 +287,13 @@ const funnelPoints = computed(() => {
 
 // Fetch auto-goals (target visits from Metrika)
 const fetchAutoGoals = async () => {
+  // #region agent log
   if (!props.clientId) {
+    fetch('http://127.0.0.1:7243/ingest/76da404b-b585-4e45-8e15-e5af026dca10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PromotionEfficiency.vue:fetchAutoGoals',message:'Skip fetch - no clientId',data:{clientId:props.clientId},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
     autoGoals.value = []
     return
   }
+  // #endregion
 
   // Use provided dates or default to last 14 days
   let startDate = props.startDate
@@ -324,6 +327,9 @@ const fetchAutoGoals = async () => {
       }
     })
 
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/76da404b-b585-4e45-8e15-e5af026dca10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PromotionEfficiency.vue:fetchAutoGoals',message:'API response',data:{clientId:props.clientId,startDate,endDate,goalsCount:allGoalsData?.length||0,sampleGoal:allGoalsData?.[0]},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} auto-goals from Metrika for period ${startDate} to ${endDate}`)
 
     // Get integrations to find primary goals

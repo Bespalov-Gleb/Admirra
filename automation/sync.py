@@ -180,6 +180,10 @@ async def _sync_metrika_goals_for_direct(
                 goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalVisitsAny")
             logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
+            # #region agent log
+            _agg_saved = 0
+            _sample_visits = None
+            # #endregion
             # Save aggregated goals
             for g in (goals_data or []):
                 try:
@@ -213,9 +217,18 @@ async def _sync_metrika_goals_for_direct(
                             goal_name="Selected Goals" if selected_goals else "All Goals",
                             conversion_count=total_visits
                         ))
+                    _agg_saved += 1
+                    if _sample_visits is None:
+                        _sample_visits = total_visits
                 except (KeyError, IndexError, TypeError) as parse_err:
                     logger.warning(f"📊 Failed to parse goals row (format may have changed): {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
-            
+            # #region agent log
+            try:
+                import json
+                with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
+                    _f.write(json.dumps({"id":"sync_agg","timestamp":__import__("time").time()*1000,"location":"sync.py:save_aggregate","message":"Sync saved aggregate goals","data":{"agg_rows_saved":_agg_saved,"sample_total_visits":_sample_visits,"integration_client_id":str(integration.client_id),"integration_id":str(integration.id),"counter_id":counter_id},"hypothesisId":"A"}) + "\n")
+            except Exception: pass
+            # #endregion
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             # Use only valid goals for this counter (already filtered above)

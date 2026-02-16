@@ -695,6 +695,13 @@ async def get_goals(
     Cost is calculated by distributing total ad spend proportionally to goal conversions.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    # #region agent log
+    try:
+        import json
+        with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"id":"get_goals_entry","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals called","data":{"client_id":str(client_id) if client_id else None,"date_from":date_from,"date_to":date_to,"effective_client_ids":[str(x) for x in (effective_client_ids or [])],"effective_count":len(effective_client_ids or [])},"hypothesisId":"B"}) + "\n")
+    except Exception: pass
+    # #endregion
     if not effective_client_ids: return []
 
     # Default date range: last 14 days if not specified
@@ -744,6 +751,19 @@ async def get_goals(
                 models.MetrikaGoals.date <= date_to_obj
             ).scalar() or 0
             logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
+
+    # #region agent log
+    try:
+        import json
+        _db_total = db.query(func.count(models.MetrikaGoals.id)).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.date >= date_from_obj,
+            models.MetrikaGoals.date <= date_to_obj
+        ).scalar() or 0
+        with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goals),"result_len":len([g for g in goals]),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E"}) + "\n")
+    except Exception: pass
+    # #endregion
 
     # Calculate total conversions for proportional cost distribution
     total_conversions = sum(int(g.count or 0) for g in goals)
