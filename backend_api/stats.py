@@ -697,9 +697,10 @@ async def get_goals(
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     # #region agent log
     try:
-        import json
-        with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({"id":"get_goals_entry","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals called","data":{"client_id":str(client_id) if client_id else None,"date_from":date_from,"date_to":date_to,"effective_client_ids":[str(x) for x in (effective_client_ids or [])],"effective_count":len(effective_client_ids or [])},"hypothesisId":"B"}) + "\n")
+        import json, os
+        _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
+        with open(_log, "a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"id":"get_goals_entry","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals called","data":{"client_id":str(client_id) if client_id else None,"date_from":date_from,"date_to":date_to,"effective_client_ids":[str(x) for x in (effective_client_ids or [])],"effective_count":len(effective_client_ids or [])},"hypothesisId":"B","runId":"post-fix"}) + "\n")
     except Exception: pass
     # #endregion
     if not effective_client_ids: return []
@@ -754,14 +755,15 @@ async def get_goals(
 
     # #region agent log
     try:
-        import json
+        import json, os
         _db_total = db.query(func.count(models.MetrikaGoals.id)).filter(
             models.MetrikaGoals.client_id.in_(effective_client_ids),
             models.MetrikaGoals.date >= date_from_obj,
             models.MetrikaGoals.date <= date_to_obj
         ).scalar() or 0
-        with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goals),"result_len":len([g for g in goals]),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E"}) + "\n")
+        _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
+        with open(_log, "a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goals),"result_len":len([g for g in goals]),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E","runId":"post-fix"}) + "\n")
     except Exception: pass
     # #endregion
 

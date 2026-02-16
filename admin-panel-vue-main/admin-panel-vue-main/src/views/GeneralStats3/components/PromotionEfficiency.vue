@@ -319,16 +319,35 @@ const fetchAutoGoals = async () => {
 
     // Get all goals from Metrika (target visits) - fetch 3 months of data for caching
     // But request data for the selected period to get correct aggregated totals
-    const { data: allGoalsData } = await api.get('dashboard/goals', {
-      params: {
-        client_id: props.clientId,
-        date_from: startDate, // Use selected period dates for correct aggregation
-        date_to: endDate
+    const doFetch = async () => {
+      const { data } = await api.get('dashboard/goals', {
+        params: { client_id: props.clientId, date_from: startDate, date_to: endDate }
+      })
+      return data
+    }
+
+    let allGoalsData = await doFetch()
+
+    // Retry once after 15s if empty — background sync may still be running (race condition)
+    if ((!allGoalsData || allGoalsData.length === 0) && props.clientId) {
+      const retryAfter = () => {
+        setTimeout(async () => {
+          if (!props.clientId || props.startDate !== startDate || props.endDate !== endDate) return
+          const retryData = await doFetch()
+          if (retryData && retryData.length > 0) {
+            const { data: integrations } = await api.get('integrations/', { params: { client_id: props.clientId } })
+            const primaryGoalIds = new Set()
+            integrations?.forEach(i => { if (i.primary_goal_id) primaryGoalIds.add(String(i.primary_goal_id)) })
+            autoGoals.value = retryData.map(g => ({ ...g, is_primary: primaryGoalIds.has(String(g.id)) }))
+              .sort((a, b) => (a.is_primary && !b.is_primary ? -1 : !a.is_primary && b.is_primary ? 1 : (b.count || 0) - (a.count || 0)))
+          }
+        }, 15000)
       }
-    })
+      retryAfter()
+    }
 
     // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/76da404b-b585-4e45-8e15-e5af026dca10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PromotionEfficiency.vue:fetchAutoGoals',message:'API response',data:{clientId:props.clientId,startDate,endDate,goalsCount:allGoalsData?.length||0,sampleGoal:allGoalsData?.[0]},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7243/ingest/76da404b-b585-4e45-8e15-e5af026dca10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PromotionEfficiency.vue:fetchAutoGoals',message:'API response',data:{clientId:props.clientId,startDate,endDate,goalsCount:allGoalsData?.length||0,sampleGoal:allGoalsData?.[0]},timestamp:Date.now(),hypothesisId:'C',runId:'post-fix'})}).catch(()=>{});
     // #endregion
     console.log(`[PromotionEfficiency] Got ${allGoalsData?.length || 0} auto-goals from Metrika for period ${startDate} to ${endDate}`)
 

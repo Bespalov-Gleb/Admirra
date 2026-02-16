@@ -224,9 +224,10 @@ async def _sync_metrika_goals_for_direct(
                     logger.warning(f"📊 Failed to parse goals row (format may have changed): {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
             # #region agent log
             try:
-                import json
-                with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a", encoding="utf-8") as _f:
-                    _f.write(json.dumps({"id":"sync_agg","timestamp":__import__("time").time()*1000,"location":"sync.py:save_aggregate","message":"Sync saved aggregate goals","data":{"agg_rows_saved":_agg_saved,"sample_total_visits":_sample_visits,"integration_client_id":str(integration.client_id),"integration_id":str(integration.id),"counter_id":counter_id},"hypothesisId":"A"}) + "\n")
+                import json, os
+                _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
+                with open(_log, "a", encoding="utf-8") as _f:
+                    _f.write(json.dumps({"id":"sync_agg","timestamp":__import__("time").time()*1000,"location":"sync.py:save_aggregate","message":"Sync saved aggregate goals","data":{"agg_rows_saved":_agg_saved,"sample_total_visits":_sample_visits,"integration_client_id":str(integration.client_id),"integration_id":str(integration.id),"counter_id":counter_id},"hypothesisId":"A","runId":"post-fix"}) + "\n")
             except Exception: pass
             # #endregion
             # Sync individual goals if selected
