@@ -488,9 +488,23 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     integration.sync_status = models.IntegrationSyncStatus.SUCCESS
                     integration.last_sync_at = datetime.utcnow()
                     db.commit()
-                    
+
+                    # CRITICAL: Still sync Metrika goals when report is empty — goals are independent
+                    # of campaign stats and the dashboard needs them for the selected period
+                    has_goals = bool(integration.selected_goals) or bool(integration.primary_goal_id)
+                    has_counters = bool(integration.selected_counters)
+                    if has_goals and has_counters:
+                        try:
+                            logger.info(f"🔄 Syncing Metrika goals (empty report path) for Direct integration {integration.id}")
+                            await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
+                            db.commit()
+                            from backend_api.cache_service import CacheService
+                            CacheService.clear()
+                            logger.info(f"✅ Metrika goals synced and committed for integration {integration.id} (empty report)")
+                        except Exception as goals_err:
+                            logger.warning(f"Metrika goals sync failed after empty report: {goals_err}")
+
                     # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
-                    # This prevents stale cached data from appearing on the dashboard
                     from backend_api.cache_service import CacheService
                     CacheService.clear()
                     logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
