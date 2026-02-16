@@ -43,7 +43,7 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny") -> List[Dict[str, Any]]:
+    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny", goal_id: str = None) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
         Uses visits instead of reaches to get target visits, not goal achievements.
@@ -54,16 +54,43 @@ class YandexMetricaAPI:
             "metrics": metrics,
             "dimensions": "ym:s:date",
             "date1": date_from,
-            "date2": date_to
+            "date2": date_to,
+            "limit": 10000,  # До 90 дней — нужен запас
         }
+        if goal_id:
+            params["goal_id"] = goal_id
 
         logger.info(f"📊 Metrika Stat API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to}")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
+                # API может возвращать данные в разных форматах (v1 vs OpenAPI)
                 rows = data.get('data', [])
-                logger.info(f"📊 Metrika Stat API: received {len(rows)} rows")
+                if not rows and isinstance(data.get('data'), dict):
+                    rows = data['data'].get('data', data['data'].get('rows', []))
+                if not rows and data.get('totals'):
+                    totals = data.get('totals', [])
+                    rows = [{'dimensions': [{'name': date_from}], 'metrics': totals}]
+                # OpenAPI: каждая строка — [dimensions, metrics] вместо {dimensions, metrics}
+                if rows and isinstance(rows[0], (list, tuple)):
+                    converted = []
+                    for r in rows:
+                        dims, mets = (r[0], r[1]) if len(r) >= 2 else (r, [])
+                        dim_objs = dims if isinstance(dims, list) and dims and isinstance(dims[0], dict) else [{'name': str(dims[0]) if dims else date_from}]
+                        met_vals = mets if isinstance(mets, (list, tuple)) else [mets]
+                        converted.append({'dimensions': dim_objs, 'metrics': met_vals})
+                    rows = converted
+                if not rows:
+                    # Логируем структуру ответа для отладки (API может менять формат)
+                    keys = list(data.keys()) if data else []
+                    logger.warning(f"📊 Metrika Stat API: 0 rows. Response keys: {keys}")
+                    for k in ['data', 'totals', 'Data', 'Totals', 'rows', 'Rows']:
+                        if k in data and data[k]:
+                            v = data[k]
+                            logger.warning(f"📊   {k}={type(v).__name__} len={len(v) if hasattr(v, '__len__') else 'N/A'}")
+                else:
+                    logger.info(f"📊 Metrika Stat API: received {len(rows)} rows")
                 return rows
             elif response.status_code == 429:
                 # Raise exception with status_code for queue to handle
