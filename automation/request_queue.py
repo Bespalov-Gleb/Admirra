@@ -1,6 +1,7 @@
 import asyncio
 import time
-from typing import Callable, Any, Optional
+import threading
+from typing import Callable, Any, Optional, Dict
 from collections import deque
 import logging
 import httpx
@@ -204,23 +205,33 @@ class APIRequestQueue:
         return await future
 
 
-# Глобальный экземпляр очереди
-_request_queue: Optional[APIRequestQueue] = None
+# Очередь привязана к event loop: при фоновом синке (отдельный поток + свой loop)
+# используется свой loop, иначе воркер в главном loop вызывает set_result() для Future
+# из другого loop — await в фоне никогда не возвращается (cross-loop deadlock).
+_request_queues: Dict[asyncio.AbstractEventLoop, APIRequestQueue] = {}
+_request_queues_lock = threading.Lock()
 
 
 async def get_request_queue() -> APIRequestQueue:
-    """Получить глобальный экземпляр очереди запросов"""
-    global _request_queue
-    if _request_queue is None:
-        _request_queue = APIRequestQueue()
-        await _request_queue.start()
-    return _request_queue
+    """Получить очередь запросов для текущего event loop (каждый loop — своя очередь и воркеры)."""
+    loop = asyncio.get_running_loop()
+    with _request_queues_lock:
+        queue = _request_queues.get(loop)
+    if queue is None:
+        queue = APIRequestQueue()
+        await queue.start()
+        with _request_queues_lock:
+            _request_queues[loop] = queue
+        logger.info(f"API Request Queue started for loop {id(loop)}")
+    return queue
 
 
 async def shutdown_request_queue():
-    """Остановить очередь запросов"""
-    global _request_queue
-    if _request_queue:
-        await _request_queue.stop()
-        _request_queue = None
+    """Остановить очередь запросов для текущего loop (при shutdown приложения)."""
+    loop = asyncio.get_running_loop()
+    with _request_queues_lock:
+        queue = _request_queues.pop(loop, None)
+    if queue:
+        await queue.stop()
+        logger.info("API Request Queue stopped")
 

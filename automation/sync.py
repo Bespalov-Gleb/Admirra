@@ -175,6 +175,7 @@ async def _sync_metrika_goals_for_direct(
             
             logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
+            logger.info(f"📊 Goals data back from queue for counter {counter_id}: {len(goals_data or [])} rows")
             if not goals_data and goals_for_aggregate:
                 # Fallback: только ym:s:sumGoalVisitsAny (агрегат по всем целям)
                 logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalVisitsAny")
