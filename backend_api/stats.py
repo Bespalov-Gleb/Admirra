@@ -696,7 +696,8 @@ async def get_top_clients(
 @cache_response(ttl=900)
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
-    integration_id: Optional[uuid.UUID] = None,  # NEW: Optional filter by integration
+    integration_id: Optional[uuid.UUID] = None,
+    integration_ids: Optional[str] = None,  # Comma-separated for multiple
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
@@ -723,6 +724,24 @@ async def get_goals(
     else:
         date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
 
+    # CRITICAL: Filter by integration_ids to match selected project (prevents summing from all integrations)
+    integration_ids_list = None
+    if integration_id:
+        integration_ids_list = [integration_id]
+    elif integration_ids:
+        try:
+            integration_ids_list = [uuid.UUID(i.strip()) for i in integration_ids.split(",") if i.strip()]
+        except ValueError:
+            pass
+    elif len(effective_client_ids) == 1:
+        active_int = db.query(models.Campaign.integration_id).join(
+            models.Integration, models.Campaign.integration_id == models.Integration.id
+        ).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Campaign.is_active.is_(True)
+        ).distinct().all()
+        integration_ids_list = [ii[0] for ii in active_int if ii[0]]
+
     # Get total ad spend for cost distribution
     # Use StatsService to get accurate total cost
     summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
@@ -738,9 +757,8 @@ async def get_goals(
         models.MetrikaGoals.date <= date_to_obj
     )
     
-    # NEW: Filter by integration_id if provided
-    if integration_id:
-        query = query.filter(models.MetrikaGoals.integration_id == integration_id)
+    if integration_ids_list:
+        query = query.filter(models.MetrikaGoals.integration_id.in_(integration_ids_list))
     
     # Filter out "all" aggregated goals - we want individual goals
     query = query.filter(models.MetrikaGoals.goal_id != "all")
@@ -758,14 +776,15 @@ async def get_goals(
         prev_date_from = date_from_obj - timedelta(days=period_days)
         prev_date_to = date_from_obj - timedelta(days=1)
         
-        prev_count = db.query(
-            func.sum(models.MetrikaGoals.conversion_count)
-        ).filter(
+        prev_q = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id.in_(effective_client_ids),
             models.MetrikaGoals.goal_id == g.goal_id,
             models.MetrikaGoals.date >= prev_date_from,
             models.MetrikaGoals.date <= prev_date_to
-        ).scalar() or 0
+        )
+        if integration_ids_list:
+            prev_q = prev_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids_list))
+        prev_count = prev_q.scalar() or 0
         
         current_count = int(g.count or 0)
         trend = 0.0

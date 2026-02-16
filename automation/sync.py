@@ -159,9 +159,17 @@ async def _sync_metrika_goals_for_direct(
             
             # Sync aggregated goals
             # CRITICAL: Use visits (целевые визиты) instead of reaches (достижения цели)
+            # CRITICAL: When primary_goal_id set, use ONLY that goal - summing multiple causes double count
+            # (one visit can achieve multiple goals → 72+54=126 instead of 72)
+            goals_for_aggregate = valid_goals_for_counter
+            primary_str = str(integration.primary_goal_id) if integration.primary_goal_id else None
+            if primary_str and primary_str in (valid_goals_for_counter or []):
+                goals_for_aggregate = [primary_str]
+                logger.info(f"📊 Using primary_goal_id for aggregate: {integration.primary_goal_id}")
+            
             metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
-            if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                goal_metrics = [f"ym:s:goal{gid}visits" for gid in valid_goals_for_counter]
+            if goals_for_aggregate and len(goals_for_aggregate) > 0:
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
@@ -170,11 +178,14 @@ async def _sync_metrika_goals_for_direct(
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
-                # CRITICAL: Now using visits (целевые визиты) instead of reaches
+                # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
                 total_visits = 0
-                if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                    for i in range(1, len(g['metrics'])):
-                        total_visits += int(g['metrics'][i])
+                if goals_for_aggregate and len(goals_for_aggregate) > 0:
+                    if len(goals_for_aggregate) == 1:
+                        total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                    else:
+                        for i in range(1, len(g['metrics'])):
+                            total_visits += int(g['metrics'][i])
                 else:
                     total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
                 
