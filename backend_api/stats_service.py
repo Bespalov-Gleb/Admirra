@@ -179,33 +179,18 @@ class StatsService:
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
-            # Smart Conversion logic: 
-            # CRITICAL: Для VK Ads НЕ используем Metrika goals - только conversions из VKStats (vk.goals = Результат)
-            # Для Yandex Direct используем Metrika goals если доступны (они более точные), иначе platform conversions
+            # CRITICAL: Лиды и конверсии для Yandex ВСЕГДА из Метрики (MetrikaGoals), не из Директа.
+            # Для VK Ads — только conversions из VKStats (vk.goals = Результат).
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
-            yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
-            platform_convs = yandex_convs + vk_convs
             
-            # CRITICAL: Для VK платформы используем только conversions из VKStats
             if platform == "vk":
                 convs = vk_convs
-            # Для Yandex или "all" используем Metrika goals если доступны (только для Yandex), иначе platform conversions
             elif platform in ["all", "yandex"]:
-                # Используем Metrika goals только если они есть И есть данные от Yandex
-                # Если выбрана только VK платформа, Metrika goals не должны использоваться
-                if metrica_convs > 0 and yandex_convs > 0:
-                    # Для Yandex используем Metrika, для VK - platform conversions
-                    convs = metrica_convs + vk_convs
-                elif metrica_convs > 0:
-                    # Только Metrika (если нет Yandex данных, но есть Metrika - возможно старые данные)
-                    convs = metrica_convs
-                else:
-                    # Используем platform conversions (Yandex + VK)
-                    convs = platform_convs
+                # Yandex: всегда Метрика, никогда Директ
+                convs = metrica_convs + vk_convs
             else:
-                # Fallback для других платформ
-                convs = platform_convs 
+                convs = metrica_convs + vk_convs 
             
             # CRITICAL: Для VK Ads используем взвешенное среднее CPC и CPA из сохраненных значений
             # Это гарантирует правильный расчет "средняя цена клика" и "средняя цена цели"
@@ -219,12 +204,11 @@ class StatsService:
             # Взвешенное среднее CPA для VK: sum(cpa * conversions) / sum(conversions)
             vk_avg_cpa = vk_weighted_cpa_sum / vk_conversions if vk_conversions > 0 else 0.0
             
-            # Для Yandex рассчитываем как обычно
+            # Для Yandex: CPC из Директа, CPA — из Метрики (cost / metrica_convs)
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
-            yandex_conversions = int((y_s.total_conversions if y_s else 0) or 0)
             yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0
-            yandex_avg_cpa = yandex_cost / yandex_conversions if yandex_conversions > 0 else 0.0
+            yandex_avg_cpa = yandex_cost / metrica_convs if metrica_convs > 0 else 0.0
             
             # Объединяем CPC и CPA для обеих платформ
             # Если есть данные от обеих платформ, используем взвешенное среднее
@@ -244,13 +228,11 @@ class StatsService:
             else:
                 avg_cpc = 0.0
             
-            # CRITICAL: Для CPA используем conversions из той же платформы, а не общее количество
-            # (которое может включать Metrika goals)
-            yandex_convs_for_cpa = int((y_s.total_conversions if y_s else 0) or 0)
+            # CRITICAL: CPA для Yandex считаем по Метрике (cost / metrica_convs), не по Директу
+            yandex_convs_for_cpa = metrica_convs  # Yandex: всегда Метрика
             total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions
             
             if total_platform_conversions_for_cpa > 0:
-                # Взвешенное среднее CPA: (yandex_cpa * yandex_conversions + vk_cpa * vk_conversions) / total_platform_conversions
                 if yandex_convs_for_cpa > 0 and vk_conversions > 0:
                     avg_cpa = (yandex_avg_cpa * yandex_convs_for_cpa + vk_avg_cpa * vk_conversions) / total_platform_conversions_for_cpa
                 elif yandex_convs_for_cpa > 0:
@@ -493,10 +475,39 @@ class StatsService:
                 y_query = y_query.filter(models.YandexStats.date <= d_end)
 
             y_results = y_query.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
+
+            # CRITICAL: Конверсии для Yandex — из Метрики. Распределяем по кампаниям пропорционально расходу.
+            m_conv_query = db.query(
+                func.sum(models.MetrikaGoals.conversion_count).label("total")
+            ).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id == "all"
+            )
+            m_int_ids = integration_ids_filter
+            if not m_int_ids and campaign_ids:
+                camp_int = db.query(models.Campaign.integration_id).filter(
+                    models.Campaign.id.in_(campaign_ids)
+                ).distinct().all()
+                m_int_ids = [c[0] for c in camp_int if c[0]]
+            if not m_int_ids and len(client_ids) == 1:
+                client_int = db.query(models.Integration.id).filter(
+                    models.Integration.client_id.in_(client_ids)
+                ).distinct().all()
+                m_int_ids = [c[0] for c in client_int if c[0]]
+            if m_int_ids:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.integration_id.in_(m_int_ids))
+            if d_start:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date >= d_start)
+            if d_end:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date <= d_end)
+            total_metrika_convs = int((m_conv_query.scalar() or 0) or 0)
+            total_yandex_cost = sum(float(r.cost or 0) for r in y_results)
+
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
-                convs = int(r.conversions or 0)
+                # Конверсии из Метрики, пропорционально расходу кампании
+                convs = round(total_metrika_convs * (cost / total_yandex_cost)) if total_yandex_cost > 0 and total_metrika_convs > 0 else 0
                 campaigns.append({
                     "id": str(r.campaign_id),
                     "name": f"[ЯД] {r.campaign_name}",

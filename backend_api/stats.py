@@ -388,13 +388,22 @@ async def get_dynamics(
         if integration_ids:
             y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     else:
-        # CRITICAL: When no campaigns selected, filter by all integrations of the client
-        # This prevents mixing data from different profiles/integrations
+        # CRITICAL: Интеграции с активными кампаниями (как в stats_service)
         if len(effective_client_ids) == 1:
-            client_integrations = db.query(models.Integration.id).filter(
-                models.Integration.client_id.in_(effective_client_ids)
+            active_int = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id.in_(effective_client_ids),
+                models.Campaign.is_active.is_(True)
             ).distinct().all()
-            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            aid_list = [r[0] for r in active_int if r[0]]
+            if aid_list:
+                integration_ids = aid_list
+            else:
+                client_integrations = db.query(models.Integration.id).filter(
+                    models.Integration.client_id.in_(effective_client_ids)
+                ).distinct().all()
+                integration_ids = [ci[0] for ci in client_integrations if ci[0]]
             if integration_ids:
                 y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
@@ -424,32 +433,50 @@ async def get_dynamics(
     elif u_goal_action_ids:
         v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
-        # CRITICAL: When no campaigns selected, filter by all integrations of the client
-        # This prevents mixing data from different profiles/integrations
+        # CRITICAL: Интеграции с активными кампаниями (как в stats_service)
         if len(effective_client_ids) == 1:
-            client_integrations = db.query(models.Integration.id).filter(
-                models.Integration.client_id.in_(effective_client_ids)
+            active_int = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id.in_(effective_client_ids),
+                models.Campaign.is_active.is_(True)
             ).distinct().all()
-            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            aid_list = [r[0] for r in active_int if r[0]]
+            if aid_list:
+                integration_ids = aid_list
+            else:
+                client_integrations = db.query(models.Integration.id).filter(
+                    models.Integration.client_id.in_(effective_client_ids)
+                ).distinct().all()
+                integration_ids = [ci[0] for ci in client_integrations if ci[0]]
             if integration_ids:
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
     # Metrica Goals dynamics
-    # CRITICAL: Get integration_ids for filtering MetrikaGoals
+    # CRITICAL: Get integration_ids for filtering MetrikaGoals (совпадает с stats_service)
     m_integration_ids = None
     if u_campaign_ids:
-        # Get integration_ids from selected campaigns
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
         ).distinct().all()
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
     elif len(effective_client_ids) == 1:
-        # When "all campaigns" is selected, get all integrations for the client
-        client_integrations = db.query(models.Integration.id).filter(
-            models.Integration.client_id.in_(effective_client_ids)
+        # Интеграции с активными кампаниями (как в stats_service)
+        active_int = db.query(models.Campaign.integration_id).join(
+            models.Integration
+        ).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Campaign.is_active.is_(True)
         ).distinct().all()
-        m_integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+        aid_list = [r[0] for r in active_int if r[0]]
+        if aid_list:
+            m_integration_ids = aid_list
+        else:
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
+            ).distinct().all()
+            m_integration_ids = [ci[0] for ci in client_integrations if ci[0]]
     
     m_stats = []
     if platform in ["all", "yandex"]:
@@ -482,18 +509,13 @@ async def get_dynamics(
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
         
-        # Lead logic matching aggregate_summary
-        # CRITICAL: Always prefer Metrika goals if available (they're more accurate)
-        # Now we filter MetrikaGoals by integration_id, so we can use them even when campaigns are selected
-        platform_le = int((y_s.leads if y_s else 0) + (v_s.leads if v_s else 0))
+        # CRITICAL: Лиды для Yandex — всегда из Метрики. Для VK — из VKStats.
         metrika_le = int(m_s.leads if m_s else 0)
-        
-        # Use Metrika if available, otherwise fallback to platform conversions
-        # This ensures consistency between "all campaigns" and specific campaign selection
-        if metrika_le > 0:
-            le = metrika_le
+        vk_le = int(v_s.leads if v_s else 0)
+        if platform == "vk":
+            le = vk_le
         else:
-            le = platform_le
+            le = metrika_le + vk_le
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
