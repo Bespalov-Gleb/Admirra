@@ -172,7 +172,11 @@ async def _sync_metrika_goals_for_direct(
                 goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
-            goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
+            goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics, filter_by_direct=True)
+            if not goals_data and (goals_for_aggregate or not selected_goals):
+                # Fallback: без фильтра по Директу (если с фильтром пусто — возможно другой атрибут в API)
+                logger.warning(f"📊 Metrika returned empty with Direct filter for counter {counter_id}, retrying without filter")
+                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics, filter_by_direct=False)
             logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # Save aggregated goals

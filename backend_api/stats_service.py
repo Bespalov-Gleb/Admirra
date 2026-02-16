@@ -89,29 +89,19 @@ class StatsService:
                 y_q = y_q.filter(models.Campaign.is_active.is_(True))
                 v_q = v_q.filter(models.Campaign.is_active.is_(True))
 
-                # CRITICAL: Filter by integration_id to avoid mixing data from different profiles.
-                # Use integrations that have at least one is_active campaign (user's configured integrations).
+                # integration_ids только для MetrikaGoals (m_q), НЕ для y_q/v_q — иначе ломается получение данных
                 if len(client_ids) == 1:
                     client_int = db.query(models.Integration.id).filter(
                         models.Integration.client_id.in_(client_ids)
                     ).distinct().all()
                     integration_ids = [ci[0] for ci in client_int if ci[0]]
-                    # Restrict to integrations with is_active campaigns (user's selected profile)
-                    active_int = db.query(models.Campaign.integration_id).join(
-                        models.Integration
-                    ).filter(
-                        models.Integration.client_id.in_(client_ids),
-                        models.Campaign.is_active.is_(True)
-                    ).distinct().all()
-                    active_int_ids = [r[0] for r in active_int if r[0]]
-                    if active_int_ids:
-                        integration_ids = [i for i in integration_ids if i in active_int_ids]
-                    if integration_ids:
-                        y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
-                        v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
 
             if vk_goal_action_ids:
                 v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+                # Для VK при выборе целей — фильтр по интеграциям клиента
+                if len(client_ids) == 1 and integration_ids:
+                    y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
@@ -124,12 +114,9 @@ class StatsService:
                 models.MetrikaGoals.goal_id == "all"
             )
             
-            # CRITICAL: Filter MetrikaGoals by integration_id when campaigns are selected
-            # This ensures we get Metrika data for the same integration as the selected campaigns
+            # Filter MetrikaGoals by integration_id только при выборе конкретных кампаний.
+            # При "все кампании" — НЕ фильтруем m_q, чтобы получать все MetrikaGoals клиента.
             if campaign_ids and integration_ids:
-                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
-            elif not campaign_ids and integration_ids:
-                # When "all campaigns" is selected, filter by client's integrations
                 m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
 
             if start:

@@ -388,22 +388,12 @@ async def get_dynamics(
         if integration_ids:
             y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     else:
-        # CRITICAL: Интеграции с активными кампаниями (как в stats_service)
+        # При "все кампании" — все интеграции клиента (не фильтруем по active)
         if len(effective_client_ids) == 1:
-            active_int = db.query(models.Campaign.integration_id).join(
-                models.Integration
-            ).filter(
-                models.Integration.client_id.in_(effective_client_ids),
-                models.Campaign.is_active.is_(True)
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
             ).distinct().all()
-            aid_list = [r[0] for r in active_int if r[0]]
-            if aid_list:
-                integration_ids = aid_list
-            else:
-                client_integrations = db.query(models.Integration.id).filter(
-                    models.Integration.client_id.in_(effective_client_ids)
-                ).distinct().all()
-                integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
             if integration_ids:
                 y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
@@ -433,50 +423,22 @@ async def get_dynamics(
     elif u_goal_action_ids:
         v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
-        # CRITICAL: Интеграции с активными кампаниями (как в stats_service)
         if len(effective_client_ids) == 1:
-            active_int = db.query(models.Campaign.integration_id).join(
-                models.Integration
-            ).filter(
-                models.Integration.client_id.in_(effective_client_ids),
-                models.Campaign.is_active.is_(True)
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
             ).distinct().all()
-            aid_list = [r[0] for r in active_int if r[0]]
-            if aid_list:
-                integration_ids = aid_list
-            else:
-                client_integrations = db.query(models.Integration.id).filter(
-                    models.Integration.client_id.in_(effective_client_ids)
-                ).distinct().all()
-                integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
             if integration_ids:
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
-    # Metrica Goals dynamics
-    # CRITICAL: Get integration_ids for filtering MetrikaGoals (совпадает с stats_service)
+    # Metrica Goals dynamics — при "все кампании" НЕ фильтруем по integration
     m_integration_ids = None
     if u_campaign_ids:
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
         ).distinct().all()
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
-    elif len(effective_client_ids) == 1:
-        # Интеграции с активными кампаниями (как в stats_service)
-        active_int = db.query(models.Campaign.integration_id).join(
-            models.Integration
-        ).filter(
-            models.Integration.client_id.in_(effective_client_ids),
-            models.Campaign.is_active.is_(True)
-        ).distinct().all()
-        aid_list = [r[0] for r in active_int if r[0]]
-        if aid_list:
-            m_integration_ids = aid_list
-        else:
-            client_integrations = db.query(models.Integration.id).filter(
-                models.Integration.client_id.in_(effective_client_ids)
-            ).distinct().all()
-            m_integration_ids = [ci[0] for ci in client_integrations if ci[0]]
     
     m_stats = []
     if platform in ["all", "yandex"]:

@@ -75,12 +75,11 @@ class YandexMetricaAPI:
         # - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
         # - Важно: значения должны быть в одинарных кавычках
         if filter_by_direct:
-            # Фильтр для Яндекс.Директ и Яндекс.Директ (неопределено)
-            # Используем оператор OR для включения обоих значений
-            # Формат согласно документации: "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
+            # Фильтр по источнику: Яндекс.Директ (без фильтра API может возвращать пусто при несовпадении атрибута)
+            # Документация: ym:s:lastSignAdvEngine — последняя рекламная система
             filters = "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
             params["filters"] = filters
-            logger.info(f"📊 Applying Yandex Direct filter to Metrika goals query: {filters}")
+            logger.debug(f"📊 Metrika goals filter: {filters}")
 
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
