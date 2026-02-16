@@ -215,7 +215,9 @@ async def _sync_metrika_goals_for_direct(
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             # Use only valid goals for this counter (already filtered above)
+            individual_goals_saved = 0
             if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
+                logger.info(f"📊 Syncing {len(valid_goals_for_counter)} individual goals for counter {counter_id}")
                 # goal_names_map already populated above when fetching available goals
                 
                 # Sync goals one by one with delays
@@ -227,7 +229,11 @@ async def _sync_metrika_goals_for_direct(
                         
                         # CRITICAL: Use visits (целевые визиты) instead of reaches
                         goal_metrics = f"ym:s:goal{goal_id}visits"
-                        goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
+                        goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics, filter_by_direct=True)
+                        if not goal_data:
+                            # Fallback: без фильтра по Директу (если с фильтром пусто)
+                            logger.info(f"📊 Goal {goal_id} empty with Direct filter, retrying without filter")
+                            goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics, filter_by_direct=False)
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
                         
@@ -254,9 +260,11 @@ async def _sync_metrika_goals_for_direct(
                                         goal_name=goal_name,
                                         conversion_count=visits
                                     ))
+                                individual_goals_saved += 1
                     except Exception as goal_err:
                         logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
                         # Continue with next goal even if this one fails
+                logger.info(f"📊 Saved {individual_goals_saved} individual goal records for counter {counter_id}")
         except Exception as counter_err:
             logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
     

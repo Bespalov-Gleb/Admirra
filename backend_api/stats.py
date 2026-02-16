@@ -730,6 +730,15 @@ async def get_goals(
     query = query.filter(models.MetrikaGoals.goal_id != "all")
     
     goals = query.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
+    
+    if not goals:
+        # Debug: check if we have any MetrikaGoals at all for this client/period
+        any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.date >= date_from_obj,
+            models.MetrikaGoals.date <= date_to_obj
+        ).scalar() or 0
+        logger.info(f"📊 get_goals: 0 individual goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows in period: {any_count}")
 
     # Calculate total conversions for proportional cost distribution
     total_conversions = sum(int(g.count or 0) for g in goals)
