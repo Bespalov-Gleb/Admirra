@@ -106,12 +106,13 @@ class StatsService:
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
 
-            # 3. Yandex Metrica Goals
+            # 3. Yandex Metrica Goals — Лиды = сумма по ВСЕМ целям (как на круговой диаграмме),
+            # не только primary (goal_id != "all" чтобы не дублировать: "all" = агрегат одной цели)
             m_q = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
             ).filter(
                 models.MetrikaGoals.client_id.in_(client_ids),
-                models.MetrikaGoals.goal_id == "all"
+                models.MetrikaGoals.goal_id != "all"
             )
             
             # Filter MetrikaGoals by integration_id только при выборе конкретных кампаний.
@@ -464,12 +465,12 @@ class StatsService:
 
             y_results = y_query.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
 
-            # CRITICAL: Конверсии для Yandex — из Метрики. Распределяем по кампаниям пропорционально расходу.
+            # CRITICAL: Конверсии для Yandex — из Метрики (сумма по всем целям, как Лиды на дашборде).
             m_conv_query = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total")
             ).filter(
                 models.MetrikaGoals.client_id.in_(client_ids),
-                models.MetrikaGoals.goal_id == "all"
+                models.MetrikaGoals.goal_id != "all"
             )
             m_int_ids = integration_ids_filter
             if not m_int_ids and campaign_ids:

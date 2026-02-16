@@ -451,12 +451,13 @@ async def get_dynamics(
     
     m_stats = []
     if platform in ["all", "yandex"]:
+        # Лиды по дням = сумма по всем целям (как в summary и на круговой диаграмме)
         m_query = db.query(
             models.MetrikaGoals.date,
             func.sum(models.MetrikaGoals.conversion_count).label("leads")
         ).filter(
             models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.goal_id == "all",
+            models.MetrikaGoals.goal_id != "all",
             models.MetrikaGoals.date >= d_start,
             models.MetrikaGoals.date <= d_end
         )
