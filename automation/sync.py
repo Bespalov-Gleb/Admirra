@@ -185,9 +185,12 @@ async def _sync_metrika_goals_for_direct(
             _agg_saved = 0
             _sample_visits = None
             # #endregion
-            # Save aggregated goals
+            # Save aggregated goals (bytime returns list of {dimensions: [{name: date}], metrics: [...]})
             for g in (goals_data or []):
                 try:
+                    if not isinstance(g, dict):
+                        logger.warning(f"📊 Skipping non-dict goals row: type={type(g)}")
+                        continue
                     stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                     # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
                     # При fallback на sumGoalVisitsAny — только metrics[0]
@@ -221,8 +224,8 @@ async def _sync_metrika_goals_for_direct(
                     _agg_saved += 1
                     if _sample_visits is None:
                         _sample_visits = total_visits
-                except (KeyError, IndexError, TypeError) as parse_err:
-                    logger.warning(f"📊 Failed to parse goals row (format may have changed): {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
+                except Exception as parse_err:
+                    logger.warning(f"📊 Failed to parse/save goals row: {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
             # #region agent log
             try:
                 import json, os
@@ -232,8 +235,11 @@ async def _sync_metrika_goals_for_direct(
             except Exception: pass
             # #endregion
             # Commit aggregate goals immediately so dashboard shows data even if individual goals sync fails or is slow
-            db.commit()
-            logger.info(f"📊 Committed {_agg_saved} aggregate goal rows for counter {counter_id}")
+            try:
+                db.commit()
+                logger.info(f"📊 Committed {_agg_saved} aggregate goal rows for counter {counter_id}")
+            except Exception as commit_err:
+                logger.warning(f"📊 Failed to commit aggregate goals for counter {counter_id}: {commit_err}")
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             # Use only valid goals for this counter (already filtered above)
