@@ -89,26 +89,29 @@ class StatsService:
                 y_q = y_q.filter(models.Campaign.is_active.is_(True))
                 v_q = v_q.filter(models.Campaign.is_active.is_(True))
 
-            if vk_goal_action_ids:
-                v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
-
-                # CRITICAL: When no campaigns selected, filter by all integrations of the client
-                # This ensures we don't mix data from different profiles/integrations
+                # CRITICAL: Filter by integration_id to avoid mixing data from different profiles.
+                # Use integrations that have at least one is_active campaign (user's configured integrations).
                 if len(client_ids) == 1:
-                    # Get all integrations for this client
-                    client_integrations = db.query(models.Integration.id).filter(
+                    client_int = db.query(models.Integration.id).filter(
                         models.Integration.client_id.in_(client_ids)
                     ).distinct().all()
-                    integration_ids = [ci[0] for ci in client_integrations if ci[0]]
-                    
+                    integration_ids = [ci[0] for ci in client_int if ci[0]]
+                    # Restrict to integrations with is_active campaigns (user's selected profile)
+                    active_int = db.query(models.Campaign.integration_id).join(
+                        models.Integration
+                    ).filter(
+                        models.Integration.client_id.in_(client_ids),
+                        models.Campaign.is_active.is_(True)
+                    ).distinct().all()
+                    active_int_ids = [r[0] for r in active_int if r[0]]
+                    if active_int_ids:
+                        integration_ids = [i for i in integration_ids if i in active_int_ids]
                     if integration_ids:
-                        print(f"DEBUG: StatsService.get_data - NO campaign filter, but FILTERING by {len(integration_ids)} integrations for client: {integration_ids}")
                         y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                         v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
-                    else:
-                        print(f"DEBUG: StatsService.get_data - NO campaign filter, NO integrations found for client {client_ids}")
-                else:
-                    print(f"DEBUG: StatsService.get_data - NO campaign filter, multiple clients ({len(client_ids)}), showing all integrations")
+
+            if vk_goal_action_ids:
+                v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
             
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
@@ -453,6 +456,20 @@ class StatsService:
 
         campaigns = []
 
+        # CRITICAL: When no campaign_ids, filter by integrations with is_active campaigns
+        # to avoid mixing stats from different profiles
+        integration_ids_filter = None
+        if not campaign_ids and len(client_ids) == 1:
+            active_int = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Campaign.is_active.is_(True)
+            ).distinct().all()
+            aid_list = [r[0] for r in active_int if r[0]]
+            if aid_list:
+                integration_ids_filter = aid_list
+
         if platform in ["all", "yandex"]:
             y_query = db.query(
                 models.Campaign.id.label("campaign_id"),
@@ -463,12 +480,12 @@ class StatsService:
                 func.sum(models.YandexStats.conversions).label("conversions")
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids)
-                # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
-                # is_active is a user selection flag, not a data filtering flag
             )
 
             if campaign_ids:
                 y_query = y_query.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                y_query = y_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
 
             if d_start:
                 y_query = y_query.filter(models.YandexStats.date >= d_start)
@@ -507,6 +524,8 @@ class StatsService:
 
             if campaign_ids:
                 v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                v_query = v_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
             if vk_goal_action_ids:
                 v_query = v_query.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
 

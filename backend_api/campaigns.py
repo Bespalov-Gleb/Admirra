@@ -32,6 +32,27 @@ def get_campaigns(
         query = query.filter(models.Campaign.integration_id == integration_id)
     if client_id:
         query = query.filter(models.Integration.client_id == client_id)
+        # CRITICAL: При выборе проекта показывать только кампании из интеграций,
+        # где пользователь включил хотя бы одну кампанию (is_active). Иначе подтягиваются
+        # кампании из других профилей/аккаунтов того же клиента.
+        if only_active:
+            active_integration_ids = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id == client_id,
+                models.Campaign.is_active.is_(True)
+            ).distinct().all()
+            aid_list = [r[0] for r in active_integration_ids if r[0]]
+            if aid_list:
+                query = query.filter(models.Campaign.integration_id.in_(aid_list))
+            # Если у клиента ровно 1 интеграция — всегда фильтровать по ней
+            elif not integration_id:
+                client_integrations = db.query(models.Integration.id).filter(
+                    models.Integration.client_id == client_id
+                ).distinct().all()
+                ci_list = [r[0] for r in client_integrations if r[0]]
+                if len(ci_list) == 1:
+                    query = query.filter(models.Campaign.integration_id == ci_list[0])
     if platform:
         # Map frontend platform names to backend enum values
         platform_map = {
