@@ -43,22 +43,11 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny", filter_by_direct: bool = True) -> List[Dict[str, Any]]:
+    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny") -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
-        CRITICAL: Uses visits instead of reaches to get target visits, not goal achievements.
-        
-        Args:
-            counter_id: ID счетчика Метрики
-            date_from: Начальная дата (YYYY-MM-DD)
-            date_to: Конечная дата (YYYY-MM-DD)
-            metrics: Метрики для запроса
-            filter_by_direct: Если True, фильтрует данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
-        
-        Согласно документации Яндекс.Метрики API:
-        - Параметр `filters` используется для фильтрации данных
-        - `ym:s:lastSignAdvEngine` - последняя рекламная система
-        - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
+        Uses visits instead of reaches to get target visits, not goal achievements.
+        Returns all conversions regardless of traffic source.
         """
         params = {
             "ids": counter_id,
@@ -67,26 +56,15 @@ class YandexMetricaAPI:
             "date1": date_from,
             "date2": date_to
         }
-        
-        # CRITICAL: Фильтруем данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
-        # Согласно документации Яндекс.Метрики API:
-        # - Параметр filters использует синтаксис: "ym:s:lastSignAdvEngine=='Yandex Direct'"
-        # - Для нескольких значений используется оператор OR
-        # - Значения: 'Yandex Direct' и 'Yandex Direct (undefined)'
-        # - Важно: значения должны быть в одинарных кавычках
-        if filter_by_direct:
-            # Фильтр по источнику: Яндекс.Директ (без фильтра API может возвращать пусто при несовпадении атрибута)
-            # Документация: ym:s:lastSignAdvEngine — последняя рекламная система
-            filters = "ym:s:lastSignAdvEngine=='Yandex Direct' OR ym:s:lastSignAdvEngine=='Yandex Direct (undefined)'"
-            params["filters"] = filters
-            logger.debug(f"📊 Metrika goals filter: {filters}")
 
         logger.info(f"📊 Metrika Stat API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to}")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
-                return data.get('data', [])
+                rows = data.get('data', [])
+                logger.info(f"📊 Metrika Stat API: received {len(rows)} rows")
+                return rows
             elif response.status_code == 429:
                 # Raise exception with status_code for queue to handle
                 error = Exception(f"429 Too Many Requests")

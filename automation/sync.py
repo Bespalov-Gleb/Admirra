@@ -173,45 +173,43 @@ async def _sync_metrika_goals_for_direct(
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
             logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
-            goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics, filter_by_direct=True)
-            if not goals_data and (goals_for_aggregate or not selected_goals):
-                # Fallback: без фильтра по Директу (если с фильтром пусто — возможно другой атрибут в API)
-                logger.warning(f"📊 Metrika returned empty with Direct filter for counter {counter_id}, retrying without filter")
-                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics, filter_by_direct=False)
+            goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
             logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # Save aggregated goals
             for g in (goals_data or []):
-                stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
-                
-                # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
-                total_visits = 0
-                if goals_for_aggregate and len(goals_for_aggregate) > 0:
-                    if len(goals_for_aggregate) == 1:
-                        total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                try:
+                    stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
+                    # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
+                    total_visits = 0
+                    if goals_for_aggregate and len(goals_for_aggregate) > 0:
+                        if len(goals_for_aggregate) == 1:
+                            total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                        else:
+                            for i in range(1, len(g['metrics'])):
+                                total_visits += int(g['metrics'][i])
                     else:
-                        for i in range(1, len(g['metrics'])):
-                            total_visits += int(g['metrics'][i])
-                else:
-                    total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
-                
-                existing = db.query(models.MetrikaGoals).filter(
-                    models.MetrikaGoals.integration_id == integration.id,
-                    models.MetrikaGoals.date == stat_date,
-                    models.MetrikaGoals.goal_id == "all"
-                ).first()
-                
-                if existing:
-                    existing.conversion_count = total_visits
-                else:
-                    db.add(models.MetrikaGoals(
-                        client_id=integration.client_id,
-                        integration_id=integration.id,
-                        date=stat_date,
-                        goal_id="all",
-                        goal_name="Selected Goals" if selected_goals else "All Goals",
-                        conversion_count=total_visits
-                    ))
+                        total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
+                    
+                    existing = db.query(models.MetrikaGoals).filter(
+                        models.MetrikaGoals.integration_id == integration.id,
+                        models.MetrikaGoals.date == stat_date,
+                        models.MetrikaGoals.goal_id == "all"
+                    ).first()
+                    
+                    if existing:
+                        existing.conversion_count = total_visits
+                    else:
+                        db.add(models.MetrikaGoals(
+                            client_id=integration.client_id,
+                            integration_id=integration.id,
+                            date=stat_date,
+                            goal_id="all",
+                            goal_name="Selected Goals" if selected_goals else "All Goals",
+                            conversion_count=total_visits
+                        ))
+                except (KeyError, IndexError, TypeError) as parse_err:
+                    logger.warning(f"📊 Failed to parse goals row (format may have changed): {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
             
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
@@ -230,11 +228,7 @@ async def _sync_metrika_goals_for_direct(
                         
                         # CRITICAL: Use visits (целевые визиты) instead of reaches
                         goal_metrics = f"ym:s:goal{goal_id}visits"
-                        goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics, filter_by_direct=True)
-                        if not goal_data:
-                            # Fallback: без фильтра по Директу (если с фильтром пусто)
-                            logger.info(f"📊 Goal {goal_id} empty with Direct filter, retrying without filter")
-                            goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics, filter_by_direct=False)
+                        goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
                         
