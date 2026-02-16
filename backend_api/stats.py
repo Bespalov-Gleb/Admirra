@@ -726,19 +726,24 @@ async def get_goals(
     if integration_id:
         query = query.filter(models.MetrikaGoals.integration_id == integration_id)
     
-    # Filter out "all" aggregated goals - we want individual goals
-    query = query.filter(models.MetrikaGoals.goal_id != "all")
+    # Individual goals (goal_id != "all")
+    query_indiv = query.filter(models.MetrikaGoals.goal_id != "all")
+    goals = query_indiv.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
     
-    goals = query.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
-    
+    # Если нет индивидуальных целей — используем агрегированную (goal_id="all") как fallback
     if not goals:
-        # Debug: check if we have any MetrikaGoals at all for this client/period
-        any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
-            models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.date >= date_from_obj,
-            models.MetrikaGoals.date <= date_to_obj
-        ).scalar() or 0
-        logger.info(f"📊 get_goals: 0 individual goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows in period: {any_count}")
+        query_all = query.filter(models.MetrikaGoals.goal_id == "all")
+        goals_all = query_all.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
+        if goals_all:
+            goals = goals_all
+            logger.info(f"📊 get_goals: using aggregated goal_id=all for client {effective_client_ids}")
+        else:
+            any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+                models.MetrikaGoals.client_id.in_(effective_client_ids),
+                models.MetrikaGoals.date >= date_from_obj,
+                models.MetrikaGoals.date <= date_to_obj
+            ).scalar() or 0
+            logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
 
     # Calculate total conversions for proportional cost distribution
     total_conversions = sum(int(g.count or 0) for g in goals)
