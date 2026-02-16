@@ -86,24 +86,8 @@ class StatsService:
             else:
                 # When "all campaigns" option is selected on the dashboard,
                 # we должны учитывать только кампании, которые пользователь включил в проект (is_active = True).
-                # Для отдельных кампаний этот фильтр не нужен, так как они приходят из выпадающего списка уже отфильтрованными.
                 y_q = y_q.filter(models.Campaign.is_active.is_(True))
                 v_q = v_q.filter(models.Campaign.is_active.is_(True))
-
-                # CRITICAL: Для Yandex (без vk_goal_action_ids) integration_ids не устанавливался,
-                # из-за чего MetrikaGoals суммировались по ВСЕМ интеграциям клиента → завышенные лиды (126 вместо 72).
-                # Устанавливаем integration_ids по интеграциям с активными кампаниями клиента.
-                if len(client_ids) == 1:
-                    active_integration_ids = db.query(models.Campaign.integration_id).join(
-                        models.Integration, models.Campaign.integration_id == models.Integration.id
-                    ).filter(
-                        models.Integration.client_id.in_(client_ids),
-                        models.Campaign.is_active.is_(True)
-                    ).distinct().all()
-                    integration_ids = [ii[0] for ii in active_integration_ids if ii[0]]
-                    if integration_ids:
-                        y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
-                        v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
 
             if vk_goal_action_ids:
                 v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
