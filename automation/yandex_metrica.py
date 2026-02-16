@@ -65,7 +65,9 @@ class YandexMetricaAPI:
             "metrics": metrics,
             "dimensions": "ym:s:date",
             "date1": date_from,
-            "date2": date_to
+            "date2": date_to,
+            "group": "day",
+            "sort": "ym:s:date"
         }
         
         # CRITICAL: Фильтруем данные только по Яндекс.Директ и Яндекс.Директ (неопределено)
