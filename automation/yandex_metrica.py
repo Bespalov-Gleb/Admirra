@@ -52,7 +52,7 @@ class YandexMetricaAPI:
         params = {
             "ids": counter_id,
             "metrics": metrics,
-            "dimensions": "ym:s:datePeriod",
+            "dimensions": "ym:s:date",
             "date1": date_from,
             "date2": date_to,
             "group": "day",
