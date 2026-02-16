@@ -132,13 +132,13 @@ async def _sync_metrika_goals_for_direct(
     for counter_id in all_counter_ids:
         try:
             # CRITICAL: First, get list of available goals for this counter
-            # This prevents errors when requesting stats for goals that don't exist
+            # Вызываем напрямую (без очереди) — Management API отделён от Stat API, не блокирует очередь
             available_goals = []
             goal_names_map = {}
             try:
-                goal_info = await queue.enqueue('metrica', metrika_api.get_counter_goals, counter_id)
-                available_goals = [str(g.get("id")) for g in goal_info if g.get("id")]
-                goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in goal_info}
+                goal_info = await metrika_api.get_counter_goals(counter_id)
+                available_goals = [str(g.get("id")) for g in (goal_info or []) if g.get("id")]
+                goal_names_map = {str(g.get("id")): g.get("name", f"Goal {g.get('id')}") for g in (goal_info or [])}
                 logger.info(f"📊 Counter {counter_id} has {len(available_goals)} available goals: {available_goals[:10]}...")
             except Exception as goals_info_err:
                 logger.warning(f"Failed to fetch available goals for counter {counter_id}: {goals_info_err}")
@@ -159,47 +159,69 @@ async def _sync_metrika_goals_for_direct(
             
             # Sync aggregated goals
             # CRITICAL: Use visits (целевые визиты) instead of reaches (достижения цели)
+            # CRITICAL: When primary_goal_id set, use ONLY that goal - summing multiple causes double count
+            # (one visit can achieve multiple goals → 72+54=126 instead of 72)
+            goals_for_aggregate = valid_goals_for_counter
+            primary_str = str(integration.primary_goal_id) if integration.primary_goal_id else None
+            if primary_str and primary_str in (valid_goals_for_counter or []):
+                goals_for_aggregate = [primary_str]
+                logger.info(f"📊 Using primary_goal_id for aggregate: {integration.primary_goal_id}")
+            
             metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
-            if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                goal_metrics = [f"ym:s:goal{gid}visits" for gid in valid_goals_for_counter]
+            if goals_for_aggregate and len(goals_for_aggregate) > 0:
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
             
+            logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
+            if not goals_data and goals_for_aggregate:
+                # Fallback: только ym:s:sumGoalVisitsAny (агрегат по всем целям)
+                logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalVisitsAny")
+                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalVisitsAny")
+            logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # Save aggregated goals
-            for g in goals_data:
-                stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
-                
-                # CRITICAL: Now using visits (целевые визиты) instead of reaches
-                total_visits = 0
-                if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                    for i in range(1, len(g['metrics'])):
-                        total_visits += int(g['metrics'][i])
-                else:
-                    total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else 0
-                
-                existing = db.query(models.MetrikaGoals).filter(
-                    models.MetrikaGoals.integration_id == integration.id,
-                    models.MetrikaGoals.date == stat_date,
-                    models.MetrikaGoals.goal_id == "all"
-                ).first()
-                
-                if existing:
-                    existing.conversion_count = total_visits
-                else:
-                    db.add(models.MetrikaGoals(
-                        client_id=integration.client_id,
-                        integration_id=integration.id,
-                        date=stat_date,
-                        goal_id="all",
-                        goal_name="Selected Goals" if selected_goals else "All Goals",
-                        conversion_count=total_visits
-                    ))
+            for g in (goals_data or []):
+                try:
+                    stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
+                    # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
+                    # При fallback на sumGoalVisitsAny — только metrics[0]
+                    total_visits = 0
+                    if goals_for_aggregate and len(goals_for_aggregate) > 0:
+                        if len(goals_for_aggregate) == 1:
+                            total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else (int(g['metrics'][0]) if g.get('metrics') else 0)
+                        else:
+                            for i in range(1, len(g['metrics'])):
+                                total_visits += int(g['metrics'][i])
+                    else:
+                        total_visits = int(g['metrics'][1]) if len(g['metrics']) > 1 else (int(g['metrics'][0]) if g.get('metrics') else 0)
+                    
+                    existing = db.query(models.MetrikaGoals).filter(
+                        models.MetrikaGoals.integration_id == integration.id,
+                        models.MetrikaGoals.date == stat_date,
+                        models.MetrikaGoals.goal_id == "all"
+                    ).first()
+                    
+                    if existing:
+                        existing.conversion_count = total_visits
+                    else:
+                        db.add(models.MetrikaGoals(
+                            client_id=integration.client_id,
+                            integration_id=integration.id,
+                            date=stat_date,
+                            goal_id="all",
+                            goal_name="Selected Goals" if selected_goals else "All Goals",
+                            conversion_count=total_visits
+                        ))
+                except (KeyError, IndexError, TypeError) as parse_err:
+                    logger.warning(f"📊 Failed to parse goals row (format may have changed): {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
             
             # Sync individual goals if selected
             # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
             # Use only valid goals for this counter (already filtered above)
+            individual_goals_saved = 0
             if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
+                logger.info(f"📊 Syncing {len(valid_goals_for_counter)} individual goals for counter {counter_id}")
                 # goal_names_map already populated above when fetching available goals
                 
                 # Sync goals one by one with delays
@@ -238,9 +260,11 @@ async def _sync_metrika_goals_for_direct(
                                         goal_name=goal_name,
                                         conversion_count=visits
                                     ))
+                                individual_goals_saved += 1
                     except Exception as goal_err:
                         logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
                         # Continue with next goal even if this one fails
+                logger.info(f"📊 Saved {individual_goals_saved} individual goal records for counter {counter_id}")
         except Exception as counter_err:
             logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
     
@@ -482,7 +506,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.info(f"🔄 Syncing Metrika goals for Direct integration {integration.id}")
                     await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
                     db.commit()  # CRITICAL: Commit goals data
+                    from backend_api.cache_service import CacheService
+                    CacheService.clear()
                     logger.info(f"✅ Successfully synced and committed Metrika goals for Direct integration {integration.id}")
+                    logger.info(f"🗑️ Cleared dashboard cache after Metrika goals sync")
                 except Exception as goals_err:
                     logger.error(f"❌ Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}", exc_info=True)
                     # Don't fail the entire sync if goals sync fails

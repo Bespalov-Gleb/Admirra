@@ -388,8 +388,7 @@ async def get_dynamics(
         if integration_ids:
             y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     else:
-        # CRITICAL: When no campaigns selected, filter by all integrations of the client
-        # This prevents mixing data from different profiles/integrations
+        # При "все кампании" — все интеграции клиента (не фильтруем по active)
         if len(effective_client_ids) == 1:
             client_integrations = db.query(models.Integration.id).filter(
                 models.Integration.client_id.in_(effective_client_ids)
@@ -424,8 +423,6 @@ async def get_dynamics(
     elif u_goal_action_ids:
         v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
-        # CRITICAL: When no campaigns selected, filter by all integrations of the client
-        # This prevents mixing data from different profiles/integrations
         if len(effective_client_ids) == 1:
             client_integrations = db.query(models.Integration.id).filter(
                 models.Integration.client_id.in_(effective_client_ids)
@@ -435,21 +432,13 @@ async def get_dynamics(
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
-    # Metrica Goals dynamics
-    # CRITICAL: Get integration_ids for filtering MetrikaGoals
+    # Metrica Goals dynamics — при "все кампании" НЕ фильтруем по integration
     m_integration_ids = None
     if u_campaign_ids:
-        # Get integration_ids from selected campaigns
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
         ).distinct().all()
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
-    elif len(effective_client_ids) == 1:
-        # When "all campaigns" is selected, get all integrations for the client
-        client_integrations = db.query(models.Integration.id).filter(
-            models.Integration.client_id.in_(effective_client_ids)
-        ).distinct().all()
-        m_integration_ids = [ci[0] for ci in client_integrations if ci[0]]
     
     m_stats = []
     if platform in ["all", "yandex"]:
@@ -482,18 +471,14 @@ async def get_dynamics(
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
         
-        # Lead logic matching aggregate_summary
-        # CRITICAL: Always prefer Metrika goals if available (they're more accurate)
-        # Now we filter MetrikaGoals by integration_id, so we can use them even when campaigns are selected
-        platform_le = int((y_s.leads if y_s else 0) + (v_s.leads if v_s else 0))
+        # Лиды для Yandex — Метрика приоритетна; fallback на Direct если Metrika пусто
         metrika_le = int(m_s.leads if m_s else 0)
-        
-        # Use Metrika if available, otherwise fallback to platform conversions
-        # This ensures consistency between "all campaigns" and specific campaign selection
-        if metrika_le > 0:
-            le = metrika_le
+        yandex_le = int(y_s.leads if y_s else 0)
+        vk_le = int(v_s.leads if v_s else 0)
+        if platform == "vk":
+            le = vk_le
         else:
-            le = platform_le
+            le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
@@ -696,7 +681,7 @@ async def get_top_clients(
 @cache_response(ttl=900)
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
-    integration_id: Optional[uuid.UUID] = None,  # NEW: Optional filter by integration
+    integration_id: Optional[uuid.UUID] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
@@ -738,7 +723,6 @@ async def get_goals(
         models.MetrikaGoals.date <= date_to_obj
     )
     
-    # NEW: Filter by integration_id if provided
     if integration_id:
         query = query.filter(models.MetrikaGoals.integration_id == integration_id)
     
@@ -746,6 +730,15 @@ async def get_goals(
     query = query.filter(models.MetrikaGoals.goal_id != "all")
     
     goals = query.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
+    
+    if not goals:
+        # Debug: check if we have any MetrikaGoals at all for this client/period
+        any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.date >= date_from_obj,
+            models.MetrikaGoals.date <= date_to_obj
+        ).scalar() or 0
+        logger.info(f"📊 get_goals: 0 individual goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows in period: {any_count}")
 
     # Calculate total conversions for proportional cost distribution
     total_conversions = sum(int(g.count or 0) for g in goals)

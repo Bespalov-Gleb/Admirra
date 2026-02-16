@@ -86,30 +86,22 @@ class StatsService:
             else:
                 # When "all campaigns" option is selected on the dashboard,
                 # we должны учитывать только кампании, которые пользователь включил в проект (is_active = True).
-                # Для отдельных кампаний этот фильтр не нужен, так как они приходят из выпадающего списка уже отфильтрованными.
                 y_q = y_q.filter(models.Campaign.is_active.is_(True))
                 v_q = v_q.filter(models.Campaign.is_active.is_(True))
 
-            if vk_goal_action_ids:
-                v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
-
-                # CRITICAL: When no campaigns selected, filter by all integrations of the client
-                # This ensures we don't mix data from different profiles/integrations
+                # integration_ids только для MetrikaGoals (m_q), НЕ для y_q/v_q — иначе ломается получение данных
                 if len(client_ids) == 1:
-                    # Get all integrations for this client
-                    client_integrations = db.query(models.Integration.id).filter(
+                    client_int = db.query(models.Integration.id).filter(
                         models.Integration.client_id.in_(client_ids)
                     ).distinct().all()
-                    integration_ids = [ci[0] for ci in client_integrations if ci[0]]
-                    
-                    if integration_ids:
-                        print(f"DEBUG: StatsService.get_data - NO campaign filter, but FILTERING by {len(integration_ids)} integrations for client: {integration_ids}")
-                        y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
-                        v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
-                    else:
-                        print(f"DEBUG: StatsService.get_data - NO campaign filter, NO integrations found for client {client_ids}")
-                else:
-                    print(f"DEBUG: StatsService.get_data - NO campaign filter, multiple clients ({len(client_ids)}), showing all integrations")
+                    integration_ids = [ci[0] for ci in client_int if ci[0]]
+
+            if vk_goal_action_ids:
+                v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+                # Для VK при выборе целей — фильтр по интеграциям клиента
+                if len(client_ids) == 1 and integration_ids:
+                    y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
@@ -122,12 +114,9 @@ class StatsService:
                 models.MetrikaGoals.goal_id == "all"
             )
             
-            # CRITICAL: Filter MetrikaGoals by integration_id when campaigns are selected
-            # This ensures we get Metrika data for the same integration as the selected campaigns
+            # Filter MetrikaGoals by integration_id только при выборе конкретных кампаний.
+            # При "все кампании" — НЕ фильтруем m_q, чтобы получать все MetrikaGoals клиента.
             if campaign_ids and integration_ids:
-                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
-            elif not campaign_ids and integration_ids:
-                # When "all campaigns" is selected, filter by client's integrations
                 m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
 
             if start:
@@ -177,33 +166,19 @@ class StatsService:
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
-            # Smart Conversion logic: 
-            # CRITICAL: Для VK Ads НЕ используем Metrika goals - только conversions из VKStats (vk.goals = Результат)
-            # Для Yandex Direct используем Metrika goals если доступны (они более точные), иначе platform conversions
+            # CRITICAL: Лиды и конверсии для Yandex — из Метрики (MetrikaGoals).
+            # Fallback на Direct если Metrika ещё не синхронизирована (пусто 0).
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
             yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
-            platform_convs = yandex_convs + vk_convs
             
-            # CRITICAL: Для VK платформы используем только conversions из VKStats
             if platform == "vk":
                 convs = vk_convs
-            # Для Yandex или "all" используем Metrika goals если доступны (только для Yandex), иначе platform conversions
             elif platform in ["all", "yandex"]:
-                # Используем Metrika goals только если они есть И есть данные от Yandex
-                # Если выбрана только VK платформа, Metrika goals не должны использоваться
-                if metrica_convs > 0 and yandex_convs > 0:
-                    # Для Yandex используем Metrika, для VK - platform conversions
-                    convs = metrica_convs + vk_convs
-                elif metrica_convs > 0:
-                    # Только Metrika (если нет Yandex данных, но есть Metrika - возможно старые данные)
-                    convs = metrica_convs
-                else:
-                    # Используем platform conversions (Yandex + VK)
-                    convs = platform_convs
+                # Yandex: Метрика приоритетна; если пусто — временно Direct (пока Metrika не синхронизирована)
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs
             else:
-                # Fallback для других платформ
-                convs = platform_convs 
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs 
             
             # CRITICAL: Для VK Ads используем взвешенное среднее CPC и CPA из сохраненных значений
             # Это гарантирует правильный расчет "средняя цена клика" и "средняя цена цели"
@@ -217,12 +192,13 @@ class StatsService:
             # Взвешенное среднее CPA для VK: sum(cpa * conversions) / sum(conversions)
             vk_avg_cpa = vk_weighted_cpa_sum / vk_conversions if vk_conversions > 0 else 0.0
             
-            # Для Yandex рассчитываем как обычно
+            # CPA для Yandex: Метрика приоритетна; fallback на Direct если Metrika пусто
+            yandex_convs_for_cpa = metrica_convs if metrica_convs > 0 else yandex_convs
+            # Для Yandex: CPC из Директа, CPA — из Метрики (fallback Direct)
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
-            yandex_conversions = int((y_s.total_conversions if y_s else 0) or 0)
             yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0
-            yandex_avg_cpa = yandex_cost / yandex_conversions if yandex_conversions > 0 else 0.0
+            yandex_avg_cpa = yandex_cost / yandex_convs_for_cpa if yandex_convs_for_cpa > 0 else 0.0
             
             # Объединяем CPC и CPA для обеих платформ
             # Если есть данные от обеих платформ, используем взвешенное среднее
@@ -242,13 +218,9 @@ class StatsService:
             else:
                 avg_cpc = 0.0
             
-            # CRITICAL: Для CPA используем conversions из той же платформы, а не общее количество
-            # (которое может включать Metrika goals)
-            yandex_convs_for_cpa = int((y_s.total_conversions if y_s else 0) or 0)
             total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions
             
             if total_platform_conversions_for_cpa > 0:
-                # Взвешенное среднее CPA: (yandex_cpa * yandex_conversions + vk_cpa * vk_conversions) / total_platform_conversions
                 if yandex_convs_for_cpa > 0 and vk_conversions > 0:
                     avg_cpa = (yandex_avg_cpa * yandex_convs_for_cpa + vk_avg_cpa * vk_conversions) / total_platform_conversions_for_cpa
                 elif yandex_convs_for_cpa > 0:
@@ -454,6 +426,20 @@ class StatsService:
 
         campaigns = []
 
+        # CRITICAL: When no campaign_ids, filter by integrations with is_active campaigns
+        # to avoid mixing stats from different profiles
+        integration_ids_filter = None
+        if not campaign_ids and len(client_ids) == 1:
+            active_int = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Campaign.is_active.is_(True)
+            ).distinct().all()
+            aid_list = [r[0] for r in active_int if r[0]]
+            if aid_list:
+                integration_ids_filter = aid_list
+
         if platform in ["all", "yandex"]:
             y_query = db.query(
                 models.Campaign.id.label("campaign_id"),
@@ -464,12 +450,12 @@ class StatsService:
                 func.sum(models.YandexStats.conversions).label("conversions")
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids)
-                # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
-                # is_active is a user selection flag, not a data filtering flag
             )
 
             if campaign_ids:
                 y_query = y_query.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                y_query = y_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
 
             if d_start:
                 y_query = y_query.filter(models.YandexStats.date >= d_start)
@@ -477,10 +463,42 @@ class StatsService:
                 y_query = y_query.filter(models.YandexStats.date <= d_end)
 
             y_results = y_query.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
+
+            # CRITICAL: Конверсии для Yandex — из Метрики. Распределяем по кампаниям пропорционально расходу.
+            m_conv_query = db.query(
+                func.sum(models.MetrikaGoals.conversion_count).label("total")
+            ).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id == "all"
+            )
+            m_int_ids = integration_ids_filter
+            if not m_int_ids and campaign_ids:
+                camp_int = db.query(models.Campaign.integration_id).filter(
+                    models.Campaign.id.in_(campaign_ids)
+                ).distinct().all()
+                m_int_ids = [c[0] for c in camp_int if c[0]]
+            if not m_int_ids and len(client_ids) == 1:
+                client_int = db.query(models.Integration.id).filter(
+                    models.Integration.client_id.in_(client_ids)
+                ).distinct().all()
+                m_int_ids = [c[0] for c in client_int if c[0]]
+            if m_int_ids:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.integration_id.in_(m_int_ids))
+            if d_start:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date >= d_start)
+            if d_end:
+                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date <= d_end)
+            total_metrika_convs = int((m_conv_query.scalar() or 0) or 0)
+            total_yandex_cost = sum(float(r.cost or 0) for r in y_results)
+
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
-                convs = int(r.conversions or 0)
+                # Конверсии: Метрика (пропорционально); fallback — Direct
+                if total_metrika_convs > 0 and total_yandex_cost > 0:
+                    convs = round(total_metrika_convs * (cost / total_yandex_cost))
+                else:
+                    convs = int(r.conversions or 0)
                 campaigns.append({
                     "id": str(r.campaign_id),
                     "name": f"[ЯД] {r.campaign_name}",
@@ -508,6 +526,8 @@ class StatsService:
 
             if campaign_ids:
                 v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                v_query = v_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
             if vk_goal_action_ids:
                 v_query = v_query.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
 
