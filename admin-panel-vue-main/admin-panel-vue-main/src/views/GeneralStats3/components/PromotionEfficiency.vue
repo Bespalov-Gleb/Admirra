@@ -328,22 +328,19 @@ const fetchAutoGoals = async () => {
 
     let allGoalsData = await doFetch()
 
-    // Retry once after 15s if empty — background sync may still be running (race condition)
+    // Retry after 20s if empty — sync может ещё выполняться или был запущен по требованию
     if ((!allGoalsData || allGoalsData.length === 0) && props.clientId) {
-      const retryAfter = () => {
-        setTimeout(async () => {
-          if (!props.clientId || props.startDate !== startDate || props.endDate !== endDate) return
-          const retryData = await doFetch()
-          if (retryData && retryData.length > 0) {
-            const { data: integrations } = await api.get('integrations/', { params: { client_id: props.clientId } })
-            const primaryGoalIds = new Set()
-            integrations?.forEach(i => { if (i.primary_goal_id) primaryGoalIds.add(String(i.primary_goal_id)) })
-            autoGoals.value = retryData.map(g => ({ ...g, is_primary: primaryGoalIds.has(String(g.id)) }))
-              .sort((a, b) => (a.is_primary && !b.is_primary ? -1 : !a.is_primary && b.is_primary ? 1 : (b.count || 0) - (a.count || 0)))
-          }
-        }, 15000)
-      }
-      retryAfter()
+      setTimeout(async () => {
+        if (!props.clientId || props.startDate !== startDate || props.endDate !== endDate) return
+        const retryData = await doFetch()
+        if (retryData && retryData.length > 0) {
+          const { data: integrations } = await api.get('integrations/', { params: { client_id: props.clientId } })
+          const primaryGoalIds = new Set()
+          integrations?.forEach(i => { if (i.primary_goal_id) primaryGoalIds.add(String(i.primary_goal_id)) })
+          autoGoals.value = retryData.map(g => ({ ...g, is_primary: primaryGoalIds.has(String(g.id)) }))
+            .sort((a, b) => (a.is_primary && !b.is_primary ? -1 : !a.is_primary && b.is_primary ? 1 : (b.count || 0) - (a.count || 0)))
+        }
+      }, 20000)
     }
 
     // #region agent log

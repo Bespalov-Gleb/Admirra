@@ -13,6 +13,7 @@ import asyncio
 import logging
 import json
 import os
+import uuid
 
 # Yandex Direct Credentials (should ideally be in a shared config)
 YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
@@ -283,6 +284,70 @@ async def _sync_metrika_goals_for_direct(
             logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
     
     logger.info(f"✅ Completed Metrika goals sync for Direct integration {integration.id}")
+
+
+# Блокировка: не запускать несколько sync целей для одной интеграции одновременно
+_sync_goals_in_progress: set = set()
+_sync_goals_lock = __import__("threading").Lock()
+
+
+def sync_metrika_goals_background(
+    integration_id: uuid.UUID,
+    date_from_str: str,
+    date_to_str: str
+):
+    """
+    Запускает только синхронизацию целей Метрики в фоне (без отчётов/баланса).
+    Вызывается из get_goals при пустом ответе, чтобы подтянуть цели по требованию.
+    """
+    import threading
+    from core.database import SessionLocal
+    from core import security
+
+    with _sync_goals_lock:
+        if integration_id in _sync_goals_in_progress:
+            logger.debug(f"📊 Goals sync already in progress for integration {integration_id}, skipping")
+            return
+        _sync_goals_in_progress.add(integration_id)
+
+    def run_in_thread():
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        db = SessionLocal()
+        try:
+            integration = db.query(models.Integration).filter(
+                models.Integration.id == integration_id
+            ).first()
+            if not integration or integration.platform != models.IntegrationPlatform.YANDEX_DIRECT:
+                return
+            if not (integration.selected_goals or integration.primary_goal_id) or not integration.selected_counters:
+                return
+            access_token = security.decrypt_token(integration.access_token)
+            selected_profile = integration.agency_client_login or integration.account_id
+            if selected_profile and str(selected_profile).lower() in ("unknown", "none", ""):
+                selected_profile = None
+            new_loop.run_until_complete(
+                _sync_metrika_goals_for_direct(
+                    db, integration, date_from_str, date_to_str,
+                    access_token, selected_profile
+                )
+            )
+            db.commit()
+            from backend_api.cache_service import CacheService
+            CacheService.clear()
+            logger.info(f"✅ Goals-only sync completed for integration {integration_id}")
+        except Exception as e:
+            logger.error(f"❌ Goals-only sync failed for {integration_id}: {e}")
+            db.rollback()
+        finally:
+            db.close()
+            new_loop.close()
+            with _sync_goals_lock:
+                _sync_goals_in_progress.discard(integration_id)
+
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
+
 
 async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):
     """

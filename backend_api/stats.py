@@ -13,11 +13,15 @@ import io
 from fastapi.responses import StreamingResponse
 import logging
 import asyncio
-from automation.sync import sync_integration
+from automation.sync import sync_integration, sync_metrika_goals_background
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
+# Дедупликация ensure_data_synced: не запускать повторный sync для интеграции в течение 30 сек
+_sync_last_started: dict = {}
+_sync_cooldown_sec = 30
 
 def check_data_availability(
     db: Session,
@@ -247,11 +251,16 @@ def ensure_data_synced_async(
     if len(integrations) > MAX_CONCURRENT_SYNCS:
         logger.warning(f"⚠️ Too many integrations ({len(integrations)}). Syncing only first {MAX_CONCURRENT_SYNCS}. Rest will sync on next request.")
     
+    # Дедупликация: не запускать повторный sync для той же интеграции в течение _sync_cooldown_sec
+    import time as _time
+    _now = _time.time()
     for integration in integrations_to_sync:
         try:
-            # CRITICAL: Используем sync_integration_background, которая запускает синхронизацию
-            # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
-            # Это гарантирует, что долгие операции синхронизации не заблокируют сайт.
+            _last = _sync_last_started.get(str(integration.id), 0)
+            if _now - _last < _sync_cooldown_sec:
+                logger.debug(f"📤 Skip sync for {integration.id} (cooldown {_sync_cooldown_sec - int(_now - _last)}s)")
+                continue
+            _sync_last_started[str(integration.id)] = _now
             sync_integration_background(integration.id, date_from_str, date_to_str)
             logger.info(f"📤 Background sync task created for integration {integration.id}")
         except Exception as e:
@@ -678,7 +687,7 @@ async def get_top_clients(
     return results
 
 @router.get("/goals", response_model=List[schemas.GoalStat])
-@cache_response(ttl=900)
+@cache_response(ttl=900, skip_cache_when=lambda r: r is not None and len(r) == 0)
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
     integration_id: Optional[uuid.UUID] = None,
@@ -752,6 +761,15 @@ async def get_goals(
                 models.MetrikaGoals.date <= date_to_obj
             ).scalar() or 0
             logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
+            # Запускаем sync целей по требованию — данные появятся после retry на фронте
+            for i in db.query(models.Integration).filter(
+                models.Integration.client_id.in_(effective_client_ids),
+                models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+            ).all():
+                if (i.selected_goals or i.primary_goal_id) and i.selected_counters:
+                    sync_metrika_goals_background(i.id, str(date_from_obj), str(date_to_obj))
+                    logger.info(f"📊 get_goals: triggered goals-only sync for integration {i.id}")
+                    break  # один sync достаточно
 
     # #region agent log
     try:
