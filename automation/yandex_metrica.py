@@ -1,5 +1,6 @@
 import httpx
 from typing import List, Dict, Any
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -7,6 +8,7 @@ logger = logging.getLogger(__name__)
 class YandexMetricaAPI:
     def __init__(self, access_token: str, client_login: str = None):
         self.base_url = "https://api-metrica.yandex.net/stat/v1/data"
+        self.bytime_url = "https://api-metrica.yandex.net/stat/v1/data/bytime"
         self.client_login = client_login
         self.headers = {
             "Authorization": f"OAuth {access_token}"
@@ -46,55 +48,55 @@ class YandexMetricaAPI:
     async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny", goal_id: str = None) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
-        Uses visits instead of reaches to get target visits, not goal achievements.
-        Returns all conversions regardless of traffic source.
+        Uses /stat/v1/data/bytime for daily breakdown (Table endpoint returns 1 row).
+        Returns list of {dimensions: [{name: date}], metrics: [...]} per day.
         """
         params = {
             "ids": counter_id,
             "metrics": metrics,
-            "dimensions": "ym:s:date",
             "date1": date_from,
             "date2": date_to,
             "group": "day",
-            "sort": "ym:s:date"
         }
         if goal_id:
             params["goal_id"] = goal_id
 
-        logger.info(f"📊 Metrika Stat API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to}")
+        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to}")
         async with httpx.AsyncClient() as client:
-            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
-                # API может возвращать данные в разных форматах (v1 vs OpenAPI)
-                rows = data.get('data', [])
-                if not rows and isinstance(data.get('data'), dict):
-                    rows = data['data'].get('data', data['data'].get('rows', []))
-                if not rows and data.get('totals'):
-                    totals = data.get('totals', [])
-                    rows = [{'dimensions': [{'name': date_from}], 'metrics': totals}]
-                # OpenAPI: каждая строка — [dimensions, metrics] вместо {dimensions, metrics}
-                if rows and isinstance(rows[0], (list, tuple)):
-                    converted = []
-                    for r in rows:
-                        dims, mets = (r[0], r[1]) if len(r) >= 2 else (r, [])
-                        dim_objs = dims if isinstance(dims, list) and dims and isinstance(dims[0], dict) else [{'name': str(dims[0]) if dims else date_from}]
-                        met_vals = mets if isinstance(mets, (list, tuple)) else [mets]
-                        converted.append({'dimensions': dim_objs, 'metrics': met_vals})
-                    rows = converted
-                if not rows:
-                    # Логируем структуру ответа для отладки (API может менять формат)
-                    keys = list(data.keys()) if data else []
-                    logger.warning(f"📊 Metrika Stat API: 0 rows. Response keys: {keys}")
-                    for k in ['data', 'totals', 'Data', 'Totals', 'rows', 'Rows']:
-                        if k in data and data[k]:
-                            v = data[k]
-                            logger.warning(f"📊   {k}={type(v).__name__} len={len(v) if hasattr(v, '__len__') else 'N/A'}")
-                else:
-                    logger.info(f"📊 Metrika Stat API: received {len(rows)} rows")
-                return rows
+                rows_data = data.get('data', [])
+                if not rows_data:
+                    logger.warning(f"📊 Metrika bytime: 0 rows. Response keys: {list(data.keys())}")
+                    return []
+
+                # bytime format: data[0].metrics = [[m1_d1, m1_d2, ...], [m2_d1, m2_d2, ...]]
+                # Преобразуем в формат Table: [{dimensions: [{name: date}], metrics: [m1, m2, ...]}, ...]
+                first_row = rows_data[0]
+                metrics_2d = first_row.get('metrics', [])
+                if not metrics_2d:
+                    return []
+
+                # bytime: metrics[m][t] = значение метрики m для дня t (порядок: date1..date2)
+                num_points = len(metrics_2d[0]) if metrics_2d else 0
+                d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
+
+                result = []
+                for day_idx in range(num_points):
+                    date_str = (d_start + timedelta(days=day_idx)).strftime("%Y-%m-%d")
+                    day_metrics = [
+                        int(metrics_2d[m_idx][day_idx]) if day_idx < len(metrics_2d[m_idx]) else 0
+                        for m_idx in range(len(metrics_2d))
+                    ]
+                    result.append({
+                        'dimensions': [{'name': date_str}],
+                        'metrics': day_metrics
+                    })
+
+                logger.info(f"📊 Metrika bytime: received {len(result)} days")
+                return result
             elif response.status_code == 429:
-                # Raise exception with status_code for queue to handle
                 error = Exception(f"429 Too Many Requests")
                 error.status_code = 429
                 error.response = response
