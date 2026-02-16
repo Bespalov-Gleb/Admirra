@@ -52,10 +52,11 @@ class YandexMetricaAPI:
         params = {
             "ids": counter_id,
             "metrics": metrics,
-            "dimensions": "ym:s:date",
+            "dimensions": "ym:s:datePeriod",
             "date1": date_from,
             "date2": date_to,
             "limit": 10000,  # До 90 дней — нужен запас
+            "group": "day",  # Разбивка по дням (ym:s:date давал 1 строку totals)
         }
         if goal_id:
             params["goal_id"] = goal_id
