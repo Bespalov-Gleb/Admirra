@@ -241,16 +241,15 @@ async def _sync_metrika_goals_for_direct(
                 logger.info(f"📊 Committed {_agg_saved} aggregate goal rows for counter {counter_id}")
             except Exception as commit_err:
                 logger.warning(f"📊 Failed to commit aggregate goals for counter {counter_id}: {commit_err}")
-            # Sync individual goals if selected
-            # CRITICAL: Sync goals sequentially with delays to avoid 429 errors
-            # Use only valid goals for this counter (already filtered above)
+            # Sync individual goals: только выбранные цели (selected_goals)
+            goals_to_sync_individual = valid_goals_for_counter
             individual_goals_saved = 0
-            if valid_goals_for_counter and len(valid_goals_for_counter) > 0:
-                logger.info(f"📊 Syncing {len(valid_goals_for_counter)} individual goals for counter {counter_id}")
+            if goals_to_sync_individual and len(goals_to_sync_individual) > 0:
+                logger.info(f"📊 Syncing {len(goals_to_sync_individual)} individual goals for counter {counter_id} (selected goals only)")
                 # goal_names_map already populated above when fetching available goals
                 
                 # Sync goals one by one with delays
-                for idx, goal_id in enumerate(valid_goals_for_counter):
+                for idx, goal_id in enumerate(goals_to_sync_individual):
                     try:
                         # Add delay between requests to avoid rate limits
                         if idx > 0:
@@ -260,7 +259,7 @@ async def _sync_metrika_goals_for_direct(
                         goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
-                        goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}")
+                        goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}") if goal_names_map else f"Goal {goal_id}"
                         
                         # Save individual goal data (goal_data may be None on API error)
                         for g in (goal_data or []):
@@ -985,25 +984,24 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             queue = await get_request_queue()
             goals_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=metrics)
             
-            # Also sync individual goals if selected
+            # Sync individual goals: только выбранные цели (selected_goals)
             if selected_goals and len(selected_goals) > 0:
-                # Sync each goal individually for detailed tracking
+                goal_info_list = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id) or []
                 for goal_id in selected_goals:
                     try:
                         # CRITICAL: Use visits instead of reaches
                         goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
-                        # Get goal name from API
-                        goal_info = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id)
+                        # Get goal name from API (goal_info_list already fetched above)
                         goal_name = "Unknown Goal"
-                        for g in goal_info:
+                        for g in goal_info_list:
                             if str(g.get("id")) == str(goal_id):
                                 goal_name = g.get("name", f"Goal {goal_id}")
                                 break
                         
                         # Save individual goal data
-                        for g in goal_data:
+                        for g in (goal_data or []):
                             if len(g.get('metrics', [])) > 0:
                                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                                 visits = int(g['metrics'][0]) if g['metrics'] else 0
