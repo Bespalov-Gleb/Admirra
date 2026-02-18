@@ -227,12 +227,7 @@ async def _sync_metrika_goals_for_direct(
                 except Exception as parse_err:
                     logger.warning(f"📊 Failed to parse/save goals row: {parse_err}. Row keys: {list(g.keys()) if isinstance(g, dict) else type(g)}")
             # #region agent log
-            try:
-                import json, os
-                _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
-                with open(_log, "a", encoding="utf-8") as _f:
-                    _f.write(json.dumps({"id":"sync_agg","timestamp":__import__("time").time()*1000,"location":"sync.py:save_aggregate","message":"Sync saved aggregate goals","data":{"agg_rows_saved":_agg_saved,"sample_total_visits":_sample_visits,"integration_client_id":str(integration.client_id),"integration_id":str(integration.id),"counter_id":counter_id},"hypothesisId":"A","runId":"post-fix"}) + "\n")
-            except Exception: pass
+            logger.info(f"[DEBUG sync Metrika] agg_rows_saved={_agg_saved} sample_visits={_sample_visits} integration_id={integration.id} counter_id={counter_id}")
             # #endregion
             # Commit aggregate goals immediately so dashboard shows data even if individual goals sync fails or is slow
             try:
@@ -489,7 +484,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             
             try:
                 log_event("sync", f"received {len(stats)} rows from yandex")
-                
+                # #region agent log
+                logger.info(f"[DEBUG sync Direct] rows={len(stats)} first_row={stats[0] if stats else None} integration_id={integration.id}")
+                # #endregion
+
                 # EDGE CASE: Empty report handling
                 if not stats or len(stats) == 0:
                     logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
@@ -549,6 +547,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 # This happens when Reports API returns data for ALL accessible accounts
                 # but discover-campaigns only found campaigns for the token's account
                 if not campaign:
+                    # #region agent log
+                    logger.warning(f"[DEBUG sync SKIP] campaign_id={campaign_external_id} campaign_name={s.get('campaign_name')} not in DB for integration={integration.id}")
+                    # #endregion
                     logger.warning(
                         f"Skipping stats for campaign '{s['campaign_name']}' (ID: {campaign_external_id}) - "
                         f"not found in DB for integration {integration.id}. "
@@ -582,6 +583,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 }
                 logger.info(f"💾 Saving stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}")
                 _update_or_create_stats(db, models.YandexStats, filters, data)
+                # #region agent log
+                if not hasattr(sync_integration, "_yandex_logged"):
+                    sync_integration._yandex_logged = set()
+                if str(integration.id) not in sync_integration._yandex_logged:
+                    logger.info(f"[DEBUG sync SAVE] YandexStats filters={filters} data={data} integration_id={integration.id} client_id={integration.client_id}")
+                    sync_integration._yandex_logged.add(str(integration.id))
+                # #endregion
             
             # CRITICAL: Commit stats after processing all campaign stats
             # This ensures data is saved even if group/keyword sync fails

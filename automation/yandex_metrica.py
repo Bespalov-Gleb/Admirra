@@ -100,6 +100,12 @@ class YandexMetricaAPI:
                     logger.warning(f"📊 Metrika bytime: 0 rows. Response keys: {list(data.keys())}")
                     return []
 
+                # #region agent log
+                _first = rows_data[0] if rows_data else {}
+                _m = _first.get("metrics", [])
+                logger.info(f"[DEBUG Metrika bytime] metrics_len={len(_m)} first_metric_len={len(_m[0]) if _m else 0} query={params.get('metrics')} date1={date_from} date2={date_to}")
+                # #endregion
+
                 # bytime format: data[0].metrics = [[m1_d1, m1_d2, ...], [m2_d1, m2_d2, ...]]
                 # Преобразуем в формат Table: [{dimensions: [{name: date}], metrics: [m1, m2, ...]}, ...]
                 first_row = rows_data[0]
@@ -124,6 +130,10 @@ class YandexMetricaAPI:
                     })
 
                 logger.info(f"📊 Metrika bytime: received {len(result)} days")
+                # #region agent log
+                if result:
+                    logger.info(f"[DEBUG Metrika result] first_day={result[0]} total_days={len(result)} metrics={params.get('metrics')}")
+                # #endregion
                 return result
             elif response.status_code == 429:
                 error = Exception(f"429 Too Many Requests")

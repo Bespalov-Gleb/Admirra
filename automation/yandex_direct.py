@@ -796,6 +796,7 @@ class YandexDirectAPI:
             return []
         
         results = []
+        _first_data_line = None  # #region agent log
         for line in lines:
             if not line.strip():
                 continue
@@ -822,7 +823,7 @@ class YandexDirectAPI:
                             })
                     else:
                         if len(cols) >= 7:
-                            results.append({
+                            row = {
                                 "date": cols[0],
                                 "campaign_id": cols[1],
                                 "campaign_name": cols[2],
@@ -830,9 +831,16 @@ class YandexDirectAPI:
                                 "clicks": int(cols[4]) if cols[4].isdigit() else 0,
                                 "cost": float(cols[5]) / 1000000 if cols[5].replace('.', '', 1).isdigit() else 0.0,
                                 "conversions": int(cols[6]) if cols[6].isdigit() else 0
-                            })
+                            }
+                            results.append(row)
+                            if _first_data_line is None:
+                                _first_data_line = {"row": row, "raw_cols": cols, "num_cols": len(cols)}
                 except (ValueError, IndexError):
                     continue
+        # #region agent log
+        if _first_data_line:
+            logger.info(f"[DEBUG Direct TSV] level={level} total_rows={len(results)} first_row={_first_data_line.get('row')} raw_cols={(_first_data_line.get('raw_cols') or [])[:7]}")
+        # #endregion
         return results
 
     async def get_campaign_counters(self, campaign_ids: List[str]) -> Dict[str, List[str]]:

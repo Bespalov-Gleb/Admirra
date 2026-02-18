@@ -411,6 +411,11 @@ async def get_dynamics(
                 y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
 
+    # #region agent log
+    _ys = [{"date": str(s.date), "cost": float(s.cost or 0), "clicks": s.clicks, "impressions": s.impressions, "leads": s.leads} for s in (y_stats or [])[:5]]
+    logger.info(f"[DEBUG stats] YandexStats count={len(y_stats or [])} sample={_ys} client_ids={[str(c) for c in effective_client_ids]} period={d_start}..{d_end}")
+    # #endregion
+
     v_stats = db.query(
         models.VKStats.date,
         func.sum(models.VKStats.cost).label("cost"),
@@ -471,6 +476,11 @@ async def get_dynamics(
             m_query = m_query.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
         
         m_stats = m_query.group_by(models.MetrikaGoals.date).all()
+
+        # #region agent log
+        _ms = [{"date": str(s.date), "leads": s.leads} for s in (m_stats or [])[:5]]
+        logger.info(f"[DEBUG stats] MetrikaGoals count={len(m_stats or [])} sample={_ms} m_integration_ids={m_integration_ids}")
+        # #endregion
 
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
     for i in range((d_end - d_start).days + 1):
