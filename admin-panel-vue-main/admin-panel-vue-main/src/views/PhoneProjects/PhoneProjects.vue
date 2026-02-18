@@ -243,6 +243,7 @@
                     placeholder="123456789"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <p class="text-xs text-gray-500 mt-1">Чат, куда бот будет присылать уведомления о новых заявках.</p>
                 </div>
               </div>
             </div>
@@ -538,11 +539,13 @@ const manualLeadForm = reactive({
 const manualLeadJsToken = ref(generateJsToken())
 const manualLeadStartTs = ref(Math.floor(Date.now() / 1000))
 
+// Всегда показываем URL по id проекта (не зависим от webhook_url с бэкенда)
 const webhookFullUrl = computed(() => {
-  if (!viewingProject.value) return ''
-  const base = window.location.origin + '/api'
-  if (viewingProject.value.webhook_url) return `${base}${viewingProject.value.webhook_url}`
-  return `${base}/webhook/phone/${viewingProject.value.id}`
+  const p = viewingProject.value
+  if (!p || p.id == null || p.id === undefined) return ''
+  const base = window.location?.origin ?? ''
+  if (!base) return ''
+  return `${base}/api/webhook/phone/${p.id}`
 })
 
 function generateJsToken() {
@@ -628,9 +631,16 @@ const editProject = (project) => {
   showCreateModal.value = true
 }
 
-const viewProject = (project) => {
+const viewProject = async (project) => {
+  if (!project?.id) return
   viewingProject.value = project
   activeTab.value = 'info'
+  try {
+    const { data } = await api.get(`phone-projects/${project.id}`)
+    viewingProject.value = data
+  } catch (e) {
+    // оставляем данные из списка
+  }
 }
 
 const deleteProject = async (project) => {
