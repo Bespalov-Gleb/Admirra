@@ -1,12 +1,13 @@
 """
 Яндекс.Метрика API: статистика и цели.
 
-Фильтр визитов по источнику (как в интерфейсе Метрики):
+Фильтр по источнику (только визиты из Яндекс.Директа) в интерфейсе Метрики:
 «Визиты, в которых» → Источники → Автоматическая атрибуция →
 Рекламная система: «Яндекс.Директ» или «Яндекс.Директ: Не определено».
 
-Документация: https://yandex.com/dev/metrika/doc/api2/api_v1/en/stat/segmentation
-Измерение: ym:s:adSystem. Значения: yandex_direct, ya_undefined.
+Документация: пресет «Ad systems» использует измерение ym:s:AdvEngine
+(https://yandex.com/dev/metrika/en/stat/presets/preset_sources).
+Значения: yandex_direct, ya_undefined (Яндекс.Директ и «Не определено»).
 """
 import httpx
 from typing import List, Dict, Any, Optional
@@ -15,10 +16,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Фильтр: только визиты из Яндекс.Директа (включая «Не определено»)
-# Синтаксис: https://yandex.com/dev/metrika/en/stat/segmentation
+# Фильтр: только визиты из Яндекс.Директа (включая «Не определено»).
+# Измерение из пресета «Ad systems»: ym:s:AdvEngine (не adSystem — тот даёт 400).
 FILTER_YANDEX_DIRECT_VISITS = (
-    "ym:s:adSystem=='yandex_direct' OR ym:s:adSystem=='ya_undefined'"
+    "ym:s:AdvEngine=='yandex_direct' OR ym:s:AdvEngine=='ya_undefined'"
 )
 
 
@@ -86,9 +87,9 @@ class YandexMetricaAPI:
         }
         if goal_id:
             params["goal_id"] = goal_id
-        # Фильтр по источнику: только визиты из Яндекс.Директа (и «Не определено»)
+        # Фильтр по источнику: только визиты из Яндекс.Директа (ym:s:AdvEngine из пресета «Ad systems»).
+        # Передать filters="" чтобы отключить фильтр и считать все визиты.
         params["filters"] = filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS
-
         logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
