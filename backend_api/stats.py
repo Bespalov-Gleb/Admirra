@@ -205,6 +205,10 @@ def ensure_data_synced_async(
     
     logger.info(f"⚠️ Data not available in DB for period {d_start} to {d_end}. Starting background sync...")
     
+    # Очищаем кеш при запуске синка — следующий запрос получит свежие данные после завершения
+    from backend_api.cache_service import CacheService
+    CacheService.clear()
+    
     # Получаем все интеграции для этих клиентов
     integrations = db.query(models.Integration).filter(
         models.Integration.client_id.in_(client_ids)
@@ -267,7 +271,7 @@ def ensure_data_synced_async(
             logger.error(f"❌ Error creating background sync task for integration {integration.id}: {e}")
 
 @router.get("/summary", response_model=schemas.StatsSummary)
-@cache_response(ttl=900)
+@cache_response(ttl=120)
 async def get_summary(
     start_date: str = None,
     end_date: str = None,
@@ -317,7 +321,7 @@ async def get_summary(
     return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
-@cache_response(ttl=900)
+@cache_response(ttl=120)
 async def get_dynamics(
     start_date: str = None,
     end_date: str = None,

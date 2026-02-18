@@ -54,18 +54,15 @@ export function useDashboardStats() {
   const setInitialDates = () => {
     const end = new Date()
     const start = new Date()
-    // CRITICAL: If period is "14 days", we want period starting from (today - periodDays) to today
-    // So we subtract periodDays to get the correct start date
-    const periodDays = parseInt(filters.period)
-    start.setDate(end.getDate() - periodDays) // For 14 days: go back 14 days to get period from 12th to 26th
+    const periodDays = parseInt(filters.period) || 14
+    // Корректный расчёт: today - periodDays (миллисекунды, без ошибок на границах месяцев)
+    start.setTime(end.getTime() - periodDays * 24 * 60 * 60 * 1000)
     filters.start_date = start.toISOString().split('T')[0]
     filters.end_date = end.toISOString().split('T')[0]
   }
 
   const handlePeriodChange = async () => {
     if (filters.period === 'custom') {
-      // For custom period, dates are set by DateRangePicker
-      // Just fetch stats if dates are already set
       if (filters.start_date && filters.end_date) {
         fetchStats()
       }
@@ -73,10 +70,8 @@ export function useDashboardStats() {
     }
     const end = new Date()
     const start = new Date()
-    // CRITICAL: If period is "14 days", we want period starting from (today - periodDays) to today
-    // So we subtract periodDays to get the correct start date
-    const periodDays = parseInt(filters.period)
-    start.setDate(end.getDate() - periodDays) // For 14 days: go back 14 days to get period from 12th to 26th
+    const periodDays = parseInt(filters.period) || 14
+    start.setTime(end.getTime() - periodDays * 24 * 60 * 60 * 1000)
     const newStartDate = start.toISOString().split('T')[0]
     const newEndDate = end.toISOString().split('T')[0]
     

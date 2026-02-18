@@ -159,27 +159,26 @@ async def _sync_metrika_goals_for_direct(
                     logger.warning(f"⚠️ Could not verify goal availability for counter {counter_id}, using all selected goals")
             
             # Sync aggregated goals
-            # CRITICAL: Use visits (целевые визиты) instead of reaches (достижения цели)
-            # CRITICAL: When primary_goal_id set, use ONLY that goal - summing multiple causes double count
-            # (one visit can achieve multiple goals → 72+54=126 instead of 72)
+            # CRITICAL: Use reaches (достижения цели) — совпадает с «Конверсии»/«Лиды» в интерфейсе Метрики.
+            # visits = визиты с целью (1 визит = 1 даже при 5 срабатываниях); reaches = кол-во срабатываний.
             goals_for_aggregate = valid_goals_for_counter
             primary_str = str(integration.primary_goal_id) if integration.primary_goal_id else None
             if primary_str and primary_str in (valid_goals_for_counter or []):
                 goals_for_aggregate = [primary_str]
                 logger.info(f"📊 Using primary_goal_id for aggregate: {integration.primary_goal_id}")
             
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
             if goals_for_aggregate and len(goals_for_aggregate) > 0:
-                goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
+                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
-            
-            logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
+
+            logger.info(f"📊 Requesting Stat API (goals reaches) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
             logger.info(f"📊 Goals data back from queue for counter {counter_id}: {len(goals_data or [])} rows")
             if not goals_data and goals_for_aggregate:
-                # Fallback: только ym:s:sumGoalVisitsAny (агрегат по всем целям)
-                logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalVisitsAny")
-                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalVisitsAny")
+                # Fallback: только ym:s:sumGoalReachesAny (агрегат по всем целям)
+                logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalReachesAny")
+                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalReachesAny")
             logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # #region agent log
@@ -194,7 +193,7 @@ async def _sync_metrika_goals_for_direct(
                         continue
                     stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                     # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
-                    # При fallback на sumGoalVisitsAny — только metrics[0]
+                    # При fallback на sumGoalReachesAny — только metrics[0]
                     total_visits = 0
                     if goals_for_aggregate and len(goals_for_aggregate) > 0:
                         if len(goals_for_aggregate) == 1:
@@ -255,8 +254,8 @@ async def _sync_metrika_goals_for_direct(
                         if idx > 0:
                             await asyncio.sleep(1.0)  # 1 second delay between goal requests
                         
-                        # CRITICAL: Use visits (целевые визиты) instead of reaches
-                        goal_metrics = f"ym:s:goal{goal_id}visits"
+                        # CRITICAL: Use reaches (достижения цели) — совпадает с Метрикой
+                        goal_metrics = f"ym:s:goal{goal_id}reaches"
                         goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}") if goal_names_map else f"Goal {goal_id}"
@@ -973,10 +972,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             else:
                 logger.info(f"🔄 Regular sync for integration {integration.id}: fetching goals data ({sync_date_from} to {sync_date_to})")
 
-            # CRITICAL: Use visits (целевые визиты) instead of reaches
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
+            # CRITICAL: Use reaches (достижения цели) — совпадает с «Конверсии»/«Лиды» в Метрике
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
             if selected_goals and len(selected_goals) > 0:
-                goal_metrics = [f"ym:s:goal{gid}visits" for gid in selected_goals]
+                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
 
             # CRITICAL: Use request queue to avoid 429 errors
@@ -989,8 +988,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 goal_info_list = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id) or []
                 for goal_id in selected_goals:
                     try:
-                        # CRITICAL: Use visits instead of reaches
-                        goal_metrics = f"ym:s:goal{goal_id}visits"
+                        # CRITICAL: Use reaches (достижения цели) — совпадает с Метрикой
+                        goal_metrics = f"ym:s:goal{goal_id}reaches"
                         goal_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         # Get goal name from API (goal_info_list already fetched above)
@@ -1030,7 +1029,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
-                # CRITICAL: Now using visits (целевые визиты) instead of reaches
+                # CRITICAL: Now using reaches (достижения цели)
                 total_visits = 0
                 if selected_goals and len(selected_goals) > 0:
                     for i in range(1, len(g['metrics'])):
