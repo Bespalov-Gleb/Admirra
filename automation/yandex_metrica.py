@@ -1,9 +1,26 @@
+"""
+Яндекс.Метрика API: статистика и цели.
+
+Фильтр визитов по источнику (как в интерфейсе Метрики):
+«Визиты, в которых» → Источники → Автоматическая атрибуция →
+Рекламная система: «Яндекс.Директ» или «Яндекс.Директ: Не определено».
+
+Документация: https://yandex.com/dev/metrika/doc/api2/api_v1/en/stat/segmentation
+Измерение: ym:s:adSystem. Значения: yandex_direct, ya_undefined.
+"""
 import httpx
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Фильтр: только визиты из Яндекс.Директа (включая «Не определено»)
+# Синтаксис: https://yandex.com/dev/metrika/en/stat/segmentation
+FILTER_YANDEX_DIRECT_VISITS = (
+    "ym:s:adSystem=='yandex_direct' OR ym:s:adSystem=='ya_undefined'"
+)
+
 
 class YandexMetricaAPI:
     def __init__(self, access_token: str, client_login: str = None):
@@ -45,10 +62,19 @@ class YandexMetricaAPI:
                 logger.error(f"Yandex Metrica API Error: {response.status_code} - {response.text}")
                 return []
 
-    async def get_goals_stats(self, counter_id: str, date_from: str, date_to: str, metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny", goal_id: str = None) -> List[Dict[str, Any]]:
+    async def get_goals_stats(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny",
+        goal_id: Optional[str] = None,
+        filters: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
         Uses /stat/v1/data/bytime for daily breakdown (Table endpoint returns 1 row).
+        By default applies filter: only visits from Yandex.Direct (incl. Undefined).
         Returns list of {dimensions: [{name: date}], metrics: [...]} per day.
         """
         params = {
@@ -60,8 +86,10 @@ class YandexMetricaAPI:
         }
         if goal_id:
             params["goal_id"] = goal_id
+        # Фильтр по источнику: только визиты из Яндекс.Директа (и «Не определено»)
+        params["filters"] = filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS
 
-        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to}")
+        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:

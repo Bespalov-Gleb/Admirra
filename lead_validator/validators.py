@@ -26,8 +26,47 @@ from lead_validator.services.social_checker import social_checker
 from lead_validator.services.gosuslugi_checker import gosuslugi_checker
 from lead_validator.services.spam_checker import spam_checker
 from lead_validator.services.bitrix_service import bitrix_service
+from core import models, security
 
 logger = logging.getLogger("lead_validator.validators")
+
+
+def _get_metrica_credentials_from_project(db: Optional[Session], project) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Получить OAuth-токен и ID счётчика Метрики из интеграции Яндекса клиента проекта.
+    Если проект привязан к клиенту и у клиента есть интеграция YANDEX_DIRECT,
+    возвращаем (token, counter_id) для отправки офлайн-конверсий; иначе (None, None).
+    """
+    if not db or not project or not getattr(project, "client_id", None):
+        return (None, None)
+    try:
+        integration = (
+            db.query(models.Integration)
+            .filter(
+                models.Integration.client_id == project.client_id,
+                models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
+            )
+            .first()
+        )
+        if not integration or not integration.access_token:
+            return (None, None)
+        token = security.decrypt_token(integration.access_token)
+        counter_id = None
+        if getattr(integration, "selected_counters", None):
+            try:
+                counters = json.loads(integration.selected_counters)
+                if isinstance(counters, list) and counters:
+                    counter_id = str(counters[0])
+            except (TypeError, ValueError):
+                pass
+        if not counter_id and getattr(integration, "account_id", None):
+            counter_id = str(integration.account_id)
+        if not token or not counter_id:
+            return (None, None)
+        return (token, counter_id)
+    except Exception as e:
+        logger.debug("Could not get Metrica credentials from integration: %s", e)
+        return (None, None)
 
 
 class LeadValidator:
@@ -574,12 +613,16 @@ class LeadValidator:
                 logger.error(f"Failed to save lead to database: {e}")
                 db.rollback()
         
-        # Отправляем конверсию в Яндекс.Метрику
+        # Отправляем конверсию в Яндекс.Метрику (токен/счётчик из интеграции клиента или из env)
         try:
-            # Используем ym_uid если есть, иначе IP как fallback
             client_id = lead.ym_uid or lead.client_ip or "unknown"
             if project and project.enable_metrica_export:
-                await metrica_service.send_quality_lead(client_id)
+                oauth_token, counter_id = _get_metrica_credentials_from_project(db, project)
+                await metrica_service.send_quality_lead(
+                    client_id,
+                    oauth_token=oauth_token,
+                    counter_id=counter_id,
+                )
         except Exception as e:
             logger.error(f"Failed to send Metrica conversion: {e}")
         

@@ -74,9 +74,10 @@ def get_yandex_auth_url(redirect_uri: str):
     Required scopes for Yandex Direct API:
     - direct:api - access to Yandex Direct API
     - metrika:read - access to Yandex Metrika (for goals)
+    - metrika:offline_data - upload offline conversions (для телефонии/лидов)
     """
-    # Yandex Direct requires specific scopes
-    scope = "direct:api metrika:read"
+    # Yandex Direct + Metrika (чтение целей и загрузка офлайн-конверсий)
+    scope = "direct:api metrika:read metrika:offline_data"
     return {
         "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}"
     }

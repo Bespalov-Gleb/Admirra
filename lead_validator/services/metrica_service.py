@@ -77,49 +77,63 @@ class MetricaService:
         client_id: str,
         goal_type: GoalType = "all_leads",
         price: Optional[float] = None,
-        conversion_time: Optional[datetime] = None
+        conversion_time: Optional[datetime] = None,
+        *,
+        oauth_token: Optional[str] = None,
+        counter_id: Optional[str] = None,
     ) -> bool:
         """
         Отправить офлайн-конверсию в Яндекс.Метрику.
+        
+        Если переданы oauth_token и counter_id (например из интеграции клиента),
+        они используются для этого запроса; иначе — глобальные настройки (env).
         
         Args:
             client_id: ID посетителя (_ym_uid cookie или IP как fallback)
             goal_type: Тип цели (quality_lead, potential_spam, all_leads)
             price: Ценность конверсии (опционально)
             conversion_time: Время конверсии (по умолчанию сейчас)
+            oauth_token: OAuth-токен (если из интеграции)
+            counter_id: ID счётчика Метрики (если из интеграции)
             
         Returns:
             True если успешно отправлено, False при ошибке
         """
-        if not self.enabled:
+        use_token = oauth_token or self.oauth_token
+        use_counter = counter_id or self.counter_id
+        use_global = not (oauth_token and counter_id)
+        if use_global and not self.enabled:
             logger.debug("Metrica disabled, skipping conversion")
             return False
-        
+        if not use_token or not use_counter:
+            logger.debug("Metrica: no token or counter (global or passed), skipping")
+            return False
         if not client_id:
             logger.warning("No client_id provided, skipping conversion")
             return False
         
-        # Время конверсии
         dt = conversion_time or datetime.now()
         dt_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Название цели
         goal_name = self.goal_names.get(goal_type, goal_type)
-        
-        # Формируем CSV данные
         csv_content = self._build_csv(client_id, goal_name, dt_str, price)
         
         try:
-            return await self._upload_conversions(csv_content)
+            return await self._upload_conversions(csv_content, oauth_token=use_token, counter_id=use_counter)
         except Exception as e:
             logger.error(f"Failed to send conversion to Metrica: {e}")
             return False
     
-    async def send_quality_lead(self, client_id: str, price: Optional[float] = None) -> bool:
-        """Отправить конверсию 'качественный лид'."""
-        # Отправляем обе цели: качественный_лид и все_лиды
-        result1 = await self.send_conversion(client_id, "quality_lead", price)
-        result2 = await self.send_conversion(client_id, "all_leads", price)
+    async def send_quality_lead(
+        self, client_id: str, price: Optional[float] = None,
+        *, oauth_token: Optional[str] = None, counter_id: Optional[str] = None,
+    ) -> bool:
+        """Отправить конверсию 'качественный лид' (опционально с токеном/счётчиком из интеграции)."""
+        result1 = await self.send_conversion(
+            client_id, "quality_lead", price, oauth_token=oauth_token, counter_id=counter_id
+        )
+        result2 = await self.send_conversion(
+            client_id, "all_leads", price, oauth_token=oauth_token, counter_id=counter_id
+        )
         return result1 or result2
     
     async def send_spam_lead(self, client_id: str) -> bool:
@@ -150,17 +164,22 @@ class MetricaService:
         
         return output.getvalue()
     
-    async def _upload_conversions(self, csv_content: str) -> bool:
+    async def _upload_conversions(
+        self, csv_content: str,
+        oauth_token: Optional[str] = None,
+        counter_id: Optional[str] = None,
+    ) -> bool:
         """
         Загрузить CSV с конверсиями в Метрику.
         
         API endpoint: POST /management/v1/counter/{counterId}/offline_conversions/upload
         """
-        url = f"{self.base_url}/counter/{self.counter_id}/offline_conversions/upload"
-        
-        headers = {
-            "Authorization": f"OAuth {self.oauth_token}"
-        }
+        token = oauth_token or self.oauth_token
+        cid = counter_id or self.counter_id
+        if not token or not cid:
+            return False
+        url = f"{self.base_url}/counter/{cid}/offline_conversions/upload"
+        headers = {"Authorization": f"OAuth {token}"}
         
         # Multipart form data с CSV файлом
         files = {
