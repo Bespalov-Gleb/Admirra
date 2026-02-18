@@ -391,7 +391,7 @@
                   Копировать
                 </button>
               </div>
-              <p class="text-xs text-gray-500 mt-1">Используйте этот URL для настройки webhook в Tilda, Marquiz и других сервисах</p>
+              <p class="text-xs text-gray-500 mt-1">Используйте этот URL в Tilda и Marquiz — заявки пойдут в квалификацию этого проекта.</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Webhook Secret</label>
@@ -409,6 +409,33 @@
                 </button>
               </div>
               <p class="text-xs text-gray-500 mt-1">Добавьте секрет в заголовок <code class="font-mono">X-Webhook-Secret</code></p>
+            </div>
+
+            <!-- Инструкции Tilda и Marquiz -->
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
+              <h4 class="font-semibold text-gray-900">Подключение Tilda и Marquiz</h4>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <p class="text-sm font-medium text-gray-700">Tilda</p>
+                  <ol class="list-decimal list-inside text-sm text-gray-600 space-y-1">
+                    <li>Настройки сайта → Формы → Webhook (или в блоке с формой: Контент → отметьте Webhook)</li>
+                    <li>URL: вставьте скопированный Webhook URL этого проекта</li>
+                    <li>Формат: JSON. Метод POST. Добавьте заголовок <code class="text-xs">X-Webhook-Secret</code> со значением секрета выше</li>
+                    <li>Переопубликуйте страницу</li>
+                  </ol>
+                  <p class="text-xs text-gray-500">Подробнее: help-ru.tilda.cc/forms/webhook</p>
+                </div>
+                <div class="space-y-2">
+                  <p class="text-sm font-medium text-gray-700">Marquiz</p>
+                  <ol class="list-decimal list-inside text-sm text-gray-600 space-y-1">
+                    <li>Редактор квиза → Интеграции → Webhook</li>
+                    <li>URL: вставьте скопированный Webhook URL этого проекта</li>
+                    <li>Добавьте заголовок <code class="text-xs">X-Webhook-Secret</code> со значением секрета выше</li>
+                    <li>Сохраните. Заявки будут уходить в квалификацию этого проекта</li>
+                  </ol>
+                  <p class="text-xs text-gray-500">В Marquiz передаются name, phone, email, UTM и ответы квиза</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -512,8 +539,10 @@ const manualLeadJsToken = ref(generateJsToken())
 const manualLeadStartTs = ref(Math.floor(Date.now() / 1000))
 
 const webhookFullUrl = computed(() => {
-  if (!viewingProject?.webhook_url) return ''
-  return `${window.location.origin}/api${viewingProject.webhook_url}`
+  if (!viewingProject.value) return ''
+  const base = window.location.origin + '/api'
+  if (viewingProject.value.webhook_url) return `${base}${viewingProject.value.webhook_url}`
+  return `${base}/webhook/phone/${viewingProject.value.id}`
 })
 
 function generateJsToken() {

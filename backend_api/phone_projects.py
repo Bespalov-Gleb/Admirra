@@ -105,6 +105,14 @@ class PhoneProjectResponse(BaseModel):
 # API Endpoints
 # ============================================================================
 
+def _ensure_webhook_url(project: models.PhoneProject, db: Session) -> None:
+    """Если webhook_url пустой — генерируем и сохраняем."""
+    if not project.webhook_url or not project.webhook_url.strip():
+        project.webhook_url = f"/webhook/phone/{project.id}"
+        db.commit()
+        db.refresh(project)
+
+
 @router.get("/", response_model=List[PhoneProjectResponse])
 def get_phone_projects(
     current_user: models.User = Depends(security.get_current_user),
@@ -114,7 +122,8 @@ def get_phone_projects(
     projects = db.query(models.PhoneProject).filter(
         models.PhoneProject.owner_id == current_user.id
     ).all()
-    
+    for p in projects:
+        _ensure_webhook_url(p, db)
     return projects
 
 
@@ -194,6 +203,8 @@ def get_phone_project(
     
     if not project:
         raise HTTPException(status_code=404, detail="Phone project not found")
+    
+    _ensure_webhook_url(project, db)
     
     import json
     response_data = PhoneProjectResponse.from_orm(project)

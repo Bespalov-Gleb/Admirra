@@ -452,27 +452,28 @@ async def phone_project_webhook(
     description="Возвращает URL-ы для настройки в Tilda и Marquiz"
 )
 async def webhook_info(request: Request) -> Dict[str, Any]:
-    """Информация о доступных webhook эндпоинтах."""
+    """Информация о доступных webhook эндпоинтах (роутер подключён с prefix=/api)."""
     base_url = str(request.base_url).rstrip("/")
-    
+    webhook_base = f"{base_url}/api/webhook"
     return {
         "endpoints": {
-            "tilda": f"{base_url}/webhook/tilda/",
-            "marquiz": f"{base_url}/webhook/marquiz/",
-            "debug_tilda": f"{base_url}/webhook/debug/tilda/",
-            "debug_marquiz": f"{base_url}/webhook/debug/marquiz/",
+            "tilda": f"{webhook_base}/tilda/",
+            "marquiz": f"{webhook_base}/marquiz/",
+            "phone_project": f"{webhook_base}/phone/{{project_id}}",
+            "debug_tilda": f"{webhook_base}/debug/tilda/",
+            "debug_marquiz": f"{webhook_base}/debug/marquiz/",
         },
         "tilda_setup": {
-            "step1": "Откройте настройки формы в Tilda",
-            "step2": "Перейдите в раздел 'Подключить сервис' → 'Webhook'",
-            "step3": f"Укажите URL: {base_url}/webhook/tilda/",
-            "step4": "Выберите формат: JSON",
+            "step1": "Настройки сайта → Формы → Webhook (или в блоке формы: Контент → Webhook)",
+            "step2": "Укажите URL вашего проекта (см. вкладку Webhook в проекте телефонии)",
+            "step3": "Формат: JSON. Для проекта укажите URL вида .../api/webhook/phone/{project_id} и заголовок X-Webhook-Secret",
+            "step4": "Переопубликуйте страницу с формой",
         },
         "marquiz_setup": {
-            "step1": "Откройте настройки квиза в Marquiz",
-            "step2": "Перейдите в 'Интеграции' → 'Webhook'",
-            "step3": f"Укажите URL: {base_url}/webhook/marquiz/",
-            "step4": "Сохраните настройки",
+            "step1": "Редактор квиза → Интеграции → Webhook (или Настройки → Интеграции)",
+            "step2": "Укажите URL проекта: .../api/webhook/phone/{project_id}",
+            "step3": "Добавьте заголовок X-Webhook-Secret со значением секрета проекта",
+            "step4": "Сохраните настройки. Заявки пойдут в квалификацию этого проекта.",
         }
     }
 
