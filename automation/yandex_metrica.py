@@ -7,7 +7,8 @@
 
 Документация: пресет «Ad systems» использует измерение ym:s:AdvEngine
 (https://yandex.com/dev/metrika/en/stat/presets/preset_sources).
-Значения: yandex_direct, ya_undefined (Яндекс.Директ и «Не определено»).
+Значения: ya_direct, ya_undefined (Яндекс.Директ и «Не определено»).
+ВАЖНО: yandex_direct — неверно, корректно ya_direct (поддержка Метрики).
 """
 import httpx
 from typing import List, Dict, Any, Optional
@@ -17,9 +18,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Фильтр: только визиты из Яндекс.Директа (включая «Не определено»).
-# Измерение из пресета «Ad systems»: ym:s:AdvEngine (не adSystem — тот даёт 400).
+# Измерение ym:s:AdvEngine. Значения: ya_direct, ya_undefined (НЕ yandex_direct).
 FILTER_YANDEX_DIRECT_VISITS = (
-    "ym:s:AdvEngine=='yandex_direct' OR ym:s:AdvEngine=='ya_undefined'"
+    "ym:s:AdvEngine=='ya_direct' OR ym:s:AdvEngine=='ya_undefined'"
 )
 
 
@@ -87,10 +88,11 @@ class YandexMetricaAPI:
         }
         if goal_id:
             params["goal_id"] = goal_id
-        # Фильтр по источнику: только визиты из Яндекс.Директа (ym:s:AdvEngine из пресета «Ad systems»).
-        # Передать filters="" чтобы отключить фильтр и считать все визиты.
+        # Фильтр по источнику: только визиты из Яндекс.Директа (ya_direct, ya_undefined).
+        # attribution=automatic — обязателен для корректной работы фильтра AdvEngine.
         params["filters"] = filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS
-        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct")
+        params["attribution"] = "automatic"
+        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct attribution=automatic")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
