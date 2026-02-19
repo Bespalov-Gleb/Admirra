@@ -145,18 +145,29 @@ async def _sync_metrika_goals_for_direct(
                 logger.warning(f"Failed to fetch available goals for counter {counter_id}: {goals_info_err}")
                 # Continue without filtering - will fail later but at least we tried
             
-            # CRITICAL: Filter selected_goals to only include goals that exist in this counter
+            # CRITICAL: Для суммы на дашборде нужны ВСЕ цели (goal_id != "all").
+            # Иначе: Метрика 5 конверсий → дашборд 1 (если синкаем только selected_goals).
+            # Синкаем available_goals когда есть — сумма совпадёт с Метрикой.
             valid_goals_for_counter = []
-            if selected_goals and len(selected_goals) > 0:
-                if available_goals:
+            if available_goals:
+                if selected_goals and len(selected_goals) > 0:
                     valid_goals_for_counter = [gid for gid in selected_goals if str(gid) in available_goals]
                     invalid_goals = [gid for gid in selected_goals if str(gid) not in available_goals]
                     if invalid_goals:
                         logger.warning(f"⚠️ Counter {counter_id} does not have these goals (skipping): {invalid_goals}")
+                    # Синкаем ВСЕ доступные цели для корректной суммы (selected только для aggregate)
+                    if len(valid_goals_for_counter) < len(available_goals):
+                        valid_goals_for_counter = available_goals
+                        logger.info(f"📊 Using all {len(available_goals)} goals so dashboard sum matches Metrika")
                 else:
-                    # If we couldn't get available goals list, use all selected goals (will fail if invalid)
-                    valid_goals_for_counter = selected_goals
-                    logger.warning(f"⚠️ Could not verify goal availability for counter {counter_id}, using all selected goals")
+                    valid_goals_for_counter = available_goals
+                    logger.info(f"📊 selected_goals empty — using all {len(available_goals)} available goals for counter {counter_id}")
+            elif selected_goals and len(selected_goals) > 0:
+                valid_goals_for_counter = selected_goals
+                logger.warning(f"⚠️ Could not verify goal availability for counter {counter_id}, using selected_goals")
+            elif integration.primary_goal_id:
+                valid_goals_for_counter = [str(integration.primary_goal_id)]
+                logger.info(f"📊 selected_goals empty, no available_goals — using primary_goal_id {integration.primary_goal_id}")
             
             # Sync aggregated goals
             # CRITICAL: Use reaches (достижения цели) — совпадает с «Конверсии»/«Лиды» в интерфейсе Метрики.
