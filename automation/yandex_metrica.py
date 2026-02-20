@@ -77,8 +77,9 @@ class YandexMetricaAPI:
     ) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
-        Uses /stat/v1/data/bytime for daily breakdown (Table endpoint returns 1 row).
-        By default applies filter: only visits from Yandex.Direct (incl. Undefined).
+        Использует /stat/v1/data как в примере поддержки (bytime возвращал нули).
+        dimensions=ym:s:<attribution>TrafficSource + attribution=automatic — сегмент «Источники • Автоматическая атрибуция».
+        dimensions=ym:s:date — разбивка по дням.
         Returns list of {dimensions: [{name: date}], metrics: [...]} per day.
         """
         params = {
@@ -86,57 +87,65 @@ class YandexMetricaAPI:
             "metrics": metrics,
             "date1": date_from,
             "date2": date_to,
-            "group": "day",
-            # Фильтр + attribution=automatic (сегмент «Источники • Автоматическая атрибуция»).
-            # dimensions с <attribution> ломает bytime (0 rows) — поддержка использовала /data, не /bytime.
-            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            # Поддержка: /stat/v1/data + dimensions=ym:s:<attribution>TrafficSource + attribution=automatic.
+            # Для разбивки по дням добавляем ym:s:date. Порядок: date первым (основная группировка).
+            "dimensions": "ym:s:date,ym:s:<attribution>TrafficSource",
             "attribution": "automatic",
+            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
             "accuracy": "1",
+            "limit": "1000",
         }
         if goal_id:
             params["goal_id"] = goal_id
-        logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct attribution=automatic")
+        logger.info(f"📊 Metrika data API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to} dimensions=TrafficSource+date attribution=automatic")
         async with httpx.AsyncClient() as client:
-            response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
+            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
                 rows_data = data.get('data', [])
                 if not rows_data:
-                    logger.warning(f"📊 Metrika bytime: 0 rows. Response keys: {list(data.keys())}")
+                    logger.warning(f"📊 Metrika data: 0 rows. Response keys: {list(data.keys())} totals={data.get('totals')}")
                     return []
 
                 # #region agent log
                 _first = rows_data[0] if rows_data else {}
-                _m = _first.get("metrics", [])
-                logger.info(f"[DEBUG Metrika bytime] rows={len(rows_data)} metrics_len={len(_m)} first_metric_len={len(_m[0]) if _m else 0} query={params.get('metrics')} date1={date_from} date2={date_to}")
+                logger.info(f"[DEBUG Metrika data] rows={len(rows_data)} first={_first} totals={data.get('totals')}")
                 # #endregion
 
-                # bytime без dimensions: одна строка, metrics[m][t] = метрика m для дня t
-                first_row = rows_data[0]
-                metrics_2d = first_row.get('metrics', [])
-                if not metrics_2d:
-                    return []
+                # /data: каждая строка = dimensions (date, TrafficSource) + metrics
+                # Суммируем по датам (несколько строк на дату: ya_direct, ya_undefined)
+                by_date: dict[str, list] = {}
+                for row in rows_data:
+                    dims = row.get('dimensions', [])
+                    if len(dims) >= 1:
+                        date_str = dims[0].get('name') if isinstance(dims[0], dict) else str(dims[0])
+                    else:
+                        continue
+                    m = row.get('metrics', [])
+                    if date_str not in by_date:
+                        by_date[date_str] = [0] * len(m)
+                    for i, v in enumerate(m):
+                        if i < len(by_date[date_str]):
+                            by_date[date_str][i] += int(v or 0)
 
-                num_points = len(metrics_2d[0]) if metrics_2d else 0
                 d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
-
+                d_end = datetime.strptime(date_to, "%Y-%m-%d").date()
+                num_metrics = len(next(iter(by_date.values()), [])) if by_date else 0
                 result = []
-                for day_idx in range(num_points):
-                    date_str = (d_start + timedelta(days=day_idx)).strftime("%Y-%m-%d")
-                    day_metrics = [
-                        int(metrics_2d[m_idx][day_idx]) if day_idx < len(metrics_2d[m_idx]) else 0
-                        for m_idx in range(len(metrics_2d))
-                    ]
+                for i in range((d_end - d_start).days + 1):
+                    d = d_start + timedelta(days=i)
+                    date_str = d.strftime("%Y-%m-%d")
+                    day_metrics = by_date.get(date_str, [0] * num_metrics)
+                    if len(day_metrics) < num_metrics:
+                        day_metrics = day_metrics + [0] * (num_metrics - len(day_metrics))
                     result.append({
                         'dimensions': [{'name': date_str}],
-                        'metrics': day_metrics
+                        'metrics': day_metrics[:num_metrics] if num_metrics else day_metrics
                     })
 
-                logger.info(f"📊 Metrika bytime: received {len(result)} days")
-                # #region agent log
+                logger.info(f"📊 Metrika data: received {len(result)} days, {len(by_date)} dates with data")
                 if result:
-                    logger.info(f"[DEBUG Metrika result] first_day={result[0]} total_days={len(result)} metrics={params.get('metrics')}")
-                # #endregion
+                    logger.info(f"[DEBUG Metrika result] first_day={result[0]} total_days={len(result)}")
                 return result
             elif response.status_code == 429:
                 error = Exception(f"429 Too Many Requests")
