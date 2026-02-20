@@ -1,14 +1,16 @@
 """
 Яндекс.Метрика API: статистика и цели.
 
-Фильтр по источнику (только визиты из Яндекс.Директа) в интерфейсе Метрики:
-«Визиты, в которых» → Источники → Автоматическая атрибуция →
-Рекламная система: «Яндекс.Директ» или «Яндекс.Директ: Не определено».
+Сегмент из интерфейса (скрин): «Визиты, в которых» → Источники →
+Автоматическая атрибуция → Рекламная система: Яндекс.Директ или
+Яндекс.Директ: Не определено.
 
-Документация: пресет «Ad systems» использует измерение ym:s:AdvEngine
-(https://yandex.com/dev/metrika/en/stat/presets/preset_sources).
-Значения: ya_direct, ya_undefined (Яндекс.Директ и «Не определено»).
-ВАЖНО: yandex_direct — неверно, корректно ya_direct (поддержка Метрики).
+Параметризация (https://yandex.ru/dev/metrika/ru/stat/param):
+- Группировку AdvEngine нужно указывать с <attribution>, задавая через
+  &attribution=automatic или вписывая атрибуцию в выражение.
+- dimensions=ym:s:<attribution>TrafficSource + attribution=automatic
+  соответствует отчёту «Источники, сводка» с автоматической атрибуцией.
+- Фильтр: ya_direct, ya_undefined (НЕ yandex_direct).
 """
 import httpx
 from typing import List, Dict, Any, Optional
@@ -85,13 +87,15 @@ class YandexMetricaAPI:
             "date1": date_from,
             "date2": date_to,
             "group": "day",
+            # Явная атрибуция: сегмент «Источники • Автоматическая атрибуция»
+            # dimensions с <attribution> + attribution=automatic (поддержка Метрики)
+            "dimensions": "ym:s:<attribution>TrafficSource",
+            "attribution": "automatic",
+            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            "accuracy": "1",
         }
         if goal_id:
             params["goal_id"] = goal_id
-        # Фильтр по источнику: только визиты из Яндекс.Директа (ya_direct, ya_undefined).
-        # attribution=automatic — обязателен для корректной работы фильтра AdvEngine.
-        params["filters"] = filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS
-        params["attribution"] = "automatic"
         logger.info(f"📊 Metrika bytime API: GET stat/v1/data/bytime counter={counter_id} date1={date_from} date2={date_to} filters=Yandex.Direct attribution=automatic")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.bytime_url, params=params, headers=self.headers, timeout=30.0)
@@ -105,27 +109,32 @@ class YandexMetricaAPI:
                 # #region agent log
                 _first = rows_data[0] if rows_data else {}
                 _m = _first.get("metrics", [])
-                logger.info(f"[DEBUG Metrika bytime] metrics_len={len(_m)} first_metric_len={len(_m[0]) if _m else 0} query={params.get('metrics')} date1={date_from} date2={date_to}")
+                logger.info(f"[DEBUG Metrika bytime] rows={len(rows_data)} metrics_len={len(_m)} first_metric_len={len(_m[0]) if _m else 0} query={params.get('metrics')} date1={date_from} date2={date_to}")
                 # #endregion
 
-                # bytime format: data[0].metrics = [[m1_d1, m1_d2, ...], [m2_d1, m2_d2, ...]]
-                # Преобразуем в формат Table: [{dimensions: [{name: date}], metrics: [m1, m2, ...]}, ...]
-                first_row = rows_data[0]
-                metrics_2d = first_row.get('metrics', [])
-                if not metrics_2d:
+                # bytime с dimensions: несколько строк (ya_direct, ya_undefined) — суммируем.
+                # Без dimensions: одна строка. metrics[m][t] = метрика m для дня t.
+                num_metrics = 0
+                num_points = 0
+                for row in rows_data:
+                    metrics_2d = row.get('metrics', [])
+                    if metrics_2d:
+                        num_metrics = len(metrics_2d)
+                        num_points = max(num_points, len(metrics_2d[0]) if metrics_2d[0] else 0)
+                        break
+                if not num_metrics or not num_points:
                     return []
 
-                # bytime: metrics[m][t] = значение метрики m для дня t (порядок: date1..date2)
-                num_points = len(metrics_2d[0]) if metrics_2d else 0
                 d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
-
                 result = []
                 for day_idx in range(num_points):
                     date_str = (d_start + timedelta(days=day_idx)).strftime("%Y-%m-%d")
-                    day_metrics = [
-                        int(metrics_2d[m_idx][day_idx]) if day_idx < len(metrics_2d[m_idx]) else 0
-                        for m_idx in range(len(metrics_2d))
-                    ]
+                    day_metrics = [0] * num_metrics
+                    for row in rows_data:
+                        metrics_2d = row.get('metrics', [])
+                        if metrics_2d and day_idx < len(metrics_2d[0]):
+                            for m_idx in range(min(num_metrics, len(metrics_2d))):
+                                day_metrics[m_idx] += int(metrics_2d[m_idx][day_idx] or 0)
                     result.append({
                         'dimensions': [{'name': date_str}],
                         'metrics': day_metrics
