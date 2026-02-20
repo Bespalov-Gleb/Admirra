@@ -48,17 +48,14 @@ class StatsService:
                 models.YandexStats.client_id.in_(client_ids)
             )
 
-            # CRITICAL: Для VK Ads используем взвешенное среднее для CPC и CPA из сохраненных значений
-            # Это гарантирует правильный расчет "средняя цена клика" и "средняя цена цели"
+            # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в интерфейсе VK)
             v_q = db.query(
                 func.sum(models.VKStats.cost).label("total_cost"),
                 func.sum(models.VKStats.impressions).label("total_impressions"),
                 func.sum(models.VKStats.clicks).label("total_clicks"),
                 func.sum(models.VKStats.conversions).label("total_conversions"),
                 # Взвешенное среднее CPC: sum(cpc * clicks) / sum(clicks)
-                func.sum(models.VKStats.cpc * models.VKStats.clicks).label("weighted_cpc_sum"),
-                # Взвешенное среднее CPA: sum(cpa * conversions) / sum(conversions)
-                func.sum(models.VKStats.cpa * models.VKStats.conversions).label("weighted_cpa_sum")
+                func.sum(models.VKStats.cpc * models.VKStats.clicks).label("weighted_cpc_sum")
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(client_ids)
             )
@@ -181,17 +178,16 @@ class StatsService:
             else:
                 convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs 
             
-            # CRITICAL: Для VK Ads используем взвешенное среднее CPC и CPA из сохраненных значений
-            # Это гарантирует правильный расчет "средняя цена клика" и "средняя цена цели"
+            # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в VK)
             vk_clicks = int((v_s.total_clicks if v_s else 0) or 0)
             vk_conversions = int((v_s.total_conversions if v_s else 0) or 0)
+            vk_cost = float((v_s.total_cost if v_s else 0) or 0)
             vk_weighted_cpc_sum = float((v_s.weighted_cpc_sum if v_s and v_s.weighted_cpc_sum else 0) or 0)
-            vk_weighted_cpa_sum = float((v_s.weighted_cpa_sum if v_s and v_s.weighted_cpa_sum else 0) or 0)
             
             # Взвешенное среднее CPC для VK: sum(cpc * clicks) / sum(clicks)
             vk_avg_cpc = vk_weighted_cpc_sum / vk_clicks if vk_clicks > 0 else 0.0
-            # Взвешенное среднее CPA для VK: sum(cpa * conversions) / sum(conversions)
-            vk_avg_cpa = vk_weighted_cpa_sum / vk_conversions if vk_conversions > 0 else 0.0
+            # CPA для VK: все затраты / количество лидов (совпадает с интерфейсом VK)
+            vk_avg_cpa = vk_cost / vk_conversions if vk_conversions > 0 else 0.0
             
             # CPA для Yandex: Метрика приоритетна; fallback на Direct если Metrika пусто
             yandex_convs_for_cpa = metrica_convs if metrica_convs > 0 else yandex_convs
@@ -282,9 +278,8 @@ class StatsService:
                                prev["convs"]/prev["clks"] if prev["clks"] > 0 else 0)
             }
 
-        # CRITICAL: Используем взвешенное среднее CPC и CPA из get_data
-        # Для VK это гарантирует использование значений из API (cpc и vk.cpa)
-        # Для Yandex рассчитываем как обычно (costs/clicks и costs/conversions)
+        # CRITICAL: Используем CPC и CPA из get_data
+        # VK: CPC — взвешенное среднее, CPA — затраты/лиды. Yandex: costs/clicks, costs/conversions
         cpc = curr.get("avg_cpc", 0) if curr.get("avg_cpc", 0) > 0 else (curr["costs"] / curr["clks"] if curr["clks"] > 0 else 0)
         cpa = curr.get("avg_cpa", 0) if curr.get("avg_cpa", 0) > 0 else (curr["costs"] / curr["convs"] if curr["convs"] > 0 else 0)
         ctr = (curr["clks"] / curr["imps"] * 100) if curr["imps"] > 0 else 0

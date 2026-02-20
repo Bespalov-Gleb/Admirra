@@ -479,7 +479,23 @@ async def get_dynamics(
 
         # #region agent log
         _ms = [{"date": str(s.date), "leads": s.leads} for s in (m_stats or [])[:5]]
-        logger.info(f"[DEBUG stats] MetrikaGoals count={len(m_stats or [])} sample={_ms} m_integration_ids={m_integration_ids}")
+        _m_total = sum(int(s.leads or 0) for s in (m_stats or []))
+        _y_total = sum(int(s.leads or 0) for s in (y_stats or []))
+        _raw_q = db.query(models.MetrikaGoals.goal_id, func.sum(models.MetrikaGoals.conversion_count).label("cnt")).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.goal_id != "all",
+            models.MetrikaGoals.date >= d_start,
+            models.MetrikaGoals.date <= d_end
+        )
+        if m_integration_ids:
+            _raw_q = _raw_q.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
+        _raw_m = _raw_q.group_by(models.MetrikaGoals.goal_id).all()
+        _raw_total = sum(int(r.cnt or 0) for r in _raw_m)
+        logger.info(f"[DEBUG stats] MetrikaGoals count={len(m_stats or [])} sample={_ms} m_total={_m_total} y_total={_y_total} raw_by_goal={[(r.goal_id, r.cnt) for r in _raw_m[:5]]}")
+        try:
+            with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a") as _f:
+                _f.write(__import__("json").dumps({"location":"stats.py:get_dynamics","message":"Metrika vs Yandex totals","data":{"m_total":_m_total,"y_total":_y_total,"raw_total":_raw_total,"raw_by_goal":[(r.goal_id, int(r.cnt or 0)) for r in _raw_m],"m_integration_ids":str(m_integration_ids),"period":f"{d_start}..{d_end}","m_sample":_ms[:5]},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
+        except Exception: pass
         # #endregion
 
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
@@ -503,6 +519,13 @@ async def get_dynamics(
             le = vk_le
         else:
             le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
+        # #region agent log
+        if le > 0:
+            try:
+                with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a") as _f:
+                    _f.write(__import__("json").dumps({"location":"stats.py:leads_source","message":"Day with leads","data":{"date":str(d),"metrika_le":metrika_le,"yandex_le":yandex_le,"used":("metrika" if metrika_le > 0 else "yandex"),"le":le},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
+            except Exception: pass
+        # #endregion
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
