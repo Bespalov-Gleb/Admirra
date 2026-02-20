@@ -4,6 +4,8 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
+from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,12 +26,9 @@ class VKAdsAPI:
     @staticmethod
     def _get_human_readable_objective(objective_code: str) -> str:
         """
-        Очищает код целевого действия от скобок и точек.
+        Переводит код целевого действия VK на русский (traffic → Трафик, reach → Охват и т.д.).
         """
-        if not objective_code:
-            return objective_code
-        # Убираем скобки и точки
-        return objective_code.replace('(', '').replace(')', '').replace('.', '')
+        return get_vk_goal_action_name_ru(objective_code)
 
     @staticmethod
     def _parse_goal_value(value: Any) -> tuple:

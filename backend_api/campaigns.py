@@ -91,16 +91,19 @@ def get_vk_goal_actions(
     if client_id:
         query = query.filter(models.Integration.client_id == client_id)
 
+    from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+
     actions = {}
     for goal_id, goal_name in query.distinct().all():
         action_id = goal_id or goal_name
         action_name = goal_name or goal_id
         if action_id and action_name and action_id not in actions:
-            actions[action_id] = action_name
+            # Переводим на русский (для кодов VK: traffic → Трафик и т.д.)
+            actions[action_id] = get_vk_goal_action_name_ru(action_id) or get_vk_goal_action_name_ru(action_name) or action_name
 
     return [
         {"id": action_id, "name": action_name}
-        for action_id, action_name in sorted(actions.items(), key=lambda x: x[1].lower())
+        for action_id, action_name in sorted(actions.items(), key=lambda x: (x[1] or "").lower())
     ]
 
 @router.patch("/{campaign_id}", response_model=schemas.CampaignResponse)
