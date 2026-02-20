@@ -87,11 +87,10 @@ class YandexMetricaAPI:
             "date1": date_from,
             "date2": date_to,
             "group": "day",
-            # Явная атрибуция: сегмент «Источники • Автоматическая атрибуция»
-            # dimensions с <attribution> + attribution=automatic (поддержка Метрики)
-            "dimensions": "ym:s:<attribution>TrafficSource",
-            "attribution": "automatic",
+            # Фильтр + attribution=automatic (сегмент «Источники • Автоматическая атрибуция»).
+            # dimensions с <attribution> ломает bytime (0 rows) — поддержка использовала /data, не /bytime.
             "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            "attribution": "automatic",
             "accuracy": "1",
         }
         if goal_id:
@@ -112,29 +111,22 @@ class YandexMetricaAPI:
                 logger.info(f"[DEBUG Metrika bytime] rows={len(rows_data)} metrics_len={len(_m)} first_metric_len={len(_m[0]) if _m else 0} query={params.get('metrics')} date1={date_from} date2={date_to}")
                 # #endregion
 
-                # bytime с dimensions: несколько строк (ya_direct, ya_undefined) — суммируем.
-                # Без dimensions: одна строка. metrics[m][t] = метрика m для дня t.
-                num_metrics = 0
-                num_points = 0
-                for row in rows_data:
-                    metrics_2d = row.get('metrics', [])
-                    if metrics_2d:
-                        num_metrics = len(metrics_2d)
-                        num_points = max(num_points, len(metrics_2d[0]) if metrics_2d[0] else 0)
-                        break
-                if not num_metrics or not num_points:
+                # bytime без dimensions: одна строка, metrics[m][t] = метрика m для дня t
+                first_row = rows_data[0]
+                metrics_2d = first_row.get('metrics', [])
+                if not metrics_2d:
                     return []
 
+                num_points = len(metrics_2d[0]) if metrics_2d else 0
                 d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
+
                 result = []
                 for day_idx in range(num_points):
                     date_str = (d_start + timedelta(days=day_idx)).strftime("%Y-%m-%d")
-                    day_metrics = [0] * num_metrics
-                    for row in rows_data:
-                        metrics_2d = row.get('metrics', [])
-                        if metrics_2d and day_idx < len(metrics_2d[0]):
-                            for m_idx in range(min(num_metrics, len(metrics_2d))):
-                                day_metrics[m_idx] += int(metrics_2d[m_idx][day_idx] or 0)
+                    day_metrics = [
+                        int(metrics_2d[m_idx][day_idx]) if day_idx < len(metrics_2d[m_idx]) else 0
+                        for m_idx in range(len(metrics_2d))
+                    ]
                     result.append({
                         'dimensions': [{'name': date_str}],
                         'metrics': day_metrics
