@@ -20,9 +20,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Фильтр: только визиты из Яндекс.Директа (включая «Не определено»).
-# Измерение ym:s:AdvEngine. Значения: ya_direct, ya_undefined (НЕ yandex_direct).
+# Поддержка: в фильтре нужна параметризация — ym:s:<attribution>AdvEngine (не ym:s:AdvEngine).
+# Значения: ya_direct, ya_undefined (НЕ yandex_direct).
 FILTER_YANDEX_DIRECT_VISITS = (
-    "ym:s:AdvEngine=='ya_direct' OR ym:s:AdvEngine=='ya_undefined'"
+    "ym:s:<attribution>AdvEngine=='ya_direct' OR ym:s:<attribution>AdvEngine=='ya_undefined'"
 )
 
 
@@ -90,14 +91,14 @@ class YandexMetricaAPI:
             # Поддержка: /stat/v1/data + dimensions=ym:s:<attribution>TrafficSource + attribution=automatic.
             # Для разбивки по дням добавляем ym:s:date. Порядок: date первым (основная группировка).
             "dimensions": "ym:s:date,ym:s:<attribution>TrafficSource",
-            "attribution": "automatic",
+            "attribution": "AUTOMATIC",
             "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
-            "accuracy": "1",
+            "accuracy": "full",
             "limit": "1000",
         }
         if goal_id:
             params["goal_id"] = goal_id
-        logger.info(f"📊 Metrika data API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to} dimensions=TrafficSource+date attribution=automatic")
+        logger.info(f"📊 Metrika data API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to} dimensions=TrafficSource+date attribution=AUTOMATIC")
         async with httpx.AsyncClient() as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
