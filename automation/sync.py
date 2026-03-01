@@ -502,12 +502,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 # EDGE CASE: Empty report handling
                 if not stats or len(stats) == 0:
                     logger.info(f"Empty report received for integration {integration.id}. This may be normal if there are no campaigns or no activity in the date range.")
-                    integration.sync_status = models.IntegrationSyncStatus.SUCCESS
-                    integration.last_sync_at = datetime.utcnow()
-                    db.commit()
 
-                    # CRITICAL: Still sync Metrika goals when report is empty — goals are independent
-                    # of campaign stats and the dashboard needs them for the selected period
+                    # CRITICAL: Sync Metrika goals BEFORE setting SUCCESS — иначе дашборд покажет «синхронизация завершена» до появления данных Метрики
                     has_goals = bool(integration.selected_goals) or bool(integration.primary_goal_id)
                     has_counters = bool(integration.selected_counters)
                     if has_goals and has_counters:
@@ -521,7 +517,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         except Exception as goals_err:
                             logger.warning(f"Metrika goals sync failed after empty report: {goals_err}")
 
-                    # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
+                    # SUCCESS только после полной синхронизации (Direct + Metrika)
+                    integration.sync_status = models.IntegrationSyncStatus.SUCCESS
+                    integration.error_message = None
+                    integration.last_sync_at = datetime.utcnow()
+                    db.commit()
+
                     from backend_api.cache_service import CacheService
                     CacheService.clear()
                     logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
