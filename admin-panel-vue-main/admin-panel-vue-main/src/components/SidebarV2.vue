@@ -177,6 +177,7 @@ import {
   ArrowRightOnRectangleIcon,
   PlusIcon,
   PhoneIcon,
+  SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -205,6 +206,11 @@ const menuSections = [
   {
     title: 'ОСНОВНОЕ',
     items: [
+      {
+        name: 'AI Анализ',
+        path: '/ai-analysis',
+        icon: SparklesIcon
+      },
       {
         name: 'Аналитика',
         icon: ChartBarIcon,

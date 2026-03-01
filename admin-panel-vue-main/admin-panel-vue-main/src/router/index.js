@@ -147,6 +147,11 @@ const routes = [
     component: () => import('../views/GeneralStats3/GeneralStats3.vue')
   },
   {
+    path: '/ai-analysis',
+    name: 'AIAnalysis',
+    component: () => import('../views/AIAnalysis/AIAnalysis.vue')
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile/Profile.vue')
