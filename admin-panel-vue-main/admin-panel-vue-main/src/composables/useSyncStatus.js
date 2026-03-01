@@ -26,6 +26,18 @@ export function useSyncStatus() {
     )
   })
 
+  /**
+   * Идёт ли синхронизация для текущего вида дашборда.
+   * @param {string|null} clientId - ID проекта или null для «все проекты»
+   * @returns {boolean}
+   */
+  const isSyncingForProject = (clientId) => {
+    const pending = syncingIntegrations.value
+    if (pending.length === 0) return false
+    if (!clientId) return true // «Все проекты» — любая синхронизация релевантна
+    return pending.some((i) => String(i.client_id) === String(clientId))
+  }
+
   // Computed: есть ли хотя бы одна интеграция
   const hasIntegrations = computed(() => {
     return integrations.value.length > 0
@@ -91,6 +103,7 @@ export function useSyncStatus() {
     error,
     isSyncing,
     syncingIntegrations,
+    isSyncingForProject,
     hasIntegrations,
     hasNeverSyncedIntegrations,
     fetchSyncStatus,

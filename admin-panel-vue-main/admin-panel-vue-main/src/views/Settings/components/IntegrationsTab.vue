@@ -321,8 +321,24 @@ const handleSync = async (id) => {
   syncingId.value = id
   try {
     await api.post(`integrations/${id}/sync`, { days: 90 })
-    toaster.success('Синхронизация завершена успешно!')
-    fetchIntegrations() 
+    toaster.info('Синхронизация запущена. Данные появятся через несколько минут.')
+    fetchIntegrations()
+    // Ожидаем завершения и показываем успех
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await api.get('integrations/')
+        const integration = data.find((i) => i.id === id)
+        if (integration && integration.sync_status !== 'PENDING') {
+          clearInterval(pollInterval)
+          toaster.success('Синхронизация завершена успешно!')
+          fetchIntegrations()
+        }
+      } catch {
+        clearInterval(pollInterval)
+      }
+    }, 3000)
+    // Останавливаем опрос через 10 минут
+    setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000)
   } catch (error) {
     toaster.error('Ошибка при синхронизации: ' + (error.response?.data?.detail || error.message))
   } finally {

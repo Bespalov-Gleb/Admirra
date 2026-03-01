@@ -1,8 +1,22 @@
 <template>
   <div class="space-y-6">
+    <!-- Сообщение при синхронизации -->
+    <div v-if="dataHiddenBySync" class="flex items-center justify-center min-h-[50vh] px-4">
+      <div class="max-w-md w-full text-center py-12 px-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-lg">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <svg class="w-7 h-7 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-gray-800 mb-2">Идёт синхронизация</h3>
+        <p class="text-sm text-gray-500">Данные обновляются. Статистика появится через несколько минут.</p>
+      </div>
+    </div>
+
     <!-- Загрузка -->
     <!-- Skeleton Loaders -->
-    <div v-if="loading" class="space-y-6">
+    <div v-else-if="loading" class="space-y-6">
       <div class="flex justify-between items-center">
         <Skeleton width="200px" height="40px" />
         <div class="flex gap-2">
@@ -130,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import api from '../../api/axios'
 import {
   ShoppingBagIcon,
@@ -148,6 +162,9 @@ import ReportComments from './components/ReportComments.vue'
 import KeyGoalsStats from './components/KeyGoalsStats.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
 import { useProjects } from '../../composables/useProjects'
+import { useSyncStatus } from '../../composables/useSyncStatus'
+
+const { isSyncingForProject } = useSyncStatus()
 
 const summary = ref({
   expenses: 0,
@@ -178,6 +195,8 @@ const filters = reactive({
   start_date: '',
   end_date: new Date().toISOString().split('T')[0]
 })
+
+const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
 
 // CRITICAL: Sync with global project selection
 watch(currentProjectId, (newId) => {

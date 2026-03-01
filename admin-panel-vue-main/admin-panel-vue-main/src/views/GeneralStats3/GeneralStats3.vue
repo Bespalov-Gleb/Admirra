@@ -1,7 +1,21 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
+    <!-- Сообщение при синхронизации: данные скрыты -->
+    <div v-if="dataHiddenBySync" class="flex items-center justify-center min-h-[50vh] px-4">
+      <div class="max-w-md w-full text-center py-12 px-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-lg">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <svg class="w-7 h-7 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-gray-800 mb-2">Идёт синхронизация</h3>
+        <p class="text-sm text-gray-500">Данные обновляются. Статистика появится через несколько минут.</p>
+      </div>
+    </div>
+
     <!-- Заголовок с фильтрами -->
-    <div class="space-y-6">
+    <div v-else class="space-y-6">
       <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl mb-4 text-sm font-medium">
         {{ statsError }}
       </div>
@@ -108,10 +122,13 @@ import Skeleton from '../../components/ui/Skeleton.vue'
 
 // Logic
 import { useDashboardStats } from '../../composables/useDashboardStats'
+import { useSyncStatus } from '../../composables/useSyncStatus'
 import { useRoute, useRouter } from 'vue-router'
 import { useToaster } from '../../composables/useToaster'
 import { useProjects } from '../../composables/useProjects'
 import api from '../../api/axios'
+
+const { isSyncingForProject } = useSyncStatus()
 
 const {
   summary,
@@ -127,6 +144,8 @@ const {
   vkGoalActions,
   loadingVkGoalActions
 } = useDashboardStats()
+
+const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
 
 const { currentProjectId, setCurrentProject } = useProjects()
 const toaster = useToaster()

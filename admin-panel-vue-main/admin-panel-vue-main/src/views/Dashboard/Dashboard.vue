@@ -11,6 +11,20 @@
       />
     </div>
 
+    <!-- Сообщение при синхронизации: данные скрыты -->
+    <div v-else-if="dataHiddenBySync" class="flex items-center justify-center min-h-[50vh] px-4">
+      <div class="max-w-md w-full text-center py-12 px-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-lg">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <svg class="w-7 h-7 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-gray-800 mb-2">Идёт синхронизация</h3>
+        <p class="text-sm text-gray-500">Данные обновляются. Статистика появится через несколько минут.</p>
+      </div>
+    </div>
+
     <!-- Заголовок с фильтрами -->
     <div v-else class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 py-3">
@@ -187,7 +201,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   CurrencyDollarIcon,
   EyeIcon,
@@ -202,8 +216,11 @@ import MoneyIcon from '../../assets/dash/money.svg'
 import DashEyeIcon from '../../assets/dash/dash-eye.svg'
 import DashArrowIcon from '../../assets/dash/dash-arrow.svg'
 import { useDashboardStats } from '../../composables/useDashboardStats'
+import { useSyncStatus } from '../../composables/useSyncStatus'
 import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
+
+const { isSyncingForProject } = useSyncStatus()
 
 // Integrate existing data logic
 const {
@@ -217,6 +234,9 @@ const {
   fetchStats,
   fetchClients
 } = useDashboardStats()
+
+// Скрываем данные, если идёт синхронизация для текущего вида
+const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
 
 const toaster = useToaster()
 const creatingProject = ref(false)
