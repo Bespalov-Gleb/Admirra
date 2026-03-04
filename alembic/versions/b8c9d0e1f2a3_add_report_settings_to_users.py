@@ -1,11 +1,10 @@
-"""add_report_settings_to_users (standalone)
+"""add_report_settings_to_users
 
 Revision ID: b8c9d0e1f2a3
-Revises: 3f9c7a1b2d34
+Revises: add_captcha_fields
 Create Date: 2026-03-04
 
 Добавляет report_telegram_chat_id и report_email_recipients в users.
-Используйте если add_captcha_fields не применяется из-за overlaps.
 """
 from typing import Sequence, Union
 
@@ -14,7 +13,7 @@ import sqlalchemy as sa
 
 
 revision: str = "b8c9d0e1f2a3"
-down_revision: Union[str, Sequence[str], None] = "3f9c7a1b2d34"
+down_revision: Union[str, Sequence[str], None] = "add_captcha_fields"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
