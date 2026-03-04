@@ -1,69 +1,27 @@
 <template>
-  <div 
-    class="min-w-[240px] rounded-3xl p-4 sm:p-5 shadow-sm border border-gray-100 transition-all cursor-pointer"
+  <div
+    class="rounded-2xl p-4 bg-white border border-gray-100 shadow-sm transition-all cursor-pointer hover:border-blue-200 hover:shadow-md"
     :class="[
-      !isSelected ? 'bg-white hover:border-blue-200 hover:shadow-md' : '',
-      iconColor === 'blue' && isSelected ? 'bg-blue-50 border-blue-200' : '',
-      iconColor === 'orange' && isSelected ? 'bg-orange-50 border-orange-200' : '',
-      iconColor === 'green' && isSelected ? 'bg-green-50 border-green-200' : '',
-      iconColor === 'red' && isSelected ? 'bg-red-50 border-red-200' : '',
-      iconColor === 'purple' && isSelected ? 'bg-purple-50 border-purple-200' : '',
-      iconColor === 'pink' && isSelected ? 'bg-pink-50 border-pink-200' : ''
+      isSelected && 'ring-2 ring-blue-500/30 border-blue-200'
     ]"
     @click="$emit('click')"
   >
-    <div class="flex items-center gap-3">
-      <!-- Иконка слева -->
-      <div :class="[
-        'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
-        iconColor === 'orange' ? 'bg-orange-50' : '',
-        iconColor === 'blue' ? 'bg-blue-50' : '',
-        iconColor === 'green' ? 'bg-green-50' : '',
-        iconColor === 'red' ? 'bg-red-50' : '',
-        iconColor === 'purple' ? 'bg-purple-50' : '',
-        iconColor === 'pink' ? 'bg-pink-50' : ''
-      ]">
-        <component 
-          :is="icon" 
-          :class="[
-            'w-6 h-6',
-            iconColor === 'orange' ? 'text-orange-500' : '',
-            iconColor === 'blue' ? 'text-blue-500' : '',
-            iconColor === 'green' ? 'text-green-500' : '',
-            iconColor === 'red' ? 'text-red-500' : '',
-            iconColor === 'purple' ? 'text-purple-500' : '',
-            iconColor === 'pink' ? 'text-pink-500' : ''
-          ]" 
-        />
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+        <component :is="icon" class="w-5 h-5 text-blue-600" />
       </div>
-      
-      <!-- Контент справа -->
       <div class="flex-1 min-w-0">
-        <!-- Заголовок -->
-        <div class="flex items-center gap-1 mb-1">
-          <h3 class="text-xs sm:text-sm font-medium text-gray-500 truncate">{{ title }}</h3>
-          <InformationCircleIcon class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-        </div>
-        
-        <!-- Значение и тренд -->
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex flex-col">
-            <p class="text-lg sm:text-xl font-bold text-gray-900 leading-none">{{ value }}</p>
-          </div>
-          
-          <!-- Тренд badge -->
-          <div 
-            :class="[
-              'flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold leading-none',
-              changePositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
-            ]"
-          >
-            <component 
-              :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" 
-              class="w-3 h-3"
-            />
-            <span>{{ trend }}%</span>
-          </div>
+        <h3 class="text-xs font-medium text-gray-500 mb-0.5">{{ title }}</h3>
+        <p v-if="changeText" class="text-[10px] text-gray-400 mb-1">{{ changeText }}</p>
+        <p class="text-lg font-bold text-gray-900 leading-tight">{{ value }}</p>
+        <div
+          :class="[
+            'inline-flex items-center gap-0.5 mt-1.5 px-2 py-0.5 rounded-lg text-[10px] font-semibold',
+            changePositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+          ]"
+        >
+          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3 h-3" />
+          <span>{{ trend }}%</span>
         </div>
       </div>
     </div>
@@ -71,11 +29,7 @@
 </template>
 
 <script setup>
-import { 
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  InformationCircleIcon
-} from '@heroicons/vue/20/solid'
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/vue/20/solid'
 
 defineProps({
   title: {
@@ -92,7 +46,7 @@ defineProps({
   },
   changeText: {
     type: String,
-    required: true
+    default: ''
   },
   icon: {
     type: [Object, Function, String],

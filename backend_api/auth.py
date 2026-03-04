@@ -116,6 +116,13 @@ def update_users_me(
     if updates.yandex_finance_token is not None:
         current_user.yandex_finance_token = updates.yandex_finance_token
 
+    if updates.report_telegram_chat_id is not None:
+        current_user.report_telegram_chat_id = updates.report_telegram_chat_id
+
+    if updates.report_email_recipients is not None:
+        import json
+        current_user.report_email_recipients = json.dumps(updates.report_email_recipients) if updates.report_email_recipients else None
+
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

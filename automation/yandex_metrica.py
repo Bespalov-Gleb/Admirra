@@ -208,6 +208,125 @@ class YandexMetricaAPI:
             logger.error(error_msg)
             raise Exception(error_msg)
     
+    async def get_activity_by_weekday(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        filters: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает активность по дням недели (Пн–Вс).
+        dimensions=ym:s:dayOfWeek, metrics=ym:s:visits
+        dayOfWeek: 0=Вс, 1=Пн, ..., 6=Сб
+        """
+        params = {
+            "ids": counter_id,
+            "metrics": "ym:s:visits",
+            "dimensions": "ym:s:dayOfWeek",
+            "date1": date_from,
+            "date2": date_to,
+            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            "attribution": "AUTOMATIC",
+            "accuracy": "full",
+            "limit": "100",
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("data", [])
+            logger.warning(f"Yandex Metrica dayOfWeek error {response.status_code}: {response.text[:200]}")
+            return []
+
+    async def get_audience_age(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        filters: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает распределение аудитории по возрасту.
+        dimensions=ym:s:ageInterval, metrics=ym:s:visits
+        Ограничение: данные выдаются при достаточном объёме (>10 посетителей).
+        """
+        params = {
+            "ids": counter_id,
+            "metrics": "ym:s:visits",
+            "dimensions": "ym:s:ageInterval",
+            "date1": date_from,
+            "date2": date_to,
+            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            "attribution": "AUTOMATIC",
+            "accuracy": "full",
+            "limit": "100",
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("data", [])
+            logger.warning(f"Yandex Metrica ageInterval error {response.status_code}: {response.text[:200]}")
+            return []
+
+    async def get_activity_by_weekday(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        filters: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Визиты по дням недели. dimensions=ym:s:dayOfWeek (0=Вс, 1=Пн, ..., 6=Сб).
+        """
+        params = {
+            "ids": counter_id,
+            "metrics": "ym:s:visits",
+            "dimensions": "ym:s:dayOfWeek",
+            "date1": date_from,
+            "date2": date_to,
+            "limit": "10",
+        }
+        if filters:
+            params["filters"] = filters
+        async with httpx.AsyncClient() as client:
+            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("data", [])
+            logger.warning(f"Metrika dayOfWeek error {response.status_code}: {response.text[:200]}")
+            return []
+
+    async def get_audience_age(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        filters: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Распределение аудитории по возрасту. dimensions=ym:s:ageInterval.
+        Ограничение: данные при достаточном объёме выборки (>10 посетителей).
+        """
+        params = {
+            "ids": counter_id,
+            "metrics": "ym:s:visits",
+            "dimensions": "ym:s:ageInterval",
+            "date1": date_from,
+            "date2": date_to,
+            "limit": "20",
+        }
+        if filters:
+            params["filters"] = filters
+        async with httpx.AsyncClient() as client:
+            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("data", [])
+            logger.warning(f"Metrika ageInterval error {response.status_code}: {response.text[:200]}")
+            return []
+
     @staticmethod
     def normalize_domain(url: str) -> str:
         """

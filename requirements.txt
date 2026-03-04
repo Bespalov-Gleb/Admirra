@@ -22,3 +22,5 @@ pytest-asyncio
 dadata
 dnspython
 redis[hiredis]
+openai
+weasyprint

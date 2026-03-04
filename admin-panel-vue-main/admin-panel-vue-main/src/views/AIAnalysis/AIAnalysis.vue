@@ -6,7 +6,7 @@
       <p class="text-sm text-gray-500 mt-1">Аналитика и рекомендации на основе данных рекламных кампаний</p>
     </div>
 
-    <!-- Проект + кнопки в один ряд -->
+    <!-- Проект + период + кнопки -->
     <div class="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
       <select
         v-model="selectedProjectId"
@@ -17,17 +17,32 @@
           {{ client.name }}
         </option>
       </select>
+      <input
+        v-model="startDate"
+        type="date"
+        class="px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
+      />
+      <span class="text-gray-400">—</span>
+      <input
+        v-model="endDate"
+        type="date"
+        class="px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
+      />
       <button
-        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium rounded-2xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
-      >
-        <DocumentTextIcon class="w-5 h-5" />
-        Сформировать отчёт
+        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium rounded-2xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        :disabled="generatingReport"
+        @click="handleGenerateReport">
+        <span v-if="generatingReport" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        <DocumentTextIcon v-else class="w-5 h-5" />
+        {{ generatingReport ? 'Генерация...' : 'Сформировать отчёт' }}
       </button>
       <button
-        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
-      >
-        <LightBulbIcon class="w-5 h-5" />
-        Получить рекомендации
+        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        :disabled="generatingRecommendations"
+        @click="handleGetRecommendations">
+        <span v-if="generatingRecommendations" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        <LightBulbIcon v-else class="w-5 h-5" />
+        {{ generatingRecommendations ? 'Генерация...' : 'Получить рекомендации' }}
       </button>
     </div>
 
@@ -49,13 +64,21 @@
 
         <!-- Область сообщений -->
         <div class="flex-1 p-6 overflow-y-auto min-h-0">
-          <div class="flex flex-col items-center justify-center h-full min-h-[120px] text-center">
+          <div v-if="!aiResponse && !aiError" class="flex flex-col items-center justify-center h-full min-h-[120px] text-center">
             <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
               <ChatBubbleLeftRightIcon class="w-7 h-7 text-gray-400" />
             </div>
             <p class="text-gray-500 text-sm max-w-xs">
               Чат пока не активен. Используйте кнопки выше для формирования отчёта или получения рекомендаций.
             </p>
+          </div>
+          <div v-else class="space-y-4">
+            <div v-if="aiError" class="p-4 rounded-xl bg-red-50 text-red-600 text-sm">
+              {{ aiError }}
+            </div>
+            <div v-if="aiResponse" class="p-4 rounded-xl bg-gray-50 text-gray-800 text-sm whitespace-pre-wrap">
+              {{ aiResponse }}
+            </div>
           </div>
         </div>
 
@@ -96,6 +119,25 @@ const clients = ref([])
 const selectedProjectId = ref('')
 const { currentProjectId, setCurrentProject } = useProjects()
 
+function getDefaultDates() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 13)
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10)
+  }
+}
+
+const defaults = getDefaultDates()
+const endDate = ref(defaults.end)
+const startDate = ref(defaults.start)
+
+const generatingReport = ref(false)
+const generatingRecommendations = ref(false)
+const aiResponse = ref('')
+const aiError = ref('')
+
 onMounted(async () => {
   try {
     const { data } = await api.get('clients/')
@@ -113,4 +155,32 @@ watch(currentProjectId, (id) => {
 watch(selectedProjectId, (id) => {
   if (currentProjectId.value !== id) setCurrentProject(id || null)
 })
+
+async function callGenerateReport(reportType) {
+  aiError.value = ''
+  aiResponse.value = ''
+  const loading = reportType === 'full' ? generatingReport : generatingRecommendations
+  loading.value = true
+  try {
+    const { data } = await api.post('ai/generate-report', {
+      client_id: selectedProjectId.value || null,
+      start_date: startDate.value,
+      end_date: endDate.value,
+      report_type: reportType
+    })
+    aiResponse.value = data.text || ''
+  } catch (err) {
+    aiError.value = err.response?.data?.detail || err.message || 'Ошибка при генерации отчёта'
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleGenerateReport() {
+  callGenerateReport('full')
+}
+
+function handleGetRecommendations() {
+  callGenerateReport('recommendations')
+}
 </script>

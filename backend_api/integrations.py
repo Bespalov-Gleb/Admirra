@@ -56,16 +56,25 @@ async def remote_log(payload: dict):
 
 @router.get("/", response_model=List[schemas.IntegrationResponse])
 def get_integrations(
+    client_id: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     List all active integrations (Yandex, VK, etc.) across all clients owned by the user.
+    Optional client_id filters to a specific project.
     """
-    # Get all integrations for clients owned by the current user
-    return db.query(models.Integration).join(models.Client).filter(
+    q = db.query(models.Integration).join(models.Client).filter(
         models.Client.owner_id == current_user.id
-    ).all()
+    )
+    if client_id:
+        try:
+            from uuid import UUID
+            u = UUID(client_id)
+            q = q.filter(models.Integration.client_id == u)
+        except ValueError:
+            pass
+    return q.all()
 
 @router.get("/yandex/auth-url")
 def get_yandex_auth_url(redirect_uri: str):

@@ -6,7 +6,7 @@ import asyncio
 import logging
 import smtplib
 from email.message import EmailMessage
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from lead_validator.config import settings
 
@@ -78,6 +78,63 @@ class EmailSender:
             return await asyncio.to_thread(self._send_sync, recipients, payload)
         except Exception as e:
             logger.error(f"Email send failed: {e}")
+            return False
+
+    def _send_report_sync(
+        self,
+        recipients: List[str],
+        subject: str,
+        body: str,
+        pdf_bytes: Optional[bytes] = None,
+        filename: str = "report.pdf",
+    ) -> bool:
+        """Синхронная отправка отчёта с опциональным вложением PDF."""
+        if not self.enabled or not recipients:
+            return False
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = self.from_addr
+        msg["To"] = ", ".join(recipients)
+        msg.set_content(body)
+        if pdf_bytes:
+            msg.add_attachment(
+                pdf_bytes,
+                maintype="application",
+                subtype="pdf",
+                filename=filename,
+            )
+        try:
+            with smtplib.SMTP(self.host, self.port, timeout=30) as server:
+                if self.use_tls:
+                    server.starttls()
+                if self.user and self.password:
+                    server.login(self.user, self.password)
+                server.send_message(msg)
+            return True
+        except Exception as e:
+            logger.error(f"Report email send failed: {e}")
+            return False
+
+    async def send_report_email(
+        self,
+        recipients: List[str],
+        subject: str,
+        body: str,
+        pdf_bytes: Optional[bytes] = None,
+        filename: str = "report.pdf",
+    ) -> bool:
+        """Отправка отчёта на email с опциональным вложением PDF."""
+        try:
+            return await asyncio.to_thread(
+                self._send_report_sync,
+                recipients,
+                subject,
+                body,
+                pdf_bytes,
+                filename,
+            )
+        except Exception as e:
+            logger.error(f"Report email send failed: {e}")
             return False
 
 

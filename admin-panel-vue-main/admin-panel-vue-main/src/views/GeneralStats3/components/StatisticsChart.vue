@@ -1,5 +1,5 @@
 <template>
-  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm border border-gray-50">
+  <div class="bg-white w-full rounded-2xl px-6 sm:px-8 py-6 shadow-sm border border-gray-100">
     <!-- Заголовок -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
       <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>

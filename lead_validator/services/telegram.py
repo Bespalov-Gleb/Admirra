@@ -168,6 +168,43 @@ class TelegramNotifier:
             
         return False
     
+    async def send_document(
+        self,
+        chat_id: str,
+        document: bytes,
+        filename: str = "report.pdf",
+        caption: Optional[str] = None,
+    ) -> bool:
+        """
+        Отправка документа (PDF) в Telegram.
+        chat_id — ID чата (может отличаться от дефолтного self.chat_id).
+        """
+        if not self.token:
+            logger.error("Telegram token not configured")
+            return False
+        if not chat_id:
+            logger.error("chat_id required for send_document")
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                url = self._get_url("sendDocument")
+                files = {"document": (filename, document, "application/pdf")}
+                data = {"chat_id": chat_id}
+                if caption:
+                    data["caption"] = caption
+                response = await client.post(url, data=data, files=files)
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("ok"):
+                        logger.info(f"Document sent to {chat_id}")
+                        return True
+                    logger.error(f"Telegram sendDocument error: {result}")
+                else:
+                    logger.error(f"sendDocument failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"send_document error: {e}")
+        return False
+
     async def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
         """
         Отправка произвольного сообщения (для отладки/уведомлений/алертов).

@@ -65,6 +65,18 @@ from backend_api.phone_projects import router as phone_projects_router
 from backend_api.phone_leads import router as phone_leads_router
 from backend_api.phone_stats import router as phone_stats_router
 
+try:
+    from ai.router import router as ai_router
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
+try:
+    from backend_api.reports.router import router as reports_router
+    REPORTS_AVAILABLE = True
+except ImportError:
+    REPORTS_AVAILABLE = False
+
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 try:
     from lead_validator.router import router as lead_validator_router
@@ -158,6 +170,12 @@ app.include_router(campaigns_router, prefix="/api")
 app.include_router(phone_projects_router, prefix="/api")
 app.include_router(phone_leads_router, prefix="/api")
 app.include_router(phone_stats_router, prefix="/api")
+
+if AI_AVAILABLE:
+    app.include_router(ai_router, prefix="/api")
+
+if REPORTS_AVAILABLE:
+    app.include_router(reports_router, prefix="/api")
 
 # Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
 if LEAD_VALIDATOR_AVAILABLE:

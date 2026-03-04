@@ -590,6 +590,199 @@ async def get_campaign_stats(
 
     return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
+
+@router.get("/top-ads", response_model=List[dict])
+@cache_response(ttl=300)
+async def get_top_ads(
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
+    platform: Optional[str] = "all",
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get top 4 campaigns/ads by conversions (best posts). Uses campaign-level data.
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try:
+                    u_campaign_ids.append(uuid.UUID(cid))
+                except Exception:
+                    pass
+        if not u_campaign_ids:
+            u_campaign_ids = None
+
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not effective_client_ids:
+        return []
+
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+
+    campaigns = StatsService.get_campaign_stats(
+        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids
+    )
+    # Top 4 by conversions, fallback to cost
+    sorted_campaigns = sorted(
+        campaigns,
+        key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
+        reverse=True
+    )
+    top = sorted_campaigns[:4]
+    return [
+        {
+            "id": c["id"],
+            "title": c["name"],
+            "impressions": c.get("impressions", 0),
+            "clicks": c.get("clicks", 0),
+            "cost": c.get("cost", 0),
+            "conversions": c.get("conversions", 0),
+            "ctr": round((c.get("clicks", 0) or 0) / (c.get("impressions", 1) or 1) * 100, 2),
+            "platform": "yandex" if c["name"].startswith("[ЯД]") else "vk",
+        }
+        for c in top
+    ]
+
+
+@router.get("/activity-by-weekday", response_model=dict)
+@cache_response(ttl=300)
+async def get_activity_by_weekday(
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
+    goal_action_ids: Optional[List[str]] = Query(None),
+    platform: Optional[str] = "all",
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get activity (clicks + conversions) aggregated by day of week.
+    Returns: {"0": N, "1": N, ...} where 0=Sunday, 1=Monday, ..., 6=Saturday.
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try:
+                    u_campaign_ids.append(uuid.UUID(cid))
+                except Exception:
+                    pass
+        if not u_campaign_ids:
+            u_campaign_ids = None
+
+    u_goal_action_ids = None
+    if goal_action_ids:
+        u_goal_action_ids = [gid for gid in goal_action_ids if gid and gid.strip()]
+        if not u_goal_action_ids:
+            u_goal_action_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not effective_client_ids:
+        return {str(i): 0 for i in range(7)}
+
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+
+    return StatsService.get_activity_by_weekday(
+        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids
+    )
+
+
+@router.get("/audience-age", response_model=List[dict])
+@cache_response(ttl=600)
+async def get_audience_age(
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get audience age distribution from Yandex Metrica.
+    Returns list of {age_interval: str, visits: int}.
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not effective_client_ids or len(effective_client_ids) != 1:
+        return []
+
+    # Get Metrika integration for this client
+    integration = db.query(models.Integration).filter(
+        models.Integration.client_id.in_(effective_client_ids),
+        models.Integration.platform == models.IntegrationPlatform.YANDEX_METRIKA
+    ).first()
+    if not integration or not integration.access_token or not integration.selected_counters:
+        return []
+
+    import json
+    try:
+        counters = json.loads(integration.selected_counters) if isinstance(integration.selected_counters, str) else integration.selected_counters
+    except Exception:
+        counters = []
+    if not counters:
+        return []
+
+    counter_id = str(counters[0]) if counters else None
+    if not counter_id:
+        return []
+
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=30)
+    date_from = d_start.strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+
+    from automation.yandex_metrica import YandexMetricaAPI
+    api = YandexMetricaAPI(integration.access_token)
+    try:
+        data = await api.get_audience_age(counter_id, date_from, date_to)
+    except Exception as e:
+        logger.warning(f"Metrika audience-age error: {e}")
+        return []
+
+    result = []
+    for row in data:
+        dims = row.get("dimensions", [])
+        metrics = row.get("metrics", [])
+        age_name = dims[0].get("name", "unknown") if dims else "unknown"
+        visits = int(metrics[0]) if metrics else 0
+        result.append({"age_interval": age_name, "visits": visits})
+    return result
+
+
 @router.get("/keywords", response_model=List[schemas.KeywordStat])
 @cache_response(ttl=900)
 async def get_keyword_stats(
@@ -863,20 +1056,47 @@ async def get_goals(
     
     return result
 
-@router.get("/integrations", response_model=List[schemas.IntegrationStatus])
+@router.get("/integrations", response_model=List[schemas.DashboardIntegrationStatus])
 def get_integrations_status(
-    client_id: Optional[uuid.UUID] = None,
+    client_id: Optional[str] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    u_client_id = None
+    if client_id:
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except ValueError:
+            pass
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
 
-    connected_platforms = db.query(models.Integration.platform).filter(models.Integration.client_id.in_(effective_client_ids)).distinct().all()
-    connected_list = [p[0].value for p in connected_platforms]
+    # Get integrations with balance for connected platforms
+    integrations = db.query(
+        models.Integration.platform,
+        models.Integration.balance,
+        models.Integration.currency
+    ).filter(models.Integration.client_id.in_(effective_client_ids)).all()
+
+    platform_data = {}
+    for row in integrations:
+        p = row.platform.value if hasattr(row.platform, 'value') else str(row.platform)
+        if p not in platform_data or (row.balance is not None and platform_data[p].get("balance") is None):
+            platform_data[p] = {
+                "platform": p,
+                "is_connected": True,
+                "balance": float(row.balance) if row.balance is not None else None,
+                "currency": row.currency
+            }
+        elif p in platform_data and row.balance is not None and platform_data[p].get("balance") is not None:
+            # Sum balance if multiple integrations for same platform
+            platform_data[p]["balance"] = (platform_data[p]["balance"] or 0) + float(row.balance)
+
     all_platforms = ["yandex_direct", "vk_ads", "google_ads", "facebook_ads", "instagram", "telegram"]
-    
-    return [{"platform": p, "is_connected": p in connected_list} for p in all_platforms]
+    return [
+        platform_data.get(p, {"platform": p, "is_connected": False, "balance": None, "currency": None})
+        for p in all_platforms
+    ]
 @router.get("/export/csv")
 async def export_stats_csv(
     start_date: str = None,

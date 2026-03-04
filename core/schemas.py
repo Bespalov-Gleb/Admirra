@@ -11,6 +11,20 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     yandex_finance_token: Optional[str] = None
+    report_telegram_chat_id: Optional[str] = None
+    report_email_recipients: Optional[List[str]] = None  # Массив email для отчётов
+
+    @field_validator("report_email_recipients", mode="before")
+    @classmethod
+    def parse_email_recipients(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        try:
+            return json.loads(v) if v else []
+        except Exception:
+            return []
 
 class UserCreate(UserBase):
     password: str
@@ -39,12 +53,14 @@ class TokenData(BaseModel):
 class UserUpdateSettings(BaseModel):
     """
     Обновление настроек текущего пользователя.
-    Пока даём редактировать только безопасные поля (имя, фамилия, FinanceToken).
+    Пока даём редактировать только безопасные поля (имя, фамилия, FinanceToken, отчёты).
     """
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     yandex_finance_token: Optional[str] = None
+    report_telegram_chat_id: Optional[str] = None
+    report_email_recipients: Optional[List[str]] = None
 
 from core import models
 
@@ -89,7 +105,7 @@ class IntegrationResponse(IntegrationBase):
     selected_goals: Optional[List[str]] = None
     primary_goal_id: Optional[str] = None
     campaigns: List["CampaignResponse"] = []
-    
+
     class Config:
         from_attributes = True
 
@@ -228,6 +244,14 @@ class GoalStat(BaseModel):
 class IntegrationStatus(BaseModel):
     platform: str
     is_connected: bool
+
+
+class DashboardIntegrationStatus(BaseModel):
+    """Integration status with balance for dashboard display."""
+    platform: str
+    is_connected: bool
+    balance: Optional[float] = None
+    currency: Optional[str] = None
 
 class SyncRequest(BaseModel):
     days: int = 7

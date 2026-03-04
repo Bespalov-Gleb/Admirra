@@ -168,6 +168,51 @@
           </div>
         </div>
 
+        <!-- Доставка отчётов -->
+        <div class="bg-white rounded-lg p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-gray-900">Доставка отчётов</h2>
+            <button
+              @click="toggleReportSettingsEdit"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              {{ isReportSettingsEdit ? 'Отмена' : 'Редактировать' }}
+            </button>
+          </div>
+          <p class="text-sm text-gray-500 mb-4">Настройки по умолчанию для отправки отчётов в Telegram и на Email.</p>
+          <div class="space-y-4">
+            <Input
+              v-model="userData.reportTelegramChatId"
+              label="Telegram Chat ID"
+              placeholder="-1001234567890"
+              :readonly="!isReportSettingsEdit"
+            />
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Email получателей (через запятую)</label>
+              <input
+                v-model="userData.reportEmailRecipientsStr"
+                :readonly="!isReportSettingsEdit"
+                type="text"
+                placeholder="email1@example.com, email2@example.com"
+                :class="[
+                  'w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors',
+                  isReportSettingsEdit
+                    ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
+                    : 'border-gray-300 bg-gray-100 cursor-not-allowed'
+                ]"
+              />
+            </div>
+          </div>
+          <div v-if="isReportSettingsEdit" class="mt-6 flex justify-end">
+            <button
+              @click="saveReportSettings"
+              class="px-6 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              Сохранить
+            </button>
+          </div>
+        </div>
+
         <!-- Настройки уведомлений (заглушка, пока без бэкенда) -->
         <div class="bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Уведомления</h2>
@@ -240,6 +285,7 @@ import Alert from '../../components/Alert.vue'
 import api from '../../api/axios'
 
 const isEditMode = ref(false)
+const isReportSettingsEdit = ref(false)
 const showChangePasswordModal = ref(false)
 const showAvatarUpload = ref(false)
 const showAlert = ref(false)
@@ -253,6 +299,8 @@ const userData = ref({
   email: '',
   role: '',
   yandexFinanceToken: '',
+  reportTelegramChatId: '',
+  reportEmailRecipientsStr: '',
   lastPasswordChange: '—',
   twoFactorEnabled: false
 })
@@ -273,6 +321,30 @@ const cancelEdit = () => {
   loadProfile()
 }
 
+const toggleReportSettingsEdit = () => {
+  isReportSettingsEdit.value = !isReportSettingsEdit.value
+}
+
+const saveReportSettings = async () => {
+  try {
+    const emails = userData.value.reportEmailRecipientsStr
+      ? userData.value.reportEmailRecipientsStr.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
+      : []
+    const payload = {
+      report_telegram_chat_id: userData.value.reportTelegramChatId || null,
+      report_email_recipients: emails.length > 0 ? emails : null
+    }
+    const { data } = await api.put('/auth/me', payload)
+    userData.value.reportTelegramChatId = data.report_telegram_chat_id || ''
+    userData.value.reportEmailRecipientsStr = (data.report_email_recipients || []).join(', ')
+    isReportSettingsEdit.value = false
+    showAlertMessage('Настройки доставки отчётов сохранены')
+  } catch (e) {
+    console.error('Failed to save report settings:', e)
+    showAlertMessage('Не удалось сохранить настройки')
+  }
+}
+
 const saveChanges = async () => {
   try {
     const payload = {
@@ -289,6 +361,8 @@ const saveChanges = async () => {
     userData.value.email = data.email
     userData.value.role = data.role
     userData.value.yandexFinanceToken = data.yandex_finance_token || ''
+    userData.value.reportTelegramChatId = data.report_telegram_chat_id || ''
+    userData.value.reportEmailRecipientsStr = (data.report_email_recipients || []).join(', ')
 
     isEditMode.value = false
     showAlertMessage('Изменения успешно сохранены')
@@ -339,6 +413,8 @@ const loadProfile = async () => {
     userData.value.email = data.email
     userData.value.role = data.role
     userData.value.yandexFinanceToken = data.yandex_finance_token || ''
+    userData.value.reportTelegramChatId = data.report_telegram_chat_id || ''
+    userData.value.reportEmailRecipientsStr = (data.report_email_recipients || []).join(', ')
   } catch (e) {
     console.error('Failed to load profile:', e)
   }

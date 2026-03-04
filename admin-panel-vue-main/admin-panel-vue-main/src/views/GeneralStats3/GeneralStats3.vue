@@ -14,103 +14,227 @@
       </div>
     </div>
 
-    <!-- Заголовок с фильтрами -->
+    <!-- Основной контент -->
     <div v-else class="space-y-6">
-      <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl mb-4 text-sm font-medium">
+      <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
         {{ statsError }}
       </div>
-      
-      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8 py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
-        <div class="min-w-0 flex-shrink-0">
-          <StatsHeader 
+
+      <!-- Шапка: заголовок + фильтры + кнопки PDF/Telegram -->
+      <div class="flex flex-col gap-4 mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <StatsHeader
             :label="filters.client_id ? 'Выбранный проект' : 'Общий дашборд'"
             :title="dashboardTitle"
             :subtitle="dynamicSubtitle"
             :show-reset="filters.campaign_ids && filters.campaign_ids.length > 0"
             @reset="filters.campaign_ids = []"
           />
-        </div>
-
-        <div class="flex-grow xl:flex xl:items-center xl:justify-end min-w-0 gap-4">
-          <div class="flex-1">
-          <StatsFilters 
-            :filters="filters"
-            :clients="clients"
-            :all-campaigns="allCampaigns"
-            :loading-campaigns="loadingCampaigns"
-            :vk-goal-actions="vkGoalActions"
-            :loading-vk-goal-actions="loadingVkGoalActions"
-            @period-change="handlePeriodChange"
-            @date-change="handleDateChange"
-            @export="handleExport"
-            @update:campaign-ids="(ids) => filters.campaign_ids = ids"
-            @update:goal-action-ids="(ids) => filters.vk_goal_action_ids = ids"
-          />
-          </div>
-          <label class="mt-4 xl:mt-0 inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
-            <input
-              v-model="includeVat"
-              type="checkbox"
-              class="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+          <div class="flex flex-wrap items-center gap-3">
+            <StatsFilters
+              :filters="filters"
+              :clients="clients"
+              :all-campaigns="allCampaigns"
+              :loading-campaigns="loadingCampaigns"
+              :vk-goal-actions="vkGoalActions"
+              :loading-vk-goal-actions="loadingVkGoalActions"
+              @period-change="handlePeriodChange"
+              @date-change="handleDateChange"
+              @export="handleExport"
+              @update:campaign-ids="(ids) => filters.campaign_ids = ids"
+              @update:goal-action-ids="(ids) => filters.vk_goal_action_ids = ids"
             />
-            <span>Учитывать НДС</span>
-          </label>
+            <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
+              <input v-model="includeVat" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+              <span>Учитывать НДС</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                :disabled="sendingPdf"
+                @click="handleDownloadPdf"
+              >
+                <ArrowDownTrayIcon class="w-4 h-4" />
+                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                :disabled="sendingTg"
+                @click="handleSendTelegram"
+              >
+                <PaperAirplaneIcon class="w-4 h-4" />
+                {{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-    <!-- Карточки KPI -->
-    <div class="w-full">
-      <div v-if="loading && !summary.expenses" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-        <Skeleton v-for="i in 6" :key="i" class="h-32 rounded-3xl shadow-sm" />
+      <!-- График эффективности кампаний (сверху по макету) -->
+      <div class="w-full relative">
+        <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl">
+          <div class="flex flex-col items-center gap-2">
+            <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
+          </div>
+        </div>
+        <StatisticsChart
+          :dynamics="dynamics"
+          :selected-metrics="selectedMetrics"
+          :period="filters.period"
+          @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
+        />
       </div>
 
-      <KPIOverview
-        v-else-if="summary && summary.expenses !== undefined"
-        :summary="summary"
-        :selected-metrics="selectedMetrics"
-        :loading="loading"
-        :include-vat="includeVat"
-        @toggle-metric="toggleMetric"
-        class="mb-8"
-      />
-    </div>
+      <!-- Двухколоночный layout: основной контент + сайдбар -->
+      <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <div class="xl:col-span-3 space-y-6">
+          <!-- KPI карточки -->
+          <div class="w-full">
+            <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-2xl" />
+            </div>
+            <KPIOverview
+              v-else-if="summary && summary.expenses !== undefined"
+              :summary="summary"
+              :selected-metrics="selectedMetrics"
+              :loading="loading"
+              :include-vat="includeVat"
+              @toggle-metric="toggleMetric"
+            />
+          </div>
 
-    <!-- График статистики -->
-    <div class="w-full relative">
-      <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[40px]">
-        <div class="flex flex-col items-center gap-2">
-          <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Обновление графика...</span>
+          <!-- Лучшие рекламные кампании (таблица) -->
+          <PromotionEfficiency
+            :summary="summary"
+            :campaigns="campaigns"
+            :client-id="filters.client_id"
+            :start-date="filters.start_date"
+            :end-date="filters.end_date"
+          />
+
+          <!-- Лучшие посты -->
+          <BestPosts
+            :client-id="filters.client_id || ''"
+            :start-date="filters.start_date"
+            :end-date="filters.end_date"
+            :platform="filters.channel"
+            :campaign-ids="filters.campaign_ids || []"
+            :goal-action-ids="filters.vk_goal_action_ids || []"
+          />
+
+          <!-- Активность по дням + Возраст аудитории -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2">
+              <ActivityByWeekday
+                :client-id="filters.client_id || ''"
+                :start-date="filters.start_date"
+                :end-date="filters.end_date"
+                :platform="filters.channel"
+                :campaign-ids="filters.campaign_ids || []"
+                :goal-action-ids="filters.vk_goal_action_ids || []"
+              />
+            </div>
+            <div>
+              <AudienceAge
+                :client-id="filters.client_id || ''"
+                :start-date="filters.start_date"
+                :end-date="filters.end_date"
+              />
+            </div>
+          </div>
+
+          <!-- Комментарий к отчёту -->
+          <ReportCommentBlock
+            :comment="reportComment"
+            :loading="reportLoading"
+            :error="reportError"
+            :sending-pdf="sendingPdf"
+            :sending-tg="sendingTg"
+            :sending-email="sendingEmail"
+            @download-pdf="handleDownloadPdf"
+            @send-telegram="handleSendTelegram"
+            @send-email="handleSendEmail"
+          />
+        </div>
+
+        <!-- Правая колонка: Подключенные каналы + Отправка отчётов -->
+        <div class="xl:col-span-1 space-y-4">
+          <ConnectedChannelsV3
+            :integrations="integrations"
+            @connect="() => $router.push('/integrations/wizard')"
+          />
+          <ReportSendingBlock
+            :sending-tg="sendingTg"
+            :sending-email="sendingEmail"
+            @send-telegram="handleSendTelegram"
+            @send-email="handleSendEmail"
+          />
         </div>
       </div>
-      <StatisticsChart 
-        :dynamics="dynamics" 
-        :selected-metrics="selectedMetrics"
-        :period="filters.period"
-        @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
-      />
-    </div>
 
-    <!-- Эффективность продвижения -->
-    <div class="w-full">
-      <PromotionEfficiency 
-        :summary="summary" 
-        :campaigns="campaigns" 
-        :client-id="filters.client_id"
-        :start-date="filters.start_date"
-        :end-date="filters.end_date"
-      />
-    </div>
+    <!-- Модальное окно Telegram -->
+    <Teleport to="body">
+      <div v-if="showTgModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить в Telegram</h3>
+          <p class="text-sm text-gray-500 mb-4">Введите Chat ID получателя (например, -1001234567890)</p>
+          <input
+            v-model="tgChatId"
+            type="text"
+            placeholder="Chat ID"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 mb-4"
+          />
+          <div class="flex justify-end gap-2">
+            <button class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl" @click="showTgModal = false">Отмена</button>
+            <button
+              class="px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50"
+              :disabled="sendingTg"
+              @click="submitTelegram"
+            >
+              {{ sendingTg ? 'Отправка...' : 'Отправить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Модальное окно Email -->
+    <Teleport to="body">
+      <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить на Email</h3>
+          <p class="text-sm text-gray-500 mb-4">Введите email получателей через запятую</p>
+          <input
+            v-model="emailRecipients"
+            type="text"
+            placeholder="email1@example.com, email2@example.com"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 mb-4"
+          />
+          <div class="flex justify-end gap-2">
+            <button class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl" @click="showEmailModal = false">Отмена</button>
+            <button
+              class="px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50"
+              :disabled="sendingEmail"
+              @click="submitEmail"
+            >
+              {{ sendingEmail ? 'Отправка...' : 'Отправить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
   </div>
 </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import {
-  ArrowPathIcon,
-} from '@heroicons/vue/24/solid'
+import { ref, computed, watch, onMounted } from 'vue'
+import { ArrowPathIcon } from '@heroicons/vue/24/solid'
+import { ArrowDownTrayIcon, PaperAirplaneIcon } from '@heroicons/vue/24/outline'
 
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
@@ -118,6 +242,12 @@ import PromotionEfficiency from './components/PromotionEfficiency.vue'
 import KPIOverview from './components/KPIOverview.vue'
 import StatsFilters from './components/StatsFilters.vue'
 import StatsHeader from './components/StatsHeader.vue'
+import BestPosts from './components/BestPosts.vue'
+import ActivityByWeekday from './components/ActivityByWeekday.vue'
+import AudienceAge from './components/AudienceAge.vue'
+import ReportCommentBlock from './components/ReportCommentBlock.vue'
+import ConnectedChannelsV3 from './components/ConnectedChannelsV3.vue'
+import ReportSendingBlock from './components/ReportSendingBlock.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
 
 // Logic
@@ -153,6 +283,20 @@ const route = useRoute()
 const router = useRouter()
 
 const includeVat = ref(false)
+const integrations = ref([])
+
+// Fetch integrations for selected client (dashboard endpoint — без чувствительных данных)
+const fetchIntegrations = async () => {
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data } = await api.get('dashboard/integrations', { params })
+    integrations.value = data || []
+  } catch {
+    integrations.value = []
+  }
+}
+
+watch(() => filters.client_id, fetchIntegrations, { immediate: true })
 
 // Auto-sync stats when VAT checkbox changes
 watch(includeVat, () => {
@@ -258,6 +402,117 @@ const handleExport = async () => {
   } catch (err) {
     console.error('Export error:', err)
     toaster.error('Не удалось скачать отчет')
+  }
+}
+
+// --- Report Comment Block ---
+const reportComment = ref('')
+const reportLoading = ref(false)
+const reportError = ref('')
+const sendingPdf = ref(false)
+const sendingTg = ref(false)
+const sendingEmail = ref(false)
+
+const handleDownloadPdf = async () => {
+  sendingPdf.value = true
+  try {
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || undefined
+    }
+    const response = await api.get('reports/pdf', { params, responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `report_${filters.start_date}_${filters.end_date}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    toaster.success('PDF отчёт скачан')
+  } catch (err) {
+    toaster.error('Не удалось скачать PDF')
+  } finally {
+    sendingPdf.value = false
+  }
+}
+
+const showTgModal = ref(false)
+const showEmailModal = ref(false)
+const tgChatId = ref('')
+const emailRecipients = ref('')
+
+const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [] })
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    userReportSettings.value.telegram_chat_id = data.report_telegram_chat_id || ''
+    userReportSettings.value.email_recipients = data.report_email_recipients || []
+  } catch {
+    // ignore
+  }
+})
+
+const handleSendTelegram = () => {
+  tgChatId.value = userReportSettings.value.telegram_chat_id
+  showTgModal.value = true
+}
+
+const handleSendEmail = () => {
+  emailRecipients.value = userReportSettings.value.email_recipients.join(', ')
+  showEmailModal.value = true
+}
+
+const submitTelegram = async () => {
+  const chatId = tgChatId.value.trim()
+  if (!chatId) {
+    toaster.error('Введите Chat ID')
+    return
+  }
+  sendingTg.value = true
+  try {
+    await api.post('reports/send', {
+      report_type: 'pdf',
+      channels: ['telegram'],
+      telegram_chat_id: chatId,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date
+    })
+    toaster.success('Отчёт отправлен в Telegram')
+    showTgModal.value = false
+    tgChatId.value = ''
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingTg.value = false
+  }
+}
+
+const submitEmail = async () => {
+  const emails = emailRecipients.value.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
+  if (!emails.length) {
+    toaster.error('Введите хотя бы один email')
+    return
+  }
+  sendingEmail.value = true
+  try {
+    await api.post('reports/send', {
+      report_type: 'pdf',
+      channels: ['email'],
+      email_recipients: emails,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date
+    })
+    toaster.success('Отчёт отправлен на email')
+    showEmailModal.value = false
+    emailRecipients.value = ''
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingEmail.value = false
   }
 }
 

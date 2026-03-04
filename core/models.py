@@ -25,6 +25,9 @@ class User(Base):
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     # Используется при запросе баланса через AccountManagement API.
     yandex_finance_token = Column(String, nullable=True)
+    # Настройки доставки отчётов
+    report_telegram_chat_id = Column(String, nullable=True)
+    report_email_recipients = Column(String, nullable=True)  # JSON массив email адресов
 
     clients = relationship("Client", back_populates="owner")
 

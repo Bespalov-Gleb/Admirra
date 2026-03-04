@@ -550,3 +550,82 @@ class StatsService:
 
         campaigns.sort(key=lambda x: x["cost"], reverse=True)
         return campaigns
+
+    @staticmethod
+    def get_activity_by_weekday(
+        db: Session,
+        client_ids: List[uuid.UUID],
+        d_start: Optional[datetime.date],
+        d_end: datetime.date,
+        platform: str = "all",
+        campaign_ids: Optional[List[uuid.UUID]] = None,
+        vk_goal_action_ids: Optional[List[str]] = None
+    ) -> dict:
+        """
+        Агрегирует активность (клики + конверсии) по дням недели.
+        PostgreSQL EXTRACT(DOW FROM date): 0=Sunday, 1=Monday, ..., 6=Saturday.
+        Возвращает: {"0": N, "1": N, ...} для Пн-Вс (индекс 1=Пн, 2=Вт, ..., 0=Вс).
+        """
+        if not client_ids:
+            return {str(i): 0 for i in range(7)}
+
+        integration_ids_filter = None
+        if not campaign_ids and len(client_ids) == 1:
+            active_int = db.query(models.Campaign.integration_id).join(
+                models.Integration
+            ).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Campaign.is_active.is_(True)
+            ).distinct().all()
+            aid_list = [r[0] for r in active_int if r[0]]
+            if aid_list:
+                integration_ids_filter = aid_list
+
+        result = {str(i): 0 for i in range(7)}
+
+        if platform in ["all", "yandex"]:
+            from sqlalchemy import extract
+            y_rows = db.query(
+                extract('dow', models.YandexStats.date).label('dow'),
+                (func.sum(models.YandexStats.clicks) + func.sum(models.YandexStats.conversions)).label('total')
+            ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                models.YandexStats.client_id.in_(client_ids),
+                models.Campaign.is_active.is_(True)
+            )
+            if campaign_ids:
+                y_rows = y_rows.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                y_rows = y_rows.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if d_start:
+                y_rows = y_rows.filter(models.YandexStats.date >= d_start)
+            if d_end:
+                y_rows = y_rows.filter(models.YandexStats.date <= d_end)
+            y_rows = y_rows.group_by(extract('dow', models.YandexStats.date)).all()
+            for r in y_rows:
+                dow = int(r.dow) if r.dow is not None else 0
+                result[str(dow)] = result.get(str(dow), 0) + int(r.total or 0)
+
+        if platform in ["all", "vk"]:
+            from sqlalchemy import extract
+            v_rows = db.query(
+                extract('dow', models.VKStats.date).label('dow'),
+                (func.sum(models.VKStats.clicks) + func.sum(models.VKStats.conversions)).label('total')
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(client_ids)
+            )
+            if campaign_ids:
+                v_rows = v_rows.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                v_rows = v_rows.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if vk_goal_action_ids:
+                v_rows = v_rows.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+            if d_start:
+                v_rows = v_rows.filter(models.VKStats.date >= d_start)
+            if d_end:
+                v_rows = v_rows.filter(models.VKStats.date <= d_end)
+            v_rows = v_rows.group_by(extract('dow', models.VKStats.date)).all()
+            for r in v_rows:
+                dow = int(r.dow) if r.dow is not None else 0
+                result[str(dow)] = result.get(str(dow), 0) + int(r.total or 0)
+
+        return result
