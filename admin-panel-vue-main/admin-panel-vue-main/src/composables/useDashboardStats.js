@@ -38,24 +38,55 @@ export function useDashboardStats() {
   const error = ref(null)
   const vkGoalActions = ref([])
 
-  // Filters state
+  const STORAGE_KEY = 'trafic_agent_dashboard_filters'
+
+  const loadFiltersFromStorage = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed.period === 'string') return parsed
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  const saveFiltersToStorage = () => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        period: filters.period,
+        start_date: filters.start_date || '',
+        end_date: filters.end_date || ''
+      }))
+    } catch {
+      // ignore
+    }
+  }
+
+  const saved = loadFiltersFromStorage()
+  const validPeriods = ['7', '14', '30', '90', '180', '365', 'custom']
+
+  // Filters state — инициализация из localStorage
   const filters = reactive({
     channel: 'all',
-    period: '14',
+    period: (saved && validPeriods.includes(saved.period)) ? saved.period : '14',
     client_id: null,
     campaign_ids: [],
     vk_goal_action_ids: [],
-    start_date: '',
-    end_date: new Date().toISOString().split('T')[0]
+    start_date: (saved?.period === 'custom' && saved?.start_date) ? saved.start_date : '',
+    end_date: (saved?.period === 'custom' && saved?.end_date) ? saved.end_date : new Date().toISOString().split('T')[0]
   })
 
   // --- Logic Helpers ---
 
   const setInitialDates = () => {
+    if (filters.period === 'custom' && filters.start_date && filters.end_date) {
+      return // сохраняем выбранные даты для своего периода
+    }
     const end = new Date()
     const start = new Date()
     const periodDays = parseInt(filters.period) || 14
-    // Корректный расчёт: today - periodDays (миллисекунды, без ошибок на границах месяцев)
     start.setTime(end.getTime() - periodDays * 24 * 60 * 60 * 1000)
     filters.start_date = start.toISOString().split('T')[0]
     filters.end_date = end.toISOString().split('T')[0]
@@ -305,6 +336,13 @@ export function useDashboardStats() {
         fetchCampaignPool()
       }
     },
+    { deep: true }
+  )
+
+  // 4. Сохранять период и даты в localStorage при изменении
+  watch(
+    () => [filters.period, filters.start_date, filters.end_date],
+    () => saveFiltersToStorage(),
     { deep: true }
   )
 

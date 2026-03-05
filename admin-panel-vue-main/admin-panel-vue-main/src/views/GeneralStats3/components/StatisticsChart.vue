@@ -135,6 +135,7 @@ const chartOptions = computed(() => ({
   animation: { duration: 0 },
   plugins: {
     legend: { display: false },
+    datalabels: { display: false },
     tooltip: {
       enabled: true,
       mode: 'index',
