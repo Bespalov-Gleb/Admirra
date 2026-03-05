@@ -253,6 +253,7 @@ const { isSyncingForProject } = useSyncStatus()
 const {
   summary,
   dynamics,
+  campaigns,
   clients,
   allCampaigns,
   loading,
