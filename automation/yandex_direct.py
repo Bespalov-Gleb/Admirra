@@ -23,6 +23,8 @@ class YandexDirectAPI:
         self.ads_url = "https://api.direct.yandex.com/json/v5/ads"
         self.ads_url_v501 = "https://api.direct.yandex.com/json/v501/ads"  # для Smart/Единая перфоманс
         self.adgroups_url_v501 = "https://api.direct.yandex.com/json/v501/adgroups"
+        self.campaigns_url_v501 = "https://api.direct.yandex.com/json/v501/campaigns"
+        self.creatives_url_v501 = "https://api.direct.yandex.com/json/v501/creatives"
         self.adimages_url = "https://api.direct.yandex.com/json/v5/adimages"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
@@ -1306,6 +1308,93 @@ class YandexDirectAPI:
                 logger.error(f"Error getting campaign domains: {e}")
                 return set()
 
+    async def _log_campaign_types(self, campaign_ids: List[int]) -> None:
+        """Диагностика: логируем типы кампаний при пустом Ads.get."""
+        if not campaign_ids:
+            return
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"Ids": campaign_ids},
+                "FieldNames": ["Id", "Name", "Type"],
+            },
+        }
+        for url in [self.campaigns_url_v501, self.campaigns_url]:
+            try:
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(url, json=payload, headers=self.headers, timeout=15.0)
+                    if r.status_code == 200:
+                        d = r.json()
+                        if "error" in d:
+                            continue
+                        for c in d.get("result", {}).get("Campaigns", []):
+                            logger.info(f"Campaign {c.get('Id')} '{c.get('Name', '')[:40]}': Type={c.get('Type', 'N/A')}")
+                        return
+            except Exception as e:
+                logger.debug(f"_log_campaign_types: {e}")
+                continue
+
+    async def _get_creatives_by_campaigns(self, campaign_ids: List[int]) -> List[Dict[str, Any]]:
+        """
+        Creatives.get: для Мастер/ЕПК креативы могут быть доступны по кампании.
+        Возвращает список в формате, совместимом с get_ads_with_titles_and_images.
+        """
+        if not campaign_ids:
+            return []
+        # Creatives.get SelectionCriteria: Ids или без фильтра. CampaignIds может не поддерживаться.
+        # Пробуем получить креативы — у некоторых сервисов есть фильтр по кампании.
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"CampaignIds": campaign_ids[:10]},
+                "FieldNames": ["CreativeId", "Type", "PreviewUrl", "ThumbnailUrl"],
+            },
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    self.creatives_url_v501, json=payload, headers=self.headers, timeout=30.0
+                )
+                if r.status_code != 200:
+                    return []
+                d = r.json()
+                if "error" in d:
+                    # CampaignIds может не поддерживаться — пробуем Types: SMART_CREATIVE
+                    err_code = d.get("error", {}).get("error_code", "")
+                    err_str = str(d.get("error", {}).get("error_string", ""))
+                    logger.debug(f"Creatives.get CampaignIds error: {err_code} {err_str}")
+                    payload["params"]["SelectionCriteria"] = {"Types": ["SMART_CREATIVE"]}
+                    payload["params"]["Page"] = {"Limit": 20, "Offset": 0}
+                    r2 = await client.post(
+                        self.creatives_url_v501, json=payload, headers=self.headers, timeout=30.0
+                    )
+                    if r2.status_code != 200:
+                        return []
+                    d = r2.json()
+                    if "error" in d:
+                        return []
+                creatives = d.get("result", {}).get("Creatives", [])
+                if not creatives:
+                    return []
+                logger.info(f"Creatives.get: got {len(creatives)} creatives for campaign_ids={campaign_ids[:5]}")
+                # Преобразуем в формат объявлений (Id, CampaignId, Title, PreviewUrl)
+                result = []
+                for i, cr in enumerate(creatives[:50]):
+                    cid = cr.get("CreativeId") or cr.get("Id")
+                    prev = cr.get("PreviewUrl") or cr.get("ThumbnailUrl") or ""
+                    result.append({
+                        "Id": cid or i,
+                        "CampaignId": campaign_ids[0] if campaign_ids else 0,
+                        "Title": f"Креатив {cid}" if cid else f"Креатив {i}",
+                        "AdImageHash": None,
+                        "PreviewUrl": prev,
+                        "SmartAdBuilderAd": {"Creative": {"PreviewUrl": prev, "ThumbnailUrl": cr.get("ThumbnailUrl")}} if prev else {},
+                    })
+                return result
+        except Exception as e:
+            logger.debug(f"_get_creatives_by_campaigns: {e}")
+            return []
+
     async def _get_ads_via_adgroups(self, campaign_ids: List[int]) -> List[Dict[str, Any]]:
         """Для Smart-кампаний: AdGroups.get → Ads.get по AdGroupIds (v501)."""
         if not campaign_ids:
@@ -1400,6 +1489,12 @@ class YandexDirectAPI:
                 ads = data.get("result", {}).get("Ads", [])
                 if ad_group_ids and not ads:
                     logger.info(f"Ads.get by AdGroupIds: ad_group_ids={ad_group_ids[:5]}..., ads_count=0")
+                # Диагностика: при пустом Ads.get по CampaignIds — логируем типы кампаний и пробуем Creatives.get
+                if not ads and campaign_ids and not ad_group_ids:
+                    await self._log_campaign_types(campaign_ids[:10])
+                    creatives_from_api = await self._get_creatives_by_campaigns(campaign_ids[:10])
+                    if creatives_from_api:
+                        ads = creatives_from_api
                 # Fallback: Ads.get по CampaignIds пуст для Smart — пробуем AdGroups.get → Ads.get по AdGroupIds (v501)
                 if not ads and campaign_ids and not ad_group_ids:
                     logger.info(f"Ads.get: campaign_ids={campaign_ids}, ads_count=0, trying AdGroups+Ads path")
