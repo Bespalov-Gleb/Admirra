@@ -20,9 +20,9 @@
         {{ statsError }}
       </div>
 
-      <!-- Шапка: заголовок + фильтры -->
+      <!-- Шапка: заголовок + фильтры (карточка) -->
       <div class="flex flex-col gap-4 mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-gray-100 shadow-md">
           <StatsHeader
             :label="headerLabel"
             :title="dashboardTitle"

@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-3xl px-6 sm:px-10 py-8 shadow-md border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl px-6 sm:px-10 py-8 shadow-md border border-gray-100 overflow-hidden">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
         <h3 class="text-xl font-black text-gray-900">Лучшие рекламные кампании</h3>

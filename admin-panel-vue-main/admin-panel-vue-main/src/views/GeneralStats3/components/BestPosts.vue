@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-md">
+  <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md">
     <h3 class="text-xl font-black text-gray-900">Лучшие посты</h3>
     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-1 mb-6">По эффективности за период</p>
     <div v-if="loading" class="flex gap-5 overflow-x-auto pb-2">

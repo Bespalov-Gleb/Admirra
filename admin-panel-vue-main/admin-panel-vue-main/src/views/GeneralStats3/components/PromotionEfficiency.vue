@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white w-full rounded-[40px] px-6 sm:px-10 py-8 shadow-sm border border-gray-50">
+  <div class="bg-white w-full rounded-2xl px-6 sm:px-10 py-8 shadow-md border border-gray-100">
     <div class="flex items-center justify-between mb-8">
       <h3 class="text-xl font-bold text-gray-900">Эффективность продвижения</h3>
     </div>

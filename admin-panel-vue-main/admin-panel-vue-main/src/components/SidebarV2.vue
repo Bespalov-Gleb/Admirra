@@ -282,7 +282,7 @@ import { useAuth } from '../composables/useAuth'
 import { useProjects } from '../composables/useProjects'
 import ConfirmModal from './ConfirmModal.vue'
 import ActiveIndicator from './ActiveIndicator.vue'
-import logoFull from '../assets/imgs/logo/AdMirra.png'
+import logoFull from '../assets/imgs/logo/logo-dark.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
 

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-2xl p-4 bg-white border border-gray-100 shadow-sm transition-all cursor-pointer hover:border-blue-200 hover:shadow-md"
+    class="rounded-2xl p-4 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
     :class="[
       isSelected && 'ring-2 ring-blue-500/30 border-blue-200'
     ]"

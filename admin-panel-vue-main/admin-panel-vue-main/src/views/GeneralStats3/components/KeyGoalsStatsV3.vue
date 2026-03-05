@@ -66,7 +66,7 @@
     </div>
 
     <!-- Правая колонка: Разбивка по целям (белый фон, отдельная карточка) -->
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-md">
+    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md">
       <h3 class="text-xs font-black text-gray-700 uppercase tracking-[0.15em] mb-5">Разбивка по целям</h3>
 
       <div class="relative w-full aspect-square max-w-[200px] mx-auto mb-5">

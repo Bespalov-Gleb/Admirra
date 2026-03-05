@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
+  <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-md">
     <h3 class="text-base font-bold text-gray-900 mb-4">Возраст аудитории</h3>
     <div v-if="loading" class="h-48 flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

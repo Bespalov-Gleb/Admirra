@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-wrap items-center gap-3 lg:gap-4">
     <!-- Main Selections Group -->
-    <div class="flex flex-wrap items-center gap-3 bg-gray-50/50 p-1.5 rounded-[24px] border border-gray-100/50">
+    <div class="flex flex-wrap items-center gap-3">
       <!-- Project Select -->
       <div class="flex flex-col gap-1 min-w-[140px] sm:min-w-[180px]">
         <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Проект</label>
