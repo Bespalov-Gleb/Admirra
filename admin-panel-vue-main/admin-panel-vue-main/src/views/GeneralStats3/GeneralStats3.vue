@@ -496,7 +496,7 @@ const submitEmail = async () => {
   }
   sendingEmail.value = true
   try {
-    await api.post('reports/send', {
+    const { data } = await api.post('reports/send', {
       report_type: 'pdf',
       channels: ['email'],
       email_recipients: emails,
@@ -504,9 +504,13 @@ const submitEmail = async () => {
       start_date: filters.start_date,
       end_date: filters.end_date
     })
-    toaster.success('Отчёт отправлен на email')
-    showEmailModal.value = false
-    emailRecipients.value = ''
+    if (data?.results?.email) {
+      toaster.success('Отчёт отправлен на email')
+      showEmailModal.value = false
+      emailRecipients.value = ''
+    } else {
+      toaster.error(data?.results?.email_error || 'Не удалось отправить email')
+    }
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Ошибка отправки')
   } finally {

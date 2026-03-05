@@ -708,14 +708,13 @@ class YandexDirectAPI:
         else:
             report_type = "CAMPAIGN_PERFORMANCE_REPORT"
 
-        # SelectionCriteria: только DateFrom и DateTo (CampaignIds не поддерживается!)
-        # Документация: https://yandex.com/dev/direct/doc/reports/ — CampaignIds вызывает 400
+        # Документация Yandex Direct Reports API: params поддерживает только
+        # SelectionCriteria (DateFrom, DateTo), FieldNames, ReportName, ReportType,
+        # DateRangeType, Format, IncludeVAT. CampaignIds и Filter — неизвестные поля.
         selection_criteria: Dict[str, Any] = {
             "DateFrom": date_from,
             "DateTo": date_to
         }
-
-        # Фильтрация по кампаниям — через Filter, а не SelectionCriteria
         params: Dict[str, Any] = {
             "SelectionCriteria": selection_criteria,
             "FieldNames": field_names,
@@ -725,13 +724,6 @@ class YandexDirectAPI:
             "Format": "TSV",
             "IncludeVAT": "NO"
         }
-        if campaign_ids:
-            params["Filter"] = [{
-                "Field": "CampaignId",
-                "Operator": "IN",
-                "Values": [str(cid) for cid in campaign_ids]
-            }]
-
         report_definition = {"params": params}
 
         # Увеличиваем таймаут для больших периодов (90+ дней)
@@ -758,7 +750,11 @@ class YandexDirectAPI:
                     self._parse_and_check_units(units)
 
                 if response.status_code == 200:
-                    return self._parse_tsv(response.text, level)
+                    rows = self._parse_tsv(response.text, level)
+                    if campaign_ids:
+                        cid_set = {str(c) for c in campaign_ids}
+                        rows = [r for r in rows if r.get("campaign_id") in cid_set]
+                    return rows
                 
                 elif response.status_code in [201, 202]:
                     # Report is being generated or in queue

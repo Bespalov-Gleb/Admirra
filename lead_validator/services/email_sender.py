@@ -103,17 +103,13 @@ class EmailSender:
                 subtype="pdf",
                 filename=filename,
             )
-        try:
-            with smtplib.SMTP(self.host, self.port, timeout=30) as server:
-                if self.use_tls:
-                    server.starttls()
-                if self.user and self.password:
-                    server.login(self.user, self.password)
-                server.send_message(msg)
-            return True
-        except Exception as e:
-            logger.error(f"Report email send failed: {e}")
-            return False
+        with smtplib.SMTP(self.host, self.port, timeout=30) as server:
+            if self.use_tls:
+                server.starttls()
+            if self.user and self.password:
+                server.login(self.user, self.password)
+            server.send_message(msg)
+        return True
 
     async def send_report_email(
         self,
@@ -122,10 +118,13 @@ class EmailSender:
         body: str,
         pdf_bytes: Optional[bytes] = None,
         filename: str = "report.pdf",
-    ) -> bool:
-        """Отправка отчёта на email с опциональным вложением PDF."""
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Отправка отчёта на email с опциональным вложением PDF.
+        Возвращает (success, error_message).
+        """
         try:
-            return await asyncio.to_thread(
+            ok = await asyncio.to_thread(
                 self._send_report_sync,
                 recipients,
                 subject,
@@ -133,9 +132,18 @@ class EmailSender:
                 pdf_bytes,
                 filename,
             )
+            return (ok, None)
+        except smtplib.SMTPAuthenticationError as e:
+            err = str(e)
+            if "535" in err or "authentication failed" in err.lower():
+                hint = " Для Gmail используйте App Password (https://myaccount.google.com/apppasswords), не обычный пароль."
+            else:
+                hint = ""
+            logger.error(f"Report email send failed: {e}")
+            return (False, f"Ошибка аутентификации SMTP.{hint}")
         except Exception as e:
             logger.error(f"Report email send failed: {e}")
-            return False
+            return (False, str(e))
 
 
 email_sender = EmailSender()

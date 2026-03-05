@@ -116,7 +116,7 @@ async def send_report(
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
 
-    results = {"email": False, "telegram": False}
+    results = {"email": False, "telegram": False, "email_error": None}
 
     # Email
     if "email" in req.channels and req.email_recipients:
@@ -125,7 +125,7 @@ async def send_report(
             subject = f"Отчёт за период {req.start_date} — {req.end_date}"
             body_text = ai_text if ai_text else f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
             if pdf_bytes:
-                results["email"] = await email_sender.send_report_email(
+                ok, err = await email_sender.send_report_email(
                     recipients=req.email_recipients,
                     subject=subject,
                     body=body_text,
@@ -133,15 +133,19 @@ async def send_report(
                     filename=f"report_{req.start_date}_{req.end_date}.pdf",
                 )
             else:
-                results["email"] = await email_sender.send_report_email(
+                ok, err = await email_sender.send_report_email(
                     recipients=req.email_recipients,
                     subject=subject,
                     body=body_text,
                 )
+            results["email"] = ok
+            if err:
+                results["email_error"] = err
         except ImportError:
             raise HTTPException(status_code=503, detail="Модуль email недоступен")
         except Exception as e:
             logger.exception("Email send failed: %s", e)
+            results["email_error"] = str(e)
 
     # Telegram
     if "telegram" in req.channels and req.telegram_chat_id:

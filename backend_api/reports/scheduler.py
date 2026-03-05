@@ -132,14 +132,17 @@ async def run_scheduled_reports():
                     from lead_validator.services.email_sender import email_sender
                     subject = f"Отчёт за период {start_str} — {end_str}"
                     body_text = f"Отчёт по рекламным кампаниям за период {start_str} — {end_str}."
-                    await email_sender.send_report_email(
+                    ok, err = await email_sender.send_report_email(
                         recipients=email_recipients,
                         subject=subject,
                         body=body_text,
                         pdf_bytes=pdf_bytes,
                         filename=f"report_{start_str}_{end_str}.pdf",
                     )
-                    logger.info(f"Scheduled report sent to Email for user {user.email}")
+                    if ok:
+                        logger.info(f"Scheduled report sent to Email for user {user.email}")
+                    else:
+                        logger.warning(f"Scheduled report Email failed for user {user.email}: {err}")
                 except Exception as e:
                     logger.exception(f"Scheduled report Email error for user {user.email}: {e}")
 

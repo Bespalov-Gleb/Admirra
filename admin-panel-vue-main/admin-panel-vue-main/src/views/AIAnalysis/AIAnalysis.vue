@@ -359,7 +359,7 @@ async function submitEmail() {
   if (!emails.length || sendingEmail.value) return
   sendingEmail.value = true
   try {
-    await api.post('reports/send', {
+    const { data } = await api.post('reports/send', {
       report_type: 'ai',
       channels: ['email'],
       email_recipients: emails,
@@ -367,8 +367,14 @@ async function submitEmail() {
       start_date: startDate.value,
       end_date: endDate.value
     })
-    toaster.success('AI-отчёт отправлен на email')
-    showEmailModal.value = false
+    if (data?.results?.email) {
+      toaster.success('AI-отчёт отправлен на email')
+      showEmailModal.value = false
+    } else {
+      const msg = data?.results?.email_error || 'Не удалось отправить email'
+      aiError.value = msg
+      toaster.error(msg)
+    }
   } catch (err) {
     aiError.value = err.response?.data?.detail || 'Ошибка отправки на Email'
     toaster.error(err.response?.data?.detail || 'Ошибка отправки')
