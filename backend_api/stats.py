@@ -1080,10 +1080,11 @@ def get_integrations_status(
 
     platform_data = {}
     for row in integrations:
-        p = row.platform.value if hasattr(row.platform, 'value') else str(row.platform)
+        raw = row.platform.value if hasattr(row.platform, 'value') else str(row.platform)
+        p = raw.lower().replace("-", "_")  # YANDEX_DIRECT -> yandex_direct
         if p not in platform_data or (row.balance is not None and platform_data[p].get("balance") is None):
             platform_data[p] = {
-                "platform": p,
+                "platform": p,  # lowercase для совместимости с фронтом
                 "is_connected": True,
                 "balance": float(row.balance) if row.balance is not None else None,
                 "currency": row.currency
