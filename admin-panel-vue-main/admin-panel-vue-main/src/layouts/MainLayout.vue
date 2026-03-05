@@ -1,12 +1,12 @@
 <template>
-  <div class="flex min-h-screen main-bg-color">
+  <div class="flex min-h-screen bg-gray-50">
     <SidebarV2 />
     <div :class="[
       'flex-1 transition-all duration-300 ml-0 overflow-x-hidden',
       mainMargin
     ]">
       <Header />
-      <main class="overflow-x-hidden bg-white rounded-tl-[40px] mt-2 min-h-[calc(100vh-80px)] shadow-inner">
+      <main class="overflow-x-hidden bg-white min-h-[calc(100vh-80px)]">
         <div class="p-8 overflow-x-hidden w-full">
           <router-view />
         </div>

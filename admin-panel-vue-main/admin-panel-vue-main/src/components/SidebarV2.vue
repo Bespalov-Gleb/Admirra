@@ -8,7 +8,7 @@
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen flex flex-col text-white transition-all duration-300 z-50 main-bg-color',
+      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 bg-white border-r border-gray-100',
       isCollapsed ? 'w-20' : 'w-[260px]',
       'lg:translate-x-0',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -23,7 +23,7 @@
         <button
           v-if="!isCollapsed"
           @click="handleToggleCollapse"
-          class="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+          class="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors"
         >
           <MenuArrow />
         </button>
@@ -32,7 +32,7 @@
       <div v-if="!isCollapsed" ref="contextSelectorRef" class="mt-3 relative">
         <button
           @click="handleContextSelect"
-          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-sm text-gray-400 hover:bg-white/5 hover:text-gray-300 transition-colors"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-sm text-gray-600 hover:bg-gray-50 transition-colors"
         >
           <span class="truncate">{{ contextLabel }}</span>
           <ChevronDownIcon class="w-4 h-4 flex-shrink-0 transition-transform" :class="{ 'rotate-180': showContextDropdown }" />
@@ -40,31 +40,31 @@
         <!-- Выпадающий список проектов -->
         <div
           v-if="showContextDropdown"
-          class="absolute left-0 right-0 top-full mt-1 py-2 bg-[#1e293b] rounded-lg shadow-xl border border-white/10 z-50 max-h-48 overflow-y-auto"
+          class="absolute left-0 right-0 top-full mt-1 py-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto"
         >
           <button
             @click="handleProjectSelect(null)"
-            class="w-full px-4 py-2 text-left text-sm hover:bg-white/5 flex items-center justify-between"
-            :class="!currentProjectId ? 'text-blue-400' : 'text-gray-300'"
+            class="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+            :class="!currentProjectId ? 'text-blue-600' : 'text-gray-700'"
           >
             <span>Все проекты</span>
-            <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-400" />
+            <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
           </button>
           <button
             v-for="p in projects"
             :key="p.id"
             @click="handleProjectSelect(p.id)"
-            class="w-full px-4 py-2 text-left text-sm hover:bg-white/5 flex items-center justify-between truncate"
-            :class="currentProjectId === p.id ? 'text-blue-400' : 'text-gray-300'"
+            class="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between truncate"
+            :class="currentProjectId === p.id ? 'text-blue-600' : 'text-gray-700'"
           >
             <span class="truncate">{{ p.name }}</span>
-            <CheckIcon v-if="currentProjectId === p.id" class="w-4 h-4 text-blue-400 flex-shrink-0" />
+            <CheckIcon v-if="currentProjectId === p.id" class="w-4 h-4 text-blue-600 flex-shrink-0" />
           </button>
-          <div class="border-t border-white/10 my-2"></div>
+          <div class="border-t border-gray-200 my-2"></div>
           <router-link
             to="/projects/create"
             @click="showContextDropdown = false; closeMobileMenu()"
-            class="flex items-center gap-2 px-4 py-2 text-sm text-blue-400 hover:bg-white/5"
+            class="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50"
           >
             <PlusIcon class="w-4 h-4" />
             Создать проект
@@ -74,7 +74,7 @@
     </div>
 
     <!-- Разделитель -->
-    <div class="mx-4 border-t border-white/12 sidebar-separator"></div>
+    <div class="mx-4 border-t border-gray-200"></div>
 
     <!-- Навигация -->
     <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hide py-3">
@@ -82,7 +82,7 @@
         <template v-for="(section, sectionIdx) in menuSections" :key="section.title">
           <div
             v-if="sectionIdx > 0"
-            class="mx-4 my-3 border-t border-white/12 sidebar-separator"
+            class="mx-4 my-3 border-t border-gray-200"
           ></div>
           <div v-for="item in section.items" :key="item.name" class="relative group">
             <!-- Кнопка меню -->
@@ -91,7 +91,7 @@
               :class="[
                 'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left text-sm transition-colors',
                 isCollapsed && 'justify-center',
-                (!item.children && isActive(item.path)) ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+                (!item.children && isActive(item.path)) ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
               ]"
             >
               <ActiveIndicator v-if="!item.children" :is-active="isActive(item.path)" />
@@ -100,8 +100,8 @@
               <ChevronDownIcon
                 v-if="!isCollapsed && item.children"
                 :class="[
-                  'w-4 h-4 transition-transform text-blue-400',
-                  !isSubmenuOpenForKey(item.submenuKey) && '-rotate-90'
+                  'w-4 h-4 transition-transform text-gray-500',
+                  isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
                 ]"
               />
             </button>
@@ -123,7 +123,7 @@
                 @click="handleLinkClick(child.path)"
                 :class="[
                   'relative w-full flex items-center gap-2.5 px-3 py-2.5 pl-14 text-left text-sm transition-colors',
-                  isActive(child.path) ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+                  isActive(child.path) ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
                 ]"
               >
                 <ActiveIndicator :is-active="isActive(child.path)" />
@@ -137,13 +137,14 @@
     </div>
 
     <!-- Разделитель перед нижним блоком -->
-    <div class="mx-4 border-t border-white/12 sidebar-separator"></div>
+    <div class="mx-4 border-t border-gray-200"></div>
 
-    <!-- Промо-карточка -->
+    <!-- Промо-карточка (по макету: тёмно-синий фон, иконка шестерёнки) -->
     <div v-if="!isCollapsed" class="px-4 py-3">
-      <div class="rounded-xl bg-[#1e3a5f] p-4">
+      <div class="rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#0f2744] p-4 relative overflow-hidden">
+        <Setting class="absolute top-3 left-3 w-4 h-4 text-white/40" />
         <h4 class="text-sm font-bold text-white mb-1">Повысить до премиум</h4>
-        <p class="text-xs text-white/80 mb-3">Расширенные отчёты и аналитика</p>
+        <p class="text-xs text-white/80 mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
         <router-link
           to="/settings"
           @click="closeMobileMenu"
@@ -164,7 +165,7 @@
             :class="[
               'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/history') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+              isActive('/history') ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/history')" />
@@ -183,7 +184,7 @@
             :class="[
               'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/settings') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+              isActive('/settings') ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/settings')" />
@@ -195,7 +196,7 @@
             <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
           </div>
         </div>
-        <div class="mx-4 my-2 border-t border-white/12 sidebar-separator"></div>
+        <div class="mx-4 my-2 border-t border-gray-200"></div>
         <div class="relative group">
           <router-link
             to="/help"
@@ -203,7 +204,7 @@
             :class="[
               'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/help') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+              isActive('/help') ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/help')" />
@@ -222,7 +223,7 @@
             :class="[
               'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/contact') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+              isActive('/contact') ? 'bg-active-menu text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/contact')" />
@@ -238,7 +239,7 @@
           <button
             @click="handleLogoutClick"
             :class="[
-              'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left text-sm text-gray-400 hover:bg-white/5 hover:text-gray-300',
+              'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50',
               isCollapsed && 'justify-center'
             ]"
           >
@@ -274,7 +275,6 @@ import {
   ArrowRightOnRectangleIcon,
   PlusIcon,
   PhoneIcon,
-  SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 import { useSidebar } from '../composables/useSidebar'
@@ -329,15 +329,11 @@ const isDashboardSubmenuOpen = ref(false)
 const isPhoneSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
+// Вкладки по макету: Аналитика, Проекты, Команда, Продукты, Каналы, Телефония (разворачивается)
 const menuSections = [
   {
-    title: 'ОСНОВНОЕ',
+    title: 'main',
     items: [
-      {
-        name: 'AI Анализ',
-        path: '/ai-analysis',
-        icon: SparklesIcon
-      },
       {
         name: 'Аналитика',
         icon: ChartBarIcon,
@@ -345,20 +341,10 @@ const menuSections = [
         submenuKey: 'dashboard',
         children: [
           { name: 'Аналитика проекта', path: '/dashboard/general-3' },
-          { name: 'Сформировать отчет', path: '/dashboard/general-2' },
           { name: 'Общая статистика', path: '/dashboard/general' },
         ]
       },
-      {
-        name: 'Проекты',
-        path: '/projects',
-        icon: Project
-      }
-    ]
-  },
-  {
-    title: 'УПРАВЛЕНИЕ',
-    items: [
+      { name: 'Проекты', path: '/projects', icon: Project },
       { name: 'Команда', path: '/team', icon: Group },
       { name: 'Продукты', path: '/products', icon: Product },
       { name: 'Каналы', path: '/channels', icon: Channels },

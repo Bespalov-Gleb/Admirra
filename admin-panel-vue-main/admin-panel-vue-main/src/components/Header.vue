@@ -1,115 +1,98 @@
 <template>
-  <header class="main-bg-color text-white px-4 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-30">
+  <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-30">
     <div class="flex items-center justify-between gap-4">
-      <!-- Левая часть - Логотип и название -->
+      <!-- Левая часть — Трафик агентство (по макету) -->
       <div class="flex items-center gap-3 flex-shrink-0">
-        <!-- Кнопка меню для мобильных -->
         <button
           @click="toggleMobileMenu"
-          class="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+          class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
           aria-label="Открыть меню"
         >
-          <Bars3Icon class="w-6 h-6 text-white" />
+          <Bars3Icon class="w-6 h-6" />
         </button>
         
-        <!-- Логотип -->
-         <div class="bg-[#e5e7eb] p-1.5 rounded-lg">
-          <logoFull  class="h-8 w-auto text-black"/>
-        </div>
-        
-        <!-- Название агентства / Выбор проекта -->
-        <div class="hidden lg:block relative" ref="projectMenuRef">
-           <button 
-             @click="toggleProjectMenu"
-             class="flex items-center gap-2 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
-           >
-             <div>
-               <h1 class="text-sm sm:text-base md:text-lg font-bold text-white uppercase text-left">
-                 {{ currentProjectName }}
-               </h1>
-               <p class="text-xs text-gray-400 text-left">
-                 {{ projects.length }} {{ getProjectWord(projects.length) }}
-               </p>
-             </div>
-             <ChevronDownIcon class="w-4 h-4 text-gray-400" />
-           </button>
+        <!-- Блок агентства: иконка + текст + dropdown -->
+        <div class="relative" ref="projectMenuRef">
+          <button 
+            @click="toggleProjectMenu"
+            class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+          >
+            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <ChartBarIcon class="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-gray-900">{{ currentProjectName }}</p>
+              <p class="text-xs text-gray-500">Отчёты агентства в одном месте</p>
+            </div>
+            <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+          </button>
 
-           <!-- Project Dropdown -->
-           <div 
-             v-if="isProjectMenuOpen"
-             class="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50 text-gray-800"
-           >
-              <div class="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Мои проекты
-              </div>
-              
-              <div class="max-h-64 overflow-y-auto">
-                <!-- Все проекты -->
-                <button
-                  @click="handleProjectSelect(null)"
-                  class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group"
-                  :class="{'bg-blue-50/50 text-blue-600': !currentProjectId}"
-                >
-                  <span class="font-medium truncate">Все проекты</span>
-                  <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
-                </button>
-
-                <button
-                  v-for="project in projects"
-                  :key="project.id"
-                  @click="handleProjectSelect(project.id)"
-                  class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group"
-                  :class="{'bg-blue-50/50 text-blue-600': currentProjectId === project.id}"
-                >
-                  <span class="font-medium truncate">{{ project.name }}</span>
-                  <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
-                </button>
-              </div>
-
-              <div class="p-2 border-t border-gray-100">
-                <router-link
-                  to="/projects/create"
-                  @click="isProjectMenuOpen = false"
-                  class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                >
-                  <PlusIcon class="w-4 h-4" />
-                  Создать новый проект
-                </router-link>
-              </div>
-           </div>
+          <div 
+            v-if="isProjectMenuOpen"
+            class="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 text-gray-800"
+          >
+            <div class="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Мои проекты
+            </div>
+            <div class="max-h-64 overflow-y-auto">
+              <button
+                @click="handleProjectSelect(null)"
+                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between"
+                :class="{'bg-blue-50/50 text-blue-600': !currentProjectId}"
+              >
+                <span class="font-medium truncate">Все проекты</span>
+                <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
+              </button>
+              <button
+                v-for="project in projects"
+                :key="project.id"
+                @click="handleProjectSelect(project.id)"
+                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between"
+                :class="{'bg-blue-50/50 text-blue-600': currentProjectId === project.id}"
+              >
+                <span class="font-medium truncate">{{ project.name }}</span>
+                <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
+              </button>
+            </div>
+            <div class="p-2 border-t border-gray-100">
+              <router-link
+                to="/projects/create"
+                @click="isProjectMenuOpen = false"
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <PlusIcon class="w-4 h-4" />
+                Создать новый проект
+              </router-link>
+            </div>
+          </div>
         </div>
       </div>
 
-
-      <!-- Правая часть - Кнопки и профиль -->
-      <div class="flex items-center gap-3 flex-shrink-0 bg-white px-5 py-1.5 rounded-[16px] text-gray-900">
-        <!-- Динамическая кнопка (Интеграция или Проект) -->
+      <!-- Правая часть — Кнопка, уведомления, профиль (по макету) -->
+      <div class="flex items-center gap-3 flex-shrink-0">
         <button
-          @click="handleHeaderAction"
-          class="flex items-center gap-2 px-4 py-1.5 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          @click="() => router.push('/projects/create')"
+          class="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors text-white text-sm font-medium"
         >
-          <PlusIcon class="w-5 h-5 text-white" />
-          <span class="text-sm font-medium text-white">{{ headerButtonText }}</span>
+          <PlusIcon class="w-5 h-5" />
+          Добавить новый проект
         </button>
         
-        <!-- Уведомления -->
         <div class="relative">
           <button
             data-notifications-button
             @click="toggleNotifications"
-            class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            class="relative p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
             aria-label="Уведомления"
           >
-            <BellIcon class="w-5 h-5 text-main-bg-color" />
+            <BellIcon class="w-5 h-5 text-gray-600" />
             <span
               v-if="unreadCount > 0"
-              class="absolute top-0 right-0 w-[16px] h-[16px] bg-[#1c274c] text-white text-[10px] font-medium rounded-[4px] flex items-center justify-center"
+              class="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-green-500 text-white text-[10px] font-semibold rounded-md flex items-center justify-center"
             >
               {{ unreadCount }}
             </span>
           </button>
-
-          <!-- Выпадающее меню уведомлений -->
           <Teleport to="body">
             <div
               v-if="showNotifications"
@@ -164,15 +147,18 @@
           </Teleport>
         </div>
 
-        
-        <!-- Профиль -->
-        <div class="relative bg-[#E5E7EB] rounded-md ml-1">
+        <!-- Профиль (по макету: аватар + имя + dropdown) -->
+        <div class="relative">
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="p-2 rounded-lg hover:bg-gray-300 transition-colors"
+            class="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
           >
-            <ProfileHeader class="w-5 h-5 text-main-bg-color" />
+            <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <ProfileHeader class="w-5 h-5 text-blue-600" />
+            </div>
+            <span class="text-sm font-medium text-gray-900 hidden sm:inline">{{ displayName }}</span>
+            <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0" />
           </button>
 
           <!-- Выпадающее меню профиля -->
@@ -269,11 +255,10 @@ import {
   MoonIcon,
   ChevronDownIcon,
   CheckIcon,
-  PlusIcon
+  PlusIcon,
+  ChartBarIcon
 } from '@heroicons/vue/24/outline'
-import logoFull from '../assets/icons/logo-header.vue'
-import AddProjectArrow   from '../assets/icons/add-project-header.vue'
-import ProfileHeader   from '../assets/icons/profile-header.vue'
+import ProfileHeader from '../assets/icons/profile-header.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'

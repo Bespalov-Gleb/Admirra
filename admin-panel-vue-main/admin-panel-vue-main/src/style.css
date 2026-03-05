@@ -37,12 +37,12 @@ html {
 }
 
 .bg-active-menu {
-    background-color: rgba(59, 130, 246, 0.9);
+    background-color: rgba(59, 130, 246, 0.15);
 }
 
-/* Разделители в сайдбаре (шаблон AdMirra) */
+/* Разделители в сайдбаре (светлый макет) */
 .sidebar-separator {
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(0, 0, 0, 0.08);
 }
 
 /* Скрытие скроллбара для всех браузеров */
