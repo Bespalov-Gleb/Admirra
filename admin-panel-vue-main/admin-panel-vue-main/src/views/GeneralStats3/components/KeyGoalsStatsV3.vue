@@ -157,14 +157,14 @@ const updateChart = () => {
       datasets: [
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColorsDark[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
           borderWidth: 0,
           hoverOffset: 0,
           weight: 1
         },
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColorsDark[i]),
           borderWidth: 0,
           hoverOffset: 2,
           weight: 2
