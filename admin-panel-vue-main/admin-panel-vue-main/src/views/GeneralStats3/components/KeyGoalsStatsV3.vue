@@ -1,64 +1,61 @@
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 w-full">
-    <!-- Левая + центр: одна синяя таблица, почти равные блоки (по шаблону) -->
-    <div class="lg:col-span-2 flex rounded-3xl overflow-hidden shadow-lg">
-      <!-- Левая зона: цели (#3B82F6) -->
-      <div class="flex-1 min-w-0 bg-[#3B82F6] p-6 sm:p-8 relative overflow-hidden flex flex-col min-h-[280px]">
-        <div class="absolute inset-0 opacity-[0.06]" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 20px 20px" />
-        <div class="relative z-10 flex flex-col flex-1">
-          <div class="flex items-center gap-3 mb-6">
-            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <ChartBarIcon class="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 class="text-sm font-black text-white">Статистика по ключевым целям</h3>
-              <p class="text-[10px] font-semibold text-white/70 uppercase tracking-wider mt-0.5">За период</p>
-            </div>
+    <!-- Левая + центр: белая карточка по макету (скрин 2) -->
+    <div class="lg:col-span-2 flex rounded-2xl overflow-hidden shadow-md border border-gray-100 bg-white">
+      <!-- Левая зона: белый фон, статистика по целям -->
+      <div class="flex-[3] min-w-0 p-6 sm:p-8 flex flex-col min-h-[280px]">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-xl bg-[#3B82F6] flex items-center justify-center">
+            <ChartBarIcon class="w-5 h-5 text-white" />
           </div>
-
-          <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly">
-            <div v-for="i in 3" :key="i" class="h-16 bg-white/10 rounded-2xl animate-pulse" />
+          <div>
+            <h3 class="text-sm font-bold text-gray-900">Статистика по ключевым целям</h3>
+            <p class="text-xs text-gray-500 mt-0.5">За период</p>
           </div>
+        </div>
 
-          <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-white/60 text-base font-medium">
-            Цели не настроены
-          </div>
+        <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly">
+          <div v-for="i in 3" :key="i" class="h-16 bg-gray-100 rounded-2xl animate-pulse" />
+        </div>
 
-          <div v-else class="flex-1 flex flex-col justify-evenly">
-            <div
-              v-for="(goal, index) in topGoals"
-              :key="goal.id || goal.name"
-              class="flex items-center gap-3 py-2"
-            >
-              <span class="text-xl font-bold text-white flex-1 min-w-0 border-b border-dotted border-white/40 pb-0.5">{{ formatGoalName(goal.name) }}:</span>
-              <div class="flex items-center gap-2 flex-shrink-0">
-                <span class="text-2xl font-black text-white tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
-                <span
-                  v-if="goal.trend != null"
-                  :class="[
-                    'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold',
-                    (goal.trend >= 0 ? 'bg-[#10B981] text-white' : 'bg-red-400/90 text-white')
-                  ]"
-                >
-                  <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-4 h-4" />
-                  <ArrowTrendingDownIcon v-else class="w-4 h-4" />
-                  {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
-                </span>
-              </div>
+        <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-base font-medium">
+          Цели не настроены
+        </div>
+
+        <div v-else class="flex-1 flex flex-col justify-evenly">
+          <div
+            v-for="(goal, index) in topGoals"
+            :key="goal.id || goal.name"
+            class="flex items-center gap-3 py-2"
+          >
+            <span class="text-base font-semibold text-gray-800 flex-1 min-w-0 border-b border-dotted border-gray-300 pb-0.5">{{ formatGoalName(goal.name) }}:</span>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xl font-bold text-gray-900 tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+              <span
+                v-if="goal.trend != null"
+                :class="[
+                  'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold',
+                  (goal.trend >= 0 ? 'bg-[#10B981] text-white' : 'bg-red-400/90 text-white')
+                ]"
+              >
+                <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-4 h-4" />
+                <ArrowTrendingDownIcon v-else class="w-4 h-4" />
+                {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Правая зона: Итого (#2563EB, темнее левой), почти равная ширина -->
-      <div class="flex-1 min-w-0 bg-[#2563EB] p-8 sm:p-10 relative overflow-hidden flex flex-col min-h-[280px]">
-        <div class="absolute inset-0 opacity-[0.05]" style="background-image: linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px); background-size: 16px 16px" />
-        <div class="relative z-10 flex flex-col flex-1">
-          <h3 class="text-xs font-semibold text-white/80 uppercase tracking-wider mb-0">Итого:</h3>
-          <div class="flex-1 flex items-end justify-center pb-4">
-            <p class="flex items-baseline justify-center gap-1">
-              <span class="text-7xl sm:text-8xl lg:text-9xl font-black text-white tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-              <span class="text-2xl sm:text-3xl font-bold text-white">шт.</span>
+      <!-- Правая зона: светло-голубой фон, Итого -->
+      <div class="flex-[2] min-w-0 bg-[#7dd3fc] p-8 sm:p-10 relative overflow-hidden flex flex-col min-h-[280px] rounded-r-2xl">
+        <div class="absolute inset-0 opacity-50" style="background-image: radial-gradient(circle at 1px 1px, white 1.5px, transparent 0); background-size: 12px 12px" />
+        <div class="relative z-10 flex flex-col flex-1 min-h-0">
+          <h3 class="text-sm font-medium text-gray-600 mb-2">Итого:</h3>
+          <div class="flex-1 flex items-center justify-center min-h-0 py-4">
+            <p class="flex items-baseline gap-1">
+              <span class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+              <span class="text-xl sm:text-2xl font-bold text-white self-end pb-1">шт.</span>
             </p>
           </div>
         </div>
