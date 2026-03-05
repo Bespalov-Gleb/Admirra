@@ -50,13 +50,13 @@
         </div>
       </div>
 
-      <!-- Правая зона: Итого (темнее), больше воздуха -->
-      <div class="w-full sm:w-64 min-w-[200px] flex-shrink-0 bg-[#0f172a] py-10 px-8 sm:py-12 sm:px-10 flex flex-col justify-center items-center">
-        <h3 class="text-sm font-black text-white/80 uppercase tracking-[0.2em] mb-6">Итого:</h3>
-        <p class="text-7xl sm:text-8xl lg:text-9xl font-black text-white tabular-nums tracking-tight leading-none">
-          {{ totalConversions.toLocaleString('ru-RU') }}
+      <!-- Правая зона: Итого (темнее левой, но светлее чем было) -->
+      <div class="w-full sm:w-64 min-w-[200px] flex-shrink-0 bg-[#1e293b] py-8 px-6 sm:py-10 sm:px-8 flex flex-col">
+        <h3 class="text-xs font-semibold text-white/80 uppercase tracking-wider">Итого:</h3>
+        <div class="flex-1" />
+        <p class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight text-center pb-2">
+          {{ totalConversions.toLocaleString('ru-RU') }} шт.
         </p>
-        <p class="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider mt-2">шт.</p>
       </div>
     </div>
 
