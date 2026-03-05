@@ -1,10 +1,10 @@
 <template>
   <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md min-h-[280px] flex flex-col">
     <h3 class="text-base font-bold text-gray-900 mb-5">Активность по дням</h3>
-    <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
+    <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else class="flex-1 min-h-[240px]">
+    <div v-else class="flex-1 min-h-[200px]">
       <canvas ref="chartRef" />
     </div>
   </div>
@@ -13,9 +13,10 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Chart, registerables } from 'chart.js'
+import DataLabelsPlugin from 'chartjs-plugin-datalabels'
 import api from '../../../api/axios'
 
-Chart.register(...registerables)
+Chart.register(...registerables, DataLabelsPlugin)
 
 const props = defineProps({
   clientId: { type: String, default: '' },
@@ -30,13 +31,14 @@ const chartRef = ref(null)
 let chartInstance = null
 const loading = ref(false)
 
-const WEEKDAY_LABELS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const WEEKDAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
 const updateChart = (data) => {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.destroy()
 
-  const values = WEEKDAY_LABELS.map((_, i) => data[String(i)] || 0)
+  const values = WEEKDAY_INDICES.map((i) => data[String(i)] || 0)
 
   chartInstance = new Chart(chartRef.value, {
     type: 'bar',
@@ -45,21 +47,37 @@ const updateChart = (data) => {
       datasets: [{
         label: 'Активность',
         data: values,
-        backgroundColor: values.map((_, i) => (i >= 1 && i <= 5) ? 'rgba(59, 130, 246, 0.7)' : 'rgba(156, 163, 175, 0.6)'),
+        backgroundColor: values.map((_, i) => (i >= 0 && i <= 4) ? 'rgba(59, 130, 246, 0.7)' : 'rgba(156, 163, 175, 0.6)'),
         borderRadius: 8
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8 } },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: true }
+        tooltip: { enabled: true },
+        datalabels: {
+          anchor: 'end',
+          align: 'top',
+          formatter: (v) => v,
+          font: { size: 12, weight: 'bold' },
+          color: '#374151'
+        }
       },
       scales: {
+        x: {
+          display: true,
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: '#6b7280', font: { size: 12 } }
+        },
         y: {
+          display: false,
           beginAtZero: true,
-          ticks: { precision: 0 }
+          grid: { display: false },
+          border: { display: false }
         }
       }
     }
