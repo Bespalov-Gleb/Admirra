@@ -64,7 +64,7 @@
           <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[4].value }}</text>
         </g>
 
-        <!-- 6. Цена цели -->
+        <!-- 6. Бюджет -->
         <g transform="translate(1000, 60)">
           <rect x="-40" y="-12" width="80" height="24" rx="12" fill="white" filter="url(#shadow)" />
           <text text-anchor="middle" y="5" font-size="10" font-weight="black" fill="#82d944">{{ funnelLabels[5].value }}</text>
@@ -223,15 +223,14 @@ const funnelLabels = computed(() => [
   { text: 'Клики', value: (props.summary.clicks || 0).toLocaleString() },
   { text: 'Конверсии, % (CR)', value: (props.summary.cr || 0).toFixed(2) + '%' },
   { text: 'Конверсии', value: (props.summary.leads || 0).toLocaleString() },
-  { text: 'Цена цели', value: props.summary.cpa ? formatMoney(props.summary.cpa) : formatMoney(0) }
+  { text: 'Бюджет', value: props.summary.expenses ? formatMoney(props.summary.expenses) + ' P' : '0 P' }
 ])
 
 const formatMoney = (val) => {
   return new Intl.NumberFormat('ru-RU', { 
-    style: 'currency', 
-    currency: props.summary.currency || 'RUB', 
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0 
-  }).format(val)
+  }).format(val || 0)
 }
 
 const calculateCPA = (goal) => {

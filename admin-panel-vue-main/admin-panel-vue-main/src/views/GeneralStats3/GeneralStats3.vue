@@ -104,15 +104,20 @@
         />
       </div>
 
-      <!-- Основной контент: таблица кампаний, посты, активность -->
+      <!-- Основной контент: цели, эффективность, кампании, посты, активность -->
       <div class="space-y-6">
-          <!-- Лучшие рекламные кампании (таблица) -->
-          <PromotionEfficiency
-            :summary="summary"
-            :campaigns="campaigns"
+          <!-- Статистика по ключевым целям (3 колонки по макету) -->
+          <KeyGoalsStatsV3
+            v-if="filters.client_id"
             :client-id="filters.client_id"
             :start-date="filters.start_date"
             :end-date="filters.end_date"
+          />
+
+          <!-- Лучшие рекламные кампании (таблица) -->
+          <CampaignTableV3
+            :campaigns="campaigns"
+            :loading="loading"
           />
 
           <!-- Лучшие посты -->
@@ -221,7 +226,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/solid'
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
-import PromotionEfficiency from './components/PromotionEfficiency.vue'
+import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
+import CampaignTableV3 from './components/CampaignTableV3.vue'
 import KPIOverview from './components/KPIOverview.vue'
 import StatsFilters from './components/StatsFilters.vue'
 import StatsHeader from './components/StatsHeader.vue'

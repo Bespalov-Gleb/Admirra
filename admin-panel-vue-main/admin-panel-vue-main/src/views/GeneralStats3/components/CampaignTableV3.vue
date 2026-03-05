@@ -1,13 +1,16 @@
 <template>
-  <div class="bg-white rounded-[40px] px-6 sm:px-10 py-8 shadow-sm border border-gray-50 overflow-hidden">
-    <div class="flex items-center justify-between mb-8">
-      <h3 class="text-xl font-bold text-gray-900">Детальная статистика по кампаниям</h3>
+  <div class="bg-white rounded-2xl px-6 sm:px-10 py-8 shadow-sm border border-gray-100 overflow-hidden">
+    <div class="mb-6">
+      <h3 class="text-xl font-bold text-gray-900">Лучшие рекламные кампании</h3>
+      <p class="text-xs font-medium text-gray-500 mt-1">По эффективности за период</p>
+    </div>
+    <div class="flex justify-end mb-4">
       <div class="relative">
         <input 
           v-model="searchQuery" 
           type="text" 
           placeholder="Поиск кампании..." 
-          class="pl-10 pr-4 py-2 text-sm border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50 transition-all w-64"
+          class="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50 transition-all w-64"
         />
         <MagnifyingGlassIcon class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
       </div>
@@ -17,13 +20,13 @@
       <table class="w-full text-left border-separate border-spacing-y-2">
         <thead>
           <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-            <th class="px-6 py-2">Название кампании</th>
-            <th class="px-4 py-2 text-right">Показы</th>
-            <th class="px-4 py-2 text-right">Клики</th>
-            <th class="px-4 py-2 text-right">Расход, ₽</th>
-            <th class="px-4 py-2 text-right">Лиды</th>
-            <th class="px-4 py-2 text-right">CPC</th>
-            <th class="px-6 py-2 text-right">CPA</th>
+            <th class="px-6 py-3">Название кампании</th>
+            <th class="px-4 py-3 text-right">Расход</th>
+            <th class="px-4 py-3 text-right">Показы</th>
+            <th class="px-4 py-3 text-right">Клики</th>
+            <th class="px-4 py-3 text-right">CPC</th>
+            <th class="px-4 py-3 text-right">Лиды</th>
+            <th class="px-6 py-3 text-right">CPA</th>
           </tr>
         </thead>
         <tbody class="divide-y-0">
@@ -40,9 +43,10 @@
           </tr>
 
           <tr 
-            v-for="campaign in filteredCampaigns" 
+            v-for="(campaign, idx) in filteredCampaigns" 
             :key="campaign.name" 
-            class="group hover:bg-blue-50/30 transition-all cursor-default"
+            class="group transition-all cursor-default"
+            :class="idx % 2 === 0 ? 'bg-amber-50/40' : 'bg-emerald-50/40'"
           >
             <td class="px-6 py-4 rounded-l-2xl">
               <div class="flex flex-col">
@@ -50,47 +54,44 @@
                   {{ campaign.name }}
                 </span>
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                  {{ campaign.name.includes('[VK]') ? 'ВКонтакте Ads' : 'Яндекс.Директ' }}
+                  {{ campaign.name?.includes('[VK]') ? 'ВКонтакте Ads' : 'Яндекс.Директ' }}
                 </span>
               </div>
             </td>
             <td class="px-4 py-4 text-right">
-              <span class="text-sm font-bold text-gray-600">
-                {{ (campaign.impressions || 0).toLocaleString() }}
-              </span>
+              <div class="flex flex-col items-end">
+                <span class="text-sm font-bold text-gray-900">{{ formatMoney(campaign.cost) }} ₽</span>
+                <span v-if="campaign.trend_cost != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_cost }}%</span>
+              </div>
             </td>
             <td class="px-4 py-4 text-right">
-              <span class="text-sm font-bold text-gray-600">
-                {{ (campaign.clicks || 0).toLocaleString() }}
-              </span>
+              <div class="flex flex-col items-end">
+                <span class="text-sm font-bold text-gray-600">{{ (campaign.impressions || 0).toLocaleString() }}</span>
+                <span v-if="campaign.trend_impressions != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_impressions }}%</span>
+              </div>
             </td>
             <td class="px-4 py-4 text-right">
-              <span class="text-sm font-black text-gray-900 bg-gray-50 group-hover:bg-white px-2 py-1 rounded-lg transition-colors">
-                {{ (campaign.cost || 0).toLocaleString() }} ₽
-              </span>
+              <div class="flex flex-col items-end">
+                <span class="text-sm font-bold text-gray-600">{{ (campaign.clicks || 0).toLocaleString() }}</span>
+                <span v-if="campaign.trend_clicks != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_clicks }}%</span>
+              </div>
             </td>
             <td class="px-4 py-4 text-right">
-              <span class="text-sm font-bold text-gray-600">
-                {{ (campaign.conversions || 0).toLocaleString() }}
-              </span>
+              <div class="flex flex-col items-end">
+                <span class="text-sm font-bold text-gray-600">{{ formatMoney(campaign.cpc) }} ₽</span>
+                <span v-if="campaign.trend_cpc != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_cpc }}%</span>
+              </div>
             </td>
             <td class="px-4 py-4 text-right">
-              <span class="text-sm font-bold text-gray-500">
-                {{ (campaign.cpc || 0).toFixed(2) }}
-              </span>
+              <div class="flex flex-col items-end">
+                <span class="text-sm font-bold text-gray-600">{{ (campaign.conversions || 0).toLocaleString() }} шт.</span>
+                <span v-if="campaign.trend_conversions != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_conversions }}%</span>
+              </div>
             </td>
             <td class="px-6 py-4 text-right rounded-r-2xl">
-              <div class="flex items-center justify-end gap-3">
-                <span class="text-sm font-bold text-gray-900">
-                  {{ (campaign.cpa || 0).toFixed(2) }} ₽
-                </span>
-                <button 
-                  @click="$emit('select-campaign', campaign)"
-                  class="p-2 hover:bg-white rounded-xl text-blue-600 transition-all opacity-0 group-hover:opacity-100 shadow-sm border border-transparent hover:border-blue-100"
-                  title="Подробнее по этой кампании"
-                >
-                  <ArrowTopRightOnSquareIcon class="w-4 h-4" />
-                </button>
+              <div class="flex flex-col items-end gap-0.5">
+                <span class="text-sm font-bold text-gray-900">{{ formatMoney(campaign.cpa) }} ₽</span>
+                <span v-if="campaign.trend_cpa != null" class="text-[10px] font-bold text-green-600">+{{ campaign.trend_cpa }}%</span>
               </div>
             </td>
           </tr>
@@ -102,7 +103,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { MagnifyingGlassIcon, ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
+import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   campaigns: {
@@ -116,7 +117,6 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select-campaign'])
 
 const searchQuery = ref('')
 
@@ -124,7 +124,12 @@ const filteredCampaigns = computed(() => {
   if (!searchQuery.value) return props.campaigns
   const query = searchQuery.value.toLowerCase()
   return props.campaigns.filter(c => 
-    c.name.toLowerCase().includes(query)
+    (c.name || '').toLowerCase().includes(query)
   )
 })
+
+const formatMoney = (val) => {
+  if (val == null || isNaN(val)) return '—'
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+}
 </script>

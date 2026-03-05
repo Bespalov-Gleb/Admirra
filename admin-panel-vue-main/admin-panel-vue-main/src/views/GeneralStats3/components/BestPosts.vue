@@ -1,8 +1,9 @@
 <template>
-  <div class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
-    <h3 class="text-base font-bold text-gray-900 mb-4">Лучшие посты</h3>
+  <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+    <h3 class="text-xl font-bold text-gray-900">Лучшие посты</h3>
+    <p class="text-xs font-medium text-gray-500 mt-1 mb-4">По эффективности за период</p>
     <div v-if="loading" class="flex gap-4 overflow-x-auto pb-2">
-      <div v-for="i in 4" :key="i" class="flex-shrink-0 w-48 h-36 rounded-2xl bg-gray-100 animate-pulse" />
+      <div v-for="i in 4" :key="i" class="flex-shrink-0 w-56 h-44 rounded-2xl bg-gray-100 animate-pulse" />
     </div>
     <div v-else-if="posts.length === 0" class="text-center py-8 text-gray-500 text-sm">
       Нет данных за выбранный период
@@ -11,17 +12,21 @@
       <div
         v-for="post in posts"
         :key="post.id"
-        class="flex-shrink-0 w-48 rounded-2xl border border-gray-200 overflow-hidden bg-gray-50 hover:shadow-md transition-shadow"
+        class="flex-shrink-0 w-56 rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all shadow-sm"
       >
-        <div class="h-20 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-          <span class="text-xs font-medium text-gray-500 truncate px-2">{{ post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads' }}</span>
+        <div class="h-28 bg-gradient-to-br from-blue-600 to-blue-800 relative flex items-center justify-center overflow-hidden">
+          <img v-if="post.image_url" :src="post.image_url" :alt="post.title" class="absolute inset-0 w-full h-full object-cover opacity-80" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <div class="relative z-10 text-center px-3">
+            <span class="text-[10px] font-bold text-white/90 uppercase tracking-wider">{{ post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads') }}</span>
+            <p class="text-sm font-black text-white leading-tight mt-1 line-clamp-2">{{ post.title }}</p>
+          </div>
         </div>
-        <div class="p-3">
-          <p class="text-sm font-semibold text-gray-900 truncate" :title="post.title">{{ post.title }}</p>
-          <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+        <div class="p-3 bg-white">
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
             <span>{{ post.impressions?.toLocaleString() }} показов</span>
             <span>{{ post.clicks?.toLocaleString() }} кликов</span>
-            <span>CTR {{ post.ctr }}%</span>
+            <span>CTR {{ post.ctr ?? '—' }}%</span>
             <span>{{ post.cost?.toLocaleString() }} ₽</span>
           </div>
         </div>
