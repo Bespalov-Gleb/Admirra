@@ -87,18 +87,9 @@ def read_users_me(current_user: models.User = Depends(security.get_current_user)
     return current_user
 
 
-@router.put("/me", response_model=schemas.UserResponse)
-def update_users_me(
-    updates: schemas.UserUpdateSettings,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(security.get_current_user),
-):
-    """
-    Update current logged in user settings (safe subset of fields).
-    """
-    # Обновляем только разрешённые поля
+def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):
+    """Общая логика обновления настроек пользователя."""
     if updates.username is not None:
-        # Проверяем уникальность username
         existing = db.query(models.User).filter(
             models.User.username == updates.username,
             models.User.id != current_user.id
@@ -106,24 +97,40 @@ def update_users_me(
         if existing:
             raise HTTPException(status_code=400, detail="Username already taken")
         current_user.username = updates.username
-
     if updates.first_name is not None:
         current_user.first_name = updates.first_name
-
     if updates.last_name is not None:
         current_user.last_name = updates.last_name
-
     if updates.yandex_finance_token is not None:
         current_user.yandex_finance_token = updates.yandex_finance_token
-
     if updates.report_telegram_chat_id is not None:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
-
     if updates.report_email_recipients is not None:
         import json
         current_user.report_email_recipients = json.dumps(updates.report_email_recipients) if updates.report_email_recipients else None
-
+    if updates.report_schedule is not None:
+        current_user.report_schedule = updates.report_schedule
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.put("/me", response_model=schemas.UserResponse)
+def update_users_me(
+    updates: schemas.UserUpdateSettings,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    """Update current logged in user settings (safe subset of fields)."""
+    return _update_user_settings(updates, current_user, db)
+
+
+@router.patch("/me", response_model=schemas.UserResponse)
+def patch_users_me(
+    updates: schemas.UserUpdateSettings,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    """Partial update (PATCH) — same as PUT for compatibility."""
+    return _update_user_settings(updates, current_user, db)

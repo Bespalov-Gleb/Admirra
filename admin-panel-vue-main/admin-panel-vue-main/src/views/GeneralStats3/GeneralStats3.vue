@@ -79,6 +79,7 @@
             :sending-tg="sendingTg"
             :sending-email="sendingEmail"
             :saving="reportSaving"
+            :initial-schedule="userReportSettings.report_schedule"
             :telegram-configured="!!userReportSettings.telegram_chat_id"
             :email-configured="(userReportSettings.email_recipients?.length ?? 0) > 0"
             @send-telegram="handleSendTelegram"
@@ -429,13 +430,14 @@ const showEmailModal = ref(false)
 const tgChatId = ref('')
 const emailRecipients = ref('')
 
-const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [] })
+const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [], report_schedule: '' })
 
 onMounted(async () => {
   try {
     const { data } = await api.get('/auth/me')
     userReportSettings.value.telegram_chat_id = data.report_telegram_chat_id || ''
     userReportSettings.value.email_recipients = data.report_email_recipients || []
+    userReportSettings.value.report_schedule = data.report_schedule || 'mon_10'
   } catch {
     // ignore
   }
@@ -456,6 +458,7 @@ const handleReportSave = async (schedule) => {
   reportSaving.value = true
   try {
     await api.patch('/auth/me', { report_schedule: schedule })
+    userReportSettings.value.report_schedule = schedule
     toaster.success('Расписание сохранено')
   } catch {
     toaster.error('Не удалось сохранить расписание')

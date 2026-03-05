@@ -104,14 +104,18 @@ async def startup_event():
     await get_request_queue()  # Инициализируем очередь запросов
     logger.info("✅ Application startup complete - request queue initialized")
 
-    # Планировщик для задач телефонии
+    # Планировщик для задач телефонии и отчётов
     global lead_scheduler
+    lead_scheduler = AsyncIOScheduler()
     if LEAD_VALIDATOR_AVAILABLE:
-        lead_scheduler = AsyncIOScheduler()
         lead_scheduler.add_job(run_daily_alerts, "cron", hour=9, minute=0, id="lead_daily_alerts")
         lead_scheduler.add_job(run_weekly_report, "cron", day_of_week="mon", hour=9, minute=30, id="lead_weekly_report")
+    if REPORTS_AVAILABLE:
+        from backend_api.reports.scheduler import run_scheduled_reports
+        lead_scheduler.add_job(run_scheduled_reports, "cron", hour=10, minute=0, id="report_scheduled_send")
+    if lead_scheduler.get_jobs():
         lead_scheduler.start()
-        logger.info("✅ Lead validator scheduler started")
+        logger.info("✅ Scheduler started (leads + reports)")
 
 @app.on_event("shutdown")
 async def shutdown_event():

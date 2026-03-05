@@ -28,6 +28,7 @@ class User(Base):
     # Настройки доставки отчётов
     report_telegram_chat_id = Column(String, nullable=True)
     report_email_recipients = Column(String, nullable=True)  # JSON массив email адресов
+    report_schedule = Column(String, nullable=True)  # mon_10, tue_10, ..., daily_10
 
     clients = relationship("Client", back_populates="owner")
 

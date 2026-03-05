@@ -52,13 +52,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { PaperAirplaneIcon, EnvelopeIcon } from '@heroicons/vue/24/outline'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 
-defineProps({
+const props = defineProps({
   sendingTg: { type: Boolean, default: false },
   sendingEmail: { type: Boolean, default: false },
+  initialSchedule: { type: String, default: 'mon_10' },
   telegramConfigured: { type: Boolean, default: false },
   emailConfigured: { type: Boolean, default: false },
   saving: { type: Boolean, default: false }
@@ -66,7 +67,6 @@ defineProps({
 
 defineEmits(['send-telegram', 'send-email', 'schedule-change', 'save'])
 
-const schedule = ref('mon_10')
 const scheduleOptions = [
   { value: 'mon_10', label: 'Каждый ПН в 10:00' },
   { value: 'tue_10', label: 'Каждый ВТ в 10:00' },
@@ -75,4 +75,9 @@ const scheduleOptions = [
   { value: 'fri_10', label: 'Каждую ПТ в 10:00' },
   { value: 'daily_10', label: 'Ежедневно в 10:00' }
 ]
+const validSchedules = new Set(scheduleOptions.map(o => o.value))
+const schedule = ref(validSchedules.has(props.initialSchedule) ? props.initialSchedule : 'mon_10')
+watch(() => props.initialSchedule, (v) => {
+  if (v && validSchedules.has(v)) schedule.value = v
+})
 </script>

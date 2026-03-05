@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_email_recipients: Optional[List[str]] = None  # Массив email для отчётов
+    report_schedule: Optional[str] = None  # mon_10, tue_10, wed_10, thu_10, fri_10, daily_10
 
     @field_validator("report_email_recipients", mode="before")
     @classmethod
@@ -61,6 +62,7 @@ class UserUpdateSettings(BaseModel):
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_email_recipients: Optional[List[str]] = None
+    report_schedule: Optional[str] = None
 
 from core import models
 

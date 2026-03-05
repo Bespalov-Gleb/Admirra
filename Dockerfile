@@ -2,9 +2,17 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (incl. WeasyPrint for PDF reports: Pango, GObject, Cairo)
 RUN apt-get update && apt-get install -y \
     postgresql-client \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz-subset0 \
+    libgdk-pixbuf2.0-0 \
+    libglib2.0-0 \
+    libcairo2 \
+    libffi-dev \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install python dependencies
