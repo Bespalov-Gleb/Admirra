@@ -21,6 +21,8 @@ class YandexDirectAPI:
         self.report_url = "https://api.direct.yandex.com/json/v5/reports"
         self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
         self.ads_url = "https://api.direct.yandex.com/json/v5/ads"
+        self.ads_url_v501 = "https://api.direct.yandex.com/json/v501/ads"  # для Smart/Единая перфоманс
+        self.adgroups_url_v501 = "https://api.direct.yandex.com/json/v501/adgroups"
         self.adimages_url = "https://api.direct.yandex.com/json/v5/adimages"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
@@ -1304,18 +1306,52 @@ class YandexDirectAPI:
                 logger.error(f"Error getting campaign domains: {e}")
                 return set()
 
+    async def _get_ads_via_adgroups(self, campaign_ids: List[int]) -> List[Dict[str, Any]]:
+        """Для Smart-кампаний: AdGroups.get → Ads.get по AdGroupIds (v501)."""
+        if not campaign_ids:
+            return []
+        payload_ag = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"CampaignIds": campaign_ids[:10]},
+                "FieldNames": ["Id", "CampaignId", "Name"],
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                r = await client.post(
+                    self.adgroups_url_v501, json=payload_ag, headers=self.headers, timeout=30.0
+                )
+                if r.status_code != 200:
+                    return []
+                d = r.json()
+                if "error" in d:
+                    logger.debug(f"AdGroups.get error: {d['error']}")
+                    return []
+                groups = d.get("result", {}).get("AdGroups", [])
+                ad_group_ids = [g["Id"] for g in groups if g.get("Id")][:1000]
+                if not ad_group_ids:
+                    return []
+                return await self.get_ads_with_titles_and_images(ad_group_ids=ad_group_ids)
+            except Exception as e:
+                logger.debug(f"_get_ads_via_adgroups: {e}")
+                return []
+
     async def get_ads_with_titles_and_images(
         self,
         campaign_ids: Optional[List[int]] = None,
-        ad_ids: Optional[List[int]] = None
+        ad_ids: Optional[List[int]] = None,
+        ad_group_ids: Optional[List[int]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get ads with Title and AdImageHash for top-ads block.
-        Returns list of {Id, CampaignId, Title, AdImageHash} for ads that have images or titles.
+        Returns list of {Id, CampaignId, Title, AdImageHash, PreviewUrl}.
         """
         criteria: Dict[str, Any] = {}
         if ad_ids:
             criteria["Ids"] = ad_ids
+        elif ad_group_ids:
+            criteria["AdGroupIds"] = ad_group_ids[:1000]
         elif campaign_ids:
             criteria["CampaignIds"] = campaign_ids
         else:
@@ -1339,24 +1375,37 @@ class YandexDirectAPI:
 
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.ads_url, json=payload, headers=self.headers, timeout=60.0)
-                if response.status_code != 200:
-                    logger.warning(f"Ads.get failed: {response.status_code}")
-                    return []
-
-                data = response.json()
-                if "error" in data:
-                    logger.warning(f"Ads.get API error: {data['error']}")
+                # Для Smart/Единая перфоманс — v501 (campaign_ids или ad_group_ids)
+                use_v501 = bool(campaign_ids or ad_group_ids)
+                urls_to_try = [self.ads_url_v501, self.ads_url] if use_v501 else [self.ads_url]
+                data = None
+                for url in urls_to_try:
+                    response = await client.post(url, json=payload, headers=self.headers, timeout=60.0)
+                    if response.status_code != 200:
+                        continue
+                    data = response.json()
+                    if "error" in data:
+                        if url == self.ads_url_v501:
+                            logger.debug(f"Ads.get v501 error: {data['error']}, trying v5")
+                            continue
+                        logger.warning(f"Ads.get API error: {data['error']}")
+                        return []
+                    break
+                if data is None:
+                    logger.warning("Ads.get failed for all endpoints")
                     return []
 
                 ads = data.get("result", {}).get("Ads", [])
-                if not ads and (campaign_ids or ad_ids):
-                    logger.info(f"Ads.get: campaign_ids={campaign_ids}, ad_ids={ad_ids}, ads_count=0, result_keys={list(data.get('result', {}).keys())}")
+                # Fallback: Ads.get по CampaignIds пуст для Smart — пробуем AdGroups.get → Ads.get по AdGroupIds (v501)
+                if not ads and campaign_ids and not ad_group_ids:
+                    logger.info(f"Ads.get: campaign_ids={campaign_ids}, ads_count=0, trying AdGroups+Ads path")
+                    ads = await self._get_ads_via_adgroups(campaign_ids)
                 result = []
                 for ad in ads:
-                    title = None
-                    ad_image_hash = None
-                    preview_url = None  # SmartAdBuilderAd.Creative.PreviewUrl
+                    # Уже распарсено (AdGroups path) или сырые данные API
+                    title = ad.get("Title")
+                    ad_image_hash = ad.get("AdImageHash")
+                    preview_url = ad.get("PreviewUrl")
                     # TextAd, DynamicTextAd (Title не поддерживается, используем Text), MobileAppAd
                     for block in ["TextAd", "DynamicTextAd", "MobileAppAd"]:
                         if block in ad:
