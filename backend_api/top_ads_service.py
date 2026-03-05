@@ -124,6 +124,8 @@ async def _get_yandex_top_ads(
     all_ads: List[Dict[str, Any]] = []
 
     for integration in integrations:
+        api = None
+        yandex_campaign_ids = []
         try:
             access_token = security.decrypt_token(integration.access_token)
             if not access_token:
@@ -150,6 +152,15 @@ async def _get_yandex_top_ads(
 
             if not yandex_campaign_ids:
                 continue
+
+            # Ограничиваем период 31 днём — большие отчёты часто таймаутят (201/202)
+            try:
+                dt_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+                dt_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+                if (dt_to - dt_from).days > 31:
+                    date_from = (dt_to - timedelta(days=31)).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                pass
 
             # 1. AD_PERFORMANCE_REPORT — статистика по объявлениям
             report_ads = await api.get_report(
@@ -199,7 +210,15 @@ async def _get_yandex_top_ads(
 
             ad_ids_to_fetch = [int(a["ad_id"]) for a in sorted_ads if a["ad_id"].isdigit()][:limit * 2]
             if not ad_ids_to_fetch:
-                logger.info(f"top-ads: No valid ad_ids to fetch for integration {integration.id}, ad_stats sample: {list(ad_stats.keys())[:5]}")
+                # AdId не отображается для Smart-кампаний и кампаний из Мастера (документация Яндекс.Директ API).
+                # Используем Ads.get по campaign_ids — получаем объявления с изображениями, статистика на уровне кампании.
+                logger.info(f"top-ads: AdId='--' (Smart/Мастер кампаний), using Ads.get by campaign_ids for integration {integration.id}")
+                d_start = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else None
+                d_end = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else datetime.utcnow().date()
+                ads_via_campaigns = await _get_yandex_ads_via_campaigns_get(
+                    api, db, integration, client_ids, yandex_campaign_ids, d_start, d_end, campaign_ids, limit
+                )
+                all_ads.extend(ads_via_campaigns)
                 continue
 
             # 2. Ads.get — title и AdImageHash
@@ -242,11 +261,118 @@ async def _get_yandex_top_ads(
 
         except Exception as e:
             logger.warning(f"Yandex top-ads for integration {integration.id}: {e}")
+            # При таймауте/ошибке отчёта пробуем Ads.get (объявления с изображениями, статистика из БД)
+            err_str = str(e).lower()
+            if api and yandex_campaign_ids and ("retries" in err_str or "timeout" in err_str):
+                try:
+                    d_start = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else None
+                    d_end = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else datetime.utcnow().date()
+                    ads_via = await _get_yandex_ads_via_campaigns_get(
+                        api, db, integration, client_ids, yandex_campaign_ids, d_start, d_end, campaign_ids, limit
+                    )
+                    all_ads.extend(ads_via)
+                except Exception as fallback_err:
+                    logger.debug(f"Ads.get fallback failed: {fallback_err}")
 
     out = sorted(all_ads, key=lambda x: (x.get("conversions", 0), x.get("cost", 0)), reverse=True)[:limit]
     if not out:
         logger.info(f"top-ads: Yandex path returned 0 ads for client_ids={client_ids}, fallback will add campaigns")
     return out
+
+
+async def _get_yandex_ads_via_campaigns_get(
+    api: YandexDirectAPI,
+    db: Session,
+    integration: models.Integration,
+    client_ids: List[uuid.UUID],
+    yandex_campaign_ids: List[int],
+    d_start: Optional[date],
+    d_end: date,
+    campaign_ids: Optional[List[uuid.UUID]],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """
+    Для Smart-кампаний и кампаний из Мастера: AdId в отчёте = '--' (документация Яндекс.Директ API).
+    Получаем объявления через Ads.get по campaign_ids, статистика — на уровне кампании из БД.
+    """
+    if not yandex_campaign_ids:
+        return []
+
+    # Наши campaign_id (UUID) для этих Yandex external_id
+    ext_strs = [str(x) for x in yandex_campaign_ids]
+    camp_rows = db.query(models.Campaign.id, models.Campaign.external_id).filter(
+        models.Campaign.integration_id == integration.id,
+        models.Campaign.external_id.in_(ext_strs),
+    ).all()
+    our_campaign_ids = [r[0] for r in camp_rows]
+    ext_to_id = {str(r.external_id): str(r.id) for r in camp_rows}
+
+    if not our_campaign_ids:
+        return []
+
+    campaigns = StatsService.get_campaign_stats(
+        db, client_ids, d_start, d_end, "yandex", our_campaign_ids, None
+    )
+    id_to_stats = {str(c["id"]): c for c in campaigns}
+    campaign_by_ext: Dict[str, Dict] = {}
+    for ext, our_id in ext_to_id.items():
+        if our_id in id_to_stats:
+            campaign_by_ext[ext] = id_to_stats[our_id]
+
+    # Топ кампаний по conversions, cost
+    sorted_campaigns = sorted(
+        campaign_by_ext.values(),
+        key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
+        reverse=True,
+    )[:limit]
+    top_ext_ids = [int(x) for x in campaign_by_ext.keys() if campaign_by_ext[x] in sorted_campaigns]
+    if not top_ext_ids:
+        return []
+
+    # Ads.get по campaign_ids
+    ads_info = await api.get_ads_with_titles_and_images(campaign_ids=top_ext_ids)
+    if not ads_info:
+        return []
+
+    # Первое объявление по каждой кампании
+    ad_by_campaign: Dict[str, Dict] = {}
+    for ad in ads_info:
+        cid = str(ad.get("CampaignId", ""))
+        if cid not in ad_by_campaign:
+            ad_by_campaign[cid] = ad
+
+    hashes = list({a["AdImageHash"] for a in ad_by_campaign.values() if a.get("AdImageHash")})
+    hash_to_url = await api.get_ad_images_preview_urls(hashes) if hashes else {}
+
+    result = []
+    for stats in sorted_campaigns:
+        ext = next((e for e in campaign_by_ext if campaign_by_ext[e] == stats), None)
+        if not ext or ext not in ad_by_campaign:
+            continue
+        ad = ad_by_campaign[ext]
+        imps = stats.get("impressions", 0) or 0
+        clicks = stats.get("clicks", 0) or 0
+        cost = stats.get("cost", 0) or 0
+        convs = stats.get("conversions", 0) or 0
+        title = (ad.get("Title") or stats.get("name", "") or "Объявление").replace("[ЯД] ", "")
+        ad_image_hash = ad.get("AdImageHash")
+        image_url = (hash_to_url.get(ad_image_hash) or "") if ad_image_hash else None
+        result.append({
+            "id": f"yd_{ad['Id']}",
+            "title": title[:120] if title else "Объявление",
+            "image_url": image_url,
+            "impressions": imps,
+            "clicks": clicks,
+            "cost": round(float(cost), 2),
+            "ctr": round(clicks / imps * 100, 2) if imps else 0,
+            "conversions": convs,
+            "platform": "yandex",
+            "subtitle": "Яндекс.Директ",
+        })
+        if len(result) >= limit:
+            break
+    logger.info(f"top-ads: Ads.get path returned {len(result)} posts for Smart/Мастер campaigns")
+    return result
 
 
 def _get_yandex_top_ads_fallback(
