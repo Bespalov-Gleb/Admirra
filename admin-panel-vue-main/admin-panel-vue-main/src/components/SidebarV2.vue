@@ -237,6 +237,7 @@ import {
   PhoneIcon,
   UserIcon,
   ComputerDesktopIcon,
+  SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 import { useSidebar } from '../composables/useSidebar'
@@ -310,6 +311,7 @@ const menuSections = [
       { name: 'Команда', path: '/team', icon: Group },
       { name: 'Продукты', path: '/products', icon: Product },
       { name: 'Каналы', path: '/channels', icon: Channels },
+      { name: 'AI', path: '/ai-analysis', icon: SparklesIcon },
       {
         name: 'Телефония',
         icon: PhoneIcon,
