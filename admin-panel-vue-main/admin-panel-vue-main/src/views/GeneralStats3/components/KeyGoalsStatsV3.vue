@@ -1,63 +1,65 @@
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 w-full">
-    <!-- Левая колонка: Статистика по ключевым целям (синяя вся по шаблону) -->
-    <div class="bg-[#1e3a8a] rounded-3xl p-6 sm:p-8 shadow-lg relative overflow-hidden">
-      <!-- Декоративный паттерн -->
-      <div class="absolute inset-0 opacity-[0.06]" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 20px 20px" />
-      <div class="relative z-10">
-        <div class="flex items-center gap-3 mb-6">
-          <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-            <ChartBarIcon class="w-5 h-5 text-white" />
+    <!-- Левая + центр: одна синяя таблица без разрыва (по шаблону) -->
+    <div class="lg:col-span-2 flex rounded-3xl overflow-hidden shadow-lg">
+      <!-- Левая зона: цели (светлее) -->
+      <div class="flex-1 bg-[#1e3a8a] p-6 sm:p-8 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-[0.06]" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 20px 20px" />
+        <div class="relative z-10">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+              <ChartBarIcon class="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 class="text-sm font-black text-white">Статистика по ключевым целям</h3>
+              <p class="text-[10px] font-semibold text-white/70 uppercase tracking-wider mt-0.5">За период</p>
+            </div>
           </div>
-          <div>
-            <h3 class="text-sm font-black text-white">Статистика по ключевым целям</h3>
-            <p class="text-[10px] font-semibold text-white/70 uppercase tracking-wider mt-0.5">За период</p>
+
+          <div v-if="loading || localLoading" class="space-y-5">
+            <div v-for="i in 3" :key="i" class="h-20 bg-white/10 rounded-2xl animate-pulse" />
           </div>
-        </div>
 
-        <div v-if="loading || localLoading" class="space-y-4">
-          <div v-for="i in 3" :key="i" class="h-16 bg-white/10 rounded-2xl animate-pulse" />
-        </div>
+          <div v-else-if="topGoals.length === 0" class="py-12 text-center text-white/60 text-base font-medium">
+            Цели не настроены
+          </div>
 
-        <div v-else-if="topGoals.length === 0" class="py-12 text-center text-white/60 text-sm font-medium">
-          Цели не настроены
-        </div>
-
-        <div v-else class="space-y-4">
-          <div
-            v-for="(goal, index) in topGoals"
-            :key="goal.id || goal.name"
-            class="flex items-center justify-between"
-          >
-            <span class="text-base font-semibold text-white">{{ formatGoalName(goal.name) }}:</span>
-            <div class="flex items-center gap-2">
-              <span class="text-lg font-bold text-white tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
-              <span
-                v-if="goal.trend != null"
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold',
-                  (goal.trend >= 0 ? 'bg-green-400/90 text-white' : 'bg-red-400/90 text-white')
-                ]"
-              >
-                <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-4 h-4" />
-                <ArrowTrendingDownIcon v-else class="w-4 h-4" />
-                {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
-              </span>
+          <div v-else class="space-y-5">
+            <div
+              v-for="(goal, index) in topGoals"
+              :key="goal.id || goal.name"
+              class="flex items-center justify-between py-1"
+            >
+              <span class="text-lg font-bold text-white">{{ formatGoalName(goal.name) }}:</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xl font-black text-white tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+                <span
+                  v-if="goal.trend != null"
+                  :class="[
+                    'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold',
+                    (goal.trend >= 0 ? 'bg-green-400/90 text-white' : 'bg-red-400/90 text-white')
+                  ]"
+                >
+                  <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-4 h-4" />
+                  <ArrowTrendingDownIcon v-else class="w-4 h-4" />
+                  {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Правая зона: Итого (темнее) -->
+      <div class="w-full sm:w-56 flex-shrink-0 bg-[#0f172a] p-6 sm:p-8 flex flex-col justify-center items-center">
+        <h3 class="text-xs font-black text-white/80 uppercase tracking-[0.2em] mb-2">Итого:</h3>
+        <p class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight leading-none pt-2">
+          {{ totalConversions.toLocaleString('ru-RU') }} шт.
+        </p>
+      </div>
     </div>
 
-    <!-- Центр: Итого (темнее левой по шаблону) -->
-    <div class="bg-[#1e40af] rounded-3xl p-6 sm:p-8 flex flex-col justify-center items-center shadow-lg">
-      <h3 class="text-xs font-black text-white/80 uppercase tracking-[0.2em] mb-4">Итого:</h3>
-      <p class="text-5xl sm:text-6xl font-black text-white tabular-nums tracking-tight leading-none">
-        {{ totalConversions.toLocaleString('ru-RU') }} шт.
-      </p>
-    </div>
-
-    <!-- Правая колонка: Разбивка по целям (белый фон, минималистичная диаграмма) -->
+    <!-- Правая колонка: Разбивка по целям (белый фон, отдельная карточка) -->
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-md">
       <h3 class="text-xs font-black text-gray-700 uppercase tracking-[0.15em] mb-5">Разбивка по целям</h3>
 
