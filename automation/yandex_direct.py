@@ -1327,8 +1327,11 @@ class YandexDirectAPI:
                         d = r.json()
                         if "error" in d:
                             continue
-                        for c in d.get("result", {}).get("Campaigns", []):
-                            logger.info(f"Campaign {c.get('Id')} '{c.get('Name', '')[:40]}': Type={c.get('Type', 'N/A')}")
+                        campaigns = d.get("result", {}).get("Campaigns", [])
+                        if not campaigns:
+                            logger.info(f"Campaigns.get: campaign_ids={campaign_ids[:5]}, result keys={list(d.get('result', {}).keys())}, campaigns_count=0")
+                        for c in campaigns:
+                            logger.info(f"Campaign {c.get('Id')} '{str(c.get('Name', ''))[:40]}': Type={c.get('Type', 'N/A')}")
                         return
             except Exception as e:
                 logger.debug(f"_log_campaign_types: {e}")
@@ -1362,7 +1365,7 @@ class YandexDirectAPI:
                     # CampaignIds может не поддерживаться — пробуем Types: SMART_CREATIVE
                     err_code = d.get("error", {}).get("error_code", "")
                     err_str = str(d.get("error", {}).get("error_string", ""))
-                    logger.debug(f"Creatives.get CampaignIds error: {err_code} {err_str}")
+                    logger.info(f"Creatives.get CampaignIds error: {err_code} {err_str}")
                     payload["params"]["SelectionCriteria"] = {"Types": ["SMART_CREATIVE"]}
                     payload["params"]["Page"] = {"Limit": 20, "Offset": 0}
                     r2 = await client.post(
@@ -1375,6 +1378,8 @@ class YandexDirectAPI:
                         return []
                 creatives = d.get("result", {}).get("Creatives", [])
                 if not creatives:
+                    result_keys = list(d.get("result", {}).keys())
+                    logger.info(f"Creatives.get: campaign_ids={campaign_ids[:5]}, result keys={result_keys}, creatives_count=0")
                     return []
                 logger.info(f"Creatives.get: got {len(creatives)} creatives for campaign_ids={campaign_ids[:5]}")
                 # Преобразуем в формат объявлений (Id, CampaignId, Title, PreviewUrl)

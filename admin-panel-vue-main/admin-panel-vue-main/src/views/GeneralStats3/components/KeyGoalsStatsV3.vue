@@ -79,17 +79,17 @@
         </div>
       </div>
 
-      <div class="space-y-2.5">
+      <div class="space-y-2">
         <div
           v-for="(goal, index) in topGoals"
           :key="goal.id || goal.name"
-          class="flex items-center gap-3"
+          class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-100/80"
         >
           <div
-            class="w-3 h-3 rounded-full flex-shrink-0"
+            class="w-3.5 h-3.5 rounded-full flex-shrink-0 shadow-sm border border-white"
             :style="{ backgroundColor: donutColors[index] }"
           />
-          <span class="text-sm font-medium text-gray-700 truncate">{{ formatGoalName(goal.name) }}</span>
+          <span class="text-sm font-semibold text-gray-800 truncate">{{ formatGoalName(goal.name) }}</span>
         </div>
       </div>
     </div>
@@ -103,6 +103,25 @@ import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, ChartBarIcon } from '@heroi
 import api from '../../../api/axios'
 
 Chart.register(...registerables)
+
+/** Плагин: тень для doughnut-сегментов (толстые линии с эффектом глубины) */
+const doughnutShadowPlugin = {
+  id: 'doughnutShadow',
+  beforeDraw: (chart) => {
+    if (chart.config.type !== 'doughnut') return
+    const ctx = chart.ctx
+    ctx.save()
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+    ctx.shadowBlur = 8
+    ctx.shadowOffsetX = 2
+    ctx.shadowOffsetY = 4
+  },
+  afterDraw: (chart) => {
+    if (chart.config.type !== 'doughnut') return
+    chart.ctx.restore()
+  }
+}
+Chart.register(doughnutShadowPlugin)
 
 const props = defineProps({
   goals: { type: Array, default: () => [] },
@@ -154,15 +173,15 @@ const updateChart = () => {
       datasets: [{
         data: topGoals.value.map(g => g.count || 0),
         backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
-        borderWidth: 3,
+        borderWidth: 4,
         borderColor: '#ffffff',
-        hoverOffset: 2
+        hoverOffset: 4
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      cutout: '70%',
+      cutout: '55%', // Толстая кольцевая полоса (было 70%)
       plugins: { legend: { display: false } },
       layout: { padding: 0 }
     }
