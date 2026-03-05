@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, date
 from typing import List, Optional
 import uuid
 from backend_api.stats_service import StatsService
+from backend_api.top_ads_service import get_top_ads_with_images
 from .cache_service import cache_response
 import csv
 import io
@@ -605,7 +606,8 @@ async def get_top_ads(
     db: Session = Depends(get_db)
 ):
     """
-    Get top 4 campaigns/ads by conversions (best posts). Uses campaign-level data.
+    Get top 4 ads (posts) by conversions. For Yandex: real ads with image_url from Ads.get + AdImages.get.
+    For VK: fallback to campaign-level (no image_url).
     """
     u_client_id = None
     if client_id and client_id.strip():
@@ -639,29 +641,37 @@ async def get_top_ads(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
 
-    campaigns = StatsService.get_campaign_stats(
-        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids
-    )
-    # Top 4 by conversions, fallback to cost
-    sorted_campaigns = sorted(
-        campaigns,
-        key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
-        reverse=True
-    )
-    top = sorted_campaigns[:4]
-    return [
-        {
-            "id": c["id"],
-            "title": c["name"],
-            "impressions": c.get("impressions", 0),
-            "clicks": c.get("clicks", 0),
-            "cost": c.get("cost", 0),
-            "conversions": c.get("conversions", 0),
-            "ctr": round((c.get("clicks", 0) or 0) / (c.get("impressions", 1) or 1) * 100, 2),
-            "platform": "yandex" if c["name"].startswith("[ЯД]") else "vk",
-        }
-        for c in top
-    ]
+    try:
+        ads = await get_top_ads_with_images(
+            db, effective_client_ids, d_start, d_end,
+            platform, u_campaign_ids, u_goal_action_ids, limit=4
+        )
+        return ads
+    except Exception as e:
+        logger.warning(f"top-ads error, fallback to campaign-level: {e}")
+        campaigns = StatsService.get_campaign_stats(
+            db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids
+        )
+        sorted_campaigns = sorted(
+            campaigns,
+            key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
+            reverse=True
+        )
+        top = sorted_campaigns[:4]
+        return [
+            {
+                "id": c["id"],
+                "title": c["name"],
+                "image_url": None,
+                "impressions": c.get("impressions", 0),
+                "clicks": c.get("clicks", 0),
+                "cost": c.get("cost", 0),
+                "conversions": c.get("conversions", 0),
+                "ctr": round((c.get("clicks", 0) or 0) / (c.get("impressions", 1) or 1) * 100, 2),
+                "platform": "yandex" if c["name"].startswith("[ЯД]") else "vk",
+            }
+            for c in top
+        ]
 
 
 @router.get("/activity-by-weekday", response_model=dict)

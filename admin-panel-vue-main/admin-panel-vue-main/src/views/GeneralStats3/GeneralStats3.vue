@@ -153,11 +153,8 @@
             </div>
           </div>
 
-          <!-- Комментарий к отчёту -->
+          <!-- Получить отчёт -->
           <ReportCommentBlock
-            :comment="reportComment"
-            :loading="reportLoading"
-            :error="reportError"
             :sending-pdf="sendingPdf"
             :sending-tg="sendingTg"
             :sending-email="sendingEmail"
@@ -393,10 +390,7 @@ const handleExport = async () => {
   }
 }
 
-// --- Report Comment Block ---
-const reportComment = ref('')
-const reportLoading = ref(false)
-const reportError = ref('')
+// --- Получить отчёт ---
 const sendingPdf = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)

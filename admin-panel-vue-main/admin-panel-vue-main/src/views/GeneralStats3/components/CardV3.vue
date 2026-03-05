@@ -1,26 +1,26 @@
 <template>
   <div
-    class="rounded-2xl p-4 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
+    class="rounded-2xl p-6 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
     :class="[
       isSelected && 'ring-2 ring-blue-500/30 border-blue-200'
     ]"
     @click="$emit('click')"
   >
-    <div class="flex items-start gap-3">
-      <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-        <component :is="icon" class="w-5 h-5 text-blue-600" />
+    <div class="flex items-start gap-4">
+      <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+        <component :is="icon" class="w-6 h-6 text-blue-600" />
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-xs font-medium text-gray-500 mb-0.5">{{ title }}</h3>
-        <p v-if="subtitle" class="text-[10px] text-gray-400 mb-1">{{ subtitle }}</p>
-        <p class="text-lg font-bold text-gray-900 leading-tight">{{ value }}</p>
+        <h3 class="text-sm font-medium text-gray-500 mb-1">{{ title }}</h3>
+        <p v-if="subtitle" class="text-xs text-gray-400 mb-1.5">{{ subtitle }}</p>
+        <p class="text-xl font-bold text-gray-900 leading-tight">{{ value }}</p>
         <div
           :class="[
-            'inline-flex flex-wrap items-center gap-1 mt-1.5 px-2 py-0.5 rounded-lg text-[10px] font-semibold',
+            'inline-flex flex-wrap items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold',
             changePositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
           ]"
         >
-          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3 h-3 flex-shrink-0" />
+          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-4 h-4 flex-shrink-0" />
           <span>{{ trendDisplay }}</span>
           <span v-if="trendAbsolute" class="font-normal opacity-90">{{ trendAbsolute }}</span>
         </div>

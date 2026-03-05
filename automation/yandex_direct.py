@@ -21,6 +21,7 @@ class YandexDirectAPI:
         self.report_url = "https://api.direct.yandex.com/json/v5/reports"
         self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
         self.ads_url = "https://api.direct.yandex.com/json/v5/ads"
+        self.adimages_url = "https://api.direct.yandex.com/json/v5/adimages"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept-Language": "ru",
@@ -663,10 +664,18 @@ class YandexDirectAPI:
                 logger.error(f"Reports API error {response.status_code}: {response.text}")
                 return []
     
-    async def get_report(self, date_from: str, date_to: str, level: str = "campaign", max_retries: int = 5) -> List[Dict[str, Any]]:
+    async def get_report(
+        self,
+        date_from: str,
+        date_to: str,
+        level: str = "campaign",
+        campaign_ids: Optional[List[int]] = None,
+        max_retries: int = 5
+    ) -> List[Dict[str, Any]]:
         """
         Fetches a report from Yandex Direct API v5.
         Handles polling for 201/202 statuses and tracks API units.
+        campaign_ids: optional list of campaign IDs to filter (for AD_PERFORMANCE_REPORT etc.)
         """
         # VALIDATION: Date format and range
         try:
@@ -702,10 +711,12 @@ class YandexDirectAPI:
         # ClientLogin filtering is done via Client-Login header, NOT in SelectionCriteria
         # According to Yandex API docs, ClientLogin filter is in Filter structure, not SelectionCriteria
         # But for Reports API, the Client-Login header is sufficient for filtering
-        selection_criteria = {
+        selection_criteria: Dict[str, Any] = {
             "DateFrom": date_from,
             "DateTo": date_to
         }
+        if campaign_ids:
+            selection_criteria["CampaignIds"] = campaign_ids
         
         # NOTE: ClientLogin filter should be in Filter structure, not SelectionCriteria
         # But we use Client-Login header instead, which is the standard way
@@ -1287,6 +1298,121 @@ class YandexDirectAPI:
             except Exception as e:
                 logger.error(f"Error getting campaign domains: {e}")
                 return set()
+
+    async def get_ads_with_titles_and_images(
+        self,
+        campaign_ids: Optional[List[int]] = None,
+        ad_ids: Optional[List[int]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get ads with Title and AdImageHash for top-ads block.
+        Returns list of {Id, CampaignId, Title, AdImageHash} for ads that have images or titles.
+        """
+        criteria: Dict[str, Any] = {}
+        if ad_ids:
+            criteria["Ids"] = ad_ids
+        elif campaign_ids:
+            criteria["CampaignIds"] = campaign_ids
+        else:
+            return []
+
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": criteria,
+                "FieldNames": ["Id", "CampaignId", "State", "Type"],
+                "TextAdFieldNames": ["Title", "AdImageHash"],
+                "TextImageAdFieldNames": ["AdImageHash", "Href"],
+                "DynamicTextAdFieldNames": ["Title", "AdImageHash"],
+                "MobileAppAdFieldNames": ["Title", "AdImageHash"],
+                "MobileAppImageAdFieldNames": ["AdImageHash"],
+                "TextAdBuilderAdFieldNames": ["Creative"],
+                "CpmBannerAdBuilderAdFieldNames": ["Creative"],
+                "SmartAdBuilderAdFieldNames": ["Creative"],
+            }
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.ads_url, json=payload, headers=self.headers, timeout=60.0)
+                if response.status_code != 200:
+                    logger.warning(f"Ads.get failed: {response.status_code}")
+                    return []
+
+                data = response.json()
+                if "error" in data:
+                    logger.warning(f"Ads.get API error: {data['error']}")
+                    return []
+
+                ads = data.get("result", {}).get("Ads", [])
+                result = []
+                for ad in ads:
+                    title = None
+                    ad_image_hash = None
+                    # TextAd, DynamicTextAd, MobileAppAd
+                    for block in ["TextAd", "DynamicTextAd", "MobileAppAd"]:
+                        if block in ad:
+                            title = ad[block].get("Title") or title
+                            ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
+                    # Image ads
+                    for block in ["TextImageAd", "MobileAppImageAd"]:
+                        if block in ad:
+                            ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
+                            if not title and block == "TextImageAd":
+                                title = ad[block].get("Href", "")[:80] or "Объявление"
+                    # Builder ads (Creative may contain image ref - we skip for now, no direct PreviewUrl)
+                    if not title:
+                        title = f"Объявление {ad.get('Id', '')}"
+                    result.append({
+                        "Id": ad["Id"],
+                        "CampaignId": ad["CampaignId"],
+                        "Title": (title or "")[:120],
+                        "AdImageHash": ad_image_hash,
+                    })
+                return result
+            except Exception as e:
+                logger.warning(f"Ads.get error: {e}")
+                return []
+
+    async def get_ad_images_preview_urls(self, ad_image_hashes: List[str]) -> Dict[str, str]:
+        """
+        Get PreviewUrl for each AdImageHash via AdImages.get.
+        Returns dict: AdImageHash -> PreviewUrl (or OriginalUrl if PreviewUrl missing).
+        """
+        if not ad_image_hashes:
+            return {}
+
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"AdImageHashes": ad_image_hashes},
+                "FieldNames": ["AdImageHash", "PreviewUrl", "OriginalUrl"]
+            }
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    self.adimages_url, json=payload, headers=self.headers, timeout=30.0
+                )
+                if response.status_code != 200:
+                    logger.warning(f"AdImages.get failed: {response.status_code}")
+                    return {}
+
+                data = response.json()
+                if "error" in data:
+                    logger.warning(f"AdImages.get API error: {data['error']}")
+                    return {}
+
+                images = data.get("result", {}).get("AdImages", [])
+                return {
+                    img["AdImageHash"]: (img.get("PreviewUrl") or img.get("OriginalUrl") or "")
+                    for img in images
+                    if img.get("AdImageHash")
+                }
+            except Exception as e:
+                logger.warning(f"AdImages.get error: {e}")
+                return {}
 
     async def get_campaign_goals(self, campaign_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """
