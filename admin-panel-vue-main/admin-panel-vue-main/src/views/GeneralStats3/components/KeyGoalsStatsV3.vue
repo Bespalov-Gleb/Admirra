@@ -2,10 +2,10 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 w-full">
     <!-- Левая + центр: одна синяя таблица без разрыва (по шаблону) -->
     <div class="lg:col-span-2 flex rounded-3xl overflow-hidden shadow-lg">
-      <!-- Левая зона: цели (светлее) -->
-      <div class="flex-1 bg-[#1e3a8a] p-6 sm:p-8 relative overflow-hidden">
+      <!-- Левая зона: цели (светлее), равномерно по высоте -->
+      <div class="flex-1 bg-[#1e3a8a] p-6 sm:p-8 relative overflow-hidden flex flex-col min-h-[280px]">
         <div class="absolute inset-0 opacity-[0.06]" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 20px 20px" />
-        <div class="relative z-10">
+        <div class="relative z-10 flex flex-col flex-1">
           <div class="flex items-center gap-3 mb-6">
             <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
               <ChartBarIcon class="w-5 h-5 text-white" />
@@ -16,27 +16,27 @@
             </div>
           </div>
 
-          <div v-if="loading || localLoading" class="space-y-5">
-            <div v-for="i in 3" :key="i" class="h-20 bg-white/10 rounded-2xl animate-pulse" />
+          <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly">
+            <div v-for="i in 3" :key="i" class="h-16 bg-white/10 rounded-2xl animate-pulse" />
           </div>
 
-          <div v-else-if="topGoals.length === 0" class="py-12 text-center text-white/60 text-base font-medium">
+          <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-white/60 text-base font-medium">
             Цели не настроены
           </div>
 
-          <div v-else class="space-y-5">
+          <div v-else class="flex-1 flex flex-col justify-evenly">
             <div
               v-for="(goal, index) in topGoals"
               :key="goal.id || goal.name"
-              class="flex items-center justify-between py-1"
+              class="flex items-center justify-between py-2"
             >
-              <span class="text-lg font-bold text-white">{{ formatGoalName(goal.name) }}:</span>
+              <span class="text-xl font-bold text-white">{{ formatGoalName(goal.name) }}:</span>
               <div class="flex items-center gap-2">
-                <span class="text-xl font-black text-white tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+                <span class="text-2xl font-black text-white tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
                 <span
                   v-if="goal.trend != null"
                   :class="[
-                    'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold',
+                    'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold',
                     (goal.trend >= 0 ? 'bg-green-400/90 text-white' : 'bg-red-400/90 text-white')
                   ]"
                 >
@@ -50,12 +50,13 @@
         </div>
       </div>
 
-      <!-- Правая зона: Итого (темнее) -->
-      <div class="w-full sm:w-56 flex-shrink-0 bg-[#0f172a] p-6 sm:p-8 flex flex-col justify-center items-center">
-        <h3 class="text-xs font-black text-white/80 uppercase tracking-[0.2em] mb-2">Итого:</h3>
-        <p class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight leading-none pt-2">
-          {{ totalConversions.toLocaleString('ru-RU') }} шт.
+      <!-- Правая зона: Итого (темнее), больше воздуха -->
+      <div class="w-full sm:w-64 min-w-[200px] flex-shrink-0 bg-[#0f172a] py-10 px-8 sm:py-12 sm:px-10 flex flex-col justify-center items-center">
+        <h3 class="text-sm font-black text-white/80 uppercase tracking-[0.2em] mb-6">Итого:</h3>
+        <p class="text-7xl sm:text-8xl lg:text-9xl font-black text-white tabular-nums tracking-tight leading-none">
+          {{ totalConversions.toLocaleString('ru-RU') }}
         </p>
+        <p class="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider mt-2">шт.</p>
       </div>
     </div>
 
