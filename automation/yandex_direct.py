@@ -1331,7 +1331,9 @@ class YandexDirectAPI:
                 groups = d.get("result", {}).get("AdGroups", [])
                 ad_group_ids = [g["Id"] for g in groups if g.get("Id")][:1000]
                 if not ad_group_ids:
+                    logger.info(f"AdGroups.get: campaign_ids={campaign_ids[:5]}, groups_count=0 (Smart/Мастер без групп)")
                     return []
+                logger.info(f"AdGroups.get: got {len(ad_group_ids)} groups, calling Ads.get by AdGroupIds")
                 return await self.get_ads_with_titles_and_images(ad_group_ids=ad_group_ids)
             except Exception as e:
                 logger.debug(f"_get_ads_via_adgroups: {e}")
@@ -1396,6 +1398,8 @@ class YandexDirectAPI:
                     return []
 
                 ads = data.get("result", {}).get("Ads", [])
+                if ad_group_ids and not ads:
+                    logger.info(f"Ads.get by AdGroupIds: ad_group_ids={ad_group_ids[:5]}..., ads_count=0")
                 # Fallback: Ads.get по CampaignIds пуст для Smart — пробуем AdGroups.get → Ads.get по AdGroupIds (v501)
                 if not ads and campaign_ids and not ad_group_ids:
                     logger.info(f"Ads.get: campaign_ids={campaign_ids}, ads_count=0, trying AdGroups+Ads path")
