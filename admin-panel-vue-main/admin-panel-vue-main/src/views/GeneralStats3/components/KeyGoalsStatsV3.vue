@@ -50,11 +50,11 @@
         </div>
       </div>
 
-      <!-- Правая зона: Итого (темнее левой, но светлее чем было) -->
-      <div class="w-full sm:w-64 min-w-[200px] flex-shrink-0 bg-[#1e293b] py-8 px-6 sm:py-10 sm:px-8 flex flex-col">
+      <!-- Правая зона: Итого (светлее, шире) -->
+      <div class="w-full sm:w-80 min-w-[280px] flex-shrink-0 bg-[#334155] py-8 px-6 sm:py-10 sm:px-8 flex flex-col">
         <h3 class="text-xs font-semibold text-white/80 uppercase tracking-wider">Итого:</h3>
         <div class="flex-1" />
-        <p class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight text-center pb-2">
+        <p class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight text-center pb-2 whitespace-nowrap">
           {{ totalConversions.toLocaleString('ru-RU') }} шт.
         </p>
       </div>
