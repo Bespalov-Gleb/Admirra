@@ -594,7 +594,7 @@ async def get_campaign_stats(
 
 
 @router.get("/top-ads", response_model=List[dict])
-@cache_response(ttl=300)
+@cache_response(ttl=300, skip_cache_when=lambda r: r is not None and len(r) == 0)
 async def get_top_ads(
     start_date: str = None,
     end_date: str = None,

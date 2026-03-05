@@ -754,6 +754,8 @@ class YandexDirectAPI:
                     if campaign_ids:
                         cid_set = {str(c) for c in campaign_ids}
                         rows = [r for r in rows if r.get("campaign_id") in cid_set]
+                    if level == "ad":
+                        logger.info(f"Yandex AD report: parsed_rows={len(rows)} first_row={rows[0] if rows else None}")
                     return rows
                 
                 elif response.status_code in [201, 202]:

@@ -159,7 +159,7 @@ async def _get_yandex_top_ads(
             )
 
             if not report_ads:
-                logger.debug(f"No ad-level report for integration {integration.id}")
+                logger.info(f"top-ads: No ad-level rows for integration {integration.id}, will use campaign fallback")
                 continue
 
             # Агрегируем по ad_id
@@ -194,10 +194,12 @@ async def _get_yandex_top_ads(
             )[:limit * 2]
 
             if not sorted_ads:
+                logger.info(f"top-ads: No sorted ads after aggregation for integration {integration.id}")
                 continue
 
             ad_ids_to_fetch = [int(a["ad_id"]) for a in sorted_ads if a["ad_id"].isdigit()][:limit * 2]
             if not ad_ids_to_fetch:
+                logger.info(f"top-ads: No valid ad_ids to fetch for integration {integration.id}, ad_stats sample: {list(ad_stats.keys())[:5]}")
                 continue
 
             # 2. Ads.get — title и AdImageHash
@@ -241,7 +243,10 @@ async def _get_yandex_top_ads(
         except Exception as e:
             logger.warning(f"Yandex top-ads for integration {integration.id}: {e}")
 
-    return sorted(all_ads, key=lambda x: (x.get("conversions", 0), x.get("cost", 0)), reverse=True)[:limit]
+    out = sorted(all_ads, key=lambda x: (x.get("conversions", 0), x.get("cost", 0)), reverse=True)[:limit]
+    if not out:
+        logger.info(f"top-ads: Yandex path returned 0 ads for client_ids={client_ids}, fallback will add campaigns")
+    return out
 
 
 def _get_yandex_top_ads_fallback(
