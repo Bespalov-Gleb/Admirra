@@ -112,6 +112,7 @@
             :client-id="filters.client_id"
             :start-date="filters.start_date"
             :end-date="filters.end_date"
+            :total-leads="summary?.leads"
           />
 
           <!-- Лучшие рекламные кампании (таблица) -->
