@@ -14,62 +14,19 @@
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
     ]"
   >
-    <!-- Брендинг + селектор контекста -->
+    <!-- Логотип + кнопка сворачивания (как на макете) -->
     <div class="px-4 pt-5 pb-3">
       <div class="flex items-center justify-between">
         <div @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
-          <img :src="isCollapsed ? logoFav : logoFull" :alt="'Logo'" :class="isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'" />
+          <img :src="isCollapsed ? logoFav : logoFull" :alt="'AdMirra'" :class="isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'" />
         </div>
         <button
           v-if="!isCollapsed"
           @click="handleToggleCollapse"
-          class="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 transition-colors"
+          class="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
         >
           <MenuArrow />
         </button>
-      </div>
-      <!-- Селектор контекста (Трафик агентство / Проект) -->
-      <div v-if="!isCollapsed" ref="contextSelectorRef" class="mt-3 relative">
-        <button
-          @click="handleContextSelect"
-          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <span class="truncate">{{ contextLabel }}</span>
-          <ChevronDownIcon class="w-4 h-4 flex-shrink-0 transition-transform" :class="{ 'rotate-180': showContextDropdown }" />
-        </button>
-        <!-- Выпадающий список проектов -->
-        <div
-          v-if="showContextDropdown"
-          class="absolute left-0 right-0 top-full mt-1 py-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto"
-        >
-          <button
-            @click="handleProjectSelect(null)"
-            class="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
-            :class="!currentProjectId ? 'text-blue-600' : 'text-gray-700'"
-          >
-            <span>Все проекты</span>
-            <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
-          </button>
-          <button
-            v-for="p in projects"
-            :key="p.id"
-            @click="handleProjectSelect(p.id)"
-            class="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between truncate"
-            :class="currentProjectId === p.id ? 'text-blue-600' : 'text-gray-700'"
-          >
-            <span class="truncate">{{ p.name }}</span>
-            <CheckIcon v-if="currentProjectId === p.id" class="w-4 h-4 text-blue-600 flex-shrink-0" />
-          </button>
-          <div class="border-t border-gray-200 my-2"></div>
-          <router-link
-            to="/projects/create"
-            @click="showContextDropdown = false; closeMobileMenu()"
-            class="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-gray-50"
-          >
-            <PlusIcon class="w-4 h-4" />
-            Создать проект
-          </router-link>
-        </div>
       </div>
     </div>
 
@@ -136,26 +93,10 @@
       </nav>
     </div>
 
-    <!-- Разделитель перед нижним блоком -->
+    <!-- Разделитель перед вторичной навигацией -->
     <div class="mx-4 border-t border-gray-200"></div>
 
-    <!-- Промо-карточка (по макету: тёмно-синий фон, иконка шестерёнки) -->
-    <div v-if="!isCollapsed" class="px-4 py-3">
-      <div class="rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#0f2744] p-4 relative overflow-hidden">
-        <Setting class="absolute top-3 left-3 w-4 h-4 text-white/40" />
-        <h4 class="text-sm font-bold text-white mb-1">Повысить до премиум</h4>
-        <p class="text-xs text-white/80 mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
-        <router-link
-          to="/settings"
-          @click="closeMobileMenu"
-          class="block w-full py-2 text-center text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
-        >
-          Смотреть тарифы
-        </router-link>
-      </div>
-    </div>
-
-    <!-- Нижние ссылки -->
+    <!-- Вторичная навигация: История, Настройки (как на макете) -->
     <div class="px-0 pb-4 pt-2">
       <nav class="space-y-0.5">
         <div class="relative group">
@@ -196,6 +137,7 @@
             <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
           </div>
         </div>
+        <!-- Разделитель перед Помощь / Тех. поддержка -->
         <div class="mx-4 my-2 border-t border-gray-200"></div>
         <div class="relative group">
           <router-link
@@ -208,6 +150,7 @@
             ]"
           >
             <ActiveIndicator :is-active="isActive('/help')" />
+            <UserIcon class="w-4 h-4 flex-shrink-0" />
             <span v-if="!isCollapsed" class="text-sm">Помощь</span>
           </router-link>
            <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
@@ -227,6 +170,7 @@
             ]"
           >
             <ActiveIndicator :is-active="isActive('/contact')" />
+            <ComputerDesktopIcon class="w-4 h-4 flex-shrink-0" />
             <span v-if="!isCollapsed" class="text-sm">Тех. поддержка</span>
           </router-link>
            <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
@@ -254,6 +198,22 @@
       </nav>
     </div>
 
+    <!-- Промо-карточка внизу (как на макете) -->
+    <div v-if="!isCollapsed" class="px-4 py-3 mt-auto">
+      <div class="rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#0f2744] p-4 relative overflow-hidden">
+        <Setting class="absolute top-3 left-3 w-4 h-4 text-white/40" />
+        <h4 class="text-sm font-bold text-white mb-1">Повысить до премиум</h4>
+        <p class="text-xs text-white/80 mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
+        <router-link
+          to="/settings"
+          @click="closeMobileMenu"
+          class="block w-full py-2 text-center text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+        >
+          Смотреть тарифы
+        </router-link>
+      </div>
+    </div>
+
   </aside>
 
   <!-- Модалка подтверждения выхода -->
@@ -269,12 +229,14 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ChartBarIcon,
+  Squares2X2Icon,
   Bars3Icon,
   ChevronDownIcon,
   ArrowRightOnRectangleIcon,
   PlusIcon,
   PhoneIcon,
+  UserIcon,
+  ComputerDesktopIcon,
 } from '@heroicons/vue/24/outline'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 import { useSidebar } from '../composables/useSidebar'
@@ -336,7 +298,7 @@ const menuSections = [
     items: [
       {
         name: 'Аналитика',
-        icon: ChartBarIcon,
+        icon: Squares2X2Icon,
         path: '/dashboard',
         submenuKey: 'dashboard',
         children: [
