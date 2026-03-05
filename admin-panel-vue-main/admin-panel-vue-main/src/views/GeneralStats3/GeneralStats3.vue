@@ -133,8 +133,8 @@
           />
 
           <!-- Активность по дням + Возраст аудитории -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <div class="min-h-[360px]">
               <ActivityByWeekday
                 :client-id="filters.client_id || ''"
                 :start-date="filters.start_date"
@@ -144,7 +144,7 @@
                 :goal-action-ids="filters.vk_goal_action_ids || []"
               />
             </div>
-            <div>
+            <div class="min-h-[360px]">
               <AudienceAge
                 :client-id="filters.client_id || ''"
                 :start-date="filters.start_date"
