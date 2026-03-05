@@ -61,7 +61,7 @@ const AGE_LABELS_RU = {
 const ageLabelRu = (raw) => {
   const s = String(raw || '').trim()
   const key = s.toLowerCase()
-  return AGE_LABELS_RU[key] ?? s || '—'
+  return AGE_LABELS_RU[key] ?? (s || '—')
 }
 
 const props = defineProps({
