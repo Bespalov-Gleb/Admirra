@@ -20,7 +20,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 class SendReportRequest(BaseModel):
-    report_type: str = "pdf"  # pdf | text
+    report_type: str = "pdf"  # pdf | ai
     channels: List[str]  # ["email", "telegram"]
     email_recipients: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None
@@ -86,6 +86,8 @@ async def send_report(
             raise HTTPException(status_code=400, detail="Неверный client_id")
 
     pdf_bytes = None
+    ai_text = None
+
     if req.report_type == "pdf":
         try:
             pdf_bytes = generate_report_pdf(
@@ -99,6 +101,20 @@ async def send_report(
         except Exception as e:
             logger.exception("PDF generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
+    elif req.report_type == "ai":
+        try:
+            from ai.report_generator import generate_report
+            ai_text = await generate_report(
+                db=db,
+                user_id=current_user.id,
+                client_id=u_client_id,
+                start_date=req.start_date,
+                end_date=req.end_date,
+                report_type="full",
+            )
+        except Exception as e:
+            logger.exception("AI report generation failed: %s", e)
+            raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
 
     results = {"email": False, "telegram": False}
 
@@ -107,7 +123,7 @@ async def send_report(
         try:
             from lead_validator.services.email_sender import email_sender
             subject = f"Отчёт за период {req.start_date} — {req.end_date}"
-            body_text = f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
+            body_text = ai_text if ai_text else f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
             if pdf_bytes:
                 results["email"] = await email_sender.send_report_email(
                     recipients=req.email_recipients,
@@ -129,20 +145,34 @@ async def send_report(
 
     # Telegram
     if "telegram" in req.channels and req.telegram_chat_id:
-        if not pdf_bytes:
-            raise HTTPException(status_code=400, detail="Для Telegram нужен PDF")
-        try:
-            from lead_validator.services.telegram import telegram_notifier
-            caption = f"Отчёт за период {req.start_date} — {req.end_date}"
-            results["telegram"] = await telegram_notifier.send_document(
-                chat_id=req.telegram_chat_id,
-                document=pdf_bytes,
-                filename=f"report_{req.start_date}_{req.end_date}.pdf",
-                caption=caption,
-            )
-        except ImportError:
-            raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
-        except Exception as e:
-            logger.exception("Telegram send failed: %s", e)
+        if pdf_bytes:
+            try:
+                from lead_validator.services.telegram import telegram_notifier
+                caption = f"Отчёт за период {req.start_date} — {req.end_date}"
+                results["telegram"] = await telegram_notifier.send_document(
+                    chat_id=req.telegram_chat_id,
+                    document=pdf_bytes,
+                    filename=f"report_{req.start_date}_{req.end_date}.pdf",
+                    caption=caption,
+                )
+            except ImportError:
+                raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
+            except Exception as e:
+                logger.exception("Telegram send failed: %s", e)
+        elif ai_text:
+            try:
+                from lead_validator.services.telegram import telegram_notifier
+                header = f"📊 AI-отчёт за период {req.start_date} — {req.end_date}\n\n"
+                results["telegram"] = await telegram_notifier.send_message(
+                    text=header + ai_text,
+                    parse_mode=None,
+                    chat_id=req.telegram_chat_id,
+                )
+            except ImportError:
+                raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
+            except Exception as e:
+                logger.exception("Telegram send failed: %s", e)
+        else:
+            raise HTTPException(status_code=400, detail="Нет данных для отправки в Telegram")
 
     return {"ok": True, "results": results}

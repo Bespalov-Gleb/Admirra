@@ -205,26 +205,28 @@ class TelegramNotifier:
             logger.error(f"send_document error: {e}")
         return False
 
-    async def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
+    async def send_message(self, text: str, parse_mode: str = "Markdown", chat_id: Optional[str] = None) -> bool:
         """
         Отправка произвольного сообщения (для отладки/уведомлений/алертов).
         
         Args:
             text: Текст сообщения
             parse_mode: Режим форматирования (Markdown, HTML, или None)
+            chat_id: ID чата (если не указан — используется self.chat_id)
         """
         if not self.enabled:
             logger.warning("Telegram disabled, message not sent")
             return False
-            
-        if not self.token or not self.chat_id:
+
+        target_chat = chat_id or self.chat_id
+        if not self.token or not target_chat:
             logger.error("Telegram not configured properly")
             return False
-            
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 payload = {
-                    "chat_id": self.chat_id,
+                    "chat_id": target_chat,
                     "text": text
                 }
                 if parse_mode:

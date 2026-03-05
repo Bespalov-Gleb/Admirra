@@ -139,3 +139,87 @@ def _build_context(
             lines.append(f"{i}. {name}: {conv} лидов, {cost:,.0f} ₽")
 
     return "\n".join(lines)
+
+
+async def chat(
+    db: Session,
+    user_id: uuid.UUID,
+    client_id: Optional[uuid.UUID],
+    start_date: str,
+    end_date: str,
+    user_message: str,
+    history: list[dict],
+) -> str:
+    """
+    Отвечает на вопрос пользователя в контексте данных дашборда.
+    history: список {role: "user"|"assistant", content: str}
+    """
+    if not settings.OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY не настроен")
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+    if not effective_client_ids:
+        return "Нет доступа к данным проектов."
+
+    try:
+        d_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        d_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
+
+    summary = StatsService.aggregate_summary(
+        db, effective_client_ids, d_start, d_end, "all", None, None
+    )
+    campaigns = StatsService.get_campaign_stats(
+        db, effective_client_ids, d_start, d_end, "all", None, None
+    )
+    top_campaigns = sorted(
+        [c for c in campaigns if c.get("conversions", 0) > 0],
+        key=lambda x: x.get("conversions", 0),
+        reverse=True,
+    )[:5]
+
+    context = _build_context(summary, top_campaigns, start_date, end_date)
+
+    try:
+        from openai import AsyncOpenAI
+        import httpx
+    except ImportError:
+        raise ImportError("Установите openai: pip install openai")
+
+    proxy = (settings.AI_PROXY_URL or "").strip() or None
+    http_client = httpx.AsyncClient(proxy=proxy, timeout=60.0)
+
+    client = AsyncOpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        http_client=http_client,
+    )
+
+    system_prompt = f"""Ты — аналитик рекламных кампаний. Отвечай на вопросы пользователя на основе данных дашборда.
+Данные за период {start_date} — {end_date}:
+
+{context}
+
+Отвечай кратко и по делу на русском языке."""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for h in (history or []):
+        role = h.get("role")
+        content = h.get("content") or ""
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        response = await client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=messages,
+            temperature=0.7,
+        )
+        text = response.choices[0].message.content or ""
+        return text.strip()
+    except Exception as e:
+        logger.exception("OpenAI API error: %s", e)
+        raise
+    finally:
+        await http_client.aclose()

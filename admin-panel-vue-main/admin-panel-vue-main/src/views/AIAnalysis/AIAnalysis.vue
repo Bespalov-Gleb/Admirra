@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col overflow-x-hidden w-full min-h-[calc(100vh-8rem)]">
+  <div class="flex flex-col overflow-x-hidden w-full min-h-[calc(100vh-8rem)] pb-8">
     <!-- Заголовок -->
     <div class="flex-shrink-0 mb-4">
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">AI Анализ</h1>
@@ -44,11 +44,79 @@
         <LightBulbIcon v-else class="w-5 h-5" />
         {{ generatingRecommendations ? 'Генерация...' : 'Получить рекомендации' }}
       </button>
+      <!-- Отправка AI-отчёта -->
+      <div class="flex items-center gap-2 ml-2 pl-4 border-l border-gray-200">
+        <span class="text-xs text-gray-500">Отправить:</span>
+        <button
+          type="button"
+          :disabled="sendingTg"
+          class="p-2.5 rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 transition-colors disabled:opacity-50"
+          title="Отправить в Telegram"
+          @click="showTgModal = true"
+        >
+          <PaperAirplaneIcon class="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          :disabled="sendingEmail"
+          class="p-2.5 rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 transition-colors disabled:opacity-50"
+          title="Отправить на Email"
+          @click="showEmailModal = true"
+        >
+          <EnvelopeIcon class="w-5 h-5" />
+        </button>
+      </div>
     </div>
 
-    <!-- Чат — растягивается до низа страницы -->
-    <div class="flex-1 flex flex-col min-h-0">
-      <div class="h-full flex flex-col bg-white/80 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-lg overflow-hidden">
+    <!-- Модалки отправки -->
+    <div v-if="showTgModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgModal = false">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить в Telegram</h3>
+        <p class="text-sm text-gray-500 mb-4">AI-отчёт будет сгенерирован и отправлен в указанный чат.</p>
+        <input
+          v-model="tgChatId"
+          type="text"
+          placeholder="Chat ID"
+          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm mb-4"
+        />
+        <div class="flex gap-3">
+          <button class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="showTgModal = false">Отмена</button>
+          <button
+            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            :disabled="sendingTg || !tgChatId.trim()"
+            @click="submitTelegram"
+          >
+            {{ sendingTg ? 'Отправка...' : 'Отправить' }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить на Email</h3>
+        <p class="text-sm text-gray-500 mb-4">AI-отчёт будет сгенерирован и отправлен на указанные адреса.</p>
+        <input
+          v-model="emailRecipients"
+          type="text"
+          placeholder="email1@example.com, email2@example.com"
+          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm mb-4"
+        />
+        <div class="flex gap-3">
+          <button class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="showEmailModal = false">Отмена</button>
+          <button
+            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            :disabled="sendingEmail || !emailRecipients.trim()"
+            @click="submitEmail"
+          >
+            {{ sendingEmail ? 'Отправка...' : 'Отправить' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Чат — растягивается до низа страницы с отступом -->
+    <div class="flex-1 flex flex-col min-h-[320px]">
+      <div class="h-full flex flex-col bg-white/80 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-lg overflow-hidden min-h-0">
         <!-- Шапка чата -->
         <div class="px-6 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white/80 flex-shrink-0">
           <div class="flex items-center gap-3">
@@ -63,41 +131,56 @@
         </div>
 
         <!-- Область сообщений -->
-        <div class="flex-1 p-6 overflow-y-auto min-h-0">
-          <div v-if="!aiResponse && !aiError" class="flex flex-col items-center justify-center h-full min-h-[120px] text-center">
+        <div ref="messagesContainer" class="flex-1 p-6 overflow-y-auto min-h-0">
+          <div v-if="messages.length === 0 && !sendingMessage" class="flex flex-col items-center justify-center h-full min-h-[120px] text-center">
             <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
               <ChatBubbleLeftRightIcon class="w-7 h-7 text-gray-400" />
             </div>
             <p class="text-gray-500 text-sm max-w-xs">
-              Чат пока не активен. Используйте кнопки выше для формирования отчёта или получения рекомендаций.
+              Задайте вопрос в поле ниже или используйте кнопки выше для формирования отчёта или рекомендаций.
             </p>
           </div>
           <div v-else class="space-y-4">
             <div v-if="aiError" class="p-4 rounded-xl bg-red-50 text-red-600 text-sm">
               {{ aiError }}
             </div>
-            <div v-if="aiResponse" class="p-4 rounded-xl bg-gray-50 text-gray-800 text-sm whitespace-pre-wrap">
-              {{ aiResponse }}
+            <div
+              v-for="(msg, idx) in messages"
+              :key="idx"
+              :class="[
+                'p-4 rounded-xl text-sm',
+                msg.role === 'user'
+                  ? 'ml-8 bg-violet-50 text-gray-900'
+                  : 'mr-8 bg-gray-50 text-gray-800 whitespace-pre-wrap'
+              ]"
+            >
+              {{ msg.content }}
+            </div>
+            <div v-if="sendingMessage" class="p-4 rounded-xl bg-gray-50 text-gray-500 text-sm flex items-center gap-2">
+              <span class="w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+              Ответ генерируется...
             </div>
           </div>
         </div>
 
-        <!-- Поле ввода — внизу страницы -->
+        <!-- Поле ввода -->
         <div class="p-4 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
-          <div class="flex gap-3">
+          <form @submit.prevent="handleSendMessage" class="flex gap-3">
             <input
+              v-model="inputMessage"
               type="text"
               placeholder="Введите сообщение..."
-              disabled
-              class="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-not-allowed"
+              :disabled="sendingMessage"
+              class="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder-gray-400"
             />
             <button
-              disabled
-              class="px-5 py-3 rounded-xl bg-gray-200 text-gray-400 font-medium text-sm cursor-not-allowed"
+              type="submit"
+              :disabled="sendingMessage || !inputMessage.trim()"
+              class="px-5 py-3 rounded-xl bg-violet-600 text-white font-medium text-sm hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Отправить
             </button>
-          </div>
+          </form>
         </div>
       </div>
     </div>
@@ -105,15 +188,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import {
   DocumentTextIcon,
   LightBulbIcon,
   SparklesIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  PaperAirplaneIcon,
+  EnvelopeIcon
 } from '@heroicons/vue/24/outline'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
+import { useToaster } from '../../composables/useToaster'
+
+const toaster = useToaster()
 
 const clients = ref([])
 const selectedProjectId = ref('')
@@ -135,13 +223,36 @@ const startDate = ref(defaults.start)
 
 const generatingReport = ref(false)
 const generatingRecommendations = ref(false)
-const aiResponse = ref('')
+const sendingMessage = ref(false)
+const messages = ref([])
+const inputMessage = ref('')
 const aiError = ref('')
+const messagesContainer = ref(null)
+
+const showTgModal = ref(false)
+const showEmailModal = ref(false)
+const tgChatId = ref('')
+const emailRecipients = ref('')
+const sendingTg = ref(false)
+const sendingEmail = ref(false)
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  })
+}
 
 onMounted(async () => {
   try {
-    const { data } = await api.get('clients/')
-    clients.value = data || []
+    const [clientsRes, meRes] = await Promise.all([
+      api.get('clients/'),
+      api.get('/auth/me').catch(() => ({ data: {} }))
+    ])
+    clients.value = clientsRes.data || []
+    tgChatId.value = meRes.data?.report_telegram_chat_id || ''
+    emailRecipients.value = (meRes.data?.report_email_recipients || []).join(', ')
   } catch {
     clients.value = []
   }
@@ -156,9 +267,14 @@ watch(selectedProjectId, (id) => {
   if (currentProjectId.value !== id) setCurrentProject(id || null)
 })
 
+function addMessage(role, content) {
+  messages.value.push({ role, content })
+  aiError.value = ''
+  scrollToBottom()
+}
+
 async function callGenerateReport(reportType) {
   aiError.value = ''
-  aiResponse.value = ''
   const loading = reportType === 'full' ? generatingReport : generatingRecommendations
   loading.value = true
   try {
@@ -168,7 +284,8 @@ async function callGenerateReport(reportType) {
       end_date: endDate.value,
       report_type: reportType
     })
-    aiResponse.value = data.text || ''
+    const text = data.text || ''
+    addMessage('assistant', text)
   } catch (err) {
     aiError.value = err.response?.data?.detail || err.message || 'Ошибка при генерации отчёта'
   } finally {
@@ -182,5 +299,81 @@ function handleGenerateReport() {
 
 function handleGetRecommendations() {
   callGenerateReport('recommendations')
+}
+
+async function handleSendMessage() {
+  const text = inputMessage.value.trim()
+  if (!text || sendingMessage.value) return
+
+  addMessage('user', text)
+  inputMessage.value = ''
+  sendingMessage.value = true
+  aiError.value = ''
+
+  const history = messages.value
+    .slice(0, -1)
+    .map(m => ({ role: m.role, content: m.content }))
+
+  try {
+    const { data } = await api.post('ai/chat', {
+      client_id: selectedProjectId.value || null,
+      start_date: startDate.value,
+      end_date: endDate.value,
+      message: text,
+      history
+    })
+    addMessage('assistant', data.text || '')
+  } catch (err) {
+    aiError.value = err.response?.data?.detail || err.message || 'Ошибка при отправке сообщения'
+    messages.value.pop()
+  } finally {
+    sendingMessage.value = false
+  }
+}
+
+async function submitTelegram() {
+  const chatId = tgChatId.value.trim()
+  if (!chatId || sendingTg.value) return
+  sendingTg.value = true
+  try {
+    await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['telegram'],
+      telegram_chat_id: chatId,
+      client_id: selectedProjectId.value || null,
+      start_date: startDate.value,
+      end_date: endDate.value
+    })
+    toaster.success('AI-отчёт отправлен в Telegram')
+    showTgModal.value = false
+  } catch (err) {
+    aiError.value = err.response?.data?.detail || 'Ошибка отправки в Telegram'
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingTg.value = false
+  }
+}
+
+async function submitEmail() {
+  const emails = emailRecipients.value.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
+  if (!emails.length || sendingEmail.value) return
+  sendingEmail.value = true
+  try {
+    await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['email'],
+      email_recipients: emails,
+      client_id: selectedProjectId.value || null,
+      start_date: startDate.value,
+      end_date: endDate.value
+    })
+    toaster.success('AI-отчёт отправлен на email')
+    showEmailModal.value = false
+  } catch (err) {
+    aiError.value = err.response?.data?.detail || 'Ошибка отправки на Email'
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingEmail.value = false
+  }
 }
 </script>
