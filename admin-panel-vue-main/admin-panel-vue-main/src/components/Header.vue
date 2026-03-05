@@ -104,6 +104,7 @@
               <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-900">Уведомления</h3>
                 <button
+                  v-if="notifications.length > 0 && unreadCount > 0"
                   @click="markAllAsRead"
                   class="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
@@ -112,6 +113,12 @@
               </div>
               
               <div class="max-h-96 overflow-y-auto">
+                <div
+                  v-if="notifications.length === 0"
+                  class="p-8 text-center text-sm text-gray-500"
+                >
+                  Нет уведомлений
+                </div>
                 <div
                   v-for="notification in notifications"
                   :key="notification.id"
@@ -328,14 +335,8 @@ const displayName = computed(() => {
   return user.value.username || user.value.email
 })
 
-// Mock Notifications
-const notifications = ref([
-  { id: 1, title: 'Новый проект добавлен', time: '5 минут назад', read: false },
-  { id: 2, title: 'Обновление статистики', time: '1 час назад', read: false },
-  { id: 3, title: 'Новое сообщение от команды', time: '2 часа назад', read: true },
-  { id: 4, title: 'Завершен проект "КСИ СТРОЙ"', time: '3 часа назад', read: true }
-])
-const unreadCount = ref(2)
+const notifications = ref([])
+const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 const toggleProfileMenu = async () => {
   if (isProfileMenuOpen.value) {
@@ -416,24 +417,14 @@ const markAsRead = (id) => {
   const notification = notifications.value.find(n => n.id === id)
   if (notification && !notification.read) {
     notification.read = true
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
   }
 }
 
 const markAllAsRead = () => {
-  notifications.value.forEach(n => {
-    if (!n.read) {
-      n.read = true
-    }
-  })
-  unreadCount.value = 0
+  notifications.value.forEach(n => { n.read = true })
 }
 
 const removeNotification = (id) => {
-  const notification = notifications.value.find(n => n.id === id)
-  if (notification && !notification.read) {
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
-  }
   notifications.value = notifications.value.filter(n => n.id !== id)
 }
 
