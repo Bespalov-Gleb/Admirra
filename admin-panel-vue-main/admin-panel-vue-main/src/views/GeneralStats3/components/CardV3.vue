@@ -12,16 +12,17 @@
       </div>
       <div class="flex-1 min-w-0">
         <h3 class="text-xs font-medium text-gray-500 mb-0.5">{{ title }}</h3>
-        <p v-if="changeText" class="text-[10px] text-gray-400 mb-1">{{ changeText }}</p>
+        <p v-if="subtitle" class="text-[10px] text-gray-400 mb-1">{{ subtitle }}</p>
         <p class="text-lg font-bold text-gray-900 leading-tight">{{ value }}</p>
         <div
           :class="[
-            'inline-flex items-center gap-0.5 mt-1.5 px-2 py-0.5 rounded-lg text-[10px] font-semibold',
+            'inline-flex flex-wrap items-center gap-1 mt-1.5 px-2 py-0.5 rounded-lg text-[10px] font-semibold',
             changePositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
           ]"
         >
-          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3 h-3" />
-          <span>{{ trend }}%</span>
+          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3 h-3 flex-shrink-0" />
+          <span>{{ trendDisplay }}</span>
+          <span v-if="trendAbsolute" class="font-normal opacity-90">{{ trendAbsolute }}</span>
         </div>
       </div>
     </div>
@@ -29,12 +30,17 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/vue/20/solid'
 
-defineProps({
+const props = defineProps({
   title: {
     type: String,
     required: true
+  },
+  subtitle: {
+    type: String,
+    default: ''
   },
   value: {
     type: String,
@@ -43,6 +49,14 @@ defineProps({
   trend: {
     type: Number,
     required: true
+  },
+  trendDisplay: {
+    type: String,
+    default: ''
+  },
+  trendAbsolute: {
+    type: String,
+    default: ''
   },
   changeText: {
     type: String,
@@ -69,6 +83,8 @@ defineProps({
     default: false
   }
 })
+
+const trendDisplay = computed(() => props.trendDisplay || `${props.trend}%`)
 
 defineEmits(['click'])
 </script>

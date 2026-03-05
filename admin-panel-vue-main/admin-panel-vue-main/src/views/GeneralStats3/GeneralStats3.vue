@@ -20,11 +20,11 @@
         {{ statsError }}
       </div>
 
-      <!-- Шапка: заголовок + фильтры + кнопки PDF/Telegram -->
+      <!-- Шапка: заголовок + фильтры -->
       <div class="flex flex-col gap-4 mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <StatsHeader
-            :label="filters.client_id ? 'Выбранный проект' : 'Общий дашборд'"
+            :label="headerLabel"
             :title="dashboardTitle"
             :subtitle="dynamicSubtitle"
             :show-reset="filters.campaign_ids && filters.campaign_ids.length > 0"
@@ -48,64 +48,64 @@
               <input v-model="includeVat" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
               <span>Учитывать НДС</span>
             </label>
-            <div class="flex items-center gap-2 h-9">
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 h-9 px-4 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
-                :disabled="sendingPdf"
-                @click="handleDownloadPdf"
-              >
-                <ArrowDownTrayIcon class="w-4 h-4 flex-shrink-0" />
-                <span class="whitespace-nowrap">{{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}</span>
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 h-9 px-4 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
-                :disabled="sendingTg"
-                @click="handleSendTelegram"
-              >
-                <PaperAirplaneIcon class="w-4 h-4 flex-shrink-0" />
-                <span class="whitespace-nowrap">{{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      <!-- График эффективности кампаний (сверху по макету) -->
-      <div class="w-full relative">
-        <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl">
-          <div class="flex flex-col items-center gap-2">
-            <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
+      <!-- График + сайдбар бок о бок (по макету) -->
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <!-- График слева (2/3) -->
+        <div class="xl:col-span-2 relative">
+          <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
+            </div>
           </div>
+          <StatisticsChart
+            :dynamics="dynamics"
+            :selected-metrics="selectedMetrics"
+            :period="filters.period"
+            @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
+          />
         </div>
-        <StatisticsChart
-          :dynamics="dynamics"
+        <!-- Сайдбар справа (1/3) -->
+        <div class="xl:col-span-1 space-y-4">
+          <ConnectedChannelsV3
+            :integrations="integrations"
+            @connect="() => $router.push('/integrations/wizard')"
+          />
+          <ReportSendingBlock
+            :sending-tg="sendingTg"
+            :sending-email="sendingEmail"
+            :saving="reportSaving"
+            :telegram-configured="!!userReportSettings.telegram_chat_id"
+            :email-configured="(userReportSettings.email_recipients?.length ?? 0) > 0"
+            @send-telegram="handleSendTelegram"
+            @send-email="handleSendEmail"
+            @save="handleReportSave"
+            @schedule-change="handleScheduleChange"
+          />
+        </div>
+      </div>
+
+      <!-- KPI карточки (внизу по макету) -->
+      <div class="w-full">
+        <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-2xl" />
+        </div>
+        <KPIOverview
+          v-else-if="summary && summary.expenses !== undefined"
+          :summary="summary"
           :selected-metrics="selectedMetrics"
-          :period="filters.period"
-          @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
+          :loading="loading"
+          :include-vat="includeVat"
+          @toggle-metric="toggleMetric"
         />
       </div>
 
-      <!-- Двухколоночный layout: основной контент + сайдбар -->
-      <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        <div class="xl:col-span-3 space-y-6">
-          <!-- KPI карточки -->
-          <div class="w-full">
-            <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-2xl" />
-            </div>
-            <KPIOverview
-              v-else-if="summary && summary.expenses !== undefined"
-              :summary="summary"
-              :selected-metrics="selectedMetrics"
-              :loading="loading"
-              :include-vat="includeVat"
-              @toggle-metric="toggleMetric"
-            />
-          </div>
-
+      <!-- Основной контент: таблица кампаний, посты, активность -->
+      <div class="space-y-6">
           <!-- Лучшие рекламные кампании (таблица) -->
           <PromotionEfficiency
             :summary="summary"
@@ -158,21 +158,6 @@
             @send-telegram="handleSendTelegram"
             @send-email="handleSendEmail"
           />
-        </div>
-
-        <!-- Правая колонка: Подключенные каналы + Отправка отчётов -->
-        <div class="xl:col-span-1 space-y-4">
-          <ConnectedChannelsV3
-            :integrations="integrations"
-            @connect="() => $router.push('/integrations/wizard')"
-          />
-          <ReportSendingBlock
-            :sending-tg="sendingTg"
-            :sending-email="sendingEmail"
-            @send-telegram="handleSendTelegram"
-            @send-email="handleSendEmail"
-          />
-        </div>
       </div>
 
     <!-- Модальное окно Telegram -->
@@ -234,8 +219,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/solid'
-import { ArrowDownTrayIcon, PaperAirplaneIcon } from '@heroicons/vue/24/outline'
-
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
 import PromotionEfficiency from './components/PromotionEfficiency.vue'
@@ -335,16 +318,12 @@ const toggleMetric = (metric) => {
   }
 }
 
+const headerLabel = computed(() => 'Общая аналитика по всем активным проектам')
+
 const dynamicSubtitle = computed(() => {
-  if (filters.campaign_ids?.length > 0) {
-    return 'Детальная статистика выбранной кампании'
-  }
-  if (filters.client_id) {
-    return 'Аналитика и показатели эффективности проекта'
-  }
-  if (filters.channel !== 'all') {
-    return 'Статистика по конкретному рекламному каналу'
-  }
+  if (filters.campaign_ids?.length > 0) return 'Детальная статистика выбранной кампании'
+  if (filters.client_id) return 'Аналитика и показатели эффективности проекта'
+  if (filters.channel !== 'all') return 'Статистика по конкретному рекламному каналу'
   return 'Общая аналитика по всем активным проектам'
 })
 
@@ -352,17 +331,17 @@ const dashboardTitle = computed(() => {
   if (filters.campaign_ids?.length > 0) {
     const campaignId = filters.campaign_ids[0]
     const campaign = allCampaigns.value.find(c => c.id === campaignId)
-    return campaign ? `Кампания: ${campaign.name}` : `Статистика по кампаниям (${filters.campaign_ids.length})`
+    return campaign ? `Отчет по кампании: ${campaign.name}` : `Отчет по кампаниям (${filters.campaign_ids.length})`
   }
   if (filters.client_id) {
     const client = clients.value.find(c => c.id === filters.client_id)
-    return client ? `Проект: ${client.name}` : 'Статистика проекта'
+    return client ? `Отчет по проекту: ${client.name}` : 'Отчет по проекту'
   }
   if (filters.channel !== 'all') {
     const channelMap = { yandex: 'Яндекс.Директ', vk: 'VK Ads' }
-    return `Статистика: ${channelMap[filters.channel] || filters.channel}`
+    return `Отчет: ${channelMap[filters.channel] || filters.channel}`
   }
-  return 'Статистика по всем проектам'
+  return 'Отчет по всем проектам'
 })
 
 // --- Handlers ---
@@ -463,6 +442,20 @@ const handleSendEmail = () => {
   emailRecipients.value = userReportSettings.value.email_recipients.join(', ')
   showEmailModal.value = true
 }
+
+const reportSaving = ref(false)
+const handleReportSave = async (schedule) => {
+  reportSaving.value = true
+  try {
+    await api.patch('/auth/me', { report_schedule: schedule })
+    toaster.success('Расписание сохранено')
+  } catch {
+    toaster.error('Не удалось сохранить расписание')
+  } finally {
+    reportSaving.value = false
+  }
+}
+const handleScheduleChange = () => { /* опционально: предпросмотр */ }
 
 const submitTelegram = async () => {
   const chatId = tgChatId.value.trim()

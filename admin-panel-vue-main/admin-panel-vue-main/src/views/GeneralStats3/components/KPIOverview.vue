@@ -4,14 +4,16 @@
       <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">{{ title }}</h2>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
       <div v-for="metric in metrics" :key="metric.id">
         <CardV3
           :title="metric.title"
+          :subtitle="metric.subtitle"
           :value="metric.value"
           :trend="metric.trend"
+          :trend-display="metric.trendDisplay"
+          :trend-absolute="metric.trendAbsolute"
           :change-positive="metric.changePositive"
-          :change-text="metric.changeText"
           :icon="metric.icon"
           :icon-color="metric.iconColor"
           :is-selected="selectedMetrics.includes(metric.id)"
@@ -26,12 +28,12 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  CurrencyDollarIcon,
-  EyeIcon,
-  ArrowPathIcon,
-  UserGroupIcon,
-  HandRaisedIcon,
-  BanknotesIcon
+  WalletIcon,
+  ChartBarIcon,
+  CursorArrowRaysIcon,
+  TagIcon,
+  ListBulletIcon,
+  CheckCircleIcon
 } from '@heroicons/vue/24/solid'
 import CardV3 from './CardV3.vue'
 
@@ -60,78 +62,108 @@ const props = defineProps({
 
 defineEmits(['toggle-metric'])
 
+/** Вычисляет абсолютное изменение из текущего значения и процента тренда */
+function formatAbsoluteChange(current, trendPct, options = {}) {
+  if (trendPct === 0 || trendPct == null) return ''
+  const absChange = current * trendPct / (100 + trendPct)
+  const suffix = options.suffix || ''
+  const decimals = options.decimals ?? 0
+  let formatted
+  if (Math.abs(absChange) >= 1000) {
+    formatted = (absChange / 1000).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'k'
+  } else {
+    formatted = absChange.toLocaleString('ru-RU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  }
+  const sign = absChange >= 0 ? '+' : ''
+  return `${sign}${formatted}${suffix} за эту неделю`
+}
+
 const metrics = computed(() => {
   const rawExpenses = props.summary.expenses || 0
   const vatFactor = props.includeVat ? 1.22 : 1
   const expensesValue = rawExpenses * vatFactor
-  const changeText = 'за эту неделю'
+  const currency = props.summary.currency === 'RUB' ? '₽' : props.summary.currency
+  const t = props.summary.trends || {}
+
   return [
-  {
-    id: 'expenses',
-    title: 'Расходы',
-    value: expensesValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
-    trend: Math.abs(props.summary.trends?.expenses || 0),
-    changePositive: (props.summary.trends?.expenses || 0) <= 0,
-    changeText,
-    icon: CurrencyDollarIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  },
-  {
-    id: 'impressions',
-    title: 'Показы',
-    value: (props.summary.impressions || 0).toLocaleString(),
-    trend: props.summary.trends?.impressions || 0,
-    changePositive: (props.summary.trends?.impressions || 0) >= 0,
-    changeText,
-    icon: EyeIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  },
-  {
-    id: 'clicks',
-    title: 'Клики',
-    value: (props.summary.clicks || 0).toLocaleString(),
-    trend: props.summary.trends?.clicks || 0,
-    changePositive: (props.summary.trends?.clicks || 0) >= 0,
-    changeText,
-    icon: ArrowPathIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  },
-  {
-    id: 'cpc',
-    title: 'CPC',
-    value: (props.summary.cpc || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
-    trend: Math.abs(props.summary.trends?.cpc || 0),
-    changePositive: (props.summary.trends?.cpc || 0) <= 0,
-    changeText,
-    icon: HandRaisedIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  },
-  {
-    id: 'leads',
-    title: 'Лиды',
-    value: (props.summary.leads || 0).toLocaleString() + ' шт.',
-    trend: props.summary.trends?.leads || 0,
-    changePositive: (props.summary.trends?.leads || 0) >= 0,
-    changeText,
-    icon: UserGroupIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  },
-  {
-    id: 'cpa',
-    title: 'CPA',
-    value: (props.summary.cpa || 0).toLocaleString() + ' ' + (props.summary.currency === 'RUB' ? '₽' : props.summary.currency),
-    trend: Math.abs(props.summary.trends?.cpa || 0),
-    changePositive: (props.summary.trends?.cpa || 0) <= 0,
-    changeText,
-    icon: BanknotesIcon,
-    iconColor: 'blue',
-    chartColor: '#3b82f6'
-  }
+    {
+      id: 'expenses',
+      title: 'Расходы',
+      subtitle: 'За период',
+      value: expensesValue.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currency,
+      trend: t.expenses ?? 0,
+      trendDisplay: `${(t.expenses ?? 0) >= 0 ? '+' : ''}${(t.expenses ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(expensesValue, t.expenses ?? 0, { suffix: ' ' + currency, decimals: 2 }),
+      changePositive: (t.expenses ?? 0) <= 0,
+      icon: WalletIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    },
+    {
+      id: 'impressions',
+      title: 'Показы',
+      subtitle: 'По всем каналам',
+      value: (props.summary.impressions || 0).toLocaleString(),
+      trend: t.impressions ?? 0,
+      trendDisplay: `${(t.impressions ?? 0) >= 0 ? '+' : ''}${(t.impressions ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(props.summary.impressions || 0, t.impressions ?? 0),
+      changePositive: (t.impressions ?? 0) >= 0,
+      icon: ChartBarIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    },
+    {
+      id: 'clicks',
+      title: 'Клики',
+      subtitle: 'Все переходы',
+      value: (props.summary.clicks || 0).toLocaleString(),
+      trend: t.clicks ?? 0,
+      trendDisplay: `${(t.clicks ?? 0) >= 0 ? '+' : ''}${(t.clicks ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(props.summary.clicks || 0, t.clicks ?? 0),
+      changePositive: (t.clicks ?? 0) >= 0,
+      icon: CursorArrowRaysIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    },
+    {
+      id: 'cpc',
+      title: 'CPC',
+      subtitle: 'Стоимость клика',
+      value: (props.summary.cpc || 0).toLocaleString() + ' ' + currency,
+      trend: t.cpc ?? 0,
+      trendDisplay: `${(t.cpc ?? 0) >= 0 ? '+' : ''}${(t.cpc ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(props.summary.cpc || 0, t.cpc ?? 0, { suffix: ' ' + currency, decimals: 2 }),
+      changePositive: (t.cpc ?? 0) <= 0,
+      icon: TagIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    },
+    {
+      id: 'leads',
+      title: 'Лиды',
+      subtitle: 'По всем каналам',
+      value: (props.summary.leads || 0).toLocaleString() + ' шт.',
+      trend: t.leads ?? 0,
+      trendDisplay: `${(t.leads ?? 0) >= 0 ? '+' : ''}${(t.leads ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(props.summary.leads || 0, t.leads ?? 0, { suffix: ' шт.' }),
+      changePositive: (t.leads ?? 0) >= 0,
+      icon: ListBulletIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    },
+    {
+      id: 'cpa',
+      title: 'CPA',
+      subtitle: 'Стоимость лида',
+      value: (props.summary.cpa || 0).toLocaleString() + ' ' + currency,
+      trend: t.cpa ?? 0,
+      trendDisplay: `${(t.cpa ?? 0) >= 0 ? '+' : ''}${(t.cpa ?? 0).toFixed(1)}%`,
+      trendAbsolute: formatAbsoluteChange(props.summary.cpa || 0, t.cpa ?? 0, { suffix: ' ' + currency, decimals: 2 }),
+      changePositive: (t.cpa ?? 0) <= 0,
+      icon: CheckCircleIcon,
+      iconColor: 'blue',
+      chartColor: '#3b82f6'
+    }
   ]
 })
 </script>

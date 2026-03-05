@@ -7,8 +7,7 @@
         @click="$emit('connect')"
         class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
       >
-        Добавить
-        <PlusIcon class="w-3.5 h-3.5" />
+        Добавить +
       </button>
     </div>
 
@@ -33,12 +32,25 @@
             </span>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           <span v-if="platform.connected && platform.balance != null" class="text-xs font-bold text-gray-700">
-            {{ formatBalance(platform.balance) }} ₽
+            {{ formatBalance(platform.balance) }}P
           </span>
           <span v-else-if="platform.connected" class="text-xs text-gray-400">—</span>
-          <span v-else class="w-2 h-2 rounded-full bg-gray-300"></span>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="platform.connected"
+            class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            :class="platform.connected ? 'bg-green-500' : 'bg-gray-200'"
+            :disabled="!platform.connected"
+            @click="platform.connected && $emit('toggle-channel', platform.id)"
+          >
+            <span
+              class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition"
+              :class="platform.connected ? 'translate-x-4' : 'translate-x-0.5'"
+            />
+          </button>
         </div>
       </div>
     </div>
@@ -47,7 +59,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { PlusIcon } from '@heroicons/vue/24/solid'
 import { GlobeAltIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -57,7 +68,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['connect'])
+defineEmits(['connect', 'toggle-channel'])
 
 const platformRegistry = {
   yandex_direct: { name: 'Yandex Direct', icon: GlobeAltIcon },
