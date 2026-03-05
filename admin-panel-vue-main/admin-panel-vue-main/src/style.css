@@ -29,15 +29,20 @@ html {
 }
 
 .main-bg-color {
-    background-color: #2d3035;
+    background-color: #202937;
 }
 
 .text-main-bg-color {
-    color: #2d3035;
+    color: #202937;
 }
 
 .bg-active-menu {
-    background-color: #0090FF;
+    background-color: rgba(59, 130, 246, 0.9);
+}
+
+/* Разделители в сайдбаре (шаблон AdMirra) */
+.sidebar-separator {
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* Скрытие скроллбара для всех браузеров */

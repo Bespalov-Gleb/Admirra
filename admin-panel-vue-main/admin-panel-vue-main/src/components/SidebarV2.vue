@@ -8,59 +8,100 @@
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen text-white transition-all duration-300 z-50 main-bg-color',
+      'fixed left-0 top-0 h-screen flex flex-col text-white transition-all duration-300 z-50 main-bg-color',
       isCollapsed ? 'w-20' : 'w-[260px]',
       'lg:translate-x-0',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
     ]"
   >
-    <!-- Брендинг -->
-    <div class="flex items-center justify-between p-5">
-      <div v-if="!isCollapsed" @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
-        <img :src="logoFull" alt="Logo" class="h-12 w-auto" />
+    <!-- Брендинг + селектор контекста -->
+    <div class="px-4 pt-5 pb-3">
+      <div class="flex items-center justify-between">
+        <div @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
+          <img :src="isCollapsed ? logoFav : logoFull" :alt="'Logo'" :class="isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'" />
+        </div>
+        <button
+          v-if="!isCollapsed"
+          @click="handleToggleCollapse"
+          class="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"
+        >
+          <MenuArrow />
+        </button>
       </div>
-      <div v-else @click="handleBrandClick" class="cursor-pointer hover:opacity-80 mx-auto">
-        <img :src="logoFav" alt="Logo" class="h-8 w-8" />
+      <!-- Селектор контекста (Трафик агентство / Проект) -->
+      <div v-if="!isCollapsed" ref="contextSelectorRef" class="mt-3 relative">
+        <button
+          @click="handleContextSelect"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-sm text-gray-400 hover:bg-white/5 hover:text-gray-300 transition-colors"
+        >
+          <span class="truncate">{{ contextLabel }}</span>
+          <ChevronDownIcon class="w-4 h-4 flex-shrink-0 transition-transform" :class="{ 'rotate-180': showContextDropdown }" />
+        </button>
+        <!-- Выпадающий список проектов -->
+        <div
+          v-if="showContextDropdown"
+          class="absolute left-0 right-0 top-full mt-1 py-2 bg-[#1e293b] rounded-lg shadow-xl border border-white/10 z-50 max-h-48 overflow-y-auto"
+        >
+          <button
+            @click="handleProjectSelect(null)"
+            class="w-full px-4 py-2 text-left text-sm hover:bg-white/5 flex items-center justify-between"
+            :class="!currentProjectId ? 'text-blue-400' : 'text-gray-300'"
+          >
+            <span>Все проекты</span>
+            <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-400" />
+          </button>
+          <button
+            v-for="p in projects"
+            :key="p.id"
+            @click="handleProjectSelect(p.id)"
+            class="w-full px-4 py-2 text-left text-sm hover:bg-white/5 flex items-center justify-between truncate"
+            :class="currentProjectId === p.id ? 'text-blue-400' : 'text-gray-300'"
+          >
+            <span class="truncate">{{ p.name }}</span>
+            <CheckIcon v-if="currentProjectId === p.id" class="w-4 h-4 text-blue-400 flex-shrink-0" />
+          </button>
+          <div class="border-t border-white/10 my-2"></div>
+          <router-link
+            to="/projects/create"
+            @click="showContextDropdown = false; closeMobileMenu()"
+            class="flex items-center gap-2 px-4 py-2 text-sm text-blue-400 hover:bg-white/5"
+          >
+            <PlusIcon class="w-4 h-4" />
+            Создать проект
+          </router-link>
+        </div>
       </div>
-      <!-- Кнопка сворачивания в заголовке -->
-      <button
-        v-if="!isCollapsed"
-        @click="handleToggleCollapse"
-        class="p-1 hover:bg-gray-700 rounded"
-      >
-        <MenuArrow />
-      </button>
     </div>
 
+    <!-- Разделитель -->
+    <div class="mx-4 border-t border-white/12 sidebar-separator"></div>
 
     <!-- Навигация -->
-    <div class="overflow-y-auto scrollbar-hide h-[calc(100vh-180px)]">
-      <nav class="py-4 space-y-6">
-        <div v-for="(section, index) in menuSections" :key="section.title" class="space-y-1">
-          <!-- Разделитель секций -->
-          <div 
-            v-if="index > 0" 
-            class="mx-4 my-6 border-t border-white/5"
+    <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hide py-3">
+      <nav class="space-y-0.5">
+        <template v-for="(section, sectionIdx) in menuSections" :key="section.title">
+          <div
+            v-if="sectionIdx > 0"
+            class="mx-4 my-3 border-t border-white/12 sidebar-separator"
           ></div>
-
           <div v-for="item in section.items" :key="item.name" class="relative group">
             <!-- Кнопка меню -->
             <button
               @click="item.children ? toggleSubmenu(item.submenuKey) : handleLinkClick(item.path)"
               :class="[
-                'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left transition-colors',
+                'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left text-sm transition-colors',
                 isCollapsed && 'justify-center',
-                (!item.children && isActive(item.path)) ? 'bg-active-menu' : 'hover:bg-white/5'
+                (!item.children && isActive(item.path)) ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
               ]"
             >
               <ActiveIndicator v-if="!item.children" :is-active="isActive(item.path)" />
               <component :is="item.icon" class="w-4 h-4 flex-shrink-0" />
               <span v-if="!isCollapsed" class="flex-1 text-sm font-medium">{{ item.name }}</span>
-              <ChevronUpIcon
+              <ChevronDownIcon
                 v-if="!isCollapsed && item.children"
                 :class="[
-                  'w-4 h-4 transition-transform',
-                  !isSubmenuOpenForKey(item.submenuKey) && 'rotate-180'
+                  'w-4 h-4 transition-transform text-blue-400',
+                  !isSubmenuOpenForKey(item.submenuKey) && '-rotate-90'
                 ]"
               />
             </button>
@@ -81,8 +122,8 @@
                 :key="child.path"
                 @click="handleLinkClick(child.path)"
                 :class="[
-                  'relative w-full flex items-center gap-2.5 px-3 py-2.5 pl-14 text-left transition-colors',
-                  isActive(child.path) ? 'bg-active-menu' : 'hover:bg-white/5'
+                  'relative w-full flex items-center gap-2.5 px-3 py-2.5 pl-14 text-left text-sm transition-colors',
+                  isActive(child.path) ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
                 ]"
               >
                 <ActiveIndicator :is-active="isActive(child.path)" />
@@ -91,21 +132,78 @@
               </button>
             </div>
           </div>
-        </div>
+        </template>
       </nav>
     </div>
 
-    <!-- Нижние ссылки (Fixed absolute bottom) -->
-    <div class="absolute bottom-0 left-0 right-0 pb-10 pointer-events-auto bg-inherit">
-      <nav>
+    <!-- Разделитель перед нижним блоком -->
+    <div class="mx-4 border-t border-white/12 sidebar-separator"></div>
+
+    <!-- Промо-карточка -->
+    <div v-if="!isCollapsed" class="px-4 py-3">
+      <div class="rounded-xl bg-[#1e3a5f] p-4">
+        <h4 class="text-sm font-bold text-white mb-1">Повысить до премиум</h4>
+        <p class="text-xs text-white/80 mb-3">Расширенные отчёты и аналитика</p>
+        <router-link
+          to="/settings"
+          @click="closeMobileMenu"
+          class="block w-full py-2 text-center text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+        >
+          Смотреть тарифы
+        </router-link>
+      </div>
+    </div>
+
+    <!-- Нижние ссылки -->
+    <div class="px-0 pb-4 pt-2">
+      <nav class="space-y-0.5">
+        <div class="relative group">
+          <router-link
+            to="/history"
+            @click="closeMobileMenu"
+            :class="[
+              'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
+              isCollapsed && 'justify-center',
+              isActive('/history') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+            ]"
+          >
+            <ActiveIndicator :is-active="isActive('/history')" />
+            <Clock class="w-4 h-4 flex-shrink-0" />
+            <span v-if="!isCollapsed">История</span>
+          </router-link>
+          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            История
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+        <div class="relative group">
+          <router-link
+            to="/settings"
+            @click="closeMobileMenu"
+            :class="[
+              'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
+              isCollapsed && 'justify-center',
+              isActive('/settings') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
+            ]"
+          >
+            <ActiveIndicator :is-active="isActive('/settings')" />
+            <Setting class="w-4 h-4 flex-shrink-0" />
+            <span v-if="!isCollapsed">Настройки</span>
+          </router-link>
+          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            Настройки
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+        <div class="mx-4 my-2 border-t border-white/12 sidebar-separator"></div>
         <div class="relative group">
           <router-link
             to="/help"
             @click="closeMobileMenu"
             :class="[
-              'relative flex items-center gap-2.5 px-5 py-2.5',
+              'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/help') && 'bg-active-menu'
+              isActive('/help') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/help')" />
@@ -122,9 +220,9 @@
             to="/contact"
             @click="closeMobileMenu"
             :class="[
-              'relative flex items-center gap-2.5 px-5 py-2.5',
+              'relative flex items-center gap-2.5 px-5 py-2.5 text-sm',
               isCollapsed && 'justify-center',
-              isActive('/contact') && 'bg-active-menu'
+              isActive('/contact') ? 'bg-active-menu text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
             ]"
           >
             <ActiveIndicator :is-active="isActive('/contact')" />
@@ -140,13 +238,12 @@
           <button
             @click="handleLogoutClick"
             :class="[
-              'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left',
+              'relative w-full flex items-center gap-2.5 px-5 py-2.5 text-left text-sm text-gray-400 hover:bg-white/5 hover:text-gray-300',
               isCollapsed && 'justify-center'
             ]"
           >
-            <ActiveIndicator :is-active="false" />
             <ArrowRightOnRectangleIcon class="w-4 h-4 flex-shrink-0" />
-            <span v-if="!isCollapsed" class="text-sm">Выход</span>
+            <span v-if="!isCollapsed">Выход</span>
           </button>
            <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
             Выход
@@ -168,19 +265,21 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChartBarIcon,
   Bars3Icon,
-  ChevronUpIcon,
+  ChevronDownIcon,
   ArrowRightOnRectangleIcon,
   PlusIcon,
   PhoneIcon,
   SparklesIcon,
 } from '@heroicons/vue/24/outline'
+import { CheckIcon } from '@heroicons/vue/24/solid'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
+import { useProjects } from '../composables/useProjects'
 import ConfirmModal from './ConfirmModal.vue'
 import ActiveIndicator from './ActiveIndicator.vue'
 import logoFull from '../assets/imgs/logo/AdMirra.png'
@@ -196,6 +295,34 @@ import Setting from '../assets/icons/menu/setting.vue'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { forceLogout } = useAuth()
+const { currentProjectName, currentProjectId, projects, setCurrentProject, fetchProjects } = useProjects()
+
+const contextLabel = computed(() => currentProjectName.value || 'Трафик агентство')
+const showContextDropdown = ref(false)
+
+const handleContextSelect = () => {
+  showContextDropdown.value = !showContextDropdown.value
+  if (showContextDropdown.value) fetchProjects()
+}
+
+const handleProjectSelect = (id) => {
+  setCurrentProject(id)
+  showContextDropdown.value = false
+}
+
+const contextSelectorRef = ref(null)
+const handleClickOutsideContext = (e) => {
+  if (contextSelectorRef.value && !contextSelectorRef.value.contains(e.target)) {
+    showContextDropdown.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutsideContext)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutsideContext)
+})
 const route = useRoute()
 const router = useRouter()
 const isDashboardSubmenuOpen = ref(false)
@@ -251,13 +378,6 @@ const menuSections = [
       },
     ]
   },
-  {
-    title: 'СЕРВИС',
-    items: [
-      { name: 'История', path: '/history', icon: Clock },
-      { name: 'Настройки', path: '/settings', icon: Setting },
-    ]
-  }
 ]
 
 // Закрывать мобильное меню при клике на ссылку
