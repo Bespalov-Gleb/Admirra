@@ -4,7 +4,7 @@
       <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">{{ title }}</h2>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-6 xl:gap-8">
       <div v-for="metric in metrics" :key="metric.id">
         <CardV3
           :title="metric.title"

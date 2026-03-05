@@ -53,6 +53,18 @@ async def get_top_ads_with_images(
                 result.append(ad)
                 if len(result) >= limit:
                     break
+        # Fallback: если ad-level API вернул 400/пусто — показываем кампании как «посты»
+        if len(result) < limit and platform in ["all", "yandex"]:
+            yandex_campaigns = _get_yandex_top_ads_fallback(
+                db, client_ids, d_start, d_end, campaign_ids, limit - len(result)
+            )
+            for ad in yandex_campaigns:
+                key = f"yd_camp_{ad.get('id', '')}"
+                if key not in seen_ids:
+                    seen_ids.add(key)
+                    result.append(ad)
+                    if len(result) >= limit:
+                        break
         if len(result) >= limit:
             return result[:limit]
 
@@ -230,6 +242,46 @@ async def _get_yandex_top_ads(
             logger.warning(f"Yandex top-ads for integration {integration.id}: {e}")
 
     return sorted(all_ads, key=lambda x: (x.get("conversions", 0), x.get("cost", 0)), reverse=True)[:limit]
+
+
+def _get_yandex_top_ads_fallback(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: Optional[date],
+    d_end: date,
+    campaign_ids: Optional[List[uuid.UUID]],
+    limit: int,
+) -> List[Dict[str, Any]]:
+    """
+    Fallback: топ кампаний Yandex как «посты» (без image_url), когда AD_PERFORMANCE_REPORT недоступен.
+    """
+    campaigns = StatsService.get_campaign_stats(
+        db, client_ids, d_start, d_end, "yandex", campaign_ids, None
+    )
+    sorted_campaigns = sorted(
+        campaigns,
+        key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
+        reverse=True,
+    )[:limit]
+
+    result = []
+    for c in sorted_campaigns:
+        imps = c.get("impressions", 0) or 0
+        clicks = c.get("clicks", 0) or 0
+        name = (c.get("name", "") or "Кампания").replace("[ЯД] ", "")
+        result.append({
+            "id": f"yd_camp_{c.get('id', '')}",
+            "title": name,
+            "image_url": None,
+            "impressions": imps,
+            "clicks": clicks,
+            "cost": c.get("cost", 0),
+            "ctr": round(clicks / imps * 100, 2) if imps else 0,
+            "conversions": c.get("conversions", 0),
+            "platform": "yandex",
+            "subtitle": "Яндекс.Директ",
+        })
+    return result
 
 
 def _get_vk_top_ads_fallback(

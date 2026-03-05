@@ -1,19 +1,19 @@
 <template>
   <div
-    class="rounded-2xl p-6 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
+    class="rounded-2xl p-8 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
     :class="[
       isSelected && 'ring-2 ring-blue-500/30 border-blue-200'
     ]"
     @click="$emit('click')"
   >
-    <div class="flex items-start gap-4">
-      <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-        <component :is="icon" class="w-6 h-6 text-blue-600" />
+    <div class="flex items-start gap-5">
+      <div class="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+        <component :is="icon" class="w-7 h-7 text-blue-600" />
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-medium text-gray-500 mb-1">{{ title }}</h3>
-        <p v-if="subtitle" class="text-xs text-gray-400 mb-1.5">{{ subtitle }}</p>
-        <p class="text-xl font-bold text-gray-900 leading-tight">{{ value }}</p>
+        <h3 class="text-base font-medium text-gray-500 mb-1.5">{{ title }}</h3>
+        <p v-if="subtitle" class="text-sm text-gray-400 mb-2">{{ subtitle }}</p>
+        <p class="text-2xl font-bold text-gray-900 leading-tight">{{ value }}</p>
         <div
           :class="[
             'inline-flex flex-wrap items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold',
