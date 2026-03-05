@@ -133,8 +133,8 @@
           />
 
           <!-- Активность по дням + Возраст аудитории -->
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
               <ActivityByWeekday
                 :client-id="filters.client_id || ''"
                 :start-date="filters.start_date"

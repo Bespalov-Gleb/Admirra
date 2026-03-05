@@ -1,27 +1,27 @@
 <template>
-  <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-md">
-    <h3 class="text-base font-bold text-gray-900 mb-4">Возраст аудитории</h3>
-    <div v-if="loading" class="h-48 flex items-center justify-center">
+  <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md min-h-[280px] flex flex-col">
+    <h3 class="text-base font-bold text-gray-900 mb-5">Возраст аудитории</h3>
+    <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else-if="data.length === 0" class="h-48 flex items-center justify-center text-gray-500 text-sm">
+    <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
-    <div v-else class="flex flex-row items-center gap-6">
-      <div class="relative w-40 h-40 flex-shrink-0">
+    <div v-else class="flex flex-row items-center justify-center gap-8 flex-1">
+      <div class="relative w-52 h-52 sm:w-60 sm:h-60 flex-shrink-0">
         <canvas ref="chartRef" />
       </div>
-      <div class="grid grid-cols-2 gap-2 flex-1">
+      <div class="grid grid-cols-2 gap-3 flex-1 min-w-0">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50"
+          class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gray-50"
         >
           <span
-            class="w-3 h-3 rounded-full flex-shrink-0"
+            class="w-4 h-4 rounded-full flex-shrink-0"
             :style="{ backgroundColor: colors[i % colors.length] }"
           />
-          <span class="text-sm text-gray-700">{{ ageLabelRu(item.age_interval) }}</span>
+          <span class="text-sm font-medium text-gray-700">{{ ageLabelRu(item.age_interval) }}</span>
         </div>
       </div>
     </div>
@@ -96,13 +96,14 @@ const updateChart = () => {
         data: data.value.map((d) => d.visits || 0),
         backgroundColor: data.value.map((_, i) => colors[i % colors.length]),
         borderWidth: 2,
-        borderColor: '#fff'
+        borderColor: '#fff',
+        spacing: 4
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      layout: { padding: 4 },
+      layout: { padding: 8 },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -119,7 +120,7 @@ const updateChart = () => {
             return p > 0 ? `${p}%` : ''
           },
           color: '#fff',
-          font: { size: 12, weight: 'bold' }
+          font: { size: 14, weight: 'bold' }
         }
       }
     }
