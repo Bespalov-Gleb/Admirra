@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap items-end gap-3 lg:gap-4">
+  <div class="flex flex-wrap items-center gap-3 lg:gap-4">
     <!-- Main Selections Group -->
     <div class="flex flex-wrap items-center gap-3 bg-gray-50/50 p-1.5 rounded-[24px] border border-gray-100/50">
       <!-- Project Select -->
@@ -165,16 +165,14 @@
       </div>
 
       <!-- Export Button -->
-      <div class="flex flex-col gap-1 self-end">
-        <button 
-          @click="$emit('export')"
-          class="h-9 px-4 bg-gray-900 text-white rounded-[14px] text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-200 transition-all flex items-center gap-2 active:scale-95"
-          title="Скачать CSV"
-        >
-          <ArrowDownTrayIcon class="w-3.5 h-3.5" />
-          <span class="hidden sm:inline">CSV</span>
-        </button>
-      </div>
+      <button 
+        @click="$emit('export')"
+        class="h-9 px-4 bg-gray-900 text-white rounded-[14px] text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-200 transition-all flex items-center gap-2 active:scale-95"
+        title="Скачать CSV"
+      >
+        <ArrowDownTrayIcon class="w-3.5 h-3.5" />
+        <span class="hidden sm:inline">CSV</span>
+      </button>
     </div>
   </div>
 </template>

@@ -48,11 +48,7 @@
 <script setup>
 import { computed } from 'vue'
 import { PlusIcon } from '@heroicons/vue/24/solid'
-import { 
-  GlobeAltIcon, 
-  ChatBubbleBottomCenterTextIcon,
-  PlayCircleIcon
-} from '@heroicons/vue/24/outline'
+import { GlobeAltIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   integrations: {
@@ -65,11 +61,7 @@ defineEmits(['connect'])
 
 const platformRegistry = {
   yandex_direct: { name: 'Yandex Direct', icon: GlobeAltIcon },
-  vk_ads: { name: 'VK Ads Manager', icon: ChatBubbleBottomCenterTextIcon },
-  google_ads: { name: 'Google Ads', icon: PlayCircleIcon },
-  facebook_ads: { name: 'Facebook Ads', icon: PlayCircleIcon },
-  instagram: { name: 'Instagram', icon: PlayCircleIcon },
-  telegram: { name: 'Telegram Ads', icon: ChatBubbleBottomCenterTextIcon }
+  vk_ads: { name: 'VK Ads Manager', icon: ChatBubbleBottomCenterTextIcon }
 }
 
 const displayPlatforms = computed(() => {

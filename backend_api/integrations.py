@@ -2423,14 +2423,17 @@ async def discover_campaigns(
     discovered_campaigns = []
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # Каждая интеграция ДОЛЖНА быть привязана к одному конкретному профилю Яндекс.Директа.
-        # В UI пользователь выбирает профиль на шаге 2, и его логин мы храним в integration.account_id.
-        # Здесь не угадываем «личный» логин и не используем устаревший agency_client_login —
-        # всегда работаем строго через account_id.
-        selected_profile = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
+        # CRITICAL: Use the SAME profile selection as sync — agency_client_login first, then account_id.
+        # Sync uses agency_client_login for Reports API; if discover-campaigns used only account_id,
+        # we'd get campaigns for a different profile and stats would be skipped (not in DB).
+        selected_profile = None
+        if integration.agency_client_login and integration.agency_client_login.lower() not in ["unknown", "none", ""]:
+            selected_profile = integration.agency_client_login
+        elif integration.account_id and integration.account_id.lower() != "unknown":
+            selected_profile = integration.account_id
         if not selected_profile:
-            logger.error(f"❌ discover_campaigns: integration {integration_id} has no account_id (profile login). Cannot fetch campaigns correctly.")
-            raise HTTPException(status_code=400, detail="Для интеграции не задан логин рекламного профиля (account_id). Пере настройте интеграцию.")
+            logger.error(f"❌ discover_campaigns: integration {integration_id} has no profile (agency_client_login or account_id). Cannot fetch campaigns correctly.")
+            raise HTTPException(status_code=400, detail="Для интеграции не задан логин рекламного профиля. Пере настройте интеграцию и выберите профиль.")
         
         use_client_login = selected_profile
         logger.info(
@@ -2585,12 +2588,12 @@ async def discover_campaigns(
     
     # CRITICAL: Clean up campaigns from other profiles if profile is selected
     # Delete campaigns that weren't returned by API (they belong to other profiles)
-    # IMPORTANT: Use account_id (selected profile) instead of agency_client_login
-    # CRITICAL FIX: Only delete if we have discovered campaigns AND they are not empty
-    # This prevents deleting campaigns when API returns empty result due to errors or wrong profile
-    # ALSO: Only delete if we actually discovered some campaigns (not empty list)
-    # CRITICAL: Check if profile changed - only delete if we're sure this is a profile change, not a race condition
-    if integration.account_id and integration.account_id.lower() != "unknown" and discovered_campaigns and len(discovered_campaigns) > 0:
+    # Use same profile check as discover: agency_client_login or account_id
+    has_valid_profile = (
+        (integration.agency_client_login and integration.agency_client_login.lower() not in ["unknown", "none", ""])
+        or (integration.account_id and integration.account_id.lower() != "unknown")
+    )
+    if has_valid_profile and discovered_campaigns and len(discovered_campaigns) > 0:
         discovered_external_ids = {str(dc["id"]) for dc in discovered_campaigns}
         all_db_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
         
@@ -2601,10 +2604,11 @@ async def discover_campaigns(
         
         deleted_count = 0
         campaigns_to_delete = []
+        profile_log = integration.agency_client_login or integration.account_id or "?"
         for db_campaign in all_db_campaigns:
             if str(db_campaign.external_id) not in discovered_external_ids:
                 campaigns_to_delete.append(db_campaign)
-                logger.warning(f"🗑️ Will delete campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {integration.account_id}")
+                logger.warning(f"🗑️ Will delete campaign '{db_campaign.name}' (ID: {db_campaign.external_id}) - not in API response for profile {profile_log}")
         
         # CRITICAL: Only delete if:
         # 1. We have campaigns to delete
@@ -2612,8 +2616,8 @@ async def discover_campaigns(
         # 3. At least SOME discovered campaigns match existing ones (profile didn't completely change)
         # OR if NONE match but we have discovered campaigns (profile definitely changed)
         if campaigns_to_delete:
-            logger.info(f"🔵 Found {len(campaigns_to_delete)} campaigns to delete (not in API response for profile {integration.account_id})")
-            logger.info(f"🔵 Discovered {len(discovered_campaigns)} campaigns for profile {integration.account_id}")
+            logger.info(f"🔵 Found {len(campaigns_to_delete)} campaigns to delete (not in API response for profile {profile_log})")
+            logger.info(f"🔵 Discovered {len(discovered_campaigns)} campaigns for profile {profile_log}")
             logger.info(f"🔵 Matching campaigns: {matching_count} out of {len(existing_external_ids)} existing")
             
             # Only delete if we're confident this is a profile change (no matches) OR if we have some matches (partial overlap)
@@ -2638,10 +2642,10 @@ async def discover_campaigns(
                 db.commit()
                 logger.info(f"🗑️ Deleted {deleted_count} campaigns from other profiles")
         else:
-            logger.info(f"🔵 No campaigns to delete - all campaigns match discovered campaigns for profile {integration.account_id}")
+            logger.info(f"🔵 No campaigns to delete - all campaigns match discovered campaigns for profile {profile_log}")
     else:
-        if not integration.account_id or integration.account_id.lower() == "unknown":
-            logger.info(f"🔵 Skipping campaign deletion: no valid account_id (profile) selected")
+        if not has_valid_profile:
+            logger.info(f"🔵 Skipping campaign deletion: no valid profile (agency_client_login or account_id) selected")
         elif not discovered_campaigns or len(discovered_campaigns) == 0:
             logger.warning(f"⚠️ Skipping campaign deletion: discovered_campaigns is empty (might be API error or wrong profile)")
     

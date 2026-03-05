@@ -22,7 +22,7 @@
 
       <!-- Шапка: заголовок + фильтры + кнопки PDF/Telegram -->
       <div class="flex flex-col gap-4 mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <StatsHeader
             :label="filters.client_id ? 'Выбранный проект' : 'Общий дашборд'"
             :title="dashboardTitle"
@@ -30,7 +30,7 @@
             :show-reset="filters.campaign_ids && filters.campaign_ids.length > 0"
             @reset="filters.campaign_ids = []"
           />
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3 min-h-[36px]">
             <StatsFilters
               :filters="filters"
               :clients="clients"
@@ -44,28 +44,28 @@
               @update:campaign-ids="(ids) => filters.campaign_ids = ids"
               @update:goal-action-ids="(ids) => filters.vk_goal_action_ids = ids"
             />
-            <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none">
+            <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none h-9">
               <input v-model="includeVat" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
               <span>Учитывать НДС</span>
             </label>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 h-9">
               <button
                 type="button"
-                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                class="inline-flex items-center gap-2 h-9 px-4 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
                 :disabled="sendingPdf"
                 @click="handleDownloadPdf"
               >
-                <ArrowDownTrayIcon class="w-4 h-4" />
-                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}
+                <ArrowDownTrayIcon class="w-4 h-4 flex-shrink-0" />
+                <span class="whitespace-nowrap">{{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}</span>
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                class="inline-flex items-center gap-2 h-9 px-4 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
                 :disabled="sendingTg"
                 @click="handleSendTelegram"
               >
-                <PaperAirplaneIcon class="w-4 h-4" />
-                {{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}
+                <PaperAirplaneIcon class="w-4 h-4 flex-shrink-0" />
+                <span class="whitespace-nowrap">{{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}</span>
               </button>
             </div>
           </div>
