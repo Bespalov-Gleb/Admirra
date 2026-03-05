@@ -1,10 +1,10 @@
 <template>
-  <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-md">
-    <h3 class="text-base font-bold text-gray-900 mb-4">Активность по дням</h3>
-    <div v-if="loading" class="h-48 flex items-center justify-center">
+  <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md min-h-[280px] flex flex-col">
+    <h3 class="text-base font-bold text-gray-900 mb-5">Активность по дням</h3>
+    <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else class="h-48">
+    <div v-else class="flex-1 min-h-[240px]">
       <canvas ref="chartRef" />
     </div>
   </div>
