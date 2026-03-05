@@ -63,9 +63,9 @@ async def generate_report(
     except ImportError:
         raise ImportError("Установите openai: pip install openai")
 
-    proxy = settings.AI_PROXY_URL.strip() or None
+    proxy = (settings.AI_PROXY_URL or "").strip() or None
     http_client = httpx.AsyncClient(
-        proxies=proxy,
+        proxy=proxy,
         timeout=60.0,
     )
 
