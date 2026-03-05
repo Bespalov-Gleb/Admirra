@@ -11,6 +11,7 @@ from .cache_service import cache_response
 import csv
 import io
 from fastapi.responses import StreamingResponse
+import json
 import logging
 import asyncio
 from automation.sync import sync_integration, sync_metrika_goals_background
@@ -740,11 +741,18 @@ async def get_audience_age(
     if not effective_client_ids or len(effective_client_ids) != 1:
         return []
 
-    # Get Metrika integration for this client
+    # Get integration with Metrika: YANDEX_METRIKA или YANDEX_DIRECT с selected_counters
     integration = db.query(models.Integration).filter(
         models.Integration.client_id.in_(effective_client_ids),
         models.Integration.platform == models.IntegrationPlatform.YANDEX_METRIKA
     ).first()
+    if not integration or not integration.access_token or not integration.selected_counters:
+        integration = db.query(models.Integration).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
+            models.Integration.selected_counters.isnot(None),
+            models.Integration.selected_counters != ""
+        ).first()
     if not integration or not integration.access_token or not integration.selected_counters:
         return []
 
@@ -766,7 +774,8 @@ async def get_audience_age(
     date_to = d_end.strftime("%Y-%m-%d")
 
     from automation.yandex_metrica import YandexMetricaAPI
-    api = YandexMetricaAPI(integration.access_token)
+    access_token = security.decrypt_token(integration.access_token)
+    api = YandexMetricaAPI(access_token)
     try:
         data = await api.get_audience_age(counter_id, date_from, date_to)
     except Exception as e:
@@ -977,7 +986,27 @@ async def get_goals(
     # Individual goals (goal_id != "all")
     query_indiv = query.filter(models.MetrikaGoals.goal_id != "all")
     goals = query_indiv.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
-    
+
+    # Фильтр по selected_goals: показывать только цели, выбранные пользователем при интеграции
+    selected_goal_ids = set()
+    for i in db.query(models.Integration).filter(
+        models.Integration.client_id.in_(effective_client_ids),
+        models.Integration.platform.in_([
+            models.IntegrationPlatform.YANDEX_DIRECT,
+            models.IntegrationPlatform.YANDEX_METRIKA,
+        ]),
+    ).all():
+        if i.selected_goals:
+            try:
+                sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
+                selected_goal_ids.update(str(g) for g in (sg or []))
+            except Exception:
+                pass
+        if i.primary_goal_id:
+            selected_goal_ids.add(str(i.primary_goal_id))
+    if selected_goal_ids:
+        goals = [g for g in goals if str(g.goal_id) in selected_goal_ids]
+
     # Если нет индивидуальных целей — используем агрегированную (goal_id="all") как fallback
     if not goals:
         query_all = query.filter(models.MetrikaGoals.goal_id == "all")

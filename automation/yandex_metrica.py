@@ -239,37 +239,6 @@ class YandexMetricaAPI:
             logger.warning(f"Yandex Metrica dayOfWeek error {response.status_code}: {response.text[:200]}")
             return []
 
-    async def get_audience_age(
-        self,
-        counter_id: str,
-        date_from: str,
-        date_to: str,
-        filters: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Получает распределение аудитории по возрасту.
-        dimensions=ym:s:ageInterval, metrics=ym:s:visits
-        Ограничение: данные выдаются при достаточном объёме (>10 посетителей).
-        """
-        params = {
-            "ids": counter_id,
-            "metrics": "ym:s:visits",
-            "dimensions": "ym:s:ageInterval",
-            "date1": date_from,
-            "date2": date_to,
-            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
-            "attribution": "AUTOMATIC",
-            "accuracy": "full",
-            "limit": "100",
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("data", [])
-            logger.warning(f"Yandex Metrica ageInterval error {response.status_code}: {response.text[:200]}")
-            return []
-
     async def get_activity_by_weekday(
         self,
         counter_id: str,
