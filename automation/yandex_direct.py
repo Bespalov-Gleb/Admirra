@@ -708,34 +708,31 @@ class YandexDirectAPI:
         else:
             report_type = "CAMPAIGN_PERFORMANCE_REPORT"
 
-        # CRITICAL: SelectionCriteria only contains date range
-        # ClientLogin filtering is done via Client-Login header, NOT in SelectionCriteria
-        # According to Yandex API docs, ClientLogin filter is in Filter structure, not SelectionCriteria
-        # But for Reports API, the Client-Login header is sufficient for filtering
+        # SelectionCriteria: только DateFrom и DateTo (CampaignIds не поддерживается!)
+        # Документация: https://yandex.com/dev/direct/doc/reports/ — CampaignIds вызывает 400
         selection_criteria: Dict[str, Any] = {
             "DateFrom": date_from,
             "DateTo": date_to
         }
-        if campaign_ids:
-            selection_criteria["CampaignIds"] = campaign_ids
-        
-        # NOTE: ClientLogin filter should be in Filter structure, not SelectionCriteria
-        # But we use Client-Login header instead, which is the standard way
-        # If we need explicit filtering, we would use:
-        # "Filter": [{"Field": "ClientLogin", "Operator": "EQUALS", "Values": [self.client_login]}]
-        # But for now, Client-Login header is sufficient
-        
-        report_definition = {
-            "params": {
-                "SelectionCriteria": selection_criteria,
-                "FieldNames": field_names,
-                "ReportName": f"AgencyStats_{level}_{date_from}_{date_to}_{int(datetime.now().timestamp())}",
-                "ReportType": report_type,
-                "DateRangeType": "CUSTOM_DATE",
-                "Format": "TSV",
-                "IncludeVAT": "NO"
-            }
+
+        # Фильтрация по кампаниям — через Filter, а не SelectionCriteria
+        params: Dict[str, Any] = {
+            "SelectionCriteria": selection_criteria,
+            "FieldNames": field_names,
+            "ReportName": f"AgencyStats_{level}_{date_from}_{date_to}_{int(datetime.now().timestamp())}",
+            "ReportType": report_type,
+            "DateRangeType": "CUSTOM_DATE",
+            "Format": "TSV",
+            "IncludeVAT": "NO"
         }
+        if campaign_ids:
+            params["Filter"] = [{
+                "Field": "CampaignId",
+                "Operator": "IN",
+                "Values": [str(cid) for cid in campaign_ids]
+            }]
+
+        report_definition = {"params": params}
 
         # Увеличиваем таймаут для больших периодов (90+ дней)
         # Для 90 дней: 300 секунд (5 минут), для больших периодов - еще больше
