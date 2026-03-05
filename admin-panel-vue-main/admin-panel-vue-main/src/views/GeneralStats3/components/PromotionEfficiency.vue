@@ -140,7 +140,7 @@
                     stroke="white"
                     stroke-width="2"
                   />
-                  <!-- Center Text -->
+                  <!-- Center Text: используем summary.leads как каноничное значение (синхронизация с KPI) -->
                   <text 
                     x="0" 
                     y="0" 
@@ -150,7 +150,7 @@
                     font-weight="900"
                     fill="#111827"
                   >
-                    {{ totalConversions }} шт
+                    {{ (props.summary?.leads ?? totalConversions) }} шт
                   </text>
                 </g>
               </svg>
@@ -241,10 +241,7 @@ const calculateCPA = (goal) => {
   return goal.cost / goal.count
 }
 
-const formatGoalName = (name) => {
-  if (!name) return 'Автоцель'
-  return name.startsWith('Автоцель:') ? name : `Автоцель: ${name}`
-}
+const formatGoalName = (name) => name || 'Цель'
 
 const getCTR = (cmp) => {
   if (!cmp.impressions) return 0

@@ -282,7 +282,7 @@ const toaster = useToaster()
 const route = useRoute()
 const router = useRouter()
 
-const includeVat = ref(false)
+const includeVat = ref(true)
 const integrations = ref([])
 
 // Fetch integrations for selected client (dashboard endpoint — без чувствительных данных)
