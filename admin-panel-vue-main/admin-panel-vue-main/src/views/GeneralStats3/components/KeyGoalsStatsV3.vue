@@ -167,7 +167,7 @@ const updateChart = () => {
           backgroundColor: topGoals.value.map((_, i) => donutColorsDark[i]),
           borderWidth: 0,
           hoverOffset: 2,
-          weight: 1
+          weight: 1.5
         }
       ]
     },
