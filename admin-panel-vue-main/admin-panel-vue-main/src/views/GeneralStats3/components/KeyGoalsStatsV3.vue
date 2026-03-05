@@ -70,13 +70,16 @@
       <h3 class="text-xs font-black text-gray-700 uppercase tracking-[0.15em] mb-5">Разбивка по целям</h3>
 
       <div class="relative w-full aspect-square max-w-[200px] mx-auto mb-5">
-        <canvas ref="chartCanvas" class="w-full h-full" />
+        <!-- Внутренний круг (сзади) — темнее, вплотную к сегментам -->
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="text-center">
-            <p class="text-2xl font-black text-gray-800 tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
-            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">шт.</p>
+          <div class="w-[55%] h-[55%] rounded-full bg-gray-400 flex items-center justify-center">
+            <div class="text-center">
+              <p class="text-2xl font-black text-gray-900 tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
+              <p class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">шт.</p>
+            </div>
           </div>
         </div>
+        <canvas ref="chartCanvas" class="w-full h-full relative z-10" />
       </div>
 
       <div class="space-y-2">
@@ -103,25 +106,6 @@ import { ArrowTrendingUpIcon, ArrowTrendingDownIcon, ChartBarIcon } from '@heroi
 import api from '../../../api/axios'
 
 Chart.register(...registerables)
-
-/** Плагин: тень для doughnut-сегментов (толстые линии с эффектом глубины) */
-const doughnutShadowPlugin = {
-  id: 'doughnutShadow',
-  beforeDraw: (chart) => {
-    if (chart.config.type !== 'doughnut') return
-    const ctx = chart.ctx
-    ctx.save()
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
-    ctx.shadowBlur = 8
-    ctx.shadowOffsetX = 2
-    ctx.shadowOffsetY = 4
-  },
-  afterDraw: (chart) => {
-    if (chart.config.type !== 'doughnut') return
-    chart.ctx.restore()
-  }
-}
-Chart.register(doughnutShadowPlugin)
 
 const props = defineProps({
   goals: { type: Array, default: () => [] },
@@ -182,7 +166,10 @@ const updateChart = () => {
       responsive: true,
       maintainAspectRatio: true,
       cutout: '55%', // Толстая кольцевая полоса (было 70%)
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: false }
+      },
       layout: { padding: 0 }
     }
   })
