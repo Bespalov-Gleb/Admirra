@@ -1328,7 +1328,7 @@ class YandexDirectAPI:
                 "FieldNames": ["Id", "CampaignId", "State", "Type"],
                 "TextAdFieldNames": ["Title", "AdImageHash"],
                 "TextImageAdFieldNames": ["AdImageHash", "Href"],
-                "DynamicTextAdFieldNames": ["Title", "AdImageHash"],
+                "DynamicTextAdFieldNames": ["AdImageHash", "Text"],
                 "MobileAppAdFieldNames": ["Title", "AdImageHash"],
                 "MobileAppImageAdFieldNames": ["AdImageHash"],
                 "TextAdBuilderAdFieldNames": ["Creative"],
@@ -1354,10 +1354,10 @@ class YandexDirectAPI:
                 for ad in ads:
                     title = None
                     ad_image_hash = None
-                    # TextAd, DynamicTextAd, MobileAppAd
+                    # TextAd, DynamicTextAd (Title не поддерживается, используем Text), MobileAppAd
                     for block in ["TextAd", "DynamicTextAd", "MobileAppAd"]:
                         if block in ad:
-                            title = ad[block].get("Title") or title
+                            title = ad[block].get("Title") or ad[block].get("Text", "")[:80] or title
                             ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
                     # Image ads
                     for block in ["TextImageAd", "MobileAppImageAd"]:
