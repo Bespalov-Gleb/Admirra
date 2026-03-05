@@ -47,15 +47,15 @@
         </div>
       </div>
 
-      <!-- Правая зона: светло-голубой фон, Итого -->
-      <div class="flex-[2] min-w-0 bg-[#7dd3fc] p-8 sm:p-10 relative overflow-hidden flex flex-col min-h-[280px] rounded-r-2xl">
-        <div class="absolute inset-0 opacity-50" style="background-image: radial-gradient(circle at 1px 1px, white 1.5px, transparent 0); background-size: 12px 12px" />
+      <!-- Правая зона: высокая прозрачность, Итого -->
+      <div class="flex-[2] min-w-0 p-8 sm:p-10 relative overflow-hidden flex flex-col min-h-[280px] rounded-r-2xl" style="background: rgba(59, 130, 246, 0.15)">
+        <div class="absolute inset-0 opacity-30" style="background-image: radial-gradient(circle at 1px 1px, rgba(59,130,246,0.4) 1px, transparent 0); background-size: 20px 20px" />
         <div class="relative z-10 flex flex-col flex-1 min-h-0">
-          <h3 class="text-sm font-medium text-gray-600 mb-2">Итого:</h3>
+          <h3 class="text-lg font-bold text-white mb-3" style="text-shadow: 0 1px 2px rgba(0,0,0,0.2)">Итого:</h3>
           <div class="flex-1 flex items-center justify-center min-h-0 py-4">
             <p class="flex items-baseline gap-1">
-              <span class="text-6xl sm:text-7xl lg:text-8xl font-black text-white tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-              <span class="text-xl sm:text-2xl font-bold text-white self-end pb-1">шт.</span>
+              <span class="text-7xl sm:text-8xl lg:text-9xl font-black text-white tabular-nums tracking-tight leading-none" style="text-shadow: 0 1px 3px rgba(0,0,0,0.25)">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+              <span class="text-2xl sm:text-3xl font-bold text-white self-end pb-1" style="text-shadow: 0 1px 2px rgba(0,0,0,0.2)">шт.</span>
             </p>
           </div>
         </div>
