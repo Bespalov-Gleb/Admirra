@@ -70,16 +70,14 @@
       <h3 class="text-xs font-black text-gray-700 uppercase tracking-[0.15em] mb-5">Разбивка по целям</h3>
 
       <div class="relative w-full aspect-square max-w-[200px] mx-auto mb-5">
-        <!-- Внутренний круг (сзади) — темнее, вплотную к сегментам -->
+        <canvas ref="chartCanvas" class="w-full h-full" />
+        <!-- Число в центре, без фона -->
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="w-[55%] h-[55%] rounded-full bg-gray-400 flex items-center justify-center">
-            <div class="text-center">
-              <p class="text-2xl font-black text-gray-900 tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
-              <p class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">шт.</p>
-            </div>
+          <div class="text-center">
+            <p class="text-2xl font-black text-gray-900 tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
+            <p class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">шт.</p>
           </div>
         </div>
-        <canvas ref="chartCanvas" class="w-full h-full relative z-10" />
       </div>
 
       <div class="space-y-2">
@@ -142,30 +140,43 @@ const totalConversions = computed(() => {
   return topGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Цвета для 3 сегментов: синий, оранжевый, зелёный (по шаблону) */
-const donutColors = ['#3b82f6', '#f59e0b', '#10b981']
+/** Цвета: внешнее кольцо (светлее) и внутреннее (темнее того же цвета) */
+const donutColors = ['#3b82f6', '#f59e0b', '#10b981']  // синий, оранжевый, зелёный
+const donutColorsDark = ['#1d4ed8', '#d97706', '#059669']  // тёмно-синий, тёмно-оранжевый, тёмно-зелёный
 
 const updateChart = () => {
   if (!chartCanvas.value) return
   if (chartInstance) chartInstance.destroy()
   if (!topGoals.value.length || totalConversions.value === 0) return
 
+  const data = topGoals.value.map(g => g.count || 0)
   chartInstance = new Chart(chartCanvas.value, {
     type: 'doughnut',
     data: {
       labels: topGoals.value.map(g => formatGoalName(g.name)),
-      datasets: [{
-        data: topGoals.value.map(g => g.count || 0),
-        backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
-        borderWidth: 4,
-        borderColor: '#ffffff',
-        hoverOffset: 4
-      }]
+      datasets: [
+        {
+          data,
+          backgroundColor: topGoals.value.map((_, i) => donutColorsDark[i]),
+          borderWidth: 0,
+          hoverOffset: 0,
+          weight: 1
+        },
+        {
+          data,
+          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverOffset: 2,
+          weight: 1
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      cutout: '55%', // Толстая кольцевая полоса (было 70%)
+      cutout: '60%',
+      spacing: 0,
       plugins: {
         legend: { display: false },
         datalabels: { display: false }
