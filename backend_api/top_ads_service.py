@@ -332,6 +332,7 @@ async def _get_yandex_ads_via_campaigns_get(
     # Ads.get по campaign_ids
     ads_info = await api.get_ads_with_titles_and_images(campaign_ids=top_ext_ids)
     if not ads_info:
+        logger.info(f"top-ads: Ads.get returned 0 ads for campaign_ids={top_ext_ids} (Smart/Мастер)")
         return []
 
     # Первое объявление по каждой кампании
@@ -355,8 +356,8 @@ async def _get_yandex_ads_via_campaigns_get(
         cost = stats.get("cost", 0) or 0
         convs = stats.get("conversions", 0) or 0
         title = (ad.get("Title") or stats.get("name", "") or "Объявление").replace("[ЯД] ", "")
-        ad_image_hash = ad.get("AdImageHash")
-        image_url = (hash_to_url.get(ad_image_hash) or "") if ad_image_hash else None
+        # SmartAdBuilderAd возвращает PreviewUrl напрямую; иначе AdImages.get по хешу
+        image_url = ad.get("PreviewUrl") or ((hash_to_url.get(ad.get("AdImageHash")) or "") if ad.get("AdImageHash") else None)
         result.append({
             "id": f"yd_{ad['Id']}",
             "title": title[:120] if title else "Объявление",

@@ -1350,10 +1350,13 @@ class YandexDirectAPI:
                     return []
 
                 ads = data.get("result", {}).get("Ads", [])
+                if not ads and (campaign_ids or ad_ids):
+                    logger.info(f"Ads.get: campaign_ids={campaign_ids}, ad_ids={ad_ids}, ads_count=0, result_keys={list(data.get('result', {}).keys())}")
                 result = []
                 for ad in ads:
                     title = None
                     ad_image_hash = None
+                    preview_url = None  # SmartAdBuilderAd.Creative.PreviewUrl
                     # TextAd, DynamicTextAd (Title не поддерживается, используем Text), MobileAppAd
                     for block in ["TextAd", "DynamicTextAd", "MobileAppAd"]:
                         if block in ad:
@@ -1365,7 +1368,11 @@ class YandexDirectAPI:
                             ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
                             if not title and block == "TextImageAd":
                                 title = ad[block].get("Href", "")[:80] or "Объявление"
-                    # Builder ads (Creative may contain image ref - we skip for now, no direct PreviewUrl)
+                    # SmartAdBuilderAd, TextAdBuilderAd, CpmBannerAdBuilderAd — Creative.PreviewUrl/ThumbnailUrl
+                    for block in ["SmartAdBuilderAd", "TextAdBuilderAd", "CpmBannerAdBuilderAd", "CpmVideoAdBuilderAd"]:
+                        if block in ad and isinstance(ad[block].get("Creative"), dict):
+                            creative = ad[block]["Creative"]
+                            preview_url = creative.get("PreviewUrl") or creative.get("ThumbnailUrl") or preview_url
                     if not title:
                         title = f"Объявление {ad.get('Id', '')}"
                     result.append({
@@ -1373,6 +1380,7 @@ class YandexDirectAPI:
                         "CampaignId": ad["CampaignId"],
                         "Title": (title or "")[:120],
                         "AdImageHash": ad_image_hash,
+                        "PreviewUrl": preview_url,  # для Smart/Builder объявлений — сразу URL
                     })
                 return result
             except Exception as e:
