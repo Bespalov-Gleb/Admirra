@@ -1,7 +1,7 @@
 <template>
-  <div class="bg-white w-full rounded-2xl px-6 sm:px-8 py-6 shadow-md border border-gray-100">
+  <div class="bg-white w-full rounded-2xl px-6 sm:px-8 py-6 shadow-md border border-gray-100 flex flex-col min-h-0">
     <!-- Заголовок + селектор метрики -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
       <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>
       <select
         v-model="chartMetric"
@@ -11,7 +11,7 @@
       </select>
     </div>
     
-    <div class="h-72 relative w-full overflow-hidden">
+    <div class="flex-1 min-h-[200px] relative w-full overflow-hidden">
       <Line
         :data="chartData"
         :options="chartOptions"

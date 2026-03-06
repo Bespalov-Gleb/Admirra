@@ -53,16 +53,16 @@
       </div>
 
       <!-- График + сайдбар бок о бок (по макету) -->
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <!-- График слева (2/3) -->
-        <div class="xl:col-span-2 relative">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
+        <!-- График слева (2/3) — высота как у правой колонки -->
+        <div class="xl:col-span-2 relative flex flex-col min-h-0">
           <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl">
             <div class="flex flex-col items-center gap-2">
               <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
             </div>
           </div>
-          <StatisticsChart
+          <StatisticsChart class="flex-1 min-h-0 flex flex-col"
             :dynamics="dynamics"
             :selected-metrics="selectedMetrics"
             :period="filters.period"
