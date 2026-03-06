@@ -70,10 +70,10 @@ REPORT_HTML_TEMPLATE = """
   </div>
   {% endif %}
 
-  {% if comment %}
+  {% if ai_comment %}
   <div class="section">
     <h2>Комментарий к отчёту</h2>
-    <div class="comment">{{ comment }}</div>
+    <div class="comment">{{ ai_comment }}</div>
   </div>
   {% endif %}
 
@@ -123,6 +123,9 @@ def generate_report_pdf(
         if client:
             client_name = client.name
 
+    ai_comment = (comment or "").strip() if comment else ""
+    logger.info("pdf_service: rendering PDF, ai_comment length=%d", len(ai_comment))
+
     try:
         from jinja2 import Template
         template = Template(REPORT_HTML_TEMPLATE)
@@ -132,7 +135,7 @@ def generate_report_pdf(
             client_name=client_name,
             summary=summary,
             top_campaigns=top_campaigns,
-            comment=comment or "",
+            ai_comment=ai_comment,
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
         )
     except ImportError:
