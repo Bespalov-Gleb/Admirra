@@ -1,14 +1,25 @@
 <template>
   <div class="bg-white w-full rounded-2xl px-6 sm:px-8 py-6 shadow-md border border-gray-100 flex flex-col min-h-0">
-    <!-- Заголовок + селектор метрики -->
+    <!-- Заголовок + чекбокс НДС + селектор метрики -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
       <h3 class="text-xl font-bold text-gray-900">Эффективность кампаний</h3>
-      <select
-        v-model="chartMetric"
-        class="h-9 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      >
-        <option v-for="opt in metricOptions" :key="opt.key" :value="opt.key">{{ opt.label }}</option>
-      </select>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            :checked="includeVat"
+            @change="$emit('update:includeVat', ($event.target).checked)"
+            class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span class="text-sm font-medium text-gray-700">НДС</span>
+        </label>
+        <select
+          v-model="chartMetric"
+          class="h-9 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option v-for="opt in metricOptions" :key="opt.key" :value="opt.key">{{ opt.label }}</option>
+        </select>
+      </div>
     </div>
     
     <div class="flex-1 min-h-[200px] relative w-full overflow-hidden">
@@ -57,10 +68,14 @@ const props = defineProps({
   period: {
     type: [String, Number],
     default: 7
+  },
+  includeVat: {
+    type: Boolean,
+    default: true
   }
 })
 
-const emit = defineEmits(['update:period'])
+const emit = defineEmits(['update:period', 'update:includeVat'])
 
 ChartJS.register(
   CategoryScale,
@@ -87,13 +102,14 @@ const metricOptions = [
 
 const getDataByMetric = (key) => {
   const d = props.dynamics
+  const vatFactor = props.includeVat ? 1.22 : 1
   const map = {
-    expenses: d.costs || [],
+    expenses: (d.costs || []).map(v => (Number(v) || 0) * vatFactor),
     impressions: d.impressions || [],
     clicks: d.clicks || [],
     leads: d.leads || [],
-    cpc: d.cpc || [],
-    cpa: d.cpa || []
+    cpc: (d.cpc || []).map(v => (Number(v) || 0) * vatFactor),
+    cpa: (d.cpa || []).map(v => (Number(v) || 0) * vatFactor)
   }
   return (map[key] || []).map(v => Number(v) || 0)
 }
@@ -190,7 +206,7 @@ const chartOptions = computed(() => ({
   }
 }))
 
-watch([() => props.dynamics, chartMetric], () => {
+watch([() => props.dynamics, chartMetric, () => props.includeVat], () => {
   chartKey.value++
 }, { deep: true })
 

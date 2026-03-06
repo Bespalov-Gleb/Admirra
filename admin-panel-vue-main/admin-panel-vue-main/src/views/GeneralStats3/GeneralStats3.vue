@@ -99,7 +99,9 @@
             :dynamics="dynamics"
             :selected-metrics="selectedMetrics"
             :period="filters.period"
+            :include-vat="includeVat"
             @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
+            @update:include-vat="includeVat = $event"
           />
         </div>
         <!-- Сайдбар справа (1/3) -->
