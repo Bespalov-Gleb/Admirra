@@ -3,6 +3,7 @@ from sqlalchemy import func
 from core import models
 from datetime import datetime, timedelta
 import uuid
+import json
 from typing import List, Optional
 
 class StatsService:
@@ -103,14 +104,32 @@ class StatsService:
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
 
-            # 3. Yandex Metrica Goals — Лиды = сумма по ВСЕМ целям (как на круговой диаграмме),
-            # не только primary (goal_id != "all" чтобы не дублировать: "all" = агрегат одной цели)
+            # 3. Yandex Metrica Goals — Лиды = сумма по целям.
+            # Фильтр по selected_goals: только цели, выбранные пользователем при интеграции.
             m_q = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
             ).filter(
                 models.MetrikaGoals.client_id.in_(client_ids),
                 models.MetrikaGoals.goal_id != "all"
             )
+            selected_goal_ids = set()
+            for i in db.query(models.Integration).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Integration.platform.in_([
+                    models.IntegrationPlatform.YANDEX_DIRECT,
+                    models.IntegrationPlatform.YANDEX_METRIKA,
+                ]),
+            ).all():
+                if i.selected_goals:
+                    try:
+                        sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
+                        selected_goal_ids.update(str(g) for g in (sg or []))
+                    except Exception:
+                        pass
+                if i.primary_goal_id:
+                    selected_goal_ids.add(str(i.primary_goal_id))
+            if selected_goal_ids:
+                m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
             
             # Filter MetrikaGoals by integration_id только при выборе конкретных кампаний.
             # При "все кампании" — НЕ фильтруем m_q, чтобы получать все MetrikaGoals клиента.
