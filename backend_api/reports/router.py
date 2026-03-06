@@ -51,6 +51,7 @@ async def get_report_pdf(
     comment = None
     if ai:
         try:
+            logger.info("PDF report: generating AI comment (ai=true)")
             from ai.report_generator import generate_report
             comment = await generate_report(
                 db=db,
@@ -60,6 +61,11 @@ async def get_report_pdf(
                 end_date=end_date,
                 report_type="full",
             )
+            if not comment or not str(comment).strip():
+                logger.warning("PDF report: AI returned empty comment, using fallback")
+                comment = "AI не удалось сформировать комментарий. Проверьте настройки OPENAI_API_KEY в .env и доступность API."
+            else:
+                logger.info("PDF report: AI comment received, length=%d", len(str(comment)))
         except Exception as e:
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")

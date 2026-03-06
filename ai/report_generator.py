@@ -28,6 +28,7 @@ async def generate_report(
     report_type: "full" — полный отчёт, "recommendations" — только рекомендации.
     """
     if not settings.OPENAI_API_KEY:
+        logger.error("generate_report: OPENAI_API_KEY не настроен")
         raise ValueError("OPENAI_API_KEY не настроен")
 
     effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
@@ -86,6 +87,7 @@ async def generate_report(
     user_message = f"Данные за период {start_date} — {end_date}:\n\n{context}"
 
     try:
+        logger.info("generate_report: calling OpenAI API (model=%s)", settings.OPENAI_MODEL)
         response = await client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             messages=[
@@ -95,7 +97,9 @@ async def generate_report(
             temperature=0.7,
         )
         text = response.choices[0].message.content or ""
-        return text.strip()
+        result = text.strip()
+        logger.info("generate_report: OpenAI returned %d chars", len(result))
+        return result
     except Exception as e:
         logger.exception("OpenAI API error: %s", e)
         raise
