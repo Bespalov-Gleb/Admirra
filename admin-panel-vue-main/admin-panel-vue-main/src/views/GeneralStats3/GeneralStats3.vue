@@ -23,16 +23,17 @@
       <!-- Шапка: чисто как на скрине 2 -->
       <div class="mb-6">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <div class="flex flex-col gap-1 min-w-0">
-            <p class="flex items-center gap-1.5 text-xs text-gray-500">
-              <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-              Общая аналитика по всем активным проектам
-            </p>
-            <h1 class="text-lg sm:text-xl font-bold text-gray-900 truncate">
-              {{ dashboardTitle }}
-            </h1>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
+          <!-- Левая часть: заголовок + окошки фильтров -->
+          <div class="flex flex-wrap items-center gap-3 min-w-0 flex-1">
+            <div class="flex flex-col gap-1 min-w-0">
+              <p class="flex items-center gap-1.5 text-xs text-gray-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                Общая аналитика по всем активным проектам
+              </p>
+              <h1 class="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                {{ dashboardTitle }}
+              </h1>
+            </div>
             <select
               v-model="filters.channel"
               @change="fetchStats"
@@ -59,6 +60,9 @@
               @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
               class="[&_.date-input]:h-9 [&_.date-input]:rounded-xl"
             />
+          </div>
+          <!-- Правая часть: кнопки -->
+          <div class="flex flex-wrap items-center gap-3 flex-shrink-0">
             <button
               type="button"
               class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
