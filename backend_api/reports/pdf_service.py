@@ -30,7 +30,7 @@ REPORT_HTML_TEMPLATE = """
     .kpi-item { background: #f8f9fa; padding: 12px 16px; border-radius: 8px; min-width: 120px; }
     .kpi-label { font-size: 11px; color: #666; }
     .kpi-value { font-size: 18px; font-weight: 600; }
-    .comment { background: #f0f4ff; padding: 16px; border-radius: 8px; margin: 16px 0; white-space: pre-wrap; }
+    .ai-comment-block { background: #e8eef7; border: 1px solid #c5d4ed; padding: 16px; margin: 16px 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
     .section { margin: 24px 0; }
     .section h2 { font-size: 16px; margin-bottom: 8px; }
   </style>
@@ -38,6 +38,13 @@ REPORT_HTML_TEMPLATE = """
 <body>
   <h1>Отчёт по рекламным кампаниям</h1>
   <div class="meta">Период: {{ start_date }} — {{ end_date }}{% if client_name %} | Проект: {{ client_name }}{% endif %}</div>
+
+  {% if ai_comment %}
+  <div class="section">
+    <h2>Комментарий ИИ к отчёту</h2>
+    <div class="ai-comment-block">{{ ai_comment }}</div>
+  </div>
+  {% endif %}
 
   <div class="section">
     <h2>Ключевые показатели</h2>
@@ -67,13 +74,6 @@ REPORT_HTML_TEMPLATE = """
         {% endfor %}
       </tbody>
     </table>
-  </div>
-  {% endif %}
-
-  {% if ai_comment %}
-  <div class="section">
-    <h2>Комментарий к отчёту</h2>
-    <div class="comment">{{ ai_comment }}</div>
   </div>
   {% endif %}
 
