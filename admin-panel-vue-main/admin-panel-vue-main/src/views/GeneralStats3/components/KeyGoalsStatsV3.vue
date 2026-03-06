@@ -129,12 +129,9 @@ const topGoals = computed(() => {
     .slice(0, 3)
 })
 
-/** Итого: summary.leads если передан, иначе сумма топ-3 целей */
+/** Итого: сумма ВСЕХ целей, выбранных пользователем при интеграции (get_goals уже фильтрует по selected_goals) */
 const totalConversions = computed(() => {
-  if (props.totalLeads != null && !isNaN(props.totalLeads)) {
-    return props.totalLeads
-  }
-  return topGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
+  return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
 /** Цвета: внешнее кольцо (светлее) и внутреннее (темнее того же цвета) */
