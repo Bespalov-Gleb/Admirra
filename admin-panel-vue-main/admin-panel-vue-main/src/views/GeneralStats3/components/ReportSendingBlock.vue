@@ -7,13 +7,13 @@
       <button
         type="button"
         class="relative w-11 h-11 rounded-full flex items-center justify-center transition-colors shadow-md overflow-hidden"
-        :class="telegramConfigured ? 'bg-[#0088cc] text-white hover:bg-[#0077b5]' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'"
+        :class="telegramConfigured ? 'bg-[#0088cc] hover:bg-[#0077b5]' : 'bg-[#0088cc]/70 hover:bg-[#0088cc]'"
         :disabled="sendingTg"
         :title="sendingTg ? 'Отправка...' : 'Отправить в Telegram'"
         @click="$emit('send-telegram')"
       >
-        <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.359-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-1.491-.197-.39-.345-.853-.345-1.375 0-1.323.673-1.85.673-1.85s8.423-5.006 11.2-6.623c.55-.402 1.049-.573 1.049-.573z"/>
+        <svg class="w-6 h-6 flex-shrink-0 text-white" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
         </svg>
         <span v-if="telegramConfigured" class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
           <CheckIcon class="w-2.5 h-2.5 text-white" />
