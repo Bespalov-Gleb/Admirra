@@ -44,6 +44,22 @@
               <option value="vk">VK Ads</option>
             </select>
             <select
+              v-model="selectedCampaignId"
+              @change="handleCampaignChange"
+              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 min-w-[180px]"
+              :disabled="!filters.client_id || loadingCampaigns"
+            >
+              <option v-if="!filters.client_id" value="">Сначала проект</option>
+              <option v-else-if="loadingCampaigns" value="">Загрузка...</option>
+              <option v-else-if="!allCampaigns.length" value="">Нет кампаний</option>
+              <template v-else>
+                <option value="">Все кампании</option>
+                <option v-for="campaign in allCampaigns" :key="campaign.id" :value="campaign.id">
+                  {{ campaign.name }}
+                </option>
+              </template>
+            </select>
+            <select
               v-model="filters.period"
               @change="handlePeriodChange"
               class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
@@ -321,6 +337,17 @@ const {
   vkGoalActions,
   loadingVkGoalActions
 } = useDashboardStats()
+
+const selectedCampaignId = computed({
+  get: () => (filters.campaign_ids?.length > 0 ? filters.campaign_ids[0] : ''),
+  set: (val) => {
+    filters.campaign_ids = val ? [val] : []
+  }
+})
+
+const handleCampaignChange = () => {
+  fetchStats()
+}
 
 const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
 
