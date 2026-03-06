@@ -34,11 +34,12 @@ async def get_report_pdf(
     start_date: str = Query(...),
     end_date: str = Query(...),
     client_id: Optional[str] = Query(None),
+    ai: bool = Query(False, description="Генерировать отчёт с ИИ"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Скачивание PDF-отчёта за указанный период.
+    Скачивание PDF-отчёта за указанный период. При ai=true — с AI-комментарием.
     """
     u_client_id = None
     if client_id:
@@ -47,6 +48,22 @@ async def get_report_pdf(
         except ValueError:
             raise HTTPException(status_code=400, detail="Неверный client_id")
 
+    comment = None
+    if ai:
+        try:
+            from ai.report_generator import generate_report
+            comment = await generate_report(
+                db=db,
+                user_id=current_user.id,
+                client_id=u_client_id,
+                start_date=start_date,
+                end_date=end_date,
+                report_type="full",
+            )
+        except Exception as e:
+            logger.exception("AI report generation failed: %s", e)
+            raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
+
     try:
         pdf_bytes = generate_report_pdf(
             db=db,
@@ -54,7 +71,7 @@ async def get_report_pdf(
             client_id=u_client_id,
             start_date=start_date,
             end_date=end_date,
-            comment=None,
+            comment=comment,
         )
         filename = f"report_{start_date}_{end_date}.pdf"
         return Response(

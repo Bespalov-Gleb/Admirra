@@ -48,6 +48,26 @@
               <input v-model="includeVat" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
               <span>Учитывать НДС</span>
             </label>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                :disabled="sendingPdf"
+                @click="handleDownloadPdf"
+              >
+                <ArrowDownTrayIcon class="w-4 h-4" />
+                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
+                :disabled="sendingTg"
+                @click="handleSendTelegram"
+              >
+                <svg class="w-4 h-4 text-white" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
+                {{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -153,15 +173,6 @@
             </div>
           </div>
 
-          <!-- Получить отчёт -->
-          <ReportCommentBlock
-            :sending-pdf="sendingPdf"
-            :sending-tg="sendingTg"
-            :sending-email="sendingEmail"
-            @download-pdf="handleDownloadPdf"
-            @send-telegram="handleSendTelegram"
-            @send-email="handleSendEmail"
-          />
       </div>
 
     <!-- Модальное окно Telegram -->
@@ -223,6 +234,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/solid'
+import { ArrowDownTrayIcon } from '@heroicons/vue/24/outline'
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
@@ -233,7 +245,6 @@ import StatsHeader from './components/StatsHeader.vue'
 import BestPosts from './components/BestPosts.vue'
 import ActivityByWeekday from './components/ActivityByWeekday.vue'
 import AudienceAge from './components/AudienceAge.vue'
-import ReportCommentBlock from './components/ReportCommentBlock.vue'
 import ConnectedChannelsV3 from './components/ConnectedChannelsV3.vue'
 import ReportSendingBlock from './components/ReportSendingBlock.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
@@ -401,7 +412,8 @@ const handleDownloadPdf = async () => {
     const params = {
       start_date: filters.start_date,
       end_date: filters.end_date,
-      client_id: filters.client_id || undefined
+      client_id: filters.client_id || undefined,
+      ai: true
     }
     const response = await api.get('reports/pdf', { params, responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -411,7 +423,7 @@ const handleDownloadPdf = async () => {
     document.body.appendChild(link)
     link.click()
     link.remove()
-    toaster.success('PDF отчёт скачан')
+    toaster.success('AI-отчёт скачан')
   } catch (err) {
     toaster.error('Не удалось скачать PDF')
   } finally {
@@ -471,14 +483,14 @@ const submitTelegram = async () => {
   sendingTg.value = true
   try {
     await api.post('reports/send', {
-      report_type: 'pdf',
+      report_type: 'ai',
       channels: ['telegram'],
       telegram_chat_id: chatId,
       client_id: filters.client_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date
     })
-    toaster.success('Отчёт отправлен в Telegram')
+    toaster.success('AI-отчёт отправлен в Telegram')
     showTgModal.value = false
     tgChatId.value = ''
   } catch (err) {
@@ -497,7 +509,7 @@ const submitEmail = async () => {
   sendingEmail.value = true
   try {
     const { data } = await api.post('reports/send', {
-      report_type: 'pdf',
+      report_type: 'ai',
       channels: ['email'],
       email_recipients: emails,
       client_id: filters.client_id || null,
@@ -505,7 +517,7 @@ const submitEmail = async () => {
       end_date: filters.end_date
     })
     if (data?.results?.email) {
-      toaster.success('Отчёт отправлен на email')
+      toaster.success('AI-отчёт отправлен на email')
       showEmailModal.value = false
       emailRecipients.value = ''
     } else {
