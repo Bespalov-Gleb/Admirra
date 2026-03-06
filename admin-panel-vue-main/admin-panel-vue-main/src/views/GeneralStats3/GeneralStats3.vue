@@ -46,7 +46,7 @@
             <select
               v-model="selectedCampaignId"
               @change="handleCampaignChange"
-              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 min-w-[180px]"
+              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 w-[145px]"
               :disabled="!filters.client_id || loadingCampaigns"
             >
               <option v-if="!filters.client_id" value="">Сначала проект</option>
