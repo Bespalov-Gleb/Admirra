@@ -20,54 +20,63 @@
         {{ statsError }}
       </div>
 
-      <!-- Шапка: заголовок + фильтры (карточка) -->
-      <div class="flex flex-col gap-4 mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-gray-100 shadow-md">
-          <StatsHeader
-            :label="headerLabel"
-            :title="dashboardTitle"
-            :subtitle="dynamicSubtitle"
-            :show-reset="filters.campaign_ids && filters.campaign_ids.length > 0"
-            @reset="filters.campaign_ids = []"
-          />
-          <div class="flex flex-wrap items-center gap-3 min-h-[36px]">
-            <StatsFilters
-              :filters="filters"
-              :clients="clients"
-              :all-campaigns="allCampaigns"
-              :loading-campaigns="loadingCampaigns"
-              :vk-goal-actions="vkGoalActions"
-              :loading-vk-goal-actions="loadingVkGoalActions"
-              @period-change="handlePeriodChange"
-              @date-change="handleDateChange"
-              @export="handleExport"
-              @update:campaign-ids="(ids) => filters.campaign_ids = ids"
-              @update:goal-action-ids="(ids) => filters.vk_goal_action_ids = ids"
+      <!-- Шапка: чисто как на скрине 2 -->
+      <div class="mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
+          <div class="flex flex-col gap-1 min-w-0">
+            <p class="flex items-center gap-1.5 text-xs text-gray-500">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+              Общая аналитика по всем активным проектам
+            </p>
+            <h1 class="text-lg sm:text-xl font-bold text-gray-900 truncate">
+              {{ dashboardTitle }}
+            </h1>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <select
+              v-model="filters.channel"
+              @change="fetchStats"
+              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="all">Все каналы</option>
+              <option value="yandex">Yandex Direct</option>
+              <option value="vk">VK Ads</option>
+            </select>
+            <select
+              v-model="filters.period"
+              @change="handlePeriodChange"
+              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="7">Неделя</option>
+              <option value="14">2 недели</option>
+              <option value="30">Месяц</option>
+              <option value="90">Квартал</option>
+              <option value="custom">Свой период</option>
+            </select>
+            <DateRangePicker
+              v-if="filters.period === 'custom'"
+              :model-value="{ start: filters.start_date, end: filters.end_date }"
+              @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
+              class="[&_.date-input]:h-9 [&_.date-input]:rounded-xl"
             />
-            <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-600 select-none h-9">
-              <input v-model="includeVat" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-              <span>Учитывать НДС</span>
-            </label>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
-                :disabled="sendingPdf"
-                @click="handleDownloadPdf"
-              >
-                <ArrowDownTrayIcon class="w-4 h-4" />
-                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчёт в PDF' }}
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors shadow-md disabled:opacity-50"
-                :disabled="sendingTg"
-                @click="handleSendTelegram"
-              >
-                <svg class="w-4 h-4 text-white" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
-                {{ sendingTg ? 'Отправка...' : 'Скачать отчёт в Telegram' }}
-              </button>
-            </div>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
+              :disabled="sendingPdf"
+              @click="handleDownloadPdf"
+            >
+              {{ sendingPdf ? 'Скачивание...' : 'Скачать отчет в PDF' }}
+              <ArrowDownTrayIcon class="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
+              :disabled="sendingTg"
+              @click="handleSendTelegram"
+            >
+              {{ sendingTg ? 'Отправка...' : 'Скачать отчет в Telegram' }}
+              <svg class="w-4 h-4 text-white" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -240,14 +249,13 @@ import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
 import CampaignTableV3 from './components/CampaignTableV3.vue'
 import KPIOverview from './components/KPIOverview.vue'
-import StatsFilters from './components/StatsFilters.vue'
-import StatsHeader from './components/StatsHeader.vue'
 import BestPosts from './components/BestPosts.vue'
 import ActivityByWeekday from './components/ActivityByWeekday.vue'
 import AudienceAge from './components/AudienceAge.vue'
 import ConnectedChannelsV3 from './components/ConnectedChannelsV3.vue'
 import ReportSendingBlock from './components/ReportSendingBlock.vue'
 import Skeleton from '../../components/ui/Skeleton.vue'
+import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 
 // Logic
 import { useDashboardStats } from '../../composables/useDashboardStats'
