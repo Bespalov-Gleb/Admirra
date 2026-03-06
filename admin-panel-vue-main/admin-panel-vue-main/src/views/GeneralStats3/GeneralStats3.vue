@@ -186,6 +186,39 @@
             </div>
           </div>
 
+          <!-- Комментарий к отчету -->
+          <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md">
+            <div class="flex items-start justify-between gap-4 mb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold text-gray-900">Комментарий к отчету</h3>
+                  <p class="text-sm text-gray-500 mt-0.5">за отчетный период</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 flex-shrink-0"
+                :disabled="generatingReport"
+                @click="handleGenerateReport"
+              >
+                <span v-if="generatingReport" class="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {{ generatingReport ? 'Генерация...' : 'Сгенерировать отчет' }}
+              </button>
+            </div>
+            <div v-if="reportComment" class="mt-4 p-4 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-else-if="!generatingReport && !reportComment" class="mt-4 py-8 text-center text-gray-400 text-sm">
+              Нажмите «Сгенерировать отчет», чтобы получить AI-комментарий на основе данных за выбранный период
+            </div>
+          </div>
+
       </div>
 
     <!-- Модальное окно Telegram -->
@@ -417,6 +450,29 @@ const handleExport = async () => {
 const sendingPdf = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
+
+// --- Комментарий к отчету ---
+const generatingReport = ref(false)
+const reportComment = ref('')
+
+const handleGenerateReport = async () => {
+  generatingReport.value = true
+  reportComment.value = ''
+  try {
+    const { data } = await api.post('ai/generate-report', {
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      report_type: 'full'
+    })
+    reportComment.value = data?.text || ''
+    if (reportComment.value) toaster.success('Отчет сгенерирован')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
+  } finally {
+    generatingReport.value = false
+  }
+}
 
 const handleDownloadPdf = async () => {
   sendingPdf.value = true
