@@ -9,12 +9,12 @@
     <!-- Верхняя строка: иконка + название + кнопка -->
     <div class="flex items-start justify-between gap-2 mb-3">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
-          <component :is="icon" class="w-5 h-5 text-[#2563EB]" />
+        <div class="w-14 h-14 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
+          <component :is="icon" class="w-7 h-7 text-[#2563EB]" />
         </div>
         <div class="min-w-0">
-          <h3 class="text-[17px] font-normal text-[#09183F] leading-snug">{{ title }}</h3>
-          <p v-if="subtitle" class="text-[14px] font-normal text-gray-400 leading-snug">{{ subtitle }}</p>
+          <h3 class="text-[20px] font-normal text-[#09183F] leading-snug">{{ title }}</h3>
+          <p v-if="subtitle" class="text-[15px] font-normal text-gray-400 leading-snug">{{ subtitle }}</p>
         </div>
       </div>
       <button
