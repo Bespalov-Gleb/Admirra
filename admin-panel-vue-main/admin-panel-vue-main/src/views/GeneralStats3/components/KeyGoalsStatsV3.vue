@@ -20,22 +20,23 @@
         Цели не настроены
       </div>
 
-      <div v-else class="flex-1 flex flex-col justify-evenly gap-3">
+      <div v-else class="flex-1 flex flex-col justify-evenly">
         <div
           v-for="(goal, index) in topGoals"
           :key="goal.id || goal.name"
-          class="flex items-center justify-between gap-3 py-1.5"
+          class="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0"
         >
-          <span class="text-[13px] font-medium text-[#09183F]">{{ formatGoalName(goal.name) }}:</span>
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <span class="text-[14px] font-bold text-[#09183F] tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+          <span class="text-[13px] font-normal text-gray-500 whitespace-nowrap">{{ formatGoalName(goal.name) }}:</span>
+          <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[5px]" />
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <span class="text-[14px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
             <span
               v-if="goal.trend != null"
-              :class="[
-                'text-[11px] font-semibold',
-                goal.trend >= 0 ? 'text-[#82d944]' : 'text-red-500'
-              ]"
+              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
+              :class="goal.trend >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'"
             >
+              <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-3 h-3 flex-shrink-0" />
+              <ArrowTrendingDownIcon v-else class="w-3 h-3 flex-shrink-0" />
               {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
             </span>
           </div>
@@ -44,12 +45,12 @@
     </div>
 
     <!-- Центр: Итого (светло-голубая карточка) -->
-    <div class="bg-[#DBEAFE] rounded-[10px] p-6 sm:p-8 border border-blue-100 shadow-sm min-h-[280px] flex flex-col relative overflow-hidden">
-      <h3 class="text-[15px] font-bold text-[#09183F] mb-2">Итого:</h3>
+    <div class="bg-[#BFDBFE] rounded-[10px] p-6 sm:p-8 border border-blue-200 shadow-sm min-h-[280px] flex flex-col relative overflow-hidden">
+      <h3 class="text-[15px] font-normal text-white mb-2">Итого:</h3>
       <div class="flex-1 flex items-end justify-center min-h-0 pb-2">
         <p class="flex items-baseline gap-1.5">
-          <span class="text-[64px] sm:text-[72px] font-black text-[#93C5FD] tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-          <span class="text-[24px] font-bold text-[#60A5FA] self-end pb-1">шт.</span>
+          <span class="text-[64px] sm:text-[72px] font-black text-white tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+          <span class="text-[24px] font-bold text-white/80 self-end pb-1">шт.</span>
         </p>
       </div>
     </div>
