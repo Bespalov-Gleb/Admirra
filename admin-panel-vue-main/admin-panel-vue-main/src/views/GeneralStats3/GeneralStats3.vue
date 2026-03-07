@@ -20,11 +20,11 @@
         {{ statsError }}
       </div>
 
-      <!-- Шапка: чисто как на скрине 2 -->
+      <!-- Шапка: без белого фона, кнопки на второй строке -->
       <div class="mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-white rounded-[20px] border border-gray-100 shadow-sm">
-          <!-- Левая часть: заголовок + окошки фильтров -->
-          <div class="flex flex-wrap items-center gap-3 min-w-0 flex-1">
+        <div class="flex flex-col gap-4">
+          <!-- Строка 1: заголовок + фильтры -->
+          <div class="flex flex-wrap items-center gap-3 min-w-0">
             <div class="flex flex-col gap-1 min-w-0">
               <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)]">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
@@ -37,7 +37,7 @@
             <select
               v-model="filters.channel"
               @change="fetchStats"
-              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
             >
               <option value="all">Все каналы</option>
               <option value="yandex">Yandex Direct</option>
@@ -46,7 +46,7 @@
             <select
               v-model="selectedCampaignId"
               @change="handleCampaignChange"
-              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+              class="h-[38px] w-[125px] min-w-[125px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
               :disabled="!filters.client_id || loadingCampaigns"
             >
               <option v-if="!filters.client_id" value="">Сначала проект</option>
@@ -62,7 +62,7 @@
             <select
               v-model="filters.period"
               @change="handlePeriodChange"
-              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
             >
               <option value="7">Неделя</option>
               <option value="14">2 недели</option>
@@ -77,8 +77,8 @@
               class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
             />
           </div>
-          <!-- Правая часть: кнопки -->
-          <div class="flex flex-wrap items-center gap-3 flex-shrink-0">
+          <!-- Строка 2: кнопки -->
+          <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
               class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
