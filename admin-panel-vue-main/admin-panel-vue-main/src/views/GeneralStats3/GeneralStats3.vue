@@ -22,22 +22,22 @@
 
       <!-- Шапка: чисто как на скрине 2 -->
       <div class="mb-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-white rounded-[20px] border border-gray-100 shadow-sm">
           <!-- Левая часть: заголовок + окошки фильтров -->
           <div class="flex flex-wrap items-center gap-3 min-w-0 flex-1">
             <div class="flex flex-col gap-1 min-w-0">
-              <p class="flex items-center gap-1.5 text-xs text-gray-500">
-                <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+              <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
                 Общая аналитика по всем активным проектам
               </p>
-              <h1 class="text-lg sm:text-xl font-bold text-gray-900 truncate">
+              <h1 class="text-[27px] font-bold text-[#09183F] truncate leading-[1.2]">
                 {{ dashboardTitle }}
               </h1>
             </div>
             <select
               v-model="filters.channel"
               @change="fetchStats"
-              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
             >
               <option value="all">Все каналы</option>
               <option value="yandex">Yandex Direct</option>
@@ -46,7 +46,7 @@
             <select
               v-model="selectedCampaignId"
               @change="handleCampaignChange"
-              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 w-[145px]"
+              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
               :disabled="!filters.client_id || loadingCampaigns"
             >
               <option v-if="!filters.client_id" value="">Сначала проект</option>
@@ -62,7 +62,7 @@
             <select
               v-model="filters.period"
               @change="handlePeriodChange"
-              class="h-9 pl-3 pr-9 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 outline-none appearance-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              class="h-[38px] min-w-[180px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
             >
               <option value="7">Неделя</option>
               <option value="14">2 недели</option>
@@ -74,14 +74,14 @@
               v-if="filters.period === 'custom'"
               :model-value="{ start: filters.start_date, end: filters.end_date }"
               @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
-              class="[&_.date-input]:h-9 [&_.date-input]:rounded-xl"
+              class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
             />
           </div>
           <!-- Правая часть: кнопки -->
           <div class="flex flex-wrap items-center gap-3 flex-shrink-0">
             <button
               type="button"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
               :disabled="sendingPdf"
               @click="handleDownloadPdf"
             >
@@ -90,7 +90,7 @@
             </button>
             <button
               type="button"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
               :disabled="sendingTg"
               @click="handleSendTelegram"
             >
@@ -105,7 +105,7 @@
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         <!-- График слева (2/3) — высота как у правой колонки -->
         <div class="xl:col-span-2 relative flex flex-col min-h-0">
-          <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-2xl">
+            <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">
             <div class="flex flex-col items-center gap-2">
               <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
@@ -143,8 +143,8 @@
 
       <!-- KPI карточки (внизу по макету) -->
       <div class="w-full">
-        <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-2xl" />
+            <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-[10px]" />
         </div>
         <KPIOverview
           v-else-if="summary && summary.expenses !== undefined"
@@ -205,17 +205,17 @@
           </div>
 
           <!-- Комментарий к отчету -->
-          <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md">
+          <div class="bg-white rounded-[20px] p-6 sm:p-8 border border-gray-100 shadow-md">
             <div class="flex items-start justify-between gap-4 mb-4">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0">
+                <div class="w-10 h-10 rounded-[10px] bg-[#2563EB] flex items-center justify-center flex-shrink-0">
                   <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
                 <div>
                   <h3 class="text-lg font-bold text-gray-900">Комментарий к отчету</h3>
-                  <p class="text-sm text-gray-500 mt-0.5">за отчетный период</p>
+                  <p class="text-xs font-medium text-gray-500 mt-1 uppercase tracking-wider">за отчетный период</p>
                 </div>
               </div>
               <button
@@ -231,7 +231,7 @@
                 {{ generatingReport ? 'Генерация...' : 'Сгенерировать отчет' }}
               </button>
             </div>
-            <div v-if="reportComment" class="mt-4 p-4 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-if="reportComment" class="mt-4 p-5 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-base leading-[1.5] whitespace-pre-wrap">{{ reportComment }}</div>
             <div v-else-if="!generatingReport && !reportComment" class="mt-4 py-8 text-center text-gray-400 text-sm">
               Нажмите «Сгенерировать отчет», чтобы получить AI-комментарий на основе данных за выбранный период
             </div>

@@ -1,48 +1,57 @@
 <template>
-  <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-md">
+  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-sm font-bold text-gray-900">Подключенные каналы</h3>
+      <h3 class="text-[14px] font-bold text-[#09183F]">Подключенные каналы</h3>
       <button
         type="button"
         @click="$emit('connect')"
-        class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+        class="text-[12px] font-semibold text-[#2563EB] hover:text-[#1d4ed8]"
       >
         Добавить +
       </button>
     </div>
 
-    <div class="space-y-3">
+    <!-- Заголовки колонок -->
+    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[11px] font-medium text-gray-400">
+      <span>Название</span>
+      <span>Баланс</span>
+      <span>Статус</span>
+    </div>
+
+    <div class="space-y-2">
       <div
         v-for="platform in displayPlatforms"
         :key="platform.id"
-        class="flex items-center justify-between p-3 rounded-xl border transition-all"
-        :class="platform.connected ? 'bg-blue-50/40 border-blue-100' : 'bg-gray-50/50 border-gray-100 opacity-60'"
+        class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-1 rounded-lg transition-colors hover:bg-gray-50/50"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 min-w-0">
           <div
-            class="w-9 h-9 rounded-xl flex items-center justify-center"
-            :class="platform.connected ? 'bg-white border border-blue-100' : 'bg-gray-100'"
+            class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[10px]"
+            :class="platform.id === 'yandex_direct' ? 'bg-[#FFCC00] text-gray-900' : 'bg-[#2787F5] text-white'"
           >
-            <component :is="platform.icon" class="w-4 h-4" :class="platform.connected ? 'text-blue-600' : 'text-gray-400'" />
+            <span v-if="platform.id === 'yandex_direct'">Я</span>
+            <span v-else>VK</span>
           </div>
-          <div class="flex flex-col">
-            <span class="text-sm font-semibold text-gray-900">{{ platform.name }}</span>
-            <span class="text-[10px] font-medium" :class="platform.connected ? 'text-blue-600' : 'text-gray-400'">
-              {{ platform.connected ? 'Активно' : 'Не подключено' }}
-            </span>
-          </div>
+          <span class="text-[14px] font-medium text-[#09183F] truncate">{{ platform.name }}</span>
         </div>
-        <div class="flex items-center gap-3">
-          <span v-if="platform.connected && platform.balance != null" class="text-xs font-bold text-gray-700">
-            {{ formatBalance(platform.balance) }}P
+        <div class="flex items-center justify-end">
+          <span
+            v-if="platform.connected && platform.balance != null"
+            class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[12px] font-semibold"
+            :class="platform.id === 'yandex_direct' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'"
+          >
+            {{ formatBalance(platform.balance) }}<span class="text-[10px] font-medium">P</span>
           </span>
-          <span v-else-if="platform.connected" class="text-xs text-gray-400">—</span>
+          <span v-else-if="platform.connected" class="text-[12px] text-gray-400">—</span>
+          <span v-else class="text-[12px] text-gray-400">—</span>
+        </div>
+        <div class="flex justify-end">
           <button
             type="button"
             role="switch"
             :aria-checked="platform.connected"
-            class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-            :class="platform.connected ? 'bg-green-500' : 'bg-gray-200'"
+            class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+            :class="platform.connected ? 'bg-[#82d944]' : 'bg-gray-200'"
             :disabled="!platform.connected"
             @click="platform.connected && $emit('toggle-channel', platform.id)"
           >
@@ -59,7 +68,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { GlobeAltIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   integrations: {
@@ -71,8 +79,8 @@ const props = defineProps({
 defineEmits(['connect', 'toggle-channel'])
 
 const platformRegistry = {
-  yandex_direct: { name: 'Yandex Direct', icon: GlobeAltIcon },
-  vk_ads: { name: 'VK Ads Manager', icon: ChatBubbleBottomCenterTextIcon }
+  yandex_direct: { name: 'Yandex Direct' },
+  vk_ads: { name: 'VK Ads Manager' }
 }
 
 const displayPlatforms = computed(() => {

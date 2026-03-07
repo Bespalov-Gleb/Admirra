@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Play', 'sans-serif'],
+        sans: ['Inter', 'Play', 'sans-serif'],
       },
       colors: {
         sidebar: '#2d3035',

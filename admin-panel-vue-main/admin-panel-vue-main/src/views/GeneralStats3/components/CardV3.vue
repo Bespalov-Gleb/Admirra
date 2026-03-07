@@ -1,28 +1,37 @@
 <template>
   <div
-    class="rounded-2xl p-8 bg-white border border-gray-100 shadow-md transition-all cursor-pointer hover:border-blue-200 hover:shadow-lg"
+    class="rounded-[10px] p-5 sm:p-6 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative"
     :class="[
-      isSelected && 'ring-2 ring-blue-500/30 border-blue-200'
+      isSelected ? 'ring-2 ring-[#2563EB]/40 border-[#BFDBFE]' : 'border-gray-100 hover:border-gray-200'
     ]"
     @click="$emit('click')"
   >
-    <div class="flex items-start gap-5">
-      <div class="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-        <component :is="icon" class="w-7 h-7 text-blue-600" />
+    <!-- Кнопка стрелки в правом верхнем углу -->
+    <button
+      type="button"
+      class="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+      @click.stop="$emit('click')"
+    >
+      <ArrowTopRightOnSquareIcon class="w-4 h-4" />
+    </button>
+
+    <div class="flex items-start gap-4 pr-10">
+      <div class="w-11 h-11 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
+        <component :is="icon" class="w-5 h-5 text-[#2563EB]" />
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="text-base font-medium text-gray-500 mb-1.5">{{ title }}</h3>
-        <p v-if="subtitle" class="text-sm text-gray-400 mb-2">{{ subtitle }}</p>
-        <p class="text-2xl font-bold text-gray-900 leading-tight">{{ value }}</p>
+        <h3 class="text-[14px] font-bold text-[#09183F] mb-0.5">{{ title }}</h3>
+        <p v-if="subtitle" class="text-[11px] font-medium text-gray-500 mb-2">{{ subtitle }}</p>
+        <p class="text-[24px] font-bold text-[#09183F] leading-tight">{{ value }}</p>
         <div
           :class="[
-            'inline-flex flex-wrap items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg text-xs font-semibold',
-            changePositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+            'inline-flex flex-wrap items-center gap-1.5 mt-2 text-[12px] font-semibold',
+            changePositive ? 'text-[#82d944]' : 'text-red-500'
           ]"
         >
           <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-4 h-4 flex-shrink-0" />
           <span>{{ trendDisplay }}</span>
-          <span v-if="trendAbsolute" class="font-normal opacity-90">{{ trendAbsolute }}</span>
+          <span v-if="trendAbsolute" class="font-normal text-gray-600">{{ trendAbsolute }}</span>
         </div>
       </div>
     </div>
@@ -32,6 +41,7 @@
 <script setup>
 import { computed } from 'vue'
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/vue/20/solid'
+import { ArrowTopRightOnSquareIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
   title: {

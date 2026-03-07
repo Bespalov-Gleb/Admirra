@@ -1,27 +1,27 @@
 <template>
-  <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md h-full min-h-[360px] flex flex-col">
-    <h3 class="text-base font-bold text-gray-900 mb-5">Возраст аудитории</h3>
+  <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col">
+    <h3 class="text-[15px] font-bold text-[#09183F] mb-5">Возраст аудитории</h3>
     <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
     <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
-    <div v-else class="flex flex-row items-center justify-center gap-8 flex-1">
-      <div class="relative w-52 h-52 sm:w-60 sm:h-60 flex-shrink-0">
+    <div v-else class="flex flex-row items-center justify-center gap-6 sm:gap-8 flex-1 min-h-0">
+      <div class="relative w-44 h-44 sm:w-52 sm:h-52 flex-shrink-0 cursor-pointer">
         <canvas ref="chartRef" />
       </div>
-      <div class="grid grid-cols-2 gap-3 flex-1 min-w-0">
+      <div class="grid grid-cols-2 gap-2.5 flex-1 min-w-0">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gray-50"
+          class="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-gray-50/80"
         >
           <span
-            class="w-4 h-4 rounded-full flex-shrink-0"
+            class="w-3 h-3 rounded-full flex-shrink-0"
             :style="{ backgroundColor: colors[i % colors.length] }"
           />
-          <span class="text-sm font-medium text-gray-700">{{ ageLabelRu(item.age_interval) }}</span>
+          <span class="text-[12px] font-medium text-[#09183F]">{{ ageLabelRu(item.age_interval) }}</span>
         </div>
       </div>
     </div>
@@ -75,7 +75,7 @@ let chartInstance = null
 const loading = ref(false)
 const data = ref([])
 
-const colors = ['#3b82f6', '#d4a574', '#8b5cf6', '#22c55e', '#f59e0b', '#10b981']
+const colors = ['#2563EB', '#86EFAC', '#FB923C', '#22c55e', '#a78bfa', '#d4a574']
 
 const total = computed(() => data.value.reduce((s, i) => s + (i.visits || 0), 0))
 
@@ -97,7 +97,10 @@ const updateChart = () => {
         backgroundColor: data.value.map((_, i) => colors[i % colors.length]),
         borderWidth: 2,
         borderColor: '#fff',
-        spacing: 4
+        spacing: 4,
+        hoverOffset: 14,
+        hoverBorderWidth: 2,
+        hoverBorderColor: '#fff'
       }]
     },
     options: {

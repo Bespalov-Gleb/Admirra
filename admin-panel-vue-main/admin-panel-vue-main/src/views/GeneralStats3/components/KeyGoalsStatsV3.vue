@@ -1,94 +1,92 @@
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 w-full">
-    <!-- Левая + центр: белая карточка по макету (скрин 2) -->
-    <div class="lg:col-span-2 flex rounded-2xl overflow-hidden shadow-md border border-gray-100 bg-white">
-      <!-- Левая зона: белый фон, статистика по целям -->
-      <div class="flex-[3] min-w-0 p-6 sm:p-8 flex flex-col min-h-[280px]">
-        <div class="flex items-center gap-3 mb-6">
-          <div class="w-10 h-10 rounded-xl bg-[#3B82F6] flex items-center justify-center">
-            <ChartBarIcon class="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h3 class="text-sm font-bold text-gray-900">Статистика по ключевым целям</h3>
-            <p class="text-xs text-gray-500 mt-0.5">За период</p>
-          </div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full">
+    <!-- Левая: Статистика по ключевым целям (белая карточка) -->
+    <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
+          <ChartBarIcon class="w-5 h-5 text-[#2563EB]" />
         </div>
-
-        <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly">
-          <div v-for="i in 3" :key="i" class="h-16 bg-gray-100 rounded-2xl animate-pulse" />
-        </div>
-
-        <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-base font-medium">
-          Цели не настроены
-        </div>
-
-        <div v-else class="flex-1 flex flex-col justify-evenly">
-          <div
-            v-for="(goal, index) in topGoals"
-            :key="goal.id || goal.name"
-            class="flex items-center gap-3 py-2"
-          >
-            <span class="text-base font-semibold text-gray-800 flex-1 min-w-0 border-b border-dotted border-gray-300 pb-0.5">{{ formatGoalName(goal.name) }}:</span>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class="text-xl font-bold text-gray-900 tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
-              <span
-                v-if="goal.trend != null"
-                :class="[
-                  'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm font-bold',
-                  (goal.trend >= 0 ? 'bg-[#10B981] text-white' : 'bg-red-400/90 text-white')
-                ]"
-              >
-                <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-4 h-4" />
-                <ArrowTrendingDownIcon v-else class="w-4 h-4" />
-                {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
-              </span>
-            </div>
-          </div>
+        <div>
+          <h3 class="text-[15px] font-bold text-[#09183F]">Статистика по ключевым целям</h3>
+          <p class="text-[11px] font-medium text-gray-500 mt-0.5">За период</p>
         </div>
       </div>
 
-      <!-- Правая зона: высокая прозрачность, Итого -->
-      <div class="flex-[2] min-w-0 p-8 sm:p-10 relative overflow-hidden flex flex-col min-h-[280px] rounded-r-2xl" style="background: rgba(59, 130, 246, 0.30)">
-        <div class="absolute inset-0 opacity-40" style="background-image: radial-gradient(circle at 1px 1px, rgba(59,130,246,0.5) 1px, transparent 0); background-size: 20px 20px" />
-        <div class="relative z-10 flex flex-col flex-1 min-h-0">
-          <h3 class="text-lg font-bold text-white mb-3" style="text-shadow: 0 1px 2px rgba(0,0,0,0.2)">Итого:</h3>
-          <div class="flex-1 flex items-end justify-center min-h-0 pb-0">
-            <p class="flex items-baseline gap-1">
-              <span class="text-7xl sm:text-8xl lg:text-9xl font-black text-white tabular-nums tracking-tight leading-none" style="text-shadow: 0 1px 3px rgba(0,0,0,0.25)">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-              <span class="text-2xl sm:text-3xl font-bold text-white self-end pb-1" style="text-shadow: 0 1px 2px rgba(0,0,0,0.2)">шт.</span>
-            </p>
+      <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly gap-3">
+        <div v-for="i in 3" :key="i" class="h-12 bg-gray-100 rounded-[10px] animate-pulse" />
+      </div>
+
+      <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-[14px] font-medium">
+        Цели не настроены
+      </div>
+
+      <div v-else class="flex-1 flex flex-col justify-evenly gap-3">
+        <div
+          v-for="(goal, index) in topGoals"
+          :key="goal.id || goal.name"
+          class="flex items-center justify-between gap-3 py-1.5"
+        >
+          <span class="text-[13px] font-medium text-[#09183F]">{{ formatGoalName(goal.name) }}:</span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-[14px] font-bold text-[#09183F] tabular-nums">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+            <span
+              v-if="goal.trend != null"
+              :class="[
+                'text-[11px] font-semibold',
+                goal.trend >= 0 ? 'text-[#82d944]' : 'text-red-500'
+              ]"
+            >
+              {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
+            </span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Правая колонка: Разбивка по целям (белый фон, отдельная карточка) -->
-    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md">
-      <h3 class="text-xs font-black text-gray-700 uppercase tracking-[0.15em] mb-5">Разбивка по целям</h3>
+    <!-- Центр: Итого (светло-голубая карточка) -->
+    <div class="bg-[#DBEAFE] rounded-[10px] p-6 sm:p-8 border border-blue-100 shadow-sm min-h-[280px] flex flex-col relative overflow-hidden">
+      <h3 class="text-[15px] font-bold text-[#09183F] mb-2">Итого:</h3>
+      <div class="flex-1 flex items-end justify-center min-h-0 pb-2">
+        <p class="flex items-baseline gap-1.5">
+          <span class="text-[64px] sm:text-[72px] font-black text-[#93C5FD] tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+          <span class="text-[24px] font-bold text-[#60A5FA] self-end pb-1">шт.</span>
+        </p>
+      </div>
+    </div>
 
-      <div class="relative w-full aspect-square max-w-[200px] mx-auto mb-5">
+    <!-- Правая: Разбивка по целям (белая карточка) -->
+    <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
+      <h3 class="text-[15px] font-bold text-[#09183F] mb-4">Разбивка по целям</h3>
+
+      <div class="relative w-full aspect-square max-w-[180px] mx-auto mb-4">
         <canvas ref="chartCanvas" class="w-full h-full" />
-        <!-- Число в центре, без фона -->
         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div class="text-center">
-            <p class="text-2xl font-black text-gray-900 tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
-            <p class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">шт.</p>
+            <p class="text-[16px] font-bold text-[#09183F] tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
+            <p class="text-[10px] font-semibold text-gray-500">шт.</p>
           </div>
         </div>
       </div>
 
-      <div class="space-y-2">
+      <div class="space-y-2 mb-4">
         <div
           v-for="(goal, index) in topGoals"
           :key="goal.id || goal.name"
-          class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-100/80"
+          class="flex items-center gap-2.5"
         >
           <div
-            class="w-3.5 h-3.5 rounded-full flex-shrink-0 shadow-sm border border-white"
+            class="w-3 h-3 rounded-full flex-shrink-0"
             :style="{ backgroundColor: donutColors[index] }"
           />
-          <span class="text-sm font-semibold text-gray-800 truncate">{{ formatGoalName(goal.name) }}</span>
+          <span class="text-[12px] font-medium text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
         </div>
+      </div>
+
+      <!-- Dropdown как на скрине -->
+      <div class="mt-auto">
+        <select class="w-full h-9 pl-3 pr-8 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB]">
+          <option>Функциональная</option>
+        </select>
       </div>
     </div>
   </div>
@@ -134,9 +132,9 @@ const totalConversions = computed(() => {
   return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Цвета: внешнее кольцо (светлее) и внутреннее (темнее того же цвета) */
-const donutColors = ['#3b82f6', '#f59e0b', '#10b981']  // синий, оранжевый, зелёный
-const donutColorsDark = ['#1d4ed8', '#d97706', '#059669']  // тёмно-синий, тёмно-оранжевый, тёмно-зелёный
+/** Цвета по скрину: синий, оранжевый, зелёный */
+const donutColors = ['#2563EB', '#FB923C', '#86EFAC']
+const donutColorsDark = ['#1d4ed8', '#ea580c', '#22c55e']
 
 const updateChart = () => {
   if (!chartCanvas.value) return

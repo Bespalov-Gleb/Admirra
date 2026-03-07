@@ -6,7 +6,7 @@
       mainMargin
     ]">
       <Header />
-      <main class="overflow-x-hidden bg-gray-100 min-h-[calc(100vh-80px)]">
+      <main class="overflow-x-hidden bg-[#F5F7F9] min-h-[calc(100vh-80px)]">
         <div class="p-6 sm:p-8 overflow-x-hidden w-full">
           <router-view />
         </div>

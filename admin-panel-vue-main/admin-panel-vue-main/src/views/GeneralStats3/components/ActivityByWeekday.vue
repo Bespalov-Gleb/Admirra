@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-md h-full min-h-[360px] flex flex-col overflow-visible">
-    <h3 class="text-base font-bold text-gray-900 mb-5">Активность по дням</h3>
+  <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible">
+    <h3 class="text-[15px] font-bold text-[#09183F] mb-5">Активность по дням</h3>
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -39,6 +39,8 @@ const updateChart = (data) => {
   if (chartInstance) chartInstance.destroy()
 
   const values = WEEKDAY_INDICES.map((i) => data[String(i)] || 0)
+  const maxVal = Math.max(...values)
+  const maxIdx = maxVal > 0 ? values.indexOf(maxVal) : -1
 
   chartInstance = new Chart(chartRef.value, {
     type: 'bar',
@@ -47,8 +49,10 @@ const updateChart = (data) => {
       datasets: [{
         label: 'Активность',
         data: values,
-        backgroundColor: values.map((_, i) => (i >= 0 && i <= 4) ? 'rgba(59, 130, 246, 0.7)' : 'rgba(156, 163, 175, 0.6)'),
-        borderRadius: 8
+        backgroundColor: values.map((_, i) => (i === maxIdx && maxIdx >= 0 ? '#2563EB' : 'rgba(156, 163, 175, 0.5)')),
+        borderRadius: 6,
+        barPercentage: 0.65,
+        categoryPercentage: 0.85
       }]
     },
     options: {
@@ -62,7 +66,7 @@ const updateChart = (data) => {
           anchor: 'end',
           align: 'top',
           formatter: (v) => v,
-          font: { size: 12, weight: 'bold' },
+          font: { size: 13, weight: 'bold' },
           color: '#374151'
         }
       },

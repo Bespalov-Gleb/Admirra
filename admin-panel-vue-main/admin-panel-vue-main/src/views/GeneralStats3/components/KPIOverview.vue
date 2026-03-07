@@ -1,10 +1,6 @@
 <template>
   <div class="w-full">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">{{ title }}</h2>
-    </div>
-
-    <div class="grid grid-cols-2 lg:grid-cols-3 gap-6 xl:gap-8">
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
       <div v-for="metric in metrics" :key="metric.id">
         <CardV3
           :title="metric.title"
@@ -97,7 +93,7 @@ const metrics = computed(() => {
       changePositive: (t.expenses ?? 0) <= 0,
       icon: WalletIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     },
     {
       id: 'impressions',
@@ -110,7 +106,7 @@ const metrics = computed(() => {
       changePositive: (t.impressions ?? 0) >= 0,
       icon: ChartBarIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     },
     {
       id: 'clicks',
@@ -123,7 +119,7 @@ const metrics = computed(() => {
       changePositive: (t.clicks ?? 0) >= 0,
       icon: CursorArrowRaysIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     },
     {
       id: 'cpc',
@@ -136,7 +132,7 @@ const metrics = computed(() => {
       changePositive: (t.cpc ?? 0) <= 0,
       icon: TagIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     },
     {
       id: 'leads',
@@ -149,7 +145,7 @@ const metrics = computed(() => {
       changePositive: (t.leads ?? 0) >= 0,
       icon: ListBulletIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     },
     {
       id: 'cpa',
@@ -162,7 +158,7 @@ const metrics = computed(() => {
       changePositive: (t.cpa ?? 0) <= 0,
       icon: CheckCircleIcon,
       iconColor: 'blue',
-      chartColor: '#3b82f6'
+      chartColor: '#2563EB'
     }
   ]
 })
