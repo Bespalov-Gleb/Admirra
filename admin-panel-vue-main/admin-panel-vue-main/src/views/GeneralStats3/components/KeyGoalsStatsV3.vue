@@ -148,9 +148,9 @@ const totalConversions = computed(() => {
   return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Цвета: насыщенные внутри, пастельные снаружи */
-const donutColors = ['#2563EB', '#F97316', '#34D399']
-const donutColorsPastel = ['#93C5FD', '#FDBA74', '#BBF7D0']
+/** Точные цвета из Figma */
+const donutColors = ['#3464F3', '#F0926D', '#C2EECF']
+const donutColorsPastel = ['#4C78FF', '#FFA582', '#E5FFED']
 
 const updateChart = () => {
   if (!chartCanvas.value) return
@@ -168,14 +168,14 @@ const updateChart = () => {
           backgroundColor: topGoals.value.map((_, i) => donutColorsPastel[i]),
           borderWidth: 0,
           hoverOffset: 0,
-          weight: 1.8
+          weight: 4
         },
         {
           data,
           backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
           borderWidth: 0,
           hoverOffset: 4,
-          weight: 3
+          weight: 2
         }
       ]
     },
