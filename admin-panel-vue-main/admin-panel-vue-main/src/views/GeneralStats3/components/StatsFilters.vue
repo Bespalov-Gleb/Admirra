@@ -8,7 +8,7 @@
         <div class="relative group">
           <select 
             v-model="filters.client_id"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
           >
             <option value="">Все проекты</option>
             <option v-for="client in clients" :key="client.id" :value="client.id">
@@ -27,7 +27,7 @@
         <div class="relative group">
           <select 
             v-model="filters.channel"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
           >
             <option value="all">Все каналы</option>
             <option value="yandex">Yandex Direct</option>
@@ -45,7 +45,7 @@
         <div class="relative group">
           <select 
             v-model="selectedCampaignId"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="loadingCampaigns || !filters.client_id"
           >
             <template v-if="!filters.client_id">
@@ -141,7 +141,7 @@
           <select 
             v-model="filters.period"
             @change="$emit('period-change')"
-            class="w-full h-9 pl-3 pr-8 bg-white/50 border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white/50 border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
           >
             <option value="7">Последняя неделя</option>
             <option value="14">2 недели</option>

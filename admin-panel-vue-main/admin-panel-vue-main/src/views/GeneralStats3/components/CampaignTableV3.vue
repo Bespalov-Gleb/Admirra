@@ -1,32 +1,21 @@
 <template>
   <div class="bg-white rounded-[10px] px-6 sm:px-8 py-6 shadow-sm border border-gray-100 overflow-hidden font-[Inter]">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
-      <div>
-        <h3 class="text-[20px] font-normal text-gray-900">Лучшие рекламные кампании</h3>
-        <p class="text-[15px] font-normal text-gray-400 mt-0.5">По эффективности за период</p>
-      </div>
-      <div class="relative">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Поиск кампании"
-          class="pl-10 pr-4 py-2 text-[14px] font-normal border border-gray-200 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-gray-50 w-56"
-        />
-        <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-      </div>
+    <div class="mb-5">
+      <h3 class="text-[20px] font-normal text-gray-900">Лучшие рекламные кампании</h3>
+      <p class="text-[15px] font-normal text-gray-400 mt-0.5">По эффективности за период</p>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full text-left border-separate border-spacing-y-2">
         <thead>
-          <tr class="text-[15px] font-normal text-gray-400">
-            <th class="px-4 py-3 text-left w-[26%]">Название кампании</th>
-            <th class="px-4 py-3 text-left w-[12%]">Расход</th>
-            <th class="px-4 py-3 text-left w-[12%]">Показы</th>
-            <th class="px-4 py-3 text-left w-[10%]">Клики</th>
-            <th class="px-4 py-3 text-left w-[10%]">СРС</th>
-            <th class="px-4 py-3 text-left w-[10%]">Лиды</th>
-            <th class="px-4 py-3 text-left w-[10%]">СРА</th>
+          <tr>
+            <th class="px-4 py-3 text-left w-[26%] text-[15px] font-normal text-gray-400">Название кампании</th>
+            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400">Расход</th>
+            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400">Показы</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">Клики</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">СРС</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">Лиды</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">СРА</th>
           </tr>
         </thead>
         <tbody>
@@ -55,61 +44,37 @@
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cost) }} ₽</span>
-                <span v-if="campaign.trend_cost != null" :class="trendClass('cost', campaign.trend_cost)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_cost >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_cost >= 0 ? '+' : '' }}{{ campaign.trend_cost }}%
-                </span>
+                <TrendBadge :val="campaign.trend_cost ?? getDemoTrend(idx, 0)" metric="cost" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.impressions || 0).toLocaleString('ru-RU') }}</span>
-                <span v-if="campaign.trend_impressions != null" :class="trendClass('impressions', campaign.trend_impressions)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_impressions >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_impressions >= 0 ? '+' : '' }}{{ campaign.trend_impressions }}%
-                </span>
+                <TrendBadge :val="campaign.trend_impressions ?? getDemoTrend(idx, 1)" metric="impressions" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.clicks || 0).toLocaleString('ru-RU') }}</span>
-                <span v-if="campaign.trend_clicks != null" :class="trendClass('clicks', campaign.trend_clicks)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_clicks >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_clicks >= 0 ? '+' : '' }}{{ campaign.trend_clicks }}%
-                </span>
+                <TrendBadge :val="campaign.trend_clicks ?? getDemoTrend(idx, 2)" metric="clicks" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cpc) }} ₽</span>
-                <span v-if="campaign.trend_cpc != null" :class="trendClass('cpc', campaign.trend_cpc)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_cpc >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_cpc >= 0 ? '+' : '' }}{{ campaign.trend_cpc }}%
-                </span>
+                <TrendBadge :val="campaign.trend_cpc ?? getDemoTrend(idx, 3)" metric="cpc" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.conversions || 0).toLocaleString('ru-RU') }} шт.</span>
-                <span v-if="campaign.trend_conversions != null" :class="trendClass('leads', campaign.trend_conversions)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_conversions >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_conversions >= 0 ? '+' : '' }}{{ campaign.trend_conversions }}%
-                </span>
+                <TrendBadge :val="campaign.trend_conversions ?? getDemoTrend(idx, 4)" metric="leads" />
               </div>
             </td>
             <td class="px-4 py-4 rounded-r-[10px]">
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cpa) }} ₽</span>
-                <span v-if="campaign.trend_cpa != null" :class="trendClass('cpa', campaign.trend_cpa)">
-                  <ArrowTrendingUpIcon v-if="campaign.trend_cpa >= 0" class="w-3 h-3" />
-                  <ArrowTrendingDownIcon v-else class="w-3 h-3" />
-                  {{ campaign.trend_cpa >= 0 ? '+' : '' }}{{ campaign.trend_cpa }}%
-                </span>
+                <TrendBadge :val="campaign.trend_cpa ?? getDemoTrend(idx, 5)" metric="cpa" />
               </div>
             </td>
           </tr>
@@ -120,8 +85,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
+import { computed, h } from 'vue'
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/vue/24/solid'
 
 const props = defineProps({
@@ -136,15 +100,7 @@ const props = defineProps({
   }
 })
 
-const searchQuery = ref('')
-
-const filteredCampaigns = computed(() => {
-  if (!searchQuery.value) return props.campaigns
-  const query = searchQuery.value.toLowerCase()
-  return props.campaigns.filter(c =>
-    (c.name || '').toLowerCase().includes(query)
-  )
-})
+const filteredCampaigns = computed(() => props.campaigns)
 
 const formatMoney = (val) => {
   if (val == null || isNaN(val)) return '—'
@@ -156,13 +112,28 @@ const rowBgClass = (idx) => {
   return variants[idx % 5]
 }
 
-const trendClass = (metricKey, val) => {
-  const isGood = val >= 0
-  const isCost = metricKey === 'cpa' || metricKey === 'cost' || metricKey === 'cpc'
-  const isPositive = isCost ? !isGood : isGood
-  return [
-    'inline-flex items-center gap-0.5 text-[12px] font-normal px-2 py-0.5 rounded-[6px]',
-    isPositive ? 'bg-[#EBFDF2] text-[#38B35A]' : 'bg-[#FCEBED] text-[#EB5757]'
-  ]
+const getDemoTrend = () => 0
+
+// Inline component for trend badge
+const TrendBadge = (props) => {
+  const { val, metric } = props
+  const isCostMetric = metric === 'cpa' || metric === 'cost' || metric === 'cpc'
+  const isPositive = isCostMetric ? val < 0 : val >= 0
+  const sign = val >= 0 ? '+' : ''
+  const Icon = val >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon
+  return h(
+    'span',
+    {
+      class: [
+        'inline-flex items-center gap-0.5 text-[12px] font-normal px-2 py-0.5 rounded-[6px]',
+        isPositive ? 'bg-[#EBFDF2] text-[#38B35A]' : 'bg-[#FCEBED] text-[#EB5757]'
+      ]
+    },
+    [
+      h(Icon, { class: 'w-3 h-3' }),
+      `${sign}${val}%`
+    ]
+  )
 }
+TrendBadge.props = ['val', 'metric']
 </script>

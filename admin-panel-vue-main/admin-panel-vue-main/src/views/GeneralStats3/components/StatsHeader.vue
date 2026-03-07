@@ -12,7 +12,7 @@
       
       <div class="flex flex-col min-w-0">
         <div class="flex items-center gap-2">
-          <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight truncate">
+          <h1 class="text-[30px] font-normal text-gray-900 truncate">
             {{ title }}
           </h1>
           
@@ -28,7 +28,7 @@
         
         <div class="flex items-center gap-1.5 mt-0.5">
           <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-          <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+          <p class="text-[15px] font-normal text-gray-400 truncate">
             {{ subtitle }}
           </p>
         </div>
