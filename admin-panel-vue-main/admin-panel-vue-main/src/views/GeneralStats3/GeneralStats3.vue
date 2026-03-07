@@ -118,15 +118,15 @@
             @update:include-vat="includeVat = $event"
           />
         </div>
-        <!-- Сайдбар справа (1/3) — растягивается по высоте графика -->
+        <!-- Сайдбар справа (1/3) — каналы меньше, отчёты больше; высота блока не меняется -->
         <div class="xl:col-span-1 flex flex-col gap-4 min-h-0">
           <ConnectedChannelsV3
-            class="flex-1 min-h-[200px]"
+            class="flex-[1] min-h-[200px]"
             :integrations="integrations"
             @connect="() => $router.push('/integrations/wizard')"
           />
           <ReportSendingBlock
-            class="flex-1 min-h-[200px]"
+            class="flex-[2] min-h-[200px]"
             :sending-tg="sendingTg"
             :sending-email="sendingEmail"
             :saving="reportSaving"
