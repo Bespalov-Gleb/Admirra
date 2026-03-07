@@ -19,6 +19,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    font-family: 'Inter', 'Play', system-ui, sans-serif;
+  }
+}
+
 /* 
   Global font size adjustment.
   Setting root font-size scales all rem-based sizes down.
