@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-[10px] p-5 sm:p-6 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[160px]"
+    class="rounded-[10px] p-6 sm:p-8 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[200px]"
     :class="[
       isSelected ? 'ring-2 ring-[#2563EB]/40 border-[#BFDBFE]' : 'border-gray-100 hover:border-gray-200'
     ]"
@@ -27,18 +27,18 @@
     </div>
 
     <!-- Главное число -->
-    <p class="text-[32px] font-normal text-[#09183F] leading-none mb-3">{{ value }}</p>
+    <p class="text-[32px] font-bold text-[#09183F] leading-none mb-3">{{ value }}</p>
 
     <!-- Тренд: светлый бейдж + серый абсолютный -->
     <div class="flex items-center gap-2 flex-wrap">
       <span
-        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-normal"
+        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold"
         :class="changePositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'"
       >
         <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3.5 h-3.5 flex-shrink-0" />
         {{ trendDisplay }}
       </span>
-      <span v-if="trendAbsolute" class="text-[12px] font-normal text-gray-500">{{ trendAbsolute }}</span>
+      <span v-if="trendAbsolute" class="text-[12px] font-bold text-gray-500">{{ trendAbsolute }}</span>
     </div>
   </div>
 </template>
