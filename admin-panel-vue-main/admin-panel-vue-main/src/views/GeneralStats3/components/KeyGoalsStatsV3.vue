@@ -48,16 +48,18 @@
         </div>
       </div>
 
-      <!-- Правая часть: синий блок Итого, вложен в белую карточку с отступом -->
+      <!-- Правая часть: синий блок Итого — full-height, ml-3, без вертикальных отступов -->
       <div
-        class="w-[42%] m-3 rounded-[10px] flex flex-col relative overflow-hidden"
+        class="w-[42%] ml-3 self-stretch rounded-l-[10px] flex flex-col relative overflow-hidden"
         style="background-color: #BFDBFE; background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
       >
         <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
-        <!-- Число абсолютно прижато к нижней границе -->
-        <div class="absolute bottom-0 left-0 right-0 flex items-baseline gap-2 px-5">
-          <span class="text-[100px] font-black text-white tabular-nums tracking-tight" style="line-height: 0.85;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-          <span class="text-[36px] font-bold text-white" style="line-height: 1; padding-bottom: 6px;">шт.</span>
+        <!-- Число абсолютно прижато к нижней границе, по центру -->
+        <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden" style="height: 60%;">
+          <div class="flex items-baseline gap-2" style="line-height: 0.78; margin-bottom: 0;">
+            <span class="font-black text-white tabular-nums tracking-tight" style="font-size: 150px; line-height: 0.78;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+            <span class="font-bold text-white" style="font-size: 54px; line-height: 0.78;">шт.</span>
+          </div>
         </div>
       </div>
     </div>
