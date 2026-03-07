@@ -1,18 +1,18 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0 font-[Inter]">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-[14px] font-bold text-[#09183F]">Подключенные каналы</h3>
+      <h3 class="text-[18px] font-bold text-[#09183F]">Подключенные каналы</h3>
       <button
         type="button"
         @click="$emit('connect')"
-        class="text-[12px] font-semibold text-[#2563EB] hover:text-[#1d4ed8]"
+        class="text-[15px] font-semibold text-[#2563EB] hover:text-[#1d4ed8]"
       >
         Добавить +
       </button>
     </div>
 
     <!-- Заголовки колонок -->
-    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[11px] font-medium text-gray-400">
+    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[13px] font-medium text-gray-400">
       <span>Название</span>
       <span>Баланс</span>
       <span>Статус</span>
@@ -25,25 +25,32 @@
         class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-1 rounded-lg transition-colors hover:bg-gray-50/50"
       >
         <div class="flex items-center gap-3 min-w-0">
-          <div
-            class="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[10px]"
-            :class="platform.id === 'yandex_direct' ? 'bg-[#FFCC00] text-gray-900' : 'bg-[#2787F5] text-white'"
-          >
-            <span v-if="platform.id === 'yandex_direct'">Я</span>
-            <span v-else>VK</span>
+          <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img
+              v-if="platform.id === 'yandex_direct'"
+              :src="yandexDirectIcon"
+              alt="Yandex Direct"
+              class="w-full h-full object-contain"
+            />
+            <div
+              v-else
+              class="w-full h-full flex items-center justify-center font-bold text-[12px] bg-[#2787F5] text-white"
+            >
+              VK
+            </div>
           </div>
-          <span class="text-[14px] font-medium text-[#09183F] truncate">{{ platform.name }}</span>
+          <span class="text-[16px] font-medium text-[#09183F] truncate">{{ platform.name }}</span>
         </div>
         <div class="flex items-center justify-end">
           <span
             v-if="platform.connected && platform.balance != null"
-            class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[12px] font-semibold"
+            class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[15px] font-semibold"
             :class="platform.id === 'yandex_direct' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'"
           >
-            {{ formatBalance(platform.balance) }}<span class="text-[10px] font-medium">P</span>
+            {{ formatBalance(platform.balance) }}<span class="text-[12px] font-medium">₽</span>
           </span>
-          <span v-else-if="platform.connected" class="text-[12px] text-gray-400">—</span>
-          <span v-else class="text-[12px] text-gray-400">—</span>
+          <span v-else-if="platform.connected" class="text-[15px] text-gray-400">—</span>
+          <span v-else class="text-[15px] text-gray-400">—</span>
         </div>
         <div class="flex justify-end">
           <button
@@ -68,6 +75,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 
 const props = defineProps({
   integrations: {

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 28.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Слой_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 1000 1000" style="enable-background:new 0 0 1000 1000;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#FFFFFF;filter:url(#Adobe_OpacityMaskFilter);}
+	.st1{mask:url(#mask0_146_12089_00000001646760300463571630000003710950784686645640_);}
+	.st2{fill:url(#SVGID_1_);}
+	.st3{fill-rule:evenodd;clip-rule:evenodd;fill:url(#SVGID_00000022537438468667123250000014223625680025164471_);}
+</style>
+<defs>
+	
+		<filter id="Adobe_OpacityMaskFilter" filterUnits="userSpaceOnUse" x="-571.7738037" y="3" width="1789.5583496" height="1722.9003906">
+		<feColorMatrix  type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+	</filter>
+</defs>
+<mask maskUnits="userSpaceOnUse" x="-571.7738037" y="3" width="1789.5583496" height="1722.9003906" id="mask0_146_12089_00000001646760300463571630000003710950784686645640_">
+	<circle class="st0" cx="499.5760193" cy="499.1403198" r="496.1484375"/>
+</mask>
+<g class="st1">
+	
+		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="146.3475037" y1="846.3059692" x2="859.5608521" y2="152.8278198" gradientTransform="matrix(1 0 0 -1 0 1002)">
+		<stop  offset="0" style="stop-color:#315BEA"/>
+		<stop  offset="1" style="stop-color:#2F2DD4"/>
+	</linearGradient>
+	<rect x="3.4275994" y="3" class="st2" width="992.296875" height="992.296814"/>
+	
+		<linearGradient id="SVGID_00000059291114846839600000000017396725959668444560_" gradientUnits="userSpaceOnUse" x1="-306.9014587" y1="-95.6169205" x2="1696.4217529" y2="773.4344482" gradientTransform="matrix(1 0 0 -1 0 1002)">
+		<stop  offset="0" style="stop-color:#FFF01E"/>
+		<stop  offset="1" style="stop-color:#FFD21E"/>
+	</linearGradient>
+	<path style="fill-rule:evenodd;clip-rule:evenodd;fill:url(#SVGID_00000059291114846839600000000017396725959668444560_);" d="
+		M1126.451416,62.7579384c70.0394287,22.5267906,107.8214111,97.3253021,84.3862305,167.0664062L958.2902222,981.4710083
+		c-23.4351196,69.7418823-99.2049561,108.0197144-169.2445679,85.4946899
+		c-70.0396118-22.5334473-107.8213501-97.3278198-84.3867188-167.0697632l84.5023193-251.5133057L-384.9408875,1725.9003906
+		l-186.8329163-203.5863037L601.5263672,445.5323181l-255.5578003,62.1070251
+		c-71.4949646,17.3742676-142.7832336-26.6746216-159.2306671-98.385376s28.1811371-143.9285583,99.6680145-161.3028564
+		l748.9527588-182.0112C1063.5067139,54.716198,1095.5411377,52.8151207,1126.451416,62.7579384z"/>
+</g>
+</svg>
