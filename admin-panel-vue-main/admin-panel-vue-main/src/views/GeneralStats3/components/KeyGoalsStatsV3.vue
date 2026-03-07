@@ -68,35 +68,41 @@
     <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
       <h3 class="text-[15px] font-bold text-[#09183F] mb-4">Разбивка по целям</h3>
 
-      <div class="relative w-full aspect-square max-w-[180px] mx-auto mb-4">
-        <canvas ref="chartCanvas" class="w-full h-full" />
-        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="text-center">
-            <p class="text-[16px] font-bold text-[#09183F] tabular-nums">{{ totalConversions.toLocaleString('ru-RU') }}</p>
-            <p class="text-[10px] font-semibold text-gray-500">шт.</p>
+      <!-- Диаграмма слева + легенда справа -->
+      <div class="flex-1 flex items-center gap-4">
+
+        <!-- Donut chart -->
+        <div class="relative flex-shrink-0" style="width: 140px; height: 140px;">
+          <canvas ref="chartCanvas" class="w-full h-full" />
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="text-center">
+              <p class="text-[15px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="space-y-2 mb-4">
-        <div
-          v-for="(goal, index) in topGoals"
-          :key="goal.id || goal.name"
-          class="flex items-center gap-2.5"
-        >
+        <!-- Легенда: таблетки справа -->
+        <div class="flex-1 flex flex-col gap-2">
           <div
-            class="w-3 h-3 rounded-full flex-shrink-0"
-            :style="{ backgroundColor: donutColors[index] }"
-          />
-          <span class="text-[12px] font-medium text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
-        </div>
-      </div>
+            v-for="(goal, index) in topGoals"
+            :key="goal.id || goal.name"
+            class="flex items-center gap-2.5 px-3 py-2 rounded-[8px] bg-gray-50"
+          >
+            <div
+              class="w-3 h-3 rounded-full flex-shrink-0"
+              :style="{ backgroundColor: donutColors[index] }"
+            />
+            <span class="text-[13px] font-normal text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
+          </div>
 
-      <!-- Dropdown как на скрине -->
-      <div class="mt-auto">
-        <select class="w-full h-9 pl-3 pr-8 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB]">
-          <option>Функциональная</option>
-        </select>
+          <!-- Dropdown под легендой -->
+          <div class="mt-1 relative">
+            <select class="w-full h-9 pl-3 pr-8 bg-white border border-gray-200 rounded-[10px] text-[12px] font-normal text-gray-500 outline-none appearance-none focus:border-[#2563EB]">
+              <option>Функциональная</option>
+            </select>
+            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -142,9 +148,9 @@ const totalConversions = computed(() => {
   return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Цвета по скрину: синий, оранжевый, зелёный */
-const donutColors = ['#2563EB', '#FB923C', '#86EFAC']
-const donutColorsDark = ['#1d4ed8', '#ea580c', '#22c55e']
+/** Цвета: насыщенные для внутреннего кольца, пастельные для внешнего */
+const donutColors = ['#3B82F6', '#FB923C', '#6EE7B7']
+const donutColorsPastel = ['#BFDBFE', '#FED7AA', '#A7F3D0']
 
 const updateChart = () => {
   if (!chartCanvas.value) return
@@ -159,17 +165,17 @@ const updateChart = () => {
       datasets: [
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColorsPastel[i]),
           borderWidth: 0,
           hoverOffset: 0,
-          weight: 3
+          weight: 1.8
         },
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColorsDark[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
           borderWidth: 0,
-          hoverOffset: 2,
-          weight: 2.25
+          hoverOffset: 4,
+          weight: 3
         }
       ]
     },
