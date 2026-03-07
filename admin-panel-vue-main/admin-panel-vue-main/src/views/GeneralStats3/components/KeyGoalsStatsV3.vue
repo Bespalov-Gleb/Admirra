@@ -66,7 +66,7 @@
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
     <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
-      <h3 class="text-[15px] font-bold text-[#09183F] mb-4">Разбивка по целям</h3>
+      <h3 class="text-[20px] font-bold text-[#09183F] mb-4">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
       <div class="flex-1 flex items-center gap-4">
@@ -92,7 +92,7 @@
               class="w-3 h-3 rounded-full flex-shrink-0"
               :style="{ backgroundColor: donutColors[index] }"
             />
-            <span class="text-[13px] font-normal text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
+            <span class="text-[14px] font-normal text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
           </div>
 
           <!-- Dropdown под легендой -->
@@ -148,8 +148,8 @@ const totalConversions = computed(() => {
   return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Цвета: насыщенные для внутреннего кольца, пастельные для внешнего */
-const donutColors = ['#3B82F6', '#FB923C', '#6EE7B7']
+/** Цвета: насыщенные внутри, пастельные снаружи */
+const donutColors = ['#2563EB', '#FB923C', '#86EFAC']
 const donutColorsPastel = ['#BFDBFE', '#FED7AA', '#A7F3D0']
 
 const updateChart = () => {
