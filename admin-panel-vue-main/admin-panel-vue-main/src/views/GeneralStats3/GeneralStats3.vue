@@ -20,20 +20,21 @@
         {{ statsError }}
       </div>
 
-      <!-- Шапка: без белого фона, кнопки на второй строке -->
+      <!-- Шапка: без белого фона, фильтры и кнопки на одной строке -->
       <div class="mb-6">
         <div class="flex flex-col gap-4">
-          <!-- Строка 1: заголовок + фильтры -->
-          <div class="flex flex-wrap items-center gap-3 min-w-0">
-            <div class="flex flex-col gap-1 min-w-0">
-              <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)]">
-                <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
-                Общая аналитика по всем активным проектам
-              </p>
-              <h1 class="text-[27px] font-bold text-[#09183F] truncate leading-[1.2]">
-                {{ dashboardTitle }}
-              </h1>
-            </div>
+          <!-- Строка 1: только заголовок -->
+          <div class="flex flex-col gap-1 min-w-0">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)]">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
+              Общая аналитика по всем активным проектам
+            </p>
+            <h1 class="text-[27px] font-bold text-[#09183F] truncate leading-[1.2]">
+              {{ dashboardTitle }}
+            </h1>
+          </div>
+          <!-- Строка 2: фильтры + кнопки отправки -->
+          <div class="flex flex-wrap items-center gap-3">
             <select
               v-model="filters.channel"
               @change="fetchStats"
@@ -76,9 +77,6 @@
               @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
               class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
             />
-          </div>
-          <!-- Строка 2: кнопки -->
-          <div class="flex flex-wrap items-center gap-3">
             <button
               type="button"
               class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
