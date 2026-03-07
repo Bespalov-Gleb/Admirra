@@ -7,8 +7,8 @@
           <ChartBarIcon class="w-5 h-5 text-[#2563EB]" />
         </div>
         <div>
-          <h3 class="text-[15px] font-bold text-[#09183F]">Статистика по ключевым целям</h3>
-          <p class="text-[11px] font-medium text-gray-500 mt-0.5">За период</p>
+          <h3 class="text-[20px] font-bold text-[#09183F]">Статистика по ключевым целям</h3>
+          <p class="text-[15px] font-normal text-gray-500 mt-0.5">За период</p>
         </div>
       </div>
 
@@ -26,10 +26,10 @@
           :key="goal.id || goal.name"
           class="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0"
         >
-          <span class="text-[15px] font-normal text-gray-500 whitespace-nowrap">{{ formatGoalName(goal.name) }}:</span>
-          <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[6px]" />
+          <span class="text-[20px] font-normal text-gray-500 whitespace-nowrap">{{ formatGoalName(goal.name) }}:</span>
+          <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[7px]" />
           <div class="flex items-center gap-1.5 flex-shrink-0">
-            <span class="text-[17px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+            <span class="text-[21px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
             <span
               v-if="goal.trend != null"
               class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
@@ -44,13 +44,16 @@
       </div>
     </div>
 
-    <!-- Центр: Итого (светло-голубая карточка) -->
-    <div class="bg-[#BFDBFE] rounded-[10px] p-6 border border-blue-200 shadow-sm min-h-[280px] flex flex-col relative overflow-hidden">
-      <h3 class="text-[17px] font-normal text-white">Итого:</h3>
-      <div class="flex-1 flex items-end justify-start min-h-0">
-        <p class="flex items-baseline gap-2 leading-none">
-          <span class="text-[96px] font-black text-white tabular-nums tracking-tight leading-none">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-          <span class="text-[32px] font-bold text-white/80 pb-1">шт.</span>
+    <!-- Центр: Итого (светло-голубая карточка с точечным паттерном) -->
+    <div
+      class="rounded-[10px] p-6 border border-blue-200 shadow-sm min-h-[280px] flex flex-col relative overflow-hidden"
+      style="background-color: #BFDBFE; background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+    >
+      <h3 class="text-[23px] font-normal text-white">Итого:</h3>
+      <div class="flex-1 flex items-end justify-center min-h-0 overflow-visible">
+        <p class="flex items-baseline gap-2" style="margin-bottom: -4px;">
+          <span class="text-[96px] font-black text-white tabular-nums tracking-tight" style="line-height: 1;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+          <span class="text-[36px] font-bold text-white" style="line-height: 1; padding-bottom: 8px;">шт.</span>
         </p>
       </div>
     </div>
