@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm">
+  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-[14px] font-bold text-[#09183F]">Подключенные каналы</h3>
       <button

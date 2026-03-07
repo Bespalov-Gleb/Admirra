@@ -22,7 +22,7 @@
       </div>
     </div>
     
-    <div class="flex-1 min-h-[200px] relative w-full overflow-hidden">
+    <div class="flex-1 min-h-[380px] relative w-full overflow-hidden">
       <Line
         :data="chartData"
         :options="chartOptions"
@@ -206,7 +206,7 @@ const chartOptions = computed(() => ({
           return value
         }
       },
-      grid: { color: '#e5e7eb', drawBorder: false }
+      grid: { color: 'rgba(229, 231, 235, 0.35)', drawBorder: false }
     },
     x: {
       grid: { display: false },

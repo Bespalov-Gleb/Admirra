@@ -1,18 +1,18 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm">
+  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0">
     <h3 class="text-[14px] font-bold text-[#09183F] mb-0.5">Отправка отчетов</h3>
     <p class="text-[11px] font-medium text-gray-500 mb-4">Нажмите, для отправки отчета</p>
 
     <div class="flex items-center gap-3 mb-4">
       <button
         type="button"
-        class="relative w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-sm overflow-hidden flex-shrink-0"
+        class="relative w-14 h-14 rounded-full flex items-center justify-center transition-colors shadow-sm overflow-hidden flex-shrink-0"
         :class="telegramConfigured ? 'bg-[#2563EB] hover:bg-[#1d4ed8]' : 'bg-[#2563EB]/80 hover:bg-[#2563EB]'"
         :disabled="sendingTg"
         :title="sendingTg ? 'Отправка...' : 'Отправить в Telegram'"
         @click="$emit('send-telegram')"
       >
-        <svg class="w-6 h-6 flex-shrink-0 text-white" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <svg class="w-7 h-7 flex-shrink-0 text-white" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
           <path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
         </svg>
         <span v-if="telegramConfigured" class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#82d944] flex items-center justify-center">
@@ -21,13 +21,13 @@
       </button>
       <button
         type="button"
-        class="relative w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
+        class="relative w-14 h-14 rounded-full flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
         :class="emailConfigured ? 'bg-[#374151] hover:bg-[#1f2937]' : 'bg-[#6B7280] hover:bg-[#4B5563]'"
         :disabled="sendingEmail"
         :title="sendingEmail ? 'Отправка...' : 'Отправить на Email'"
         @click="$emit('send-email')"
       >
-        <EnvelopeIcon class="w-5 h-5 text-white" />
+        <EnvelopeIcon class="w-6 h-6 text-white" />
         <span v-if="emailConfigured" class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#82d944] flex items-center justify-center">
           <CheckIcon class="w-2.5 h-2.5 text-white" />
         </span>

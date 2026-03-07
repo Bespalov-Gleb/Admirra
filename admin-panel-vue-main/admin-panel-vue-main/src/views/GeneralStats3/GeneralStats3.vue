@@ -100,9 +100,9 @@
       </div>
 
       <!-- График + сайдбар бок о бок (по макету) -->
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
-        <!-- График слева (2/3) — высота как у правой колонки -->
-        <div class="xl:col-span-2 relative flex flex-col min-h-0">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch min-h-[480px]">
+        <!-- График слева (2/3) — увеличенная высота -->
+        <div class="xl:col-span-2 relative flex flex-col min-h-[480px]">
             <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">
             <div class="flex flex-col items-center gap-2">
               <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -118,13 +118,15 @@
             @update:include-vat="includeVat = $event"
           />
         </div>
-        <!-- Сайдбар справа (1/3) -->
-        <div class="xl:col-span-1 space-y-4">
+        <!-- Сайдбар справа (1/3) — растягивается по высоте графика -->
+        <div class="xl:col-span-1 flex flex-col gap-4 min-h-0">
           <ConnectedChannelsV3
+            class="flex-1 min-h-[200px]"
             :integrations="integrations"
             @connect="() => $router.push('/integrations/wizard')"
           />
           <ReportSendingBlock
+            class="flex-1 min-h-[200px]"
             :sending-tg="sendingTg"
             :sending-email="sendingEmail"
             :saving="reportSaving"
