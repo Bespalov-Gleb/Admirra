@@ -19,10 +19,11 @@
     </div>
 
     <div class="space-y-2">
-      <div
+        <div
         v-for="platform in displayPlatforms"
         :key="platform.id"
-        class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-1 rounded-lg transition-colors hover:bg-gray-50/50"
+        class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-3 rounded-lg transition-colors"
+        :class="platform.id === 'yandex_direct' ? 'bg-orange-50' : 'bg-blue-50'"
       >
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -39,7 +40,7 @@
               VK
             </div>
           </div>
-          <span class="text-[16px] font-normal text-[#09183F] truncate">{{ platform.name }}</span>
+          <span class="text-[16px] font-normal text-[#2563EB] truncate">{{ platform.name }}</span>
         </div>
         <div class="flex items-center justify-end">
           <span

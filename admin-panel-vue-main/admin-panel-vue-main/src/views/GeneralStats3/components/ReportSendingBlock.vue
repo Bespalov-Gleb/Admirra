@@ -1,46 +1,46 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0 font-[Inter]">
-    <h3 class="text-[14px] font-normal text-[#09183F] mb-0.5">Отправка отчетов</h3>
-    <p class="text-[11px] font-normal text-gray-500 mb-4">Нажмите, для отправки отчета</p>
+    <h3 class="text-[18px] font-normal text-[#09183F] mb-0.5">Отправка отчетов</h3>
+    <p class="text-[13px] font-normal text-gray-400 mb-5">Нажмите, для отправки отчета</p>
 
-    <div class="flex justify-between items-start w-full gap-4 mb-4">
+    <div class="flex justify-around items-start w-full mb-5">
       <button
         type="button"
-        class="flex flex-col items-center gap-2 flex-1 min-w-0"
+        class="flex flex-col items-center gap-2"
         :disabled="sendingTg"
         :title="sendingTg ? 'Отправка...' : 'Отправить в Telegram'"
         @click="$emit('send-telegram')"
       >
         <span
-          class="relative w-[72px] h-[72px] rounded-full flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
+          class="relative w-[58px] h-[58px] rounded-full flex items-center justify-center transition-colors shadow-sm"
           :class="telegramConfigured ? 'bg-[#2563EB] hover:bg-[#1d4ed8]' : 'bg-[#2563EB]/80 hover:bg-[#2563EB]'"
         >
-          <svg class="w-9 h-9 flex-shrink-0 text-white" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-7 h-7 text-white" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
           </svg>
           <span v-if="telegramConfigured" class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#82d944] flex items-center justify-center">
             <CheckIcon class="w-3 h-3 text-white" />
           </span>
         </span>
-        <span class="text-[14px] text-gray-700">Telegram</span>
+        <span class="text-[13px] text-gray-500">Telegram</span>
       </button>
       <button
         type="button"
-        class="flex flex-col items-center gap-2 flex-1 min-w-0"
+        class="flex flex-col items-center gap-2"
         :disabled="sendingEmail"
         :title="sendingEmail ? 'Отправка...' : 'Отправить на Email'"
         @click="$emit('send-email')"
       >
         <span
-          class="relative w-[72px] h-[72px] rounded-full flex items-center justify-center transition-colors shadow-sm flex-shrink-0"
+          class="relative w-[58px] h-[58px] rounded-full flex items-center justify-center transition-colors shadow-sm"
           :class="emailConfigured ? 'bg-[#374151] hover:bg-[#1f2937]' : 'bg-[#6B7280] hover:bg-[#4B5563]'"
         >
-          <EnvelopeIcon class="w-9 h-9 text-white" />
+          <EnvelopeIcon class="w-7 h-7 text-white" />
           <span v-if="emailConfigured" class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#82d944] flex items-center justify-center">
             <CheckIcon class="w-3 h-3 text-white" />
           </span>
         </span>
-        <span class="text-[14px] text-gray-700">E-mail</span>
+        <span class="text-[13px] text-gray-500">E-mail</span>
       </button>
     </div>
 
