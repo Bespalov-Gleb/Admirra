@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-md border border-gray-100 flex flex-col min-h-0">
+  <div class="bg-white w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-sm flex flex-col min-h-0">
     <!-- Заголовок + чекбокс НДС + селектор метрики -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
       <h3 class="text-[20px] font-medium text-[#09183F] leading-[1] tracking-normal">Эффективность кампаний</h3>
@@ -22,7 +22,7 @@
       </div>
     </div>
     
-    <div class="flex-1 min-h-[380px] relative w-full overflow-hidden">
+    <div class="flex-1 min-h-[480px] relative w-full overflow-hidden">
       <Line
         :data="chartData"
         :options="chartOptions"
@@ -124,34 +124,30 @@ const chartData = computed(() => {
   const labels = props.dynamics.labels || []
   const data = getDataByMetric(chartMetric.value)
   const points = labels.map((label, i) => ({ x: label, y: data[i] ?? 0 }))
-  const totalPoints = points.length
 
   return {
     labels,
     datasets: [{
       label: getLabelByMetric(chartMetric.value),
       data: points,
-      borderColor: '#48A0FF',
+      borderColor: '#2563EB',
       backgroundColor: (context) => {
         const chart = context.chart
         const { ctx, chartArea } = chart
-        if (!chartArea) return 'rgba(77, 178, 255, 0.25)'
+        if (!chartArea) return 'rgba(72, 160, 255, 0.2)'
         const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
-        gradient.addColorStop(0, 'rgba(72, 160, 255, 0.45)')
-        gradient.addColorStop(0.5, 'rgba(72, 160, 255, 0.2)')
-        gradient.addColorStop(1, 'rgba(72, 160, 255, 0.02)')
+        gradient.addColorStop(0, 'rgba(72, 160, 255, 0.55)')
+        gradient.addColorStop(0.4, 'rgba(72, 160, 255, 0.25)')
+        gradient.addColorStop(0.7, 'rgba(72, 160, 255, 0.08)')
+        gradient.addColorStop(1, 'rgba(72, 160, 255, 0.01)')
         return gradient
       },
-      borderWidth: 2,
-      pointRadius: (ctx) => {
-        const idx = ctx.dataIndex
-        const step = Math.max(1, Math.floor(totalPoints / 8))
-        return idx % step === 0 ? 4 : 0
-      },
+      borderWidth: 2.5,
+      pointRadius: 4,
       pointHoverRadius: 6,
-      pointBackgroundColor: '#48A0FF',
+      pointBackgroundColor: '#2563EB',
       pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
+      pointBorderWidth: 1,
       fill: true,
       tension: 0.3
     }]
@@ -174,8 +170,8 @@ const chartOptions = computed(() => ({
       backgroundColor: 'rgba(30, 58, 138, 0.95)',
       titleColor: '#ffffff',
       bodyColor: '#ffffff',
-      padding: 12,
-      cornerRadius: 8,
+      padding: 10,
+      cornerRadius: 6,
       callbacks: {
         label: (context) => {
           const val = context.parsed.y
@@ -199,20 +195,20 @@ const chartOptions = computed(() => ({
       })(),
       ticks: {
         font: { size: 11 },
-        color: '#6b7280',
+        color: '#9ca3af',
         callback: (value) => {
           if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
           if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
           return value
         }
       },
-      grid: { color: 'rgba(229, 231, 235, 0.35)', drawBorder: false }
+      grid: { color: 'rgba(229, 231, 235, 0.15)', drawBorder: false }
     },
     x: {
       grid: { display: false },
       ticks: {
         font: { size: 11 },
-        color: '#6b7280',
+        color: '#9ca3af',
         maxRotation: 0,
         minRotation: 0
       }

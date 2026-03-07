@@ -100,9 +100,9 @@
       </div>
 
       <!-- График + сайдбар бок о бок (по макету) -->
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch min-h-[480px]">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch min-h-[580px]">
         <!-- График слева (2/3) — увеличенная высота -->
-        <div class="xl:col-span-2 relative flex flex-col min-h-[480px]">
+        <div class="xl:col-span-2 relative flex flex-col min-h-[580px]">
             <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">
             <div class="flex flex-col items-center gap-2">
               <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
