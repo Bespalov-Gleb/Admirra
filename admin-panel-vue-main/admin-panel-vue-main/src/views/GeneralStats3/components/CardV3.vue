@@ -9,31 +9,36 @@
     <!-- Кнопка стрелки в правом верхнем углу -->
     <button
       type="button"
-      class="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+      class="absolute top-3 right-3 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
       @click.stop="$emit('click')"
     >
-      <ArrowTopRightOnSquareIcon class="w-4 h-4" />
+      <ArrowTopRightOnSquareIcon class="w-3.5 h-3.5" />
     </button>
 
-    <div class="flex items-start gap-4 pr-10">
-      <div class="w-11 h-11 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
+    <!-- Заголовок: иконка + название + подзаголовок -->
+    <div class="flex items-center gap-3 pr-8 mb-4">
+      <div class="w-10 h-10 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
         <component :is="icon" class="w-5 h-5 text-[#2563EB]" />
       </div>
-      <div class="flex-1 min-w-0">
-        <h3 class="text-[14px] font-bold text-[#09183F] mb-0.5">{{ title }}</h3>
-        <p v-if="subtitle" class="text-[11px] font-medium text-gray-500 mb-2">{{ subtitle }}</p>
-        <p class="text-[24px] font-bold text-[#09183F] leading-tight">{{ value }}</p>
-        <div
-          :class="[
-            'inline-flex flex-wrap items-center gap-1.5 mt-2 text-[12px] font-semibold',
-            changePositive ? 'text-[#82d944]' : 'text-red-500'
-          ]"
-        >
-          <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-4 h-4 flex-shrink-0" />
-          <span>{{ trendDisplay }}</span>
-          <span v-if="trendAbsolute" class="font-normal text-gray-600">{{ trendAbsolute }}</span>
-        </div>
+      <div class="min-w-0">
+        <h3 class="text-[15px] font-normal text-[#09183F] leading-tight">{{ title }}</h3>
+        <p v-if="subtitle" class="text-[12px] font-normal text-gray-400 leading-tight">{{ subtitle }}</p>
       </div>
+    </div>
+
+    <!-- Главное значение -->
+    <p class="text-[40px] font-normal text-[#09183F] leading-none mb-4">{{ value }}</p>
+
+    <!-- Тренд: бейдж + абсолютное изменение -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <span
+        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[13px] font-normal text-white"
+        :class="changePositive ? 'bg-[#82d944]' : 'bg-red-500'"
+      >
+        <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3.5 h-3.5 flex-shrink-0" />
+        {{ trendDisplay }}
+      </span>
+      <span v-if="trendAbsolute" class="text-[13px] font-normal text-gray-500">{{ trendAbsolute }}</span>
     </div>
   </div>
 </template>
