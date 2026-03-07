@@ -72,11 +72,11 @@
       <div class="flex-1 flex items-center gap-4">
 
         <!-- Donut chart -->
-        <div class="relative flex-shrink-0" style="width: 140px; height: 140px;">
+        <div class="relative flex-shrink-0" style="width: 200px; height: 200px;">
           <canvas ref="chartCanvas" class="w-full h-full" />
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="text-center">
-              <p class="text-[15px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
+              <p class="text-[18px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
             </div>
           </div>
         </div>
@@ -149,8 +149,8 @@ const totalConversions = computed(() => {
 })
 
 /** Цвета: насыщенные внутри, пастельные снаружи */
-const donutColors = ['#2563EB', '#FB923C', '#86EFAC']
-const donutColorsPastel = ['#BFDBFE', '#FED7AA', '#A7F3D0']
+const donutColors = ['#2563EB', '#F97316', '#34D399']
+const donutColorsPastel = ['#93C5FD', '#FDBA74', '#BBF7D0']
 
 const updateChart = () => {
   if (!chartCanvas.value) return
