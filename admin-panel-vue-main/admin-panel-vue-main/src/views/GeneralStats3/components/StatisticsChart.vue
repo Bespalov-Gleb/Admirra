@@ -2,7 +2,7 @@
   <div class="bg-white w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-sm flex flex-col min-h-0 font-[Inter]">
     <!-- Заголовок + чекбокс НДС + селектор метрики -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
-      <h3 class="text-[20px] font-medium text-[#09183F] leading-[1] tracking-normal">Эффективность кампаний</h3>
+      <h3 class="text-[20px] font-medium text-gray-500 leading-[1] tracking-normal">Эффективность кампаний</h3>
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input
