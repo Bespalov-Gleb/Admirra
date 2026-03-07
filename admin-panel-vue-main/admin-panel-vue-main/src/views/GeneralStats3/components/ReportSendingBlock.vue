@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0">
+  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0 font-[Inter]">
     <h3 class="text-[14px] font-bold text-[#09183F] mb-0.5">Отправка отчетов</h3>
     <p class="text-[11px] font-medium text-gray-500 mb-4">Нажмите, для отправки отчета</p>
 

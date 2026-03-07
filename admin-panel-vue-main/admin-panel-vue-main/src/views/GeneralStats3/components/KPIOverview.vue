@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full">
+  <div class="w-full font-[Inter]">
     <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
       <div v-for="metric in metrics" :key="metric.id">
         <CardV3

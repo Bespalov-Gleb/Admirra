@@ -58,7 +58,7 @@ const layout = computed(() => {
 
 <style>
 #app {
-  font-family: 'Play', sans-serif;
+  font-family: 'Inter', 'Play', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

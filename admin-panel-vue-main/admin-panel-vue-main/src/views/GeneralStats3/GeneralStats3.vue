@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6 overflow-x-hidden w-full">
+  <div class="space-y-6 overflow-x-hidden w-full font-[Inter]">
     <!-- Сообщение при синхронизации: данные скрыты -->
     <div v-if="dataHiddenBySync" class="flex items-center justify-center min-h-[50vh] px-4">
       <div class="max-w-md w-full text-center py-12 px-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-lg">

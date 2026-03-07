@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-[10px] p-5 sm:p-6 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative"
+    class="rounded-[10px] p-5 sm:p-6 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter]"
     :class="[
       isSelected ? 'ring-2 ring-[#2563EB]/40 border-[#BFDBFE]' : 'border-gray-100 hover:border-gray-200'
     ]"

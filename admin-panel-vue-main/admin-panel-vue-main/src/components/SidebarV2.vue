@@ -8,7 +8,7 @@
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 bg-white border-r border-gray-100',
+      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 bg-white border-r border-gray-100 font-[Inter]',
       isCollapsed ? 'w-20' : 'w-[260px]',
       'lg:translate-x-0',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'

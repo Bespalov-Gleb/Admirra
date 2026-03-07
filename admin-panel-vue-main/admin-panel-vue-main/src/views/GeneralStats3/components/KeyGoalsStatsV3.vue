@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full font-[Inter]">
     <!-- Левая: Статистика по ключевым целям (белая карточка) -->
     <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
       <div class="flex items-center gap-3 mb-5">
