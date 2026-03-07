@@ -2,7 +2,7 @@
   <div class="bg-white w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-md border border-gray-100 flex flex-col min-h-0">
     <!-- Заголовок + чекбокс НДС + селектор метрики -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
-      <h3 class="text-[20px] font-bold text-[#09183F]">Эффективность кампаний</h3>
+      <h3 class="text-[20px] font-medium text-[#09183F] leading-[1] tracking-normal">Эффективность кампаний</h3>
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -124,17 +124,31 @@ const chartData = computed(() => {
   const labels = props.dynamics.labels || []
   const data = getDataByMetric(chartMetric.value)
   const points = labels.map((label, i) => ({ x: label, y: data[i] ?? 0 }))
-  const maxVal = Math.max(...data, 1)
-  
+  const totalPoints = points.length
+
   return {
     labels,
     datasets: [{
       label: getLabelByMetric(chartMetric.value),
       data: points,
       borderColor: '#48A0FF',
-      backgroundColor: 'rgba(77, 178, 255, 0.3)',
+      backgroundColor: (context) => {
+        const chart = context.chart
+        const { ctx, chartArea } = chart
+        if (!chartArea) return 'rgba(77, 178, 255, 0.25)'
+        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        gradient.addColorStop(0, 'rgba(72, 160, 255, 0.45)')
+        gradient.addColorStop(0.5, 'rgba(72, 160, 255, 0.2)')
+        gradient.addColorStop(1, 'rgba(72, 160, 255, 0.02)')
+        return gradient
+      },
       borderWidth: 2,
-      pointRadius: 4,
+      pointRadius: (ctx) => {
+        const idx = ctx.dataIndex
+        const step = Math.max(1, Math.floor(totalPoints / 8))
+        return idx % step === 0 ? 4 : 0
+      },
+      pointHoverRadius: 6,
       pointBackgroundColor: '#48A0FF',
       pointBorderColor: '#ffffff',
       pointBorderWidth: 2,
