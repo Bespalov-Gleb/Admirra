@@ -1,6 +1,6 @@
 <template>
   <div
-    class="rounded-[10px] p-6 sm:p-8 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[200px]"
+    class="rounded-[10px] p-6 sm:p-8 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[240px]"
     :class="[
       isSelected ? 'ring-2 ring-[#2563EB]/40 border-[#BFDBFE]' : 'border-gray-100 hover:border-gray-200'
     ]"
@@ -13,8 +13,8 @@
           <component :is="icon" class="w-5 h-5 text-[#2563EB]" />
         </div>
         <div class="min-w-0">
-          <h3 class="text-[14px] font-normal text-[#09183F] leading-snug">{{ title }}</h3>
-          <p v-if="subtitle" class="text-[12px] font-normal text-gray-400 leading-snug">{{ subtitle }}</p>
+          <h3 class="text-[17px] font-normal text-[#09183F] leading-snug">{{ title }}</h3>
+          <p v-if="subtitle" class="text-[14px] font-normal text-gray-400 leading-snug">{{ subtitle }}</p>
         </div>
       </div>
       <button
