@@ -24,7 +24,7 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  BanknotesIcon,
+  WalletIcon,
   ChartBarIcon,
   CursorArrowRaysIcon,
   GlobeAltIcon,
@@ -91,7 +91,7 @@ const metrics = computed(() => {
       trendDisplay: `${(t.expenses ?? 0) >= 0 ? '+' : ''}${(t.expenses ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(expensesValue, t.expenses ?? 0, { suffix: ' ' + currency, decimals: 2 }),
       changePositive: (t.expenses ?? 0) <= 0,
-      icon: BanknotesIcon,
+      icon: WalletIcon,
       iconColor: 'blue',
       chartColor: '#2563EB'
     },
