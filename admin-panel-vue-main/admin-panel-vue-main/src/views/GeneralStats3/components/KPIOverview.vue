@@ -24,12 +24,12 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  WalletIcon,
+  BanknotesIcon,
   ChartBarIcon,
   CursorArrowRaysIcon,
-  TagIcon,
-  ListBulletIcon,
-  CheckCircleIcon
+  GlobeAltIcon,
+  BriefcaseIcon,
+  CheckBadgeIcon
 } from '@heroicons/vue/24/solid'
 import CardV3 from './CardV3.vue'
 
@@ -91,7 +91,7 @@ const metrics = computed(() => {
       trendDisplay: `${(t.expenses ?? 0) >= 0 ? '+' : ''}${(t.expenses ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(expensesValue, t.expenses ?? 0, { suffix: ' ' + currency, decimals: 2 }),
       changePositive: (t.expenses ?? 0) <= 0,
-      icon: WalletIcon,
+      icon: BanknotesIcon,
       iconColor: 'blue',
       chartColor: '#2563EB'
     },
@@ -130,7 +130,7 @@ const metrics = computed(() => {
       trendDisplay: `${(t.cpc ?? 0) >= 0 ? '+' : ''}${(t.cpc ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(props.summary.cpc || 0, t.cpc ?? 0, { suffix: ' ' + currency, decimals: 2 }),
       changePositive: (t.cpc ?? 0) <= 0,
-      icon: TagIcon,
+      icon: GlobeAltIcon,
       iconColor: 'blue',
       chartColor: '#2563EB'
     },
@@ -143,7 +143,7 @@ const metrics = computed(() => {
       trendDisplay: `${(t.leads ?? 0) >= 0 ? '+' : ''}${(t.leads ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(props.summary.leads || 0, t.leads ?? 0, { suffix: ' шт.' }),
       changePositive: (t.leads ?? 0) >= 0,
-      icon: ListBulletIcon,
+      icon: BriefcaseIcon,
       iconColor: 'blue',
       chartColor: '#2563EB'
     },
@@ -156,7 +156,7 @@ const metrics = computed(() => {
       trendDisplay: `${(t.cpa ?? 0) >= 0 ? '+' : ''}${(t.cpa ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(props.summary.cpa || 0, t.cpa ?? 0, { suffix: ' ' + currency, decimals: 2 }),
       changePositive: (t.cpa ?? 0) <= 0,
-      icon: CheckCircleIcon,
+      icon: CheckBadgeIcon,
       iconColor: 'blue',
       chartColor: '#2563EB'
     }

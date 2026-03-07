@@ -9,7 +9,7 @@
     <!-- Верхняя строка: иконка + название + кнопка -->
     <div class="flex items-start justify-between gap-2 mb-3">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-14 h-14 rounded-full bg-[#EFF6FF] flex items-center justify-center flex-shrink-0">
+        <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
           <component :is="icon" class="w-7 h-7 text-[#2563EB]" />
         </div>
         <div class="min-w-0">
