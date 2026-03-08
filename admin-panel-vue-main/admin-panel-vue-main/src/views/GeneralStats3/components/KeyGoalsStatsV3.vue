@@ -12,7 +12,7 @@
           </div>
           <div>
             <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
-            <p class="text-[15px] font-normal text-gray-500 mt-0.5">За период</p>
+            <p class="text-[15px] font-normal mt-0.5" style="font-family: 'Open Sans', sans-serif; color: #ABABAB; letter-spacing: 0px;">За период</p>
           </div>
         </div>
 
