@@ -208,7 +208,7 @@
     </div>
 
     <!-- Промо-карточка -->
-    <div v-if="!isCollapsed" class="px-3 pb-3 pt-1">
+    <div v-if="!isCollapsed" class="px-10 pb-3 pt-1">
       <div class="rounded-[16px] relative overflow-hidden p-4" style="background-color: #24252E;">
         <!-- Синий тонирующий слой -->
         <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
