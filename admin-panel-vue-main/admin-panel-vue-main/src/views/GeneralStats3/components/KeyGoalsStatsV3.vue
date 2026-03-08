@@ -6,7 +6,7 @@
 
       <!-- Левая часть: Статистика -->
       <div class="flex-1 p-6 flex flex-col">
-        <div class="flex items-center gap-3 mb-5">
+        <div class="flex items-center gap-5 mb-5">
           <div class="w-12 h-12 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
             <ChartBarIcon class="w-7 h-7 text-[#2563EB]" />
           </div>
@@ -50,15 +50,15 @@
 
       <!-- Правая часть: синий блок Итого -->
       <div
-        class="w-[50%] m-3 rounded-[23px] flex flex-col relative overflow-hidden"
+        class="w-[50%] mx-3 rounded-[23px] flex flex-col relative overflow-hidden"
         style="background-color: #C3D5FD; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
       >
         <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
-        <!-- Число абсолютно прижато к нижней границе, по центру -->
-        <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden" style="height: 60%;">
-          <div class="flex items-baseline gap-2" style="margin-bottom: 0;">
-            <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 155px; line-height: 1; letter-spacing: -1.11px;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 54px; line-height: 1; letter-spacing: -1.11px;">шт.</span>
+        <!-- Число прижато к самому низу -->
+        <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden">
+          <div class="flex items-end gap-2">
+            <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 160px; line-height: 0.85; letter-spacing: -1.11px;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 90px; line-height: 0.85; letter-spacing: -1.11px;">шт.</span>
           </div>
         </div>
       </div>
