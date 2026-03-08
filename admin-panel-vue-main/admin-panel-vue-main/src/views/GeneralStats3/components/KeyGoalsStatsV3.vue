@@ -56,9 +56,9 @@
         <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
         <!-- Число абсолютно прижато к нижней границе, по центру -->
         <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden" style="height: 60%;">
-          <div class="flex items-baseline gap-2" style="line-height: 0.78; margin-bottom: 0;">
-            <span class="font-black text-white tabular-nums tracking-tight" style="font-size: 150px; line-height: 0.78;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-            <span class="font-bold text-white" style="font-size: 54px; line-height: 0.78;">шт.</span>
+          <div class="flex items-baseline gap-2" style="margin-bottom: 0;">
+            <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 155px; line-height: 1; letter-spacing: -1.11px;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 54px; line-height: 1; letter-spacing: -1.11px;">шт.</span>
           </div>
         </div>
       </div>
