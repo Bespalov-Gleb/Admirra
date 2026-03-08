@@ -205,35 +205,64 @@
           </div>
 
           <!-- Комментарий к отчету -->
-          <div class="bg-white rounded-[20px] p-6 sm:p-8 border border-gray-100 shadow-md">
-            <div class="flex items-start justify-between gap-4 mb-4">
+          <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm font-[Inter]">
+            <!-- Шапка блока -->
+            <div class="flex items-center justify-between gap-4 mb-5">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-[10px] bg-[#2563EB] flex items-center justify-center flex-shrink-0">
-                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                <!-- Иконка кошелька -->
+                <div class="w-7 h-6 flex items-center justify-center flex-shrink-0 text-[#2563EB]">
+                  <WalletIcon class="w-7 h-6" />
                 </div>
                 <div>
-                  <h3 class="text-lg font-bold text-gray-900">Комментарий к отчету</h3>
-                  <p class="text-xs font-medium text-gray-500 mt-1 uppercase tracking-wider">за отчетный период</p>
+                  <h3 class="text-[20px] font-medium text-[#5F5F5F] leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
+                  <p class="text-[15px] font-normal text-[#ABABAB] leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
                 </div>
               </div>
+              <!-- Кнопка редактировать -->
               <button
                 type="button"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 flex-shrink-0"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 text-[14px] font-normal text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 flex-shrink-0"
                 :disabled="generatingReport"
                 @click="handleGenerateReport"
               >
-                <span v-if="generatingReport" class="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                {{ generatingReport ? 'Генерация...' : 'Сгенерировать отчет' }}
+                <span v-if="generatingReport" class="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                <PencilIcon v-else class="w-3.5 h-3.5" />
+                {{ generatingReport ? 'Генерация...' : 'Редактировать' }}
               </button>
             </div>
-            <div v-if="reportComment" class="mt-4 p-5 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-base leading-[1.5] whitespace-pre-wrap">{{ reportComment }}</div>
-            <div v-else-if="!generatingReport && !reportComment" class="mt-4 py-8 text-center text-gray-400 text-sm">
-              Нажмите «Сгенерировать отчет», чтобы получить AI-комментарий на основе данных за выбранный период
+
+            <!-- Текст комментария -->
+            <div v-if="reportComment" class="text-[15px] font-normal text-gray-700 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-else-if="!generatingReport" class="py-8 text-center text-gray-400 text-sm">
+              Нажмите «Редактировать», чтобы получить AI-комментарий на основе данных за выбранный период
+            </div>
+            <div v-else class="py-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
+              <span class="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              Генерация комментария...
+            </div>
+
+            <!-- Кнопки отправки отчёта -->
+            <div class="flex flex-wrap gap-3 mt-6 justify-end">
+              <button
+                type="button"
+                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                style="height: 43px; padding: 15px 14px;"
+                :disabled="sendingPdf"
+                @click="handleDownloadPdf"
+              >
+                <ArrowDownTrayIcon class="w-4 h-4 flex-shrink-0" />
+                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчет в PDF' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                style="height: 43px; padding: 15px 14px;"
+                :disabled="sendingTg"
+                @click="handleSendTelegram"
+              >
+                <PaperAirplaneIcon class="w-4 h-4 flex-shrink-0" />
+                {{ sendingTg ? 'Отправка...' : 'Скачать отчет в Telegram' }}
+              </button>
             </div>
           </div>
 
@@ -298,7 +327,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/solid'
-import { ArrowDownTrayIcon } from '@heroicons/vue/24/outline'
+import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon } from '@heroicons/vue/24/outline'
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
