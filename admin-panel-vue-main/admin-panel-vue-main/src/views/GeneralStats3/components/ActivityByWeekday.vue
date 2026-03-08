@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
-    <h3 class="text-[20px] font-normal text-gray-400 mb-5">Активность по дням</h3>
+    <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-5" style="font-family: Inter, sans-serif;">Активность по дням</h3>
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -74,8 +74,8 @@ const updateChart = (data) => {
           anchor: 'end',
           align: 'top',
           formatter: (v) => v,
-          font: { size: 13, weight: '600' },
-          color: (ctx) => ctx.dataIndex === maxIdx ? '#2563EB' : '#374151'
+          font: { size: 13, weight: '500', family: 'Inter' },
+          color: (ctx) => ctx.dataIndex === maxIdx ? '#2563EB' : '#000000'
         }
       },
       scales: {
