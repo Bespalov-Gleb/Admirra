@@ -77,6 +77,15 @@ const AGE_LABELS_RU = {
   'age_35_44': '35–44 года',
   'age_45_54': '45–54 года',
   'age_55_': '55 и старше',
+  // С неразрывным дефисом U+2011
+  'age 18\u2011-24': '18–24 года',
+  'age 25\u2011-34': '25–34 года',
+  'age 35\u2011-44': '35–44 года',
+  'age 45\u2011-54': '45–54 года',
+  'age 18\u201124': '18–24 года',
+  'age 25\u201134': '25–34 года',
+  'age 35\u201144': '35–44 года',
+  'age 45\u201154': '45–54 года',
 }
 
 const ageLabelRu = (raw) => {
@@ -96,8 +105,8 @@ const ageLabelRu = (raw) => {
     return 'Младше 18 лет'
   }
 
-  // Fallback: диапазон вида "18-24", "Age 18-24", "18–24" и т.д.
-  const rangeMatch = s.match(/(\d+)\s*[-–—]\s*(\d+)/)
+  // Fallback: диапазон вида "18-24", "Age 18-24", "18–24", "18‑24" (U+2011) и т.д.
+  const rangeMatch = s.match(/(\d+)\s*[-\u2011–—]\s*(\d+)/)
   if (rangeMatch) {
     const from = parseInt(rangeMatch[1])
     const to = parseInt(rangeMatch[2])
