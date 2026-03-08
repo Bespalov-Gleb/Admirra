@@ -11,7 +11,7 @@
             <ChartBarIcon class="w-7 h-7 text-[#2563EB]" />
           </div>
           <div>
-            <h3 class="text-[20px] font-medium text-[#09183F]">Статистика по ключевым целям</h3>
+            <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
             <p class="text-[15px] font-normal text-gray-500 mt-0.5">За период</p>
           </div>
         </div>
@@ -66,7 +66,7 @@
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
     <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[360px] flex flex-col">
-      <h3 class="text-[20px] font-medium text-[#09183F] mb-4">Разбивка по целям</h3>
+      <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
       <div class="flex-1 flex items-center gap-4">
