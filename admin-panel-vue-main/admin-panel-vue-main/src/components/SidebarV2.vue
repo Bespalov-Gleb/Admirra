@@ -33,8 +33,8 @@
     <div class="mx-4 border-t border-gray-200"></div>
 
     <!-- Основная навигация -->
-    <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hide py-3">
-      <nav class="space-y-0.5">
+    <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hide py-2">
+      <nav class="px-3 space-y-0.5">
         <div v-for="item in menuItems" :key="item.name" class="relative group">
 
           <!-- Пункт с подменю -->
@@ -42,20 +42,26 @@
             v-if="item.children"
             @click="toggleSubmenu(item.submenuKey)"
             :class="[
-              'w-full flex items-center gap-3 px-5 py-[10px] text-left transition-colors rounded-none relative',
+              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
-              isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76] hover:text-[#2563EB]/80'
+              isSubmenuActive(item)
+                ? 'bg-[#EBF3FF]'
+                : 'hover:bg-gray-100/70'
             ]"
           >
-            <component :is="item.icon" class="w-[18px] h-[18px] flex-shrink-0" />
+            <component
+              :is="item.icon"
+              class="w-5 h-5 flex-shrink-0"
+              :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+            />
             <template v-if="!isCollapsed">
               <span
-                class="flex-1 text-[12px] font-semibold tracking-[0px]"
+                class="flex-1 text-[12px] font-semibold"
                 :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
               >{{ item.name }}</span>
               <ChevronDownIcon
+                class="w-3.5 h-3.5 transition-transform"
                 :class="[
-                  'w-3.5 h-3.5 transition-transform',
                   isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]',
                   isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
                 ]"
@@ -68,17 +74,16 @@
             v-else
             @click="handleLinkClick(item.path)"
             :class="[
-              'w-full flex items-center gap-3 px-5 py-[10px] text-left transition-colors relative',
+              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
-              isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76] hover:text-[#2563EB]/80'
+              isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
           >
-            <!-- Синяя полоска активного -->
-            <span
-              v-if="isActive(item.path)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] bg-[#2563EB] rounded-r-full"
+            <component
+              :is="item.icon"
+              class="w-5 h-5 flex-shrink-0"
+              :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             />
-            <component :is="item.icon" class="w-[18px] h-[18px] flex-shrink-0" />
             <span
               v-if="!isCollapsed"
               class="text-[12px] font-semibold"
@@ -96,28 +101,29 @@
           </div>
 
           <!-- Подменю с соединяющими линиями -->
-          <div v-if="item.children && !isCollapsed && isSubmenuOpenForKey(item.submenuKey)" class="pl-[38px] pr-3 pb-1">
-            <!-- Вертикальная линия -->
-            <div class="relative ml-[10px] border-l-2 border-[#4DB2FF]/30">
+          <div v-if="item.children && !isCollapsed && isSubmenuOpenForKey(item.submenuKey)" class="relative pt-0.5 pb-1">
+            <!-- Вертикальная линия по центру иконки (px-3 + icon-half = 12+10 = 22px) -->
+            <div class="absolute left-[22px] top-0 bottom-2 w-[1.5px] bg-gray-200 rounded-full"></div>
+
+            <div
+              v-for="child in item.children"
+              :key="child.path"
+              class="relative pl-[42px] pr-0"
+            >
+              <!-- Закруглённая ветка L-образная -->
+              <div
+                class="absolute left-[22px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 rounded-bl-[6px]"
+                style="top: 0; height: calc(50% + 1px);"
+              ></div>
+
               <button
-                v-for="child in item.children"
-                :key="child.path"
                 @click="handleLinkClick(child.path)"
-                class="relative w-full flex items-center py-[7px] pl-4 pr-2 text-left transition-colors group/child rounded-r-lg"
-                :class="isActive(child.path) ? 'bg-[#4DB2FF]/[0.08]' : 'hover:bg-gray-50'"
+                class="w-full flex items-center py-[6px] px-3 text-left rounded-[8px] transition-all"
+                :class="isActive(child.path) ? 'bg-[#2563EB]' : 'hover:bg-gray-100/70'"
               >
-                <!-- Горизонтальная соединяющая линия -->
-                <span class="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-[2px]"
-                  :class="isActive(child.path) ? 'bg-[#2563EB]' : 'bg-[#4DB2FF]/30'"
-                />
-                <!-- Точка -->
                 <span
-                  class="w-[6px] h-[6px] rounded-full flex-shrink-0 mr-2.5"
-                  :class="isActive(child.path) ? 'bg-[#2563EB]' : 'bg-[#8D8D8D]/50'"
-                />
-                <span
-                  class="text-[11px] font-medium"
-                  :class="isActive(child.path) ? 'text-[#2563EB] font-semibold' : 'text-[#696969]/[0.76] group-hover/child:text-[#2563EB]/80'"
+                  class="text-[11px] font-semibold"
+                  :class="isActive(child.path) ? 'text-white' : 'text-[#696969]/[0.76]'"
                 >{{ child.name }}</span>
               </button>
             </div>
@@ -132,28 +138,27 @@
 
     <!-- Вторичная навигация -->
     <div class="pb-4 pt-2">
-      <nav class="space-y-0.5">
+      <nav class="px-3 space-y-0.5">
         <div v-for="link in bottomLinks" :key="link.name" class="relative group">
-          <component
-            :is="link.path ? 'button' : 'button'"
+          <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
             :class="[
-              'w-full flex items-center gap-3 px-5 py-[10px] text-left transition-colors relative',
+              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76] hover:text-[#2563EB]/80'
+              link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
           >
-            <span
-              v-if="link.path && isActive(link.path)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] bg-[#2563EB] rounded-r-full"
+            <component
+              :is="link.icon"
+              class="w-5 h-5 flex-shrink-0"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             />
-            <component :is="link.icon" class="w-[18px] h-[18px] flex-shrink-0" />
             <span
               v-if="!isCollapsed"
               class="text-[12px] font-semibold"
               :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             >{{ link.name }}</span>
-          </component>
+          </button>
           <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
             {{ link.name }}
             <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
