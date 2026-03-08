@@ -58,9 +58,9 @@ const updateChart = (data) => {
           gradient.addColorStop(1, '#4A82FF')
           return values.map((_, i) => i === maxIdx && maxIdx >= 0 ? gradient : '#F5F7F9')
         })(),
-        borderRadius: { topLeft: 15, topRight: 15, bottomLeft: 15, bottomRight: 15 },
-        barPercentage: 0.75,
-        categoryPercentage: 0.8
+        borderRadius: 15,
+        barPercentage: 0.9,
+        categoryPercentage: 0.85
       }]
     },
     options: {
