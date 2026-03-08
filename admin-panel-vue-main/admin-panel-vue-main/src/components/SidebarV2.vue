@@ -208,33 +208,33 @@
     </div>
 
     <!-- Промо-карточка -->
-    <div v-if="!isCollapsed" class="px-4 pb-4 pt-2">
-      <div class="rounded-[20px] relative overflow-hidden p-5" style="background-color: #24252E;">
+    <div v-if="!isCollapsed" class="px-3 pb-3 pt-1">
+      <div class="rounded-[16px] relative overflow-hidden p-4" style="background-color: #24252E;">
         <!-- Синий тонирующий слой -->
         <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
         <!-- Паттерн точек -->
         <div
           class="absolute inset-0"
-          style="background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px); background-size: 18px 18px;"
+          style="background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px); background-size: 16px 16px;"
         ></div>
 
         <!-- Контент поверх слоёв -->
         <div class="relative z-10">
           <!-- Иконка -->
           <div
-            class="w-11 h-11 rounded-[12px] flex items-center justify-center mb-4"
+            class="w-8 h-8 rounded-[8px] flex items-center justify-center mb-2.5"
             style="background: linear-gradient(135deg, rgba(77,178,255,0.30), rgba(116,195,255,0.30));"
           >
-            <CpuChipIcon class="w-6 h-6 text-white" />
+            <CpuChipIcon class="w-4 h-4 text-white" />
           </div>
 
-          <h4 class="text-[15px] font-bold text-white leading-snug mb-2">Повысить до премиум</h4>
-          <p class="text-[12px] text-white/60 leading-relaxed mb-5">Повысте ваш аккаунт и разблокируйте все функции</p>
+          <h4 class="text-[13px] font-bold text-white leading-snug mb-1">Повысить до премиум</h4>
+          <p class="text-[11px] text-white/60 leading-relaxed mb-3">Повысте ваш аккаунт и разблокируйте все функции</p>
 
           <router-link
             to="/settings"
             @click="closeMobileMenu"
-            class="block w-full py-2.5 text-center text-[13px] font-semibold text-white rounded-[12px] transition-colors hover:opacity-90"
+            class="block w-full py-2 text-center text-[12px] font-semibold text-white rounded-[10px] transition-colors hover:opacity-90"
             style="background-color: #2563EB;"
           >
             Смотреть тарифы
