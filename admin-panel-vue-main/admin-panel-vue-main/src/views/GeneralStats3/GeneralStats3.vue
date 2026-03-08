@@ -100,9 +100,9 @@
       </div>
 
       <!-- График + сайдбар бок о бок (по макету) -->
-      <div class="grid grid-cols-1 xl:grid-cols-4 gap-6 items-stretch min-h-[580px]">
-        <!-- График слева (3/4) — увеличенная высота -->
-        <div class="xl:col-span-3 relative flex flex-col min-h-[580px]">
+      <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6 items-stretch min-h-[580px]">
+        <!-- График слева (~73%) — увеличенная высота -->
+        <div class="relative flex flex-col min-h-[580px]">
             <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">
             <div class="flex flex-col items-center gap-2">
               <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -118,8 +118,8 @@
             @update:include-vat="includeVat = $event"
           />
         </div>
-        <!-- Сайдбар справа (1/4) — каналы меньше, отчёты больше; высота блока не меняется -->
-        <div class="xl:col-span-1 flex flex-col gap-4 min-h-0">
+        <!-- Сайдбар справа (~27%) — каналы меньше, отчёты больше; высота блока не меняется -->
+        <div class="flex flex-col gap-4 min-h-0">
           <ConnectedChannelsV3
             class="flex-[1] min-h-[200px]"
             :integrations="integrations"
