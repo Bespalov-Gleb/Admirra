@@ -7,7 +7,7 @@
     ]">
       <Header />
       <main class="overflow-x-hidden bg-[#F5F7F9] min-h-[calc(100vh-80px)]">
-        <div class="p-6 sm:p-8 overflow-x-hidden w-full">
+        <div class="p-6 pl-9 sm:p-8 sm:pl-12 overflow-x-hidden w-full">
           <router-view />
         </div>
       </main>
@@ -27,6 +27,6 @@ const mainMargin = computed(() => {
   if (isCollapsed.value) {
     return 'lg:ml-20'
   }
-  return 'lg:ml-[260px]'
+  return 'lg:ml-[270px]'
 })
 </script>
