@@ -1,27 +1,27 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col font-[Inter]">
-    <h3 class="text-[15px] font-bold text-[#09183F] mb-5">Возраст аудитории</h3>
+    <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
     <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
     <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
-    <div v-else class="flex flex-row items-center justify-center gap-6 sm:gap-8 flex-1 min-h-0">
-      <div class="relative w-44 h-44 sm:w-52 sm:h-52 flex-shrink-0 cursor-pointer">
+    <div v-else class="flex flex-row items-center justify-center gap-8 flex-1 min-h-0">
+      <div class="relative w-56 h-56 sm:w-64 sm:h-64 flex-shrink-0 cursor-pointer">
         <canvas ref="chartRef" />
       </div>
-      <div class="grid grid-cols-2 gap-2.5 flex-1 min-w-0">
+      <div class="grid grid-cols-2 gap-3 flex-1 min-w-0">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-gray-50/80"
+          class="flex items-center gap-2.5 px-4 py-3 rounded-[10px] bg-gray-50"
         >
           <span
             class="w-3 h-3 rounded-full flex-shrink-0"
             :style="{ backgroundColor: colors[i % colors.length] }"
           />
-          <span class="text-[12px] font-medium text-[#09183F]">{{ ageLabelRu(item.age_interval) }}</span>
+          <span class="text-[14px] font-medium text-[#2C2C2C]" style="font-family: Inter, sans-serif;">{{ ageLabelRu(item.age_interval) }}</span>
         </div>
       </div>
     </div>
@@ -75,7 +75,7 @@ let chartInstance = null
 const loading = ref(false)
 const data = ref([])
 
-const colors = ['#2563EB', '#86EFAC', '#FB923C', '#22c55e', '#a78bfa', '#d4a574']
+const colors = ['#2B68EE', '#D1957C', '#D38CFF', '#8ADA70', '#EB8525BA', '#BAE8C8']
 
 const total = computed(() => data.value.reduce((s, i) => s + (i.visits || 0), 0))
 
@@ -122,8 +122,8 @@ const updateChart = () => {
             const p = total.value ? Math.round((value / total.value) * 100) : 0
             return p > 0 ? `${p}%` : ''
           },
-          color: '#fff',
-          font: { size: 14, weight: 'bold' }
+          color: '#FFFFFF',
+          font: { size: 14, weight: 'bold', family: 'Inter' }
         }
       }
     }
