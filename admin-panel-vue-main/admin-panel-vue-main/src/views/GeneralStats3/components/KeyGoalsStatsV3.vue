@@ -2,16 +2,16 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full font-[Inter]">
 
     <!-- Объединённая карточка: Статистика + Итого (2 колонки) -->
-    <div class="lg:col-span-2 bg-white rounded-[10px] shadow-sm border border-gray-100 min-h-[300px] flex overflow-hidden">
+    <div class="lg:col-span-2 bg-white rounded-[10px] shadow-sm border border-gray-100 min-h-[360px] flex overflow-hidden">
 
       <!-- Левая часть: Статистика -->
       <div class="flex-1 p-6 flex flex-col">
         <div class="flex items-center gap-3 mb-5">
-          <div class="w-10 h-10 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
-            <ChartBarIcon class="w-5 h-5 text-[#2563EB]" />
+          <div class="w-12 h-12 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
+            <ChartBarIcon class="w-7 h-7 text-[#2563EB]" />
           </div>
           <div>
-            <h3 class="text-[20px] font-bold text-[#09183F]">Статистика по ключевым целям</h3>
+            <h3 class="text-[20px] font-medium text-[#09183F]">Статистика по ключевым целям</h3>
             <p class="text-[15px] font-normal text-gray-500 mt-0.5">За период</p>
           </div>
         </div>
@@ -50,8 +50,8 @@
 
       <!-- Правая часть: синий блок Итого — full-height, ml-3, без вертикальных отступов -->
       <div
-        class="w-[42%] ml-3 self-stretch rounded-l-[10px] flex flex-col relative overflow-hidden"
-        style="background-color: #BFDBFE; background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+        class="w-[50%] ml-3 self-stretch rounded-l-[10px] flex flex-col relative overflow-hidden"
+        style="background-color: rgba(116,195,255,0.38); background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
       >
         <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
         <!-- Число абсолютно прижато к нижней границе, по центру -->
@@ -65,8 +65,8 @@
     </div>
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
-    <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[280px] flex flex-col">
-      <h3 class="text-[20px] font-bold text-[#09183F] mb-4">Разбивка по целям</h3>
+    <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[360px] flex flex-col">
+      <h3 class="text-[20px] font-medium text-[#09183F] mb-4">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
       <div class="flex-1 flex items-center gap-4">
