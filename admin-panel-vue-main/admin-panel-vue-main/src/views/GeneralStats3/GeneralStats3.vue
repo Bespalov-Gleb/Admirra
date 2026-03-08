@@ -533,6 +533,26 @@ const generatingReport = ref(false)
 const reportComment = ref('')
 const editingComment = ref(false)
 
+// Ключ localStorage зависит от периода и клиента
+const commentStorageKey = computed(() =>
+  `report_comment::${filters.client_id || 'all'}::${filters.start_date}::${filters.end_date}`
+)
+
+// Загружаем сохранённый комментарий при смене периода/клиента
+watch(commentStorageKey, (key) => {
+  editingComment.value = false
+  reportComment.value = localStorage.getItem(key) || ''
+}, { immediate: true })
+
+// Сохраняем комментарий в localStorage при любом изменении
+watch(reportComment, (val) => {
+  if (val) {
+    localStorage.setItem(commentStorageKey.value, val)
+  } else {
+    localStorage.removeItem(commentStorageKey.value)
+  }
+})
+
 const toggleEditComment = () => {
   editingComment.value = !editingComment.value
 }
@@ -555,6 +575,13 @@ const handleGenerateReport = async () => {
   } finally {
     generatingReport.value = false
   }
+}
+
+// Получить готовый текст или сгенерировать, если его нет
+const getOrGenerateComment = async () => {
+  if (reportComment.value) return reportComment.value
+  await handleGenerateReport()
+  return reportComment.value
 }
 
 const handleDownloadPdf = async () => {
@@ -634,15 +661,17 @@ const submitTelegram = async () => {
   }
   sendingTg.value = true
   try {
+    const text = await getOrGenerateComment()
     await api.post('reports/send', {
-      report_type: 'ai',
+      report_type: 'text',
       channels: ['telegram'],
       telegram_chat_id: chatId,
       client_id: filters.client_id || null,
       start_date: filters.start_date,
-      end_date: filters.end_date
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
     })
-    toaster.success('AI-отчёт отправлен в Telegram')
+    toaster.success('Отчёт отправлен в Telegram')
     showTgModal.value = false
     tgChatId.value = ''
   } catch (err) {
@@ -660,13 +689,15 @@ const submitEmail = async () => {
   }
   sendingEmail.value = true
   try {
+    const text = await getOrGenerateComment()
     const { data } = await api.post('reports/send', {
-      report_type: 'ai',
+      report_type: 'text',
       channels: ['email'],
       email_recipients: emails,
       client_id: filters.client_id || null,
       start_date: filters.start_date,
-      end_date: filters.end_date
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
     })
     if (data?.results?.email) {
       toaster.success('AI-отчёт отправлен на email')
