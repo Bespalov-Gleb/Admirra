@@ -590,7 +590,7 @@ async def get_campaign_stats(
     if d_start:  # Только если указана начальная дата
         ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
 
-    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
+    return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
 
 @router.get("/top-ads", response_model=List[dict])

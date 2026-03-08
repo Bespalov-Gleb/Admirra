@@ -439,7 +439,18 @@ class StatsService:
         if not client_ids:
             return []
 
-        campaigns = []
+        def calc_trend(c, p):
+            if p is None or p == 0:
+                return 0.0
+            return round(((float(c or 0) - float(p)) / float(p)) * 100, 1)
+
+        # Previous period: same length, immediately before current
+        prev_start = None
+        prev_end = None
+        if d_start:
+            delta = (d_end - d_start).days + 1
+            prev_start = d_start - timedelta(days=delta)
+            prev_end = d_start - timedelta(days=1)
 
         # CRITICAL: When no campaign_ids, filter by integrations with is_active campaigns
         # to avoid mixing stats from different profiles
@@ -455,8 +466,8 @@ class StatsService:
             if aid_list:
                 integration_ids_filter = aid_list
 
-        if platform in ["all", "yandex"]:
-            y_query = db.query(
+        def run_yandex_query(start, end):
+            q = db.query(
                 models.Campaign.id.label("campaign_id"),
                 models.YandexStats.campaign_name,
                 func.sum(models.YandexStats.impressions).label("impressions"),
@@ -466,26 +477,68 @@ class StatsService:
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids)
             )
-
             if campaign_ids:
-                y_query = y_query.filter(models.Campaign.id.in_(campaign_ids))
+                q = q.filter(models.Campaign.id.in_(campaign_ids))
             elif integration_ids_filter:
-                y_query = y_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+                q = q.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if start:
+                q = q.filter(models.YandexStats.date >= start)
+            if end:
+                q = q.filter(models.YandexStats.date <= end)
+            return q.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
 
-            if d_start:
-                y_query = y_query.filter(models.YandexStats.date >= d_start)
-            if d_end:
-                y_query = y_query.filter(models.YandexStats.date <= d_end)
+        def run_vk_query(start, end):
+            q = db.query(
+                models.Campaign.id.label("campaign_id"),
+                models.VKStats.campaign_name,
+                func.sum(models.VKStats.impressions).label("impressions"),
+                func.sum(models.VKStats.clicks).label("clicks"),
+                func.sum(models.VKStats.cost).label("cost"),
+                func.sum(models.VKStats.conversions).label("conversions")
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(client_ids)
+            )
+            if campaign_ids:
+                q = q.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                q = q.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if vk_goal_action_ids:
+                q = q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+            if start:
+                q = q.filter(models.VKStats.date >= start)
+            if end:
+                q = q.filter(models.VKStats.date <= end)
+            return q.group_by(models.Campaign.id, models.VKStats.campaign_name).all()
 
-            y_results = y_query.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
-
-            # CRITICAL: Конверсии для Yandex — из Метрики (сумма по всем целям, как Лиды на дашборде).
-            m_conv_query = db.query(
+        def get_metrika_convs(start, end):
+            m_q = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total")
             ).filter(
                 models.MetrikaGoals.client_id.in_(client_ids),
                 models.MetrikaGoals.goal_id != "all"
             )
+
+            # Mirror the selected_goals filter from aggregate_summary so Metrika
+            # conversions only count goals the user actually configured.
+            selected_goal_ids = set()
+            for i in db.query(models.Integration).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Integration.platform.in_([
+                    models.IntegrationPlatform.YANDEX_DIRECT,
+                    models.IntegrationPlatform.YANDEX_METRIKA,
+                ]),
+            ).all():
+                if i.selected_goals:
+                    try:
+                        sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
+                        selected_goal_ids.update(str(g) for g in (sg or []))
+                    except Exception:
+                        pass
+                if i.primary_goal_id:
+                    selected_goal_ids.add(str(i.primary_goal_id))
+            if selected_goal_ids:
+                m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+
             m_int_ids = integration_ids_filter
             if not m_int_ids and campaign_ids:
                 camp_int = db.query(models.Campaign.integration_id).filter(
@@ -498,73 +551,118 @@ class StatsService:
                 ).distinct().all()
                 m_int_ids = [c[0] for c in client_int if c[0]]
             if m_int_ids:
-                m_conv_query = m_conv_query.filter(models.MetrikaGoals.integration_id.in_(m_int_ids))
-            if d_start:
-                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date >= d_start)
-            if d_end:
-                m_conv_query = m_conv_query.filter(models.MetrikaGoals.date <= d_end)
-            total_metrika_convs = int((m_conv_query.scalar() or 0) or 0)
+                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(m_int_ids))
+            if start:
+                m_q = m_q.filter(models.MetrikaGoals.date >= start)
+            if end:
+                m_q = m_q.filter(models.MetrikaGoals.date <= end)
+            return int((m_q.scalar() or 0) or 0)
+
+        campaigns = []
+
+        if platform in ["all", "yandex"]:
+            y_results = run_yandex_query(d_start, d_end)
+            total_metrika_convs = get_metrika_convs(d_start, d_end)
             total_yandex_cost = sum(float(r.cost or 0) for r in y_results)
+
+            # Previous period Yandex data keyed by campaign_id
+            prev_y_rows = {}
+            prev_total_metrika_convs = 0
+            prev_total_yandex_cost = 0
+            if prev_start is not None:
+                prev_y_list = run_yandex_query(prev_start, prev_end)
+                prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
+                prev_total_metrika_convs = get_metrika_convs(prev_start, prev_end)
+                prev_total_yandex_cost = sum(float(r.cost or 0) for r in prev_y_list)
 
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
-                # Конверсии: Метрика (пропорционально); fallback — Direct
+                imps = int(r.impressions or 0)
+                # CRITICAL: Конверсии — из Метрики (пропорционально); fallback — Direct
                 if total_metrika_convs > 0 and total_yandex_cost > 0:
                     convs = round(total_metrika_convs * (cost / total_yandex_cost))
                 else:
                     convs = int(r.conversions or 0)
+                cpc = round(cost / clicks, 2) if clicks > 0 else 0
+                cpa = round(cost / convs, 2) if convs > 0 else 0
+
+                # Previous period values for this campaign
+                cid = str(r.campaign_id)
+                p = prev_y_rows.get(cid)
+                if p:
+                    prev_cost = float(p.cost or 0)
+                    prev_clicks = int(p.clicks or 0)
+                    prev_imps = int(p.impressions or 0)
+                    if prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
+                        prev_convs = round(prev_total_metrika_convs * (prev_cost / prev_total_yandex_cost))
+                    else:
+                        prev_convs = int(p.conversions or 0)
+                    prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
+                    prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
+                else:
+                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+
                 campaigns.append({
-                    "id": str(r.campaign_id),
+                    "id": cid,
                     "name": f"[ЯД] {r.campaign_name}",
-                    "impressions": int(r.impressions or 0),
+                    "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
                     "conversions": convs,
-                    "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
-                    "cpa": round(cost / convs, 2) if convs > 0 else 0
+                    "cpc": cpc,
+                    "cpa": cpa,
+                    "trend_cost": calc_trend(cost, prev_cost),
+                    "trend_impressions": calc_trend(imps, prev_imps),
+                    "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_conversions": calc_trend(convs, prev_convs),
+                    "trend_cpc": calc_trend(cpc, prev_cpc),
+                    "trend_cpa": calc_trend(cpa, prev_cpa),
                 })
 
         if platform in ["all", "vk"]:
-            v_query = db.query(
-                models.Campaign.id.label("campaign_id"),
-                models.VKStats.campaign_name,
-                func.sum(models.VKStats.impressions).label("impressions"),
-                func.sum(models.VKStats.clicks).label("clicks"),
-                func.sum(models.VKStats.cost).label("cost"),
-                func.sum(models.VKStats.conversions).label("conversions")
-            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
-                models.VKStats.client_id.in_(client_ids)
-                # CRITICAL: Removed is_active filter - statistics should be shown for all campaigns
-                # is_active is a user selection flag, not a data filtering flag
-            )
+            v_results = run_vk_query(d_start, d_end)
 
-            if campaign_ids:
-                v_query = v_query.filter(models.Campaign.id.in_(campaign_ids))
-            elif integration_ids_filter:
-                v_query = v_query.filter(models.Campaign.integration_id.in_(integration_ids_filter))
-            if vk_goal_action_ids:
-                v_query = v_query.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+            # Previous period VK data keyed by campaign_id
+            prev_v_rows = {}
+            if prev_start is not None:
+                prev_v_rows = {str(r.campaign_id): r for r in run_vk_query(prev_start, prev_end)}
 
-            if d_start:
-                v_query = v_query.filter(models.VKStats.date >= d_start)
-            if d_end:
-                v_query = v_query.filter(models.VKStats.date <= d_end)
-
-            v_results = v_query.group_by(models.Campaign.id, models.VKStats.campaign_name).all()
             for r in v_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
                 convs = int(r.conversions or 0)
+                imps = int(r.impressions or 0)
+                cpc = round(cost / clicks, 2) if clicks > 0 else 0
+                cpa = round(cost / convs, 2) if convs > 0 else 0
+
+                cid = str(r.campaign_id)
+                p = prev_v_rows.get(cid)
+                if p:
+                    prev_cost = float(p.cost or 0)
+                    prev_clicks = int(p.clicks or 0)
+                    prev_imps = int(p.impressions or 0)
+                    prev_convs = int(p.conversions or 0)
+                    prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
+                    prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
+                else:
+                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+
                 campaigns.append({
-                    "id": str(r.campaign_id),
+                    "id": cid,
                     "name": f"[VK] {r.campaign_name}",
-                    "impressions": int(r.impressions or 0),
+                    "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
                     "conversions": convs,
-                    "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
-                    "cpa": round(cost / convs, 2) if convs > 0 else 0
+                    "cpc": cpc,
+                    "cpa": cpa,
+                    "trend_cost": calc_trend(cost, prev_cost),
+                    "trend_impressions": calc_trend(imps, prev_imps),
+                    "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_conversions": calc_trend(convs, prev_convs),
+                    "trend_cpc": calc_trend(cpc, prev_cpc),
+                    "trend_cpa": calc_trend(cpa, prev_cpa),
                 })
 
         campaigns.sort(key=lambda x: x["cost"], reverse=True)
