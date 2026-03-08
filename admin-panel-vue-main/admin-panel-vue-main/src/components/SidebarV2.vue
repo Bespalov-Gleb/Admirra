@@ -30,19 +30,23 @@
       </div>
     </div>
 
-    <div class="mx-4 border-t border-gray-200"></div>
-
     <!-- Основная навигация -->
-    <div class="shrink min-h-0 overflow-y-auto scrollbar-hide py-2">
-      <nav class="px-3 space-y-0.5">
+    <div class="shrink min-h-0 overflow-y-auto scrollbar-hide py-3">
+      <nav class="px-3 space-y-1.5">
         <div v-for="item in menuItems" :key="item.name" class="relative group">
+
+          <!-- Синяя полоска слева для активного пункта -->
+          <div
+            v-if="(item.children && isSubmenuActive(item)) || (!item.children && isActive(item.path))"
+            class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
+          ></div>
 
           <!-- Пункт с подменю -->
           <button
             v-if="item.children"
             @click="toggleSubmenu(item.submenuKey)"
             :class="[
-              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               isSubmenuActive(item)
                 ? 'bg-[#EBF3FF]'
@@ -60,7 +64,7 @@
                 :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
               >{{ item.name }}</span>
               <ChevronDownIcon
-                class="w-3.5 h-3.5 transition-transform"
+                class="w-3.5 h-3.5 transition-transform mr-1"
                 :class="[
                   isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]',
                   isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
@@ -74,7 +78,7 @@
             v-else
             @click="handleLinkClick(item.path)"
             :class="[
-              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
@@ -121,7 +125,7 @@
 
               <button
                 @click="handleLinkClick(child.path)"
-                class="w-full flex items-center py-[6px] px-3 text-left rounded-[8px] transition-all"
+                class="w-full flex items-center py-[9px] px-3 text-left rounded-[8px] transition-all"
                 :class="isActive(child.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'"
               >
                 <span
@@ -138,13 +142,12 @@
 
     <!-- Средняя навигация: История, Настройки -->
     <div class="shrink-0">
-      <div class="mx-4 border-t border-gray-200"></div>
-      <nav class="px-3 space-y-0.5 py-2">
+      <nav class="px-3 space-y-1.5 pt-4 pb-2">
         <div v-for="link in middleLinks" :key="link.name" class="relative group">
           <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
             :class="[
-              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
@@ -173,13 +176,12 @@
 
     <!-- Нижняя навигация: Помощь, Тех. поддержка -->
     <div class="shrink-0">
-      <div class="mx-4 border-t border-gray-200"></div>
-      <nav class="px-3 space-y-0.5 py-2">
+      <nav class="px-3 space-y-1.5 py-2">
         <div v-for="link in bottomLinks" :key="link.name" class="relative group">
           <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
             :class="[
-              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
