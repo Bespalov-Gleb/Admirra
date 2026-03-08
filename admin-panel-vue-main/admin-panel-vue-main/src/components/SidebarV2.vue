@@ -33,7 +33,7 @@
     <div class="mx-4 border-t border-gray-200"></div>
 
     <!-- Основная навигация -->
-    <div class="flex-1 min-h-0 overflow-y-auto scrollbar-hide py-2">
+    <div class="shrink min-h-0 overflow-y-auto scrollbar-hide py-2">
       <nav class="px-3 space-y-0.5">
         <div v-for="item in menuItems" :key="item.name" class="relative group">
 
@@ -42,7 +42,7 @@
             v-if="item.children"
             @click="toggleSubmenu(item.submenuKey)"
             :class="[
-              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               isSubmenuActive(item)
                 ? 'bg-[#EBF3FF]'
@@ -51,7 +51,7 @@
           >
             <component
               :is="item.icon"
-              class="w-5 h-5 flex-shrink-0"
+              class="w-6 h-6 flex-shrink-0"
               :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             />
             <template v-if="!isCollapsed">
@@ -74,14 +74,14 @@
             v-else
             @click="handleLinkClick(item.path)"
             :class="[
-              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
           >
             <component
               :is="item.icon"
-              class="w-5 h-5 flex-shrink-0"
+              class="w-6 h-6 flex-shrink-0"
               :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             />
             <span
@@ -102,28 +102,31 @@
 
           <!-- Подменю с соединяющими линиями -->
           <div v-if="item.children && !isCollapsed && isSubmenuOpenForKey(item.submenuKey)" class="relative pt-0.5 pb-1">
-            <!-- Вертикальная линия по центру иконки (px-3 + icon-half = 12+10 = 22px) -->
-            <div class="absolute left-[22px] top-0 bottom-2 w-[1.5px] bg-gray-200 rounded-full"></div>
-
             <div
-              v-for="child in item.children"
+              v-for="(child, idx) in item.children"
               :key="child.path"
-              class="relative pl-[42px] pr-0"
+              class="relative pl-[56px] pr-0"
             >
-              <!-- Закруглённая ветка L-образная -->
+              <!-- Вертикальный отрезок: от верха до низа, только для не-последних элементов -->
               <div
-                class="absolute left-[22px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 rounded-bl-[6px]"
+                v-if="idx < item.children.length - 1"
+                class="absolute left-[36px] top-0 bottom-0 w-[1.5px] bg-gray-200"
+              ></div>
+
+              <!-- Закруглённая ветка L-образная (верх → середина + горизонталь) -->
+              <div
+                class="absolute left-[36px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 rounded-bl-[6px]"
                 style="top: 0; height: calc(50% + 1px);"
               ></div>
 
               <button
                 @click="handleLinkClick(child.path)"
                 class="w-full flex items-center py-[6px] px-3 text-left rounded-[8px] transition-all"
-                :class="isActive(child.path) ? 'bg-[#2563EB]' : 'hover:bg-gray-100/70'"
+                :class="isActive(child.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'"
               >
                 <span
                   class="text-[11px] font-semibold"
-                  :class="isActive(child.path) ? 'text-white' : 'text-[#696969]/[0.76]'"
+                  :class="isActive(child.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
                 >{{ child.name }}</span>
               </button>
             </div>
@@ -133,24 +136,57 @@
       </nav>
     </div>
 
-    <!-- Разделитель -->
-    <div class="mx-4 border-t border-gray-200"></div>
-
-    <!-- Вторичная навигация -->
-    <div class="pb-4 pt-2">
-      <nav class="px-3 space-y-0.5">
-        <div v-for="link in bottomLinks" :key="link.name" class="relative group">
+    <!-- Средняя навигация: История, Настройки -->
+    <div class="shrink-0">
+      <div class="mx-4 border-t border-gray-200"></div>
+      <nav class="px-3 space-y-0.5 py-2">
+        <div v-for="link in middleLinks" :key="link.name" class="relative group">
           <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
             :class="[
-              'w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
               link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
             ]"
           >
             <component
               :is="link.icon"
-              class="w-5 h-5 flex-shrink-0"
+              class="w-6 h-6 flex-shrink-0"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+            />
+            <span
+              v-if="!isCollapsed"
+              class="text-[12px] font-semibold"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+            >{{ link.name }}</span>
+          </button>
+          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            {{ link.name }}
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Распорка -->
+    <div class="flex-1"></div>
+
+    <!-- Нижняя навигация: Помощь, Тех. поддержка -->
+    <div class="shrink-0">
+      <div class="mx-4 border-t border-gray-200"></div>
+      <nav class="px-3 space-y-0.5 py-2">
+        <div v-for="link in bottomLinks" :key="link.name" class="relative group">
+          <button
+            @click="link.action ? link.action() : handleLinkClick(link.path)"
+            :class="[
+              'w-full flex items-center gap-3 pl-6 pr-3 py-2.5 text-left rounded-[10px] transition-all',
+              isCollapsed ? 'justify-center' : '',
+              link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+            ]"
+          >
+            <component
+              :is="link.icon"
+              class="w-6 h-6 flex-shrink-0"
               :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
             />
             <span
@@ -168,18 +204,38 @@
     </div>
 
     <!-- Промо-карточка -->
-    <div v-if="!isCollapsed" class="px-4 py-3 mt-auto">
-      <div class="rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#0f2744] p-4 relative overflow-hidden">
-        <Cog6ToothIcon class="absolute top-3 left-3 w-4 h-4 text-white/40" />
-        <h4 class="text-sm font-bold text-white mb-1">Повысить до премиум</h4>
-        <p class="text-xs text-white/80 mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
-        <router-link
-          to="/settings"
-          @click="closeMobileMenu"
-          class="block w-full py-2 text-center text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
-        >
-          Смотреть тарифы
-        </router-link>
+    <div v-if="!isCollapsed" class="px-4 pb-4 pt-2">
+      <div class="rounded-[20px] relative overflow-hidden p-5" style="background-color: #24252E;">
+        <!-- Синий тонирующий слой -->
+        <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
+        <!-- Паттерн точек -->
+        <div
+          class="absolute inset-0"
+          style="background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px); background-size: 18px 18px;"
+        ></div>
+
+        <!-- Контент поверх слоёв -->
+        <div class="relative z-10">
+          <!-- Иконка -->
+          <div
+            class="w-11 h-11 rounded-[12px] flex items-center justify-center mb-4"
+            style="background: linear-gradient(135deg, rgba(77,178,255,0.30), rgba(116,195,255,0.30));"
+          >
+            <CpuChipIcon class="w-6 h-6 text-white" />
+          </div>
+
+          <h4 class="text-[15px] font-bold text-white leading-snug mb-2">Повысить до премиум</h4>
+          <p class="text-[12px] text-white/60 leading-relaxed mb-5">Повысте ваш аккаунт и разблокируйте все функции</p>
+
+          <router-link
+            to="/settings"
+            @click="closeMobileMenu"
+            class="block w-full py-2.5 text-center text-[13px] font-semibold text-white rounded-[12px] transition-colors hover:opacity-90"
+            style="background-color: #2563EB;"
+          >
+            Смотреть тарифы
+          </router-link>
+        </div>
       </div>
     </div>
 
@@ -211,6 +267,7 @@ import {
   SignalIcon,
   ChartBarIcon,
   QuestionMarkCircleIcon,
+  CpuChipIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -239,9 +296,9 @@ const menuItems = [
     children: [
       { name: 'Аналитика проекта', path: '/dashboard/general-3' },
       { name: 'Общая статистика', path: '/dashboard/general' },
-      { name: 'AI Отчет', path: '/ai-analysis' },
     ]
   },
+  { name: 'AI Отчет', path: '/ai-analysis', icon: SparklesIcon },
   { name: 'Проекты', path: '/projects', icon: Project },
   { name: 'Команда', path: '/team', icon: UserGroupIcon },
   { name: 'Продукты', path: '/products', icon: ArchiveBoxIcon },
@@ -261,12 +318,14 @@ const menuItems = [
   },
 ]
 
-const bottomLinks = computed(() => [
+const middleLinks = computed(() => [
   { name: 'История', path: '/history', icon: ClockIcon },
   { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
+])
+
+const bottomLinks = computed(() => [
   { name: 'Помощь', path: '/help', icon: QuestionMarkCircleIcon },
   { name: 'Тех. поддержка', path: '/contact', icon: ComputerDesktopIcon },
-  { name: 'Выход', path: null, icon: ArrowRightOnRectangleIcon, action: handleLogoutClick },
 ])
 
 const isActive = (path) => {
@@ -299,7 +358,7 @@ const toggleSubmenu = (key) => {
 }
 
 watch(() => route?.path, (path) => {
-  if (path?.startsWith('/dashboard') || path === '/ai-analysis') {
+  if (path?.startsWith('/dashboard')) {
     isDashboardSubmenuOpen.value = true
   }
   if (path?.startsWith('/phone')) {
