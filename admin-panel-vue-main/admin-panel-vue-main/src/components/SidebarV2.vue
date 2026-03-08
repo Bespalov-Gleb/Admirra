@@ -35,65 +35,67 @@
       <nav class="px-3 space-y-1.5">
         <div v-for="item in menuItems" :key="item.name" class="relative group">
 
-          <!-- Синяя полоска слева для активного пункта -->
-          <div
-            v-if="(item.children && isSubmenuActive(item)) || (!item.children && isActive(item.path))"
-            class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
-          ></div>
-
-          <!-- Пункт с подменю -->
-          <button
-            v-if="item.children"
-            @click="toggleSubmenu(item.submenuKey)"
-            :class="[
-              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
-              isCollapsed ? 'justify-center' : '',
-              isSubmenuActive(item)
-                ? 'bg-[#EBF3FF]'
-                : 'hover:bg-gray-100/70'
-            ]"
-          >
-            <component
-              :is="item.icon"
-              class="w-6 h-6 flex-shrink-0"
-              :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
-            />
-            <template v-if="!isCollapsed">
-              <span
-                class="flex-1 text-[12px] font-semibold"
+          <!-- Пункт с подменю — обёртка только вокруг кнопки для позиционирования полоски -->
+          <div v-if="item.children" class="relative">
+            <div
+              v-if="isSubmenuActive(item)"
+              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
+            ></div>
+            <button
+              @click="toggleSubmenu(item.submenuKey)"
+              :class="[
+                'w-full flex items-center gap-3 pl-6 pr-4 py-3.5 text-left rounded-[10px] transition-all',
+                isCollapsed ? 'justify-center' : '',
+                isSubmenuActive(item) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+              ]"
+            >
+              <component
+                :is="item.icon"
+                class="w-6 h-6 flex-shrink-0"
                 :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
-              >{{ item.name }}</span>
-              <ChevronDownIcon
-                class="w-3.5 h-3.5 transition-transform mr-1"
-                :class="[
-                  isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]',
-                  isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
-                ]"
               />
-            </template>
-          </button>
+              <template v-if="!isCollapsed">
+                <span
+                  class="flex-1 text-[12px] font-semibold"
+                  :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                >{{ item.name }}</span>
+                <ChevronDownIcon
+                  class="w-3.5 h-3.5 transition-transform"
+                  :class="[
+                    isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]',
+                    isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
+                  ]"
+                />
+              </template>
+            </button>
+          </div>
 
-          <!-- Обычный пункт -->
-          <button
-            v-else
-            @click="handleLinkClick(item.path)"
-            :class="[
-              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
-              isCollapsed ? 'justify-center' : '',
-              isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
-            ]"
-          >
-            <component
-              :is="item.icon"
-              class="w-6 h-6 flex-shrink-0"
-              :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
-            />
-            <span
-              v-if="!isCollapsed"
-              class="text-[12px] font-semibold"
-              :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
-            >{{ item.name }}</span>
-          </button>
+          <!-- Обычный пункт — обёртка только вокруг кнопки для позиционирования полоски -->
+          <div v-else class="relative">
+            <div
+              v-if="isActive(item.path)"
+              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
+            ></div>
+            <button
+              @click="handleLinkClick(item.path)"
+              :class="[
+                'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
+                isCollapsed ? 'justify-center' : '',
+                isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+              ]"
+            >
+              <component
+                :is="item.icon"
+                class="w-6 h-6 flex-shrink-0"
+                :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              />
+              <span
+                v-if="!isCollapsed"
+                class="text-[12px] font-semibold"
+                :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              >{{ item.name }}</span>
+            </button>
+          </div>
 
           <!-- Tooltip свёрнутое -->
           <div
