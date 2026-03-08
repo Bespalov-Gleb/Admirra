@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
-    <h3 class="text-[15px] font-bold text-[#09183F] mb-5">Активность по дням</h3>
+    <h3 class="text-[20px] font-normal text-gray-400 mb-5">Активность по дням</h3>
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -49,10 +49,18 @@ const updateChart = (data) => {
       datasets: [{
         label: 'Активность',
         data: values,
-        backgroundColor: values.map((_, i) => (i === maxIdx && maxIdx >= 0 ? '#2563EB' : 'rgba(156, 163, 175, 0.5)')),
-        borderRadius: 6,
-        barPercentage: 0.65,
-        categoryPercentage: 0.85
+        backgroundColor: (() => {
+          const canvas = chartRef.value
+          const ctx2d = canvas.getContext('2d')
+          const h = canvas.clientHeight || 300
+          const gradient = ctx2d.createLinearGradient(0, 0, 0, h)
+          gradient.addColorStop(0, '#2563EB')
+          gradient.addColorStop(1, '#4A82FF')
+          return values.map((_, i) => i === maxIdx && maxIdx >= 0 ? gradient : '#F5F7F9')
+        })(),
+        borderRadius: { topLeft: 15, topRight: 15, bottomLeft: 15, bottomRight: 15 },
+        barPercentage: 0.75,
+        categoryPercentage: 0.8
       }]
     },
     options: {
@@ -66,8 +74,8 @@ const updateChart = (data) => {
           anchor: 'end',
           align: 'top',
           formatter: (v) => v,
-          font: { size: 13, weight: 'bold' },
-          color: '#374151'
+          font: { size: 13, weight: '600' },
+          color: (ctx) => ctx.dataIndex === maxIdx ? '#2563EB' : '#374151'
         }
       },
       scales: {
@@ -75,7 +83,7 @@ const updateChart = (data) => {
           display: true,
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#6b7280', font: { size: 12 } }
+          ticks: { color: '#6b7280', font: { size: 13 } }
         },
         y: {
           display: false,
