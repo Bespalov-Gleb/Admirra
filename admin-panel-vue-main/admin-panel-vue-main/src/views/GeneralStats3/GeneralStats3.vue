@@ -210,35 +210,54 @@
             <div class="flex items-center justify-between gap-4 mb-5">
               <div class="flex items-center gap-3">
                 <!-- Иконка кошелька -->
-                <div class="w-7 h-6 flex items-center justify-center flex-shrink-0 text-[#2563EB]">
-                  <WalletIcon class="w-7 h-6" />
+                <div class="w-11 h-11 rounded-[10px] bg-white shadow-sm border border-gray-100 flex items-center justify-center flex-shrink-0">
+                  <WalletIcon class="w-6 h-6 text-[#2563EB]" />
                 </div>
                 <div>
                   <h3 class="text-[20px] font-medium text-[#5F5F5F] leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
                   <p class="text-[15px] font-normal text-[#ABABAB] leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
                 </div>
               </div>
-              <!-- Кнопка редактировать -->
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 text-[14px] font-normal text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 flex-shrink-0"
-                :disabled="generatingReport"
-                @click="handleGenerateReport"
-              >
-                <span v-if="generatingReport" class="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                <PencilIcon v-else class="w-3.5 h-3.5" />
-                {{ generatingReport ? 'Генерация...' : 'Редактировать' }}
-              </button>
+              <!-- Кнопки управления -->
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Сгенерировать -->
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] bg-[#2563EB] text-white text-[14px] font-normal hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                  :disabled="generatingReport"
+                  @click="handleGenerateReport"
+                >
+                  <span v-if="generatingReport" class="w-3.5 h-3.5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  <SparklesIcon v-else class="w-3.5 h-3.5" />
+                  {{ generatingReport ? 'Генерация...' : 'Сгенерировать' }}
+                </button>
+                <!-- Редактировать / Сохранить -->
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 text-[14px] font-normal text-gray-600 hover:bg-gray-50 transition-colors"
+                  @click="toggleEditComment"
+                >
+                  <CheckIcon v-if="editingComment" class="w-3.5 h-3.5 text-green-600" />
+                  <PencilIcon v-else class="w-3.5 h-3.5" />
+                  {{ editingComment ? 'Сохранить' : 'Редактировать' }}
+                </button>
+              </div>
             </div>
 
-            <!-- Текст комментария -->
-            <div v-if="reportComment" class="text-[15px] font-normal text-gray-700 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
-            <div v-else-if="!generatingReport" class="py-8 text-center text-gray-400 text-sm">
-              Нажмите «Редактировать», чтобы получить AI-комментарий на основе данных за выбранный период
-            </div>
-            <div v-else class="py-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
+            <!-- Текст комментария / редактор -->
+            <div v-if="generatingReport" class="py-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
               <span class="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               Генерация комментария...
+            </div>
+            <textarea
+              v-else-if="editingComment"
+              v-model="reportComment"
+              class="w-full min-h-[180px] text-[15px] font-normal text-gray-700 leading-[1.6] border border-[#2563EB]/30 rounded-[10px] p-4 resize-y outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
+              placeholder="Введите комментарий к отчету..."
+            />
+            <div v-else-if="reportComment" class="text-[15px] font-normal text-gray-700 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-else class="py-8 text-center text-gray-400 text-sm">
+              Нажмите «Сгенерировать», чтобы получить AI-комментарий, или «Редактировать», чтобы написать вручную
             </div>
 
             <!-- Кнопки отправки отчёта -->
@@ -326,8 +345,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { ArrowPathIcon } from '@heroicons/vue/24/solid'
-import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, CheckIcon } from '@heroicons/vue/24/solid'
+import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon } from '@heroicons/vue/24/outline'
 // Components
 import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
@@ -512,9 +531,15 @@ const sendingEmail = ref(false)
 // --- Комментарий к отчету ---
 const generatingReport = ref(false)
 const reportComment = ref('')
+const editingComment = ref(false)
+
+const toggleEditComment = () => {
+  editingComment.value = !editingComment.value
+}
 
 const handleGenerateReport = async () => {
   generatingReport.value = true
+  editingComment.value = false
   reportComment.value = ''
   try {
     const { data } = await api.post('ai/generate-report', {
@@ -539,7 +564,8 @@ const handleDownloadPdf = async () => {
       start_date: filters.start_date,
       end_date: filters.end_date,
       client_id: filters.client_id || undefined,
-      ai: true
+      ai: true,
+      ...(reportComment.value ? { comment: reportComment.value } : {})
     }
     const response = await api.get('reports/pdf', { params, responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([response.data]))
