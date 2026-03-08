@@ -82,7 +82,36 @@ const AGE_LABELS_RU = {
 const ageLabelRu = (raw) => {
   const s = String(raw || '').trim()
   const key = s.toLowerCase()
-  return AGE_LABELS_RU[key] ?? (s || '—')
+
+  // Прямое совпадение в словаре
+  if (AGE_LABELS_RU[key]) return AGE_LABELS_RU[key]
+
+  // Fallback: "55+" или "55 и старше"
+  if (/55\s*\+/.test(key) || key.includes('55+') || key.includes('55 и старше') || key.includes('старше 54')) {
+    return '55 и старше'
+  }
+
+  // Fallback: "younger than" / "младше"
+  if (key.includes('younger') || key.includes('младше')) {
+    return 'Младше 18 лет'
+  }
+
+  // Fallback: диапазон вида "18-24", "Age 18-24", "18–24" и т.д.
+  const rangeMatch = s.match(/(\d+)\s*[-–—]\s*(\d+)/)
+  if (rangeMatch) {
+    const from = parseInt(rangeMatch[1])
+    const to = parseInt(rangeMatch[2])
+    const directKey = `${from}-${to}`
+    if (AGE_LABELS_RU[directKey]) return AGE_LABELS_RU[directKey]
+    // Подбираем ближайший известный диапазон
+    if (from <= 18 && to <= 25) return '18–24 года'
+    if (from <= 25 && to <= 35) return '25–34 года'
+    if (from <= 35 && to <= 44) return '35–44 года'
+    if (from <= 45 && to <= 54) return '45–54 года'
+    return `${from}–${to} лет`
+  }
+
+  return s || '—'
 }
 
 const props = defineProps({
