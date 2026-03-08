@@ -26,19 +26,17 @@
       </button>
     </div>
 
-    <!-- Главное число -->
-    <p class="text-[32px] font-bold text-[#09183F] leading-none mb-3">{{ value }}</p>
-
-    <!-- Тренд: светлый бейдж + серый абсолютный -->
-    <div class="flex items-center gap-2 flex-wrap">
+    <!-- Главное число и тренд в одну строку -->
+    <div class="flex items-baseline gap-2 flex-nowrap min-w-0">
+      <p class="text-[32px] font-bold text-[#09183F] leading-none shrink-0">{{ value }}</p>
       <span
-        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-bold"
+        class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[9px] font-medium flex-shrink-0"
         :class="changePositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'"
       >
-        <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-3.5 h-3.5 flex-shrink-0" />
+        <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-2.5 h-2.5 flex-shrink-0" />
         {{ trendDisplay }}
       </span>
-      <span v-if="trendAbsolute" class="text-[12px] font-bold text-gray-500">{{ trendAbsolute }}</span>
+      <span v-if="trendAbsolute" class="text-[9px] font-medium text-gray-500 min-w-0 truncate">{{ trendAbsolute }}</span>
     </div>
   </div>
 </template>
