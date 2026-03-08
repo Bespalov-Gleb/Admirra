@@ -7,15 +7,16 @@
     <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
-    <div v-else class="flex flex-row items-center justify-center gap-8 flex-1 min-h-0">
-      <div class="relative w-56 h-56 sm:w-64 sm:h-64 flex-shrink-0 cursor-pointer">
-        <canvas ref="chartRef" />
+    <div v-else class="flex flex-row items-stretch gap-8 flex-1 min-h-0">
+      <div ref="chartWrapRef" class="relative flex-shrink-0 cursor-pointer self-stretch flex items-center" style="width: 224px;">
+        <canvas ref="chartRef" style="width:224px;height:224px;" />
       </div>
-      <div class="grid grid-cols-2 gap-3 flex-1 min-w-0">
+      <div ref="legendRef" class="grid grid-cols-2 flex-1 min-w-0 self-stretch" style="gap: 13px; align-content: space-between;">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center gap-2.5 px-4 py-3 rounded-[10px] bg-gray-50"
+          class="flex items-center rounded-[10px]"
+          style="background: #F5F7F9; padding: 13px 14px; gap: 13px; min-height: 59px;"
         >
           <span
             class="w-3 h-3 rounded-full flex-shrink-0"
