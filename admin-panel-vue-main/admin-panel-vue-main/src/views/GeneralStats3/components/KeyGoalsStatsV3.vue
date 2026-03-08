@@ -48,10 +48,10 @@
         </div>
       </div>
 
-      <!-- Правая часть: синий блок Итого — full-height, ml-3, без вертикальных отступов -->
+      <!-- Правая часть: синий блок Итого -->
       <div
-        class="w-[50%] ml-3 self-stretch rounded-l-[10px] flex flex-col relative overflow-hidden"
-        style="background-color: rgba(116,195,255,0.38); background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+        class="w-[50%] m-3 rounded-[23px] flex flex-col relative overflow-hidden"
+        style="background-color: #C3D5FD; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
       >
         <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
         <!-- Число абсолютно прижато к нижней границе, по центру -->
