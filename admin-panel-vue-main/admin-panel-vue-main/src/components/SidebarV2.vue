@@ -280,7 +280,12 @@ import ConfirmModal from './ConfirmModal.vue'
 import logoFull from '../assets/imgs/logo/logo-dark.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
-import Project from '../assets/icons/menu/project.vue'
+import IconProject from '../assets/icons/menu/project.vue'
+import IconProduct from '../assets/icons/menu/product.vue'
+import IconGroup from '../assets/icons/menu/group.vue'
+import IconChannels from '../assets/icons/menu/channels.vue'
+import IconSetting from '../assets/icons/menu/setting.vue'
+import IconClock from '../assets/icons/menu/clock.vue'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { forceLogout } = useAuth()
@@ -303,10 +308,10 @@ const menuItems = [
     ]
   },
   { name: 'AI Отчет', path: '/ai-analysis', icon: SparklesIcon },
-  { name: 'Проекты', path: '/projects', icon: Project },
-  { name: 'Команда', path: '/team', icon: UserGroupIcon },
-  { name: 'Продукты', path: '/products', icon: ArchiveBoxIcon },
-  { name: 'Каналы', path: '/channels', icon: ChartBarIcon },
+  { name: 'Проекты', path: '/projects', icon: IconProject },
+  { name: 'Команда', path: '/team', icon: IconGroup },
+  { name: 'Продукты', path: '/products', icon: IconProduct },
+  { name: 'Каналы', path: '/channels', icon: IconChannels },
   {
     name: 'Телефония',
     icon: PhoneIcon,
@@ -323,8 +328,8 @@ const menuItems = [
 ]
 
 const middleLinks = computed(() => [
-  { name: 'История', path: '/history', icon: ClockIcon },
-  { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
+  { name: 'История', path: '/history', icon: IconClock },
+  { name: 'Настройки', path: '/settings', icon: IconSetting },
 ])
 
 const bottomLinks = computed(() => [
