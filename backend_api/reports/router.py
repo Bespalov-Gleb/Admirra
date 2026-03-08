@@ -20,13 +20,14 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 class SendReportRequest(BaseModel):
-    report_type: str = "pdf"  # pdf | ai
+    report_type: str = "ai"  # pdf | ai | text
     channels: List[str]  # ["email", "telegram"]
     email_recipients: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None
     client_id: Optional[str] = None
     start_date: str
     end_date: str
+    comment: Optional[str] = None  # готовый текст — если передан, не генерируем заново
 
 
 @router.get("/pdf")
@@ -111,7 +112,11 @@ async def send_report(
     pdf_bytes = None
     ai_text = None
 
-    if req.report_type == "pdf":
+    # Если передан готовый текст — используем его напрямую, не генерируем заново
+    if req.comment and req.comment.strip():
+        ai_text = req.comment.strip()
+        logger.info("send_report: using provided comment text (len=%d), skipping AI generation", len(ai_text))
+    elif req.report_type == "pdf":
         try:
             pdf_bytes = generate_report_pdf(
                 db=db,
@@ -124,7 +129,7 @@ async def send_report(
         except Exception as e:
             logger.exception("PDF generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
-    elif req.report_type == "ai":
+    elif req.report_type in ("ai", "text"):
         try:
             from ai.report_generator import generate_report
             ai_text = await generate_report(

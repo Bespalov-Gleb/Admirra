@@ -663,7 +663,7 @@ const submitTelegram = async () => {
   try {
     const text = await getOrGenerateComment()
     await api.post('reports/send', {
-      report_type: 'text',
+      report_type: 'ai',
       channels: ['telegram'],
       telegram_chat_id: chatId,
       client_id: filters.client_id || null,
@@ -691,7 +691,7 @@ const submitEmail = async () => {
   try {
     const text = await getOrGenerateComment()
     const { data } = await api.post('reports/send', {
-      report_type: 'text',
+      report_type: 'ai',
       channels: ['email'],
       email_recipients: emails,
       client_id: filters.client_id || null,
