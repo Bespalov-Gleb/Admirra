@@ -243,10 +243,11 @@ export function useDashboardStats() {
       
       const { data } = await api.get('campaigns/', { params })
       
-      // Format for dropdown: { id, name }
+      // Format for dashboard: { id, name, external_id } (external_id для поиска)
       allCampaigns.value = data.map(c => ({
         id: c.id,
-        name: c.name || `Campaign ${c.external_id || c.id}`
+        name: c.name || `Campaign ${c.external_id || c.id}`,
+        external_id: c.external_id || ''
       }))
     } catch (err) {
       console.error('[DashboardStats] Error fetching campaign pool:', err)

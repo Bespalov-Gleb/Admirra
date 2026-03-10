@@ -44,22 +44,24 @@
               <option value="yandex">Yandex Direct</option>
               <option value="vk">VK Ads</option>
             </select>
-            <select
-              v-model="selectedCampaignId"
-              @change="handleCampaignChange"
-              class="h-[38px] w-[125px] min-w-[125px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+            <button
+              type="button"
+              @click="campaignModalOpen = true"
               :disabled="!filters.client_id || loadingCampaigns"
+              class="h-[38px] min-w-[140px] pl-4 pr-4 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 text-left flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option v-if="!filters.client_id" value="">Сначала проект</option>
-              <option v-else-if="loadingCampaigns" value="">Загрузка...</option>
-              <option v-else-if="!allCampaigns.length" value="">Нет кампаний</option>
-              <template v-else>
-                <option value="">Все кампании</option>
-                <option v-for="campaign in allCampaigns" :key="campaign.id" :value="campaign.id">
-                  {{ campaign.name }}
-                </option>
-              </template>
-            </select>
+              <span class="truncate">
+                {{ campaignButtonLabel }}
+              </span>
+              <ChevronDownIcon class="w-4 h-4 flex-shrink-0 text-gray-400" />
+            </button>
+            <CampaignSelectModal
+              v-model="campaignModalOpen"
+              :campaigns="allCampaigns"
+              :selected-ids="filters.campaign_ids || []"
+              :loading="loadingCampaigns"
+              @apply="(ids) => { filters.campaign_ids = ids; fetchStats(); }"
+            />
             <select
               v-model="filters.period"
               @change="handlePeriodChange"
@@ -336,8 +338,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowPathIcon, CheckIcon } from '@heroicons/vue/24/solid'
-import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon } from '@heroicons/vue/24/outline'
+import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon, ChevronDownIcon } from '@heroicons/vue/24/outline'
 // Components
+import CampaignSelectModal from '../../components/CampaignSelectModal.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
 import CampaignTableV3 from './components/CampaignTableV3.vue'
@@ -375,16 +378,14 @@ const {
   loadingVkGoalActions
 } = useDashboardStats()
 
-const selectedCampaignId = computed({
-  get: () => (filters.campaign_ids?.length > 0 ? filters.campaign_ids[0] : ''),
-  set: (val) => {
-    filters.campaign_ids = val ? [val] : []
-  }
-})
+const campaignModalOpen = ref(false)
 
-const handleCampaignChange = () => {
-  fetchStats()
-}
+const campaignButtonLabel = computed(() => {
+  if (!filters.client_id) return 'Сначала проект'
+  if (loadingCampaigns.value) return 'Загрузка...'
+  if (!allCampaigns.value.length) return 'Нет кампаний'
+  return 'Кампании'
+})
 
 const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
 
