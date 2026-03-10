@@ -675,7 +675,6 @@ async def get_top_ads(
 
 
 @router.get("/activity-by-weekday", response_model=dict)
-@cache_response(ttl=300)
 async def get_activity_by_weekday(
     start_date: str = None,
     end_date: str = None,

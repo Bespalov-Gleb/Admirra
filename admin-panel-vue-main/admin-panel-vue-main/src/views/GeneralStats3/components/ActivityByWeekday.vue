@@ -1,27 +1,24 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
-    <div class="flex flex-col gap-1 mb-5">
-      <div class="flex items-center justify-between gap-4">
-        <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif;">Активность по дням</h3>
-        <!-- Переключатель: Клики / Лиды -->
-        <div class="flex rounded-[10px] bg-gray-100 p-0.5">
-          <button
-            type="button"
-            @click="metric = 'clicks'"
-            :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'clicks' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
-          >
-            Клики
-          </button>
-          <button
-            type="button"
-            @click="metric = 'leads'"
-            :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'leads' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
-          >
-            Лиды
-          </button>
-        </div>
+    <div class="flex items-center justify-between gap-4 mb-5">
+      <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif;">Активность по дням</h3>
+      <!-- Переключатель: Клики / Лиды -->
+      <div class="flex rounded-[10px] bg-gray-100 p-0.5">
+        <button
+          type="button"
+          @click="metric = 'clicks'"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'clicks' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+        >
+          Клики
+        </button>
+        <button
+          type="button"
+          @click="metric = 'leads'"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'leads' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+        >
+          Лиды
+        </button>
       </div>
-      <p class="text-[13px] text-[#ABABAB]" style="font-family: 'Open Sans', sans-serif;">Сумма {{ metric === 'clicks' ? 'кликов' : 'лидов' }} по дням недели за период {{ startDate }} — {{ endDate }}</p>
     </div>
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
