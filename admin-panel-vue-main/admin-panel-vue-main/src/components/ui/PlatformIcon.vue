@@ -6,8 +6,8 @@
       <path d="M25 75L45 25H55L75 75H65L60 62H40L35 75H25ZM43 54H57L50 36L43 54Z" fill="#000"/>
     </svg>
   </div>
-  <div v-else-if="platform === 'VK_ADS'" :class="[sizeClass, 'bg-[#0077FF]']" class="rounded-xl flex items-center justify-center text-[11px] font-black text-white shadow-sm border border-[#0066EE]">
-    VK
+  <div v-else-if="platform === 'VK_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
+    <img :src="vkAdsIcon" alt="VK Ads" class="w-full h-full object-contain" />
   </div>
   <div v-else :class="sizeClass" class="bg-gray-100 rounded-xl flex items-center justify-center text-[10px] font-black text-gray-400 uppercase border border-gray-200">
     ?
@@ -16,6 +16,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import vkAdsIcon from '@/assets/icons/vk-ads.svg'
 
 const props = defineProps({
   platform: String,

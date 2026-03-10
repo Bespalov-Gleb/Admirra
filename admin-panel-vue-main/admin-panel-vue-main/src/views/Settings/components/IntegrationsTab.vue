@@ -57,7 +57,7 @@
               <div class="flex items-center gap-4 flex-1 min-w-0">
                 <div class="w-12 h-12 flex-shrink-0 bg-white rounded-xl flex items-center justify-center border border-gray-100 overflow-hidden group-hover:scale-105 transition-transform shadow-sm">
                   <img v-if="item.platform === 'YANDEX_DIRECT' || item.platform === 'YANDEX_METRIKA'" src="https://favicon.yandex.net/favicon/v2/yandex.ru?size=32&stub=1" class="w-8 h-8 object-contain" />
-                  <img v-else-if="item.platform === 'VK_ADS'" src="https://vk.com/favicon.ico" class="w-8 h-8 object-contain" />
+                  <img v-else-if="item.platform === 'VK_ADS'" :src="vkAdsIcon" alt="VK Ads" class="w-8 h-8 object-contain" />
                   <div v-else class="w-full h-full bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-400">{{ item.platform.split('_')[0] }}</div>
                 </div>
                 
@@ -180,6 +180,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
+import vkAdsIcon from '@/assets/icons/vk-ads.svg'
 
 const clients = ref([])
 const loading = ref(true)

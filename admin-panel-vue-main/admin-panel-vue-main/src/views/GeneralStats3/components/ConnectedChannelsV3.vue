@@ -33,11 +33,17 @@
               alt="Yandex Direct"
               class="w-full h-full object-contain"
             />
+            <img
+              v-else-if="platform.id === 'vk_ads'"
+              :src="vkAdsIcon"
+              alt="VK Ads"
+              class="w-full h-full object-contain"
+            />
             <div
               v-else
-              class="w-full h-full flex items-center justify-center font-normal text-[12px] bg-[#2787F5] text-white"
+              class="w-full h-full flex items-center justify-center font-normal text-[12px] bg-gray-200 text-gray-600"
             >
-              VK
+              ?
             </div>
           </div>
           <span class="text-[16px] font-normal text-[#2563EB] truncate">{{ platform.name }}</span>
@@ -77,6 +83,7 @@
 <script setup>
 import { computed } from 'vue'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
+import vkAdsIcon from '@/assets/icons/vk-ads.svg'
 
 const props = defineProps({
   integrations: {
