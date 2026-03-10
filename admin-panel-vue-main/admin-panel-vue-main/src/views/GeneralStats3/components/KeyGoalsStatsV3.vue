@@ -2,10 +2,10 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full font-[Inter]">
 
     <!-- Объединённая карточка: Статистика + Итого (2 колонки) -->
-    <div class="lg:col-span-2 bg-white rounded-[10px] shadow-sm border border-gray-100 min-h-[360px] flex overflow-hidden">
+    <div class="lg:col-span-2 bg-white rounded-[10px] shadow-sm border border-gray-100 min-h-[380px] lg:min-h-[420px] flex overflow-hidden">
 
       <!-- Левая часть: Статистика -->
-      <div class="flex-1 p-6 flex flex-col">
+      <div class="flex-1 min-w-0 p-4 sm:p-6 flex flex-col">
         <div class="flex items-center gap-5 mb-5">
           <div class="w-12 h-12 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
             <ChartBarIcon class="w-7 h-7 text-[#2563EB]" />
@@ -16,24 +16,24 @@
           </div>
         </div>
 
-        <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-evenly gap-3">
-          <div v-for="i in 3" :key="i" class="h-12 bg-gray-100 rounded-[10px] animate-pulse" />
+        <div v-if="loading || localLoading" class="flex-1 flex flex-col justify-start gap-2">
+          <div v-for="i in skeletonCount" :key="i" class="h-8 bg-gray-100 rounded-[8px] animate-pulse" />
         </div>
 
-        <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-gray-500 text-[14px] font-medium">
-          Цели не настроены
+        <div v-else-if="topGoals.length === 0" class="flex-1 flex items-center justify-center text-center text-gray-500 text-[14px] font-medium px-4">
+          <span>Нет данных по целям. Возможно, идёт синхронизация — обновите страницу через минуту.</span>
         </div>
 
-        <div v-else class="flex-1 flex flex-col justify-evenly">
+        <div v-else class="flex-1 flex flex-col justify-start gap-0.5">
           <div
             v-for="(goal, index) in topGoals"
             :key="goal.id || goal.name"
-            class="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0"
+            class="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0"
           >
-            <span class="text-[20px] font-normal text-gray-500 whitespace-nowrap">{{ formatGoalName(goal.name) }}:</span>
-            <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[7px]" />
+            <span class="text-[15px] font-normal text-gray-500 whitespace-nowrap min-w-0 truncate">{{ formatGoalName(goal.name) }}:</span>
+            <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[5px]" />
             <div class="flex items-center gap-1.5 flex-shrink-0">
-              <span class="text-[21px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+              <span class="text-[16px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
               <span
                 v-if="goal.trend != null"
                 class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
@@ -48,51 +48,57 @@
         </div>
       </div>
 
-      <!-- Правая часть: синий блок Итого -->
+      <!-- Правая часть: блок Итого (подложка как у карточки тарифов + белые точки) -->
       <div
-        class="w-[50%] mx-3 rounded-[23px] flex flex-col relative overflow-hidden"
-        style="background-color: #C3D5FD; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+        class="w-[50%] min-w-[160px] mx-2 lg:mx-3 rounded-[20px] lg:rounded-[23px] flex flex-col relative overflow-hidden"
+        style="background-color: #24252E;"
       >
-        <h3 class="text-[23px] font-normal text-white p-5 pb-0">Итого:</h3>
-        <!-- Число прижато к самому низу -->
-        <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden">
-          <div class="flex items-end gap-2">
-            <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 160px; line-height: 0.85; letter-spacing: -1.11px;">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; font-size: 90px; line-height: 0.85; letter-spacing: -1.11px;">шт.</span>
+        <!-- Синий тонирующий слой (как на карточке тарифов) -->
+        <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
+        <!-- Белые точки (паттерн как на голубой зоне) -->
+        <div
+          class="absolute inset-0"
+          style="background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+        ></div>
+        <h3 class="text-[18px] lg:text-[23px] font-normal text-white p-4 lg:p-5 pb-0 relative z-10">Итого:</h3>
+        <!-- Число прижато к самому низу, масштаб под ширину экрана -->
+        <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden z-10 px-2">
+          <div class="flex items-end gap-1 lg:gap-2" style="transform-origin: bottom center;">
+            <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; line-height: 0.85; letter-spacing: -1.11px; font-size: clamp(80px, 12vw, 160px);">{{ totalConversions.toLocaleString('ru-RU') }}</span>
+            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; line-height: 0.85; letter-spacing: -1.11px; font-size: clamp(40px, 6vw, 90px);">шт.</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
-    <div class="bg-white rounded-[10px] p-6 shadow-sm border border-gray-100 min-h-[360px] flex flex-col">
+    <div class="bg-white rounded-[10px] p-4 sm:p-6 shadow-sm border border-gray-100 min-h-[380px] lg:min-h-[420px] flex flex-col min-w-0">
       <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
-      <div class="flex-1 flex items-center gap-4">
-
-        <!-- Donut chart -->
-        <div class="relative flex-shrink-0" style="width: 200px; height: 200px;">
+      <div class="flex-1 flex items-center gap-3 lg:gap-4 min-w-0">
+        <!-- Donut chart — уменьшается на узких экранах -->
+        <div class="relative flex-shrink-0 w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] lg:w-[200px] lg:h-[200px]">
           <canvas ref="chartCanvas" class="w-full h-full" />
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="text-center">
-              <p class="text-[18px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
+              <p class="text-[14px] sm:text-[16px] lg:text-[18px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
             </div>
           </div>
         </div>
 
-        <!-- Легенда: таблетки справа -->
-        <div class="flex-1 flex flex-col gap-2">
+        <!-- Легенда: полная ширина текста, перенос при необходимости -->
+        <div class="flex-1 flex flex-col gap-1.5 min-w-0 overflow-y-auto">
           <div
             v-for="(goal, index) in topGoals"
             :key="goal.id || goal.name"
-            class="flex items-center gap-2.5 px-3 py-2 rounded-[8px] bg-gray-50"
+            class="flex items-start gap-2 px-2.5 py-1.5 rounded-[8px] bg-gray-50 min-w-0"
           >
             <div
-              class="w-3 h-3 rounded-full flex-shrink-0"
-              :style="{ backgroundColor: donutColors[index] }"
+              class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5"
+              :style="{ backgroundColor: donutColors[index % donutColors.length] }"
             />
-            <span class="text-[14px] font-normal text-[#09183F] truncate">{{ formatGoalName(goal.name) }}</span>
+            <span class="text-[12px] sm:text-[13px] font-normal text-[#09183F] leading-tight" style="word-break: break-word; overflow-wrap: anywhere;">{{ formatGoalName(goal.name) }}</span>
           </div>
 
           <!-- Dropdown под легендой -->
@@ -135,12 +141,16 @@ const effectiveGoals = computed(() =>
   props.goals?.length > 0 ? props.goals : localGoals.value
 )
 
-/** Топ-3 цели по количеству конверсий (самые результативные) */
+/** Число полос скелетона: по количеству целей или 4 по умолчанию */
+const skeletonCount = computed(() => {
+  const n = effectiveGoals.value?.length ?? 0
+  return Math.max(1, n || 4)
+})
+
+/** Все цели по количеству конверсий (сортировка: самые результативные сверху) */
 const topGoals = computed(() => {
   const goals = [...effectiveGoals.value]
-  return goals
-    .sort((a, b) => (b.count || 0) - (a.count || 0))
-    .slice(0, 3)
+  return goals.sort((a, b) => (b.count || 0) - (a.count || 0))
 })
 
 /** Итого: сумма ВСЕХ целей, выбранных пользователем при интеграции (get_goals уже фильтрует по selected_goals) */
@@ -148,9 +158,9 @@ const totalConversions = computed(() => {
   return effectiveGoals.value.reduce((sum, g) => sum + (g.count || 0), 0)
 })
 
-/** Точные цвета из Figma */
-const donutColors = ['#3464F3', '#F0926D', '#C2EECF']
-const donutColorsPastel = ['#4C78FF', '#FFA582', '#E5FFED']
+/** Цвета для диаграммы (поддержка 6+ целей) */
+const donutColors = ['#3464F3', '#F0926D', '#C2EECF', '#D38CFF', '#8ADA70', '#EB8525']
+const donutColorsPastel = ['#4C78FF', '#FFA582', '#E5FFED', '#E5B8FF', '#A8F08A', '#FFA04D']
 
 const updateChart = () => {
   if (!chartCanvas.value) return
@@ -165,14 +175,14 @@ const updateChart = () => {
       datasets: [
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColorsPastel[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColorsPastel[i % donutColorsPastel.length]),
           borderWidth: 0,
           hoverOffset: 0,
           weight: 4
         },
         {
           data,
-          backgroundColor: topGoals.value.map((_, i) => donutColors[i]),
+          backgroundColor: topGoals.value.map((_, i) => donutColors[i % donutColors.length]),
           borderWidth: 0,
           hoverOffset: 4,
           weight: 2

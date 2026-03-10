@@ -100,7 +100,7 @@
       </div>
 
       <!-- График + сайдбар бок о бок (по макету) -->
-      <div class="grid grid-cols-1 xl:grid-cols-[2.7fr_1fr] gap-6 items-stretch min-h-[580px]">
+      <div class="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-4 lg:gap-6 items-stretch min-h-[500px] lg:min-h-[580px]">
         <!-- График слева (~73%) — увеличенная высота -->
         <div class="relative flex flex-col min-h-[580px]">
             <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">

@@ -1017,29 +1017,25 @@ async def get_goals(
     if selected_goal_ids:
         goals = [g for g in goals if str(g.goal_id) in selected_goal_ids]
 
-    # Если нет индивидуальных целей — используем агрегированную (goal_id="all") как fallback
+    # Если нет индивидуальных целей — НЕ возвращаем агрегат (goal_id="all"). Агрегат с именем
+    # "Selected Goals" — техническая запись из sync; показывать её как цель было бы некорректно.
+    # Пустой список = синк ещё идёт или цели не настроены. Триггерим sync при необходимости.
     if not goals:
-        query_all = query.filter(models.MetrikaGoals.goal_id == "all")
-        goals_all = query_all.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
-        if goals_all:
-            goals = goals_all
-            logger.info(f"📊 get_goals: using aggregated goal_id=all for client {effective_client_ids}")
-        else:
-            any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
-                models.MetrikaGoals.client_id.in_(effective_client_ids),
-                models.MetrikaGoals.date >= date_from_obj,
-                models.MetrikaGoals.date <= date_to_obj
-            ).scalar() or 0
-            logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
-            # Запускаем sync целей по требованию — данные появятся после retry на фронте
-            for i in db.query(models.Integration).filter(
-                models.Integration.client_id.in_(effective_client_ids),
-                models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
-            ).all():
-                if (i.selected_goals or i.primary_goal_id) and i.selected_counters:
-                    sync_metrika_goals_background(i.id, str(date_from_obj), str(date_to_obj))
-                    logger.info(f"📊 get_goals: triggered goals-only sync for integration {i.id}")
-                    break  # один sync достаточно
+        any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+            models.MetrikaGoals.client_id.in_(effective_client_ids),
+            models.MetrikaGoals.date >= date_from_obj,
+            models.MetrikaGoals.date <= date_to_obj
+        ).scalar() or 0
+        logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
+        # Запускаем sync целей по требованию — данные появятся после retry на фронте
+        for i in db.query(models.Integration).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+        ).all():
+            if (i.selected_goals or i.primary_goal_id) and i.selected_counters:
+                sync_metrika_goals_background(i.id, str(date_from_obj), str(date_to_obj))
+                logger.info(f"📊 get_goals: triggered goals-only sync for integration {i.id}")
+                break  # один sync достаточно
 
     # #region agent log
     try:
