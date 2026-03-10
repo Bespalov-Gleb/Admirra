@@ -3052,29 +3052,45 @@ async def delete_integration(
         models.Campaign.integration_id == integration_id
     ).all()
     
-    campaign_names = [campaign.name for campaign in campaigns]
+    campaign_ids = [c.id for c in campaigns]
+    campaign_names = [c.name for c in campaigns]
     client_id = integration.client_id
     
-    # Delete statistics and related data that are linked by campaign_name
-    # (These don't have foreign keys, so CASCADE won't work)
+    # CRITICAL: Explicitly delete VKStats and YandexStats by campaign_id.
+    # Не полагаемся на CASCADE — у пользователя могут быть проблемы с миграциями/БД.
+    # Без явного удаления данные остаются и дашборд показывает некорректную статистику.
+    if campaign_ids:
+        deleted_vk = db.query(models.VKStats).filter(
+            models.VKStats.campaign_id.in_(campaign_ids)
+        ).delete(synchronize_session=False)
+        deleted_yandex = db.query(models.YandexStats).filter(
+            models.YandexStats.campaign_id.in_(campaign_ids)
+        ).delete(synchronize_session=False)
+        logger.info(f"🗑️ Deleted {deleted_vk} VKStats and {deleted_yandex} YandexStats for integration {integration_id}")
+    
+    # Orphan VKStats (campaign_id IS NULL) — могли остаться при старых синхронизациях.
+    # Удаляем для VK-интеграций, т.к. они не участвуют в CASCADE.
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        deleted_orphans = db.query(models.VKStats).filter(
+            models.VKStats.client_id == client_id,
+            models.VKStats.campaign_id.is_(None)
+        ).delete(synchronize_session=False)
+        if deleted_orphans:
+            logger.info(f"🗑️ Deleted {deleted_orphans} orphan VKStats (campaign_id=NULL) for client {client_id}")
+    
+    # Delete statistics linked by campaign_name (no FKs)
     if campaign_names:
-        # Delete YandexKeywords by campaign_name
         deleted_keywords = db.query(models.YandexKeywords).filter(
             models.YandexKeywords.client_id == client_id,
             models.YandexKeywords.campaign_name.in_(campaign_names)
         ).delete(synchronize_session=False)
-        
-        # Delete YandexGroups by campaign_name
         deleted_groups = db.query(models.YandexGroups).filter(
             models.YandexGroups.client_id == client_id,
             models.YandexGroups.campaign_name.in_(campaign_names)
         ).delete(synchronize_session=False)
-        
         logger.info(f"🗑️ Deleted {deleted_keywords} YandexKeywords and {deleted_groups} YandexGroups for integration {integration_id}")
     
-    # MetrikaGoals will be deleted automatically via CASCADE (has foreign key)
-    # Campaigns will be deleted automatically via CASCADE (has foreign key)
-    # YandexStats and VKStats will be deleted automatically via CASCADE when campaigns are deleted
+    # MetrikaGoals — CASCADE при удалении integration. Campaigns — CASCADE при удалении integration.
     
     # Delete the integration (this will cascade delete campaigns and metrika_goals)
     db.delete(integration)

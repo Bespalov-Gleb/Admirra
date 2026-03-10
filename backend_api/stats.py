@@ -8,7 +8,6 @@ from typing import List, Optional
 import uuid
 from backend_api.stats_service import StatsService
 from backend_api.top_ads_service import get_top_ads_with_images
-from .cache_service import cache_response
 import csv
 import io
 from fastapi.responses import StreamingResponse
@@ -274,7 +273,6 @@ def ensure_data_synced_async(
             logger.error(f"❌ Error creating background sync task for integration {integration.id}: {e}")
 
 @router.get("/summary", response_model=schemas.StatsSummary)
-@cache_response(ttl=120)
 async def get_summary(
     start_date: str = None,
     end_date: str = None,
@@ -324,7 +322,6 @@ async def get_summary(
     return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
-@cache_response(ttl=120)
 async def get_dynamics(
     start_date: str = None,
     end_date: str = None,
@@ -545,7 +542,6 @@ async def get_dynamics(
     }
 
 @router.get("/campaigns", response_model=List[schemas.CampaignStat])
-@cache_response(ttl=900)
 async def get_campaign_stats(
     start_date: str = None,
     end_date: str = None,
@@ -595,7 +591,6 @@ async def get_campaign_stats(
 
 
 @router.get("/top-ads", response_model=List[dict])
-@cache_response(ttl=300, skip_cache_when=lambda r: r is not None and len(r) == 0)
 async def get_top_ads(
     start_date: str = None,
     end_date: str = None,
@@ -729,7 +724,6 @@ async def get_activity_by_weekday(
 
 
 @router.get("/audience-age", response_model=List[dict])
-@cache_response(ttl=600)
 async def get_audience_age(
     start_date: str = None,
     end_date: str = None,
@@ -804,7 +798,6 @@ async def get_audience_age(
 
 
 @router.get("/keywords", response_model=List[schemas.KeywordStat])
-@cache_response(ttl=900)
 async def get_keyword_stats(
     start_date: str = None,
     end_date: str = None,
@@ -853,7 +846,6 @@ async def get_keyword_stats(
     return keywords
 
 @router.get("/groups", response_model=List[schemas.GroupStat])
-@cache_response(ttl=900)
 async def get_group_stats(
     start_date: str = None,
     end_date: str = None,
@@ -902,7 +894,6 @@ async def get_group_stats(
     return groups
 
 @router.get("/top-clients", response_model=List[schemas.TopClient])
-@cache_response(ttl=900)
 async def get_top_clients(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -938,7 +929,6 @@ async def get_top_clients(
     return results
 
 @router.get("/goals", response_model=List[schemas.GoalStat])
-@cache_response(ttl=900, skip_cache_when=lambda r: r is not None and len(r) == 0)
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
     integration_id: Optional[uuid.UUID] = None,
