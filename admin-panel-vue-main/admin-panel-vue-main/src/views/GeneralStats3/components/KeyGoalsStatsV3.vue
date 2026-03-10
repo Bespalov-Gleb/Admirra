@@ -100,14 +100,6 @@
             />
             <span class="text-[12px] sm:text-[13px] font-normal text-[#09183F] leading-tight" style="word-break: break-word; overflow-wrap: anywhere;">{{ formatGoalName(goal.name) }}</span>
           </div>
-
-          <!-- Dropdown под легендой -->
-          <div class="mt-1 relative">
-            <select class="w-full h-9 pl-3 pr-8 bg-white border border-gray-200 rounded-[10px] text-[12px] font-normal text-gray-500 outline-none appearance-none focus:border-[#2563EB]">
-              <option>Функциональная</option>
-            </select>
-            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-          </div>
         </div>
       </div>
     </div>
@@ -127,6 +119,10 @@ const props = defineProps({
   clientId: { type: String, default: '' },
   startDate: { type: String, default: '' },
   endDate: { type: String, default: '' },
+  /** yandex | vk | all — при vk запрашиваются цели VK (разбивка по типам ЦД) */
+  channel: { type: String, default: 'all' },
+  /** Фильтр по кампаниям (для VK — только выбранные кампании) */
+  campaignIds: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   /** Общее число лидов (summary.leads) — для центра «Итого» и donut */
   totalLeads: { type: Number, default: null }
@@ -206,9 +202,10 @@ const updateChart = () => {
 const fetchGoals = async () => {
   if (!props.clientId || !props.startDate || !props.endDate) return []
   try {
-    const { data } = await api.get('dashboard/goals', {
-      params: { client_id: props.clientId, date_from: props.startDate, date_to: props.endDate }
-    })
+    const params = { client_id: props.clientId, date_from: props.startDate, date_to: props.endDate }
+    if (props.channel === 'vk') params.platform = 'vk'
+    if (props.campaignIds?.length > 0) params.campaign_ids = props.campaignIds.join(',')
+    const { data } = await api.get('dashboard/goals', { params })
     return data || []
   } catch {
     return []
@@ -241,9 +238,9 @@ const loadGoals = async () => {
 }
 
 watch(
-  () => [props.clientId, props.startDate, props.endDate],
+  () => [props.clientId, props.startDate, props.endDate, props.channel, props.campaignIds],
   loadGoals,
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
 onMounted(() => {

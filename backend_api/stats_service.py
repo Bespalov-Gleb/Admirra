@@ -490,6 +490,8 @@ class StatsService:
         def run_vk_query(start, end):
             q = db.query(
                 models.Campaign.id.label("campaign_id"),
+                models.Campaign.name.label("campaign_display_name"),
+                models.Campaign.external_id.label("campaign_external_id"),
                 models.VKStats.campaign_name,
                 func.sum(models.VKStats.impressions).label("impressions"),
                 func.sum(models.VKStats.clicks).label("clicks"),
@@ -508,7 +510,7 @@ class StatsService:
                 q = q.filter(models.VKStats.date >= start)
             if end:
                 q = q.filter(models.VKStats.date <= end)
-            return q.group_by(models.Campaign.id, models.VKStats.campaign_name).all()
+            return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id, models.VKStats.campaign_name).all()
 
         def get_metrika_convs(start, end):
             m_q = db.query(
@@ -648,9 +650,18 @@ class StatsService:
                 else:
                     prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
 
+                # Название: Campaign.name (из API); если "Campaign {id}" — показываем "Кампания (ID: X)"
+                raw = (r.campaign_display_name or r.campaign_name or "").strip()
+                ext_id = getattr(r, "campaign_external_id", None) or ""
+                if raw and not (raw.startswith("Campaign ") and raw.replace("Campaign ", "").strip().isdigit()):
+                    disp_name = raw
+                elif ext_id:
+                    disp_name = f"Кампания (ID: {ext_id})"
+                else:
+                    disp_name = raw or "Без названия"
                 campaigns.append({
                     "id": cid,
-                    "name": f"[VK] {r.campaign_name}",
+                    "name": f"[VK] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
@@ -665,7 +676,8 @@ class StatsService:
                     "trend_cpa": calc_trend(cpa, prev_cpa),
                 })
 
-        campaigns.sort(key=lambda x: x["cost"], reverse=True)
+        # Сортировка: сначала по лидам (заявкам) desc, затем по расходу desc
+        campaigns.sort(key=lambda x: (x["conversions"], x["cost"]), reverse=True)
         return campaigns
 
     @staticmethod

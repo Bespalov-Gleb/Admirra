@@ -166,6 +166,8 @@
             :client-id="filters.client_id"
             :start-date="filters.start_date"
             :end-date="filters.end_date"
+            :channel="filters.channel"
+            :campaign-ids="filters.campaign_ids"
             :total-leads="summary?.leads"
           />
 

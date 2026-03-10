@@ -244,11 +244,16 @@ export function useDashboardStats() {
       const { data } = await api.get('campaigns/', { params })
       
       // Format for dashboard: { id, name, external_id } (external_id для поиска)
-      allCampaigns.value = data.map(c => ({
-        id: c.id,
-        name: c.name || `Campaign ${c.external_id || c.id}`,
-        external_id: c.external_id || ''
-      }))
+      // Если name = "Campaign {id}" — показываем "Кампания (ID: X)" в списке
+      const fmt = (c) => {
+        let name = c.name || (c.external_id ? `Campaign ${c.external_id}` : null) || `Campaign ${c.id}`
+        const extId = c.external_id || ''
+        const m = name.match(/^Campaign\s+(\d+)$/i)
+        if (m && extId) name = `Кампания (ID: ${extId})`
+        else if (m && !extId) name = `Кампания (ID: ${m[1]})`
+        return { id: c.id, name, external_id: extId }
+      }
+      allCampaigns.value = data.map(fmt)
     } catch (err) {
       console.error('[DashboardStats] Error fetching campaign pool:', err)
       allCampaigns.value = []

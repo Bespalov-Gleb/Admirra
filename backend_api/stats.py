@@ -16,6 +16,7 @@ import json
 import logging
 import asyncio
 from automation.sync import sync_integration, sync_metrika_goals_background
+from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
 
 logger = logging.getLogger(__name__)
 
@@ -943,15 +944,18 @@ async def get_goals(
     integration_id: Optional[uuid.UUID] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    platform: Optional[str] = Query("all", description="yandex | vk | all"),
+    campaign_ids: Optional[str] = Query(None, description="comma-separated campaign UUIDs (для VK)"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get Metrika goals for the current client from database with cost calculation.
-    CRITICAL: This endpoint reads from DB only - no API calls to avoid 429 errors.
-    Optionally filter by integration_id to get goals for a specific Yandex account.
+    Get goals for the current client from database.
+    - platform=yandex: Metrika goals (конверсии по целям Метрики)
+    - platform=vk: VK goal actions (разбивка по типам ЦД: подписчики, трафик, лид-формы и т.д.)
+    - platform=all: Yandex only (Metrika). VK при all не показываем — разные метрики.
     
-    Cost is calculated by distributing total ad spend proportionally to goal conversions.
+    Cost is calculated by distributing total ad spend proportionally to conversions.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     # #region agent log
@@ -975,8 +979,71 @@ async def get_goals(
     else:
         date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
 
-    # Get total ad spend for cost distribution
-    # Use StatsService to get accurate total cost
+    # ——— VK: разбивка по типам целевых действий (подписчики, трафик, лид-формы и т.д.) ———
+    if (platform or "").lower() == "vk":
+        u_campaign_ids = None
+        if campaign_ids:
+            try:
+                u_campaign_ids = [uuid.UUID(x.strip()) for x in campaign_ids.split(",") if x.strip()]
+            except ValueError:
+                pass
+        vk_q = db.query(
+            models.Campaign.vk_goal_action_id,
+            models.Campaign.vk_goal_action_name,
+            func.sum(models.VKStats.conversions).label("count"),
+            func.sum(models.VKStats.cost).label("cost"),
+        ).join(models.VKStats, models.VKStats.campaign_id == models.Campaign.id).filter(
+            models.VKStats.client_id.in_(effective_client_ids),
+            models.VKStats.date >= date_from_obj,
+            models.VKStats.date <= date_to_obj,
+            models.Campaign.vk_goal_action_id.isnot(None),
+            models.Campaign.vk_goal_action_id != "",
+        )
+        if u_campaign_ids:
+            vk_q = vk_q.filter(models.Campaign.id.in_(u_campaign_ids))
+        vk_rows = vk_q.group_by(
+            models.Campaign.vk_goal_action_id,
+            models.Campaign.vk_goal_action_name,
+        ).all()
+
+        result = []
+        period_days = (date_to_obj - date_from_obj).days + 1
+        prev_date_from = date_from_obj - timedelta(days=period_days)
+        prev_date_to = date_from_obj - timedelta(days=1)
+
+        for row in vk_rows:
+            prev_q = db.query(
+                func.sum(models.VKStats.conversions)
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(effective_client_ids),
+                models.Campaign.vk_goal_action_id == row.vk_goal_action_id,
+                models.VKStats.date >= prev_date_from,
+                models.VKStats.date <= prev_date_to,
+            )
+            if u_campaign_ids:
+                prev_q = prev_q.filter(models.Campaign.id.in_(u_campaign_ids))
+            prev_count = prev_q.scalar() or 0
+
+            current_count = int(row.count or 0)
+            trend = 0.0
+            if prev_count and prev_count > 0:
+                trend = round(((current_count - int(prev_count)) / int(prev_count)) * 100, 1)
+
+            name = (row.vk_goal_action_name or "").strip() or get_vk_goal_action_name_ru(row.vk_goal_action_id or "")
+            if not name:
+                name = str(row.vk_goal_action_id or "ЦД")
+
+            result.append({
+                "id": str(row.vk_goal_action_id or ""),
+                "name": name,
+                "count": current_count,
+                "trend": trend,
+                "cost": float(row.cost or 0),
+            })
+
+        return result
+
+    # ——— Yandex / all: Metrika goals ———
     summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
     total_cost = float(summary.get("expenses", 0) or 0)
 

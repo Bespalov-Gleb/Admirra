@@ -164,9 +164,16 @@ class VKAdsAPI:
                                 elif goal_name and not goal_id:
                                     goal_id = goal_name
                             
+                            # Название: title/campaign_name — пользовательское; name — из API; fallback — Campaign {id}
+                            disp_name = (
+                                item.get("title")
+                                or item.get("campaign_name")
+                                or item.get("name")
+                                or f"Campaign {item_id}"
+                            )
                             campaigns.append({
                                 "id": str(item_id),
-                                "name": item.get("name") or f"Campaign {item_id}",
+                                "name": disp_name,
                                 "status": item.get("status"),
                                 "goal_action_id": goal_id,
                                 "goal_action_name": goal_name
@@ -962,7 +969,12 @@ class VKAdsAPI:
         items = data.get("items", [])
         for item in items:
             campaign_id = item.get("id")
-            campaign_name = names_map.get(campaign_id, f"Campaign {campaign_id}")
+            # names_map ключи — int; campaign_id из API может быть int или str
+            try:
+                cid = int(campaign_id) if campaign_id is not None else None
+            except (TypeError, ValueError):
+                cid = campaign_id
+            campaign_name = names_map.get(cid, f"Campaign {campaign_id}") if cid is not None else f"Campaign {campaign_id}"
             rows = item.get("rows", [])
             for row in rows:
                 base = row.get("base", {})
