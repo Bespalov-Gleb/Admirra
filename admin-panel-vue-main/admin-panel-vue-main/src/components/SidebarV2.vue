@@ -272,6 +272,7 @@ import {
   ChartBarIcon,
   QuestionMarkCircleIcon,
   CpuChipIcon,
+  LinkIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -281,7 +282,6 @@ import logoFull from '../assets/imgs/logo/logo-dark.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
 import IconProject from '../assets/icons/menu/project.vue'
-import IconProduct from '../assets/icons/menu/product.vue'
 import IconGroup from '../assets/icons/menu/group.vue'
 import IconChannels from '../assets/icons/menu/channels.vue'
 import IconSetting from '../assets/icons/menu/setting.vue'
@@ -310,7 +310,7 @@ const menuItems = [
   { name: 'AI Отчет', path: '/ai-analysis', icon: SparklesIcon },
   { name: 'Проекты', path: '/projects', icon: IconProject },
   { name: 'Команда', path: '/team', icon: IconGroup },
-  { name: 'Продукты', path: '/products', icon: IconProduct },
+  { name: 'Интеграции', path: '/integrations', icon: LinkIcon },
   { name: 'Каналы', path: '/channels', icon: IconChannels },
   {
     name: 'Телефония',

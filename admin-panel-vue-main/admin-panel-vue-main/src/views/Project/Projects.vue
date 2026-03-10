@@ -204,7 +204,7 @@ const enrichedProjects = computed(() => {
 
 // Event handlers for table actions
 const handleAddProject = () => {
-  router.push('/settings?tab=integrations')
+  router.push('/integrations')
 }
 
 const handleViewProject = (projectId) => {
@@ -212,7 +212,7 @@ const handleViewProject = (projectId) => {
 }
 
 const handleEditProject = (projectId) => {
-  router.push(`/settings?tab=integrations&edit=${projectId}`)
+  router.push(`/integrations?edit=${projectId}`)
 }
 
 const handleDeleteProject = async (projectId) => {

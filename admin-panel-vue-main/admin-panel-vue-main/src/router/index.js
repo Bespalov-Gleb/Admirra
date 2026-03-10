@@ -157,6 +157,11 @@ const routes = [
     component: () => import('../views/Profile/Profile.vue')
   },
   {
+    path: '/integrations',
+    name: 'Integrations',
+    component: () => import('../views/Integrations/IntegrationsPage.vue')
+  },
+  {
     path: '/integrations/wizard',
     name: 'AddIntegration',
     component: () => import('../views/Integrations/AddIntegrationPage.vue')

@@ -1,5 +1,5 @@
 <template>
-  <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3.5 sticky top-0 z-30 font-[Inter]">
+  <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3.5 z-30 font-[Inter]">
     <div class="flex items-center justify-between gap-4">
       <!-- Левая часть — Трафик агентство (по макету) -->
       <div class="flex items-center gap-3 flex-shrink-0">
