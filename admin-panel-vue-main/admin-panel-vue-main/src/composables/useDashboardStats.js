@@ -312,11 +312,11 @@ export function useDashboardStats() {
       })
       vkGoalActions.value = Array.isArray(data) ? data : []
       const allIds = vkGoalActions.value.map(g => g.id).filter(Boolean)
-      if (!filters.vk_goal_action_ids || filters.vk_goal_action_ids.length === 0) {
-        filters.vk_goal_action_ids = allIds
-      } else {
+      // НЕ подставляем все цели по умолчанию — иначе фильтр исключает кампании без vk_goal_action_id
+      // и данные идут в ноль. Цели применяются только при явном выборе во вкладке «По целям».
+      if (filters.vk_goal_action_ids && filters.vk_goal_action_ids.length > 0) {
         const normalized = filters.vk_goal_action_ids.filter(id => allIds.includes(id))
-        filters.vk_goal_action_ids = normalized.length > 0 ? normalized : allIds
+        filters.vk_goal_action_ids = normalized.length > 0 ? normalized : []
       }
     } catch (err) {
       console.error('[DashboardStats] Error fetching VK goal actions:', err)
