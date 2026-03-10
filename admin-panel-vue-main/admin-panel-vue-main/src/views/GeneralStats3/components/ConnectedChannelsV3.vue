@@ -83,7 +83,7 @@
 <script setup>
 import { computed } from 'vue'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
-import vkAdsIcon from '@/assets/icons/vk-ads.svg'
+import vkAdsIcon from '@/assets/icons/vk-ads.png'
 
 const props = defineProps({
   integrations: {

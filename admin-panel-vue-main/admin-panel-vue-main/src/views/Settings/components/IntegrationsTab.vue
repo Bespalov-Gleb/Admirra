@@ -180,7 +180,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
-import vkAdsIcon from '@/assets/icons/vk-ads.svg'
+import vkAdsIcon from '@/assets/icons/vk-ads.png'
 
 const clients = ref([])
 const loading = ref(true)

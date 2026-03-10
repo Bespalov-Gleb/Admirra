@@ -16,7 +16,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import vkAdsIcon from '@/assets/icons/vk-ads.svg'
+import vkAdsIcon from '@/assets/icons/vk-ads.png'
 
 const props = defineProps({
   platform: String,
