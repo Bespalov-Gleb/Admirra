@@ -687,8 +687,8 @@ async def get_activity_by_weekday(
     db: Session = Depends(get_db)
 ):
     """
-    Get activity (clicks + conversions) aggregated by day of week.
-    Returns: {"0": N, "1": N, ...} where 0=Sunday, 1=Monday, ..., 6=Saturday.
+    Get clicks and leads aggregated by day of week.
+    Returns: {"clicks": {"0": N, ...}, "leads": {"0": N, ...}} where 0=Sunday, 1=Monday, ..., 6=Saturday.
     """
     u_client_id = None
     if client_id and client_id.strip():
@@ -717,7 +717,8 @@ async def get_activity_by_weekday(
 
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
-        return {str(i): 0 for i in range(7)}
+        empty = {str(i): 0 for i in range(7)}
+        return {"clicks": dict(empty), "leads": dict(empty)}
 
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()

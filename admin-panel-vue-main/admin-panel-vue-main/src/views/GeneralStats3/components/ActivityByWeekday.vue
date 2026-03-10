@@ -1,6 +1,25 @@
 <template>
   <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
-    <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-5" style="font-family: Inter, sans-serif;">Активность по дням</h3>
+    <div class="flex items-center justify-between gap-4 mb-5">
+      <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif;">Активность по дням</h3>
+      <!-- Переключатель: Клики / Лиды -->
+      <div class="flex rounded-[10px] bg-gray-100 p-0.5">
+        <button
+          type="button"
+          @click="metric = 'clicks'"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'clicks' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+        >
+          Клики
+        </button>
+        <button
+          type="button"
+          @click="metric = 'leads'"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'leads' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+        >
+          Лиды
+        </button>
+      </div>
+    </div>
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -30,14 +49,17 @@ const props = defineProps({
 const chartRef = ref(null)
 let chartInstance = null
 const loading = ref(false)
+const metric = ref('clicks') // 'clicks' | 'leads'
+const chartData = ref({ clicks: {}, leads: {} })
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const WEEKDAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
-const updateChart = (data) => {
+const updateChart = () => {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.destroy()
 
+  const data = chartData.value[metric.value] || chartData.value.clicks || {}
   const values = WEEKDAY_INDICES.map((i) => data[String(i)] || 0)
   const maxVal = Math.max(...values)
   const maxIdx = maxVal > 0 ? values.indexOf(maxVal) : -1
@@ -46,8 +68,8 @@ const updateChart = (data) => {
     type: 'bar',
     data: {
       labels: WEEKDAY_LABELS,
-      datasets: [{
-        label: 'Активность',
+        datasets: [{
+        label: metric.value === 'clicks' ? 'Клики' : 'Лиды',
         data: values,
         backgroundColor: (() => {
           const canvas = chartRef.value
@@ -108,9 +130,19 @@ const fetchData = async () => {
     if (props.campaignIds?.length) params.campaign_ids = props.campaignIds
     if (props.goalActionIds?.length) params.goal_action_ids = props.goalActionIds
     const { data } = await api.get('dashboard/activity-by-weekday', { params })
-    updateChart(data || {})
+    // Новый формат: { clicks: {...}, leads: {...} }. Старый (кэш): {"0": N, ...} — считаем за clicks
+    if (data && data.clicks && data.leads) {
+      chartData.value = data
+    } else if (data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).some(k => /^[0-6]$/.test(k))) {
+      // Старый формат (clicks+leads): показываем как клики, лиды = 0
+      chartData.value = { clicks: { ...data }, leads: { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0 } }
+    } else {
+      chartData.value = { clicks: {}, leads: {} }
+    }
+    updateChart()
   } catch {
-    updateChart({})
+    chartData.value = { clicks: {}, leads: {} }
+    updateChart()
   } finally {
     loading.value = false
   }
@@ -121,6 +153,8 @@ watch(
   fetchData,
   { immediate: true }
 )
+
+watch(metric, () => updateChart())
 
 onMounted(fetchData)
 onUnmounted(() => {

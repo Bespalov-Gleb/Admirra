@@ -679,12 +679,13 @@ class StatsService:
         vk_goal_action_ids: Optional[List[str]] = None
     ) -> dict:
         """
-        Агрегирует активность (клики + конверсии) по дням недели.
+        Агрегирует клики и лиды (конверсии) по дням недели отдельно.
         PostgreSQL EXTRACT(DOW FROM date): 0=Sunday, 1=Monday, ..., 6=Saturday.
-        Возвращает: {"0": N, "1": N, ...} для Пн-Вс (индекс 1=Пн, 2=Вт, ..., 0=Вс).
+        Возвращает: {"clicks": {"0": N, ...}, "leads": {"0": N, ...}}
         """
+        empty = {str(i): 0 for i in range(7)}
         if not client_ids:
-            return {str(i): 0 for i in range(7)}
+            return {"clicks": dict(empty), "leads": dict(empty)}
 
         integration_ids_filter = None
         if not campaign_ids and len(client_ids) == 1:
@@ -698,13 +699,15 @@ class StatsService:
             if aid_list:
                 integration_ids_filter = aid_list
 
-        result = {str(i): 0 for i in range(7)}
+        clicks_result = {str(i): 0 for i in range(7)}
+        leads_result = {str(i): 0 for i in range(7)}
 
         if platform in ["all", "yandex"]:
             from sqlalchemy import extract
             y_rows = db.query(
                 extract('dow', models.YandexStats.date).label('dow'),
-                (func.sum(models.YandexStats.clicks) + func.sum(models.YandexStats.conversions)).label('total')
+                func.sum(models.YandexStats.clicks).label('clicks'),
+                func.sum(models.YandexStats.conversions).label('leads')
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids),
                 models.Campaign.is_active.is_(True)
@@ -720,13 +723,15 @@ class StatsService:
             y_rows = y_rows.group_by(extract('dow', models.YandexStats.date)).all()
             for r in y_rows:
                 dow = int(r.dow) if r.dow is not None else 0
-                result[str(dow)] = result.get(str(dow), 0) + int(r.total or 0)
+                clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
+                leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
 
         if platform in ["all", "vk"]:
             from sqlalchemy import extract
             v_rows = db.query(
                 extract('dow', models.VKStats.date).label('dow'),
-                (func.sum(models.VKStats.clicks) + func.sum(models.VKStats.conversions)).label('total')
+                func.sum(models.VKStats.clicks).label('clicks'),
+                func.sum(models.VKStats.conversions).label('leads')
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(client_ids)
             )
@@ -743,6 +748,7 @@ class StatsService:
             v_rows = v_rows.group_by(extract('dow', models.VKStats.date)).all()
             for r in v_rows:
                 dow = int(r.dow) if r.dow is not None else 0
-                result[str(dow)] = result.get(str(dow), 0) + int(r.total or 0)
+                clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
+                leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
 
-        return result
+        return {"clicks": clicks_result, "leads": leads_result}

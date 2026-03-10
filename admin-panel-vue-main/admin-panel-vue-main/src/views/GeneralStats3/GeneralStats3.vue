@@ -173,16 +173,6 @@
             :loading="loading"
           />
 
-          <!-- Лучшие посты -->
-          <BestPosts
-            :client-id="filters.client_id || ''"
-            :start-date="filters.start_date"
-            :end-date="filters.end_date"
-            :platform="filters.channel"
-            :campaign-ids="filters.campaign_ids || []"
-            :goal-action-ids="filters.vk_goal_action_ids || []"
-          />
-
           <!-- Активность по дням + Возраст аудитории -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
             <div class="min-h-[360px]">
@@ -352,7 +342,6 @@ import StatisticsChart from './components/StatisticsChart.vue'
 import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
 import CampaignTableV3 from './components/CampaignTableV3.vue'
 import KPIOverview from './components/KPIOverview.vue'
-import BestPosts from './components/BestPosts.vue'
 import ActivityByWeekday from './components/ActivityByWeekday.vue'
 import AudienceAge from './components/AudienceAge.vue'
 import ConnectedChannelsV3 from './components/ConnectedChannelsV3.vue'
