@@ -1,8 +1,24 @@
 <template>
   <div class="min-h-screen bg-[#f1f4f9] -m-6 p-8 animate-fade-in">
     <div class="max-w-7xl mx-auto space-y-8">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 class="text-[15px] font-bold text-[#2d3a5d] tracking-tight">Активные интеграции</h2>
+        <div class="relative w-full sm:w-72">
+          <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Поиск по интеграциям"
+            class="w-full pl-9 pr-4 py-2.5 text-[13px] rounded-xl border border-gray-200 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+          />
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <XMarkIcon class="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <!-- Список проектов -->
@@ -10,24 +26,35 @@
         <div class="w-8 h-8 border-3 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
       </div>
       
-      <div v-else-if="groupedClients.length === 0" class="text-center py-16 bg-white rounded-[32px] border border-white/80 shadow-sm animate-fade-in mb-8">
+      <div v-else-if="filteredGroupedClients.length === 0" class="text-center py-16 bg-white rounded-[32px] border border-white/80 shadow-sm animate-fade-in mb-8">
         <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-50 rounded-2xl mb-4 border border-gray-100">
-           <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+           <MagnifyingGlassIcon v-if="searchQuery" class="w-8 h-8 text-gray-300" />
+           <svg v-else class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
            </svg>
         </div>
         <p class="text-[13px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Ничего не найдено</p>
-        <p class="text-[11px] text-gray-400 mb-6">У вас пока нет активных интеграций для ваших проектов</p>
+        <p class="text-[11px] text-gray-400 mb-6">
+          {{ searchQuery ? `По запросу «${searchQuery}» ничего не найдено` : 'У вас пока нет активных интеграций для ваших проектов' }}
+        </p>
         <button 
+          v-if="!searchQuery"
           @click="$router.push('/integrations/wizard')" 
           class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-500/20"
         >
           Подключить интеграцию
         </button>
+        <button 
+          v-else
+          @click="searchQuery = ''" 
+          class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all"
+        >
+          Очистить поиск
+        </button>
       </div>
       
       <div v-else class="grid grid-cols-1 gap-8">
-        <div v-for="client in groupedClients" :key="client.id" 
+        <div v-for="client in filteredGroupedClients" :key="client.id" 
              class="bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm animate-fade-in hover:shadow-md transition-all relative z-10 hover:z-50">
           
           <!-- Шапка проекта (Project Header) -->
@@ -177,7 +204,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PlusIcon, EllipsisVerticalIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
@@ -185,6 +212,7 @@ import vkAdsIcon from '@/assets/icons/vk-ads.png'
 const clients = ref([])
 const loading = ref(true)
 const activeSettingsItem = ref(null)
+const searchQuery = ref('')
 
 const platformLabels = {
   'YANDEX_DIRECT': 'Яндекс.Директ',
@@ -262,6 +290,25 @@ const handleIntegrationSuccess = () => {
 
 const groupedClients = computed(() => {
   return clients.value.filter(c => c.integrations && c.integrations.length > 0)
+})
+
+const filteredGroupedClients = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return groupedClients.value
+
+  return groupedClients.value
+    .map(client => {
+      const clientMatches = client.name.toLowerCase().includes(q)
+      const matchedIntegrations = client.integrations.filter(item => {
+        const platformText = (platformLabels[item.platform] || item.platform || '').toLowerCase()
+        const accountId = (item.account_id || '').toLowerCase()
+        return platformText.includes(q) || accountId.includes(q)
+      })
+      if (clientMatches) return { ...client, integrations: client.integrations }
+      if (matchedIntegrations.length > 0) return { ...client, integrations: matchedIntegrations }
+      return null
+    })
+    .filter(Boolean)
 })
 
 const deleteIntegration = async (id) => {
