@@ -1,9 +1,14 @@
 <template>
   <div
-    class="rounded-[10px] p-6 sm:p-8 bg-white border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[240px]"
+    class="rounded-[10px] p-6 sm:p-8 border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[240px]"
     :class="[
-      isSelected ? 'ring-2 ring-[#2563EB]/40 border-[#BFDBFE]' : 'border-gray-100 hover:border-gray-200'
+      isSelected ? 'border-l-4' : 'border-gray-100 hover:border-gray-200'
     ]"
+    :style="isSelected && chartColor ? {
+      borderLeftColor: chartColor,
+      borderLeftWidth: '4px',
+      backgroundColor: hexToRgba(chartColor, 0.04)
+    } : { backgroundColor: 'white' }"
     @click="$emit('click')"
   >
     <!-- Верхняя строка: иконка + название + кнопка -->
@@ -94,10 +99,23 @@ const props = defineProps({
   isSelected: {
     type: Boolean,
     default: false
+  },
+  chartColor: {
+    type: String,
+    default: null
   }
 })
 
 const trendDisplay = computed(() => props.trendDisplay || `${props.trend}%`)
+
+function hexToRgba(hex, alpha) {
+  const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i)
+  if (!m) return 'rgba(0,0,0,0.04)'
+  const r = parseInt(m[1], 16)
+  const g = parseInt(m[2], 16)
+  const b = parseInt(m[3], 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
 
 defineEmits(['click'])
 </script>

@@ -434,7 +434,7 @@ watch(() => filters.client_id, (newId) => {
 
 // --- State & UI Logic ---
 
-const selectedMetrics = ref([]) // Array of selected metrics
+const selectedMetrics = ref(['expenses']) // По умолчанию активен Расход
 
 const toggleMetric = (metric) => {
   const index = selectedMetrics.value.indexOf(metric)

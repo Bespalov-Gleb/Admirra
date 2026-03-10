@@ -13,6 +13,7 @@
           :icon="metric.icon"
           :icon-color="metric.iconColor"
           :is-selected="selectedMetrics.includes(metric.id)"
+          :chart-color="metric.chartColor"
           @click="$emit('toggle-metric', metric.id)"
         />
       </div>
@@ -93,7 +94,7 @@ const metrics = computed(() => {
       changePositive: (t.expenses ?? 0) <= 0,
       icon: WalletIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#3464F3'
     },
     {
       id: 'impressions',
@@ -106,7 +107,7 @@ const metrics = computed(() => {
       changePositive: (t.impressions ?? 0) >= 0,
       icon: ChartBarIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#F0926D'
     },
     {
       id: 'clicks',
@@ -119,7 +120,7 @@ const metrics = computed(() => {
       changePositive: (t.clicks ?? 0) >= 0,
       icon: CursorArrowRaysIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#C2EECF'
     },
     {
       id: 'cpc',
@@ -132,7 +133,7 @@ const metrics = computed(() => {
       changePositive: (t.cpc ?? 0) <= 0,
       icon: GlobeAltIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#D38CFF'
     },
     {
       id: 'leads',
@@ -145,7 +146,7 @@ const metrics = computed(() => {
       changePositive: (t.leads ?? 0) >= 0,
       icon: BriefcaseIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#8ADA70'
     },
     {
       id: 'cpa',
@@ -158,7 +159,7 @@ const metrics = computed(() => {
       changePositive: (t.cpa ?? 0) <= 0,
       icon: CheckBadgeIcon,
       iconColor: 'blue',
-      chartColor: '#2563EB'
+      chartColor: '#EB8525'
     }
   ]
 })
