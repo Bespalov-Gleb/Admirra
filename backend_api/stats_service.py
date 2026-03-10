@@ -702,12 +702,37 @@ class StatsService:
         clicks_result = {str(i): 0 for i in range(7)}
         leads_result = {str(i): 0 for i in range(7)}
 
+        # selected_goal_ids для лидов Yandex (как в aggregate_summary)
+        selected_goal_ids = set()
+        for i in db.query(models.Integration).filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.platform.in_([
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.YANDEX_METRIKA,
+            ]),
+        ).all():
+            if i.selected_goals:
+                try:
+                    sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
+                    selected_goal_ids.update(str(g) for g in (sg or []))
+                except Exception:
+                    pass
+            if i.primary_goal_id:
+                selected_goal_ids.add(str(i.primary_goal_id))
+
+        integration_ids_for_metrika = None
+        if campaign_ids:
+            campaign_integrations = db.query(models.Campaign.integration_id).filter(
+                models.Campaign.id.in_(campaign_ids)
+            ).distinct().all()
+            integration_ids_for_metrika = [ci[0] for ci in campaign_integrations if ci[0]]
+
         if platform in ["all", "yandex"]:
             from sqlalchemy import extract
+            # Клики — из YandexStats
             y_rows = db.query(
                 extract('dow', models.YandexStats.date).label('dow'),
-                func.sum(models.YandexStats.clicks).label('clicks'),
-                func.sum(models.YandexStats.conversions).label('leads')
+                func.sum(models.YandexStats.clicks).label('clicks')
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
                 models.YandexStats.client_id.in_(client_ids),
                 models.Campaign.is_active.is_(True)
@@ -724,7 +749,48 @@ class StatsService:
             for r in y_rows:
                 dow = int(r.dow) if r.dow is not None else 0
                 clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
+
+            # Лиды Yandex — из MetrikaGoals (selected_goals), как в сводке
+            m_q = db.query(
+                extract('dow', models.MetrikaGoals.date).label('dow'),
+                func.sum(models.MetrikaGoals.conversion_count).label('leads')
+            ).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id != "all"
+            )
+            if selected_goal_ids:
+                m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+            if campaign_ids and integration_ids_for_metrika:
+                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids_for_metrika))
+            if d_start:
+                m_q = m_q.filter(models.MetrikaGoals.date >= d_start)
+            if d_end:
+                m_q = m_q.filter(models.MetrikaGoals.date <= d_end)
+            m_rows = m_q.group_by(extract('dow', models.MetrikaGoals.date)).all()
+            for r in m_rows:
+                dow = int(r.dow) if r.dow is not None else 0
                 leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
+            # Fallback: если Metrika пусто, используем YandexStats.conversions
+            if sum(leads_result.values()) == 0:
+                y_conv_rows = db.query(
+                    extract('dow', models.YandexStats.date).label('dow'),
+                    func.sum(models.YandexStats.conversions).label('leads')
+                ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                    models.YandexStats.client_id.in_(client_ids),
+                    models.Campaign.is_active.is_(True)
+                )
+                if campaign_ids:
+                    y_conv_rows = y_conv_rows.filter(models.Campaign.id.in_(campaign_ids))
+                elif integration_ids_filter:
+                    y_conv_rows = y_conv_rows.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+                if d_start:
+                    y_conv_rows = y_conv_rows.filter(models.YandexStats.date >= d_start)
+                if d_end:
+                    y_conv_rows = y_conv_rows.filter(models.YandexStats.date <= d_end)
+                y_conv_rows = y_conv_rows.group_by(extract('dow', models.YandexStats.date)).all()
+                for r in y_conv_rows:
+                    dow = int(r.dow) if r.dow is not None else 0
+                    leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
 
         if platform in ["all", "vk"]:
             from sqlalchemy import extract
