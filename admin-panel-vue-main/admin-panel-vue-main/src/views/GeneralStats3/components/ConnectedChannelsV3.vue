@@ -37,7 +37,7 @@
               v-else-if="platform.id === 'vk_ads'"
               :src="vkAdsIcon"
               alt="VK Ads"
-              class="w-full h-full object-contain"
+              class="w-full h-full object-contain scale-[1.2] origin-center"
             />
             <div
               v-else
