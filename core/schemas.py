@@ -107,6 +107,9 @@ class IntegrationResponse(IntegrationBase):
     selected_goals: Optional[List[str]] = None
     primary_goal_id: Optional[str] = None
     campaigns: List["CampaignResponse"] = []
+    sync_status: Optional[str] = None  # SUCCESS | FAILED | PENDING | NEVER
+    last_sync_at: Optional[datetime] = None
+    error_message: Optional[str] = None
 
     class Config:
         from_attributes = True

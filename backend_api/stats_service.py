@@ -770,27 +770,8 @@ class StatsService:
             for r in m_rows:
                 dow = int(r.dow) if r.dow is not None else 0
                 leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
-            # Fallback: если Metrika пусто, используем YandexStats.conversions
-            if sum(leads_result.values()) == 0:
-                y_conv_rows = db.query(
-                    extract('dow', models.YandexStats.date).label('dow'),
-                    func.sum(models.YandexStats.conversions).label('leads')
-                ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
-                    models.YandexStats.client_id.in_(client_ids),
-                    models.Campaign.is_active.is_(True)
-                )
-                if campaign_ids:
-                    y_conv_rows = y_conv_rows.filter(models.Campaign.id.in_(campaign_ids))
-                elif integration_ids_filter:
-                    y_conv_rows = y_conv_rows.filter(models.Campaign.integration_id.in_(integration_ids_filter))
-                if d_start:
-                    y_conv_rows = y_conv_rows.filter(models.YandexStats.date >= d_start)
-                if d_end:
-                    y_conv_rows = y_conv_rows.filter(models.YandexStats.date <= d_end)
-                y_conv_rows = y_conv_rows.group_by(extract('dow', models.YandexStats.date)).all()
-                for r in y_conv_rows:
-                    dow = int(r.dow) if r.dow is not None else 0
-                    leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
+            # НЕ используем fallback на YandexStats.conversions — они другие (Direct считает не по Metrika целям).
+            # Лиды в диаграмме = ТЕ ЖЕ, что в сводке (MetrikaGoals). Если Metrika пусто — остаётся 0.
 
         if platform in ["all", "vk"]:
             from sqlalchemy import extract
