@@ -55,10 +55,10 @@
       >
         <!-- Синий тонирующий слой (как на карточке тарифов) -->
         <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
-        <!-- Белые точки (паттерн как на голубой зоне) -->
+        <!-- Белые точки (как на карточке тарифов) -->
         <div
           class="absolute inset-0"
-          style="background-image: radial-gradient(circle, rgba(255,255,255,0.55) 1.5px, transparent 1.5px); background-size: 14px 14px;"
+          style="background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px); background-size: 16px 16px;"
         ></div>
         <h3 class="text-[18px] lg:text-[23px] font-normal text-white p-4 lg:p-5 pb-0 relative z-10">Итого:</h3>
         <!-- Число прижато к самому низу, масштаб под ширину экрана -->
