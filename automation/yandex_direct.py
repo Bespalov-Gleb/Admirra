@@ -1725,6 +1725,31 @@ class YandexDirectAPI:
                 logger.warning(f"⚠️ Error getting campaign goals, will use fallback method: {e}")
                 return {}
     
+    async def get_client_info_for_login(self, client_login: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetches ClientInfo (human-readable cabinet name) for a specific login.
+        Uses Client-Login header to request that cabinet's parameters.
+        """
+        url = "https://api.direct.yandex.com/json/v5/clients"
+        headers = {**self.headers, "Client-Login": client_login}
+        payload = {
+            "method": "get",
+            "params": {
+                "FieldNames": ["Login", "ClientInfo"]
+            }
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(url, json=payload, headers=headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if "result" in data and "Clients" in data["result"] and data["result"]["Clients"]:
+                        c = data["result"]["Clients"][0]
+                        return {"Login": c.get("Login"), "ClientInfo": c.get("ClientInfo", "")}
+            except Exception as e:
+                logger.warning(f"Could not get ClientInfo for {client_login}: {e}")
+        return None
+
     async def get_clients(self) -> List[Dict[str, Any]]:
         """
         Fetches information about the current client, including ManagedLogins for shared access.

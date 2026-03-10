@@ -94,7 +94,7 @@
                       {{ platformLabels[item.platform] || item.platform }}
                     </h4>
                     <span class="text-[9px] font-black text-gray-300 uppercase letter-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                      ID: {{ (item.account_id || '').split('@')[0] }}
+                      {{ item.account_name || (item.account_id ? 'ID: ' + (item.account_id || '').split('@')[0] : '—') }}
                     </span>
                   </div>
                   <div class="flex items-center gap-3">
@@ -302,7 +302,8 @@ const filteredGroupedClients = computed(() => {
       const matchedIntegrations = client.integrations.filter(item => {
         const platformText = (platformLabels[item.platform] || item.platform || '').toLowerCase()
         const accountId = (item.account_id || '').toLowerCase()
-        return platformText.includes(q) || accountId.includes(q)
+        const accountName = (item.account_name || '').toLowerCase()
+        return platformText.includes(q) || accountId.includes(q) || accountName.includes(q)
       })
       if (clientMatches) return { ...client, integrations: client.integrations }
       if (matchedIntegrations.length > 0) return { ...client, integrations: matchedIntegrations }

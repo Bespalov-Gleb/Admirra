@@ -1181,9 +1181,10 @@ async def get_integration_profiles(
             # CRITICAL: Clients.get returns the Login field which is the advertising account login (username)
             # This is the format needed for Client-Login header
             personal_login = None
+            clients_info = []
             try:
                 direct_api = YandexDirectAPI(access_token)
-                clients_info = await direct_api.get_clients()
+                clients_info = await direct_api.get_clients() or []
                 logger.info(f"🔵 Clients.get returned {len(clients_info) if clients_info else 0} client(s)")
                 if clients_info:
                     # Clients.get returns the account's own login in the Login field
@@ -1201,9 +1202,11 @@ async def get_integration_profiles(
                 logger.warning(f"⚠️ Using account_id as fallback for personal login: {personal_login} (this may not be the correct advertising account login)")
             
             if personal_login and personal_login.lower() != "unknown":
-                profiles.append({"login": personal_login, "name": f"Личный аккаунт ({personal_login})"})
+                personal_info = clients_info[0].get("ClientInfo", "") if clients_info else ""
+                personal_name = personal_info if personal_info else f"Личный аккаунт ({personal_login})"
+                profiles.append({"login": personal_login, "name": personal_name, "type": "personal"})
                 seen_logins.add(personal_login.lower())
-                logger.info(f"✅ Added personal profile: {personal_login}")
+                logger.info(f"✅ Added personal profile: {personal_login} ({personal_name})")
 
             # 2. Try to get agency clients (if this account is an agency)
             try:
@@ -1222,20 +1225,29 @@ async def get_integration_profiles(
                 logger.warning(f"No agency clients found or error: {agency_err}")
 
             # 3. Try to get managed logins (accounts with shared access)
+            # For each managed login, fetch ClientInfo (human-readable cabinet name) via Clients.get
             try:
                 direct_api = YandexDirectAPI(access_token)
-                clients_info = await direct_api.get_clients()
-                for c_info in clients_info:
-                    # Get logins where this user has management access
+                clients_info_managed = await direct_api.get_clients() or []
+                managed_logins_to_fetch = []
+                for c_info in clients_info_managed:
                     managed = c_info.get("ManagedLogins", [])
                     for m_login in managed:
                         if m_login and m_login.lower() not in seen_logins:
-                            profiles.append({
-                                "login": m_login,
-                                "name": f"Доступный аккаунт ({m_login})"
-                            })
+                            managed_logins_to_fetch.append(m_login)
                             seen_logins.add(m_login.lower())
-                            logger.info(f"Added managed login: {m_login}")
+
+                # Fetch ClientInfo for each managed login (human-readable cabinet name)
+                for m_login in managed_logins_to_fetch:
+                    info = await direct_api.get_client_info_for_login(m_login)
+                    cabinet_name = info.get("ClientInfo", "").strip() if info else ""
+                    display_name = cabinet_name if cabinet_name else f"Доступный аккаунт ({m_login})"
+                    profiles.append({
+                        "login": m_login,
+                        "name": display_name,
+                        "type": "managed"
+                    })
+                    logger.info(f"Added managed login: {m_login} ({display_name})")
             except Exception as managed_err:
                 logger.warning(f"Error fetching managed logins: {managed_err}")
 
@@ -3110,8 +3122,9 @@ async def get_agency_clients(access_token: str) -> List[dict]:
                     return [
                         {
                             "login": c["Login"],
-                            "name": f"{c['ClientInfo']} ({c['Login']})",
-                            "fio": c.get("RepresentedBy", {}).get("Agency", "")
+                            "name": c.get("ClientInfo", c["Login"]).strip() or c["Login"],
+                            "fio": c.get("RepresentedBy", {}).get("Agency", ""),
+                            "type": "agency_client"
                         }
                         for c in data["result"]["Clients"]
                     ]

@@ -75,6 +75,7 @@ class Integration(Base):
     platform_client_secret = Column(String) # For platforms like VK Ads
     expires_at = Column(DateTime)
     account_id = Column(String) # Logic ID in the platform
+    account_name = Column(String, nullable=True) # Human-readable cabinet/cabinet name (e.g. Yandex ClientInfo)
     vk_user_id = Column(String, nullable=True) # VK Ads user_id for token revocation (optional)
     sync_status = Column(Enum(IntegrationSyncStatus), default=IntegrationSyncStatus.NEVER)
     last_sync_at = Column(DateTime)

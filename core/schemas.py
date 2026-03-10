@@ -70,6 +70,7 @@ from core import models
 class IntegrationBase(BaseModel):
     platform: models.IntegrationPlatform
     account_id: Optional[str] = None
+    account_name: Optional[str] = None  # Human-readable cabinet name (Yandex ClientInfo, etc.)
     auto_sync: Optional[bool] = True
     sync_interval: Optional[int] = 1440
     selected_goals: Optional[List[str]] = None # List of goal IDs

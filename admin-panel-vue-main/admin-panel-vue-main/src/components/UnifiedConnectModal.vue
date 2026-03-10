@@ -545,7 +545,8 @@ const selectProfile = async (profile) => {
     // For Yandex Agency, we might need to store agency_client_login
     await api.patch(`integrations/${lastIntegrationId.value}`, { 
       account_id: profile.login,
-      agency_client_login: profile.login 
+      agency_client_login: profile.login,
+      account_name: profile.name || null
     })
     sendRemoteLog('Profile Selected', { login: profile.login })
     

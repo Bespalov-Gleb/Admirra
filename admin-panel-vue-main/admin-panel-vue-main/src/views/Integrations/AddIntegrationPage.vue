@@ -507,7 +507,8 @@ const selectProfile = async (profile) => {
   try {
     await api.patch(`/integrations/${lastIntegrationId.value}`, {
       account_id: profile.login,
-      agency_client_login: profile.login
+      agency_client_login: profile.login,
+      account_name: profile.name || null
     })
   } catch (err) {
     error.value = "Ошибка при сохранении профиля"
