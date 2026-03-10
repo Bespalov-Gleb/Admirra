@@ -30,6 +30,7 @@ export function useDashboardStats() {
   const topClients = ref([])
   const campaigns = ref([])
   const allCampaigns = ref([]) // For dropdown pool
+  const allCampaignsForGoalsTab = ref([]) // Все VK кампании без фильтра по целям (для вкладки «По целям»)
   const clients = ref([])
   const loading = ref(true)
   const loadingClients = ref(false)
@@ -251,7 +252,7 @@ export function useDashboardStats() {
         const m = name.match(/^Campaign\s+(\d+)$/i)
         if (m && extId) name = `Кампания (ID: ${extId})`
         else if (m && !extId) name = `Кампания (ID: ${m[1]})`
-        return { id: c.id, name, external_id: extId }
+        return { id: c.id, name, external_id: extId, vk_goal_action_id: c.vk_goal_action_id }
       }
       allCampaigns.value = data.map(fmt)
     } catch (err) {
@@ -259,6 +260,33 @@ export function useDashboardStats() {
       allCampaigns.value = []
     } finally {
       loadingCampaigns.value = false
+    }
+  }
+
+  /** Для вкладки «По целям» в модалке — все VK кампании без фильтра по целям */
+  const fetchAllCampaignsForGoalsTab = async () => {
+    if (filters.channel !== 'vk' || !filters.client_id) {
+      allCampaignsForGoalsTab.value = []
+      return
+    }
+    try {
+      const params = {
+        client_id: filters.client_id,
+        platform: 'vk',
+        only_active: true
+      }
+      const { data } = await api.get('campaigns/', { params })
+      const fmt = (c) => {
+        let name = c.name || (c.external_id ? `Campaign ${c.external_id}` : null) || `Campaign ${c.id}`
+        const extId = c.external_id || ''
+        const m = name.match(/^Campaign\s+(\d+)$/i)
+        if (m && extId) name = `Кампания (ID: ${extId})`
+        else if (m && !extId) name = `Кампания (ID: ${m[1]})`
+        return { id: c.id, name, external_id: extId, vk_goal_action_id: c.vk_goal_action_id }
+      }
+      allCampaignsForGoalsTab.value = data.map(fmt)
+    } catch {
+      allCampaignsForGoalsTab.value = []
     }
   }
 
@@ -365,6 +393,7 @@ export function useDashboardStats() {
     dynamics,
     topClients,
     allCampaigns,
+    allCampaignsForGoalsTab,
     campaigns,
     clients,
     loading: computed(() => loading.value || loadingClients.value),
@@ -376,6 +405,7 @@ export function useDashboardStats() {
     handlePeriodChange,
     fetchStats,
     fetchClients,
-    fetchCampaignPool
+    fetchCampaignPool,
+    fetchAllCampaignsForGoalsTab
   }
 }

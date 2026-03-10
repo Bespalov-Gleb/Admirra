@@ -58,9 +58,14 @@
             <CampaignSelectModal
               v-model="campaignModalOpen"
               :campaigns="allCampaigns"
+              :campaigns-for-goals="allCampaignsForGoalsTab"
               :selected-ids="filters.campaign_ids || []"
+              :channel="filters.channel"
+              :vk-goal-actions="vkGoalActions"
+              :selected-goal-ids="filters.vk_goal_action_ids || []"
               :loading="loadingCampaigns"
               @apply="(ids) => { filters.campaign_ids = ids; fetchStats(); }"
+              @apply-goals="handleApplyGoals"
             />
             <select
               v-model="filters.period"
@@ -370,17 +375,29 @@ const {
   campaigns,
   clients,
   allCampaigns,
+  allCampaignsForGoalsTab,
   loading,
   error: statsError,
   filters,
   handlePeriodChange,
   fetchStats,
+  fetchAllCampaignsForGoalsTab,
   loadingCampaigns,
   vkGoalActions,
   loadingVkGoalActions
 } = useDashboardStats()
 
 const campaignModalOpen = ref(false)
+
+watch(campaignModalOpen, (open) => {
+  if (open && filters.channel === 'vk') fetchAllCampaignsForGoalsTab()
+})
+
+const handleApplyGoals = ({ campaignIds, goalActionIds }) => {
+  filters.campaign_ids = campaignIds || []
+  filters.vk_goal_action_ids = goalActionIds || []
+  fetchStats()
+}
 
 const campaignButtonLabel = computed(() => {
   if (!filters.client_id) return 'Сначала проект'
