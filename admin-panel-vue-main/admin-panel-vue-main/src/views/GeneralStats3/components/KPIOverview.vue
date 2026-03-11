@@ -1,29 +1,74 @@
 <template>
   <div class="w-full font-[Inter]">
-    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-      <div v-for="metric in metrics" :key="metric.id">
-        <CardV3
-          :title="metric.title"
-          :subtitle="metric.subtitle"
-          :value="metric.value"
-          :trend="metric.trend"
-          :trend-display="metric.trendDisplay"
-          :trend-absolute="metric.trendAbsolute"
-          :change-positive="metric.changePositive"
-          :icon="metric.icon"
-          :icon-color="metric.iconColor"
-          :is-selected="selectedMetrics.includes(metric.id)"
-          :chart-color="metric.chartColor"
-          @click="$emit('toggle-metric', metric.id)"
-        />
+    <VueDraggable
+      v-model="slotItems"
+      :animation="150"
+      handle=".drag-handle"
+      class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
+      item-key="slotKey"
+      @end="emitSlotConfig"
+    >
+      <div
+        v-for="(element, index) in slotItems"
+        :key="element.slotKey"
+        class="min-h-0"
+      >
+        <div
+          v-if="element.value"
+          class="relative group"
+        >
+          <!-- Drag handle (left edge) -->
+          <div
+            class="drag-handle absolute left-0 top-0 bottom-0 w-6 -ml-1 cursor-grab active:cursor-grabbing rounded-l-[10px] hover:bg-gray-100/50 flex items-center justify-center z-10"
+            @click.stop
+          >
+            <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 6h2v2H8V6zm0 4h2v2H8v-2zm0 4h2v2H8v-2zm4-8h2v2h-2V6zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
+            </svg>
+          </div>
+          <CardV3
+            class="pl-5"
+            :title="metricsMap[element.value].title"
+            :subtitle="metricsMap[element.value].subtitle"
+            :value="metricsMap[element.value].value"
+            :trend="metricsMap[element.value].trend"
+            :trend-display="metricsMap[element.value].trendDisplay"
+            :trend-absolute="metricsMap[element.value].trendAbsolute"
+            :change-positive="metricsMap[element.value].changePositive"
+            :icon="metricsMap[element.value].icon"
+            :icon-color="metricsMap[element.value].iconColor"
+            :is-selected="selectedMetrics.includes(element.value)"
+            :chart-color="metricsMap[element.value].chartColor"
+            @click="$emit('toggle-metric', element.value)"
+          />
+          <!-- Remove button -->
+          <button
+            type="button"
+            class="absolute top-3 right-3 w-6 h-6 rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors opacity-0 group-hover:opacity-100 z-20"
+            @click.stop="$emit('remove-metric', index)"
+            title="Удалить"
+          >
+            <XMarkIcon class="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div
+          v-else
+          class="min-h-[240px] rounded-[10px] border-2 border-dashed border-gray-200 hover:border-[#2563EB]/50 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors"
+          @click="$emit('add-metric', index)"
+        >
+          <PlusIcon class="w-10 h-10 text-gray-300" />
+          <span class="text-[13px] font-medium text-gray-400">Добавить метрику</span>
+        </div>
       </div>
-    </div>
+    </VueDraggable>
     <div v-if="loading" class="mt-2 h-0.5 bg-blue-500 rounded-full animate-pulse"></div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { VueDraggable } from 'vue-draggable-plus'
+import { XMarkIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import {
   WalletIcon,
   ChartBarIcon,
@@ -39,6 +84,11 @@ const props = defineProps({
     type: Object,
     required: true
   },
+  slotConfig: {
+    type: Array,
+    required: true,
+    default: () => ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
+  },
   selectedMetrics: {
     type: Array,
     default: () => []
@@ -47,17 +97,13 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  title: {
-    type: String,
-    default: 'Общая статистика'
-  },
   includeVat: {
     type: Boolean,
     default: false
   }
 })
 
-defineEmits(['toggle-metric'])
+const emit = defineEmits(['toggle-metric', 'update:slot-config', 'remove-metric', 'add-metric'])
 
 /** Вычисляет абсолютное изменение из текущего значения и процента тренда */
 function formatAbsoluteChange(current, trendPct, options = {}) {
@@ -75,14 +121,15 @@ function formatAbsoluteChange(current, trendPct, options = {}) {
   return `${sign}${formatted}${suffix} за эту неделю`
 }
 
-const metrics = computed(() => {
+const metricsMap = computed(() => {
   const rawExpenses = props.summary.expenses || 0
   const vatFactor = props.includeVat ? 1.22 : 1
   const expensesValue = rawExpenses * vatFactor
   const currency = props.summary.currency === 'RUB' ? '₽' : props.summary.currency
   const t = props.summary.trends || {}
 
-  return [
+  const map = {}
+  const items = [
     {
       id: 'expenses',
       title: 'Расходы',
@@ -162,16 +209,32 @@ const metrics = computed(() => {
       chartColor: '#EB8525'
     }
   ]
+  items.forEach(m => { map[m.id] = m })
+  return map
 })
-</script>
 
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  height: 0px;
-  background: transparent;
+// Slot items for VueDraggable: [{ slotKey, value }, ...]
+const slotItems = ref([])
+
+function syncFromSlotConfig() {
+  const cfg = props.slotConfig
+  const result = []
+  for (let i = 0; i < 6; i++) {
+    const v = cfg[i]
+    result.push({
+      slotKey: `slot-${i}-${v ?? 'empty'}`,
+      value: v || null
+    })
+  }
+  slotItems.value = result
 }
-.custom-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+
+function emitSlotConfig() {
+  const values = slotItems.value.map(s => s.value)
+  emit('update:slot-config', values)
 }
-</style>
+
+watch(() => props.slotConfig, () => {
+  syncFromSlotConfig()
+}, { immediate: true, deep: true })
+</script>

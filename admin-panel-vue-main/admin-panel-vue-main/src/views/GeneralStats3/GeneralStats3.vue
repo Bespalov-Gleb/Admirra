@@ -156,10 +156,14 @@
         <KPIOverview
           v-else-if="summary && summary.expenses !== undefined"
           :summary="summary"
+          :slot-config="slotConfig"
           :selected-metrics="selectedMetrics"
           :loading="loading"
           :include-vat="includeVat"
+          @update:slot-config="handleSlotConfigUpdate"
           @toggle-metric="toggleMetric"
+          @remove-metric="handleRemoveMetric"
+          @add-metric="handleAddMetric"
         />
       </div>
 
@@ -338,6 +342,34 @@
       </div>
     </Teleport>
 
+    <!-- Модальное окно выбора метрики -->
+    <Teleport to="body">
+      <div v-if="addMetricModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="addMetricModalOpen = false">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Добавить метрику</h3>
+          <p class="text-sm text-gray-500 mb-4">Выберите метрику для отображения</p>
+          <div class="space-y-2">
+            <button
+              v-for="id in hiddenMetricsForAdd"
+              :key="id"
+              type="button"
+              class="w-full px-4 py-3 text-left rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-[#2563EB] transition-colors text-sm font-medium text-gray-700"
+              @click="handleSelectMetricToAdd(id)"
+            >
+              {{ { expenses: 'Расходы', impressions: 'Показы', clicks: 'Клики', cpc: 'CPC', leads: 'Лиды', cpa: 'CPA' }[id] || id }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="w-full mt-4 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm"
+            @click="addMetricModalOpen = false"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </div>
 </template>
@@ -452,6 +484,73 @@ watch(() => filters.client_id, (newId) => {
 })
 
 // --- State & UI Logic ---
+
+const DASHBOARD_METRICS_STORAGE_KEY = 'dashboard_metrics_config'
+const DEFAULT_SLOT_CONFIG = ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
+const METRIC_IDS = ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
+
+function loadSlotConfig() {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_METRICS_STORAGE_KEY)
+    if (!raw) return [...DEFAULT_SLOT_CONFIG]
+    const parsed = JSON.parse(raw)
+    const slots = Array.isArray(parsed?.slots) ? parsed.slots : []
+    const result = []
+    for (let i = 0; i < 6; i++) {
+      const v = slots[i]
+      result.push(v === null || (typeof v === 'string' && METRIC_IDS.includes(v)) ? v : null)
+    }
+    return result
+  } catch {
+    return [...DEFAULT_SLOT_CONFIG]
+  }
+}
+
+function saveSlotConfig(slots) {
+  try {
+    localStorage.setItem(DASHBOARD_METRICS_STORAGE_KEY, JSON.stringify({ slots }))
+  } catch (e) {
+    console.warn('Could not save metrics config:', e)
+  }
+}
+
+const slotConfig = ref(loadSlotConfig())
+
+watch(slotConfig, (val) => {
+  saveSlotConfig(val)
+}, { deep: true })
+
+const addMetricModalOpen = ref(false)
+const addMetricSlotIndex = ref(0)
+
+const hiddenMetricsForAdd = computed(() => {
+  const used = new Set(slotConfig.value.filter(Boolean))
+  return METRIC_IDS.filter(id => !used.has(id))
+})
+
+const handleAddMetric = (slotIndex) => {
+  addMetricSlotIndex.value = slotIndex
+  addMetricModalOpen.value = true
+}
+
+const handleSelectMetricToAdd = (metricId) => {
+  const cfg = [...slotConfig.value]
+  if (cfg[addMetricSlotIndex.value] == null && METRIC_IDS.includes(metricId)) {
+    cfg[addMetricSlotIndex.value] = metricId
+    slotConfig.value = cfg
+  }
+  addMetricModalOpen.value = false
+}
+
+const handleRemoveMetric = (slotIndex) => {
+  const cfg = [...slotConfig.value]
+  cfg[slotIndex] = null
+  slotConfig.value = cfg
+}
+
+const handleSlotConfigUpdate = (newConfig) => {
+  slotConfig.value = newConfig
+}
 
 const selectedMetrics = ref(['expenses']) // По умолчанию активен Расход
 
