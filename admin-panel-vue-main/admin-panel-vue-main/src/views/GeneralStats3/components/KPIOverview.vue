@@ -3,7 +3,12 @@
     <VueDraggable
       v-model="slotItems"
       :animation="150"
-      handle=".drag-handle"
+      :delay="120"
+      :force-fallback="true"
+      :fallback-on-body="true"
+      filter=".no-drag"
+      ghost-class="opacity-60"
+      drag-class="cursor-grabbing"
       class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
       item-key="slotKey"
       @end="emitSlotConfig"
@@ -15,19 +20,16 @@
       >
         <div
           v-if="element.value"
-          class="relative group"
+          class="relative group cursor-grab active:cursor-grabbing"
         >
-          <!-- Drag handle (left edge) -->
-          <div
-            class="drag-handle absolute left-0 top-0 bottom-0 w-6 -ml-1 cursor-grab active:cursor-grabbing rounded-l-[10px] hover:bg-gray-100/50 flex items-center justify-center z-10"
-            @click.stop
-          >
-            <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+          <!-- Hint: hold briefly then drag to reorder -->
+          <div class="absolute left-2 top-2 w-6 h-6 rounded flex items-center justify-center text-gray-300 pointer-events-none" title="Удерживайте и перетащите для изменения порядка">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 6h2v2H8V6zm0 4h2v2H8v-2zm0 4h2v2H8v-2zm4-8h2v2h-2V6zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/>
             </svg>
           </div>
           <CardV3
-            class="pl-5"
+            class="pl-8"
             :title="metricsMap[element.value].title"
             :subtitle="metricsMap[element.value].subtitle"
             :value="metricsMap[element.value].value"
@@ -41,10 +43,10 @@
             :chart-color="metricsMap[element.value].chartColor"
             @click="$emit('toggle-metric', element.value)"
           />
-          <!-- Remove button -->
+          <!-- Remove button (no-drag excludes from drag init) -->
           <button
             type="button"
-            class="absolute top-3 right-3 w-6 h-6 rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors opacity-0 group-hover:opacity-100 z-20"
+            class="no-drag absolute top-3 right-3 w-6 h-6 rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors opacity-0 group-hover:opacity-100 z-20"
             @click.stop="$emit('remove-metric', index)"
             title="Удалить"
           >
