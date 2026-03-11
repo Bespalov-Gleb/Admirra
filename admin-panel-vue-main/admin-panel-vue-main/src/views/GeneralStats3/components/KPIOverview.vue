@@ -140,7 +140,7 @@ const metricsMap = computed(() => {
       trend: t.expenses ?? 0,
       trendDisplay: `${(t.expenses ?? 0) >= 0 ? '+' : ''}${(t.expenses ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange(expensesValue, t.expenses ?? 0, { suffix: ' ' + currency, decimals: 2 }),
-      changePositive: (t.expenses ?? 0) <= 0,
+      changePositive: (t.expenses ?? 0) <= 0, // снижение расходов = хорошо = зелёный
       icon: WalletIcon,
       iconColor: 'blue',
       chartColor: '#3464F3'
@@ -205,7 +205,7 @@ const metricsMap = computed(() => {
       trend: t.cpa ?? 0,
       trendDisplay: `${(t.cpa ?? 0) >= 0 ? '+' : ''}${(t.cpa ?? 0).toFixed(1)}%`,
       trendAbsolute: formatAbsoluteChange((props.summary.cpa || 0) * vatFactor, t.cpa ?? 0, { suffix: ' ' + currency, decimals: 2 }),
-      changePositive: (t.cpa ?? 0) <= 0,
+      changePositive: (t.cpa ?? 0) <= 0, // снижение CPA = хорошо (дешевле лид) = зелёный
       icon: CheckBadgeIcon,
       iconColor: 'blue',
       chartColor: '#EB8525'
