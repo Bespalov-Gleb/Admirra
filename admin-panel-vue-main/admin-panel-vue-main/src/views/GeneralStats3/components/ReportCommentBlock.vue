@@ -5,7 +5,7 @@
         <DocumentTextIcon class="w-4 h-4 text-blue-600" />
       </div>
       <div>
-        <h3 class="text-base font-bold text-gray-900">Получить отчёт</h3>
+        <h3 class="text-base font-bold text-gray-900 dark:text-white">Получить отчёт</h3>
         <p class="text-xs text-gray-500">за отчётный период</p>
       </div>
     </div>

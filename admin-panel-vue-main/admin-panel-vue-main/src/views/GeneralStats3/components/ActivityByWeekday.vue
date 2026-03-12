@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
     <div class="flex items-center justify-between gap-4 mb-5">
-      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400" style="font-family: Inter, sans-serif;">Активность по дням</h3>
+      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white" style="font-family: Inter, sans-serif;">Активность по дням</h3>
       <!-- Переключатель: Клики / Лиды -->
       <div class="flex rounded-[10px] bg-gray-100 dark:bg-white/10 p-0.5">
         <button

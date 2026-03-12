@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[360px] flex flex-col font-[Inter]">
-    <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400 mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
+    <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
     <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>

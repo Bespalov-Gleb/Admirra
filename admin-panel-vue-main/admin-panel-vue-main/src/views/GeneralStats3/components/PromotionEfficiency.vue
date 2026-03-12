@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white w-full rounded-2xl px-6 sm:px-10 py-8 shadow-md border border-gray-100">
     <div class="flex items-center justify-between mb-8">
-      <h3 class="text-xl font-bold text-gray-900">Эффективность продвижения</h3>
+      <h3 class="text-xl font-bold text-gray-900 dark:text-white">Эффективность продвижения</h3>
     </div>
     
     <!-- Labels Row -->

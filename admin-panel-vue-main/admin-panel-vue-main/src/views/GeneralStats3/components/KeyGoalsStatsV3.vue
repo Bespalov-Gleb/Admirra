@@ -11,7 +11,7 @@
             <ChartBarIcon class="w-7 h-7 text-[#2563EB] dark:text-[#4A7AFF]" />
           </div>
           <div>
-            <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
+            <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
             <p class="text-[15px] font-normal mt-0.5 text-[#ABABAB] dark:text-gray-500" style="font-family: 'Open Sans', sans-serif; letter-spacing: 0px;">За период</p>
           </div>
         </div>
@@ -70,7 +70,7 @@
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
     <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-white/10 min-h-[380px] lg:min-h-[420px] flex flex-col min-w-0">
-      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400 mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
+      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
       <div class="flex-1 flex items-center gap-3 lg:gap-4 min-w-0">
@@ -79,7 +79,7 @@
           <canvas ref="chartCanvas" class="w-full h-full" />
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="text-center">
-              <p class="text-[14px] sm:text-[16px] lg:text-[18px] font-bold text-[#09183F] tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
+              <p class="text-[14px] sm:text-[16px] lg:text-[18px] font-bold text-[#09183F] dark:text-white tabular-nums leading-tight">{{ totalConversions.toLocaleString('ru-RU') }} шт.</p>
             </div>
           </div>
         </div>
@@ -95,7 +95,7 @@
               class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5"
               :style="{ backgroundColor: donutColors[index % donutColors.length] }"
             />
-            <span class="text-[12px] sm:text-[13px] font-normal text-[#09183F] leading-tight" style="word-break: break-word; overflow-wrap: anywhere;">{{ formatGoalName(goal.name) }}</span>
+            <span class="text-[12px] sm:text-[13px] font-normal text-[#09183F] dark:text-white leading-tight" style="word-break: break-word; overflow-wrap: anywhere;">{{ formatGoalName(goal.name) }}</span>
           </div>
         </div>
       </div>

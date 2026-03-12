@@ -217,7 +217,7 @@
                   <WalletIcon class="w-6 h-6 text-[#2563EB]" />
                 </div>
                 <div>
-                  <h3 class="text-[20px] font-medium text-[#5F5F5F] leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
+                  <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
                   <p class="text-[15px] font-normal text-[#ABABAB] leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
                 </div>
               </div>
