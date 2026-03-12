@@ -51,7 +51,7 @@
       <!-- Правая часть: блок Итого (градиент от #2563EB) -->
       <div
         class="w-[50%] min-w-[160px] mx-2 lg:mx-3 rounded-[20px] lg:rounded-[23px] flex flex-col relative overflow-hidden"
-        style="background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 50%, #1e40af 100%);"
+        style="background: linear-gradient(135deg, #2563EB 0%, #2563EB 8%, #1d4ed8 25%, #1e40af 55%, #172554 100%);"
       >
         <!-- Белые точки (как на карточке тарифов) -->
         <div
