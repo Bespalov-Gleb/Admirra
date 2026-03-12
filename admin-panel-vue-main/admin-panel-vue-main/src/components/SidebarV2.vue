@@ -20,7 +20,7 @@
       <div class="flex items-center justify-between">
         <div @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
           <img 
-            :src="isCollapsed ? logoFav : logoFull" 
+            :src="isCollapsed ? logoFav : (isDarkMode ? logoFullDark : logoFull)" 
             :alt="'AdMirra'" 
             :class="[
               isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'
@@ -283,9 +283,11 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
+import { useTheme } from '../composables/useTheme'
 import { useProjects } from '../composables/useProjects'
 import ConfirmModal from './ConfirmModal.vue'
 import logoFull from '../assets/imgs/logo/logo-dark.png'
+import logoFullDark from '../assets/imgs/logo/AdMirra.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
 import IconProject from '../assets/icons/menu/project.vue'
@@ -295,6 +297,7 @@ import IconSetting from '../assets/icons/menu/setting.vue'
 import IconClock from '../assets/icons/menu/clock.vue'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
+const { isDarkMode } = useTheme()
 const { forceLogout } = useAuth()
 const { currentProjectName, setCurrentProject, fetchProjects } = useProjects()
 
