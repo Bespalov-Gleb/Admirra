@@ -33,7 +33,7 @@
       >
         <span
           class="relative w-[58px] h-[58px] rounded-full flex items-center justify-center transition-colors shadow-sm"
-          :class="emailConfigured ? 'bg-[#374151] hover:bg-[#1f2937]' : 'bg-[#6B7280] hover:bg-[#4B5563]'"
+          :class="emailConfigured ? 'bg-[#374151] dark:bg-[#3B5998] hover:bg-[#1f2937] dark:hover:bg-[#2d4373]' : 'bg-[#6B7280] dark:bg-[#4A7AFF] hover:bg-[#4B5563] dark:hover:bg-[#5A8BFF]'"
         >
           <EnvelopeIcon class="w-7 h-7 text-white" />
           <span v-if="emailConfigured" class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#82d944] flex items-center justify-center">
@@ -48,7 +48,7 @@
       <div class="flex-1 relative">
         <select
           v-model="schedule"
-          class="w-full h-[38px] pl-3 pr-9 border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-normal text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1A1C2C] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 focus:border-[#2563EB] dark:focus:border-[#4A7AFF] outline-none appearance-none"
+          class="w-full h-[38px] pl-3 pr-9 border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-normal text-gray-700 dark:text-gray-200 bg-white dark:bg-[#232637] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 focus:border-[#2563EB] dark:focus:border-[#4A7AFF] outline-none appearance-none"
         @change="$emit('schedule-change', schedule)"
       >
           <option v-for="opt in scheduleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -69,7 +69,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { EnvelopeIcon } from '@heroicons/vue/24/outline'
+import { EnvelopeIcon } from '@heroicons/vue/24/solid'
 import { CheckIcon, ChevronDownIcon } from '@heroicons/vue/24/solid'
 
 const props = defineProps({

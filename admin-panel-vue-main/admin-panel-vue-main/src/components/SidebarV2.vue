@@ -19,7 +19,14 @@
     <div class="px-4 pt-5 pb-3">
       <div class="flex items-center justify-between">
         <div @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
-          <img :src="isCollapsed ? logoFav : logoFull" :alt="'AdMirra'" :class="isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'" />
+          <img 
+            :src="isCollapsed ? logoFav : logoFull" 
+            :alt="'AdMirra'" 
+            :class="[
+              isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto',
+              'transition-[filter] dark:brightness-0 dark:invert'
+            ]" 
+          />
         </div>
         <button
           v-if="!isCollapsed"
