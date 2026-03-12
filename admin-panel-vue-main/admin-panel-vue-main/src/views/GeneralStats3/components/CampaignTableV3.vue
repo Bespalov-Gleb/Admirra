@@ -21,13 +21,13 @@
         <tbody>
           <tr v-if="loading" v-for="i in 3" :key="i">
             <td colspan="7" class="px-2 py-1">
-              <div class="h-14 bg-gray-100 rounded-[10px] animate-pulse"></div>
+              <div class="h-14 bg-gray-100 dark:bg-white/10 rounded-[10px] animate-pulse"></div>
             </td>
           </tr>
 
           <tr v-else-if="filteredCampaigns.length === 0">
             <td colspan="7" class="px-6 py-12 text-center">
-              <p class="text-[15px] font-normal text-gray-400">Кампании не найдены</p>
+              <p class="text-[15px] font-normal text-gray-400 dark:text-gray-500">Кампании не найдены</p>
             </td>
           </tr>
 
@@ -43,7 +43,7 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cost) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cost) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cost ?? getDemoTrend(idx, 0)" metric="cost" />
               </div>
             </td>
@@ -108,8 +108,9 @@ const formatMoney = (val) => {
 }
 
 const rowBgClass = (idx) => {
-  const variants = ['bg-[#FFF7ED]', 'bg-[#FBFCE1]', 'bg-[#F0FAE1]', 'bg-[#EFF7FC]', 'bg-[#F7EDFC]']
-  return variants[idx % 5]
+  const light = ['bg-[#FFF7ED]', 'bg-[#FBFCE1]', 'bg-[#F0FAE1]', 'bg-[#EFF7FC]', 'bg-[#F7EDFC]']
+  const dark = ['dark:bg-white/[0.05]', 'dark:bg-white/[0.06]', 'dark:bg-white/[0.05]', 'dark:bg-white/[0.06]', 'dark:bg-white/[0.05]']
+  return `${light[idx % 5]} ${dark[idx % 5]}`
 }
 
 const getDemoTrend = () => 0
@@ -126,7 +127,7 @@ const TrendBadge = (props) => {
     {
       class: [
         'inline-flex items-center gap-0.5 text-[9px] font-normal px-1.5 py-0.5 rounded-[6px] shrink-0',
-        isPositive ? 'bg-[#EBFDF2] text-[#38B35A]' : 'bg-[#FCEBED] text-[#EB5757]'
+        isPositive ? 'bg-[#EBFDF2] dark:bg-green-500/20 text-[#38B35A] dark:text-[#66BB6A]' : 'bg-[#FCEBED] dark:bg-red-500/20 text-[#EB5757] dark:text-[#EF5350]'
       ]
     },
     [

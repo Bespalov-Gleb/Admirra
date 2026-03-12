@@ -4,7 +4,7 @@
     <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 text-sm">
+    <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
     <div v-else class="flex flex-row items-stretch gap-8 flex-1 min-h-0">

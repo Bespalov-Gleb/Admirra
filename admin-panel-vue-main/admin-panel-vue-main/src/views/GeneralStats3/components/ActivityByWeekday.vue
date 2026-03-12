@@ -31,6 +31,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useTheme } from '../../../composables/useTheme'
 import { Chart, registerables } from 'chart.js'
 import DataLabelsPlugin from 'chartjs-plugin-datalabels'
 import api from '../../../api/axios'
@@ -46,6 +47,7 @@ const props = defineProps({
   goalActionIds: { type: Array, default: () => [] }
 })
 
+const { isDarkMode } = useTheme()
 const chartRef = ref(null)
 let chartInstance = null
 const loading = ref(false)
@@ -55,6 +57,8 @@ const chartData = ref({ clicks: {}, leads: {} })
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const WEEKDAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
+const isDark = () => document.documentElement.classList.contains('dark')
+
 const updateChart = () => {
   if (!chartRef.value) return
   if (chartInstance) chartInstance.destroy()
@@ -63,6 +67,9 @@ const updateChart = () => {
   const values = WEEKDAY_INDICES.map((i) => data[String(i)] || 0)
   const maxVal = Math.max(...values)
   const maxIdx = maxVal > 0 ? values.indexOf(maxVal) : -1
+  const dark = isDark()
+  const barInactiveColor = dark ? 'rgba(255,255,255,0.18)' : '#F5F7F9'
+  const labelColor = dark ? (ctx) => (ctx.dataIndex === maxIdx ? '#4A7AFF' : '#9CA3AF') : (ctx) => (ctx.dataIndex === maxIdx ? '#2563EB' : '#000000')
 
   chartInstance = new Chart(chartRef.value, {
     type: 'bar',
@@ -76,9 +83,9 @@ const updateChart = () => {
           const ctx2d = canvas.getContext('2d')
           const h = canvas.clientHeight || 300
           const gradient = ctx2d.createLinearGradient(0, 0, 0, h)
-          gradient.addColorStop(0, '#2563EB')
-          gradient.addColorStop(1, '#4A82FF')
-          return values.map((_, i) => i === maxIdx && maxIdx >= 0 ? gradient : '#F5F7F9')
+          gradient.addColorStop(0, dark ? '#2563EB' : '#2563EB')
+          gradient.addColorStop(1, dark ? '#4A7AFF' : '#4A82FF')
+          return values.map((_, i) => i === maxIdx && maxIdx >= 0 ? gradient : barInactiveColor)
         })(),
         borderRadius: 15,
         barPercentage: 0.9,
@@ -97,7 +104,7 @@ const updateChart = () => {
           align: 'top',
           formatter: (v) => v,
           font: { size: 13, weight: '500', family: 'Inter' },
-          color: (ctx) => ctx.dataIndex === maxIdx ? '#2563EB' : '#000000'
+          color: labelColor
         }
       },
       scales: {
@@ -105,7 +112,7 @@ const updateChart = () => {
           display: true,
           grid: { display: false },
           border: { display: false },
-          ticks: { color: '#6b7280', font: { size: 13 } }
+          ticks: { color: dark ? '#9CA3AF' : '#6b7280', font: { size: 13 } }
         },
         y: {
           display: false,
@@ -155,6 +162,7 @@ watch(
 )
 
 watch(metric, () => updateChart())
+watch(isDarkMode, () => updateChart())
 
 onMounted(fetchData)
 onUnmounted(() => {

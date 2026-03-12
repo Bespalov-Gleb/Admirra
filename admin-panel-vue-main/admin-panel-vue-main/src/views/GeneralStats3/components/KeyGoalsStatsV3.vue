@@ -89,7 +89,7 @@
           <div
             v-for="(goal, index) in topGoals"
             :key="goal.id || goal.name"
-            class="flex items-start gap-2 px-2.5 py-1.5 rounded-[8px] bg-gray-50 dark:bg-transparent min-w-0"
+            class="flex items-start gap-2 px-2.5 py-1.5 rounded-[8px] bg-gray-50 dark:bg-white/[0.05] min-w-0"
           >
             <div
               class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5"
