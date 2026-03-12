@@ -208,17 +208,17 @@
           </div>
 
           <!-- Комментарий к отчету -->
-          <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm font-[Inter]">
+          <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm font-[Inter]">
             <!-- Шапка блока -->
             <div class="flex items-center justify-between gap-4 mb-5">
               <div class="flex items-center gap-3">
                 <!-- Иконка кошелька -->
-                <div class="w-11 h-11 rounded-[10px] bg-white shadow-sm border border-gray-100 flex items-center justify-center flex-shrink-0">
-                  <WalletIcon class="w-6 h-6 text-[#2563EB]" />
+                <div class="w-11 h-11 rounded-[10px] bg-white dark:bg-white/10 shadow-sm border border-gray-100 dark:border-white/10 flex items-center justify-center flex-shrink-0">
+                  <WalletIcon class="w-6 h-6 text-[#2563EB] dark:text-[#4A7AFF]" />
                 </div>
                 <div>
                   <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
-                  <p class="text-[15px] font-normal text-[#ABABAB] leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
+                  <p class="text-[15px] font-normal text-[#ABABAB] dark:text-gray-500 leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
                 </div>
               </div>
               <!-- Кнопки управления -->
@@ -226,7 +226,7 @@
                 <!-- Сгенерировать -->
                 <button
                   type="button"
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] bg-[#2563EB] text-white text-[14px] font-normal hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[14px] font-normal hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
                   :disabled="generatingReport"
                   @click="handleGenerateReport"
                 >
@@ -237,7 +237,7 @@
                 <!-- Редактировать / Сохранить -->
                 <button
                   type="button"
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 text-[14px] font-normal text-gray-600 hover:bg-gray-50 transition-colors"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 dark:border-white/20 text-[14px] font-normal text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
                   @click="toggleEditComment"
                 >
                   <CheckIcon v-if="editingComment" class="w-3.5 h-3.5 text-green-600" />
@@ -248,18 +248,18 @@
             </div>
 
             <!-- Текст комментария / редактор -->
-            <div v-if="generatingReport" class="py-8 flex items-center justify-center gap-3 text-gray-400 text-sm">
+            <div v-if="generatingReport" class="py-8 flex items-center justify-center gap-3 text-gray-400 dark:text-gray-500 text-sm">
               <span class="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               Генерация комментария...
             </div>
             <textarea
               v-else-if="editingComment"
               v-model="reportComment"
-              class="w-full min-h-[180px] text-[15px] font-normal text-gray-700 leading-[1.6] border border-[#2563EB]/30 rounded-[10px] p-4 resize-y outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
+              class="w-full min-h-[180px] text-[15px] font-normal text-gray-700 dark:text-gray-200 leading-[1.6] border border-[#2563EB]/30 dark:border-[#4A7AFF]/30 rounded-[10px] p-4 resize-y outline-none bg-white dark:bg-white/5 focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 focus:border-[#2563EB] dark:focus:border-[#4A7AFF] transition-colors"
               placeholder="Введите комментарий к отчету..."
             />
-            <div v-else-if="reportComment" class="text-[15px] font-normal text-gray-700 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
-            <div v-else class="py-8 text-center text-gray-400 text-sm">
+            <div v-else-if="reportComment" class="text-[15px] font-normal text-gray-700 dark:text-gray-200 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-else class="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
               Нажмите «Сгенерировать», чтобы получить AI-комментарий, или «Редактировать», чтобы написать вручную
             </div>
 
@@ -267,7 +267,7 @@
             <div class="flex flex-wrap gap-3 mt-6 justify-end">
               <button
                 type="button"
-                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
                 style="height: 43px; padding: 15px 14px;"
                 :disabled="sendingPdf"
                 @click="handleDownloadPdf"
@@ -277,7 +277,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
                 style="height: 43px; padding: 15px 14px;"
                 :disabled="sendingTg"
                 @click="handleSendTelegram"

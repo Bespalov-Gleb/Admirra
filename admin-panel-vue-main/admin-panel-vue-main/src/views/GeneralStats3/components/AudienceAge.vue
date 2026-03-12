@@ -31,6 +31,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useTheme } from '../../../composables/useTheme'
 import { Chart, registerables } from 'chart.js'
 import DataLabelsPlugin from 'chartjs-plugin-datalabels'
 import api from '../../../api/axios'
@@ -129,6 +130,7 @@ const props = defineProps({
   endDate: { type: String, required: true }
 })
 
+const { isDarkMode } = useTheme()
 const chartRef = ref(null)
 let chartInstance = null
 const loading = ref(false)
@@ -143,9 +145,14 @@ const percent = (item) => {
   return Math.round(((item.visits || 0) / total.value) * 100)
 }
 
+const isDark = () => document.documentElement.classList.contains('dark')
+
 const updateChart = () => {
   if (!chartRef.value || data.value.length === 0) return
   if (chartInstance) chartInstance.destroy()
+
+  const dark = isDark()
+  const borderColor = dark ? '#2A2D3C' : '#fff'
 
   chartInstance = new Chart(chartRef.value, {
     type: 'pie',
@@ -155,11 +162,11 @@ const updateChart = () => {
         data: data.value.map((d) => d.visits || 0),
         backgroundColor: data.value.map((_, i) => colors[i % colors.length]),
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor,
         spacing: 4,
         hoverOffset: 14,
         hoverBorderWidth: 2,
-        hoverBorderColor: '#fff'
+        hoverBorderColor: borderColor
       }]
     },
     options: {
@@ -212,6 +219,7 @@ watch(
   fetchData,
   { immediate: true }
 )
+watch(isDarkMode, () => updateChart())
 
 onMounted(() => {
   if (data.value.length) updateChart()
