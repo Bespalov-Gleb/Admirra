@@ -23,8 +23,7 @@
             :src="isCollapsed ? logoFav : logoFull" 
             :alt="'AdMirra'" 
             :class="[
-              isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto',
-              'transition-[filter] dark:invert'
+              isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'
             ]" 
           />
         </div>
