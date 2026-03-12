@@ -24,7 +24,7 @@
             :alt="'AdMirra'" 
             :class="[
               isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto',
-              'transition-[filter] dark:brightness-0 dark:invert'
+              'transition-[filter] dark:invert'
             ]" 
           />
         </div>
