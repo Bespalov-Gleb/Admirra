@@ -30,7 +30,7 @@
             :key="goal.id || goal.name"
             class="flex items-center gap-2 py-1.5 border-b border-gray-100 dark:border-white/10 last:border-0"
           >
-            <span class="text-[15px] font-normal text-gray-500 whitespace-nowrap min-w-0 truncate">{{ formatGoalName(goal.name) }}:</span>
+            <span class="text-[15px] font-normal text-gray-500 dark:text-white whitespace-nowrap min-w-0 truncate">{{ formatGoalName(goal.name) }}:</span>
             <div class="flex-1 border-b border-dashed border-gray-300 dark:border-gray-600 self-end mb-[5px]" />
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span class="text-[16px] font-bold text-[#09183F] dark:text-white tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
@@ -48,13 +48,11 @@
         </div>
       </div>
 
-      <!-- Правая часть: блок Итого (подложка как у карточки тарифов + белые точки) -->
+      <!-- Правая часть: блок Итого (градиент от #2563EB) -->
       <div
         class="w-[50%] min-w-[160px] mx-2 lg:mx-3 rounded-[20px] lg:rounded-[23px] flex flex-col relative overflow-hidden"
-        style="background-color: #24252E;"
+        style="background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 50%, #1e40af 100%);"
       >
-        <!-- Синий тонирующий слой (как на карточке тарифов) -->
-        <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
         <!-- Белые точки (как на карточке тарифов) -->
         <div
           class="absolute inset-0"
@@ -63,9 +61,8 @@
         <h3 class="text-[18px] lg:text-[23px] font-normal text-white p-4 lg:p-5 pb-0 relative z-10">Итого:</h3>
         <!-- Число прижато к самому низу, масштаб под ширину экрана -->
         <div class="absolute bottom-0 left-0 right-0 flex items-end justify-center overflow-hidden z-10 px-2">
-          <div class="flex items-end gap-1 lg:gap-2" style="transform-origin: bottom center;">
+          <div class="flex items-end" style="transform-origin: bottom center;">
             <span class="text-white tabular-nums" style="font-family: Inter, sans-serif; font-weight: 600; line-height: 0.85; letter-spacing: -1.11px; font-size: clamp(80px, 12vw, 160px);">{{ totalConversions.toLocaleString('ru-RU') }}</span>
-            <span class="text-white" style="font-family: Inter, sans-serif; font-weight: 600; line-height: 0.85; letter-spacing: -1.11px; font-size: clamp(40px, 6vw, 90px);">шт.</span>
           </div>
         </div>
       </div>
