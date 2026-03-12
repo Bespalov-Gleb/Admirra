@@ -36,11 +36,11 @@
               <span class="text-[16px] font-bold text-[#09183F] dark:text-white tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
               <span
                 v-if="goal.trend != null"
-                class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
-                :class="goal.trend >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'"
+                class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[9px] font-normal whitespace-nowrap shrink-0"
+                :class="goal.trend >= 0 ? 'bg-[#EBFDF2] dark:bg-green-500/20 text-[#38B35A] dark:text-[#66BB6A]' : 'bg-[#FCEBED] dark:bg-red-500/20 text-[#EB5757] dark:text-[#EF5350]'"
               >
-                <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-3 h-3 flex-shrink-0" />
-                <ArrowTrendingDownIcon v-else class="w-3 h-3 flex-shrink-0" />
+                <ArrowTrendingUpIcon v-if="goal.trend >= 0" class="w-2.5 h-2.5 flex-shrink-0" />
+                <ArrowTrendingDownIcon v-else class="w-2.5 h-2.5 flex-shrink-0" />
                 {{ goal.trend >= 0 ? '+' : '' }}{{ goal.trend }}%
               </span>
             </div>
