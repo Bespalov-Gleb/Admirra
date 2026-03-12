@@ -2,17 +2,17 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 w-full font-[Inter]">
 
     <!-- Объединённая карточка: Статистика + Итого (2 колонки) -->
-    <div class="lg:col-span-2 bg-white rounded-[10px] shadow-sm border border-gray-100 min-h-[380px] lg:min-h-[420px] flex overflow-hidden">
+    <div class="lg:col-span-2 bg-white dark:bg-[#2A2D3C] rounded-[10px] shadow-sm border border-gray-100 dark:border-white/10 min-h-[380px] lg:min-h-[420px] flex overflow-hidden">
 
       <!-- Левая часть: Статистика -->
       <div class="flex-1 min-w-0 p-4 sm:p-6 flex flex-col">
         <div class="flex items-center gap-5 mb-5">
-          <div class="w-12 h-12 rounded-[10px] bg-[#EFF6FF] flex items-center justify-center">
-            <ChartBarIcon class="w-7 h-7 text-[#2563EB]" />
+          <div class="w-12 h-12 rounded-[10px] bg-[#EFF6FF] dark:bg-blue-500/20 flex items-center justify-center">
+            <ChartBarIcon class="w-7 h-7 text-[#2563EB] dark:text-[#4A7AFF]" />
           </div>
           <div>
-            <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
-            <p class="text-[15px] font-normal mt-0.5" style="font-family: 'Open Sans', sans-serif; color: #ABABAB; letter-spacing: 0px;">За период</p>
+            <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Статистика по ключевым целям</h3>
+            <p class="text-[15px] font-normal mt-0.5 text-[#ABABAB] dark:text-gray-500" style="font-family: 'Open Sans', sans-serif; letter-spacing: 0px;">За период</p>
           </div>
         </div>
 
@@ -28,12 +28,12 @@
           <div
             v-for="(goal, index) in topGoals"
             :key="goal.id || goal.name"
-            class="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0"
+            class="flex items-center gap-2 py-1.5 border-b border-gray-100 dark:border-white/10 last:border-0"
           >
             <span class="text-[15px] font-normal text-gray-500 whitespace-nowrap min-w-0 truncate">{{ formatGoalName(goal.name) }}:</span>
-            <div class="flex-1 border-b border-dashed border-gray-300 self-end mb-[5px]" />
+            <div class="flex-1 border-b border-dashed border-gray-300 dark:border-gray-600 self-end mb-[5px]" />
             <div class="flex items-center gap-1.5 flex-shrink-0">
-              <span class="text-[16px] font-bold text-[#09183F] tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
+              <span class="text-[16px] font-bold text-[#09183F] dark:text-white tabular-nums whitespace-nowrap">{{ (goal.count || 0).toLocaleString('ru-RU') }} шт.</span>
               <span
                 v-if="goal.trend != null"
                 class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
@@ -72,8 +72,8 @@
     </div>
 
     <!-- Правая: Разбивка по целям (белая карточка) -->
-    <div class="bg-white rounded-[10px] p-4 sm:p-6 shadow-sm border border-gray-100 min-h-[380px] lg:min-h-[420px] flex flex-col min-w-0">
-      <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
+    <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-white/10 min-h-[380px] lg:min-h-[420px] flex flex-col min-w-0">
+      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400 mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
       <div class="flex-1 flex items-center gap-3 lg:gap-4 min-w-0">

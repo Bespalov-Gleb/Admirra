@@ -55,11 +55,11 @@
         </div>
         <div
           v-else
-          class="min-h-[240px] rounded-[10px] border-2 border-dashed border-gray-200 hover:border-[#2563EB]/50 hover:bg-blue-50/30 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors"
+          class="min-h-[240px] rounded-[10px] border-2 border-dashed border-gray-200 dark:border-white/20 hover:border-[#2563EB]/50 dark:hover:border-[#4A7AFF]/50 hover:bg-blue-50/30 dark:hover:bg-white/5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors"
           @click="$emit('add-metric', index)"
         >
-          <PlusIcon class="w-10 h-10 text-gray-300" />
-          <span class="text-[13px] font-medium text-gray-400">Добавить метрику</span>
+          <PlusIcon class="w-10 h-10 text-gray-300 dark:text-gray-500" />
+          <span class="text-[13px] font-medium text-gray-400 dark:text-gray-500">Добавить метрику</span>
         </div>
       </div>
     </VueDraggable>

@@ -207,7 +207,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
+import { useProjects } from '../../../composables/useProjects'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+
+const { currentProjectId } = useProjects()
 
 const clients = ref([])
 const loading = ref(true)
@@ -289,7 +292,12 @@ const handleIntegrationSuccess = () => {
 }
 
 const groupedClients = computed(() => {
-  return clients.value.filter(c => c.integrations && c.integrations.length > 0)
+  const withIntegrations = clients.value.filter(c => c.integrations && c.integrations.length > 0)
+  // Фильтруем по выбранному проекту в хедере: показываем только интеграции этого проекта
+  if (currentProjectId.value) {
+    return withIntegrations.filter(c => String(c.id) === String(currentProjectId.value))
+  }
+  return withIntegrations
 })
 
 const filteredGroupedClients = computed(() => {

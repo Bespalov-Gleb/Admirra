@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col font-[Inter]">
-    <h3 class="text-[20px] font-medium text-[#5F5F5F] mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[360px] flex flex-col font-[Inter]">
+    <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400 mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
     <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -15,14 +15,14 @@
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center rounded-[10px]"
-          style="background: #F5F7F9; padding: 18px 16px; gap: 13px; min-height: 72px;"
+          class="flex items-center rounded-[10px] bg-[#F5F7F9] dark:bg-white/5"
+          style="padding: 18px 16px; gap: 13px; min-height: 72px;"
         >
           <span
             class="w-3 h-3 rounded-full flex-shrink-0"
             :style="{ backgroundColor: colors[i % colors.length] }"
           />
-          <span class="text-[14px] font-medium text-[#2C2C2C]" style="font-family: Inter, sans-serif;">{{ ageLabelRu(item.age_interval) }}</span>
+          <span class="text-[14px] font-medium text-[#2C2C2C] dark:text-gray-200" style="font-family: Inter, sans-serif;">{{ ageLabelRu(item.age_interval) }}</span>
         </div>
       </div>
     </div>

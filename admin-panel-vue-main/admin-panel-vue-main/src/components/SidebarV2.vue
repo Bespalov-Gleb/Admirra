@@ -8,7 +8,8 @@
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 bg-white border-r border-gray-100 font-[Inter]',
+      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 font-[Inter]',
+      'bg-white dark:bg-[#2C2F3D] border-r border-gray-100 dark:border-white/10',
       isCollapsed ? 'w-20' : 'w-[270px]',
       'lg:translate-x-0',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -23,7 +24,7 @@
         <button
           v-if="!isCollapsed"
           @click="handleToggleCollapse"
-          class="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
         >
           <MenuArrow />
         </button>
@@ -39,30 +40,30 @@
           <div v-if="item.children" class="relative">
             <div
               v-if="isSubmenuActive(item)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
+              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] dark:bg-[#4A7AFF] z-10"
             ></div>
             <button
               @click="toggleSubmenu(item.submenuKey)"
               :class="[
                 'w-full flex items-center gap-3 pl-6 pr-4 py-3.5 text-left rounded-[10px] transition-all',
                 isCollapsed ? 'justify-center' : '',
-                isSubmenuActive(item) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+                isSubmenuActive(item) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
               ]"
             >
               <component
                 :is="item.icon"
                 class="w-6 h-6 flex-shrink-0"
-                :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                :class="isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
               />
               <template v-if="!isCollapsed">
                 <span
                   class="flex-1 text-[12px] font-semibold"
-                  :class="isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                  :class="isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
                 >{{ item.name }}</span>
                 <ChevronDownIcon
                   class="w-3.5 h-3.5 transition-transform"
                   :class="[
-                    isSubmenuActive(item) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]',
+                    isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400',
                     isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
                   ]"
                 />
@@ -74,25 +75,25 @@
           <div v-else class="relative">
             <div
               v-if="isActive(item.path)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] z-10"
+              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] dark:bg-[#4A7AFF] z-10"
             ></div>
             <button
               @click="handleLinkClick(item.path)"
               :class="[
                 'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
                 isCollapsed ? 'justify-center' : '',
-                isActive(item.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+                isActive(item.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
               ]"
             >
               <component
                 :is="item.icon"
                 class="w-6 h-6 flex-shrink-0"
-                :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                :class="isActive(item.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
               />
               <span
                 v-if="!isCollapsed"
                 class="text-[12px] font-semibold"
-                :class="isActive(item.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                :class="isActive(item.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
               >{{ item.name }}</span>
             </button>
           </div>
@@ -116,23 +117,23 @@
               <!-- Вертикальный отрезок: от верха до низа, только для не-последних элементов -->
               <div
                 v-if="idx < item.children.length - 1"
-                class="absolute left-[36px] top-0 bottom-0 w-[1.5px] bg-gray-200"
+                class="absolute left-[36px] top-0 bottom-0 w-[1.5px] bg-gray-200 dark:bg-white/20"
               ></div>
 
               <!-- Закруглённая ветка L-образная (верх → середина + горизонталь) -->
               <div
-                class="absolute left-[36px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 rounded-bl-[6px]"
+                class="absolute left-[36px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 dark:border-white/20 rounded-bl-[6px]"
                 style="top: 0; height: calc(50% + 1px);"
               ></div>
 
               <button
                 @click="handleLinkClick(child.path)"
                 class="w-full flex items-center py-[9px] px-3 text-left rounded-[8px] transition-all"
-                :class="isActive(child.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'"
+                :class="isActive(child.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'"
               >
                 <span
                   class="text-[11px] font-semibold"
-                  :class="isActive(child.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+                  :class="isActive(child.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
                 >{{ child.name }}</span>
               </button>
             </div>
@@ -151,23 +152,23 @@
             :class="[
               'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
             ]"
           >
             <component
               :is="link.icon"
               class="w-6 h-6 flex-shrink-0"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
             />
             <span
               v-if="!isCollapsed"
               class="text-[12px] font-semibold"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
             >{{ link.name }}</span>
           </button>
-          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-[#2A2D3C] text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
             {{ link.name }}
-            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
+            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-[#2A2D3C]"></div>
           </div>
         </div>
       </nav>
@@ -185,18 +186,18 @@
             :class="[
               'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
               isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'bg-[#EBF3FF]' : 'hover:bg-gray-100/70'
+              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
             ]"
           >
             <component
               :is="link.icon"
               class="w-6 h-6 flex-shrink-0"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
             />
             <span
               v-if="!isCollapsed"
               class="text-[12px] font-semibold"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB]' : 'text-[#696969]/[0.76]'"
+              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
             >{{ link.name }}</span>
           </button>
           <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
@@ -209,7 +210,7 @@
 
     <!-- Промо-карточка -->
     <div v-if="!isCollapsed" class="px-10 pb-3 pt-1">
-      <div class="rounded-[16px] relative overflow-hidden p-4" style="background-color: #24252E;">
+      <div class="rounded-[16px] relative overflow-hidden p-4 bg-[#24252E] dark:bg-[#232637]">
         <!-- Синий тонирующий слой -->
         <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
         <!-- Паттерн точек -->

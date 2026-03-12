@@ -1,11 +1,11 @@
 <template>
-  <header class="bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-3.5 z-30 font-[Inter]">
+  <header class="bg-white dark:bg-[#2C2F3D] border-b border-gray-100 dark:border-white/10 px-4 sm:px-6 lg:px-8 py-3.5 z-30 font-[Inter]">
     <div class="flex items-center justify-between gap-4">
       <!-- Левая часть — Трафик агентство (по макету) -->
       <div class="flex items-center gap-3 flex-shrink-0">
         <button
           @click="toggleMobileMenu"
-          class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
+          class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-300"
           aria-label="Открыть меню"
         >
           <Bars3Icon class="w-6 h-6" />
@@ -15,50 +15,50 @@
         <div class="relative" ref="projectMenuRef">
           <button 
             @click="toggleProjectMenu"
-            class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+            class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors text-left"
           >
-            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <ChartBarIcon class="w-5 h-5 text-blue-600" />
+            <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <ChartBarIcon class="w-5 h-5 text-blue-600 dark:text-[#4A7AFF]" />
             </div>
             <div>
-              <p class="text-sm font-semibold text-gray-900">{{ currentProjectName }}</p>
-              <p class="text-xs text-gray-500">Отчёты агентства в одном месте</p>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ currentProjectName }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Отчёты агентства в одном месте</p>
             </div>
             <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
           </button>
 
           <div 
             v-if="isProjectMenuOpen"
-            class="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 text-gray-800"
+            class="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#2A2D3C] rounded-xl shadow-xl border border-gray-100 dark:border-white/10 py-2 z-50 text-gray-800 dark:text-gray-200"
           >
-            <div class="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div class="px-3 py-2 border-b border-gray-100 dark:border-white/10 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
               Мои проекты
             </div>
             <div class="max-h-64 overflow-y-auto">
               <button
                 @click="handleProjectSelect(null)"
-                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between"
-                :class="{'bg-blue-50/50 text-blue-600': !currentProjectId}"
+                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-white/10 transition-colors flex items-center justify-between"
+                :class="{'bg-blue-50/50 dark:bg-white/10 text-blue-600 dark:text-[#4A7AFF]': !currentProjectId}"
               >
                 <span class="font-medium truncate">Все проекты</span>
-                <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600" />
+                <CheckIcon v-if="!currentProjectId" class="w-4 h-4 text-blue-600 dark:text-[#4A7AFF]" />
               </button>
               <button
                 v-for="project in projects"
                 :key="project.id"
                 @click="handleProjectSelect(project.id)"
-                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between"
-                :class="{'bg-blue-50/50 text-blue-600': currentProjectId === project.id}"
+                class="w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-white/10 transition-colors flex items-center justify-between"
+                :class="{'bg-blue-50/50 dark:bg-white/10 text-blue-600 dark:text-[#4A7AFF]': currentProjectId === project.id}"
               >
                 <span class="font-medium truncate">{{ project.name }}</span>
-                <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600" />
+                <CheckIcon v-if="currentProjectId === project.id" class="w-4 h-4 text-blue-600 dark:text-[#4A7AFF]" />
               </button>
             </div>
-            <div class="p-2 border-t border-gray-100">
+            <div class="p-2 border-t border-gray-100 dark:border-white/10">
               <router-link
                 to="/projects/create"
                 @click="isProjectMenuOpen = false"
-                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/10 rounded-lg transition-colors"
               >
                 <PlusIcon class="w-4 h-4" />
                 Создать новый проект
@@ -72,7 +72,7 @@
       <div class="flex items-center gap-3 flex-shrink-0">
         <button
           @click="() => router.push('/projects/create')"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors text-white text-sm font-medium"
+          class="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-[#4A7AFF] rounded-xl hover:bg-blue-700 dark:hover:bg-[#5A8BFF] transition-colors text-white text-sm font-medium"
         >
           <PlusIcon class="w-5 h-5" />
           Добавить новый проект
@@ -82,10 +82,10 @@
           <button
             data-notifications-button
             @click="toggleNotifications"
-            class="relative p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+            class="relative p-2.5 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors"
             aria-label="Уведомления"
           >
-            <BellIcon class="w-5 h-5 text-gray-600" />
+            <BellIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
             <span
               v-if="unreadCount > 0"
               class="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-green-500 text-white text-[10px] font-semibold rounded-md flex items-center justify-center"
@@ -98,11 +98,11 @@
               v-if="showNotifications"
               ref="notificationsRef"
               :style="getNotificationsStyle()"
-              class="dropdown-menu fixed w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+              class="dropdown-menu fixed w-80 sm:w-96 bg-white dark:bg-[#2A2D3C] rounded-lg shadow-lg border border-gray-200 dark:border-white/10 z-50"
               @click.stop
             >
-              <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-gray-900">Уведомления</h3>
+              <div class="p-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Уведомления</h3>
                 <button
                   v-if="notifications.length > 0 && unreadCount > 0"
                   @click="markAllAsRead"
@@ -115,7 +115,7 @@
               <div class="max-h-96 overflow-y-auto">
                 <div
                   v-if="notifications.length === 0"
-                  class="p-8 text-center text-sm text-gray-500"
+                  class="p-8 text-center text-sm text-gray-500 dark:text-gray-400"
                 >
                   Нет уведомлений
                 </div>
@@ -123,7 +123,7 @@
                   v-for="notification in notifications"
                   :key="notification.id"
                   @click="markAsRead(notification.id)"
-                  class="p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors flex items-start gap-3 cursor-pointer"
+                  class="p-4 border-b border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-start gap-3 cursor-pointer"
                 >
                   <div
                     v-if="!notification.read"
@@ -131,8 +131,8 @@
                   ></div>
                   <div v-else class="w-2 h-2 flex-shrink-0"></div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900">{{ notification.title }}</p>
-                    <p class="text-xs text-gray-500 mt-1">{{ notification.time }}</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-200">{{ notification.title }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ notification.time }}</p>
                   </div>
                   <button
                     @click.stop="removeNotification(notification.id)"
@@ -143,9 +143,9 @@
                 </div>
               </div>
               
-              <div class="p-4 border-t border-gray-200">
+              <div class="p-4 border-t border-gray-200 dark:border-white/10">
                 <button
-                  class="w-full text-sm text-blue-600 hover:text-blue-700 font-medium text-center"
+                  class="w-full text-sm text-blue-600 dark:text-[#4A7AFF] hover:text-blue-700 dark:hover:text-[#5A8BFF] font-medium text-center"
                 >
                   Показать все уведомления
                 </button>
@@ -159,12 +159,12 @@
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+            class="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors"
           >
-            <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <ProfileHeader class="w-5 h-5 text-blue-600" />
+            <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <ProfileHeader class="w-5 h-5 text-blue-600 dark:text-[#4A7AFF]" />
             </div>
-            <span class="text-sm font-medium text-gray-900 hidden sm:inline">{{ displayName }}</span>
+            <span class="text-sm font-medium text-gray-900 dark:text-white hidden sm:inline">{{ displayName }}</span>
             <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0" />
           </button>
 
@@ -174,19 +174,19 @@
               v-if="isProfileMenuOpen"
               ref="profileMenuRef"
               :style="getProfileMenuStyle()"
-              class="dropdown-menu fixed w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+              class="dropdown-menu fixed w-72 bg-white dark:bg-[#2A2D3C] rounded-lg shadow-lg border border-gray-200 dark:border-white/10 py-2 z-50"
               @click.stop
             >
-              <div class="px-4 py-3 border-b border-gray-200">
-                <p class="text-sm font-semibold text-gray-900">{{ displayName }}</p>
-                <p class="text-xs text-gray-500 mt-1">{{ user?.email }}</p>
+              <div class="px-4 py-3 border-b border-gray-200 dark:border-white/10">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ displayName }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ user?.email }}</p>
               </div>
               
               <!-- Переключатель темной темы -->
-              <div class="flex items-center justify-between px-4 py-2 hover:bg-gray-100 transition-colors">
+              <div class="flex items-center justify-between px-4 py-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
                 <div class="flex items-center gap-2">
-                  <MoonIcon class="w-5 h-5 text-gray-600" />
-                  <span class="text-sm text-gray-700">Темная тема</span>
+                  <MoonIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ isDarkMode ? 'Светлая тема' : 'Темная тема' }}</span>
                   <span class="px-1.5 py-0.5 bg-yellow-400 text-gray-900 text-[10px] font-medium rounded">Бета</span>
                 </div>
                 <button
@@ -210,18 +210,18 @@
               <router-link
                 to="/profile"
                 @click="closeProfileMenu"
-                class="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 transition-colors text-sm text-gray-700"
+                class="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-sm text-gray-700 dark:text-gray-300"
               >
-                <UserIcon class="w-5 h-5 text-gray-600" />
+                <UserIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 <span>Профиль</span>
               </router-link>
               
               <router-link
                 to="/settings"
                 @click="closeProfileMenu"
-                class="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 transition-colors text-sm text-gray-700"
+                class="flex items-center gap-3 px-4 py-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-sm text-gray-700 dark:text-gray-300"
               >
-                <Cog6ToothIcon class="w-5 h-5 text-gray-600" />
+                <Cog6ToothIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 <span>Настройки</span>
               </router-link>
               

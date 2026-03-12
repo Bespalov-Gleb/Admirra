@@ -1,20 +1,20 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 sm:p-8 border border-gray-100 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[360px] flex flex-col overflow-visible font-[Inter]">
     <div class="flex items-center justify-between gap-4 mb-5">
-      <h3 class="text-[20px] font-medium text-[#5F5F5F]" style="font-family: Inter, sans-serif;">Активность по дням</h3>
+      <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-gray-400" style="font-family: Inter, sans-serif;">Активность по дням</h3>
       <!-- Переключатель: Клики / Лиды -->
-      <div class="flex rounded-[10px] bg-gray-100 p-0.5">
+      <div class="flex rounded-[10px] bg-gray-100 dark:bg-white/10 p-0.5">
         <button
           type="button"
           @click="metric = 'clicks'"
-          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'clicks' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'clicks' ? 'bg-white dark:bg-[#2A2D3C] text-[#2563EB] dark:text-[#4A7AFF] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300']"
         >
           Клики
         </button>
         <button
           type="button"
           @click="metric = 'leads'"
-          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'leads' ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-500 hover:text-gray-700']"
+          :class="['px-3 py-1.5 text-[12px] font-medium rounded-[8px] transition-colors', metric === 'leads' ? 'bg-white dark:bg-[#2A2D3C] text-[#2563EB] dark:text-[#4A7AFF] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300']"
         >
           Лиды
         </button>

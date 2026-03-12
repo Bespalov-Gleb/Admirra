@@ -1,21 +1,21 @@
 <template>
-  <div class="bg-white rounded-[10px] px-6 sm:px-8 py-6 shadow-sm border border-gray-100 overflow-hidden font-[Inter]">
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] px-6 sm:px-8 py-6 shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden font-[Inter]">
     <div class="mb-5">
-      <h3 class="text-[20px] font-normal text-gray-900">Лучшие рекламные кампании</h3>
-      <p class="text-[15px] font-normal text-gray-400 mt-0.5">По эффективности за период</p>
+      <h3 class="text-[20px] font-normal text-gray-900 dark:text-white">Лучшие рекламные кампании</h3>
+      <p class="text-[15px] font-normal text-gray-400 dark:text-gray-500 mt-0.5">По эффективности за период</p>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full text-left border-separate border-spacing-y-2">
         <thead>
           <tr>
-            <th class="px-4 py-3 text-left w-[26%] text-[15px] font-normal text-gray-400">Название кампании</th>
-            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400">Расход</th>
-            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400">Показы</th>
-            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">Клики</th>
-            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">СРС</th>
-            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">Лиды</th>
-            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400">СРА</th>
+            <th class="px-4 py-3 text-left w-[26%] text-[15px] font-normal text-gray-400 dark:text-gray-500">Название кампании</th>
+            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400 dark:text-gray-500">Расход</th>
+            <th class="px-4 py-3 text-left w-[12%] text-[15px] font-normal text-gray-400 dark:text-gray-500">Показы</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400 dark:text-gray-500">Клики</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400 dark:text-gray-500">СРС</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400 dark:text-gray-500">Лиды</th>
+            <th class="px-4 py-3 text-left w-[10%] text-[15px] font-normal text-gray-400 dark:text-gray-500">СРА</th>
           </tr>
         </thead>
         <tbody>
@@ -37,7 +37,7 @@
             :class="rowBgClass(idx)"
           >
             <td class="px-4 py-4 rounded-l-[10px]">
-              <span class="text-[15px] font-normal text-gray-900 line-clamp-1" :title="campaign.name">
+              <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 line-clamp-1" :title="campaign.name">
                 {{ campaign.name }}
               </span>
             </td>
@@ -49,31 +49,31 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.impressions || 0).toLocaleString('ru-RU') }}</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ (campaign.impressions || 0).toLocaleString('ru-RU') }}</span>
                 <TrendBadge :val="campaign.trend_impressions ?? getDemoTrend(idx, 1)" metric="impressions" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.clicks || 0).toLocaleString('ru-RU') }}</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ (campaign.clicks || 0).toLocaleString('ru-RU') }}</span>
                 <TrendBadge :val="campaign.trend_clicks ?? getDemoTrend(idx, 2)" metric="clicks" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cpc) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cpc) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpc ?? getDemoTrend(idx, 3)" metric="cpc" />
               </div>
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ (campaign.conversions || 0).toLocaleString('ru-RU') }} шт.</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ (campaign.conversions || 0).toLocaleString('ru-RU') }} шт.</span>
                 <TrendBadge :val="campaign.trend_conversions ?? getDemoTrend(idx, 4)" metric="leads" />
               </div>
             </td>
             <td class="px-4 py-4 rounded-r-[10px]">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 tabular-nums">{{ formatMoney(campaign.cpa) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cpa) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpa ?? getDemoTrend(idx, 5)" metric="cpa" />
               </div>
             </td>

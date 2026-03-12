@@ -1,18 +1,18 @@
 <template>
-  <div class="bg-white rounded-[10px] p-6 border border-gray-100 shadow-sm flex flex-col min-h-0 font-[Inter]">
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 border border-gray-100 dark:border-white/10 shadow-sm flex flex-col min-h-0 font-[Inter]">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-[18px] font-normal text-[#09183F]">Подключенные каналы</h3>
+      <h3 class="text-[18px] font-normal text-[#09183F] dark:text-white">Подключенные каналы</h3>
       <button
         type="button"
         @click="$emit('connect')"
-        class="text-[15px] font-normal text-[#2563EB] hover:text-[#1d4ed8]"
+        class="text-[15px] font-normal text-[#2563EB] dark:text-[#4A7AFF] hover:text-[#1d4ed8] dark:hover:text-[#5A8BFF]"
       >
         Добавить +
       </button>
     </div>
 
     <!-- Заголовки колонок -->
-    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[13px] font-normal text-gray-400">
+    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[13px] font-normal text-gray-400 dark:text-gray-500">
       <span>Название</span>
       <span>Баланс</span>
       <span>Статус</span>
@@ -23,7 +23,7 @@
         v-for="platform in displayPlatforms"
         :key="platform.id"
         class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-3 rounded-lg transition-colors"
-        :class="platform.id === 'yandex_direct' ? 'bg-orange-50' : 'bg-blue-50'"
+        :class="platform.id === 'yandex_direct' ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-blue-50 dark:bg-blue-500/10'"
       >
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -46,7 +46,7 @@
               ?
             </div>
           </div>
-          <span class="text-[16px] font-normal text-[#2563EB] truncate">{{ platform.name }}</span>
+          <span class="text-[16px] font-normal text-[#2563EB] dark:text-[#4A7AFF] truncate">{{ platform.name }}</span>
         </div>
         <div class="flex items-center justify-end">
           <span

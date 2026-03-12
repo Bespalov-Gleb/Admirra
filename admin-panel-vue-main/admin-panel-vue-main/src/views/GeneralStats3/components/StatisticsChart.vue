@@ -1,8 +1,8 @@
 <template>
-  <div class="bg-white w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-sm flex flex-col min-h-0 font-[Inter]">
+  <div class="bg-white dark:bg-[#2A2D3C] w-full rounded-[20px] px-6 sm:px-8 py-6 shadow-sm flex flex-col min-h-0 font-[Inter] dark:border dark:border-white/10">
     <!-- Заголовок + чекбокс НДС (без селектора метрики — выбор через клик по карточкам) -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 flex-shrink-0">
-      <h3 class="text-[20px] font-medium text-gray-500 leading-[1] tracking-normal">Эффективность кампаний</h3>
+      <h3 class="text-[20px] font-medium text-gray-500 dark:text-gray-400 leading-[1] tracking-normal">Эффективность кампаний</h3>
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -11,7 +11,7 @@
             @change="$emit('update:includeVat', ($event.target).checked)"
             class="w-4 h-4 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
           />
-          <span class="text-[12px] font-medium text-gray-700">НДС</span>
+          <span class="text-[12px] font-medium text-gray-700 dark:text-gray-300">НДС</span>
         </label>
       </div>
     </div>

@@ -38,8 +38,31 @@ html {
     background-color: #202937;
 }
 
+.dark .main-bg-color {
+    background-color: #2A3654;
+}
+
 .text-main-bg-color {
     color: #202937;
+}
+
+.dark .text-main-bg-color {
+    color: #2A3654;
+}
+
+/* Dark theme base */
+.dark {
+  --color-bg-app: #1A1C2C;
+  --color-bg-surface: #2C2F3D;
+  --color-bg-content: #232637;
+  --color-bg-card: #2A2D3C;
+  --color-text: #FFFFFF;
+  --color-text-muted: #9CA3AF;
+  --color-text-secondary: #A0A0A0;
+  --color-accent: #4A7AFF;
+  --color-positive: #66BB6A;
+  --color-negative: #EF5350;
+  --color-border: rgba(255, 255, 255, 0.08);
 }
 
 .bg-active-menu {

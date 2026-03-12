@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
@@ -13,6 +14,16 @@ export default {
         sidebar: '#2d3035',
         active: '#0090FF',
         dashboard: '#F4F7FE',
+        // Dark theme palette
+        dark: {
+          bg: '#1A1C2C',
+          surface: '#2C2F3D',
+          content: '#232637',
+          card: '#2A2D3C',
+          'card-elevated': '#2D303D',
+          text: '#E0E0E0',
+          muted: '#9CA3AF',
+        },
         brand: {
           300: '#93c5fd',
           400: '#60a5fa',

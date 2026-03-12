@@ -25,11 +25,11 @@
         <div class="flex flex-col gap-4">
           <!-- Строка 1: только заголовок -->
           <div class="flex flex-col gap-1 min-w-0">
-            <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)]">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)] dark:text-gray-400">
               <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
               Общая аналитика по всем активным проектам
             </p>
-            <h1 class="text-[27px] font-bold text-[#09183F] truncate leading-[1.2]">
+            <h1 class="text-[27px] font-bold text-[#09183F] dark:text-white truncate leading-[1.2]">
               {{ dashboardTitle }}
             </h1>
           </div>
@@ -38,7 +38,7 @@
             <select
               v-model="filters.channel"
               @change="fetchStats"
-              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20"
             >
               <option value="all">Все каналы</option>
               <option value="yandex">Yandex Direct</option>
@@ -48,7 +48,7 @@
               type="button"
               @click="campaignModalOpen = true"
               :disabled="!filters.client_id || loadingCampaigns"
-              class="h-[38px] min-w-[140px] pl-4 pr-4 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 text-left flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="h-[38px] min-w-[140px] pl-4 pr-4 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 text-left flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span class="truncate">
                 {{ campaignButtonLabel }}
@@ -70,7 +70,7 @@
             <select
               v-model="filters.period"
               @change="handlePeriodChange"
-              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white border border-gray-200 rounded-[10px] text-[12px] font-medium text-gray-700 outline-none appearance-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20"
             >
               <option value="7">Неделя</option>
               <option value="14">2 недели</option>
@@ -86,7 +86,7 @@
             />
             <button
               type="button"
-              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
               :disabled="sendingPdf"
               @click="handleDownloadPdf"
             >
@@ -95,7 +95,7 @@
             </button>
             <button
               type="button"
-              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
               :disabled="sendingTg"
               @click="handleSendTelegram"
             >
