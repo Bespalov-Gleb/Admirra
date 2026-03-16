@@ -201,6 +201,145 @@ async def get_report_docx(
         raise HTTPException(status_code=500, detail="Не удалось сформировать DOCX")
 
 
+class DownloadReportRequest(BaseModel):
+    """Тело запроса для скачивания отчёта (POST) — comment в body избегает лимита длины URL."""
+    start_date: str
+    end_date: str
+    client_id: Optional[str] = None
+    ai: bool = False
+    comment: Optional[str] = None
+
+
+async def _resolve_report_comment(
+    *,
+    ai: bool,
+    comment: Optional[str],
+    db: Session,
+    user_id: uuid.UUID,
+    client_id: Optional[uuid.UUID],
+    start_date: str,
+    end_date: str,
+) -> Optional[str]:
+    """Возвращает комментарий: готовый или сгенерированный AI."""
+    use_comment = (comment or "").strip() if comment else None
+    if ai and not use_comment:
+        try:
+            from ai.report_generator import generate_report
+            use_comment = await generate_report(
+                db=db, user_id=user_id, client_id=client_id,
+                start_date=start_date, end_date=end_date, report_type="full",
+            )
+            if not use_comment or not str(use_comment).strip():
+                use_comment = "AI не удалось сформировать комментарий."
+        except Exception as e:
+            logger.exception("AI report failed: %s", e)
+            raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
+    return use_comment
+
+
+@router.post("/docx")
+async def post_report_docx(
+    req: DownloadReportRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Скачивание DOCX-отчёта (POST). Используйте при передаче длинного comment — избегает лимита длины URL."""
+    u_client_id = None
+    if req.client_id:
+        try:
+            u_client_id = uuid.UUID(req.client_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный client_id")
+    use_comment = await _resolve_report_comment(
+        ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
+        client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+    )
+    try:
+        docx_bytes = generate_report_docx(
+            db=db, user_id=current_user.id, client_id=u_client_id,
+            start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+        )
+        filename = f"report_{req.start_date}_{req.end_date}.docx"
+        return Response(
+            content=docx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="DOCX-экспорт недоступен. Установите python-docx.")
+    except Exception as e:
+        logger.exception("DOCX generation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Не удалось сформировать DOCX")
+
+
+@router.post("/pdf")
+async def post_report_pdf(
+    req: DownloadReportRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Скачивание PDF-отчёта (POST). Используйте при передаче длинного comment."""
+    u_client_id = None
+    if req.client_id:
+        try:
+            u_client_id = uuid.UUID(req.client_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный client_id")
+    use_comment = await _resolve_report_comment(
+        ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
+        client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+    )
+    try:
+        pdf_bytes = generate_report_pdf(
+            db=db, user_id=current_user.id, client_id=u_client_id,
+            start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+        )
+        filename = f"report_{req.start_date}_{req.end_date}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.exception("PDF generation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
+
+
+@router.post("/png")
+async def post_report_png(
+    req: DownloadReportRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Скачивание PNG-отчёта (POST). Используйте при передаче длинного comment."""
+    u_client_id = None
+    if req.client_id:
+        try:
+            u_client_id = uuid.UUID(req.client_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный client_id")
+    use_comment = await _resolve_report_comment(
+        ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
+        client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+    )
+    try:
+        png_bytes = generate_report_png(
+            db=db, user_id=current_user.id, client_id=u_client_id,
+            start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+        )
+        filename = f"report_{req.start_date}_{req.end_date}.png"
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail="PNG-экспорт недоступен. Установите pymupdf.")
+    except Exception as e:
+        logger.exception("PNG generation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Не удалось сформировать PNG")
+
+
 class CreateLinkRequest(BaseModel):
     start_date: str
     end_date: str

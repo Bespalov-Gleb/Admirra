@@ -84,6 +84,17 @@
               @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
               class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
             />
+            <!-- Кнопка синхронизации -->
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] border border-gray-200 dark:border-white/20 text-[12px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="syncingIntegrations"
+              :title="syncingIntegrations ? 'Синхронизация запущена...' : 'Синхронизировать данные интеграций'"
+              @click="handleSyncIntegrations"
+            >
+              <ArrowPathIcon class="w-4 h-4" :class="syncingIntegrations ? 'animate-spin' : ''" />
+              Синхронизация
+            </button>
             <!-- Кнопка экспорта с выпадающим меню -->
             <div class="relative" @click.stop>
               <button
@@ -553,6 +564,29 @@ const fetchIntegrations = async () => {
 
 watch(() => filters.client_id, fetchIntegrations, { immediate: true })
 
+const syncingIntegrations = ref(false)
+const handleSyncIntegrations = async () => {
+  if (syncingIntegrations.value) return
+  syncingIntegrations.value = true
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data: list } = await api.get('integrations/', { params })
+    if (!list?.length) {
+      toaster.info('Нет подключённых интеграций для синхронизации')
+      return
+    }
+    for (const int of list) {
+      await api.post(`integrations/${int.id}/sync`, { days: 90 })
+    }
+    toaster.info(`Синхронизация запущена для ${list.length} каналов. Данные появятся через несколько минут.`)
+    fetchIntegrations()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию')
+  } finally {
+    syncingIntegrations.value = false
+  }
+}
+
 // Auto-sync stats when VAT checkbox changes
 watch(includeVat, () => {
   // Reuse existing fetch logic so both KPI и графики обновляются
@@ -796,22 +830,25 @@ const downloadBlob = (blob, filename) => {
   window.URL.revokeObjectURL(url)
 }
 
-const getReportParams = () => {
-  const params = {
-    start_date: filters.start_date,
-    end_date: filters.end_date,
-    client_id: filters.client_id || undefined,
-    ai: true
-  }
-  if (reportComment.value?.trim()) params.comment = reportComment.value.trim()
-  return params
-}
+const getReportPayload = () => ({
+  start_date: filters.start_date,
+  end_date: filters.end_date,
+  client_id: filters.client_id || undefined,
+  ai: true,
+  ...(reportComment.value?.trim() ? { comment: reportComment.value.trim() } : {})
+})
+
+// При наличии сгенерированного комментария используем POST (comment в body)
+// Иначе GET — comment в query string превышает лимит URL (~2–8 КБ) и вызывает ошибку
+const usePostForDownload = () => !!reportComment.value?.trim()
 
 const handleDownloadPdf = async () => {
   sendingExport.value = true
   try {
-    const params = getReportParams()
-    const response = await api.get('reports/pdf', { params, responseType: 'blob' })
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/pdf', payload, { responseType: 'blob' })
+      : await api.get('reports/pdf', { params: payload, responseType: 'blob' })
     downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.pdf`)
     toaster.success('AI-отчёт скачан')
   } catch (err) {
@@ -824,8 +861,10 @@ const handleDownloadPdf = async () => {
 const handleDownloadPng = async () => {
   sendingExport.value = true
   try {
-    const params = getReportParams()
-    const response = await api.get('reports/png', { params, responseType: 'blob' })
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/png', payload, { responseType: 'blob' })
+      : await api.get('reports/png', { params: payload, responseType: 'blob' })
     downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
     toaster.success('Отчёт в PNG скачан')
   } catch (err) {
@@ -838,8 +877,10 @@ const handleDownloadPng = async () => {
 const handleDownloadDocx = async () => {
   sendingExport.value = true
   try {
-    const params = getReportParams()
-    const response = await api.get('reports/docx', { params, responseType: 'blob' })
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/docx', payload, { responseType: 'blob' })
+      : await api.get('reports/docx', { params: payload, responseType: 'blob' })
     downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.docx`)
     toaster.success('Отчёт в DOCX скачан')
   } catch (err) {
