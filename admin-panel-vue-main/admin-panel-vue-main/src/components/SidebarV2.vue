@@ -149,22 +149,27 @@
       </nav>
     </div>
 
-    <!-- Средняя навигация: История, Настройки -->
+    <!-- Средняя навигация: Синхронизация, История, Настройки -->
     <div class="shrink-0">
       <nav class="px-3 space-y-1.5 pt-4 pb-2">
         <div v-for="link in middleLinks" :key="link.name" class="relative group">
           <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
+            :disabled="link.isSync && syncing"
             :class="[
-              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
+              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all disabled:opacity-60 disabled:cursor-wait',
               isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
+              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5',
+              (link.isSync && syncing) ? 'cursor-wait' : ''
             ]"
           >
             <component
               :is="link.icon"
               class="w-6 h-6 flex-shrink-0"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
+              :class="[
+                link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400',
+                link.isSync && syncing ? 'animate-spin' : ''
+              ]"
             />
             <span
               v-if="!isCollapsed"
@@ -280,11 +285,14 @@ import {
   QuestionMarkCircleIcon,
   CpuChipIcon,
   LinkIcon,
+  ArrowPathIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import { useProjects } from '../composables/useProjects'
+import { useToaster } from '../composables/useToaster'
+import api from '../api/axios'
 import ConfirmModal from './ConfirmModal.vue'
 import logoFull from '../assets/imgs/logo/logo-dark.png'
 import logoFullDark from '../assets/imgs/logo/AdMirra.png'
@@ -299,7 +307,9 @@ import IconClock from '../assets/icons/menu/clock.vue'
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
 const { forceLogout } = useAuth()
-const { currentProjectName, setCurrentProject, fetchProjects } = useProjects()
+const { currentProjectName, setCurrentProject, fetchProjects, currentProjectId } = useProjects()
+const toaster = useToaster()
+const syncing = ref(false)
 
 const route = useRoute()
 const router = useRouter()
@@ -337,7 +347,30 @@ const menuItems = [
   },
 ]
 
+const handleSyncAll = async () => {
+  if (syncing.value) return
+  syncing.value = true
+  closeMobileMenu()
+  try {
+    const params = currentProjectId.value ? { client_id: currentProjectId.value } : {}
+    const { data: integrations } = await api.get('integrations/', { params })
+    if (!integrations?.length) {
+      toaster.info('Нет подключённых интеграций для синхронизации')
+      return
+    }
+    for (const int of integrations) {
+      await api.post(`integrations/${int.id}/sync`, { days: 90 })
+    }
+    toaster.info(`Синхронизация запущена для ${integrations.length} каналов. Данные появятся через несколько минут.`)
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию')
+  } finally {
+    syncing.value = false
+  }
+}
+
 const middleLinks = computed(() => [
+  { name: 'Синхронизация', path: null, icon: ArrowPathIcon, action: handleSyncAll, isSync: true },
   { name: 'История', path: '/history', icon: IconClock },
   { name: 'Настройки', path: '/settings', icon: IconSetting },
 ])

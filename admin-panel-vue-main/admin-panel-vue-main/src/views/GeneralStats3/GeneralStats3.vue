@@ -84,24 +84,64 @@
               @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
               class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
             />
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
-              :disabled="sendingPdf"
-              @click="handleDownloadPdf"
-            >
-              {{ sendingPdf ? 'Скачивание...' : 'Скачать отчет в PDF' }}
-              <ArrowDownTrayIcon class="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
-              :disabled="sendingTg"
-              @click="handleSendTelegram"
-            >
-              {{ sendingTg ? 'Отправка...' : 'Скачать отчет в Telegram' }}
-              <svg class="w-4 h-4 text-white" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
-            </button>
+            <!-- Кнопка экспорта с выпадающим меню -->
+            <div class="relative" @click.stop>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
+                :disabled="sendingExport || sendingTg"
+                @click="showExportDropdownHeader = !showExportDropdownHeader"
+              >
+                {{ sendingExport ? 'Скачивание...' : sendingTg ? 'Отправка...' : 'Экспорт отчёта' }}
+                <ChevronDownIcon class="w-4 h-4 transition-transform" :class="showExportDropdownHeader ? 'rotate-180' : ''" />
+              </button>
+              <div
+                v-if="showExportDropdownHeader"
+                class="absolute top-full right-0 mt-1 py-1.5 min-w-[220px] bg-white dark:bg-[#2A2D3C] rounded-[10px] shadow-lg border border-gray-100 dark:border-white/10 z-50"
+              >
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadPdf()"
+                >
+                  <ArrowDownTrayIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в PDF
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadPng()"
+                >
+                  <PhotoIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в PNG
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadDocx()"
+                >
+                  <DocumentTextIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в DOCX
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleGetLink()"
+                >
+                  <LinkIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Получить ссылку
+                </button>
+                <div class="border-t border-gray-100 dark:border-white/10 my-1" />
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleSendTelegram()"
+                >
+                  <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
+                  Отправить в Telegram
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -263,28 +303,66 @@
               Нажмите «Сгенерировать», чтобы получить AI-комментарий, или «Редактировать», чтобы написать вручную
             </div>
 
-            <!-- Кнопки отправки отчёта -->
+            <!-- Кнопка экспорта с выпадающим меню -->
             <div class="flex flex-wrap gap-3 mt-6 justify-end">
-              <button
-                type="button"
-                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
-                style="height: 43px; padding: 15px 14px;"
-                :disabled="sendingPdf"
-                @click="handleDownloadPdf"
-              >
-                <ArrowDownTrayIcon class="w-4 h-4 flex-shrink-0" />
-                {{ sendingPdf ? 'Скачивание...' : 'Скачать отчет в PDF' }}
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-3 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
-                style="height: 43px; padding: 15px 14px;"
-                :disabled="sendingTg"
-                @click="handleSendTelegram"
-              >
-                <PaperAirplaneIcon class="w-4 h-4 flex-shrink-0" />
-                {{ sendingTg ? 'Отправка...' : 'Скачать отчет в Telegram' }}
-              </button>
+              <div class="relative" @click.stop>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
+                  style="height: 43px; padding: 15px 14px;"
+                  :disabled="sendingExport || sendingTg"
+                  @click="showExportDropdownComment = !showExportDropdownComment"
+                >
+                  {{ sendingExport ? 'Скачивание...' : sendingTg ? 'Отправка...' : 'Экспорт отчёта' }}
+                  <ChevronDownIcon class="w-4 h-4 transition-transform" :class="showExportDropdownComment ? 'rotate-180' : ''" />
+                </button>
+                <div
+                  v-if="showExportDropdownComment"
+                  class="absolute top-full right-0 mt-1 py-1.5 min-w-[220px] bg-white dark:bg-[#2A2D3C] rounded-[10px] shadow-lg border border-gray-100 dark:border-white/10 z-50"
+                >
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadPdf()"
+                  >
+                    <ArrowDownTrayIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в PDF
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadPng()"
+                  >
+                    <PhotoIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в PNG
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadDocx()"
+                  >
+                    <DocumentTextIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в DOCX
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleGetLink()"
+                  >
+                    <LinkIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Получить ссылку
+                  </button>
+                  <div class="border-t border-gray-100 dark:border-white/10 my-1" />
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleSendTelegram()"
+                  >
+                    <PaperAirplaneIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Отправить в Telegram
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -375,9 +453,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ArrowPathIcon, CheckIcon } from '@heroicons/vue/24/solid'
-import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon, ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon, ChevronDownIcon, PhotoIcon, DocumentTextIcon, LinkIcon } from '@heroicons/vue/24/outline'
 // Components
 import CampaignSelectModal from '../../components/CampaignSelectModal.vue'
 import StatisticsChart from './components/StatisticsChart.vue'
@@ -420,6 +498,20 @@ const {
 } = useDashboardStats()
 
 const campaignModalOpen = ref(false)
+const showExportDropdownHeader = ref(false)
+const showExportDropdownComment = ref(false)
+
+const closeExportDropdowns = () => {
+  showExportDropdownHeader.value = false
+  showExportDropdownComment.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeExportDropdowns)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeExportDropdowns)
+})
 
 watch(campaignModalOpen, (open) => {
   if (open && filters.channel === 'vk') fetchAllCampaignsForGoalsTab()
@@ -632,7 +724,6 @@ const handleExport = async () => {
 }
 
 // --- Получить отчёт ---
-const sendingPdf = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
 
@@ -692,29 +783,90 @@ const getOrGenerateComment = async () => {
   return reportComment.value
 }
 
+const sendingExport = ref(false)
+
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(new Blob([blob]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+const getReportParams = () => {
+  const params = {
+    start_date: filters.start_date,
+    end_date: filters.end_date,
+    client_id: filters.client_id || undefined,
+    ai: true
+  }
+  if (reportComment.value?.trim()) params.comment = reportComment.value.trim()
+  return params
+}
+
 const handleDownloadPdf = async () => {
-  sendingPdf.value = true
+  sendingExport.value = true
   try {
-    const params = {
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      client_id: filters.client_id || undefined,
-      ai: true,
-      ...(reportComment.value ? { comment: reportComment.value } : {})
-    }
+    const params = getReportParams()
     const response = await api.get('reports/pdf', { params, responseType: 'blob' })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `report_${filters.start_date}_${filters.end_date}.pdf`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.pdf`)
     toaster.success('AI-отчёт скачан')
   } catch (err) {
     toaster.error('Не удалось скачать PDF')
   } finally {
-    sendingPdf.value = false
+    sendingExport.value = false
+  }
+}
+
+const handleDownloadPng = async () => {
+  sendingExport.value = true
+  try {
+    const params = getReportParams()
+    const response = await api.get('reports/png', { params, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
+    toaster.success('Отчёт в PNG скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать PNG')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleDownloadDocx = async () => {
+  sendingExport.value = true
+  try {
+    const params = getReportParams()
+    const response = await api.get('reports/docx', { params, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.docx`)
+    toaster.success('Отчёт в DOCX скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать DOCX')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleGetLink = async () => {
+  sendingExport.value = true
+  try {
+    const { data } = await api.post('reports/link', {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || null,
+      comment: reportComment.value?.trim() || null
+    })
+    const base = window.location.origin
+    const fullUrl = `${base}${data.url.startsWith('/') ? '' : '/'}${data.url}`
+    await navigator.clipboard.writeText(fullUrl)
+    window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    toaster.success('Ссылка скопирована и открыта в новой вкладке. Действует 24 часа.')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось создать ссылку')
+  } finally {
+    sendingExport.value = false
   }
 }
 

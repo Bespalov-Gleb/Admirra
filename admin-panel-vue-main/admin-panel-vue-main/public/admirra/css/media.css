@@ -1,0 +1,15 @@
+/* Max-Width media */
+
+/* 1200px */
+@media only screen and (max-width : 1200px) {}
+
+
+/* Min-Width media */
+
+/* 1920px */
+@media only screen and (min-width : 1920px) {
+   .hero-s {
+      border-bottom-left-radius: 30px;
+      border-bottom-right-radius: 30px;
+   }
+}

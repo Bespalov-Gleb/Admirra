@@ -24,3 +24,5 @@ dnspython
 redis[hiredis]
 openai
 weasyprint
+pymupdf
+python-docx

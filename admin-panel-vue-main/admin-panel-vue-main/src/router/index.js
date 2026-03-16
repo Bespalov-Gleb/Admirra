@@ -4,7 +4,9 @@ import { useAuth } from '../composables/useAuth'
 const routes = [
   {
     path: '/',
-    redirect: '/signin'
+    name: 'Landing',
+    component: () => import('../views/Landing/Landing.vue'),
+    meta: { layout: 'landing' }
   },
   {
     path: '/signin',
@@ -192,17 +194,19 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
-  const isLoginPage = normalizedPath === '/signin' || normalizedPath === '/signup' || normalizedPath === '/reset-password' || normalizedPath === '/two-step-verification' || normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/register' || normalizedPath === '/forgot-password' || normalizedPath === '/preview-banner'
+  const isLoginPage = normalizedPath === '/signin' || normalizedPath === '/signup' || normalizedPath === '/reset-password' || normalizedPath === '/two-step-verification' || normalizedPath === '/login' || normalizedPath === '/register' || normalizedPath === '/forgot-password' || normalizedPath === '/preview-banner'
+  const isLandingPage = normalizedPath === '/'
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
-  // Если пользователь не авторизован и пытается зайти не на страницу логина
-  if (!isAuth && !isLoginPage) {
+  // Если пользователь не авторизован — разрешаем лендинг и страницы логина
+  const isPublicPage = isLoginPage || isLandingPage
+  if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
     next('/signin')
   }
-  // Если пользователь авторизован и пытается зайти на страницу логина
-  else if (isAuth && isLoginPage) {
+  // Если пользователь авторизован и пытается зайти на лендинг или страницу логина — на дашборд
+  else if (isAuth && isPublicPage) {
     console.log('Router: Already authenticated, redirecting to dashboard...')
     next({ name: 'CreateProject' })
   }
