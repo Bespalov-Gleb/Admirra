@@ -20,9 +20,9 @@ from backend_api.reports.export_service import (
     get_report_file_by_token,
     save_report_view_data,
     get_report_view_data,
-    render_report_html,
     _get_report_data,
 )
+from backend_api.reports.report_html import render_report_html
 
 logger = logging.getLogger(__name__)
 
