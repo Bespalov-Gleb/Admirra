@@ -264,6 +264,8 @@ class PhoneProject(Base):
     # Настройки валидации
     enable_social_check = Column(Boolean, default=False)  # Проверка соцсетей
     enable_gosuslugi_check = Column(Boolean, default=False)  # Проверка Госуслуг
+    enable_spam_check = Column(Boolean, default=True)  # Проверка спам-баз (по умолчанию вкл)
+    enable_bitrix_check = Column(Boolean, default=False)  # Проверка дубликатов в Bitrix24
     enable_metrica_export = Column(Boolean, default=True)  # Отправка в Яндекс.Метрику
     
     # Настройки CAPTCHA (клиент использует свои ключи)

@@ -16,6 +16,9 @@ from core import models, security
 from fastapi.responses import JSONResponse, Response
 from datetime import datetime, timedelta
 from typing import Optional
+import uuid
+from sqlalchemy.orm import Session
+from core.database import get_db
 
 logger = logging.getLogger("lead_validator.router")
 
@@ -318,8 +321,10 @@ async def test_validate_lead(
     utm_source: str = None,
     utm_medium: str = None,
     utm_campaign: str = None,
+    project_id: Optional[uuid.UUID] = None,
     request: Request = None,
-    current_user: models.User = Depends(security.get_current_user)
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Тестовая валидация без CAPTCHA.
@@ -376,6 +381,33 @@ async def test_validate_lead(
             "passed": email_check.is_valid,
             "reason": email_check.rejection_reason
         }
+    
+    # 5. Проектные проверки (spam, bitrix) — при переданном project_id
+    project = None
+    if project_id:
+        project = db.query(models.PhoneProject).filter(
+            models.PhoneProject.id == project_id,
+            models.PhoneProject.owner_id == current_user.id
+        ).first()
+    
+    if project:
+        from lead_validator.services.spam_checker import spam_checker
+        from lead_validator.services.bitrix_service import bitrix_service
+        
+        if getattr(project, "enable_spam_check", True):
+            spam_result = await spam_checker.check_phone(cleaned_phone)
+            result["checks"]["spam"] = {
+                "passed": not spam_result.is_spam,
+                "is_spam": spam_result.is_spam,
+                "category": spam_result.category
+            }
+        if getattr(project, "enable_bitrix_check", False) and bitrix_service.enabled:
+            bitrix_result = await bitrix_service.find_duplicates(phone=cleaned_phone, email=email)
+            result["checks"]["bitrix"] = {
+                "passed": not bitrix_result.has_duplicate,
+                "has_duplicate": bitrix_result.has_duplicate,
+                "contact_id": bitrix_result.contact_id
+            }
     
     # Итоговый результат
     all_passed = all(

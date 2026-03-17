@@ -19,8 +19,6 @@ from typing import Optional
 from dataclasses import dataclass, asdict
 from lead_validator.config import settings
 from lead_validator.services.redis_service import redis_service
-from lead_validator.config import settings
-import os
 
 logger = logging.getLogger("lead_validator.social_checker")
 
@@ -101,14 +99,18 @@ class SocialChecker:
         
         return cleaned
     
-    async def check_phone(self, phone: str) -> SocialCheckResult:
+    async def check_phone(self, phone: str, name: Optional[str] = None) -> SocialCheckResult:
         """
         Проверяет телефон во всех доступных социальных сетях.
         
         Использует кеширование в Redis для оптимизации повторных запросов.
         
+        VK API: поиск только по ФИ/ФИО (имя). Поиск по телефону не поддерживается.
+        VK вызывается только если передано name с минимум 2 словами (имя + фамилия).
+        
         Args:
             phone: Номер телефона в любом формате
+            name: ФИО или ФИ пользователя (опционально). Нужен для поиска в VK.
             
         Returns:
             SocialCheckResult с результатами проверки
@@ -121,9 +123,10 @@ class SocialChecker:
             return result
         
         normalized_phone = self._normalize_phone(phone)
+        normalized_name = re.sub(r"\s+", " ", (name or "").strip())[:50] if name else ""
         
-        # Проверяем кеш в Redis (TTL 7 дней)
-        cache_key = f"social_check:{normalized_phone}"
+        # Ключ кеша: при name учитываем его, чтобы не смешивать результаты с/без VK
+        cache_key = f"social_check:{normalized_phone}:n:{normalized_name}" if normalized_name else f"social_check:{normalized_phone}"
         if redis_service.enabled:
             try:
                 cached_result = await redis_service._get_cached_result(cache_key)
@@ -136,10 +139,12 @@ class SocialChecker:
                 logger.debug(f"Failed to check cache: {e}")
         
         # Пробуем разные провайдеры по приоритету
-        # 1. VK API (бесплатно, но ограниченно)
-        if self.vk_enabled:
+        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск по телефону не поддерживается.
+        name_words = (name or "").strip().split()
+        has_fio = len(name_words) >= 2
+        if self.vk_enabled and has_fio:
             try:
-                vk_result = await self._check_vk_api(normalized_phone)
+                vk_result = await self._check_vk_api(name.strip())
                 if vk_result:
                     result.has_vk = vk_result.get("has_vk", False)
                     result.vk_user_id = vk_result.get("user_id")
@@ -149,6 +154,8 @@ class SocialChecker:
                     logger.debug(f"VK API check for {phone}: found={result.has_vk}")
             except Exception as e:
                 logger.warning(f"VK API check failed for {phone}: {e}")
+        elif self.vk_enabled and not has_fio:
+            logger.debug(f"VK check skipped for {phone}: no ФИ/ФИО (need at least 2 words in name)")
         
         # 2. GetContact API (платно, более точный)
         if self.getcontact_enabled and not result.checked:
@@ -186,7 +193,6 @@ class SocialChecker:
         # Сохраняем результат в кеш (TTL 7 дней = 604800 секунд)
         if redis_service.enabled and result.checked:
             try:
-                cache_key = f"social_check:{normalized_phone}"
                 cache_data = asdict(result)
                 await redis_service._cache_result(cache_key, cache_data, ttl=604800)
                 logger.debug(f"Cached social check result for {phone}")
@@ -195,16 +201,14 @@ class SocialChecker:
         
         return result
     
-    async def _check_vk_api(self, phone: str) -> Optional[dict]:
+    async def _check_vk_api(self, search_query: str) -> Optional[dict]:
         """
         Проверка через VK API users.search.
         
-        Документация: https://dev.vk.com/ru/method/users.search
+        VK API users.search ищет по имени/фамилии (параметр q).
+        Поиск по телефону не поддерживается.
         
-        Ограничения:
-        - Требуется service token или user token
-        - Поиск по телефону работает только если номер публичен
-        - Может не найти приватные профили
+        Документация: https://dev.vk.com/ru/method/users.search
         
         Returns:
             dict с результатами или None при ошибке
@@ -214,10 +218,9 @@ class SocialChecker:
         
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # VK API users.search с параметром phone
                 url = "https://api.vk.com/method/users.search"
                 params = {
-                    "q": phone,
+                    "q": search_query,
                     "fields": "photo_100,domain",
                     "count": 1,
                     "access_token": self.vk_api_token,
@@ -261,7 +264,7 @@ class SocialChecker:
                 return None
                 
         except httpx.TimeoutException:
-            logger.warning(f"VK API timeout for phone {phone}")
+            logger.warning(f"VK API timeout for query {search_query[:30]}...")
             return None
         except Exception as e:
             logger.error(f"VK API check error: {e}")

@@ -10,9 +10,9 @@ import json
 import uuid
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, Body, Body
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from lead_validator.schemas import LeadInput, ValidationResult
 from lead_validator.validators import lead_validator
 from core.database import get_db
@@ -69,16 +69,9 @@ class MarquizWebhookData(BaseModel):
     """
     Данные от Marquiz квизов.
     
-    Поля из CSV (разделитель - точка с запятой):
-    - name, phone, email, address, customField
-    - created, created_formatted, source (URL с UTM)
-    - marketingConsent, referrer, location, leadTimezone
-    - IP, userAgent, verified, captchaVerified
-    - variant, quiz
-    - Динамические поля ответов на вопросы
-    - utm_source, utm_medium, utm_campaign, utm_term, utm_content
-    - Мессенджеры: telegram, vk, whatsapp, viber, skype и др.
-    - fingerprint, _ym_uid и др. tracking параметры
+    Поддерживаем оба формата:
+    - Плоский: name, phone, email, utm_source, ... на верхнем уровне
+    - Вложенный (официальный): contacts.phone, contacts.email, extra.utm, extra.ip
     """
     # Основные поля
     name: Optional[str] = None
@@ -130,6 +123,46 @@ class MarquizWebhookData(BaseModel):
     class Config:
         extra = "allow"  # Разрешаем динамические поля (ответы на вопросы)
         populate_by_name = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def flatten_marquiz_format(cls, data: Any) -> Any:
+        """Извлекаем phone, email, name из contacts и UTM из extra при вложенном формате."""
+        if not isinstance(data, dict):
+            return data
+        contacts = data.get("contacts") or {}
+        extra = data.get("extra") or {}
+        utm = extra.get("utm") or {}
+        # Если на верхнем уровне нет phone — берём из contacts
+        if not data.get("phone") and contacts.get("phone"):
+            data = {**data, "phone": contacts.get("phone")}
+        if not data.get("email") and contacts.get("email"):
+            data = {**data, "email": contacts.get("email")}
+        if not data.get("name") and contacts.get("name"):
+            data = {**data, "name": contacts.get("name")}
+        # UTM из extra.utm
+        if not data.get("utm_source") and utm.get("source"):
+            data = {**data, "utm_source": utm.get("source")}
+        if not data.get("utm_medium") and utm.get("medium"):
+            data = {**data, "utm_medium": utm.get("medium")}
+        if not data.get("utm_campaign") and utm.get("campaign"):
+            data = {**data, "utm_campaign": utm.get("campaign")}
+        if not data.get("utm_content") and utm.get("content"):
+            data = {**data, "utm_content": utm.get("content")}
+        if not data.get("utm_term") and utm.get("term"):
+            data = {**data, "utm_term": utm.get("term")}
+        # IP и timezone из extra
+        if not data.get("IP") and extra.get("ip"):
+            data = {**data, "IP": extra.get("ip")}
+        if not data.get("leadTimezone") and extra.get("timezone") is not None:
+            data = {**data, "leadTimezone": str(extra.get("timezone"))}
+        if not data.get("referrer") and extra.get("referrer"):
+            data = {**data, "referrer": extra.get("referrer")}
+        # quiz в Marquiz — объект {id, name}; приводим к строке для совместимости
+        quiz_val = data.get("quiz")
+        if isinstance(quiz_val, dict):
+            data = {**data, "quiz": quiz_val.get("name") or str(quiz_val.get("id", ""))}
+        return data
 
 
 # ============================================================================
@@ -186,6 +219,20 @@ def extract_country_from_location(location: str) -> Optional[str]:
         if country_name in location_lower:
             return code
     
+    return None
+
+
+def _parse_marquiz_timezone(tz: Any) -> Optional[str]:
+    """
+    Marquiz extra.timezone — число (UTC offset, напр. 3, 5, 10).
+    Преобразуем в строку и вызываем parse_timezone_offset.
+    """
+    if tz is None:
+        return None
+    if isinstance(tz, (int, float)):
+        return parse_timezone_offset(f"UTC {int(tz)}")
+    if isinstance(tz, str):
+        return parse_timezone_offset(tz)
     return None
 
 
@@ -359,8 +406,8 @@ async def marquiz_webhook(data: MarquizWebhookData, request: Request) -> Validat
 )
 async def phone_project_webhook(
     project_id: str,
-    data: dict,
     request: Request,
+    data: dict = Body(...),
     db: Session = Depends(get_db),
     secret: Optional[str] = None
 ) -> ValidationResult:
@@ -388,6 +435,9 @@ async def phone_project_webhook(
     if not project:
         raise HTTPException(status_code=404, detail="Phone project not found or inactive")
 
+    # project_uuid для передачи в validate (при fallback по webhook_url project_uuid мог быть не задан)
+    project_uuid = project.id
+
     # Проверяем секрет (header или query)
     provided_secret = request.headers.get("x-webhook-secret") or secret
     if project.webhook_secret:
@@ -396,22 +446,44 @@ async def phone_project_webhook(
     
     logger.info(f"Phone project webhook received: project={project.name}, phone={data.get('phone')}")
     
-    # Извлекаем основные поля (поддерживаем разные форматы)
-    phone = data.get("phone") or data.get("Phone") or data.get("PHONE")
+    # Извлекаем основные поля (поддерживаем плоский формат и вложенный Marquiz: contacts, extra)
+    contacts = data.get("contacts") or {}
+    phone = (
+        data.get("phone") or data.get("Phone") or data.get("PHONE")
+        or contacts.get("phone") or contacts.get("Phone")
+    )
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number is required")
     
-    email = data.get("email") or data.get("Email") or data.get("EMAIL")
-    name = data.get("name") or data.get("Name") or data.get("NAME")
+    email = (
+        data.get("email") or data.get("Email") or data.get("EMAIL")
+        or contacts.get("email") or contacts.get("Email")
+    )
+    name = (
+        data.get("name") or data.get("Name") or data.get("NAME")
+        or contacts.get("name") or contacts.get("Name")
+    )
     
-    # Извлекаем UTM из данных или referer
-    referer = request.headers.get("referer", "")
-    utm = extract_utm_from_url(referer)
-    utm_source = data.get("utm_source") or utm.get("utm_source")
-    utm_medium = data.get("utm_medium") or utm.get("utm_medium")
-    utm_campaign = data.get("utm_campaign") or utm.get("utm_campaign")
-    utm_content = data.get("utm_content") or utm.get("utm_content")
-    utm_term = data.get("utm_term") or utm.get("utm_term")
+    # UTM: из плоских полей, extra.utm (Marquiz) или referer
+    extra = data.get("extra") or {}
+    utm_extra = extra.get("utm") or {}
+    referer = request.headers.get("referer") or extra.get("referrer") or extra.get("href") or ""
+    utm_from_ref = extract_utm_from_url(referer)
+    utm_source = (
+        data.get("utm_source") or utm_extra.get("source") or utm_from_ref.get("utm_source")
+    )
+    utm_medium = (
+        data.get("utm_medium") or utm_extra.get("medium") or utm_from_ref.get("utm_medium")
+    )
+    utm_campaign = (
+        data.get("utm_campaign") or utm_extra.get("campaign") or utm_from_ref.get("utm_campaign")
+    )
+    utm_content = (
+        data.get("utm_content") or utm_extra.get("content") or utm_from_ref.get("utm_content")
+    )
+    utm_term = (
+        data.get("utm_term") or utm_extra.get("term") or utm_from_ref.get("utm_term")
+    )
     
     # Преобразуем в LeadInput
     lead = LeadInput(
@@ -424,11 +496,14 @@ async def phone_project_webhook(
         utm_content=utm_content,
         utm_term=utm_term,
         ym_uid=data.get("ym_uid") or data.get("_ym_uid"),
-        browser_timezone=data.get("browser_timezone") or data.get("timezone")
+        browser_timezone=(
+            data.get("browser_timezone") or data.get("timezone")
+            or _parse_marquiz_timezone(extra.get("timezone"))
+        ),
     )
     
-    # Получаем IP клиента
-    client_ip = _get_client_ip(request)
+    # IP: из extra (Marquiz) или из запроса
+    client_ip = extra.get("ip") or _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
     
     # Валидируем с сохранением в базу

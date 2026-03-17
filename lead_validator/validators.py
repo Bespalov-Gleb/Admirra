@@ -24,8 +24,8 @@ from lead_validator.services.analytics import analytics_service
 from lead_validator.services.email_mx_validator import email_mx_validator, timezone_validator
 from lead_validator.services.social_checker import social_checker
 from lead_validator.services.gosuslugi_checker import gosuslugi_checker
-from lead_validator.services.spam_checker import spam_checker
-from lead_validator.services.bitrix_service import bitrix_service
+from lead_validator.services.spam_checker import spam_checker, SpamCheckResult
+from lead_validator.services.bitrix_service import bitrix_service, BitrixDuplicateResult
 from core import models, security
 
 logger = logging.getLogger("lead_validator.validators")
@@ -106,6 +106,11 @@ class LeadValidator:
         """
         start_time = time.time()
         
+        # Загружаем project для проектных настроек (spam/bitrix gating)
+        project = None
+        if project_id and db:
+            project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+        
         # Сохраняем IP в lead для логирования
         if client_ip:
             lead.client_ip = client_ip
@@ -166,7 +171,11 @@ class LeadValidator:
         
         # === Уровень 4.6: Проверка в CRM (Bitrix24) ===
         # Информационная проверка - не отклоняем, но логируем если контакт найден
-        bitrix_duplicate = await bitrix_service.find_duplicates(phone=lead.phone, email=lead.email)
+        run_bitrix = (project is None or getattr(project, "enable_bitrix_check", False)) and bitrix_service.enabled
+        if run_bitrix:
+            bitrix_duplicate = await bitrix_service.find_duplicates(phone=lead.phone, email=lead.email)
+        else:
+            bitrix_duplicate = BitrixDuplicateResult()
         if bitrix_duplicate.has_duplicate:
             logger.info(
                 f"Found existing Bitrix24 contact {bitrix_duplicate.contact_id} "
@@ -257,7 +266,11 @@ class LeadValidator:
                 logger.info(f"Email type for {lead.phone}: {email_type}")
         
         # === Уровень 5.5: Проверка на спам-номера ===
-        spam_result = await spam_checker.check_phone(lead.phone)
+        run_spam = project is None or getattr(project, "enable_spam_check", True)
+        if run_spam:
+            spam_result = await spam_checker.check_phone(lead.phone)
+        else:
+            spam_result = SpamCheckResult()
         if spam_result.is_spam:
             return await self._reject(
                 lead,
@@ -279,11 +292,7 @@ class LeadValidator:
                 term=lead.utm_term
             )
             
-            # Если есть проект, получаем его настройки
-            project = None
-            if project_id and db:
-                from core import models
-                project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+            # project уже загружен в начале validate()
             utm_result = await utm_validator.validate(
                 utm_data, 
                 client_ip=client_ip,
@@ -564,7 +573,7 @@ class LeadValidator:
                 
                 # Если включена проверка соцсетей
                 if project and project.enable_social_check:
-                    social_result = await social_checker.check_phone(lead.phone)
+                    social_result = await social_checker.check_phone(lead.phone, lead.name)
                     lead_record.has_telegram = social_result.has_telegram
                     lead_record.has_whatsapp = social_result.has_whatsapp
                     lead_record.has_tiktok = social_result.has_tiktok

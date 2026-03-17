@@ -273,6 +273,24 @@
 
                 <label class="flex items-center">
                   <input
+                    v-model="projectForm.enable_spam_check"
+                    type="checkbox"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Проверка спам-баз</span>
+                </label>
+
+                <label class="flex items-center">
+                  <input
+                    v-model="projectForm.enable_bitrix_check"
+                    type="checkbox"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Проверка дубликатов в Bitrix24</span>
+                </label>
+
+                <label class="flex items-center">
+                  <input
                     v-model="projectForm.enable_metrica_export"
                     type="checkbox"
                     class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -528,6 +546,8 @@ const projectForm = reactive({
   telegram_chat_id: '',
   enable_social_check: false,
   enable_gosuslugi_check: false,
+  enable_spam_check: true,
+  enable_bitrix_check: false,
   enable_metrica_export: true
 })
 
@@ -627,6 +647,8 @@ const editProject = (project) => {
   projectForm.telegram_chat_id = project.telegram_chat_id || ''
   projectForm.enable_social_check = project.enable_social_check || false
   projectForm.enable_gosuslugi_check = project.enable_gosuslugi_check || false
+  projectForm.enable_spam_check = project.enable_spam_check !== false
+  projectForm.enable_bitrix_check = project.enable_bitrix_check || false
   projectForm.enable_metrica_export = project.enable_metrica_export !== false
   showCreateModal.value = true
 }
@@ -671,6 +693,8 @@ const closeModal = () => {
     telegram_chat_id: '',
     enable_social_check: false,
     enable_gosuslugi_check: false,
+    enable_spam_check: true,
+    enable_bitrix_check: false,
     enable_metrica_export: true
   })
   emailRecipientsInput.value = ''
@@ -725,7 +749,9 @@ const submitManualLead = async () => {
 
     const webhookSecret = viewingProject.value?.webhook_secret
     const headers = webhookSecret ? { 'X-Webhook-Secret': webhookSecret } : {}
-    await api.post(`webhook${webhookUrl}`, payload, { headers })
+    // webhookUrl вида "/webhook/phone/{id}" — убираем ведущий слэш для baseURL /api/
+    const path = webhookUrl.startsWith('/') ? webhookUrl.slice(1) : webhookUrl
+    await api.post(path, payload, { headers })
     toaster.success('Заявка отправлена на проверку')
     
     // Сброс формы

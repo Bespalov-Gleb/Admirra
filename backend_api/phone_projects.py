@@ -37,6 +37,8 @@ class PhoneProjectCreate(BaseModel):
     # Настройки валидации
     enable_social_check: bool = False
     enable_gosuslugi_check: bool = False
+    enable_spam_check: bool = True
+    enable_bitrix_check: bool = False
     enable_metrica_export: bool = True
     
     # Настройки CAPTCHA (клиент использует свои ключи)
@@ -59,6 +61,8 @@ class PhoneProjectUpdate(BaseModel):
     # Настройки валидации
     enable_social_check: Optional[bool] = None
     enable_gosuslugi_check: Optional[bool] = None
+    enable_spam_check: Optional[bool] = None
+    enable_bitrix_check: Optional[bool] = None
     enable_metrica_export: Optional[bool] = None
     is_active: Optional[bool] = None
     
@@ -85,6 +89,8 @@ class PhoneProjectResponse(BaseModel):
     # Настройки валидации
     enable_social_check: bool
     enable_gosuslugi_check: bool
+    enable_spam_check: bool
+    enable_bitrix_check: bool
     enable_metrica_export: bool
     
     # Настройки CAPTCHA
@@ -164,6 +170,8 @@ def create_phone_project(
         telegram_chat_id=project_data.telegram_chat_id,
         enable_social_check=project_data.enable_social_check,
         enable_gosuslugi_check=project_data.enable_gosuslugi_check,
+        enable_spam_check=project_data.enable_spam_check,
+        enable_bitrix_check=project_data.enable_bitrix_check,
         enable_metrica_export=project_data.enable_metrica_export,
         captcha_provider=project_data.captcha_provider,
         captcha_site_key=project_data.captcha_site_key,
@@ -260,6 +268,10 @@ def update_phone_project(
         project.enable_social_check = project_data.enable_social_check
     if project_data.enable_gosuslugi_check is not None:
         project.enable_gosuslugi_check = project_data.enable_gosuslugi_check
+    if project_data.enable_spam_check is not None:
+        project.enable_spam_check = project_data.enable_spam_check
+    if project_data.enable_bitrix_check is not None:
+        project.enable_bitrix_check = project_data.enable_bitrix_check
     if project_data.enable_metrica_export is not None:
         project.enable_metrica_export = project_data.enable_metrica_export
     if project_data.is_active is not None:
