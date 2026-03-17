@@ -3,6 +3,7 @@ API для управления проектами телефонии (вали�
 Проекты независимы - разные node, аналогично Client для интеграций.
 """
 
+import json
 import logging
 import secrets
 import uuid
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from core.database import get_db
 from core import models, security
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,21 @@ class PhoneProjectResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+    @field_validator("email_recipients", mode="before")
+    @classmethod
+    def parse_email_recipients(cls, v):
+        """В БД хранится JSON-строка, нужен список."""
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
 
 
 # ============================================================================
