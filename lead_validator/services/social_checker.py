@@ -189,17 +189,17 @@ class SocialChecker:
                 except Exception as e:
                     logger.debug(f"GetContact unofficial failed for {phone}: {e}")
         
-        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск по телефону не поддерживается.
+        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск ТОЛЬКО по фамилия + имя (без отчества).
         if self.vk_enabled and has_fio:
+            vk_search_query = " ".join(name_words[:2])  # Только фамилия и имя
             try:
-                vk_result = await self._check_vk_api(search_name)
+                vk_result = await self._check_vk_api(vk_search_query, phone=phone)
                 if vk_result:
                     result.has_vk = vk_result.get("has_vk", False)
                     result.vk_user_id = vk_result.get("user_id")
                     result.vk_profile_url = vk_result.get("profile_url")
                     result.provider = "VK API"
                     result.checked = True
-                    logger.debug(f"VK API check for {phone}: found={result.has_vk}")
             except Exception as e:
                 logger.warning(f"VK API check failed for {phone}: {e}")
         elif self.vk_enabled and not has_fio:
@@ -263,20 +263,21 @@ class SocialChecker:
         
         return result
     
-    async def _check_vk_api(self, search_query: str) -> Optional[dict]:
+    async def _check_vk_api(self, search_query: str, phone: str = "") -> Optional[dict]:
         """
         Проверка через VK API users.search.
         
-        VK API users.search ищет по имени/фамилии (параметр q).
-        Поиск по телефону не поддерживается.
-        
+        Поиск только по фамилия + имя (без отчества).
         Документация: https://dev.vk.com/ru/method/users.search
         
         Returns:
             dict с результатами или None при ошибке
         """
         if not self.vk_api_token:
+            logger.info("[VK] Поиск не начат: VK_API_TOKEN не задан")
             return None
+
+        logger.info(f"[VK] Поиск НАЧАТ: q='{search_query}' (телефон {phone or '-'})")
         
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -291,45 +292,50 @@ class SocialChecker:
                 
                 response = await client.get(url, params=params)
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    if "error" in data:
-                        error_code = data["error"].get("error_code")
-                        error_msg = data["error"].get("error_msg", "")
-                        
-                        # Ошибка 5 = Invalid token
-                        if error_code == 5:
-                            logger.warning("VK API: Invalid token, check VK_API_TOKEN")
-                            return None
-                        
-                        logger.debug(f"VK API error: {error_code} - {error_msg}")
-                        return None
-                    
-                    if "response" in data:
-                        items = data["response"].get("items", [])
-                        if items:
-                            user = items[0]
-                            user_id = user.get("id")
-                            domain = user.get("domain") or f"id{user_id}"
-                            
-                            return {
-                                "has_vk": True,
-                                "user_id": user_id,
-                                "profile_url": f"https://vk.com/{domain}"
-                            }
-                    
-                    # Нет результатов - пользователь не найден или профиль приватный
-                    return {"has_vk": False}
+                if response.status_code != 200:
+                    logger.warning(f"[VK] Поиск ЗАВЕРШЁН с ошибкой: HTTP {response.status_code}")
+                    return None
+
+                data = response.json()
                 
-                logger.warning(f"VK API returned status {response.status_code}")
-                return None
+                if "error" in data:
+                    error_code = data["error"].get("error_code")
+                    error_msg = data["error"].get("error_msg", "")
+                    if error_code == 5:
+                        logger.warning("[VK] Поиск ЗАВЕРШЁН: Invalid token, проверьте VK_API_TOKEN")
+                    else:
+                        logger.warning(f"[VK] Поиск ЗАВЕРШЁН с ошибкой API: [{error_code}] {error_msg}")
+                    return None
+                
+                if "response" not in data:
+                    logger.info("[VK] Поиск ЗАВЕРШЁН: неожиданный формат ответа (нет response)")
+                    return {"has_vk": False}
+
+                items = data["response"].get("items", [])
+                count = data["response"].get("count", 0)
+                
+                if items:
+                    user = items[0]
+                    user_id = user.get("id")
+                    domain = user.get("domain") or f"id{user_id}"
+                    profile_url = f"https://vk.com/{domain}"
+                    logger.info(f"[VK] Поиск ЗАВЕРШЁН: НАЙДЕН profile_url={profile_url} (user_id={user_id}, всего совпадений: {count})")
+                    return {
+                        "has_vk": True,
+                        "user_id": user_id,
+                        "profile_url": profile_url
+                    }
+                
+                # Пустой результат
+                reason = "профиль не найден или скрыт настройками приватности" if count == 0 else "items пуст (возможна фильтрация по возрасту/другое)"
+                logger.info(f"[VK] Поиск ЗАВЕРШЁН: НЕ НАЙДЕН. Причина: {reason} (count={count})")
+                return {"has_vk": False}
                 
         except httpx.TimeoutException:
-            logger.warning(f"VK API timeout for query {search_query[:30]}...")
+            logger.warning(f"[VK] Поиск ЗАВЕРШЁН: timeout при запросе для q='{search_query[:40]}...'")
             return None
         except Exception as e:
-            logger.error(f"VK API check error: {e}")
+            logger.error(f"[VK] Поиск ЗАВЕРШЁН с исключением: {e}")
             return None
     
     async def _check_getcontact(self, phone: str) -> Optional[dict]:
