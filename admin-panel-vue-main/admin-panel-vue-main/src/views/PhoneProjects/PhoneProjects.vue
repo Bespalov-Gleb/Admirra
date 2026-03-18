@@ -744,7 +744,8 @@ const submitManualLead = async () => {
       email: manualLeadForm.email || undefined,
       name: manualLeadForm.name || undefined,
       js_token: manualLeadJsToken.value,
-      timestamp: manualLeadStartTs.value
+      timestamp: manualLeadStartTs.value,
+      source: 'Ручной ввод'
     }
 
     const webhookSecret = viewingProject.value?.webhook_secret

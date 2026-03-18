@@ -524,22 +524,46 @@ class LeadValidator:
         if lead.email:
             await redis_service.mark_email(lead.email)
         
-        # Отправляем уведомление в Telegram
+        # Загружаем проект заранее (для имени, social_check, source)
+        project = None
+        if project_id and db:
+            from core import models
+            project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+        
+        # Social check до Telegram, чтобы показать мессенджеры в уведомлении
+        social_result = None
+        if project and getattr(project, "enable_social_check", False):
+            try:
+                social_result = await social_checker.check_phone(lead.phone, lead.name)
+            except Exception as e:
+                logger.warning(f"Social check failed before telegram: {e}")
+        
+        # Определяем источник (Marquiz, Tilda, ручной ввод)
+        source = None
+        if form_data:
+            source = form_data.get("source") or form_data.get("_source")
+        if not source and referer:
+            if "marquiz" in referer.lower():
+                source = "Marquiz"
+            elif "tilda" in referer.lower():
+                source = "Tilda"
+        
+        # Отправляем уведомление в Telegram (с полными данными)
         try:
             await telegram_notifier.send_new_lead(
                 lead,
                 phone_type=dadata.type if dadata else None,
                 provider=dadata.provider if dadata else None,
-                region=dadata.region if dadata else None
+                region=dadata.region if dadata else None,
+                city=dadata.city if dadata else None,
+                social_result=social_result,
+                project_name=project.name if project else None,
+                source=source,
             )
         except Exception as e:
             logger.error(f"Failed to send Telegram notification: {e}")
         
-        # === СТАДИЯ 2: Обогащение данных (если есть проект) ===
-        project = None
-        if project_id and db:
-            from core import models
-            project = db.query(models.PhoneProject).filter_by(id=project_id).first()
+        # === СТАДИЯ 2: Сохранение в БД и выгрузка ===
         
         # Сохраняем заявку в базу данных
         lead_record = None
@@ -573,9 +597,10 @@ class LeadValidator:
                     status=models.LeadStatus.VALID
                 )
                 
-                # Если включена проверка соцсетей
+                # Если включена проверка соцсетей (social_result уже получен выше для Telegram)
                 if project and project.enable_social_check:
-                    social_result = await social_checker.check_phone(lead.phone, lead.name)
+                    if not social_result:
+                        social_result = await social_checker.check_phone(lead.phone, lead.name)
                     lead_record.has_telegram = social_result.has_telegram
                     lead_record.has_whatsapp = social_result.has_whatsapp
                     lead_record.has_tiktok = social_result.has_tiktok
@@ -710,14 +735,30 @@ class LeadValidator:
         # Выгрузка в Telegram (если указан chat_id проекта)
         if project.telegram_chat_id and not lead_record.exported_to_telegram:
             try:
-                # Используем telegram_notifier, но с chat_id проекта
-                message = f"📞 Новая заявка из проекта '{project.name}':\n"
-                message += f"Телефон: {lead_record.phone}\n"
+                message = f"📞 Новая заявка из проекта «{project.name}»\n\n"
+                message += f"📱 Телефон: `{lead_record.phone}`\n"
+                if lead_record.phone_type:
+                    message += f"Тип: {lead_record.phone_type}\n"
+                if lead_record.phone_provider:
+                    message += f"Оператор: {lead_record.phone_provider}\n"
+                if lead_record.phone_region:
+                    message += f"Регион: {lead_record.phone_region}\n"
+                if lead_record.phone_city:
+                    message += f"Город: {lead_record.phone_city}\n"
                 if lead_record.name:
-                    message += f"Имя: {lead_record.name}\n"
+                    message += f"👤 Имя: {lead_record.name}\n"
                 if lead_record.email:
-                    message += f"Email: {lead_record.email}\n"
-                message += f"Статус: {export_data['status']}\n"
+                    message += f"📧 Email: {lead_record.email}\n"
+                msgr = []
+                if getattr(lead_record, "has_telegram", None): msgr.append("TG")
+                if getattr(lead_record, "has_whatsapp", None): msgr.append("WA")
+                if getattr(lead_record, "has_vk", None): msgr.append("VK")
+                if getattr(lead_record, "has_tiktok", None): msgr.append("TikTok")
+                if msgr:
+                    message += f"💬 Мессенджеры: {', '.join(msgr)}\n"
+                if lead_record.utm_source or lead_record.utm_campaign:
+                    message += f"🔗 UTM: source={lead_record.utm_source or '-'}, campaign={lead_record.utm_campaign or '-'}\n"
+                message += f"🕐 {lead_record.created_at.strftime('%d.%m.%Y %H:%M') if lead_record.created_at else ''}\n"
                 
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     telegram_token = settings.TELEGRAM_BOT_TOKEN
@@ -725,7 +766,8 @@ class LeadValidator:
                         url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                         await client.post(url, json={
                             "chat_id": project.telegram_chat_id,
-                            "text": message
+                            "text": message,
+                            "parse_mode": "Markdown"
                         })
                         lead_record.exported_to_telegram = True
                         logger.info(f"Lead exported to Telegram: {lead_record.id}")

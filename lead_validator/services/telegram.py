@@ -4,8 +4,9 @@ Telegram Bot для отправки уведомлений о новых лид
 """
 
 import logging
+from datetime import datetime
 import httpx
-from typing import Optional
+from typing import Optional, Any
 from lead_validator.config import settings
 from lead_validator.schemas import LeadInput
 
@@ -42,6 +43,10 @@ class TelegramNotifier:
         phone_type: Optional[str] = None,
         provider: Optional[str] = None,
         region: Optional[str] = None,
+        city: Optional[str] = None,
+        social_result: Optional[Any] = None,
+        project_name: Optional[str] = None,
+        source: Optional[str] = None,
         is_test: bool = False
     ) -> str:
         """
@@ -63,11 +68,39 @@ class TelegramNotifier:
             lines.append(f"📡 Оператор: {provider}")
         if region:
             lines.append(f"📍 Регион: {region}")
+        if city:
+            lines.append(f"🏙 Город: {city}")
             
         if lead.name:
             lines.append(f"👤 Имя: {lead.name}")
         if lead.email:
             lines.append(f"📧 Email: {lead.email}")
+        
+        # Соцсети и мессенджеры
+        if social_result and getattr(social_result, "checked", False):
+            social_parts = []
+            if getattr(social_result, "has_telegram", None):
+                un = getattr(social_result, "telegram_username", None)
+                social_parts.append(f"TG{' (@' + un + ')' if un else ''}")
+            if getattr(social_result, "has_whatsapp", None):
+                social_parts.append("WA")
+            if getattr(social_result, "has_viber", None):
+                social_parts.append("Viber")
+            if getattr(social_result, "has_vk", None):
+                social_parts.append("VK")
+            if getattr(social_result, "has_tiktok", None):
+                social_parts.append("TikTok")
+            if social_parts:
+                lines.append(f"💬 Мессенджеры: {', '.join(social_parts)}")
+            
+        # Проект и источник
+        if project_name:
+            lines.append(f"📋 Проект: {project_name}")
+        if source:
+            lines.append(f"📥 Источник: {source}")
+            
+        # Время
+        lines.append(f"🕐 {datetime.now().strftime('%d.%m.%Y %H:%M')}")
             
         # UTM метки
         utm_parts = []
@@ -90,6 +123,10 @@ class TelegramNotifier:
         phone_type: Optional[str] = None,
         provider: Optional[str] = None,
         region: Optional[str] = None,
+        city: Optional[str] = None,
+        social_result: Optional[Any] = None,
+        project_name: Optional[str] = None,
+        source: Optional[str] = None,
         is_test: bool = False
     ) -> bool:
         """
@@ -114,7 +151,10 @@ class TelegramNotifier:
             logger.error("Telegram chat_id not configured!")
             return False
             
-        message = self._format_lead_message(lead, phone_type, provider, region, is_test)
+        message = self._format_lead_message(
+            lead, phone_type, provider, region, city,
+            social_result, project_name, source, is_test
+        )
         
         logger.info(f"Sending Telegram notification for phone: {lead.phone} (is_test={is_test})")
         logger.debug(f"Message content: {message[:100]}...")

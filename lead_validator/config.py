@@ -119,13 +119,22 @@ class LeadValidatorSettings:
     # VK API (бесплатно, но ограниченно)
     VK_API_TOKEN: str = ""  # Service token для VK API (не Ads API)
     
-    # GetContact API (платно)
+    # GetContact API (платно, коммерческий)
     GETCONTACT_API_KEY: str = ""
     GETCONTACT_API_URL: str = ""
+    
+    # GetContact неофициальное (имя по телефону для VK). Токен и AES из приложения.
+    GETCONTACT_UNOFFICIAL_TOKEN: str = ""
+    GETCONTACT_UNOFFICIAL_AES_KEY: str = ""
     
     # NumBuster API (платно)
     NUMBUSTER_API_KEY: str = ""
     NUMBUSTER_API_URL: str = ""
+    
+    # Telegram проверка через Telethon (api_id, api_hash, путь к .session)
+    TELEGRAM_CHECKER_API_ID: str = ""
+    TELEGRAM_CHECKER_API_HASH: str = ""
+    TELEGRAM_CHECKER_SESSION: str = ""
     
     # Спам-номера (Уровень 5)
     SPRAVPORTAL_API_KEY: str = ""  # SpravPortal WhoCalls API
@@ -229,8 +238,13 @@ class LeadValidatorSettings:
         self.VK_API_TOKEN = _get_env("VK_API_TOKEN", "")
         self.GETCONTACT_API_KEY = _get_env("GETCONTACT_API_KEY", "")
         self.GETCONTACT_API_URL = _get_env("GETCONTACT_API_URL", "")
+        self.GETCONTACT_UNOFFICIAL_TOKEN = _get_env("GETCONTACT_UNOFFICIAL_TOKEN", "")
+        self.GETCONTACT_UNOFFICIAL_AES_KEY = _get_env("GETCONTACT_UNOFFICIAL_AES_KEY", "")
         self.NUMBUSTER_API_KEY = _get_env("NUMBUSTER_API_KEY", "")
         self.NUMBUSTER_API_URL = _get_env("NUMBUSTER_API_URL", "")
+        self.TELEGRAM_CHECKER_API_ID = _get_env("TELEGRAM_CHECKER_API_ID", "")
+        self.TELEGRAM_CHECKER_API_HASH = _get_env("TELEGRAM_CHECKER_API_HASH", "")
+        self.TELEGRAM_CHECKER_SESSION = _get_env("TELEGRAM_CHECKER_SESSION", "")
         
         # Спам-номера
         self.SPRAVPORTAL_API_KEY = _get_env("SPRAVPORTAL_API_KEY", "")

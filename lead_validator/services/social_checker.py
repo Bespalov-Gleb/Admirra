@@ -2,13 +2,13 @@
 Проверка наличия телефона в социальных сетях и мессенджерах.
 
 Поддерживаемые методы:
-1. VK API (users.search) - бесплатно, но ограниченно
-2. Сторонние провайдеры (GetContact, NumBuster) - платные, но более точные
+1. VK API (users.search) — бесплатно, поиск по ФИО
+2. GetContact неофициальное — имя по телефону (для последующего поиска в VK)
+3. GetContact/NumBuster коммерческие — TG, WA, Viber (если есть API)
 
 Документация:
 - VK API: https://dev.vk.com/ru/method/users.search
-- GetContact: https://getcontact.com/api (платный)
-- NumBuster: https://numbuster.com/api (платный)
+- GetContact неофициальное: https://github.com/SijyKijy/GetContactAPI
 """
 
 import logging
@@ -21,6 +21,26 @@ from lead_validator.config import settings
 from lead_validator.services.redis_service import redis_service
 
 logger = logging.getLogger("lead_validator.social_checker")
+
+# Ленивая загрузка GetContact unofficial (опциональная зависимость)
+_getcontact_unofficial = None
+
+
+def _get_getcontact_unofficial():
+    global _getcontact_unofficial
+    if _getcontact_unofficial is None:
+        token = getattr(settings, "GETCONTACT_UNOFFICIAL_TOKEN", "") or ""
+        aes = getattr(settings, "GETCONTACT_UNOFFICIAL_AES_KEY", "") or ""
+        if token and aes:
+            try:
+                from lead_validator.services.getcontact_unofficial import GetContactUnofficial
+                _getcontact_unofficial = GetContactUnofficial(token, aes)
+            except Exception as e:
+                logger.warning(f"GetContact unofficial init failed: {e}")
+                _getcontact_unofficial = False
+        else:
+            _getcontact_unofficial = False
+    return _getcontact_unofficial if _getcontact_unofficial else None
 
 
 @dataclass
@@ -61,18 +81,27 @@ class SocialChecker:
         self.vk_api_version = "5.131"
         self.vk_enabled = bool(self.vk_api_token)
         
-        # GetContact API настройки
+        # GetContact API коммерческий
         self.getcontact_api_key = settings.GETCONTACT_API_KEY
         self.getcontact_api_url = settings.GETCONTACT_API_URL
         self.getcontact_enabled = bool(self.getcontact_api_key and self.getcontact_api_url)
+        
+        # GetContact неофициальное (имя по телефону → VK)
+        self.getcontact_unofficial_enabled = bool(
+            getattr(settings, "GETCONTACT_UNOFFICIAL_TOKEN", "")
+            and getattr(settings, "GETCONTACT_UNOFFICIAL_AES_KEY", "")
+        )
         
         # NumBuster API настройки
         self.numbuster_api_key = settings.NUMBUSTER_API_KEY
         self.numbuster_api_url = settings.NUMBUSTER_API_URL
         self.numbuster_enabled = bool(self.numbuster_api_key and self.numbuster_api_url)
         
-        # Общая настройка
-        self.enabled = self.vk_enabled or self.getcontact_enabled or self.numbuster_enabled
+        # Общая настройка (VK + любой из GetContact/NumBuster/unofficial)
+        self.enabled = (
+            self.vk_enabled or self.getcontact_enabled or self.numbuster_enabled
+            or self.getcontact_unofficial_enabled
+        )
         
         if not self.enabled:
             logger.debug("Social checker disabled: no API keys configured")
@@ -82,6 +111,8 @@ class SocialChecker:
                 providers.append("VK API")
             if self.getcontact_enabled:
                 providers.append("GetContact")
+            if self.getcontact_unofficial_enabled:
+                providers.append("GetContact (unofficial)")
             if self.numbuster_enabled:
                 providers.append("NumBuster")
             logger.info(f"Social checker enabled with providers: {', '.join(providers)}")
@@ -138,13 +169,30 @@ class SocialChecker:
             except Exception as e:
                 logger.debug(f"Failed to check cache: {e}")
         
-        # Пробуем разные провайдеры по приоритету
-        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск по телефону не поддерживается.
-        name_words = (name or "").strip().split()
+        # 0. Если нет ФИО — пробуем GetContact неофициальное: телефон → имя → VK
+        search_name = (name or "").strip()
+        name_words = search_name.split()
         has_fio = len(name_words) >= 2
+        if not has_fio and self.getcontact_unofficial_enabled:
+            gc = _get_getcontact_unofficial()
+            if gc and gc.enabled:
+                try:
+                    phone_for_gc = f"+{normalized_phone}" if normalized_phone and not normalized_phone.startswith("+") else normalized_phone or phone
+                    country = "RU" if normalized_phone.startswith("7") else "KZ"  # GetContact: RU, KZ, BY, KG, UA
+                    fetched_name = await gc.get_name_by_phone(phone_for_gc, country_code=country)
+                    if fetched_name:
+                        fn_words = fetched_name.strip().split()
+                        if len(fn_words) >= 2:
+                            search_name = fetched_name.strip()
+                            has_fio = True
+                            logger.debug(f"GetContact unofficial: {phone} -> name '{search_name}' for VK")
+                except Exception as e:
+                    logger.debug(f"GetContact unofficial failed for {phone}: {e}")
+        
+        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск по телефону не поддерживается.
         if self.vk_enabled and has_fio:
             try:
-                vk_result = await self._check_vk_api(name.strip())
+                vk_result = await self._check_vk_api(search_name)
                 if vk_result:
                     result.has_vk = vk_result.get("has_vk", False)
                     result.vk_user_id = vk_result.get("user_id")
@@ -185,6 +233,20 @@ class SocialChecker:
                     logger.debug(f"NumBuster check for {phone}: TG={result.has_telegram}, WA={result.has_whatsapp}")
             except Exception as e:
                 logger.warning(f"NumBuster check failed for {phone}: {e}")
+
+        # 4. Telegram через Telethon (опционально, если has_telegram ещё не определён)
+        if result.has_telegram is None:
+            try:
+                from lead_validator.services.telegram_checker import check_phone_registered
+                tg_reg = await check_phone_registered(phone)
+                if tg_reg is not None:
+                    result.has_telegram = tg_reg
+                    if not result.checked:
+                        result.checked = True
+                        result.provider = "Telethon"
+                    logger.debug(f"Telethon Telegram check for {phone}: {result.has_telegram}")
+            except Exception as e:
+                logger.debug(f"Telethon Telegram check failed: {e}")
         
         if not result.checked:
             result.error = "All providers failed or unavailable"

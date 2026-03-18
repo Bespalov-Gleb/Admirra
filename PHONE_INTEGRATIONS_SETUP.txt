@@ -107,18 +107,19 @@ ENV:
 8) СОЦСЕТИ/МЕССЕНДЖЕРЫ
 ENV:
   - VK_API_TOKEN
-  - GETCONTACT_API_KEY
-  - GETCONTACT_API_URL
-  - NUMBUSTER_API_KEY
-  - NUMBUSTER_API_URL
+  - GETCONTACT_UNOFFICIAL_TOKEN, GETCONTACT_UNOFFICIAL_AES_KEY (неофициальное API — имя по телефону)
+  - GETCONTACT_API_KEY, GETCONTACT_API_URL (коммерческое, если есть)
+  - NUMBUSTER_API_KEY, NUMBUSTER_API_URL
+  - TELEGRAM_CHECKER_API_ID, TELEGRAM_CHECKER_API_HASH, TELEGRAM_CHECKER_SESSION (Telethon)
 ГДЕ ПОЛУЧИТЬ:
   - VK API: https://vk.com/dev/access_token
-  - GetContact: https://getcontact.com/
-    Примечание: публичных официальных API-доков нет. Есть неофициальная библиотека:
-    https://github.com/SijyKijy/GetContactAPI
-    Она требует token и aes_key, получаемые из приложения.
+  - GetContact неофициальное (имя по номеру для поиска в VK):
+    Токен и AES_KEY из /data/data/app.source.getcontact/shared_prefs/GetContactSettingsPref.xml
+    на рутированном Android. См. https://github.com/SijyKijy/GetContactAPI, https://github.com/kovinevmv/getcontact
+  - Telegram (Telethon): api_id/api_hash с https://my.telegram.org
+    pip install telethon
+    Один раз: python -m scripts.create_telegram_session (создаёт сессию)
   - NumBuster: https://numbuster.com/
-    Официальные API-доки не найдены — требуется URL провайдера.
 
 
 9) ГОСУСЛУГИ (ВНЕШНИЙ ПРОВАЙДЕР)
