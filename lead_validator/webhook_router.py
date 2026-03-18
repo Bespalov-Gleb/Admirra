@@ -485,11 +485,23 @@ async def phone_project_webhook(
         data.get("utm_term") or utm_extra.get("term") or utm_from_ref.get("utm_term")
     )
     
+    # Токен CAPTCHA: из разных вариантов названий (Marquiz, Tilda, Turnstile, reCAPTCHA, SmartCaptcha)
+    captcha_token = (
+        data.get("smart_token") or data.get("smartcaptcha_token")
+        or data.get("cf-turnstile-response") or data.get("cf_turnstile_response")
+        or data.get("g-recaptcha-response") or data.get("g_recaptcha_response")
+        or contacts.get("smart_token") or (extra.get("captcha") if isinstance(extra.get("captcha"), str) else None)
+    )
+    
     # Преобразуем в LeadInput
     lead = LeadInput(
         phone=phone,
         email=email,
         name=name,
+        smart_token=captcha_token,
+        js_token=data.get("js_token"),
+        timestamp=data.get("timestamp"),
+        honeypot=data.get("honeypot"),
         utm_source=utm_source,
         utm_medium=utm_medium,
         utm_campaign=utm_campaign,
