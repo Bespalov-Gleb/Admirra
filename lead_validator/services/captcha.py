@@ -241,8 +241,11 @@ class CaptchaValidator:
     def is_enabled(self) -> bool:
         """
         Проверяет, включена ли капча.
-        Капча считается включенной, если настроен хотя бы один провайдер.
+        CAPTCHA_ENABLED=false в .env отключает проверку.
+        Иначе капча включена, если настроен хотя бы один провайдер.
         """
+        if not getattr(settings, "CAPTCHA_ENABLED", True):
+            return False
         return bool(
             settings.TURNSTILE_SECRET_KEY or
             settings.RECAPTCHA_SECRET_KEY or

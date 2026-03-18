@@ -81,6 +81,9 @@ class LeadValidatorSettings:
     SMARTCAPTCHA_CLIENT_KEY: Optional[str] = None  # Для фронтенда
     SMARTCAPTCHA_SERVER_KEY: Optional[str] = None  # Для бэкенда
     
+    # Отключить проверку CAPTCHA (true/false). Если false — капча не проверяется
+    CAPTCHA_ENABLED: bool = True
+    
     # Антибот настройки
     MIN_FORM_FILL_TIME_SEC: int = 3
     MAX_FORM_FILL_TIME_SEC: int = 3600
@@ -187,6 +190,7 @@ class LeadValidatorSettings:
         self.RECAPTCHA_MIN_SCORE = _get_env_float("RECAPTCHA_MIN_SCORE", 0.5)
         self.SMARTCAPTCHA_CLIENT_KEY = _get_env("SMARTCAPTCHA_CLIENT_KEY") or None
         self.SMARTCAPTCHA_SERVER_KEY = _get_env("SMARTCAPTCHA_SERVER_KEY") or None
+        self.CAPTCHA_ENABLED = _get_env_bool("CAPTCHA_ENABLED", True)
         
         # Антибот
         self.MIN_FORM_FILL_TIME_SEC = _get_env_int("MIN_FORM_FILL_TIME_SEC", 3)
