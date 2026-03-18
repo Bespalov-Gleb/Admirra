@@ -518,7 +518,7 @@ async def phone_project_webhook(
     client_ip = extra.get("ip") or _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
     
-    # Валидируем с сохранением в базу
+    # Валидируем с сохранением в базу (skip_request_validation — webhook авторизован секретом)
     result = await lead_validator.validate(
         lead, 
         client_ip=client_ip,
@@ -526,7 +526,8 @@ async def phone_project_webhook(
         referer=referer,
         project_id=project_uuid,
         db=db,
-        form_data=data  # Сохраняем все данные формы
+        form_data=data,  # Сохраняем все данные формы
+        skip_request_validation=True,
     )
     
     logger.info(f"Phone project lead result: success={result.success}, phone={phone}")

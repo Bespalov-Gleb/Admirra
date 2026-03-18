@@ -92,7 +92,8 @@ class LeadValidator:
         referer: Optional[str] = None,
         project_id: Optional[uuid.UUID] = None,
         db: Optional[Session] = None,
-        form_data: Optional[dict] = None
+        form_data: Optional[dict] = None,
+        skip_request_validation: bool = False,
     ) -> ValidationResult:
         """
         Главный метод валидации лида.
@@ -124,7 +125,8 @@ class LeadValidator:
             return await self._reject(lead, f"captcha_failed: {captcha_error}", start_time)
         
         # === Уровень 0.5: HTTP заголовки (User-Agent, Referer) ===
-        if user_agent is not None:
+        # Пропускаем для webhook (Marquiz, Tilda) — запрос приходит с серверов, авторизация по X-Webhook-Secret
+        if not skip_request_validation and user_agent is not None:
             request_check = request_validator.validate(user_agent, referer)
             if not request_check.is_valid:
                 return await self._reject(lead, request_check.rejection_reason or "request_invalid", start_time)
