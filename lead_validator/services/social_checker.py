@@ -5,6 +5,7 @@
 1. VK API (users.search) — бесплатно, поиск по ФИО
 2. GetContact неофициальное — имя по телефону (для последующего поиска в VK)
 3. GetContact/NumBuster коммерческие — TG, WA, Viber (если есть API)
+4. InfoTrackPeople коммерческий — единый запрос по телефону (TG, VK через socials[])
 
 Документация:
 - VK API: https://dev.vk.com/ru/method/users.search
@@ -77,7 +78,7 @@ class SocialChecker:
     
     def __init__(self):
         # VK API настройки
-        self.vk_api_token = settings.VK_API_TOKEN  # Service token для VK API (не Ads API)
+        self.vk_api_token = settings.VK_API_TOKEN  # User OAuth token (users.search недоступен с service token)
         self.vk_api_version = "5.131"
         self.vk_enabled = bool(self.vk_api_token)
         
@@ -96,11 +97,17 @@ class SocialChecker:
         self.numbuster_api_key = settings.NUMBUSTER_API_KEY
         self.numbuster_api_url = settings.NUMBUSTER_API_URL
         self.numbuster_enabled = bool(self.numbuster_api_key and self.numbuster_api_url)
+
+        # InfoTrackPeople API (коммерческий)
+        self.infotrackpeople_api_key = getattr(settings, "INFOTRACKPEOPLE_API_KEY", "") or ""
+        self.infotrackpeople_api_url = getattr(settings, "INFOTRACKPEOPLE_API_URL", "") or ""
+        self.infotrackpeople_enabled = bool(self.infotrackpeople_api_key and self.infotrackpeople_api_url)
         
         # Общая настройка (VK + любой из GetContact/NumBuster/unofficial)
         self.enabled = (
             self.vk_enabled or self.getcontact_enabled or self.numbuster_enabled
             or self.getcontact_unofficial_enabled
+            or self.infotrackpeople_enabled
         )
         
         if not self.enabled:
@@ -115,6 +122,8 @@ class SocialChecker:
                 providers.append("GetContact (unofficial)")
             if self.numbuster_enabled:
                 providers.append("NumBuster")
+            if self.infotrackpeople_enabled:
+                providers.append("InfoTrackPeople")
             logger.info(f"Social checker enabled with providers: {', '.join(providers)}")
     
     def _normalize_phone(self, phone: str) -> str:
@@ -169,7 +178,23 @@ class SocialChecker:
             except Exception as e:
                 logger.debug(f"Failed to check cache: {e}")
         
-        # 0. Если нет ФИО — пробуем GetContact неофициальное: телефон → имя → VK
+        # 0. InfoTrackPeople: единый запрос по телефону -> Telegram/VK
+        if self.infotrackpeople_enabled and result.has_telegram is None and result.has_vk is None:
+            try:
+                itp_result = await self._check_infotrackpeople(normalized_phone)
+                if itp_result:
+                    result.has_telegram = itp_result.get("has_telegram")
+                    result.has_vk = itp_result.get("has_vk")
+                    result.telegram_username = itp_result.get("telegram_username")
+                    result.vk_profile_url = itp_result.get("vk_profile_url")
+                    result.vk_user_id = itp_result.get("vk_user_id")
+                    if result.has_telegram is not None or result.has_vk is not None:
+                        result.provider = "InfoTrackPeople"
+                        result.checked = True
+            except Exception as e:
+                logger.warning(f"InfoTrackPeople check failed for {phone}: {e}")
+
+        # 1. Если нет ФИО — пробуем GetContact неофициальное: телефон -> имя -> VK
         search_name = (name or "").strip()
         name_words = search_name.split()
         has_fio = len(name_words) >= 2
@@ -189,8 +214,9 @@ class SocialChecker:
                 except Exception as e:
                     logger.debug(f"GetContact unofficial failed for {phone}: {e}")
         
-        # 1. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск ТОЛЬКО по фамилия + имя (без отчества).
-        if self.vk_enabled and has_fio:
+        # 2. VK API — только при наличии ФИ/ФИО (минимум 2 слова). Поиск ТОЛЬКО по фамилия + имя (без отчества).
+        # Если InfoTrackPeople уже определил VK (has_vk != None) — повторно не зовём.
+        if self.vk_enabled and has_fio and result.has_vk is None:
             vk_search_query = " ".join(name_words[:2])  # Только фамилия и имя
             try:
                 vk_result = await self._check_vk_api(vk_search_query, phone=phone)
@@ -202,10 +228,10 @@ class SocialChecker:
                     result.checked = True
             except Exception as e:
                 logger.warning(f"VK API check failed for {phone}: {e}")
-        elif self.vk_enabled and not has_fio:
+        elif self.vk_enabled and not has_fio and result.has_vk is None:
             logger.debug(f"VK check skipped for {phone}: no ФИ/ФИО (need at least 2 words in name)")
         
-        # 2. GetContact API (платно, более точный)
+        # 3. GetContact API (платно, более точный)
         if self.getcontact_enabled and not result.checked:
             try:
                 getcontact_result = await self._check_getcontact(normalized_phone)
@@ -220,7 +246,7 @@ class SocialChecker:
             except Exception as e:
                 logger.warning(f"GetContact check failed for {phone}: {e}")
         
-        # 3. NumBuster API (платно, альтернатива)
+        # 4. NumBuster API (платно, альтернатива)
         if self.numbuster_enabled and not result.checked:
             try:
                 numbuster_result = await self._check_numbuster(normalized_phone)
@@ -234,7 +260,7 @@ class SocialChecker:
             except Exception as e:
                 logger.warning(f"NumBuster check failed for {phone}: {e}")
 
-        # 4. Telegram через Telethon (опционально, если has_telegram ещё не определён)
+        # 5. Telegram через Telethon (опционально, если has_telegram ещё не определён)
         if result.has_telegram is None:
             try:
                 from lead_validator.services.telegram_checker import check_phone_registered
@@ -303,6 +329,11 @@ class SocialChecker:
                     error_msg = data["error"].get("error_msg", "")
                     if error_code == 5:
                         logger.warning("[VK] Поиск ЗАВЕРШЁН: Invalid token, проверьте VK_API_TOKEN")
+                    elif error_code == 1051:
+                        logger.warning(
+                            "[VK] Поиск ЗАВЕРШЁН: users.search недоступен с сервисным ключом. "
+                            "Требуется пользовательский OAuth-токен. См. https://qna.habr.com/q/472088"
+                        )
                     else:
                         logger.warning(f"[VK] Поиск ЗАВЕРШЁН с ошибкой API: [{error_code}] {error_msg}")
                     return None
@@ -336,6 +367,41 @@ class SocialChecker:
             return None
         except Exception as e:
             logger.error(f"[VK] Поиск ЗАВЕРШЁН с исключением: {e}")
+            return None
+
+    async def _check_infotrackpeople(self, phone: str) -> Optional[dict]:
+        """
+        Проверка через InfoTrackPeople API.
+
+        По докам:
+          - POST /public-api/data/search
+          - Header: x-api-key
+          - Body: {"searchOptions":[{"type":"phone","query":...}]}
+        """
+        if not self.infotrackpeople_enabled:
+            return None
+
+        try:
+            from lead_validator.services.infotrackpeople_checker import InfoTrackPeopleChecker
+
+            itp = InfoTrackPeopleChecker(
+                api_key=self.infotrackpeople_api_key,
+                search_url=self.infotrackpeople_api_url,
+            )
+            phone_query = phone if str(phone).startswith("+") else f"+{phone}"
+            itp_res = await itp.check_phone(phone_query)
+            if itp_res is None:
+                return None
+
+            return {
+                "has_telegram": itp_res.has_telegram,
+                "has_vk": itp_res.has_vk,
+                "telegram_username": itp_res.telegram_username,
+                "vk_profile_url": itp_res.vk_profile_url,
+                "vk_user_id": itp_res.vk_user_id,
+            }
+        except Exception as e:
+            logger.warning(f"InfoTrackPeople request failed for {phone}: {e}")
             return None
     
     async def _check_getcontact(self, phone: str) -> Optional[dict]:

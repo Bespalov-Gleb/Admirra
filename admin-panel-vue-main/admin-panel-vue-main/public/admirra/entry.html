@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Перенаправление — вход</title>
+		<meta http-equiv="refresh" content="0;url=/signin" />
+		<script>
+			try {
+				if (window.top !== window.self) {
+					window.top.location.replace("/signin");
+				} else {
+					location.replace("/signin");
+				}
+			} catch (e) {
+				location.replace("/signin");
+			}
+		</script>
+	</head>
+	<body>
+		<p>Перенаправление на страницу входа… <a href="/signin" target="_top">Войти</a></p>
+	</body>
+</html>

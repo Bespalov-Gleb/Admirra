@@ -23,12 +23,21 @@ from lead_validator.services.data_quality import data_quality_validator
 from lead_validator.services.analytics import analytics_service
 from lead_validator.services.email_mx_validator import email_mx_validator, timezone_validator
 from lead_validator.services.social_checker import social_checker
+from lead_validator.services.social_merge import merge_social_accounts_payload, social_payload_to_json
+from lead_validator.services.lead_scoring import compute_lead_score
 from lead_validator.services.gosuslugi_checker import gosuslugi_checker
 from lead_validator.services.spam_checker import spam_checker, SpamCheckResult
 from lead_validator.services.bitrix_service import bitrix_service, BitrixDuplicateResult
 from core import models, security
 
 logger = logging.getLogger("lead_validator.validators")
+
+
+def _merge_bool_from_form(api_val: Optional[bool], override_from_form: Optional[bool]) -> Optional[bool]:
+    """Если в форме явно указан мессенджер — считаем has_* True."""
+    if override_from_form is True:
+        return True
+    return api_val
 
 
 def _get_metrica_credentials_from_project(db: Optional[Session], project) -> Tuple[Optional[str], Optional[str]]:
@@ -535,6 +544,12 @@ class LeadValidator:
         if project and getattr(project, "enable_social_check", False):
             try:
                 social_result = await social_checker.check_phone(lead.phone, lead.name)
+                if social_result and not getattr(social_result, "checked", False):
+                    logger.info(
+                        "Social check incomplete for %s: %s",
+                        lead.phone,
+                        getattr(social_result, "error", None) or "no provider",
+                    )
             except Exception as e:
                 logger.warning(f"Social check failed before telegram: {e}")
         
@@ -597,31 +612,34 @@ class LeadValidator:
                     status=models.LeadStatus.VALID
                 )
                 
-                # Если включена проверка соцсетей (social_result уже получен выше для Telegram)
-                if project and project.enable_social_check:
-                    if not social_result:
-                        social_result = await social_checker.check_phone(lead.phone, lead.name)
-                    lead_record.has_telegram = social_result.has_telegram
-                    lead_record.has_whatsapp = social_result.has_whatsapp
-                    lead_record.has_tiktok = social_result.has_tiktok
-                    lead_record.has_vk = social_result.has_vk
-                    
-                    # Сохраняем данные аккаунтов
-                    social_data = {}
-                    if social_result.has_telegram and social_result.telegram_username:
-                        social_data['telegram'] = {'username': social_result.telegram_username}
-                    if social_result.has_vk and social_result.vk_profile_url:
-                        social_data['vk'] = {'profile_url': social_result.vk_profile_url}
-                    if social_result.has_tiktok and social_result.tiktok_username:
-                        social_data['tiktok'] = {'username': social_result.tiktok_username}
-                    if social_data:
-                        lead_record.social_accounts_data = json.dumps(social_data)
-                    
-                    # Заполняем имя/фамилию из соцсетей если нет
-                    if not lead_record.name and social_result.has_telegram:
-                        # TODO: Получить имя из Telegram API если доступно
-                        pass
-                
+                # Соцсети: API (если включено) + данные формы (telegram/vk/...) в social_accounts_data
+                sr = social_result if (project and project.enable_social_check) else None
+                merged_social, form_overrides = merge_social_accounts_payload(sr, form_data)
+                social_json = social_payload_to_json(merged_social)
+                if social_json:
+                    lead_record.social_accounts_data = social_json
+
+                lead_record.has_telegram = _merge_bool_from_form(
+                    sr.has_telegram if sr else None,
+                    form_overrides.get("has_telegram"),
+                )
+                lead_record.has_whatsapp = _merge_bool_from_form(
+                    sr.has_whatsapp if sr else None,
+                    form_overrides.get("has_whatsapp"),
+                )
+                lead_record.has_viber = _merge_bool_from_form(
+                    sr.has_viber if sr else None,
+                    form_overrides.get("has_viber"),
+                )
+                lead_record.has_tiktok = _merge_bool_from_form(
+                    sr.has_tiktok if sr else None,
+                    form_overrides.get("has_tiktok"),
+                )
+                lead_record.has_vk = _merge_bool_from_form(
+                    sr.has_vk if sr else None,
+                    form_overrides.get("has_vk"),
+                )
+
                 # Если включена проверка Госуслуг
                 if project and project.enable_gosuslugi_check:
                     gosuslugi_result = await gosuslugi_checker.check(lead.phone)
@@ -634,6 +652,24 @@ class LeadValidator:
                             lead_record.name = gosuslugi_result.name
                         if not lead_record.surname and gosuslugi_result.surname:
                             lead_record.surname = gosuslugi_result.surname
+
+                # Скоринг квалификации (отдельный флаг проекта)
+                if project and getattr(project, "enable_lead_scoring", False):
+                    score_res = compute_lead_score(
+                        dadata=dadata,
+                        has_telegram=lead_record.has_telegram,
+                        has_whatsapp=lead_record.has_whatsapp,
+                        has_vk=lead_record.has_vk,
+                        has_viber=lead_record.has_viber,
+                        has_tiktok=lead_record.has_tiktok,
+                        has_gosuslugi=lead_record.has_gosuslugi,
+                        lead_name=lead_record.name,
+                        gosuslugi_name=lead_record.gosuslugi_name,
+                        gosuslugi_surname=lead_record.gosuslugi_surname,
+                        weights=settings,
+                    )
+                    lead_record.lead_score = score_res.score
+                    lead_record.qualification_tier = score_res.tier
                 
                 db.add(lead_record)
                 db.commit()
@@ -669,7 +705,9 @@ class LeadValidator:
             phone_type=dadata.type if dadata else None,
             phone_provider=dadata.provider if dadata else None,
             phone_region=dadata.region if dadata else None,
-            dadata_qc=dadata.qc if dadata else None
+            dadata_qc=dadata.qc if dadata else None,
+            lead_score=getattr(lead_record, "lead_score", None) if lead_record else None,
+            qualification_tier=getattr(lead_record, "qualification_tier", None) if lead_record else None,
         )
 
 
@@ -685,8 +723,16 @@ class LeadValidator:
         import httpx
         from datetime import datetime
         
-        # Формируем данные для выгрузки
+        # Формируем данные для выгрузки (полный JSON для CRM / email)
+        social_accounts_json = None
+        if lead_record.social_accounts_data:
+            try:
+                social_accounts_json = json.loads(lead_record.social_accounts_data)
+            except (json.JSONDecodeError, TypeError):
+                social_accounts_json = lead_record.social_accounts_data
+
         export_data = {
+            "lead_id": str(lead_record.id),
             "phone": lead_record.phone,
             "email": lead_record.email,
             "name": lead_record.name,
@@ -697,12 +743,21 @@ class LeadValidator:
             "phone_type": lead_record.phone_type,
             "phone_provider": lead_record.phone_provider,
             "phone_region": lead_record.phone_region,
+            "phone_city": lead_record.phone_city,
             "has_telegram": lead_record.has_telegram,
             "has_whatsapp": lead_record.has_whatsapp,
+            "has_viber": getattr(lead_record, "has_viber", None),
+            "has_vk": lead_record.has_vk,
+            "has_tiktok": lead_record.has_tiktok,
             "has_gosuslugi": lead_record.has_gosuslugi,
+            "gosuslugi_name": lead_record.gosuslugi_name,
+            "gosuslugi_surname": lead_record.gosuslugi_surname,
+            "social_accounts": social_accounts_json,
+            "lead_score": getattr(lead_record, "lead_score", None),
+            "qualification_tier": getattr(lead_record, "qualification_tier", None),
             "utm_source": lead_record.utm_source,
             "utm_campaign": lead_record.utm_campaign,
-            "created_at": lead_record.created_at.isoformat() if lead_record.created_at else None
+            "created_at": lead_record.created_at.isoformat() if lead_record.created_at else None,
         }
         
         # Выгрузка в CRM (webhook)
@@ -750,12 +805,30 @@ class LeadValidator:
                 if lead_record.email:
                     message += f"📧 Email: {lead_record.email}\n"
                 msgr = []
-                if getattr(lead_record, "has_telegram", None): msgr.append("TG")
-                if getattr(lead_record, "has_whatsapp", None): msgr.append("WA")
-                if getattr(lead_record, "has_vk", None): msgr.append("VK")
-                if getattr(lead_record, "has_tiktok", None): msgr.append("TikTok")
+                if getattr(lead_record, "has_telegram", None):
+                    msgr.append("TG")
+                if getattr(lead_record, "has_whatsapp", None):
+                    msgr.append("WA")
+                if getattr(lead_record, "has_viber", None):
+                    msgr.append("Viber")
+                if getattr(lead_record, "has_vk", None):
+                    msgr.append("VK")
+                if getattr(lead_record, "has_tiktok", None):
+                    msgr.append("TikTok")
                 if msgr:
                     message += f"💬 Мессенджеры: {', '.join(msgr)}\n"
+                if getattr(lead_record, "lead_score", None) is not None:
+                    message += f"📊 Скоринг: {lead_record.lead_score} ({getattr(lead_record, 'qualification_tier', '') or '-'})\n"
+                if isinstance(social_accounts_json, dict):
+                    links = []
+                    tg = social_accounts_json.get("telegram") or {}
+                    if isinstance(tg, dict) and tg.get("username"):
+                        links.append(f"TG @{tg['username']}")
+                    vk = social_accounts_json.get("vk") or {}
+                    if isinstance(vk, dict) and vk.get("profile_url"):
+                        links.append(f"VK {vk['profile_url']}")
+                    if links:
+                        message += "🔗 " + " | ".join(links) + "\n"
                 if lead_record.utm_source or lead_record.utm_campaign:
                     message += f"🔗 UTM: source={lead_record.utm_source or '-'}, campaign={lead_record.utm_campaign or '-'}\n"
                 message += f"🕐 {lead_record.created_at.strftime('%d.%m.%Y %H:%M') if lead_record.created_at else ''}\n"

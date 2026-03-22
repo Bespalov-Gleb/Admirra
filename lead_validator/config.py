@@ -117,7 +117,9 @@ class LeadValidatorSettings:
     
     # Проверка соцсетей
     # VK API (бесплатно, но ограниченно)
-    VK_API_TOKEN: str = ""  # Service token для VK API (не Ads API)
+    # ВАЖНО: users.search требует пользовательский OAuth-токен! Сервисный ключ (service token)
+    # выдаёт ошибку 1051. Получить токен: OAuth Implicit Flow, scope=offline
+    VK_API_TOKEN: str = ""  # User OAuth token (ключ доступа пользователя), не сервисный
     
     # GetContact API (платно, коммерческий)
     GETCONTACT_API_KEY: str = ""
@@ -131,6 +133,11 @@ class LeadValidatorSettings:
     NUMBUSTER_API_KEY: str = ""
     NUMBUSTER_API_URL: str = ""
     
+    # InfoTrackPeople API (единый чек по телефону -> Telegram/VK, через socials[])
+    INFOTRACKPEOPLE_API_KEY: str = ""
+    # По докам: POST /public-api/data/search, auth через x-api-key
+    INFOTRACKPEOPLE_API_URL: str = "https://infotrackpeople.org/public-api/data/search"
+
     # Telegram проверка через Telethon (api_id, api_hash, путь к .session)
     TELEGRAM_CHECKER_API_ID: str = ""
     TELEGRAM_CHECKER_API_HASH: str = ""
@@ -242,6 +249,11 @@ class LeadValidatorSettings:
         self.GETCONTACT_UNOFFICIAL_AES_KEY = _get_env("GETCONTACT_UNOFFICIAL_AES_KEY", "")
         self.NUMBUSTER_API_KEY = _get_env("NUMBUSTER_API_KEY", "")
         self.NUMBUSTER_API_URL = _get_env("NUMBUSTER_API_URL", "")
+        self.INFOTRACKPEOPLE_API_KEY = _get_env("INFOTRACKPEOPLE_API_KEY", "")
+        self.INFOTRACKPEOPLE_API_URL = _get_env(
+            "INFOTRACKPEOPLE_API_URL",
+            "https://infotrackpeople.org/public-api/data/search",
+        )
         self.TELEGRAM_CHECKER_API_ID = _get_env("TELEGRAM_CHECKER_API_ID", "")
         self.TELEGRAM_CHECKER_API_HASH = _get_env("TELEGRAM_CHECKER_API_HASH", "")
         self.TELEGRAM_CHECKER_SESSION = _get_env("TELEGRAM_CHECKER_SESSION", "")

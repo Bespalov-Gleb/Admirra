@@ -48,6 +48,6 @@
 
 | Сервис | Переменные окружения | Где взять ключи / документация |
 |--------|----------------------|---------------------------------|
-| **VK** | `VK_API_TOKEN` | [VK для разработчиков — ключ доступа](https://dev.vk.com/ru/api/access-token/getting-started). Создайте приложение, получите сервисный ключ доступа (или ключ пользователя). |
+| **VK** | `VK_API_TOKEN` | **Важно:** метод `users.search` доступен только с **пользовательским OAuth-токеном** (ключ доступа пользователя). Сервисный ключ даёт ошибку 1051. Получить: 1) создайте Standalone-приложение на [dev.vk.com](https://dev.vk.com); 2) откройте в браузере `https://oauth.vk.com/authorize?client_id=ВАШ_APP_ID&scope=offline&redirect_uri=https://oauth.vk.com/blank.html&response_type=token`; 3) скопируйте `access_token` из URL после редиректа. |
 | **GetContact** | `GETCONTACT_API_KEY`, `GETCONTACT_API_URL` | Официального публичного API для разработчиков нет. Сервис [getcontact.com](https://getcontact.com/ru/), корпоративные/партнёрские интеграции — через поддержку или партнёрские программы. |
 | **NumBuster** | `NUMBUSTER_API_KEY`, `NUMBUSTER_API_URL` | [NumBuster](https://numbuster.com/ru/) — корпоративные решения и интеграция по API для бизнеса. Ключи и URL получают по запросу (сайт, поддержка). |

@@ -110,6 +110,8 @@ class ValidationResult(BaseModel):
     phone_provider: Optional[str] = Field(None, description="Оператор")
     phone_region: Optional[str] = Field(None, description="Регион телефона")
     dadata_qc: Optional[int] = Field(None, description="Код качества DaData")
+    lead_score: Optional[int] = Field(None, description="Скоринг 0–100 (если включён у проекта)")
+    qualification_tier: Optional[str] = Field(None, description="low / medium / high")
 
 
 class RejectedLead(BaseModel):

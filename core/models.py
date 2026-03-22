@@ -263,6 +263,7 @@ class PhoneProject(Base):
     
     # Настройки валидации
     enable_social_check = Column(Boolean, default=False)  # Проверка соцсетей
+    enable_lead_scoring = Column(Boolean, default=False)  # Скоринг lead_score / qualification_tier
     enable_gosuslugi_check = Column(Boolean, default=False)  # Проверка Госуслуг
     enable_spam_check = Column(Boolean, default=True)  # Проверка спам-баз (по умолчанию вкл)
     enable_bitrix_check = Column(Boolean, default=False)  # Проверка дубликатов в Bitrix24
@@ -343,9 +344,13 @@ class Lead(Base):
     # Проверка соцсетей
     has_telegram = Column(Boolean, nullable=True)
     has_whatsapp = Column(Boolean, nullable=True)
+    has_viber = Column(Boolean, nullable=True)
     has_tiktok = Column(Boolean, nullable=True)  # TT
     has_vk = Column(Boolean, nullable=True)  # BK
     social_accounts_data = Column(String, nullable=True)  # JSON с данными аккаунтов
+
+    lead_score = Column(Integer, nullable=True)  # 0–100
+    qualification_tier = Column(String, nullable=True)  # low | medium | high
     
     # Проверка Госуслуг
     has_gosuslugi = Column(Boolean, nullable=True)

@@ -162,6 +162,10 @@
                 <span class="text-sm text-gray-700">Проверка в соцсетях</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="settings.enable_lead_scoring" class="rounded text-purple-600">
+                <span class="text-sm text-gray-700">Скоринг лида (0–100)</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" v-model="settings.enable_spam_check" class="rounded text-purple-600">
                 <span class="text-sm text-gray-700">Проверка спам-баз</span>
               </label>
@@ -332,6 +336,7 @@ const selectedProject = ref(null)
 const settings = ref({
   crm_webhook_url: '',
   enable_social_check: false,
+  enable_lead_scoring: false,
   enable_spam_check: false,
   enable_bitrix_check: false,
   captcha_provider: 'none',
@@ -378,6 +383,7 @@ const loadProjectDetails = async () => {
     settings.value = {
       crm_webhook_url: response.data.crm_webhook_url || '',
       enable_social_check: response.data.enable_social_check || false,
+      enable_lead_scoring: response.data.enable_lead_scoring || false,
       enable_spam_check: response.data.enable_spam_check || false,
       enable_bitrix_check: response.data.enable_bitrix_check || false,
       captcha_provider: response.data.captcha_provider || 'none',

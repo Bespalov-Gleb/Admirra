@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Перенаправление — регистрация</title>
+		<meta http-equiv="refresh" content="0;url=/signup" />
+		<script>
+			try {
+				if (window.top !== window.self) {
+					window.top.location.replace("/signup");
+				} else {
+					location.replace("/signup");
+				}
+			} catch (e) {
+				location.replace("/signup");
+			}
+		</script>
+	</head>
+	<body>
+		<p>Перенаправление на регистрацию… <a href="/signup" target="_top">Регистрация</a></p>
+	</body>
+</html>

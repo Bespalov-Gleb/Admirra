@@ -100,6 +100,12 @@
               Соцсети
             </span>
             <span
+              v-if="project.enable_lead_scoring"
+              class="px-3 py-1 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full"
+            >
+              Скоринг
+            </span>
+            <span
               v-if="project.enable_gosuslugi_check"
               class="px-3 py-1 text-xs font-semibold bg-purple-100 text-purple-700 rounded-full"
             >
@@ -260,6 +266,15 @@
                     class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <span class="ml-2 text-sm text-gray-700">Проверка соцсетей (TT, WA, MAKC, BK)</span>
+                </label>
+
+                <label class="flex items-center">
+                  <input
+                    v-model="projectForm.enable_lead_scoring"
+                    type="checkbox"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">Скоринг лида (0–100, tier low/medium/high)</span>
                 </label>
 
                 <label class="flex items-center">
@@ -545,6 +560,7 @@ const projectForm = reactive({
   email_recipients: [],
   telegram_chat_id: '',
   enable_social_check: false,
+  enable_lead_scoring: false,
   enable_gosuslugi_check: false,
   enable_spam_check: true,
   enable_bitrix_check: false,
@@ -646,6 +662,7 @@ const editProject = (project) => {
   emailRecipientsInput.value = project.email_recipients?.join(', ') || ''
   projectForm.telegram_chat_id = project.telegram_chat_id || ''
   projectForm.enable_social_check = project.enable_social_check || false
+  projectForm.enable_lead_scoring = project.enable_lead_scoring || false
   projectForm.enable_gosuslugi_check = project.enable_gosuslugi_check || false
   projectForm.enable_spam_check = project.enable_spam_check !== false
   projectForm.enable_bitrix_check = project.enable_bitrix_check || false
@@ -692,6 +709,7 @@ const closeModal = () => {
     email_recipients: [],
     telegram_chat_id: '',
     enable_social_check: false,
+    enable_lead_scoring: false,
     enable_gosuslugi_check: false,
     enable_spam_check: true,
     enable_bitrix_check: false,

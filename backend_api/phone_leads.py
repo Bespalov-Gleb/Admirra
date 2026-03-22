@@ -21,6 +21,9 @@ class PhoneLeadListItem(BaseModel):
     is_accepted: bool
     rejection_reason: Optional[str] = None
     phone_project_id: uuid.UUID
+    lead_score: Optional[int] = None
+    qualification_tier: Optional[str] = None
+    has_viber: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -67,6 +70,9 @@ def list_phone_leads(
             is_accepted=bool(lead.is_valid),
             rejection_reason=lead.validation_reason,
             phone_project_id=lead.project_id,
+            lead_score=getattr(lead, "lead_score", None),
+            qualification_tier=getattr(lead, "qualification_tier", None),
+            has_viber=getattr(lead, "has_viber", None),
         )
         for lead in leads
     ]

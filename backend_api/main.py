@@ -1,4 +1,5 @@
 from typing import Optional
+from pathlib import Path
 import logging
 import time
 import uuid
@@ -195,8 +196,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# The frontend is served by Nginx in the frontend container.
-# The backend only needs to provide the API.
+# The admin SPA (Vue) is served by Nginx in the frontend container.
+# Лендинг AdMirra: единственный источник — Vue `public/admirra`
+# (Landing.vue: iframe src="/admirra/index.html"). Vite копирует public в dist.
+# Ниже — та же папка на бэкенде для прямого доступа к :8001/admirra/
+
+
+def _resolve_admirra_static_dir() -> Optional[Path]:
+    """
+    Только путь внутри trafic_agent:
+    admin-panel-vue-main/admin-panel-vue-main/public/admirra
+    """
+    here = Path(__file__).resolve().parent
+    trafic_agent_root = here.parent
+    candidate = (
+        trafic_agent_root
+        / "admin-panel-vue-main"
+        / "admin-panel-vue-main"
+        / "public"
+        / "admirra"
+    )
+    if candidate.is_dir() and (candidate / "index.html").is_file():
+        return candidate
+    return None
+
+
+_admirra_dir = _resolve_admirra_static_dir()
+if _admirra_dir is not None:
+    app.mount(
+        "/admirra",
+        StaticFiles(directory=str(_admirra_dir), html=True),
+        name="admirra",
+    )
+    logger.info("AdMirra static mounted at /admirra/ from %s", _admirra_dir)
+else:
+    logger.warning(
+        "AdMirra static not found (expected admin-panel-vue-main/.../public/admirra)"
+    )
 
 if __name__ == "__main__":
     import uvicorn

@@ -37,6 +37,7 @@ class PhoneProjectCreate(BaseModel):
     
     # Настройки валидации
     enable_social_check: bool = False
+    enable_lead_scoring: bool = False
     enable_gosuslugi_check: bool = False
     enable_spam_check: bool = True
     enable_bitrix_check: bool = False
@@ -61,6 +62,7 @@ class PhoneProjectUpdate(BaseModel):
     
     # Настройки валидации
     enable_social_check: Optional[bool] = None
+    enable_lead_scoring: Optional[bool] = None
     enable_gosuslugi_check: Optional[bool] = None
     enable_spam_check: Optional[bool] = None
     enable_bitrix_check: Optional[bool] = None
@@ -89,6 +91,7 @@ class PhoneProjectResponse(BaseModel):
     
     # Настройки валидации
     enable_social_check: bool
+    enable_lead_scoring: bool
     enable_gosuslugi_check: bool
     enable_spam_check: bool
     enable_bitrix_check: bool
@@ -185,6 +188,7 @@ def create_phone_project(
         email_recipients=email_recipients_json,
         telegram_chat_id=project_data.telegram_chat_id,
         enable_social_check=project_data.enable_social_check,
+        enable_lead_scoring=project_data.enable_lead_scoring,
         enable_gosuslugi_check=project_data.enable_gosuslugi_check,
         enable_spam_check=project_data.enable_spam_check,
         enable_bitrix_check=project_data.enable_bitrix_check,
@@ -282,6 +286,8 @@ def update_phone_project(
     # Настройки валидации
     if project_data.enable_social_check is not None:
         project.enable_social_check = project_data.enable_social_check
+    if project_data.enable_lead_scoring is not None:
+        project.enable_lead_scoring = project_data.enable_lead_scoring
     if project_data.enable_gosuslugi_check is not None:
         project.enable_gosuslugi_check = project_data.enable_gosuslugi_check
     if project_data.enable_spam_check is not None:

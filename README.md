@@ -208,17 +208,18 @@ DaData используется для валидации телефонов и 
    ```
 
 #### VK API Token (для проверки соцсетей, опционально)
+**Важно:** метод `users.search` доступен только с **пользовательским OAuth-токеном**. Сервисный ключ даёт ошибку 1051.
 1. Перейдите на [dev.vk.com](https://dev.vk.com/)
 2. Создайте приложение (тип: Standalone)
-3. Получите Service Token:
-   - Метод 1: Через OAuth (Authorization Code Grant)
-   - Метод 2: Используйте существующий токен от VK Ads интеграции
+3. Получите **пользовательский OAuth-токен**:
+   - Откройте в браузере: `https://oauth.vk.com/authorize?client_id=ВАШ_APP_ID&scope=offline&redirect_uri=https://oauth.vk.com/blank.html&response_type=token`
+   - Подставьте ваш Application ID из настроек приложения
+   - Войдите в VK и разрешите доступ
+   - После редиректа скопируйте `access_token` из URL (параметр после `#access_token=`)
 4. Скопируйте в `.env`:
    ```
-   VK_API_TOKEN=your_vk_service_token
+   VK_API_TOKEN=your_vk_user_oauth_token
    ```
-   
-**Важно:** Это Service Token для VK API (не Ads API token). Используется для проверки наличия телефона в ВКонтакте.
 
 #### SpravPortal WhoCalls API (опционально, платно)
 1. Зарегистрируйтесь на [spravportal.ru](https://spravportal.ru/)

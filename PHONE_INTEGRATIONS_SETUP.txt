@@ -112,7 +112,8 @@ ENV:
   - NUMBUSTER_API_KEY, NUMBUSTER_API_URL
   - TELEGRAM_CHECKER_API_ID, TELEGRAM_CHECKER_API_HASH, TELEGRAM_CHECKER_SESSION (Telethon)
 ГДЕ ПОЛУЧИТЬ:
-  - VK API: https://vk.com/dev/access_token
+  - VK API: users.search требует ПОЛЬЗОВАТЕЛЬСКИЙ OAuth-токен (не сервисный, иначе ошибка 1051).
+    OAuth Implicit Flow: https://oauth.vk.com/authorize?client_id=APP_ID&scope=offline&redirect_uri=https://oauth.vk.com/blank.html&response_type=token
   - GetContact неофициальное (имя по номеру для поиска в VK):
     Токен и AES_KEY из /data/data/app.source.getcontact/shared_prefs/GetContactSettingsPref.xml
     на рутированном Android. См. https://github.com/SijyKijy/GetContactAPI, https://github.com/kovinevmv/getcontact
