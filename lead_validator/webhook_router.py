@@ -458,8 +458,6 @@ async def phone_project_webhook(
         if not provided_secret or provided_secret != project.webhook_secret:
             raise HTTPException(status_code=401, detail="Invalid webhook secret")
     
-    logger.info(f"Phone project webhook received: project={project.name}, phone={data.get('phone')}")
-    
     # Извлекаем основные поля (поддерживаем плоский формат и вложенный Marquiz: contacts, extra)
     contacts = data.get("contacts") or {}
     phone = (
@@ -468,6 +466,7 @@ async def phone_project_webhook(
     )
     if not phone:
         raise HTTPException(status_code=400, detail="Phone number is required")
+    logger.info(f"Phone project webhook received: project={project.name}, phone={phone}")
     
     email = (
         data.get("email") or data.get("Email") or data.get("EMAIL")
@@ -532,7 +531,9 @@ async def phone_project_webhook(
     client_ip = extra.get("ip") or _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
     
-    # Валидируем с сохранением в базу (skip_request_validation — webhook авторизован секретом)
+    # Валидируем с сохранением в базу.
+    # Для server-to-server webhook отключаем антибот-поля формы (js_token/timestamp/honeypot),
+    # т.к. внешние сервисы (Marquiz/Tilda) обычно их не передают.
     result = await lead_validator.validate(
         lead, 
         client_ip=client_ip,
@@ -542,6 +543,7 @@ async def phone_project_webhook(
         db=db,
         form_data=data,  # Сохраняем все данные формы
         skip_request_validation=True,
+        skip_antibot_validation=True,
     )
     
     logger.info(f"Phone project lead result: success={result.success}, phone={phone}")

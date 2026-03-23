@@ -103,6 +103,7 @@ class LeadValidator:
         db: Optional[Session] = None,
         form_data: Optional[dict] = None,
         skip_request_validation: bool = False,
+        skip_antibot_validation: bool = False,
     ) -> ValidationResult:
         """
         Главный метод валидации лида.
@@ -141,9 +142,10 @@ class LeadValidator:
                 return await self._reject(lead, request_check.rejection_reason or "request_invalid", start_time)
         
         # === Уровень 1: Антибот ===
-        rejection = await self._check_antibot(lead)
-        if rejection:
-            return await self._reject(lead, rejection, start_time)
+        if not skip_antibot_validation:
+            rejection = await self._check_antibot(lead)
+            if rejection:
+                return await self._reject(lead, rejection, start_time)
         
         # === Уровень 2: Качество данных ===
         rejection = self._check_data_quality(lead)
