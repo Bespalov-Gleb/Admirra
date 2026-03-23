@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import httpx
+from lead_validator.config import settings
 
 logger = logging.getLogger("lead_validator.infotrackpeople")
 
@@ -133,9 +134,27 @@ class InfoTrackPeopleChecker:
         if not isinstance(data, dict):
             return None
 
+        if getattr(settings, "INFOTRACKPEOPLE_LOG_RAW", False):
+            try:
+                # Ограничиваем размер лога, чтобы не раздувать логи.
+                raw_preview = str(data)
+                if len(raw_preview) > 4000:
+                    raw_preview = raw_preview[:4000] + "...<truncated>"
+                logger.info("ITP raw response for phone=%s: %s", phone, raw_preview)
+            except Exception:
+                pass
+
         data_block = data.get("data")
         if not isinstance(data_block, dict):
             return None
+
+        logger.info(
+            "ITP response meta for phone=%s: searchId=%s, records=%s, db_blocks=%s",
+            phone,
+            data.get("searchId"),
+            data.get("records"),
+            len(data_block),
+        )
 
         # Находим любые записи по телефону.
         found_records = False
@@ -253,6 +272,16 @@ class InfoTrackPeopleChecker:
         else:
             res.has_telegram = None
             res.has_vk = None
+
+        logger.info(
+            "ITP parsed socials for phone=%s: has_tg=%s, has_vk=%s, tg_username=%s, vk_url=%s, vk_id=%s",
+            phone,
+            res.has_telegram,
+            res.has_vk,
+            bool(res.telegram_username),
+            bool(res.vk_profile_url),
+            res.vk_user_id,
+        )
 
         return res
 

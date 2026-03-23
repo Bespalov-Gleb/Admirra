@@ -191,8 +191,23 @@ class SocialChecker:
                     if result.has_telegram is not None or result.has_vk is not None:
                         result.provider = "InfoTrackPeople"
                         result.checked = True
+                logger.info(
+                    "ITP social check for %s: called=%s, has_tg=%s, has_vk=%s, provider=%s",
+                    phone,
+                    True,
+                    result.has_telegram,
+                    result.has_vk,
+                    result.provider,
+                )
             except Exception as e:
                 logger.warning(f"InfoTrackPeople check failed for {phone}: {e}")
+        elif self.infotrackpeople_enabled:
+            logger.debug(
+                "ITP skipped for %s because social flags already known: tg=%s vk=%s",
+                phone,
+                result.has_telegram,
+                result.has_vk,
+            )
 
         # 1. Если нет ФИО — пробуем GetContact неофициальное: телефон -> имя -> VK
         search_name = (name or "").strip()

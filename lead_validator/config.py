@@ -137,6 +137,8 @@ class LeadValidatorSettings:
     INFOTRACKPEOPLE_API_KEY: str = ""
     # По докам: POST /public-api/data/search, auth через x-api-key
     INFOTRACKPEOPLE_API_URL: str = "https://datatech.work/public-api/data/search"
+    # Логировать сырой ответ ITP (осторожно: может содержать персональные данные)
+    INFOTRACKPEOPLE_LOG_RAW: bool = False
 
     # Telegram проверка через Telethon (api_id, api_hash, путь к .session)
     TELEGRAM_CHECKER_API_ID: str = ""
@@ -254,6 +256,7 @@ class LeadValidatorSettings:
             "INFOTRACKPEOPLE_API_URL",
             "https://datatech.work/public-api/data/search",
         )
+        self.INFOTRACKPEOPLE_LOG_RAW = _get_env_bool("INFOTRACKPEOPLE_LOG_RAW", False)
         self.TELEGRAM_CHECKER_API_ID = _get_env("TELEGRAM_CHECKER_API_ID", "")
         self.TELEGRAM_CHECKER_API_HASH = _get_env("TELEGRAM_CHECKER_API_HASH", "")
         self.TELEGRAM_CHECKER_SESSION = _get_env("TELEGRAM_CHECKER_SESSION", "")
