@@ -142,7 +142,12 @@ class SocialChecker:
         
         return cleaned
     
-    async def check_phone(self, phone: str, name: Optional[str] = None) -> SocialCheckResult:
+    async def check_phone(
+        self,
+        phone: str,
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> SocialCheckResult:
         """
         Проверяет телефон во всех доступных социальных сетях.
         
@@ -170,7 +175,12 @@ class SocialChecker:
         normalized_name = re.sub(r"\s+", " ", (name or "").strip())[:50] if name else ""
         
         # Ключ кеша: при name учитываем его, чтобы не смешивать результаты с/без VK
-        cache_key = f"social_check:{normalized_phone}:n:{normalized_name}" if normalized_name else f"social_check:{normalized_phone}"
+        normalized_email = (email or "").strip().lower()[:120] if email else ""
+        cache_key = (
+            f"social_check:{normalized_phone}:n:{normalized_name}:e:{normalized_email}"
+            if (normalized_name or normalized_email)
+            else f"social_check:{normalized_phone}"
+        )
         if redis_service.enabled:
             try:
                 cached_result = await redis_service._get_cached_result(cache_key)
@@ -185,7 +195,7 @@ class SocialChecker:
         # 0. InfoTrackPeople: единый запрос по телефону -> Telegram/VK
         if self.infotrackpeople_enabled and result.has_telegram is None and result.has_vk is None:
             try:
-                itp_result = await self._check_infotrackpeople(normalized_phone)
+                itp_result = await self._check_infotrackpeople(normalized_phone, name=name, email=email)
                 if itp_result:
                     provider_responded = True
                     result.has_telegram = itp_result.get("has_telegram")
@@ -401,14 +411,19 @@ class SocialChecker:
             logger.error(f"[VK] Поиск ЗАВЕРШЁН с исключением: {e}")
             return None
 
-    async def _check_infotrackpeople(self, phone: str) -> Optional[dict]:
+    async def _check_infotrackpeople(
+        self,
+        phone: str,
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> Optional[dict]:
         """
         Проверка через InfoTrackPeople API.
 
         По докам:
           - POST /public-api/data/search
           - Header: x-api-key
-          - Body: {"searchOptions":[{"type":"phone","query":...}]}
+          - Body: {"searchOptions":[{"type":"phone","query":...},{"type":"name","query":...},{"type":"email","query":...}]}
         """
         if not self.infotrackpeople_enabled:
             return None
@@ -421,7 +436,7 @@ class SocialChecker:
                 search_url=self.infotrackpeople_api_url,
             )
             phone_query = phone if str(phone).startswith("+") else f"+{phone}"
-            itp_res = await itp.check_phone(phone_query)
+            itp_res = await itp.check_phone(phone_query, name=name, email=email)
             if itp_res is None:
                 return None
 

@@ -86,7 +86,12 @@ class InfoTrackPeopleChecker:
     def enabled(self) -> bool:
         return bool(self.api_key and self.search_url)
 
-    async def check_phone(self, phone: str) -> Optional[InfoTrackPeopleResult]:
+    async def check_phone(
+        self,
+        phone: str,
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+    ) -> Optional[InfoTrackPeopleResult]:
         """
         Returns:
             InfoTrackPeopleResult или None если запрос недоступен/ничего не найдено.
@@ -94,14 +99,15 @@ class InfoTrackPeopleChecker:
         if not self.enabled:
             return None
 
-        payload = {
-            "searchOptions": [
-                {
-                    "type": "phone",
-                    "query": phone,
-                }
-            ]
-        }
+        search_options = []
+        if isinstance(phone, str) and phone.strip():
+            search_options.append({"type": "phone", "query": phone.strip()})
+        if isinstance(name, str) and name.strip():
+            search_options.append({"type": "name", "query": re.sub(r"\s+", " ", name).strip()})
+        if isinstance(email, str) and email.strip() and "@" in email:
+            search_options.append({"type": "email", "query": email.strip()})
+
+        payload = {"searchOptions": search_options}
 
         headers = {
             "x-api-key": self.api_key,
@@ -152,8 +158,10 @@ class InfoTrackPeopleChecker:
             return None
 
         logger.info(
-            "ITP response meta for phone=%s: searchId=%s, records=%s, db_blocks=%s",
+            "ITP response meta for phone=%s (name=%s, email=%s): searchId=%s, records=%s, db_blocks=%s",
             phone,
+            bool(name and str(name).strip()),
+            bool(email and str(email).strip()),
             data.get("searchId"),
             data.get("records"),
             len(data_block),

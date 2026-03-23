@@ -418,7 +418,7 @@ async def test_validate_lead(
 
     if social_enabled_for_test:
         try:
-            social_result = await social_checker.check_phone(cleaned_phone, name)
+            social_result = await social_checker.check_phone(cleaned_phone, name, email)
             social_error = getattr(social_result, "error", None)
             social_checked = getattr(social_result, "checked", False)
             # Для тест-эндпоинта не считаем кейс "профили не найдены" фатальной ошибкой.

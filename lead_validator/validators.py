@@ -587,7 +587,7 @@ class LeadValidator:
         social_result = None
         if project and getattr(project, "enable_social_check", False):
             try:
-                social_result = await social_checker.check_phone(lead.phone, lead.name)
+                social_result = await social_checker.check_phone(lead.phone, lead.name, lead.email)
                 if social_result and not getattr(social_result, "checked", False):
                     logger.info(
                         "Social check incomplete for %s: %s",
