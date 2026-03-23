@@ -474,8 +474,49 @@
           </div>
 
           <div v-if="activeTab === 'leads'" class="space-y-4">
-            <div class="text-center py-8 text-gray-500">
-              <p>Список заявок будет здесь</p>
+            <div v-if="leadsLoading" class="text-center py-8 text-gray-500">
+              <p>Загрузка заявок...</p>
+            </div>
+            <div v-else-if="leadsError" class="text-center py-8 text-red-500">
+              <p>{{ leadsError }}</p>
+            </div>
+            <div v-else-if="projectLeads.length === 0" class="text-center py-8 text-gray-500">
+              <p>Заявок пока нет</p>
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table class="w-full text-left border-separate border-spacing-y-2">
+                <thead>
+                  <tr>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Дата</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Телефон</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Имя</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Статус</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Причина</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="lead in projectLeads"
+                    :key="lead.id"
+                    class="bg-gray-50"
+                  >
+                    <td class="px-3 py-2 text-sm text-gray-700 rounded-l-lg">{{ formatLeadDate(lead.created_at) }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-900 font-medium">{{ lead.phone || '—' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-700">{{ lead.email || '—' }}</td>
+                    <td class="px-3 py-2 text-sm text-gray-700">{{ lead.name || '—' }}</td>
+                    <td class="px-3 py-2 text-sm">
+                      <span
+                        :class="lead.is_accepted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                        class="px-2 py-1 rounded-full text-xs font-semibold"
+                      >
+                        {{ lead.is_accepted ? 'Принята' : 'Отклонена' }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-gray-600 rounded-r-lg">{{ lead.rejection_reason || '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -535,7 +576,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import { PhoneIcon, PlusIcon, LinkIcon, TrashIcon, XMarkIcon } from '@heroicons/vue/24/outline'
@@ -551,6 +592,9 @@ const viewingProject = ref(null)
 const activeTab = ref('info')
 const submittingManualLead = ref(false)
 const emailRecipientsInput = ref('')
+const projectLeads = ref([])
+const leadsLoading = ref(false)
+const leadsError = ref('')
 
 const projectForm = reactive({
   name: '',
@@ -682,6 +726,23 @@ const viewProject = async (project) => {
   }
 }
 
+const fetchProjectLeads = async () => {
+  if (!viewingProject.value?.id) return
+  try {
+    leadsLoading.value = true
+    leadsError.value = ''
+    const { data } = await api.get('phone-leads/', {
+      params: { project_id: viewingProject.value.id }
+    })
+    projectLeads.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error('Error fetching project leads:', error)
+    leadsError.value = 'Не удалось загрузить заявки'
+  } finally {
+    leadsLoading.value = false
+  }
+}
+
 const deleteProject = async (project) => {
   if (!confirm(`Вы уверены, что хотите удалить проект "${project.name}"?`)) {
     return
@@ -772,6 +833,9 @@ const submitManualLead = async () => {
     const path = webhookUrl.startsWith('/') ? webhookUrl.slice(1) : webhookUrl
     await api.post(path, payload, { headers })
     toaster.success('Заявка отправлена на проверку')
+    if (activeTab.value === 'leads') {
+      await fetchProjectLeads()
+    }
     
     // Сброс формы
     Object.assign(manualLeadForm, {
@@ -788,5 +852,18 @@ const submitManualLead = async () => {
     submittingManualLead.value = false
   }
 }
+
+const formatLeadDate = (value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('ru-RU')
+}
+
+watch(activeTab, async (tab) => {
+  if (tab === 'leads' && viewingProject.value?.id) {
+    await fetchProjectLeads()
+  }
+})
 </script>
 
