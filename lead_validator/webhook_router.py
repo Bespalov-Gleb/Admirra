@@ -8,6 +8,7 @@ import logging
 import re
 import json
 import uuid
+import os
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Request, HTTPException, Depends, Body, Body
@@ -21,6 +22,19 @@ from core import models
 logger = logging.getLogger("lead_validator.webhook")
 
 router = APIRouter(prefix="/webhook", tags=["Webhooks"])
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Parse boolean env var values like true/1/yes/on."""
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# If false -> не проверяем webhook_secret для эндпоинта телефонии `/webhook/phone/{project_id}`.
+# Это удобно, когда сторонняя система (Marquiz) может передать только URL без заголовков.
+PHONE_WEBHOOK_SECRET_CHECK_ENABLED = _env_bool("PHONE_WEBHOOK_SECRET_CHECK_ENABLED", True)
 
 
 # ============================================================================
@@ -440,7 +454,7 @@ async def phone_project_webhook(
 
     # Проверяем секрет (header или query)
     provided_secret = request.headers.get("x-webhook-secret") or secret
-    if project.webhook_secret:
+    if project.webhook_secret and PHONE_WEBHOOK_SECRET_CHECK_ENABLED:
         if not provided_secret or provided_secret != project.webhook_secret:
             raise HTTPException(status_code=401, detail="Invalid webhook secret")
     
