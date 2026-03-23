@@ -153,6 +153,47 @@ class YandexMetricaAPI:
                 error.status_code = 429
                 error.response = response
                 raise error
+            elif response.status_code == 400 and "Query is too complicated" in response.text:
+                # Авто-деградация: дробим период на 2 части, чтобы упростить запрос.
+                try:
+                    d1 = datetime.strptime(date_from, "%Y-%m-%d").date()
+                    d2 = datetime.strptime(date_to, "%Y-%m-%d").date()
+                except Exception:
+                    logger.warning(f"Yandex Metrica API error 400: {response.text[:200]}")
+                    return []
+
+                if d1 >= d2:
+                    logger.warning(f"Yandex Metrica API error 400 on single-day range {date_from}: {response.text[:200]}")
+                    return []
+
+                mid = d1 + timedelta(days=(d2 - d1).days // 2)
+                left_from = d1.strftime("%Y-%m-%d")
+                left_to = mid.strftime("%Y-%m-%d")
+                right_from = (mid + timedelta(days=1)).strftime("%Y-%m-%d")
+                right_to = d2.strftime("%Y-%m-%d")
+
+                logger.warning(
+                    "Metrika query too complicated for %s..%s. Splitting into %s..%s and %s..%s",
+                    date_from, date_to, left_from, left_to, right_from, right_to
+                )
+
+                left = await self.get_goals_stats(
+                    counter_id=counter_id,
+                    date_from=left_from,
+                    date_to=left_to,
+                    metrics=metrics,
+                    goal_id=goal_id,
+                    filters=filters,
+                )
+                right = await self.get_goals_stats(
+                    counter_id=counter_id,
+                    date_from=right_from,
+                    date_to=right_to,
+                    metrics=metrics,
+                    goal_id=goal_id,
+                    filters=filters,
+                )
+                return (left or []) + (right or [])
             else:
                 logger.warning(f"Yandex Metrica API error {response.status_code}: {response.text[:200]}")
                 return []
