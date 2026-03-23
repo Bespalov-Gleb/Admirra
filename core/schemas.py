@@ -56,6 +56,19 @@ class LoginPasswordStepResponse(BaseModel):
     email_masked: Optional[str] = None
     email: Optional[EmailStr] = None
 
+class LoginResponse(BaseModel):
+    """
+    Универсальный ответ POST /auth/login:
+    - при включенном OTP: step/challenge_id
+    - при отключенном OTP: access_token/token_type
+    """
+    step: Optional[str] = None  # otp_required | email_not_verified
+    challenge_id: Optional[UUID] = None
+    email_masked: Optional[str] = None
+    email: Optional[EmailStr] = None
+    access_token: Optional[str] = None
+    token_type: Optional[str] = None
+
 class VerifyEmailRequest(BaseModel):
     token: str
 

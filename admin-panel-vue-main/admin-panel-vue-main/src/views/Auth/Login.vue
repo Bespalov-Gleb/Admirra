@@ -188,6 +188,10 @@ const handleLogin = async () => {
   const result = await login(loginForm.email, loginForm.password)
   
   loading.value = false
+  if (result.success) {
+    router.push(DEFAULT_DASHBOARD_PATH)
+    return
+  }
   if (result.needsEmailVerification) {
     router.push({
       path: '/pending-email-verification',

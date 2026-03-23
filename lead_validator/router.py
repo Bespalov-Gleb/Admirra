@@ -419,9 +419,13 @@ async def test_validate_lead(
     if social_enabled_for_test:
         try:
             social_result = await social_checker.check_phone(cleaned_phone, name)
+            social_error = getattr(social_result, "error", None)
+            social_checked = getattr(social_result, "checked", False)
+            # Для тест-эндпоинта не считаем кейс "профили не найдены" фатальной ошибкой.
+            social_passed = bool(social_checked) or social_error == "No social profiles found"
             result["checks"]["social"] = {
-                "passed": bool(getattr(social_result, "checked", False)),
-                "checked": getattr(social_result, "checked", False),
+                "passed": social_passed,
+                "checked": social_checked,
                 "provider": getattr(social_result, "provider", None),
                 "has_telegram": getattr(social_result, "has_telegram", None),
                 "has_whatsapp": getattr(social_result, "has_whatsapp", None),

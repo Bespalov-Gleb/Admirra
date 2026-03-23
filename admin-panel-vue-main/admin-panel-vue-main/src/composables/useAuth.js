@@ -107,6 +107,16 @@ export function useAuth() {
 
       const data = response.data
 
+      if (data.access_token) {
+        setToken(data.access_token)
+        const userResult = await fetchCurrentUser()
+        if (!userResult.success) {
+          throw new Error('Could not fetch user data after login')
+        }
+        initialCheckDone = true
+        return { success: true }
+      }
+
       if (data.step === 'email_not_verified') {
         return {
           success: false,

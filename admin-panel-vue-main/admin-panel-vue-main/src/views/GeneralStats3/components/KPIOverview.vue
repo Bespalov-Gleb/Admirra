@@ -125,7 +125,7 @@ function formatAbsoluteChange(current, trendPct, options = {}) {
 
 const metricsMap = computed(() => {
   const rawExpenses = props.summary.expenses || 0
-  const vatFactor = props.includeVat ? 1.22 : 1
+  const vatFactor = props.includeVat ? 1.2 : 1
   const expensesValue = rawExpenses * vatFactor
   const currency = props.summary.currency === 'RUB' ? '₽' : props.summary.currency
   const t = props.summary.trends || {}

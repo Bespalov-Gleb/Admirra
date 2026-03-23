@@ -216,6 +216,7 @@ import { useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import CommonGridShape from '@/components/common/CommonGridShape.vue'
 import { useAuth } from '@/composables/useAuth'
+import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 import logoAuth from '@/assets/imgs/logo/AdMirra.png'
 
 const router = useRouter()
@@ -250,6 +251,11 @@ const handleLogin = async () => {
   const result = await login(loginForm.email, loginForm.password)
 
   loading.value = false
+
+  if (result.success) {
+    router.push(DEFAULT_DASHBOARD_PATH)
+    return
+  }
 
   if (result.needsEmailVerification) {
     router.push({

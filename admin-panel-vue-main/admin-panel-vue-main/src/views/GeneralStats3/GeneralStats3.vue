@@ -235,6 +235,7 @@
           <CampaignTableV3
             :campaigns="campaigns"
             :loading="loading"
+            :include-vat="includeVat"
           />
 
           <!-- Активность по дням + Возраст аудитории -->

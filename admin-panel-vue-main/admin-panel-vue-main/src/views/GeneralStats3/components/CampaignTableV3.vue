@@ -43,7 +43,7 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cost) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cost)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cost ?? getDemoTrend(idx, 0)" metric="cost" />
               </div>
             </td>
@@ -61,7 +61,7 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cpc) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpc)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpc ?? getDemoTrend(idx, 3)" metric="cpc" />
               </div>
             </td>
@@ -73,7 +73,7 @@
             </td>
             <td class="px-4 py-4 rounded-r-[10px]">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(campaign.cpa) }} ₽</span>
+                <span class="text-[15px] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpa)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpa ?? getDemoTrend(idx, 5)" metric="cpa" />
               </div>
             </td>
@@ -97,10 +97,20 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false
+  },
+  includeVat: {
+    type: Boolean,
+    default: false
   }
 })
 
 const filteredCampaigns = computed(() => props.campaigns)
+const VAT_FACTOR = 1.2
+
+const withVat = (val) => {
+  const num = Number(val || 0)
+  return props.includeVat ? num * VAT_FACTOR : num
+}
 
 const formatMoney = (val) => {
   if (val == null || isNaN(val)) return '—'

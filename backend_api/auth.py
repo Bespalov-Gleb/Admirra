@@ -32,6 +32,16 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 RESEND_COOLDOWN_SEC = int(os.getenv("AUTH_RESEND_COOLDOWN_SEC", "60"))
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+AUTH_LOGIN_OTP_ENABLED = _env_bool("AUTH_LOGIN_OTP_ENABLED", True)
+
+
 def _frontend_verify_url(raw_token: str) -> str:
     return f"{FRONTEND_URL}/verify-email?token={raw_token}"
 
@@ -150,7 +160,7 @@ async def resend_verification(body: schemas.ResendVerificationRequest, db: Sessi
     return generic
 
 
-@router.post("/login", response_model=schemas.LoginPasswordStepResponse)
+@router.post("/login", response_model=schemas.LoginResponse)
 async def login_password_step(login_data: schemas.UserLogin, db: Session = Depends(get_db)):
     """
     Шаг 1 входа: проверка пароля.
@@ -168,6 +178,11 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
 
     if not user.email_verified:
         return schemas.LoginPasswordStepResponse(step="email_not_verified", email=user.email)
+
+    if not AUTH_LOGIN_OTP_ENABLED:
+        logger.info("AUTH_LOGIN_OTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
+        access_token = security.create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
 
     if not smtp_configured():
         logger.error("SMTP not configured; cannot send login OTP")

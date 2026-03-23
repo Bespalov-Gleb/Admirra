@@ -156,6 +156,7 @@ class SocialChecker:
             SocialCheckResult с результатами проверки
         """
         result = SocialCheckResult(phone=phone)
+        provider_responded = False
         
         if not self.enabled:
             result.error = "Social checker not configured"
@@ -183,6 +184,7 @@ class SocialChecker:
             try:
                 itp_result = await self._check_infotrackpeople(normalized_phone)
                 if itp_result:
+                    provider_responded = True
                     result.has_telegram = itp_result.get("has_telegram")
                     result.has_vk = itp_result.get("has_vk")
                     result.telegram_username = itp_result.get("telegram_username")
@@ -236,6 +238,7 @@ class SocialChecker:
             try:
                 vk_result = await self._check_vk_api(vk_search_query, phone=phone)
                 if vk_result:
+                    provider_responded = True
                     result.has_vk = vk_result.get("has_vk", False)
                     result.vk_user_id = vk_result.get("user_id")
                     result.vk_profile_url = vk_result.get("profile_url")
@@ -251,6 +254,7 @@ class SocialChecker:
             try:
                 getcontact_result = await self._check_getcontact(normalized_phone)
                 if getcontact_result:
+                    provider_responded = True
                     result.has_telegram = getcontact_result.get("has_telegram")
                     result.has_whatsapp = getcontact_result.get("has_whatsapp")
                     result.has_viber = getcontact_result.get("has_viber")
@@ -266,6 +270,7 @@ class SocialChecker:
             try:
                 numbuster_result = await self._check_numbuster(normalized_phone)
                 if numbuster_result:
+                    provider_responded = True
                     result.has_telegram = numbuster_result.get("has_telegram")
                     result.has_whatsapp = numbuster_result.get("has_whatsapp")
                     result.has_tiktok = numbuster_result.get("has_tiktok")
@@ -281,6 +286,7 @@ class SocialChecker:
                 from lead_validator.services.telegram_checker import check_phone_registered
                 tg_reg = await check_phone_registered(phone)
                 if tg_reg is not None:
+                    provider_responded = True
                     result.has_telegram = tg_reg
                     if not result.checked:
                         result.checked = True
@@ -290,8 +296,13 @@ class SocialChecker:
                 logger.debug(f"Telethon Telegram check failed: {e}")
         
         if not result.checked:
-            result.error = "All providers failed or unavailable"
-            logger.debug(f"All social check providers failed for {phone}")
+            if provider_responded:
+                # Провайдер(ы) ответили, но соцпрофили не обнаружены.
+                result.error = "No social profiles found"
+                logger.debug(f"Social providers responded but no profiles found for {phone}")
+            else:
+                result.error = "All providers failed or unavailable"
+                logger.debug(f"All social check providers failed for {phone}")
         
         # Сохраняем результат в кеш (TTL 7 дней = 604800 секунд)
         if redis_service.enabled and result.checked:
