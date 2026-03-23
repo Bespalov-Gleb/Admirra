@@ -332,6 +332,7 @@ async def test_validate_lead(
     """
     from lead_validator.services.dadata import dadata_service
     from lead_validator.services.redis_service import redis_service
+    from lead_validator.services.social_checker import social_checker
     
     logger.info(f"Test validation: phone={phone}")
     
@@ -408,6 +409,48 @@ async def test_validate_lead(
                 "has_duplicate": bitrix_result.has_duplicate,
                 "contact_id": bitrix_result.contact_id
             }
+
+    # 6. Проверка соцсетей (включая InfoTrackPeople как приоритетного провайдера)
+    social_enabled_for_test = True
+    if project:
+        # Для проекта уважаем флаг; без project_id — включаем для диагностики по умолчанию
+        social_enabled_for_test = bool(getattr(project, "enable_social_check", False))
+
+    if social_enabled_for_test:
+        try:
+            social_result = await social_checker.check_phone(cleaned_phone, name)
+            result["checks"]["social"] = {
+                "passed": bool(getattr(social_result, "checked", False)),
+                "checked": getattr(social_result, "checked", False),
+                "provider": getattr(social_result, "provider", None),
+                "has_telegram": getattr(social_result, "has_telegram", None),
+                "has_whatsapp": getattr(social_result, "has_whatsapp", None),
+                "has_vk": getattr(social_result, "has_vk", None),
+                "has_viber": getattr(social_result, "has_viber", None),
+                "has_tiktok": getattr(social_result, "has_tiktok", None),
+                "telegram_username": getattr(social_result, "telegram_username", None),
+                "vk_profile_url": getattr(social_result, "vk_profile_url", None),
+                "vk_user_id": getattr(social_result, "vk_user_id", None),
+                "error": getattr(social_result, "error", None),
+            }
+            logger.info(
+                "Test social check for %s: provider=%s tg=%s vk=%s checked=%s",
+                cleaned_phone,
+                result["checks"]["social"]["provider"],
+                result["checks"]["social"]["has_telegram"],
+                result["checks"]["social"]["has_vk"],
+                result["checks"]["social"]["checked"],
+            )
+        except Exception as e:
+            logger.warning(f"Test social check failed for {cleaned_phone}: {e}")
+            result["checks"]["social"] = {"passed": False, "error": str(e)}
+    else:
+        result["checks"]["social"] = {
+            "passed": True,
+            "checked": False,
+            "skipped": True,
+            "reason": "enable_social_check=false for project",
+        }
     
     # Итоговый результат
     all_passed = all(

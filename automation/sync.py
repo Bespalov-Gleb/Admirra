@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from core.database import SessionLocal
 from core import models, security
@@ -125,13 +126,21 @@ async def _sync_metrika_goals_for_direct(
         sync_date_to = end_date_obj.strftime("%Y-%m-%d")
         logger.info(f"🔄 First sync for Direct integration {integration.id}: fetching 90 days of goals data ({sync_date_from} to {sync_date_to})")
     
+    # Защита от конкурентной записи целей для одной интеграции
+    sync_key = str(integration.id)
+    with _metrika_goals_write_lock:
+        if sync_key in _metrika_goals_write_in_progress:
+            logger.info(f"⏭️ Skip goals sync: already running for integration {integration.id}")
+            return
+        _metrika_goals_write_in_progress.add(sync_key)
+
     # Use request queue
     from automation.request_queue import get_request_queue
     queue = await get_request_queue()
-    
-    # Sync goals for each counter
-    for counter_id in all_counter_ids:
-        try:
+
+    try:
+        # Sync goals for each counter
+        for counter_id in all_counter_ids:
             # CRITICAL: First, get list of available goals for this counter
             # Вызываем напрямую (без очереди) — Management API отделён от Stat API, не блокирует очередь
             available_goals = []
@@ -170,26 +179,26 @@ async def _sync_metrika_goals_for_direct(
                 logger.info(f"📊 selected_goals empty, no available_goals — using primary_goal_id {integration.primary_goal_id}")
             
             # Sync aggregated goals
-            # CRITICAL: Use reaches (достижения цели) — совпадает с «Конверсии»/«Лиды» в интерфейсе Метрики.
-            # visits = визиты с целью (1 визит = 1 даже при 5 срабатываниях); reaches = кол-во срабатываний.
+            # CRITICAL: Use visits (целевые визиты) — в этом проекте это и есть лиды.
+            # 1 визит = 1 лид, даже если цель сработала несколько раз в рамках визита.
             goals_for_aggregate = valid_goals_for_counter
             primary_str = str(integration.primary_goal_id) if integration.primary_goal_id else None
             if primary_str and primary_str in (valid_goals_for_counter or []):
                 goals_for_aggregate = [primary_str]
                 logger.info(f"📊 Using primary_goal_id for aggregate: {integration.primary_goal_id}")
             
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
             if goals_for_aggregate and len(goals_for_aggregate) > 0:
-                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in goals_for_aggregate]
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in goals_for_aggregate]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
 
-            logger.info(f"📊 Requesting Stat API (goals reaches) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
+            logger.info(f"📊 Requesting Stat API (goals visits) for counter {counter_id}, period {sync_date_from}–{sync_date_to}")
             goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=metrics)
             logger.info(f"📊 Goals data back from queue for counter {counter_id}: {len(goals_data or [])} rows")
             if not goals_data and goals_for_aggregate:
-                # Fallback: только ym:s:sumGoalReachesAny (агрегат по всем целям)
-                logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalReachesAny")
-                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalReachesAny")
+                # Fallback: только ym:s:sumGoalVisitsAny (агрегат по всем целям)
+                logger.info(f"📊 Goal-specific metric returned 0 rows, trying ym:s:sumGoalVisitsAny")
+                goals_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics="ym:s:sumGoalVisitsAny")
             logger.info(f"📊 Metrika API returned {len(goals_data or [])} days of goals data for counter {counter_id}")
             
             # #region agent log
@@ -204,7 +213,7 @@ async def _sync_metrika_goals_for_direct(
                         continue
                     stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                     # CRITICAL: When primary_goal_id - use single goal value; else sum (but summing causes double count!)
-                    # При fallback на sumGoalReachesAny — только metrics[0]
+                    # При fallback на sumGoalVisitsAny — только metrics[0]
                     total_visits = 0
                     if goals_for_aggregate and len(goals_for_aggregate) > 0:
                         if len(goals_for_aggregate) == 1:
@@ -260,8 +269,8 @@ async def _sync_metrika_goals_for_direct(
                         if idx > 0:
                             await asyncio.sleep(1.0)  # 1 second delay between goal requests
                         
-                        # CRITICAL: Use reaches (достижения цели) — совпадает с Метрикой
-                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        # CRITICAL: Use visits (целевые визиты), а не reaches
+                        goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', metrika_api.get_goals_stats, counter_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         goal_name = goal_names_map.get(str(goal_id), f"Goal {goal_id}") if goal_names_map else f"Goal {goal_id}"
@@ -294,15 +303,66 @@ async def _sync_metrika_goals_for_direct(
                         logger.warning(f"Failed to sync individual goal {goal_id} for counter {counter_id}: {goal_err}")
                         # Continue with next goal even if this one fails
                 logger.info(f"📊 Saved {individual_goals_saved} individual goal records for counter {counter_id}")
-        except Exception as counter_err:
-            logger.warning(f"Failed to sync goals for counter {counter_id}: {counter_err}")
-    
-    logger.info(f"✅ Completed Metrika goals sync for Direct integration {integration.id}")
+        _dedupe_metrika_goals_for_integration(db, integration.id, sync_date_from, sync_date_to)
+        logger.info(f"✅ Completed Metrika goals sync for Direct integration {integration.id}")
+    finally:
+        with _metrika_goals_write_lock:
+            _metrika_goals_write_in_progress.discard(sync_key)
 
 
 # Блокировка: не запускать несколько sync целей для одной интеграции одновременно
 _sync_goals_in_progress: set = set()
 _sync_goals_lock = __import__("threading").Lock()
+_metrika_goals_write_in_progress: set = set()
+_metrika_goals_write_lock = __import__("threading").Lock()
+
+
+def _dedupe_metrika_goals_for_integration(
+    db: Session,
+    integration_id: uuid.UUID,
+    date_from: str,
+    date_to: str,
+):
+    """
+    Удаляет дубли в metrika_goals по ключу (integration_id, date, goal_id),
+    оставляя запись с наибольшим id.
+    """
+    if not integration_id:
+        return
+
+    d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+    d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+
+    res = db.execute(
+        text(
+            """
+            DELETE FROM metrika_goals mg
+            USING metrika_goals dup
+            WHERE mg.id < dup.id
+              AND mg.integration_id = dup.integration_id
+              AND mg.date = dup.date
+              AND mg.goal_id = dup.goal_id
+              AND mg.integration_id = :integration_id
+              AND mg.date BETWEEN :d_from AND :d_to
+              AND dup.integration_id = :integration_id
+              AND dup.date BETWEEN :d_from AND :d_to
+            """
+        ),
+        {
+            "integration_id": str(integration_id),
+            "d_from": d_from,
+            "d_to": d_to,
+        },
+    )
+    deleted = getattr(res, "rowcount", 0) or 0
+    if deleted > 0:
+        logger.warning(
+            "🧹 Removed %s duplicate metrika_goals rows for integration %s (%s..%s)",
+            deleted,
+            integration_id,
+            d_from,
+            d_to,
+        )
 
 
 def sync_metrika_goals_background(
@@ -992,10 +1052,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             else:
                 logger.info(f"🔄 Regular sync for integration {integration.id}: fetching goals data ({sync_date_from} to {sync_date_to})")
 
-            # CRITICAL: Use reaches (достижения цели) — совпадает с «Конверсии»/«Лиды» в Метрике
-            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalReachesAny"
+            # CRITICAL: Use visits (целевые визиты), а не reaches
+            metrics = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny"
             if selected_goals and len(selected_goals) > 0:
-                goal_metrics = [f"ym:s:goal{gid}reaches" for gid in selected_goals]
+                goal_metrics = [f"ym:s:goal{gid}visits" for gid in selected_goals]
                 metrics = "ym:s:anyGoalConversionRate," + ",".join(goal_metrics)
 
             # CRITICAL: Use request queue to avoid 429 errors
@@ -1008,8 +1068,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 goal_info_list = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id) or []
                 for goal_id in selected_goals:
                     try:
-                        # CRITICAL: Use reaches (достижения цели) — совпадает с Метрикой
-                        goal_metrics = f"ym:s:goal{goal_id}reaches"
+                        # CRITICAL: Use visits (целевые визиты), а не reaches
+                        goal_metrics = f"ym:s:goal{goal_id}visits"
                         goal_data = await queue.enqueue('metrica', api.get_goals_stats, integration.account_id, sync_date_from, sync_date_to, metrics=goal_metrics)
                         
                         # Get goal name from API (goal_info_list already fetched above)
@@ -1049,7 +1109,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             for g in goals_data:
                 stat_date = datetime.strptime(g['dimensions'][0]['name'], "%Y-%m-%d").date()
                 
-                # CRITICAL: Now using reaches (достижения цели)
+                # CRITICAL: Используем visits (целевые визиты)
                 total_visits = 0
                 if selected_goals and len(selected_goals) > 0:
                     for i in range(1, len(g['metrics'])):
