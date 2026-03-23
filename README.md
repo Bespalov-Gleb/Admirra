@@ -322,8 +322,11 @@ db.commit()
 - `BITRIX24_WEBHOOK_URL` — интеграция с CRM для поиска дубликатов
 - `AIRTABLE_API_KEY` и `AIRTABLE_BASE_ID` — логирование отклонённых заявок
 - `GETCONTACT_API_KEY` или `NUMBUSTER_API_KEY` — расширенная проверка соцсетей (платно)
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` — email-выгрузка заявок
-- `GOSUSLUGI_API_URL`, `GOSUSLUGI_API_KEY` — проверка Госуслуг через провайдера
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` — email-выгрузка заявок и **письма аутентификации** (подтверждение регистрации, код входа). При необходимости: `SMTP_USE_TLS`.
+- `FRONTEND_URL` — публичный URL админ-панели (для ссылок в письмах, например `https://app.example.com`).
+- `AUTH_RESEND_COOLDOWN_SEC` — минимальный интервал между повторными письмами подтверждения (по умолчанию 60).
+
+**Миграция БД (Docker / ручной SQL):** при включении подтверждения email выполните скрипт `scripts/docker_two_factor_auth.sql` (колонки `users`, таблица `login_otp_challenges`, однократный `UPDATE` для существующих пользователей).
 
 ### Для работы с рекламными платформами
 

@@ -47,6 +47,23 @@ def _extract_vk_user_id(url: str) -> Optional[int]:
         return None
 
 
+def _extract_vk_user_id_from_field(value) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return int(text)
+        m = re.search(r"(\d+)", text)
+        if m:
+            return int(m.group(1))
+    except Exception:
+        return None
+    return None
+
+
 @dataclass
 class InfoTrackPeopleResult:
     has_telegram: Optional[bool] = None
@@ -91,10 +108,18 @@ class InfoTrackPeopleChecker:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(self.search_url, json=payload, headers=headers)
                 if resp.status_code != 200:
+                    err_msg = None
+                    try:
+                        err = resp.json().get("error", {})
+                        if isinstance(err, dict):
+                            err_msg = err.get("message") or err.get("key")
+                    except Exception:
+                        err_msg = None
                     logger.warning(
-                        "ITP search failed: HTTP %s for phone=%s",
+                        "ITP search failed: HTTP %s for phone=%s (%s)",
                         resp.status_code,
                         phone,
+                        err_msg or "unknown error",
                     )
                     return None
                 data = resp.json()
@@ -137,8 +162,9 @@ class InfoTrackPeopleChecker:
                     continue
                 socials = record.get("socials")
                 if socials is None or not isinstance(socials, list):
-                    continue
-                any_socials_field_seen = True
+                    socials = []
+                else:
+                    any_socials_field_seen = True
 
                 for social in socials:
                     if not isinstance(social, dict):
@@ -159,14 +185,58 @@ class InfoTrackPeopleChecker:
                     if (
                         "vkontakte" in title_l
                         or "вконтакте" in title_l
-                        or " vk" in f" {title_l} "
-                        or title_l.startswith("vk")
+                        or "vk" in title_l
                     ):
                         found_vk = True
                         if url:
                             vk_profile_url = url
                             vk_user_id = _extract_vk_user_id(url)
                         continue
+
+                # Fallback поля v1/v2, если socials пустой/неполный
+                tg_username = (
+                    record.get("tg_username")
+                    or record.get("telegram_username")
+                    or (
+                        record.get("username")
+                        if str(record.get("username") or "").strip() and "@" not in str(record.get("username") or "")
+                        else None
+                    )
+                )
+                if isinstance(tg_username, str) and tg_username.strip():
+                    found_telegram = True
+                    if not telegram_username:
+                        telegram_username = tg_username.strip().lstrip("@")
+                    any_socials_field_seen = True
+
+                telegram_url = (
+                    record.get("telegram_url")
+                    or record.get("telegram")
+                    or record.get("tg")
+                )
+                if isinstance(telegram_url, str) and telegram_url.strip():
+                    maybe_tg = _extract_telegram_username(telegram_url.strip())
+                    if maybe_tg:
+                        found_telegram = True
+                        telegram_username = telegram_username or maybe_tg
+                        any_socials_field_seen = True
+
+                vk_url = record.get("vk_url") or record.get("vk_profile_url") or record.get("vk")
+                if isinstance(vk_url, str) and vk_url.strip():
+                    found_vk = True
+                    vk_profile_url = vk_profile_url or vk_url.strip()
+                    vk_user_id = vk_user_id or _extract_vk_user_id(vk_profile_url)
+                    any_socials_field_seen = True
+
+                vk_id_raw = record.get("vk_id")
+                if vk_user_id is None and vk_id_raw is not None:
+                    parsed_vk_id = _extract_vk_user_id_from_field(vk_id_raw)
+                    if parsed_vk_id is not None:
+                        found_vk = True
+                        vk_user_id = parsed_vk_id
+                        if not vk_profile_url:
+                            vk_profile_url = f"https://vk.com/id{parsed_vk_id}"
+                        any_socials_field_seen = True
 
         if not found_records:
             return None

@@ -188,11 +188,25 @@ const handleLogin = async () => {
   const result = await login(loginForm.email, loginForm.password)
   
   loading.value = false
-  if (result.success) {
-    router.push(DEFAULT_DASHBOARD_PATH)
-  } else {
-    triggerError(result.message)
+  if (result.needsEmailVerification) {
+    router.push({
+      path: '/pending-email-verification',
+      query: { email: result.email || loginForm.email }
+    })
+    return
   }
+  if (result.needsOtp) {
+    router.push({
+      path: '/two-step-verification',
+      query: {
+        mode: 'otp',
+        challenge_id: result.challenge_id,
+        email_masked: result.email_masked || ''
+      }
+    })
+    return
+  }
+  triggerError(result.message || 'Ошибка входа')
 }
 </script>
 

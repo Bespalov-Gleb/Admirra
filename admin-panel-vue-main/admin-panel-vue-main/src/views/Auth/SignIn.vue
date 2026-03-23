@@ -40,6 +40,9 @@
                     >
                   </div>
                 </div>
+                <div v-if="errorMessage" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p class="text-sm text-red-600">{{ errorMessage }}</p>
+                </div>
                 <form @submit.prevent="handleLogin">
                   <div class="space-y-5">
                     <!-- Email -->
@@ -213,7 +216,6 @@ import { useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import CommonGridShape from '@/components/common/CommonGridShape.vue'
 import { useAuth } from '@/composables/useAuth'
-import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 import logoAuth from '@/assets/imgs/logo/AdMirra.png'
 
 const router = useRouter()
@@ -221,6 +223,7 @@ const { login } = useAuth()
 const showPassword = ref(false)
 const keepLoggedIn = ref(false)
 const loading = ref(false)
+const errorMessage = ref('')
 
 const loginForm = reactive({
   email: '',
@@ -242,12 +245,30 @@ const handleLogin = async () => {
   if (!loginForm.password) return
 
   loading.value = true
-  
+  errorMessage.value = ''
+
   const result = await login(loginForm.email, loginForm.password)
-  
+
   loading.value = false
-  if (result.success) {
-    router.push(DEFAULT_DASHBOARD_PATH)
+
+  if (result.needsEmailVerification) {
+    router.push({
+      path: '/pending-email-verification',
+      query: { email: result.email || loginForm.email }
+    })
+    return
   }
+  if (result.needsOtp) {
+    router.push({
+      path: '/two-step-verification',
+      query: {
+        mode: 'otp',
+        challenge_id: result.challenge_id,
+        email_masked: result.email_masked || ''
+      }
+    })
+    return
+  }
+  errorMessage.value = result.message || 'Ошибка входа'
 }
 </script>

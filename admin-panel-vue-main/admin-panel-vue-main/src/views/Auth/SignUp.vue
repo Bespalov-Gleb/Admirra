@@ -328,7 +328,10 @@ const handleRegister = async () => {
     )
     
     if (result.success) {
-      router.push('/two-step-verification')
+      router.push({
+        path: '/pending-email-verification',
+        query: { email: result.email || registerForm.email }
+      })
     } else {
       triggerError(result.message || 'Ошибка регистрации')
     }

@@ -30,7 +30,26 @@ class User(Base):
     report_email_recipients = Column(String, nullable=True)  # JSON массив email адресов
     report_schedule = Column(String, nullable=True)  # mon_10, tue_10, ..., daily_10
 
+    # Подтверждение email (регистрация)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verification_token_hash = Column(String, nullable=True)
+    email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
+    verification_email_last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
     clients = relationship("Client", back_populates="owner")
+
+
+class LoginOtpChallenge(Base):
+    """Временный второй фактор входа: код на email (после успешного пароля)."""
+    __tablename__ = "login_otp_challenges"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    challenge_id = Column(UUID(as_uuid=True), unique=True, nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    otp_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    consumed = Column(Boolean, default=False, nullable=False)
 
 class Client(Base):
     __tablename__ = "clients"

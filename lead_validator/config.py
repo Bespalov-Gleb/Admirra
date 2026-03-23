@@ -136,7 +136,7 @@ class LeadValidatorSettings:
     # InfoTrackPeople API (единый чек по телефону -> Telegram/VK, через socials[])
     INFOTRACKPEOPLE_API_KEY: str = ""
     # По докам: POST /public-api/data/search, auth через x-api-key
-    INFOTRACKPEOPLE_API_URL: str = "https://infotrackpeople.org/public-api/data/search"
+    INFOTRACKPEOPLE_API_URL: str = "https://datatech.work/public-api/data/search"
 
     # Telegram проверка через Telethon (api_id, api_hash, путь к .session)
     TELEGRAM_CHECKER_API_ID: str = ""
@@ -252,7 +252,7 @@ class LeadValidatorSettings:
         self.INFOTRACKPEOPLE_API_KEY = _get_env("INFOTRACKPEOPLE_API_KEY", "")
         self.INFOTRACKPEOPLE_API_URL = _get_env(
             "INFOTRACKPEOPLE_API_URL",
-            "https://infotrackpeople.org/public-api/data/search",
+            "https://datatech.work/public-api/data/search",
         )
         self.TELEGRAM_CHECKER_API_ID = _get_env("TELEGRAM_CHECKER_API_ID", "")
         self.TELEGRAM_CHECKER_API_HASH = _get_env("TELEGRAM_CHECKER_API_HASH", "")

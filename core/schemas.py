@@ -35,6 +35,7 @@ class UserResponse(UserBase):
     role: str
     is_active: bool
     created_at: datetime
+    email_verified: bool = False
 
     class Config:
         from_attributes = True
@@ -42,6 +43,28 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class RegisterPendingResponse(BaseModel):
+    """Регистрация без JWT — нужно подтвердить почту."""
+    email: EmailStr
+    message: str = "Проверьте почту и перейдите по ссылке для подтверждения."
+
+class LoginPasswordStepResponse(BaseModel):
+    """Ответ POST /auth/login (пароль), без JWT."""
+    step: str  # otp_required | email_not_verified
+    challenge_id: Optional[UUID] = None
+    email_masked: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+class LoginVerifyRequest(BaseModel):
+    challenge_id: UUID
+    code: str
 
 class UserLogin(BaseModel):
     email: EmailStr

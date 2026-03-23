@@ -32,7 +32,7 @@ const layout = computed(() => {
   }
   
   // Legacy support for paths if they are not in router meta yet
-  const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password'].includes(route.path)
+  const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password', '/signin', '/signup', '/verify-email', '/pending-email-verification', '/two-step-verification'].includes(route.path)
   if (isPathAuth) {
     return AuthLayout
   }

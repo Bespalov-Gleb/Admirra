@@ -70,4 +70,9 @@ def get_current_user(auth: HTTPAuthorizationCredentials = Depends(bearer_scheme)
     user = db.query(models.User).filter(models.User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
+    if not getattr(user, "email_verified", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified",
+        )
     return user

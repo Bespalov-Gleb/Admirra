@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { DEFAULT_DASHBOARD_PATH } from '../constants/config'
 
 const routes = [
   {
@@ -30,6 +31,18 @@ const routes = [
     path: '/two-step-verification',
     name: 'TwoStepVerification',
     component: () => import('../views/Auth/TwoStepVerification.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: () => import('../views/Auth/VerifyEmail.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/pending-email-verification',
+    name: 'PendingEmailVerification',
+    component: () => import('../views/Auth/PendingEmailVerification.vue'),
     meta: { layout: 'auth' }
   },
   // Старые пути для обратной совместимости
@@ -194,21 +207,30 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
-  const isLoginPage = normalizedPath === '/signin' || normalizedPath === '/signup' || normalizedPath === '/reset-password' || normalizedPath === '/two-step-verification' || normalizedPath === '/login' || normalizedPath === '/register' || normalizedPath === '/forgot-password' || normalizedPath === '/preview-banner'
+  const isLoginPage =
+    normalizedPath === '/signin' ||
+    normalizedPath === '/signup' ||
+    normalizedPath === '/reset-password' ||
+    normalizedPath === '/two-step-verification' ||
+    normalizedPath === '/verify-email' ||
+    normalizedPath === '/pending-email-verification' ||
+    normalizedPath === '/login' ||
+    normalizedPath === '/register' ||
+    normalizedPath === '/forgot-password' ||
+    normalizedPath === '/preview-banner'
   const isLandingPage = normalizedPath === '/'
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
-  // Если пользователь не авторизован — разрешаем лендинг и страницы логина
   const isPublicPage = isLoginPage || isLandingPage
+  const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
+
   if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
     next('/signin')
-  }
-  // Если пользователь авторизован и пытается зайти на лендинг или страницу логина — на дашборд
-  else if (isAuth && isPublicPage) {
+  } else if (isAuth && isPublicPage && !verifyEmailWithToken) {
     console.log('Router: Already authenticated, redirecting to dashboard...')
-    next({ name: 'CreateProject' })
+    next(DEFAULT_DASHBOARD_PATH)
   }
   // Иначе разрешаем переход
   else {

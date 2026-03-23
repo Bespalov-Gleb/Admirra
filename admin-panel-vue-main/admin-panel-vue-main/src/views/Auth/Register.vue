@@ -283,7 +283,14 @@ const handleRegister = async () => {
   
   loading.value = false
   if (result.success) {
-    router.push(DEFAULT_DASHBOARD_PATH)
+    if (result.needsVerification) {
+      router.push({
+        path: '/pending-email-verification',
+        query: { email: result.email || registerForm.email }
+      })
+    } else {
+      router.push(DEFAULT_DASHBOARD_PATH)
+    }
   } else {
     triggerError(result.message)
   }

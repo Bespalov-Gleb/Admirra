@@ -5,7 +5,6 @@
         class="relative flex flex-col justify-center w-full h-screen lg:flex-row bg-white"
       >
         <div class="flex flex-col flex-1 w-full lg:w-1/2 bg-white">
-          <!-- Логотип в верхнем левом углу -->
           <div class="absolute top-6 left-6 sm:top-8 sm:left-8 z-10">
             <router-link to="/">
               <img :src="logoAdMirra" alt="AdMirra" class="h-10 sm:h-12" />
@@ -17,35 +16,37 @@
                 <h1
                   class="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md"
                 >
-                  Подтверждение регистрации
+                  Код для входа
                 </h1>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                  Мы отправили код подтверждения на ваш email. Пожалуйста, введите код из письма.
+                  Введите 6-значный код из письма
+                  <span v-if="emailMasked" class="font-medium text-gray-700"> ({{ emailMasked }})</span>.
                 </p>
+              </div>
+              <div v-if="errorMessage" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p class="text-sm text-red-600">{{ errorMessage }}</p>
               </div>
               <div>
                 <form @submit.prevent="handleVerify">
                   <div class="space-y-5">
-                    <!-- Verification Code -->
                     <div>
                       <label
                         for="code"
                         class="mb-1.5 block text-sm font-medium text-gray-700"
                       >
-                        Код подтверждения<span class="text-red-500">*</span>
+                        Код<span class="text-red-500">*</span>
                       </label>
                       <input
                         v-model="verificationCode"
                         type="text"
                         id="code"
                         name="code"
-                        placeholder="Введите 6-значный код"
+                        placeholder="000000"
                         maxlength="6"
                         @input="handleCodeInput"
                         class="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-center text-2xl tracking-widest"
                       />
                     </div>
-                    <!-- Button -->
                     <div>
                       <button
                         type="submit"
@@ -60,14 +61,10 @@
                 </form>
                 <div class="mt-5 text-center">
                   <p class="text-sm text-gray-600">
-                    Не получили код?
-                    <button
-                      @click="handleResend"
-                      :disabled="resendLoading || resendCooldown > 0"
-                      class="text-brand-500 hover:text-brand-600 font-medium disabled:opacity-50"
-                    >
-                      {{ resendCooldown > 0 ? `Отправить снова (${resendCooldown}с)` : 'Отправить снова' }}
-                    </button>
+                    <router-link
+                      to="/signin"
+                      class="text-brand-500 hover:text-brand-600 font-medium"
+                    >Вернуться ко входу</router-link>
                   </p>
                 </div>
               </div>
@@ -81,7 +78,6 @@
             <CommonGridShape />
           </div>
           <div class="relative z-10 w-full h-full flex flex-col justify-between px-12 py-16">
-            <!-- Текст в верхней части -->
             <div class="max-w-lg">
               <h2 class="text-3xl sm:text-4xl font-bold text-blue-900 mb-6 leading-tight">
                 Анализируйте и оптимизируйте Ваши рекламные кампании
@@ -90,7 +86,6 @@
                 Онлайн-сервис для маркетологов, который превращает сырые цифры в понятные, сильные отчёты с глубоким AI-анализом.
               </p>
             </div>
-            <!-- Иллюстрация в нижней части -->
             <div class="flex items-end justify-end mt-auto">
               <img :src="loginImage" alt="Illustration" class="h-[500px] sm:h-[600px] w-auto max-w-full object-contain object-right-bottom" />
             </div>
@@ -102,68 +97,62 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import CommonGridShape from '@/components/common/CommonGridShape.vue'
 import logoAdMirra from '@/assets/imgs/logo/logo-dark.png'
 import loginImage from '@/assets/imgs/logo/login.svg'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
-import api from '../../api/axios'
+import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const route = useRoute()
+const { completeLoginWithOtp } = useAuth()
+
 const verificationCode = ref('')
 const loading = ref(false)
-const resendLoading = ref(false)
-const resendCooldown = ref(0)
+const errorMessage = ref('')
+
+const emailMasked = computed(() => {
+  const m = route.query.email_masked
+  return typeof m === 'string' ? m : ''
+})
+
+const challengeId = computed(() => {
+  const id = route.query.challenge_id
+  return typeof id === 'string' ? id : ''
+})
 
 const handleCodeInput = (e) => {
   verificationCode.value = e.target.value.replace(/\D/g, '').slice(0, 6)
 }
 
+onMounted(() => {
+  if (route.query.mode !== 'otp' || !challengeId.value) {
+    router.replace('/signin')
+  }
+})
+
 const handleVerify = async () => {
   if (verificationCode.value.length !== 6) return
 
-  loading.value = true
-  
-  try {
-    // TODO: Реализовать API endpoint для подтверждения email
-    // await api.post('auth/verify-email', { code: verificationCode.value })
-    
-    // Временная заглушка
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    router.push(DEFAULT_DASHBOARD_PATH)
-  } catch (error) {
-    console.error('Ошибка при подтверждении:', error)
-  } finally {
-    loading.value = false
+  if (!challengeId.value) {
+    errorMessage.value = 'Нет данных для проверки кода. Войдите снова.'
+    return
   }
-}
 
-const handleResend = async () => {
-  if (resendCooldown.value > 0) return
+  loading.value = true
+  errorMessage.value = ''
 
-  resendLoading.value = true
-  
-  try {
-    // TODO: Реализовать API endpoint для повторной отправки кода
-    // await api.post('auth/resend-verification-code')
-    
-    // Временная заглушка
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    resendCooldown.value = 60
-    const interval = setInterval(() => {
-      resendCooldown.value--
-      if (resendCooldown.value <= 0) {
-        clearInterval(interval)
-      }
-    }, 1000)
-  } catch (error) {
-    console.error('Ошибка при отправке кода:', error)
-  } finally {
-    resendLoading.value = false
+  const result = await completeLoginWithOtp(challengeId.value, verificationCode.value)
+
+  loading.value = false
+
+  if (result.success) {
+    router.push(DEFAULT_DASHBOARD_PATH)
+  } else {
+    errorMessage.value = result.message || 'Ошибка проверки кода'
   }
 }
 </script>

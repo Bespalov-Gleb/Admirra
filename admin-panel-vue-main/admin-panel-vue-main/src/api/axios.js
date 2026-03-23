@@ -48,7 +48,14 @@ api.interceptors.response.use(
       const currentPath = window.location.pathname
       // Normalize path (remove trailing slash)
       const normalizedPath = currentPath.replace(/\/$/, '') || '/'
-      const isAuthPage = normalizedPath === '/login' || normalizedPath === '/' || normalizedPath === '/signup' || normalizedPath === '/signin'
+      const isAuthPage =
+        normalizedPath === '/login' ||
+        normalizedPath === '/' ||
+        normalizedPath === '/signup' ||
+        normalizedPath === '/signin' ||
+        normalizedPath === '/verify-email' ||
+        normalizedPath === '/pending-email-verification' ||
+        normalizedPath === '/two-step-verification'
 
       // На страницах авторизации 401 - это нормально, не логируем как ошибку
       if (isAuthPage) {
@@ -59,7 +66,7 @@ api.interceptors.response.use(
       // На защищенных страницах - это ошибка авторизации
       console.warn(`Axios: Unauthenticated request (401) from path: ${currentPath}`)
       localStorage.removeItem('auth_token')
-      window.location.href = '/login'
+      window.location.href = '/signin'
     }
     return Promise.reject(error)
   }
