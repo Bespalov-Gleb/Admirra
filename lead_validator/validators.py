@@ -7,6 +7,7 @@ import logging
 import time
 import json
 import uuid
+import re
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from lead_validator.config import settings
@@ -38,6 +39,47 @@ def _merge_bool_from_form(api_val: Optional[bool], override_from_form: Optional[
     if override_from_form is True:
         return True
     return api_val
+
+
+def _restore_name_from_itp_fio(
+    current_name: Optional[str],
+    current_surname: Optional[str],
+    itp_name: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Восстанавливает имя/фамилию из полного ФИО ITP, не перетирая корректно заполненные поля.
+    Пример: "Иванов Иван Иванович" + name="Иван" -> surname="Иванов".
+    """
+    fio = re.sub(r"\s+", " ", (itp_name or "").strip())
+    if not fio:
+        return current_name, current_surname
+    parts = fio.split(" ")
+    if len(parts) < 2:
+        return current_name, current_surname
+
+    name = (current_name or "").strip() or None
+    surname = (current_surname or "").strip() or None
+
+    # Базовое предположение для RU-формата: "Фамилия Имя [Отчество]"
+    candidate_surname = parts[0]
+    candidate_name = parts[1]
+
+    # Если текущее имя уже совпало с первым словом (формат "Имя Фамилия"), подстраиваемся.
+    if name:
+        n = name.lower()
+        if n == parts[0].lower():
+            candidate_name = parts[0]
+            candidate_surname = parts[1]
+        elif n == parts[1].lower():
+            candidate_name = parts[1]
+            candidate_surname = parts[0]
+
+    if not name:
+        name = candidate_name
+    if not surname:
+        surname = candidate_surname
+
+    return name, surname
 
 
 def _get_metrica_credentials_from_project(db: Optional[Session], project) -> Tuple[Optional[str], Optional[str]]:
@@ -620,6 +662,14 @@ class LeadValidator:
                 social_json = social_payload_to_json(merged_social)
                 if social_json:
                     lead_record.social_accounts_data = social_json
+
+                # Если ITP вернул ФИО, а в заявке только имя/неполные поля — восстанавливаем name/surname.
+                if sr and getattr(sr, "itp_name", None):
+                    lead_record.name, lead_record.surname = _restore_name_from_itp_fio(
+                        lead_record.name,
+                        lead_record.surname,
+                        sr.itp_name,
+                    )
 
                 lead_record.has_telegram = _merge_bool_from_form(
                     sr.has_telegram if sr else None,

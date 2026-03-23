@@ -13,7 +13,7 @@ Docs:
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Set
 
 import httpx
 from lead_validator.config import settings
@@ -72,6 +72,9 @@ class InfoTrackPeopleResult:
     telegram_username: Optional[str] = None
     vk_profile_url: Optional[str] = None
     vk_user_id: Optional[int] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class InfoTrackPeopleChecker:
@@ -166,6 +169,22 @@ class InfoTrackPeopleChecker:
         vk_profile_url: Optional[str] = None
         vk_user_id: Optional[int] = None
         any_socials_field_seen = False
+        extracted_email: Optional[str] = None
+        extracted_name: Optional[str] = None
+        extracted_phone: Optional[str] = None
+        observed_fields: Set[str] = set()
+
+        def _pick_first_nonempty(*values) -> Optional[str]:
+            for v in values:
+                if isinstance(v, str) and v.strip():
+                    return v.strip()
+            return None
+
+        def _normalize_email(email_val: str) -> Optional[str]:
+            e = (email_val or "").strip()
+            if not e or "@" not in e:
+                return None
+            return e
 
         for _db_name, db_payload in data_block.items():
             if not isinstance(db_payload, dict):
@@ -179,6 +198,7 @@ class InfoTrackPeopleChecker:
             for record in records:
                 if not isinstance(record, dict):
                     continue
+                observed_fields.update(record.keys())
                 socials = record.get("socials")
                 if socials is None or not isinstance(socials, list):
                     socials = []
@@ -257,6 +277,27 @@ class InfoTrackPeopleChecker:
                             vk_profile_url = f"https://vk.com/id{parsed_vk_id}"
                         any_socials_field_seen = True
 
+                # Email / name / phone (часто есть в v1/v2 блоках)
+                if not extracted_email:
+                    email_candidate = _pick_first_nonempty(
+                        record.get("email"),
+                        record.get("mail"),
+                        record.get("email_address"),
+                    )
+                    if email_candidate:
+                        extracted_email = _normalize_email(email_candidate)
+                if not extracted_name:
+                    extracted_name = _pick_first_nonempty(
+                        record.get("name"),
+                        record.get("fio"),
+                        record.get("full_name"),
+                    )
+                if not extracted_phone:
+                    extracted_phone = _pick_first_nonempty(
+                        record.get("phone"),
+                        record.get("phone_number"),
+                    )
+
         if not found_records:
             return None
 
@@ -273,14 +314,26 @@ class InfoTrackPeopleChecker:
             res.has_telegram = None
             res.has_vk = None
 
+        res.email = extracted_email
+        res.name = extracted_name
+        res.phone = extracted_phone
+
         logger.info(
-            "ITP parsed socials for phone=%s: has_tg=%s, has_vk=%s, tg_username=%s, vk_url=%s, vk_id=%s",
+            "ITP parsed socials for phone=%s: has_tg=%s, has_vk=%s, tg_username=%s, vk_url=%s, vk_id=%s, email=%s, name=%s, phone=%s",
             phone,
             res.has_telegram,
             res.has_vk,
             bool(res.telegram_username),
             bool(res.vk_profile_url),
             res.vk_user_id,
+            bool(res.email),
+            bool(res.name),
+            bool(res.phone),
+        )
+        logger.info(
+            "ITP observed record fields for phone=%s: %s",
+            phone,
+            sorted(list(observed_fields))[:40],  # ограничиваем объём
         )
 
         return res

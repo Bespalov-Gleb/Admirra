@@ -59,6 +59,9 @@ class SocialCheckResult:
     vk_profile_url: Optional[str] = None
     vk_user_id: Optional[int] = None
     tiktok_username: Optional[str] = None
+    itp_email: Optional[str] = None
+    itp_name: Optional[str] = None
+    itp_phone: Optional[str] = None
     
     # Статус проверки
     checked: bool = False
@@ -190,6 +193,9 @@ class SocialChecker:
                     result.telegram_username = itp_result.get("telegram_username")
                     result.vk_profile_url = itp_result.get("vk_profile_url")
                     result.vk_user_id = itp_result.get("vk_user_id")
+                    result.itp_email = itp_result.get("email")
+                    result.itp_name = itp_result.get("name")
+                    result.itp_phone = itp_result.get("phone")
                     if result.has_telegram is not None or result.has_vk is not None:
                         result.provider = "InfoTrackPeople"
                         result.checked = True
@@ -425,6 +431,9 @@ class SocialChecker:
                 "telegram_username": itp_res.telegram_username,
                 "vk_profile_url": itp_res.vk_profile_url,
                 "vk_user_id": itp_res.vk_user_id,
+                "email": itp_res.email,
+                "name": itp_res.name,
+                "phone": itp_res.phone,
             }
         except Exception as e:
             logger.warning(f"InfoTrackPeople request failed for {phone}: {e}")
