@@ -330,6 +330,11 @@ def _dedupe_metrika_goals_for_integration(
     if not integration_id:
         return
 
+    # Важно: сначала отправляем все pending UPDATE/INSERT в БД,
+    # иначе последующее raw DELETE может удалить строки, которые ORM
+    # еще считает "грязными", что приводит к StaleDataError на flush.
+    db.flush()
+
     d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
     d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
 
@@ -363,6 +368,8 @@ def _dedupe_metrika_goals_for_integration(
             d_from,
             d_to,
         )
+    # После raw SQL очищаем identity-map, чтобы ORM не держал устаревшие row-state.
+    db.expire_all()
 
 
 def sync_metrika_goals_background(
