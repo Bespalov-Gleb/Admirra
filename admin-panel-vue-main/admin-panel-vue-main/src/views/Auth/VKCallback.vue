@@ -48,7 +48,7 @@ onMounted(async () => {
   if (errorParam) {
     const errorMessages = {
       'invalid_client': 'Неверный client_id или client_secret. Проверьте настройки приложения в VK Apps и значения в .env файле.',
-      'invalid_redirect_uri': 'redirect_uri не совпадает с настройками приложения. В VK Apps должен быть указан: https://admirra.ru/auth/vk/callback',
+      'invalid_redirect_uri': 'redirect_uri не совпадает с настройками приложения. В VK Apps должен быть указан: https://admirra.online/auth/vk/callback',
       'invalid_scope': 'Неверные права доступа. В настройках приложения должны быть включены: read_ads, read_payments, create_ads',
       'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте авторизоваться снова и разрешите доступ.',
       'invalid_grant': 'Код авторизации истек. Попробуйте авторизоваться заново.',
