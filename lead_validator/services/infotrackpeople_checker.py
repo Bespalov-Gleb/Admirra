@@ -86,6 +86,37 @@ class InfoTrackPeopleChecker:
     def enabled(self) -> bool:
         return bool(self.api_key and self.search_url)
 
+    async def _search(self, payload: dict, phone: str) -> Optional[dict]:
+        headers = {
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(self.search_url, json=payload, headers=headers)
+                if resp.status_code != 200:
+                    err_msg = None
+                    try:
+                        err = resp.json().get("error", {})
+                        if isinstance(err, dict):
+                            err_msg = err.get("message") or err.get("key")
+                    except Exception:
+                        err_msg = None
+                    logger.warning(
+                        "ITP search failed: HTTP %s for phone=%s (%s)",
+                        resp.status_code,
+                        phone,
+                        err_msg or "unknown error",
+                    )
+                    return None
+                return resp.json()
+        except httpx.TimeoutException:
+            logger.warning("ITP search timeout for phone=%s", phone)
+            return None
+        except Exception as e:
+            logger.warning("ITP search exception for phone=%s: %s", phone, e)
+            return None
+
     async def check_phone(
         self,
         phone: str,
@@ -108,37 +139,7 @@ class InfoTrackPeopleChecker:
             search_options.append({"type": "email", "query": email.strip()})
 
         payload = {"searchOptions": search_options}
-
-        headers = {
-            "x-api-key": self.api_key,
-            "Content-Type": "application/json",
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(self.search_url, json=payload, headers=headers)
-                if resp.status_code != 200:
-                    err_msg = None
-                    try:
-                        err = resp.json().get("error", {})
-                        if isinstance(err, dict):
-                            err_msg = err.get("message") or err.get("key")
-                    except Exception:
-                        err_msg = None
-                    logger.warning(
-                        "ITP search failed: HTTP %s for phone=%s (%s)",
-                        resp.status_code,
-                        phone,
-                        err_msg or "unknown error",
-                    )
-                    return None
-                data = resp.json()
-        except httpx.TimeoutException:
-            logger.warning("ITP search timeout for phone=%s", phone)
-            return None
-        except Exception as e:
-            logger.warning("ITP search exception for phone=%s: %s", phone, e)
-            return None
+        data = await self._search(payload, phone)
 
         if not isinstance(data, dict):
             return None
@@ -308,6 +309,101 @@ class InfoTrackPeopleChecker:
 
         if not found_records:
             return None
+
+        has_useful_data = bool(
+            any_socials_field_seen
+            or extracted_email
+            or extracted_name
+            or extracted_phone
+            or telegram_username
+            or vk_profile_url
+            or vk_user_id is not None
+        )
+
+        if not has_useful_data:
+            full_text_parts = []
+            if isinstance(name, str) and name.strip():
+                full_text_parts.append(re.sub(r"\s+", " ", name).strip())
+            if isinstance(phone, str) and phone.strip():
+                full_text_parts.append(phone.strip())
+            if isinstance(email, str) and email.strip() and "@" in email:
+                full_text_parts.append(email.strip())
+            full_text_query = " ".join(full_text_parts).strip()
+
+            if full_text_query:
+                logger.info("ITP fallback full_text request for phone=%s", phone)
+                fallback_data = await self._search(
+                    {"searchOptions": [{"type": "full_text", "query": full_text_query}]},
+                    phone,
+                )
+                if isinstance(fallback_data, dict):
+                    fallback_block = fallback_data.get("data")
+                    if isinstance(fallback_block, dict):
+                        for _db_name, db_payload in fallback_block.items():
+                            if not isinstance(db_payload, dict):
+                                continue
+                            records = db_payload.get("data")
+                            if not isinstance(records, list):
+                                continue
+                            if records:
+                                found_records = True
+
+                            for record in records:
+                                if not isinstance(record, dict):
+                                    continue
+                                observed_fields.update(record.keys())
+
+                                socials = record.get("socials")
+                                if socials is None or not isinstance(socials, list):
+                                    socials = []
+                                else:
+                                    any_socials_field_seen = True
+
+                                for social in socials:
+                                    if not isinstance(social, dict):
+                                        continue
+                                    title = str(social.get("title") or "").strip()
+                                    url = str(social.get("url") or "").strip()
+                                    title_l = title.lower()
+
+                                    if "telegram" in title_l or title_l == "tg":
+                                        found_telegram = True
+                                        u = _extract_telegram_username(url)
+                                        if u and not telegram_username:
+                                            telegram_username = u
+                                        continue
+
+                                    if (
+                                        "vkontakte" in title_l
+                                        or "вконтакте" in title_l
+                                        or "vk" in title_l
+                                    ):
+                                        found_vk = True
+                                        if url and not vk_profile_url:
+                                            vk_profile_url = url
+                                        if vk_user_id is None and vk_profile_url:
+                                            vk_user_id = _extract_vk_user_id(vk_profile_url)
+                                        continue
+
+                                if not extracted_email:
+                                    email_candidate = _pick_first_nonempty(
+                                        record.get("email"),
+                                        record.get("mail"),
+                                        record.get("email_address"),
+                                    )
+                                    if email_candidate:
+                                        extracted_email = _normalize_email(email_candidate)
+                                if not extracted_name:
+                                    extracted_name = _pick_first_nonempty(
+                                        record.get("name"),
+                                        record.get("fio"),
+                                        record.get("full_name"),
+                                    )
+                                if not extracted_phone:
+                                    extracted_phone = _pick_first_nonempty(
+                                        record.get("phone"),
+                                        record.get("phone_number"),
+                                    )
 
         res = InfoTrackPeopleResult()
         # Если поле socials встречалось в данных, то отсутствие Telegram/VK считаем False.

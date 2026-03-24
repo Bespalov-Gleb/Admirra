@@ -460,6 +460,25 @@ async def get_dynamics(
     
     m_stats = []
     if platform in ["all", "yandex"]:
+        # Важно: используем тот же фильтр selected_goals, что и в summary,
+        # чтобы суточные лиды на графике совпадали с итогом за период.
+        selected_goal_ids = set()
+        for i in db.query(models.Integration).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Integration.platform.in_([
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.YANDEX_METRIKA,
+            ]),
+        ).all():
+            if i.selected_goals:
+                try:
+                    sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
+                    selected_goal_ids.update(str(g) for g in (sg or []))
+                except Exception:
+                    pass
+            if i.primary_goal_id:
+                selected_goal_ids.add(str(i.primary_goal_id))
+
         # Лиды по дням = сумма по всем целям (как в summary и на круговой диаграмме)
         m_query = db.query(
             models.MetrikaGoals.date,
@@ -470,6 +489,9 @@ async def get_dynamics(
             models.MetrikaGoals.date >= d_start,
             models.MetrikaGoals.date <= d_end
         )
+
+        if selected_goal_ids:
+            m_query = m_query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
         
         # CRITICAL: Filter MetrikaGoals by integration_id to match campaign selection
         if m_integration_ids:
@@ -487,6 +509,8 @@ async def get_dynamics(
             models.MetrikaGoals.date >= d_start,
             models.MetrikaGoals.date <= d_end
         )
+        if selected_goal_ids:
+            _raw_q = _raw_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
         if m_integration_ids:
             _raw_q = _raw_q.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
         _raw_m = _raw_q.group_by(models.MetrikaGoals.goal_id).all()

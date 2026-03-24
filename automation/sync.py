@@ -727,6 +727,16 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 ("group", group_stats_result if not isinstance(group_stats_result, Exception) else []),
                 ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else [])
             ]
+
+            # Оптимизация: не делаем SELECT campaign для каждой строки статистики.
+            # Предзагружаем названия кампаний этой интеграции в set.
+            integration_campaign_names = {
+                row[0]
+                for row in db.query(models.Campaign.name)
+                .filter(models.Campaign.integration_id == integration.id)
+                .all()
+                if row and row[0]
+            }
             
             for level, level_stats in level_stats_list:
                 try:
@@ -734,12 +744,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         # CRITICAL: Verify that campaign_name belongs to this integration
                         # This prevents saving stats for campaigns from other profiles
                         campaign_name = l.get('campaign_name', '')
-                        matching_campaign = db.query(models.Campaign).filter(
-                            models.Campaign.integration_id == integration.id,
-                            models.Campaign.name == campaign_name
-                        ).first()
-                        
-                        if not matching_campaign:
+                        if campaign_name not in integration_campaign_names:
                             logger.debug(
                                 f"Skipping {level} stats for campaign '{campaign_name}' - "
                                 f"not found in DB for integration {integration.id}. "
@@ -760,7 +765,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                                 "cost": l['cost'],
                                 "conversions": l['conversions']
                             }
-                            _update_or_create_stats(db, models.YandexGroups, filters, data)
+                            _update_or_create_stats(db, models.YandexGroups, filters, data, verbose=False)
                         else:
                             filters = {
                                 "client_id": integration.client_id,
@@ -774,7 +779,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                                 "cost": l['cost'],
                                 "conversions": l['conversions']
                             }
-                            _update_or_create_stats(db, models.YandexKeywords, filters, data)
+                            _update_or_create_stats(db, models.YandexKeywords, filters, data, verbose=False)
                 except Exception as e:
                     logger.warning(f"Error syncing {level} stats: {e}")
                     continue
