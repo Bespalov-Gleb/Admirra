@@ -616,6 +616,17 @@
             </div>
 
             <div class="rounded-xl border border-gray-200 p-3">
+              <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Телефонная информация</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-900">
+                <p>Тип: {{ selectedLead.phone_type || '—' }}</p>
+                <p>Оператор: {{ selectedLead.phone_provider || selectedLead.main_operator || '—' }}</p>
+                <p>Регион: {{ selectedLead.phone_region || '—' }}</p>
+                <p>Город: {{ selectedLead.phone_city || '—' }}</p>
+                <p>dadata_qc: {{ selectedLead.dadata_qc ?? '—' }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 p-3">
               <p class="text-xs font-semibold text-gray-500 uppercase mb-2">UTM и техданные</p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-900">
                 <p>utm_source: {{ selectedLead.utm_source || '—' }}</p>
