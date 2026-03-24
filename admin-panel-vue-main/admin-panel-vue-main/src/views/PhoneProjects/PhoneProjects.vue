@@ -484,6 +484,7 @@
               <p>Заявок пока нет</p>
             </div>
             <div v-else class="overflow-x-auto">
+              <p class="text-xs text-gray-500 mb-2">Нажмите на строку заявки, чтобы посмотреть полную информацию.</p>
               <table class="w-full text-left border-separate border-spacing-y-2">
                 <thead>
                   <tr>
@@ -499,7 +500,8 @@
                   <tr
                     v-for="lead in projectLeads"
                     :key="lead.id"
-                    class="bg-gray-50"
+                    class="bg-gray-50 hover:bg-blue-50 cursor-pointer transition-colors"
+                    @click="openLeadDetails(lead)"
                   >
                     <td class="px-3 py-2 text-sm text-gray-700 rounded-l-lg">{{ formatLeadDate(lead.created_at) }}</td>
                     <td class="px-3 py-2 text-sm text-gray-900 font-medium">{{ lead.phone || '—' }}</td>
@@ -572,6 +574,81 @@
         </div>
       </div>
     </div>
+
+    <!-- Модальное окно деталей заявки -->
+    <div
+      v-if="selectedLead"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+      @click.self="closeLeadDetails"
+    >
+      <div class="bg-white rounded-[28px] shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 sm:p-8">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-xl font-black text-gray-900">Детали заявки</h3>
+              <p class="text-xs text-gray-500 mt-1">ID: {{ selectedLead.id }}</p>
+            </div>
+            <button
+              @click="closeLeadDetails"
+              class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <XMarkIcon class="w-6 h-6" />
+            </button>
+          </div>
+
+          <div v-if="leadDetailsLoading" class="py-8 text-center text-gray-500">
+            <p>Загрузка деталей...</p>
+          </div>
+          <div v-else class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="rounded-xl border border-gray-200 p-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Контакт</p>
+                <p class="text-sm text-gray-900 mt-1">Телефон: {{ selectedLead.phone || '—' }}</p>
+                <p class="text-sm text-gray-900">Email: {{ selectedLead.email || '—' }}</p>
+                <p class="text-sm text-gray-900">Имя: {{ selectedLead.name || '—' }} {{ selectedLead.surname || '' }}</p>
+              </div>
+              <div class="rounded-xl border border-gray-200 p-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Статус</p>
+                <p class="text-sm text-gray-900 mt-1">Принята: {{ formatBool(selectedLead.is_accepted) }}</p>
+                <p class="text-sm text-gray-900">Причина: {{ selectedLead.rejection_reason || '—' }}</p>
+                <p class="text-sm text-gray-900">Скоринг: {{ selectedLead.lead_score ?? '—' }} / {{ selectedLead.qualification_tier || '—' }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 p-3">
+              <p class="text-xs font-semibold text-gray-500 uppercase mb-2">UTM и техданные</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-900">
+                <p>utm_source: {{ selectedLead.utm_source || '—' }}</p>
+                <p>utm_medium: {{ selectedLead.utm_medium || '—' }}</p>
+                <p>utm_campaign: {{ selectedLead.utm_campaign || '—' }}</p>
+                <p>utm_content: {{ selectedLead.utm_content || '—' }}</p>
+                <p>utm_term: {{ selectedLead.utm_term || '—' }}</p>
+                <p>ym_uid: {{ selectedLead.ym_uid || '—' }}</p>
+                <p>IP: {{ selectedLead.client_ip || '—' }}</p>
+                <p>Referer: {{ selectedLead.referer || '—' }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 p-3">
+              <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Проверки</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-900">
+                <p>Telegram: {{ formatBool(selectedLead.has_telegram) }}</p>
+                <p>WhatsApp: {{ formatBool(selectedLead.has_whatsapp) }}</p>
+                <p>Viber: {{ formatBool(selectedLead.has_viber) }}</p>
+                <p>TikTok: {{ formatBool(selectedLead.has_tiktok) }}</p>
+                <p>VK: {{ formatBool(selectedLead.has_vk) }}</p>
+                <p>Госуслуги: {{ formatBool(selectedLead.has_gosuslugi) }}</p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-gray-200 p-3">
+              <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Данные для отправки (raw)</p>
+              <pre class="text-xs bg-gray-50 border border-gray-100 rounded-lg p-3 overflow-auto">{{ leadDetailsJson }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -595,6 +672,8 @@ const emailRecipientsInput = ref('')
 const projectLeads = ref([])
 const leadsLoading = ref(false)
 const leadsError = ref('')
+const selectedLead = ref(null)
+const leadDetailsLoading = ref(false)
 
 const projectForm = reactive({
   name: '',
@@ -743,6 +822,26 @@ const fetchProjectLeads = async () => {
   }
 }
 
+const openLeadDetails = async (lead) => {
+  if (!lead?.id) return
+  selectedLead.value = { ...lead }
+  try {
+    leadDetailsLoading.value = true
+    const { data } = await api.get(`phone-leads/${lead.id}`)
+    selectedLead.value = data || { ...lead }
+  } catch (error) {
+    console.error('Error fetching lead details:', error)
+    toaster.error('Не удалось загрузить детали заявки')
+  } finally {
+    leadDetailsLoading.value = false
+  }
+}
+
+const closeLeadDetails = () => {
+  selectedLead.value = null
+  leadDetailsLoading.value = false
+}
+
 const deleteProject = async (project) => {
   if (!confirm(`Вы уверены, что хотите удалить проект "${project.name}"?`)) {
     return
@@ -859,6 +958,21 @@ const formatLeadDate = (value) => {
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleString('ru-RU')
 }
+
+const formatBool = (v) => {
+  if (v === true) return 'Да'
+  if (v === false) return 'Нет'
+  return '—'
+}
+
+const leadDetailsJson = computed(() => {
+  if (!selectedLead.value) return '{}'
+  try {
+    return JSON.stringify(selectedLead.value, null, 2)
+  } catch (e) {
+    return '{}'
+  }
+})
 
 watch(activeTab, async (tab) => {
   if (tab === 'leads' && viewingProject.value?.id) {
