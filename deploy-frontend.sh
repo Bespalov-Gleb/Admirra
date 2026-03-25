@@ -2,8 +2,8 @@
 set -e
 
 FRONTEND_DIR="./admin-panel-vue-main/admin-panel-vue-main"
-DEPLOY_DIR="/var/www/admirra.online"
-BACKUP_DIR="/var/www/admirra.online.backup.$(date +%Y%m%d_%H%M%S)"
+DEPLOY_DIR="/var/www/admirra.ru"
+BACKUP_DIR="/var/www/admirra.ru.backup.$(date +%Y%m%d_%H%M%S)"
 
 echo "=================================================="
 echo "🚀 FRONTEND DEPLOYMENT SCRIPT"

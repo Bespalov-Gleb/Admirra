@@ -65,16 +65,37 @@ def _extract_vk_user_id_from_field(value) -> Optional[int]:
     return None
 
 
+def _extract_tiktok_username(url: str) -> Optional[str]:
+    """
+    Извлекаем username из ссылок вида:
+    - https://www.tiktok.com/@username
+    - https://tiktok.com/@username
+    """
+    if not url:
+        return None
+    # Username обычно состоит из букв/цифр/подчеркиваний/точек.
+    m = re.search(r"tiktok\.com/(?:@)?([A-Za-z0-9_\.]{2,24})", url)
+    if m:
+        return m.group(1)
+    return None
+
+
 @dataclass
 class InfoTrackPeopleResult:
     has_telegram: Optional[bool] = None
     has_vk: Optional[bool] = None
+    has_whatsapp: Optional[bool] = None
+    has_viber: Optional[bool] = None
+    has_tiktok: Optional[bool] = None
     telegram_username: Optional[str] = None
     vk_profile_url: Optional[str] = None
     vk_user_id: Optional[int] = None
+    tiktok_username: Optional[str] = None
     email: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
+    phones: Optional[List[str]] = None
+    socials: Optional[List[dict]] = None
 
 
 class InfoTrackPeopleChecker:
@@ -174,13 +195,20 @@ class InfoTrackPeopleChecker:
         # Флаги, чтобы отличать "не нашли" от "нашли, но соцсети не указаны в полях".
         found_telegram = False
         found_vk = False
+        found_whatsapp = False
+        found_viber = False
+        found_tiktok = False
         telegram_username: Optional[str] = None
         vk_profile_url: Optional[str] = None
         vk_user_id: Optional[int] = None
+        tiktok_username: Optional[str] = None
         any_socials_field_seen = False
         extracted_email: Optional[str] = None
         extracted_name: Optional[str] = None
         extracted_phone: Optional[str] = None
+        extracted_phones: Set[str] = set()
+        itp_socials: List[dict] = []
+        itp_socials_seen: Set[tuple] = set()
         observed_fields: Set[str] = set()
 
         def _pick_first_nonempty(*values) -> Optional[str]:
@@ -194,6 +222,21 @@ class InfoTrackPeopleChecker:
             if not e or "@" not in e:
                 return None
             return e
+
+        def _add_phones(value) -> None:
+            if value is None:
+                return
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        s = item.strip()
+                        if s:
+                            extracted_phones.add(s)
+                return
+            if isinstance(value, str):
+                s = value.strip()
+                if s:
+                    extracted_phones.add(s)
 
         for _db_name, db_payload in data_block.items():
             if not isinstance(db_payload, dict):
@@ -221,6 +264,13 @@ class InfoTrackPeopleChecker:
                     url = str(social.get("url") or "").strip()
                     title_l = title.lower()
 
+                    # Сохраняем все соцсети (кроме дубликатов) для "все соцсети"
+                    if title or url:
+                        key = (title_l, url)
+                        if key not in itp_socials_seen:
+                            itp_socials_seen.add(key)
+                            itp_socials.append({"title": title, "url": url})
+
                     # Telegram
                     if "telegram" in title_l or title_l == "tg":
                         found_telegram = True
@@ -239,6 +289,23 @@ class InfoTrackPeopleChecker:
                         if url:
                             vk_profile_url = url
                             vk_user_id = _extract_vk_user_id(url)
+                        continue
+
+                    # WhatsApp
+                    if "whatsapp" in title_l:
+                        found_whatsapp = True
+                        continue
+
+                    # Viber
+                    if "viber" in title_l:
+                        found_viber = True
+                        continue
+
+                    # TikTok
+                    if "tiktok" in title_l:
+                        found_tiktok = True
+                        if url and not tiktok_username:
+                            tiktok_username = _extract_tiktok_username(url)
                         continue
 
                 # Fallback поля v1/v2, если socials пустой/неполный
@@ -306,6 +373,8 @@ class InfoTrackPeopleChecker:
                         record.get("phone"),
                         record.get("phone_number"),
                     )
+                _add_phones(record.get("phone"))
+                _add_phones(record.get("phone_number"))
 
         if not found_records:
             return None
@@ -315,6 +384,7 @@ class InfoTrackPeopleChecker:
             or extracted_email
             or extracted_name
             or extracted_phone
+            or extracted_phones
             or telegram_username
             or vk_profile_url
             or vk_user_id is not None
@@ -366,6 +436,13 @@ class InfoTrackPeopleChecker:
                                     url = str(social.get("url") or "").strip()
                                     title_l = title.lower()
 
+                                    # Сохраняем все соцсети (кроме дубликатов) для "все соцсети"
+                                    if title or url:
+                                        key = (title_l, url)
+                                        if key not in itp_socials_seen:
+                                            itp_socials_seen.add(key)
+                                            itp_socials.append({"title": title, "url": url})
+
                                     if "telegram" in title_l or title_l == "tg":
                                         found_telegram = True
                                         u = _extract_telegram_username(url)
@@ -383,6 +460,20 @@ class InfoTrackPeopleChecker:
                                             vk_profile_url = url
                                         if vk_user_id is None and vk_profile_url:
                                             vk_user_id = _extract_vk_user_id(vk_profile_url)
+                                        continue
+
+                                    if "whatsapp" in title_l:
+                                        found_whatsapp = True
+                                        continue
+
+                                    if "viber" in title_l:
+                                        found_viber = True
+                                        continue
+
+                                    if "tiktok" in title_l:
+                                        found_tiktok = True
+                                        if url and not tiktok_username:
+                                            tiktok_username = _extract_tiktok_username(url)
                                         continue
 
                                 if not extracted_email:
@@ -404,6 +495,8 @@ class InfoTrackPeopleChecker:
                                         record.get("phone"),
                                         record.get("phone_number"),
                                     )
+                                _add_phones(record.get("phone"))
+                                _add_phones(record.get("phone_number"))
 
         res = InfoTrackPeopleResult()
         # Если поле socials встречалось в данных, то отсутствие Telegram/VK считаем False.
@@ -411,25 +504,39 @@ class InfoTrackPeopleChecker:
         if any_socials_field_seen:
             res.has_telegram = found_telegram
             res.has_vk = found_vk
+            res.has_whatsapp = found_whatsapp
+            res.has_viber = found_viber
+            res.has_tiktok = found_tiktok
             res.telegram_username = telegram_username
             res.vk_profile_url = vk_profile_url
             res.vk_user_id = vk_user_id
+            res.tiktok_username = tiktok_username
         else:
             res.has_telegram = None
             res.has_vk = None
+            res.has_whatsapp = None
+            res.has_viber = None
+            res.has_tiktok = None
 
         res.email = extracted_email
         res.name = extracted_name
         res.phone = extracted_phone
+        res.phones = list(sorted(extracted_phones)) if extracted_phones else None
+        # Ограничиваем размер для экономии места в БД/ответов UI
+        res.socials = itp_socials[:200] if itp_socials else None
 
         logger.info(
-            "ITP parsed socials for phone=%s: has_tg=%s, has_vk=%s, tg_username=%s, vk_url=%s, vk_id=%s, email=%s, name=%s, phone=%s",
+            "ITP parsed socials for phone=%s: has_tg=%s, has_vk=%s, has_wa=%s, has_viber=%s, has_tt=%s, tg_username=%s, vk_url=%s, vk_id=%s, tt_username=%s, email=%s, name=%s, phone=%s",
             phone,
             res.has_telegram,
             res.has_vk,
+            res.has_whatsapp,
+            res.has_viber,
+            res.has_tiktok,
             bool(res.telegram_username),
             bool(res.vk_profile_url),
             res.vk_user_id,
+            bool(res.tiktok_username),
             bool(res.email),
             bool(res.name),
             bool(res.phone),

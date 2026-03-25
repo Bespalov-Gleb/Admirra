@@ -2,8 +2,8 @@
 set -e
 
 FRONTEND_BUILD_CONTEXT="./admin-panel-vue-main/admin-panel-vue-main"
-DEPLOY_DIR="/var/www/admirra.online"
-BACKUP_DIR="/var/www/admirra.online.backup.$(date +%Y%m%d_%H%M%S)"
+DEPLOY_DIR="/var/www/admirra.ru"
+BACKUP_DIR="/var/www/admirra.ru.backup.$(date +%Y%m%d_%H%M%S)"
 DOCKER_IMAGE_NAME="temp-frontend-builder"
 DOCKER_CONTAINER_NAME="temp-frontend-extractor"
 

@@ -663,6 +663,10 @@ class LeadValidator:
                 if social_json:
                     lead_record.social_accounts_data = social_json
 
+                # Если ITP нашёл email — заполняем поле лида (в UI выводится именно из lead.email)
+                if sr and getattr(sr, "itp_email", None) and not lead_record.email:
+                    lead_record.email = sr.itp_email
+
                 # Если ITP вернул ФИО, а в заявке только имя/неполные поля — восстанавливаем name/surname.
                 if sr and getattr(sr, "itp_name", None):
                     lead_record.name, lead_record.surname = _restore_name_from_itp_fio(

@@ -62,6 +62,8 @@ class SocialCheckResult:
     itp_email: Optional[str] = None
     itp_name: Optional[str] = None
     itp_phone: Optional[str] = None
+    itp_phones: Optional[list] = None  # list[str], но типизируем мягко для совместимости
+    itp_socials: Optional[list] = None  # list[dict]
     
     # Статус проверки
     checked: bool = False
@@ -177,9 +179,9 @@ class SocialChecker:
         # Ключ кеша: при name учитываем его, чтобы не смешивать результаты с/без VK
         normalized_email = (email or "").strip().lower()[:120] if email else ""
         cache_key = (
-            f"social_check:{normalized_phone}:n:{normalized_name}:e:{normalized_email}"
+            f"social_check:v2:{normalized_phone}:n:{normalized_name}:e:{normalized_email}"
             if (normalized_name or normalized_email)
-            else f"social_check:{normalized_phone}"
+            else f"social_check:v2:{normalized_phone}"
         )
         if redis_service.enabled:
             try:
@@ -200,13 +202,29 @@ class SocialChecker:
                     provider_responded = True
                     result.has_telegram = itp_result.get("has_telegram")
                     result.has_vk = itp_result.get("has_vk")
+                    result.has_whatsapp = itp_result.get("has_whatsapp")
+                    result.has_viber = itp_result.get("has_viber")
+                    result.has_tiktok = itp_result.get("has_tiktok")
                     result.telegram_username = itp_result.get("telegram_username")
                     result.vk_profile_url = itp_result.get("vk_profile_url")
                     result.vk_user_id = itp_result.get("vk_user_id")
+                    result.tiktok_username = itp_result.get("tiktok_username")
                     result.itp_email = itp_result.get("email")
                     result.itp_name = itp_result.get("name")
                     result.itp_phone = itp_result.get("phone")
-                    if result.has_telegram is not None or result.has_vk is not None:
+                    result.itp_phones = itp_result.get("phones")
+                    result.itp_socials = itp_result.get("socials")
+
+                    if any(
+                        v is not None
+                        for v in (
+                            result.has_telegram,
+                            result.has_vk,
+                            result.has_whatsapp,
+                            result.has_viber,
+                            result.has_tiktok,
+                        )
+                    ):
                         result.provider = "InfoTrackPeople"
                         result.checked = True
                 logger.info(
@@ -443,12 +461,18 @@ class SocialChecker:
             return {
                 "has_telegram": itp_res.has_telegram,
                 "has_vk": itp_res.has_vk,
+                "has_whatsapp": itp_res.has_whatsapp,
+                "has_viber": itp_res.has_viber,
+                "has_tiktok": itp_res.has_tiktok,
                 "telegram_username": itp_res.telegram_username,
                 "vk_profile_url": itp_res.vk_profile_url,
                 "vk_user_id": itp_res.vk_user_id,
+                "tiktok_username": itp_res.tiktok_username,
                 "email": itp_res.email,
                 "name": itp_res.name,
                 "phone": itp_res.phone,
+                "phones": itp_res.phones,
+                "socials": itp_res.socials,
             }
         except Exception as e:
             logger.warning(f"InfoTrackPeople request failed for {phone}: {e}")
