@@ -760,7 +760,7 @@ const loadingAuth = ref(false)
 const initYandexAuth = async () => {
   loadingAuth.value = true
   try {
-    // Generate callback URL based on current domain (localhost or admirra.ru)
+    // Generate callback URL based on current domain (localhost or admirra.online)
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
     
     // Save client name to local storage to retrieve it after callback
