@@ -92,6 +92,18 @@ def merge_social_accounts_payload(
         if social_result.has_viber is True:
             merged["viber"] = {"has_account": True, "sources": ["api"]}
 
+        # Данные InfoTrackPeople для отображения/отладки (не завязаны на форм-флаги)
+        if social_result.itp_email:
+            merged["itp_email"] = social_result.itp_email
+        if social_result.itp_name:
+            merged["itp_name"] = social_result.itp_name
+        if social_result.itp_phone:
+            merged["itp_phone"] = social_result.itp_phone
+        if social_result.itp_phones:
+            merged["itp_phones"] = social_result.itp_phones
+        if social_result.itp_socials:
+            merged["itp_socials"] = social_result.itp_socials
+
     hints = extract_form_messenger_hints(form_data)
     for channel, raw in hints.items():
         if not _hint_implies_account(raw):

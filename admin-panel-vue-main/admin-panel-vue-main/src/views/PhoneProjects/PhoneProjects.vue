@@ -606,6 +606,12 @@
                 <p class="text-sm text-gray-900 mt-1">Телефон: {{ selectedLead.phone || '—' }}</p>
                 <p class="text-sm text-gray-900">Email: {{ selectedLead.email || '—' }}</p>
                 <p class="text-sm text-gray-900">Имя: {{ selectedLead.name || '—' }} {{ selectedLead.surname || '' }}</p>
+                <p class="text-sm text-gray-900">Доп. телефоны: 
+                  <template v-if="getItpPhones(selectedLead)">
+                    {{ getItpPhones(selectedLead).join(', ') }}
+                  </template>
+                  <template v-else>—</template>
+                </p>
               </div>
               <div class="rounded-xl border border-gray-200 p-3">
                 <p class="text-xs font-semibold text-gray-500 uppercase">Статус</p>
@@ -643,11 +649,64 @@
             <div class="rounded-xl border border-gray-200 p-3">
               <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Проверки</p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-900">
-                <p>Telegram: {{ formatBool(selectedLead.has_telegram) }}</p>
+                <p>
+                  Telegram:
+                  <template v-if="getTelegramLabel(selectedLead)">
+                    <a
+                      :href="getTelegramUrl(selectedLead)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-blue-600 hover:text-blue-700 underline"
+                    >
+                      {{ getTelegramLabel(selectedLead) }}
+                    </a>
+                  </template>
+                  <template v-else>{{ formatBool(selectedLead.has_telegram) }}</template>
+                </p>
+                <p>
+                  VK:
+                  <template v-if="getVkUrl(selectedLead)">
+                    <a
+                      :href="getVkUrl(selectedLead)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-blue-600 hover:text-blue-700 underline break-all"
+                    >
+                      {{ getVkLabel(selectedLead) }}
+                    </a>
+                  </template>
+                  <template v-else>{{ formatBool(selectedLead.has_vk) }}</template>
+                </p>
                 <p>WhatsApp: {{ formatBool(selectedLead.has_whatsapp) }}</p>
                 <p>Viber: {{ formatBool(selectedLead.has_viber) }}</p>
-                <p>TikTok: {{ formatBool(selectedLead.has_tiktok) }}</p>
-                <p>VK: {{ formatBool(selectedLead.has_vk) }}</p>
+                <p>
+                  TikTok:
+                  <template v-if="getTikTokUrl(selectedLead)">
+                    <a
+                      :href="getTikTokUrl(selectedLead)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-blue-600 hover:text-blue-700 underline"
+                    >
+                      {{ getTikTokLabel(selectedLead) }}
+                    </a>
+                  </template>
+                  <template v-else>{{ formatBool(selectedLead.has_tiktok) }}</template>
+                </p>
+                <div
+                  v-if="getItpSocials(selectedLead) && getItpSocials(selectedLead).length"
+                  class="mt-2"
+                >
+                  <p class="text-xs text-gray-500">ITP соцсети (первые 5):</p>
+                  <div class="text-xs text-gray-700 space-y-1">
+                    <p
+                      v-for="(s, idx) in getItpSocials(selectedLead).slice(0, 5)"
+                      :key="idx"
+                    >
+                      {{ s.title || '—' }}: {{ s.url || '—' }}
+                    </p>
+                  </div>
+                </div>
                 <p>Госуслуги: {{ formatBool(selectedLead.has_gosuslugi) }}</p>
               </div>
             </div>
@@ -984,6 +1043,89 @@ const leadDetailsJson = computed(() => {
     return '{}'
   }
 })
+
+const getSocialData = (lead, key) => {
+  const root = lead?.social_accounts_data
+  if (!root || typeof root !== 'object') return null
+  const entry = root[key]
+  return entry && typeof entry === 'object' ? entry : null
+}
+
+const getItpPhones = (lead) => {
+  const root = lead?.social_accounts_data
+  if (!root || typeof root !== 'object') return null
+  const phones = root?.itp_phones
+  if (!Array.isArray(phones) || phones.length === 0) return null
+  return phones
+}
+
+const getItpSocials = (lead) => {
+  const root = lead?.social_accounts_data
+  if (!root || typeof root !== 'object') return null
+  const socials = root?.itp_socials
+  if (!Array.isArray(socials) || socials.length === 0) return null
+  return socials
+}
+
+const toSafeUrl = (raw, preferredProtocol = 'https') => {
+  if (!raw || typeof raw !== 'string') return null
+  const value = raw.trim()
+  if (!value) return null
+  if (value.startsWith('http://') || value.startsWith('https://')) return value
+  if (value.startsWith('//')) return `${preferredProtocol}:${value}`
+  return `${preferredProtocol}://${value}`
+}
+
+const getTelegramUsername = (lead) => {
+  const tg = getSocialData(lead, 'telegram')
+  if (!tg) return null
+  const candidate = (tg.username || tg.from_form || '').toString().trim()
+  if (!candidate) return null
+  return candidate.replace(/^@/, '').replace(/^https?:\/\/t\.me\//i, '').replace(/\/+$/, '')
+}
+
+const getTelegramUrl = (lead) => {
+  const username = getTelegramUsername(lead)
+  if (!username) return null
+  return `https://t.me/${username}`
+}
+
+const getTelegramLabel = (lead) => {
+  const username = getTelegramUsername(lead)
+  return username ? `@${username}` : null
+}
+
+const getVkUrl = (lead) => {
+  const vk = getSocialData(lead, 'vk')
+  if (!vk) return null
+  const candidate = (vk.profile_url || vk.from_form || '').toString().trim()
+  return toSafeUrl(candidate)
+}
+
+const getVkLabel = (lead) => {
+  const url = getVkUrl(lead)
+  if (!url) return null
+  return url.replace(/^https?:\/\//i, '')
+}
+
+const getTikTokUsername = (lead) => {
+  const tt = getSocialData(lead, 'tiktok')
+  if (!tt) return null
+  const candidate = (tt.username || tt.from_form || '').toString().trim()
+  if (!candidate) return null
+  return candidate.replace(/^@/, '').replace(/^https?:\/\/(www\.)?tiktok\.com\/@?/i, '').replace(/\/+$/, '')
+}
+
+const getTikTokUrl = (lead) => {
+  const username = getTikTokUsername(lead)
+  if (!username) return null
+  return `https://www.tiktok.com/@${username}`
+}
+
+const getTikTokLabel = (lead) => {
+  const username = getTikTokUsername(lead)
+  return username ? `@${username}` : null
+}
 
 watch(activeTab, async (tab) => {
   if (tab === 'leads' && viewingProject.value?.id) {
