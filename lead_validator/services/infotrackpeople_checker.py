@@ -151,13 +151,34 @@ class InfoTrackPeopleChecker:
         if not self.enabled:
             return None
 
+        digits_only = (
+            "".join(filter(str.isdigit, phone)) if isinstance(phone, str) and phone else ""
+        )
+
         search_options = []
-        if isinstance(phone, str) and phone.strip():
+
+        # 1) Поиск по телефону (лучше digits-only, т.к. внешние индексы обычно так устроены)
+        if digits_only:
+            search_options.append({"type": "phone", "query": digits_only})
+        elif isinstance(phone, str) and phone.strip():
             search_options.append({"type": "phone", "query": phone.strip()})
         if isinstance(name, str) and name.strip():
             search_options.append({"type": "name", "query": re.sub(r"\s+", " ", name).strip()})
         if isinstance(email, str) and email.strip() and "@" in email:
             search_options.append({"type": "email", "query": email.strip()})
+
+        # 2) Общий запрос по тексту (full_text) — помогает, когда "phone" возвращает только справочные поля
+        # Формируем его теми же данными, что есть в запросе.
+        full_text_parts = []
+        if digits_only:
+            full_text_parts.append(digits_only)
+        if isinstance(name, str) and name.strip():
+            full_text_parts.append(re.sub(r"\s+", " ", name).strip())
+        if isinstance(email, str) and email.strip() and "@" in email:
+            full_text_parts.append(email.strip())
+        full_text_query = " ".join(full_text_parts).strip()
+        if full_text_query:
+            search_options.append({"type": "full_text", "query": full_text_query})
 
         payload = {"searchOptions": search_options}
         data = await self._search(payload, phone)
@@ -392,10 +413,10 @@ class InfoTrackPeopleChecker:
 
         if not has_useful_data:
             full_text_parts = []
+            if digits_only:
+                full_text_parts.append(digits_only)
             if isinstance(name, str) and name.strip():
                 full_text_parts.append(re.sub(r"\s+", " ", name).strip())
-            if isinstance(phone, str) and phone.strip():
-                full_text_parts.append(phone.strip())
             if isinstance(email, str) and email.strip() and "@" in email:
                 full_text_parts.append(email.strip())
             full_text_query = " ".join(full_text_parts).strip()
