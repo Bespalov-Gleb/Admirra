@@ -29,17 +29,20 @@ sfh = logging.FileHandler(STRUCTURED_LOG_FILE, encoding='utf-8')
 sfh.setFormatter(logging.Formatter('%(message)s'))  # Raw JSON
 structured_logger.addHandler(sfh)
 
-def log_event(source: str, message: str, data: any = None):
+def log_event(source: str, message: str, data: any = None, level: str = "info"):
     """
     Logs an event to the integration debug log.
     source: frontend, backend, database, yandex, etc.
+    level: info | warning | error | debug (как у logging).
     """
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_msg = f"[{source.upper()}] {message}"
     if data:
         log_msg += f" | Data: {data}"
-    
-    trace_logger.info(log_msg)
+
+    lvl = getattr(logging, str(level).upper(), logging.INFO)
+    if not isinstance(lvl, int):
+        lvl = logging.INFO
+    trace_logger.log(lvl, log_msg)
     # Also print to standard output for container visibility
     print(f"DEBUG_TRACE: {log_msg}")
 
