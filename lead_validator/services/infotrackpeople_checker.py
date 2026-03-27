@@ -172,6 +172,9 @@ class InfoTrackPeopleChecker:
         full_text_parts = []
         if digits_only:
             full_text_parts.append(digits_only)
+        # Иногда API лучше матчит "full_text" по исходной строке (+7...)
+        if isinstance(phone, str) and phone.strip():
+            full_text_parts.append(phone.strip())
         if isinstance(name, str) and name.strip():
             full_text_parts.append(re.sub(r"\s+", " ", name).strip())
         if isinstance(email, str) and email.strip() and "@" in email:
@@ -415,6 +418,8 @@ class InfoTrackPeopleChecker:
             full_text_parts = []
             if digits_only:
                 full_text_parts.append(digits_only)
+            if isinstance(phone, str) and phone.strip():
+                full_text_parts.append(phone.strip())
             if isinstance(name, str) and name.strip():
                 full_text_parts.append(re.sub(r"\s+", " ", name).strip())
             if isinstance(email, str) and email.strip() and "@" in email:
