@@ -148,6 +148,7 @@ class LeadValidatorSettings:
     # Спам-номера (Уровень 5)
     SPRAVPORTAL_API_KEY: str = ""  # SpravPortal WhoCalls API
     KASPERSKY_API_KEY: str = ""  # Kaspersky Who Calls API
+    CALLFILTER_API_KEY: str = ""  # Callfilter API (free tier)
     
     # Bitrix24 CRM (Уровень 3)
     BITRIX24_WEBHOOK_URL: str = ""  # Webhook URL для доступа к API
@@ -174,6 +175,32 @@ class LeadValidatorSettings:
     PLACEMENT_BLACKLIST_THRESHOLD: float = 70.0  # Порог для добавления в чёрный список (% мусора)
     PLACEMENT_BLACKLIST_MIN_LEADS: int = 10  # Минимальное кол-во заявок
     PLACEMENT_BLACKLIST_TTL_DAYS: int = 21  # Время жизни в чёрном списке (дней)
+
+    # Lead scoring: веса сигналов и пороги tier
+    LEAD_SCORE_WEIGHT_MOBILE: int = 20
+    LEAD_SCORE_WEIGHT_DADATA_QC_GOOD: int = 15
+    LEAD_SCORE_WEIGHT_TELEGRAM: int = 20
+    LEAD_SCORE_WEIGHT_WHATSAPP: int = 15
+    LEAD_SCORE_WEIGHT_VK: int = 15
+    LEAD_SCORE_WEIGHT_VIBER: int = 10
+    LEAD_SCORE_WEIGHT_TIKTOK: int = 10
+    LEAD_SCORE_WEIGHT_GOSUSLUGI: int = 25
+    LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI: int = 10
+    LEAD_SCORE_TIER_HIGH_MIN: int = 70
+    LEAD_SCORE_TIER_MEDIUM_MIN: int = 40
+
+    # Lead scoring: веса сигналов и пороги tier
+    LEAD_SCORE_WEIGHT_MOBILE: int = 20
+    LEAD_SCORE_WEIGHT_DADATA_QC_GOOD: int = 15
+    LEAD_SCORE_WEIGHT_TELEGRAM: int = 20
+    LEAD_SCORE_WEIGHT_WHATSAPP: int = 15
+    LEAD_SCORE_WEIGHT_VK: int = 15
+    LEAD_SCORE_WEIGHT_VIBER: int = 10
+    LEAD_SCORE_WEIGHT_TIKTOK: int = 10
+    LEAD_SCORE_WEIGHT_GOSUSLUGI: int = 25
+    LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI: int = 10
+    LEAD_SCORE_TIER_HIGH_MIN: int = 70
+    LEAD_SCORE_TIER_MEDIUM_MIN: int = 40
     
     def __post_init__(self):
         """Загрузка значений из переменных окружения."""
@@ -264,6 +291,7 @@ class LeadValidatorSettings:
         # Спам-номера
         self.SPRAVPORTAL_API_KEY = _get_env("SPRAVPORTAL_API_KEY", "")
         self.KASPERSKY_API_KEY = _get_env("KASPERSKY_API_KEY", "")
+        self.CALLFILTER_API_KEY = _get_env("CALLFILTER_API_KEY", "")
         
         # Bitrix24 CRM
         self.BITRIX24_WEBHOOK_URL = _get_env("BITRIX24_WEBHOOK_URL", "")
@@ -290,6 +318,32 @@ class LeadValidatorSettings:
         self.PLACEMENT_BLACKLIST_THRESHOLD = _get_env_float("PLACEMENT_BLACKLIST_THRESHOLD", 70.0)
         self.PLACEMENT_BLACKLIST_MIN_LEADS = _get_env_int("PLACEMENT_BLACKLIST_MIN_LEADS", 10)
         self.PLACEMENT_BLACKLIST_TTL_DAYS = _get_env_int("PLACEMENT_BLACKLIST_TTL_DAYS", 21)
+
+        # Lead scoring
+        self.LEAD_SCORE_WEIGHT_MOBILE = _get_env_int("LEAD_SCORE_WEIGHT_MOBILE", 20)
+        self.LEAD_SCORE_WEIGHT_DADATA_QC_GOOD = _get_env_int("LEAD_SCORE_WEIGHT_DADATA_QC_GOOD", 15)
+        self.LEAD_SCORE_WEIGHT_TELEGRAM = _get_env_int("LEAD_SCORE_WEIGHT_TELEGRAM", 20)
+        self.LEAD_SCORE_WEIGHT_WHATSAPP = _get_env_int("LEAD_SCORE_WEIGHT_WHATSAPP", 15)
+        self.LEAD_SCORE_WEIGHT_VK = _get_env_int("LEAD_SCORE_WEIGHT_VK", 15)
+        self.LEAD_SCORE_WEIGHT_VIBER = _get_env_int("LEAD_SCORE_WEIGHT_VIBER", 10)
+        self.LEAD_SCORE_WEIGHT_TIKTOK = _get_env_int("LEAD_SCORE_WEIGHT_TIKTOK", 10)
+        self.LEAD_SCORE_WEIGHT_GOSUSLUGI = _get_env_int("LEAD_SCORE_WEIGHT_GOSUSLUGI", 25)
+        self.LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI = _get_env_int("LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI", 10)
+        self.LEAD_SCORE_TIER_HIGH_MIN = _get_env_int("LEAD_SCORE_TIER_HIGH_MIN", 70)
+        self.LEAD_SCORE_TIER_MEDIUM_MIN = _get_env_int("LEAD_SCORE_TIER_MEDIUM_MIN", 40)
+
+        # Lead scoring
+        self.LEAD_SCORE_WEIGHT_MOBILE = _get_env_int("LEAD_SCORE_WEIGHT_MOBILE", 20)
+        self.LEAD_SCORE_WEIGHT_DADATA_QC_GOOD = _get_env_int("LEAD_SCORE_WEIGHT_DADATA_QC_GOOD", 15)
+        self.LEAD_SCORE_WEIGHT_TELEGRAM = _get_env_int("LEAD_SCORE_WEIGHT_TELEGRAM", 20)
+        self.LEAD_SCORE_WEIGHT_WHATSAPP = _get_env_int("LEAD_SCORE_WEIGHT_WHATSAPP", 15)
+        self.LEAD_SCORE_WEIGHT_VK = _get_env_int("LEAD_SCORE_WEIGHT_VK", 15)
+        self.LEAD_SCORE_WEIGHT_VIBER = _get_env_int("LEAD_SCORE_WEIGHT_VIBER", 10)
+        self.LEAD_SCORE_WEIGHT_TIKTOK = _get_env_int("LEAD_SCORE_WEIGHT_TIKTOK", 10)
+        self.LEAD_SCORE_WEIGHT_GOSUSLUGI = _get_env_int("LEAD_SCORE_WEIGHT_GOSUSLUGI", 25)
+        self.LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI = _get_env_int("LEAD_SCORE_WEIGHT_NAME_MATCH_GOSUSLUGI", 10)
+        self.LEAD_SCORE_TIER_HIGH_MIN = _get_env_int("LEAD_SCORE_TIER_HIGH_MIN", 70)
+        self.LEAD_SCORE_TIER_MEDIUM_MIN = _get_env_int("LEAD_SCORE_TIER_MEDIUM_MIN", 40)
 
 
 # Глобальный экземпляр настроек

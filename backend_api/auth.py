@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core import models, schemas, security
+from core.public_domain import resolve_frontend_url
 from .auth_helpers import (
     generate_email_verification_raw_token,
     generate_otp_digits,
@@ -28,7 +29,7 @@ from .services.auth_mail import (
 logger = logging.getLogger("api")
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+FRONTEND_URL = resolve_frontend_url()
 RESEND_COOLDOWN_SEC = int(os.getenv("AUTH_RESEND_COOLDOWN_SEC", "60"))
 
 

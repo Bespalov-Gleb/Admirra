@@ -13,7 +13,7 @@ Docs:
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Dict, Any
 
 import httpx
 from lead_validator.config import settings
@@ -155,61 +155,101 @@ class InfoTrackPeopleChecker:
             "".join(filter(str.isdigit, phone)) if isinstance(phone, str) and phone else ""
         )
 
-        search_options = []
+        phone_text = phone.strip() if isinstance(phone, str) else ""
+        normalized_name = re.sub(r"\s+", " ", name).strip() if isinstance(name, str) and name.strip() else ""
+        normalized_email = email.strip() if isinstance(email, str) and email.strip() and "@" in email else ""
 
-        # 1) Поиск по телефону (лучше digits-only, т.к. внешние индексы обычно так устроены)
-        if digits_only:
-            search_options.append({"type": "phone", "query": digits_only})
-        elif isinstance(phone, str) and phone.strip():
-            search_options.append({"type": "phone", "query": phone.strip()})
-        if isinstance(name, str) and name.strip():
-            search_options.append({"type": "name", "query": re.sub(r"\s+", " ", name).strip()})
-        if isinstance(email, str) and email.strip() and "@" in email:
-            search_options.append({"type": "email", "query": email.strip()})
-
-        # 2) Общий запрос по тексту (full_text) — помогает, когда "phone" возвращает только справочные поля
-        # Формируем его теми же данными, что есть в запросе.
+        # Общий текстовый запрос для "широкого" матчинга.
         full_text_parts = []
         if digits_only:
             full_text_parts.append(digits_only)
-        # Иногда API лучше матчит "full_text" по исходной строке (+7...)
-        if isinstance(phone, str) and phone.strip():
-            full_text_parts.append(phone.strip())
-        if isinstance(name, str) and name.strip():
-            full_text_parts.append(re.sub(r"\s+", " ", name).strip())
-        if isinstance(email, str) and email.strip() and "@" in email:
-            full_text_parts.append(email.strip())
+        if phone_text:
+            full_text_parts.append(phone_text)
+        if normalized_name:
+            full_text_parts.append(normalized_name)
+        if normalized_email:
+            full_text_parts.append(normalized_email)
         full_text_query = " ".join(full_text_parts).strip()
+
+        # Варианты payload: ITP по-разному индексирует phone/full_text.
+        payloads: List[dict] = []
+
+        opts_digits: List[dict] = []
+        if digits_only:
+            opts_digits.append({"type": "phone", "query": digits_only})
+        elif phone_text:
+            opts_digits.append({"type": "phone", "query": phone_text})
+        if normalized_name:
+            opts_digits.append({"type": "name", "query": normalized_name})
+        if normalized_email:
+            opts_digits.append({"type": "email", "query": normalized_email})
         if full_text_query:
-            search_options.append({"type": "full_text", "query": full_text_query})
+            opts_digits.append({"type": "full_text", "query": full_text_query})
+        if opts_digits:
+            payloads.append({"searchOptions": opts_digits})
 
-        payload = {"searchOptions": search_options}
-        data = await self._search(payload, phone)
+        # Альтернатива с phone как исходной строкой (+7...)
+        if phone_text and digits_only and phone_text != digits_only:
+            opts_phone_text: List[dict] = [{"type": "phone", "query": phone_text}]
+            if normalized_name:
+                opts_phone_text.append({"type": "name", "query": normalized_name})
+            if normalized_email:
+                opts_phone_text.append({"type": "email", "query": normalized_email})
+            if full_text_query:
+                opts_phone_text.append({"type": "full_text", "query": full_text_query})
+            payloads.append({"searchOptions": opts_phone_text})
 
-        if not isinstance(data, dict):
+        # Отдельный full_text-only пробуем всегда, если есть query
+        if full_text_query:
+            payloads.append({"searchOptions": [{"type": "full_text", "query": full_text_query}]})
+
+        responses: List[dict] = []
+        for idx, payload in enumerate(payloads, start=1):
+            data = await self._search(payload, phone)
+            if not isinstance(data, dict):
+                continue
+            responses.append(data)
+            if getattr(settings, "INFOTRACKPEOPLE_LOG_RAW", False):
+                try:
+                    raw_preview = str(data)
+                    if len(raw_preview) > 4000:
+                        raw_preview = raw_preview[:4000] + "...<truncated>"
+                    logger.info("ITP raw response #%s for phone=%s: %s", idx, phone, raw_preview)
+                except Exception:
+                    pass
+
+        if not responses:
             return None
 
-        if getattr(settings, "INFOTRACKPEOPLE_LOG_RAW", False):
+        # Мержим data-блоки из всех успешных ответов в единый набор.
+        merged_data_block: Dict[str, Any] = {}
+        merged_records = 0
+        for idx, data in enumerate(responses, start=1):
             try:
-                # Ограничиваем размер лога, чтобы не раздувать логи.
-                raw_preview = str(data)
-                if len(raw_preview) > 4000:
-                    raw_preview = raw_preview[:4000] + "...<truncated>"
-                logger.info("ITP raw response for phone=%s: %s", phone, raw_preview)
+                merged_records += int(data.get("records") or 0)
             except Exception:
                 pass
+            block = data.get("data")
+            if not isinstance(block, dict):
+                continue
+            for db_name, db_payload in block.items():
+                key = str(db_name)
+                if key in merged_data_block:
+                    key = f"{key}#{idx}"
+                merged_data_block[key] = db_payload
 
-        data_block = data.get("data")
-        if not isinstance(data_block, dict):
+        if not merged_data_block:
             return None
 
+        data_block = merged_data_block
+
         logger.info(
-            "ITP response meta for phone=%s (name=%s, email=%s): searchId=%s, records=%s, db_blocks=%s",
+            "ITP response meta for phone=%s (name=%s, email=%s): payloads=%s, merged_records=%s, db_blocks=%s",
             phone,
             bool(name and str(name).strip()),
             bool(email and str(email).strip()),
-            data.get("searchId"),
-            data.get("records"),
+            len(payloads),
+            merged_records,
             len(data_block),
         )
 

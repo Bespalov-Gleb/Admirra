@@ -40,6 +40,7 @@ class SpamChecker:
     def __init__(self):
         self.spravportal_enabled = bool(settings.SPRAVPORTAL_API_KEY)
         self.kaspersky_enabled = bool(settings.KASPERSKY_API_KEY)
+        self.callfilter_enabled = bool(getattr(settings, "CALLFILTER_API_KEY", ""))
         
     async def check_phone(self, phone: str) -> SpamCheckResult:
         """
@@ -97,8 +98,80 @@ class SpamChecker:
                     return result
             except Exception as e:
                 logger.warning(f"Kaspersky check failed for {phone[:10]}...: {e}")
+
+        if self.callfilter_enabled:
+            try:
+                callfilter_result = await self._check_callfilter(phone)
+                if callfilter_result.is_spam:
+                    result.is_spam = True
+                    result.category = callfilter_result.category
+                    result.source = "callfilter"
+                    result.reason = callfilter_result.reason
+                    logger.info(f"Callfilter marked {phone[:10]}... as {callfilter_result.category}")
+                    return result
+            except Exception as e:
+                logger.warning(f"Callfilter check failed for {phone[:10]}...: {e}")
         
         # Номер не является спамом
+        return result
+
+    async def _check_callfilter(self, phone: str) -> SpamCheckResult:
+        """
+        Проверка через Callfilter API.
+
+        Формат: GET https://api.callfilter.app/apis/{api_key}/1/{phone}
+        mode=1: {"phone":..., "blocked":0|1, "cat":1..8, "comments":N}
+        """
+        result = SpamCheckResult()
+        api_key = (getattr(settings, "CALLFILTER_API_KEY", "") or "").strip()
+        if not api_key:
+            return result
+
+        digits_only = "".join(filter(str.isdigit, phone))
+        if not digits_only or len(digits_only) < 10:
+            return result
+
+        url = f"https://api.callfilter.app/apis/{api_key}/1/{digits_only}"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(url)
+                if response.status_code != 200:
+                    logger.warning(
+                        "Callfilter API returned %s: %s",
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    return result
+
+                data: Dict[str, Any] = response.json() if response.text else {}
+                blocked = int(data.get("blocked", 0) or 0)
+                if blocked != 1:
+                    return result
+
+                cat_map = {
+                    1: "fraud",
+                    2: "advertising",
+                    3: "financial",
+                    4: "surveys",
+                    5: "debt_collectors",
+                    6: "company",
+                    7: "store",
+                    8: "spam",
+                }
+                cat_raw = data.get("cat")
+                try:
+                    cat_int = int(cat_raw)
+                except (TypeError, ValueError):
+                    cat_int = None
+
+                result.is_spam = True
+                result.category = cat_map.get(cat_int, "spam")
+                result.reason = f"callfilter_{result.category}"
+                return result
+        except httpx.TimeoutException:
+            logger.warning(f"Callfilter API timeout for {phone[:10]}...")
+        except Exception as e:
+            logger.error(f"Callfilter API error: {e}")
         return result
     
     async def _check_whitelist(self, phone: str) -> bool:

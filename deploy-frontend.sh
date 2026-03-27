@@ -2,8 +2,14 @@
 set -e
 
 FRONTEND_DIR="./admin-panel-vue-main/admin-panel-vue-main"
-DEPLOY_DIR="/var/www/admirra.ru"
-BACKUP_DIR="/var/www/admirra.ru.backup.$(date +%Y%m%d_%H%M%S)"
+ADMIRRA_DEPLOY_ENV="${ADMIRRA_DEPLOY_ENV:-prod}"
+if [ "$ADMIRRA_DEPLOY_ENV" = "dev" ]; then
+  DEPLOY_DIR="/var/www/admirra.online"
+else
+  DEPLOY_DIR="/var/www/admirra.ru"
+fi
+BACKUP_DIR="${DEPLOY_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+export VITE_ADMIRRA_DEPLOY_ENV="${VITE_ADMIRRA_DEPLOY_ENV:-$ADMIRRA_DEPLOY_ENV}"
 
 echo "=================================================="
 echo "🚀 FRONTEND DEPLOYMENT SCRIPT"

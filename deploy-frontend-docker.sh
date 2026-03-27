@@ -2,8 +2,14 @@
 set -e
 
 FRONTEND_BUILD_CONTEXT="./admin-panel-vue-main/admin-panel-vue-main"
-DEPLOY_DIR="/var/www/admirra.ru"
-BACKUP_DIR="/var/www/admirra.ru.backup.$(date +%Y%m%d_%H%M%S)"
+ADMIRRA_DEPLOY_ENV="${ADMIRRA_DEPLOY_ENV:-prod}"
+if [ "$ADMIRRA_DEPLOY_ENV" = "dev" ]; then
+  DEPLOY_DIR="/var/www/admirra.online"
+else
+  DEPLOY_DIR="/var/www/admirra.ru"
+fi
+BACKUP_DIR="${DEPLOY_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+VITE_ADMIRRA_DEPLOY_ENV="${VITE_ADMIRRA_DEPLOY_ENV:-$ADMIRRA_DEPLOY_ENV}"
 DOCKER_IMAGE_NAME="temp-frontend-builder"
 DOCKER_CONTAINER_NAME="temp-frontend-extractor"
 
@@ -14,7 +20,9 @@ echo "=================================================="
 # 1. Build frontend Docker image
 echo ""
 echo "🐳 Step 1: Building frontend Docker image: $DOCKER_IMAGE_NAME"
-docker build -t "$DOCKER_IMAGE_NAME" "$FRONTEND_BUILD_CONTEXT"
+docker build \
+  --build-arg "VITE_ADMIRRA_DEPLOY_ENV=$VITE_ADMIRRA_DEPLOY_ENV" \
+  -t "$DOCKER_IMAGE_NAME" "$FRONTEND_BUILD_CONTEXT"
 
 # 2. Create a temporary container to extract build artifacts
 echo ""
