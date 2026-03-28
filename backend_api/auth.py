@@ -24,6 +24,8 @@ from .services.auth_mail import (
     is_configured as smtp_configured,
     send_login_otp_email,
     send_verification_link_email,
+    smtp_delivery_active,
+    smtp_enabled,
 )
 
 logger = logging.getLogger("api")
@@ -86,17 +88,28 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.refresh(new_user)
 
     verify_url = _frontend_verify_url(raw_token)
-    if not smtp_configured():
+    if smtp_delivery_active():
+        sent = await send_verification_link_email(user.email, verify_url)
+        if not sent:
+            raise HTTPException(status_code=503, detail="Failed to send verification email")
+        return schemas.RegisterPendingResponse(email=user.email)
+
+    if smtp_enabled() and not smtp_configured():
         logger.error("SMTP not configured; cannot send verification email to %s", user.email)
         raise HTTPException(
             status_code=503,
             detail="Email delivery is not configured on server",
         )
-    sent = await send_verification_link_email(user.email, verify_url)
-    if not sent:
-        raise HTTPException(status_code=503, detail="Failed to send verification email")
 
-    return schemas.RegisterPendingResponse(email=user.email)
+    logger.warning(
+        "SMTP_ENABLED=false: registration OK for %s, verification email not sent",
+        user.email,
+    )
+    return schemas.RegisterPendingResponse(
+        email=user.email,
+        message="Аккаунт создан. Отправка письма отключена (SMTP_ENABLED=false). "
+        "Подтвердите email вручную или включите SMTP и используйте «Отправить снова».",
+    )
 
 
 @router.post("/verify-email", response_model=schemas.Token)
@@ -153,11 +166,11 @@ async def resend_verification(body: schemas.ResendVerificationRequest, db: Sessi
     db.add(user)
     db.commit()
 
-    if not smtp_configured():
+    if smtp_delivery_active():
+        verify_url = _frontend_verify_url(raw_token)
+        await send_verification_link_email(user.email, verify_url)
+    elif smtp_enabled() and not smtp_configured():
         raise HTTPException(status_code=503, detail="Email delivery is not configured on server")
-
-    verify_url = _frontend_verify_url(raw_token)
-    await send_verification_link_email(user.email, verify_url)
     return generic
 
 
@@ -185,12 +198,16 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
         access_token = security.create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}
 
-    if not smtp_configured():
-        logger.error("SMTP not configured; cannot send login OTP")
-        raise HTTPException(
-            status_code=503,
-            detail="Email delivery is not configured on server",
-        )
+    if not smtp_delivery_active():
+        if smtp_enabled() and not smtp_configured():
+            logger.error("SMTP not configured; cannot send login OTP")
+            raise HTTPException(
+                status_code=503,
+                detail="Email delivery is not configured on server",
+            )
+        logger.warning("SMTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
+        access_token = security.create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
 
     # Удаляем старые неиспользованные challenge этого пользователя
     db.query(models.LoginOtpChallenge).filter(

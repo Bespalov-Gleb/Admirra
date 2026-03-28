@@ -12,6 +12,17 @@ from typing import Optional
 logger = logging.getLogger("api.auth_mail")
 
 
+def smtp_enabled() -> bool:
+    """false — не пытаемся слать письма (временно при проблемах с сетью/SMTP). По умолчанию true."""
+    v = os.getenv("SMTP_ENABLED", "true").strip().lower()
+    return v not in ("0", "false", "no", "off")
+
+
+def smtp_delivery_active() -> bool:
+    """Письма реально отправляются: SMTP включён и заданы host/from."""
+    return smtp_enabled() and is_configured()
+
+
 def _smtp_config():
     host = os.getenv("SMTP_HOST", "")
     port = int(os.getenv("SMTP_PORT", "587"))
@@ -28,6 +39,9 @@ def is_configured() -> bool:
 
 
 def _send_sync(to_email: str, subject: str, body_text: str) -> bool:
+    if not smtp_enabled():
+        logger.warning("Auth email skipped: SMTP_ENABLED=false")
+        return False
     if not is_configured():
         logger.warning("Auth email skipped: SMTP not configured")
         return False
