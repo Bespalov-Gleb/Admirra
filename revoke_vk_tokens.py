@@ -12,6 +12,10 @@ POST /api/v2/oauth2/token/delete.json
     python revoke_vk_tokens.py --user-id 12345678
     или
     python revoke_vk_tokens.py --username sintez.digital
+
+    --force-all — только токены «аккаунта приложения» в VK, не всех рекламодателей.
+    Чтобы освободить лимит у конкретного пользователя VK Ads (как в ошибке token_limit_exceeded):
+    python revoke_vk_tokens.py --user-id 28468142
 """
 
 import os
@@ -158,53 +162,59 @@ async def revoke_vk_tokens_by_user_id(user_id: str) -> bool:
         async with httpx.AsyncClient() as client:
             revoke_url = "https://ads.vk.com/api/v2/oauth2/token/delete.json"
             
-            # Согласно документации, можно использовать username или user_id
-            # Попробуем сначала как username (логин), если не сработает - как user_id
-            payload = {
-                "client_id": VK_CLIENT_ID,
-                "client_secret": VK_CLIENT_SECRET,
-                "username": user_id  # Пробуем как username (логин) сначала
-            }
+            # Числовой id (как в callback ?user_id=) — сразу в поле user_id; иначе логин → username.
+            looks_numeric = user_id.isdigit()
+            if looks_numeric:
+                payload = {
+                    "client_id": VK_CLIENT_ID,
+                    "client_secret": VK_CLIENT_SECRET,
+                    "user_id": user_id,
+                }
+                log_field = f"user_id={user_id}"
+            else:
+                payload = {
+                    "client_id": VK_CLIENT_ID,
+                    "client_secret": VK_CLIENT_SECRET,
+                    "username": user_id,
+                }
+                log_field = f"username={user_id}"
             
             logger.info(f"📡 Отправка запроса на отзыв токенов...")
             logger.info(f"   URL: {revoke_url}")
-            logger.info(f"   Payload: client_id={VK_CLIENT_ID}, username={user_id}")
+            logger.info(f"   Payload: client_id={VK_CLIENT_ID}, {log_field}")
             logger.info(f"   Content-Type: application/x-www-form-urlencoded")
             
             # CRITICAL: Используем data= для application/x-www-form-urlencoded, не json=
             response = await client.post(
-                revoke_url, 
-                data=payload,  # data= для form-urlencoded
+                revoke_url,
+                data=payload,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=30.0
+                timeout=30.0,
             )
             
             logger.info(f"📡 Ответ VK Ads API: {response.status_code}")
             logger.info(f"   Response headers: {dict(response.headers)}")
             
-            # Если получили 400 с ошибкой про username, попробуем как user_id
-            if response.status_code == 400:
+            # Для нечислового логина: при 400 пробуем второй вариант (user_id / username)
+            if response.status_code == 400 and not looks_numeric:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get('error_description') or error_data.get('error', '')
+                    error_msg = error_data.get("error_description") or error_data.get("error", "")
                     logger.debug(f"   Ошибка 400: {error_msg}")
-                    
-                    # Если ошибка связана с username, попробуем как user_id
-                    if 'username' in error_msg.lower() or 'invalid' in error_msg.lower():
-                        logger.info(f"   ⚠️ Попытка с username не удалась, пробуем как user_id...")
-                        payload_user_id = {
-                            "client_id": VK_CLIENT_ID,
-                            "client_secret": VK_CLIENT_SECRET,
-                            "user_id": user_id  # Пробуем как user_id
-                        }
+                    if "username" in error_msg.lower() or "invalid" in error_msg.lower():
+                        logger.info("   ⚠️ Попытка с username не удалась, пробуем как user_id...")
                         response = await client.post(
                             revoke_url,
-                            data=payload_user_id,
+                            data={
+                                "client_id": VK_CLIENT_ID,
+                                "client_secret": VK_CLIENT_SECRET,
+                                "user_id": user_id,
+                            },
                             headers={"Content-Type": "application/x-www-form-urlencoded"},
-                            timeout=30.0
+                            timeout=30.0,
                         )
                         logger.info(f"   Повторный запрос с user_id: {response.status_code}")
-                except:
+                except Exception:
                     pass
             
             logger.info(f"📡 Ответ VK Ads API: {response.status_code}")

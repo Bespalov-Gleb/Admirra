@@ -36,6 +36,94 @@ def _log_vk_error_for_support(response: httpx.Response, endpoint_hint: str) -> N
         )
 
 
+VK_ADS_OAUTH2_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
+
+
+def vk_campaigns_error_needs_agency_client_retry(exc: BaseException) -> bool:
+    """
+    403 на ad_plans с view_campaigns / access_denied — часто из‑за токена агентства вместо клиента.
+    Тогда имеет смысл один раз запросить токен через agency_client_credentials.
+    """
+    msg = str(exc)
+    if "403" not in msg:
+        return False
+    return "view_campaigns" in msg or "access_denied" in msg
+
+
+async def exchange_vk_agency_client_credentials(
+    *,
+    client_id: str,
+    client_secret: str,
+    agency_access_token: str,
+    agency_client_name: Optional[str] = None,
+    agency_client_id: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Нестандартный grant agency_client_credentials: как client_credentials, плюс
+    agency_client_name или agency_client_id; в доке VK также фигурирует передача
+    access_token агентства (пробуем с ним и без).
+    """
+    if not (client_id and client_secret and agency_access_token):
+        return None
+    name = (agency_client_name or "").strip()
+    if name.lower() in ("unknown", "none", ""):
+        name = ""
+    cid = (agency_client_id or "").strip()
+    if cid.lower() in ("unknown", "none", ""):
+        cid = ""
+    if not name and not cid:
+        return None
+
+    base: Dict[str, Any] = {
+        "grant_type": "agency_client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+    attempts: List[Dict[str, Any]] = []
+
+    if name:
+        attempts.append({**base, "access_token": agency_access_token, "agency_client_name": name})
+        attempts.append({**base, "agency_client_name": name})
+    if cid:
+        attempts.append({**base, "access_token": agency_access_token, "agency_client_id": cid})
+        attempts.append({**base, "agency_client_id": cid})
+
+    seen: List[tuple] = []
+    uniq: List[Dict[str, Any]] = []
+    for p in attempts:
+        key = tuple(sorted((k, str(v)) for k, v in p.items()))
+        if key in seen:
+            continue
+        seen.append(key)
+        uniq.append(p)
+
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    async with httpx.AsyncClient() as client:
+        for i, data in enumerate(uniq):
+            try:
+                r = await client.post(
+                    VK_ADS_OAUTH2_TOKEN_URL, data=data, headers=headers, timeout=30.0
+                )
+                if r.status_code == 200:
+                    body = r.json()
+                    if body.get("access_token"):
+                        logger.info(
+                            "VK Ads: agency_client_credentials OK (попытка %s, ключи тела: %s)",
+                            i + 1,
+                            [k for k in sorted(data.keys()) if k != "client_secret"],
+                        )
+                        return body
+                logger.warning(
+                    "VK Ads: agency_client_credentials попытка %s → HTTP %s: %s",
+                    i + 1,
+                    r.status_code,
+                    (r.text or "")[:400],
+                )
+            except Exception as ex:
+                logger.warning("VK Ads: agency_client_credentials запрос: %s", ex)
+    return None
+
+
 class VKAdsAPI:
     def __init__(self, access_token: str, account_id: str = None):
         self.base_url = "https://ads.vk.com/api/v2" # Example base URL

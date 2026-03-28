@@ -4,14 +4,18 @@ from core.database import get_db, SessionLocal
 from core import models, schemas, security
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
-from automation.vk_ads import VKAdsAPI
+from automation.vk_ads import (
+    VKAdsAPI,
+    exchange_vk_agency_client_credentials,
+    vk_campaigns_error_needs_agency_client_retry,
+)
 from automation.mytarget import MyTargetAPI
 from typing import List, Optional
 import uuid
 import httpx
 import logging
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import json
 from core.logging_utils import log_event
@@ -2397,6 +2401,28 @@ async def update_integration(
     
     return integration
 
+
+def _vk_persist_token_json_to_integration(
+    integration: models.Integration, db: Session, token_data: dict
+) -> None:
+    """Сохранить ответ token.json (access / refresh / expires_in) в интеграции."""
+    integration.access_token = security.encrypt_token(token_data["access_token"])
+    rt = token_data.get("refresh_token")
+    if rt:
+        integration.refresh_token = security.encrypt_token(rt)
+    exp_in = token_data.get("expires_in")
+    if exp_in is not None:
+        try:
+            integration.expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=int(exp_in)
+            )
+        except (TypeError, ValueError):
+            pass
+    db.add(integration)
+    db.commit()
+    db.refresh(integration)
+
+
 @router.post("/{integration_id}/discover-campaigns")
 async def discover_campaigns(
     integration_id: uuid.UUID,
@@ -2566,32 +2592,71 @@ async def discover_campaigns(
         else:
             logger.warning(f"⚠️ VK Ads: No cabinet selected (account_id is None or 'unknown'). Will fetch campaigns from all accessible cabinets.")
         
+        campaigns_ok = False
         try:
             api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
             discovered_campaigns = await api.get_campaigns()
+            campaigns_ok = True
         except HTTPException:
             raise
         except Exception as e:
-            msg = str(e)[:500]
-            logger.exception(f"VK Ads discover_campaigns failed (integration {integration_id}): {msg}")
-            if "view_campaigns" in msg or (
-                "access_denied" in msg and "403" in msg
-            ):
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        "VK Реклама отклонила запрос к списку кампаний (в ответе API: право view_campaigns). "
-                        "Обычно это значит, что в токене нет нужных OAuth-прав (часто read_ads) или приложение "
-                        "в кабинете VK не одобрено для этих методов. Отключите интеграцию и подключите снова, "
-                        "разрешив все запрошенные доступы; проверьте поле scope в ответе token.json и документацию "
-                        "VK Ads API. При указании scope вручную используйте только имена из документации, не "
-                        "подставляйте required_permission из текста ошибки без проверки."
-                    ),
+            err = e
+            if vk_campaigns_error_needs_agency_client_retry(err) and VK_CLIENT_SECRET:
+                login = (integration.agency_client_login or "").strip()
+                if login.lower() in ("unknown", "none", ""):
+                    login = ""
+                aid_raw = (integration.account_id or "").strip()
+                if aid_raw.lower() == "unknown":
+                    aid_raw = ""
+                agency_client_id_param = aid_raw if aid_raw.isdigit() else None
+                agency_client_name_param = login or None
+                if agency_client_name_param or agency_client_id_param:
+                    logger.info(
+                        "VK Ads discover_campaigns: повтор через agency_client_credentials "
+                        "(integration=%s, name=%r, client_id=%r)",
+                        integration_id,
+                        agency_client_name_param,
+                        agency_client_id_param,
+                    )
+                    td = await exchange_vk_agency_client_credentials(
+                        client_id=VK_CLIENT_ID,
+                        client_secret=VK_CLIENT_SECRET,
+                        agency_access_token=access_token,
+                        agency_client_name=agency_client_name_param,
+                        agency_client_id=agency_client_id_param,
+                    )
+                    if td:
+                        _vk_persist_token_json_to_integration(integration, db, td)
+                        access_token = security.decrypt_token(integration.access_token)
+                        api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
+                        try:
+                            discovered_campaigns = await api.get_campaigns()
+                            campaigns_ok = True
+                        except Exception as e2:
+                            err = e2
+            if not campaigns_ok:
+                msg = str(err)[:500]
+                logger.exception(
+                    f"VK Ads discover_campaigns failed (integration {integration_id}): {msg}"
                 )
-            raise HTTPException(
-                status_code=502,
-                detail=f"Не удалось получить кампании из VK Рекламы: {msg}",
-            )
+                if "view_campaigns" in msg or (
+                    "access_denied" in msg and "403" in msg
+                ):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            "VK Реклама отклонила запрос к списку кампаний (в ответе API: право view_campaigns). "
+                            "Обычно это значит, что в токене нет нужных OAuth-прав (часто read_ads) или приложение "
+                            "в кабинете VK не одобрено для этих методов. Отключите интеграцию и подключите снова, "
+                            "разрешив все запрошенные доступы; проверьте поле scope в ответе token.json и документацию "
+                            "VK Ads API. При указании scope вручную используйте только имена из документации, не "
+                            "подставляйте required_permission из текста ошибки без проверки."
+                        ),
+                    )
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Не удалось получить кампании из VK Рекламы: {msg}",
+                )
         
         if selected_cabinet_id:
             logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns for cabinet {selected_cabinet_id}")

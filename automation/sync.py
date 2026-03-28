@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -7,7 +7,11 @@ from core import models, security
 from core.logging_utils import log_event
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
-from automation.vk_ads import VKAdsAPI
+from automation.vk_ads import (
+    VKAdsAPI,
+    exchange_vk_agency_client_credentials,
+    vk_campaigns_error_needs_agency_client_retry,
+)
 from automation.reports import generate_weekly_report, generate_monthly_report
 from automation.google_sheets import GoogleSheetsService
 import asyncio
@@ -810,8 +814,59 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             # Синхронизируем список кампаний и их целевые действия
             goal_actions_synced = 0
             campaigns_updated = 0
+
+            async def _vk_get_campaigns_with_agency_fallback():
+                nonlocal api
+                try:
+                    return await api.get_campaigns()
+                except Exception as ex:
+                    if not vk_campaigns_error_needs_agency_client_retry(ex):
+                        raise
+                    vk_secret = os.getenv("VK_CLIENT_SECRET", "").strip()
+                    if not vk_secret:
+                        raise
+                    from backend_api.integrations import VK_CLIENT_ID
+
+                    login = (integration.agency_client_login or "").strip()
+                    if login.lower() in ("unknown", "none", ""):
+                        login = ""
+                    aid = (integration.account_id or "").strip()
+                    if aid.lower() == "unknown":
+                        aid = ""
+                    ac_id = aid if aid.isdigit() else None
+                    ac_name = login or None
+                    if not ac_name and not ac_id:
+                        raise ex
+                    plain = security.decrypt_token(integration.access_token)
+                    td = await exchange_vk_agency_client_credentials(
+                        client_id=VK_CLIENT_ID,
+                        client_secret=vk_secret,
+                        agency_access_token=plain,
+                        agency_client_name=ac_name,
+                        agency_client_id=ac_id,
+                    )
+                    if not td:
+                        raise ex
+                    integration.access_token = security.encrypt_token(td["access_token"])
+                    if td.get("refresh_token"):
+                        integration.refresh_token = security.encrypt_token(
+                            td["refresh_token"]
+                        )
+                    exp_in = td.get("expires_in")
+                    if exp_in is not None:
+                        try:
+                            integration.expires_at = datetime.now(timezone.utc) + timedelta(
+                                seconds=int(exp_in)
+                            )
+                        except (TypeError, ValueError):
+                            pass
+                    db.commit()
+                    new_plain = security.decrypt_token(integration.access_token)
+                    api = VKAdsAPI(new_plain, integration.account_id)
+                    return await api.get_campaigns()
+
             try:
-                vk_campaigns = await api.get_campaigns()
+                vk_campaigns = await _vk_get_campaigns_with_agency_fallback()
                 campaign_ids = [str(c.get("id")) for c in vk_campaigns if c.get("id")]
                 
                 # Пытаемся получить целевые действия из статистики
