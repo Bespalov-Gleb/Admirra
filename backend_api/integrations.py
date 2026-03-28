@@ -31,6 +31,15 @@ VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "IrMSpXAmwarxeL3ElBaKeJa4tJAcfp
 # Token URL: https://ads.vk.com/api/v2/oauth2/token.json
 VK_ADS_AUTH_URL = "https://ads.vk.com/hq/settings/access"
 VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
+# Права OAuth (параметр scope, через запятую) — только из документации VK Ads API, раздел «Scopes — права доступа».
+# Рекламодатель: read_ads, read_payments, create_ads.
+# Агентство / представительство: create_clients, read_clients, create_agency_payments.
+# Менеджер: read_manager_clients, edit_manager_clients, read_payments.
+# Поле required_permission в JSON ошибки API (например view_campaigns) — внутренний код метода, не имя в scope.
+VK_ADS_OAUTH_SCOPE = os.getenv(
+    "VK_ADS_OAUTH_SCOPE",
+    "read_ads,read_payments,create_ads",
+)
 
 # myTarget Credentials (Authorization Code Grant)
 # Для песочницы используем target-sandbox.my.com
@@ -103,14 +112,14 @@ def get_vk_auth_url(redirect_uri: str):
     Параметры:
     - client_id: ID приложения VK Ads
     - redirect_uri: URL для callback после авторизации (должен быть зарегистрирован в настройках приложения)
-    - scope: read_ads,read_payments,create_ads (права доступа для работы с VK Ads API)
+    - scope: VK_ADS_OAUTH_SCOPE (см. доку: рекламодатель read_ads,read_payments,create_ads; агентство/менеджер — свои наборы)
     - response_type: code
     - state: CSRF защита
     
     Убедитесь, что в настройках приложения VK Ads:
     1. Redirect URL указан точно: {redirect_uri}
     2. Приложение имеет доступ к Authorization Code Grant (предоставляется по запросу)
-    3. Включены права: read_ads, read_payments, create_ads (или соответствующие права для агентств/менеджеров)
+    3. В кабинете приложения VK включены нужные доступы к API; при 403 на ad_plans — переподключить OAuth и проверить scope в ответе token.json
     """
     import secrets
     import base64
@@ -123,14 +132,12 @@ def get_vk_auth_url(redirect_uri: str):
     # Генерируем state для CSRF защиты
     state = secrets.token_urlsafe(32)
     
-    # Scope для VK Ads API согласно документации
-    # Для обычного пользователя-рекламодателя:
-    # - read_ads: чтение статистики и РК
-    # - read_payments: чтение денежных транзакций и баланса
-    # - create_ads: создание и редактирование настроек РК, баннеров, аудиторий
-    # Для агентств: create_clients, read_clients, create_agency_payments
-    # Для менеджеров: read_manager_clients, edit_manager_clients, read_payments
-    scope = "read_ads,read_payments,create_ads"
+    # Scope — официальный список (Authorization Code Grant), строка через запятую.
+    # Рекламодатель: read_ads (статистика и РК), read_payments (транзакции и баланс),
+    #   create_ads (РК, баннеры, аудитории, ставки, статус, таргетинги и т.п.).
+    # Агентство / представительство: create_clients, read_clients, create_agency_payments.
+    # Менеджер: read_manager_clients, edit_manager_clients, read_payments.
+    scope = VK_ADS_OAUTH_SCOPE
     
     # Формируем OAuth URL для VK Ads API согласно документации
     # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
@@ -2567,6 +2574,20 @@ async def discover_campaigns(
         except Exception as e:
             msg = str(e)[:500]
             logger.exception(f"VK Ads discover_campaigns failed (integration {integration_id}): {msg}")
+            if "view_campaigns" in msg or (
+                "access_denied" in msg and "403" in msg
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "VK Реклама отклонила запрос к списку кампаний (в ответе API: право view_campaigns). "
+                        "Обычно это значит, что в токене нет нужных OAuth-прав (часто read_ads) или приложение "
+                        "в кабинете VK не одобрено для этих методов. Отключите интеграцию и подключите снова, "
+                        "разрешив все запрошенные доступы; проверьте поле scope в ответе token.json и документацию "
+                        "VK Ads API. При указании scope вручную используйте только имена из документации, не "
+                        "подставляйте required_permission из текста ошибки без проверки."
+                    ),
+                )
             raise HTTPException(
                 status_code=502,
                 detail=f"Не удалось получить кампании из VK Рекламы: {msg}",

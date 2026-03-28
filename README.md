@@ -137,10 +137,10 @@ cp .env.example .env
 1. Перейдите в [VK Ads API](https://ads.vk.com/hq/settings/access) (требуется доступ к рекламному кабинету)
 2. Создайте OAuth-клиент или используйте существующий
 3. Укажите redirect URI: `https://yourdomain.com/auth/vk/callback` (должен быть зарегистрирован в настройках приложения)
-4. Включите права доступа (scope):
-   - `read_ads` — чтение статистики и рекламных кампаний
-   - `read_payments` — чтение денежных транзакций и баланса
-   - `create_ads` — создание и редактирование настроек РК, баннеров, аудиторий
+4. Права в параметре `scope` (через запятую), см. [документацию VK Ads](https://ads.vk.com/doc/api/info/Авторизация%20в%20API):
+   - **Обычный рекламодатель:** `read_ads` (статистика и РК), `read_payments` (транзакции и баланс), `create_ads` (РК, баннеры, аудитории, ставки, статус, таргетинги и т.п.)
+   - **Агентство / представительство:** `create_clients`, `read_clients`, `create_agency_payments`
+   - **Менеджер:** `read_manager_clients`, `edit_manager_clients`, `read_payments`
 5. Скопируйте `Client ID` и `Client Secret` в `.env`:
    ```
    VK_CLIENT_ID=your_client_id

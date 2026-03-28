@@ -2,11 +2,38 @@ import httpx
 import logging
 import asyncio
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
 
 logger = logging.getLogger(__name__)
+
+
+def _log_vk_error_for_support(response: httpx.Response, endpoint_hint: str) -> None:
+    """Заголовки ответа VK для обращения в поддержку (x-request-id и т.д.)."""
+    trace = {}
+    for k, v in response.headers.items():
+        kl = k.lower()
+        if any(x in kl for x in ("request-id", "trace", "cf-ray", "correlation")):
+            trace[k] = v
+    http_date = response.headers.get("date")
+    our_utc = datetime.now(timezone.utc).isoformat()
+    if trace:
+        logger.error(
+            "VK Ads %s — для поддержки: %s | HTTP Date (ответ VK): %r | зафиксировано на сервере (UTC): %s",
+            endpoint_hint,
+            trace,
+            http_date,
+            our_utc,
+        )
+    else:
+        logger.error(
+            "VK Ads %s — trace-заголовки не пришли; HTTP Date: %r | UTC на сервере: %s | заголовки ответа: %s",
+            endpoint_hint,
+            http_date,
+            our_utc,
+            dict(response.headers),
+        )
 
 
 class VKAdsAPI:
@@ -187,6 +214,7 @@ class VKAdsAPI:
                             self._push_debug(f"campaign[{i}] -> id={camp.get('id')}, name={camp.get('name')}")
                     return campaigns
                 else:
+                    _log_vk_error_for_support(response, "GET ad_plans.json (кампании)")
                     error_text = response.text[:200] if response.text else "No error message"
                     logger.error(f"❌ VK Ads API error: {response.status_code} - {error_text}")
                     raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {error_text}")
