@@ -558,6 +558,8 @@ async def exchange_vk_token_oauth(
                 logger.info(f"   Refresh token received: {bool(refresh_token)}")
                 logger.info(f"   Expires in: {expires_in or 'N/A'} seconds")
                 logger.info(f"   User ID: {vk_user_id or 'N/A'}")
+                # Фактические права токена (если нет read_ads — будет 403 view_campaigns на ad_plans)
+                logger.info(f"   Scope в ответе token.json: {token_data.get('scope')!r}")
             except Exception as exchange_err:
                 logger.error(f"❌ Failed to exchange code: {exchange_err}")
                 raise HTTPException(status_code=400, detail=f"Не удалось обменять код на токен: {str(exchange_err)}")
