@@ -2559,8 +2559,18 @@ async def discover_campaigns(
         else:
             logger.warning(f"⚠️ VK Ads: No cabinet selected (account_id is None or 'unknown'). Will fetch campaigns from all accessible cabinets.")
         
-        api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
-        discovered_campaigns = await api.get_campaigns()
+        try:
+            api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
+            discovered_campaigns = await api.get_campaigns()
+        except HTTPException:
+            raise
+        except Exception as e:
+            msg = str(e)[:500]
+            logger.exception(f"VK Ads discover_campaigns failed (integration {integration_id}): {msg}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Не удалось получить кампании из VK Рекламы: {msg}",
+            )
         
         if selected_cabinet_id:
             logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns for cabinet {selected_cabinet_id}")
