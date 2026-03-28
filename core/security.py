@@ -18,6 +18,17 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-it-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 
+
+def _env_bool_default_true(name: str, default: bool = True) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# false — вход и JWT без подтверждения почты (временно, например при SMTP_OFF)
+AUTH_REQUIRE_EMAIL_VERIFIED = _env_bool_default_true("AUTH_REQUIRE_EMAIL_VERIFIED", True)
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password, hashed_password):
@@ -70,7 +81,7 @@ def get_current_user(auth: HTTPAuthorizationCredentials = Depends(bearer_scheme)
     user = db.query(models.User).filter(models.User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
-    if not getattr(user, "email_verified", True):
+    if AUTH_REQUIRE_EMAIL_VERIFIED and not getattr(user, "email_verified", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified",

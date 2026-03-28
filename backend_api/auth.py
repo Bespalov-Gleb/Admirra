@@ -178,8 +178,8 @@ async def resend_verification(body: schemas.ResendVerificationRequest, db: Sessi
 async def login_password_step(login_data: schemas.UserLogin, db: Session = Depends(get_db)):
     """
     Шаг 1 входа: проверка пароля.
-    - Неподтверждённая почта → step=email_not_verified (без JWT).
-    - Подтверждённая → OTP на почту, step=otp_required.
+    - Неподтверждённая почта → step=email_not_verified (без JWT), если AUTH_REQUIRE_EMAIL_VERIFIED.
+    - Иначе → OTP на почту или JWT (как у подтверждённой почты).
     """
     user = db.query(models.User).filter(models.User.email == login_data.email).first()
 
@@ -190,7 +190,7 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not user.email_verified:
+    if security.AUTH_REQUIRE_EMAIL_VERIFIED and not user.email_verified:
         return schemas.LoginPasswordStepResponse(step="email_not_verified", email=user.email)
 
     if not AUTH_LOGIN_OTP_ENABLED:
