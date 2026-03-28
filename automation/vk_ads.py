@@ -1,7 +1,8 @@
 import httpx
 import logging
 import asyncio
-from typing import List, Dict, Any, Optional
+import json
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, timezone
 
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
@@ -39,6 +40,45 @@ def _log_vk_error_for_support(response: httpx.Response, endpoint_hint: str) -> N
 VK_ADS_OAUTH2_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 
 
+def vk_agency_exchange_hints(
+    agency_client_login: Optional[str],
+    account_id: Optional[str],
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    (agency_client_name, agency_client_id, cabinet_id_only).
+
+    Если в БД один и тот же числовой ID кабинета в account_id и agency_client_login —
+    это не user id из AgencyClients; для OAuth нужен разбор через GET agency/clients.json.
+    """
+    login = (agency_client_login or "").strip()
+    aid = (account_id or "").strip()
+    if login.lower() in ("unknown", "none", ""):
+        login = ""
+    if aid.lower() in ("unknown", "none", ""):
+        aid = ""
+    if login == aid and login.isdigit():
+        return None, None, login
+    # Только числовой кабинет в account_id без отдельного логина клиента агентства
+    if not login and aid.isdigit():
+        return None, None, aid
+
+    name: Optional[str] = None
+    uid: Optional[str] = None
+    if login:
+        if "@" in login or not login.isdigit():
+            name = login
+        else:
+            uid = login
+    if aid and aid.isdigit():
+        uid = uid or aid
+    elif aid and not name:
+        name = aid
+    if name and uid and name == uid:
+        uid = name if name.isdigit() else uid
+        name = None if (name or "").isdigit() else name
+    return name, uid, None  # cabinet_only всегда None здесь
+
+
 def vk_campaigns_error_needs_agency_client_retry(exc: BaseException) -> bool:
     """
     403 на ad_plans с view_campaigns / access_denied — часто из‑за токена агентства вместо клиента.
@@ -50,18 +90,18 @@ def vk_campaigns_error_needs_agency_client_retry(exc: BaseException) -> bool:
     return "view_campaigns" in msg or "access_denied" in msg
 
 
-async def exchange_vk_agency_client_credentials(
+async def _vk_agency_client_credentials_attempts(
     *,
     client_id: str,
     client_secret: str,
     agency_access_token: str,
     agency_client_name: Optional[str] = None,
     agency_client_id: Optional[str] = None,
+    minimal: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """
-    Нестандартный grant agency_client_credentials: как client_credentials, плюс
-    agency_client_name или agency_client_id; в доке VK также фигурирует передача
-    access_token агентства (пробуем с ним и без).
+    grant agency_client_credentials: пробуем с access_token агентства и без.
+    minimal=True — только две попытки по id или по name (для перебора клиентов).
     """
     if not (client_id and client_secret and agency_access_token):
         return None
@@ -81,12 +121,20 @@ async def exchange_vk_agency_client_credentials(
     }
     attempts: List[Dict[str, Any]] = []
 
-    if name:
-        attempts.append({**base, "access_token": agency_access_token, "agency_client_name": name})
-        attempts.append({**base, "agency_client_name": name})
-    if cid:
-        attempts.append({**base, "access_token": agency_access_token, "agency_client_id": cid})
-        attempts.append({**base, "agency_client_id": cid})
+    if minimal:
+        if cid:
+            attempts.append({**base, "access_token": agency_access_token, "agency_client_id": cid})
+            attempts.append({**base, "agency_client_id": cid})
+        elif name:
+            attempts.append({**base, "access_token": agency_access_token, "agency_client_name": name})
+            attempts.append({**base, "agency_client_name": name})
+    else:
+        if name:
+            attempts.append({**base, "access_token": agency_access_token, "agency_client_name": name})
+            attempts.append({**base, "agency_client_name": name})
+        if cid:
+            attempts.append({**base, "access_token": agency_access_token, "agency_client_id": cid})
+            attempts.append({**base, "agency_client_id": cid})
 
     seen: List[tuple] = []
     uniq: List[Dict[str, Any]] = []
@@ -121,6 +169,103 @@ async def exchange_vk_agency_client_credentials(
                 )
             except Exception as ex:
                 logger.warning("VK Ads: agency_client_credentials запрос: %s", ex)
+    return None
+
+
+async def exchange_vk_agency_client_credentials_for_integration(
+    *,
+    client_id: str,
+    client_secret: str,
+    agency_access_token: str,
+    agency_client_login: Optional[str],
+    account_id: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """
+    Обмен для интеграции: учитывает, что в UI часто сохраняют ID кабинета, а не user id AgencyClients.
+    """
+    name, uid, cabinet_only = vk_agency_exchange_hints(agency_client_login, account_id)
+    if name or uid:
+        td = await _vk_agency_client_credentials_attempts(
+            client_id=client_id,
+            client_secret=client_secret,
+            agency_access_token=agency_access_token,
+            agency_client_name=name,
+            agency_client_id=uid,
+            minimal=False,
+        )
+        if td:
+            return td
+    if not cabinet_only:
+        return None
+
+    logger.info(
+        "VK Ads: в интеграции только ID кабинета %r (не user id AgencyClients); "
+        "загружаем agency/clients.json и подбираем клиента",
+        cabinet_only,
+    )
+    api = VKAdsAPI(agency_access_token, account_id=None)
+    raw = await api.get_agency_clients_raw()
+    if not raw:
+        logger.warning(
+            "VK Ads: agency/clients.json пуст или недоступен. Нужен scope read_clients и аккаунт агентства; "
+            "либо вручную укажите клиента агентства (user id из AgencyClients), а не только ID кабинета."
+        )
+        return None
+
+    def _score(it: Dict[str, Any]) -> tuple:
+        blob = json.dumps(it, ensure_ascii=False)
+        hit = cabinet_only in blob
+        return (0 if hit else 1, str(it.get("id") or ""))
+
+    raw_sorted = sorted(raw, key=_score)
+    max_items = 40
+    if len(raw_sorted) > max_items:
+        logger.warning(
+            "VK Ads: клиентов агентства %s, перебираем первые %s",
+            len(raw_sorted),
+            max_items,
+        )
+        raw_sorted = raw_sorted[:max_items]
+
+    for item in raw_sorted:
+        aid = item.get("id")
+        if aid is None:
+            continue
+        sid = str(aid)
+        td = await _vk_agency_client_credentials_attempts(
+            client_id=client_id,
+            client_secret=client_secret,
+            agency_access_token=agency_access_token,
+            agency_client_name=None,
+            agency_client_id=sid,
+            minimal=True,
+        )
+        if td:
+            logger.info(
+                "VK Ads: agency_client_credentials OK для agency client id=%s (кабинет %s)",
+                sid,
+                cabinet_only,
+            )
+            return td
+        user = item.get("user")
+        uname = item.get("username") or item.get("user_name")
+        if not uname and isinstance(user, dict):
+            uname = user.get("username")
+        if uname:
+            td = await _vk_agency_client_credentials_attempts(
+                client_id=client_id,
+                client_secret=client_secret,
+                agency_access_token=agency_access_token,
+                agency_client_name=str(uname),
+                agency_client_id=None,
+                minimal=True,
+            )
+            if td:
+                logger.info(
+                    "VK Ads: agency_client_credentials OK по username из agency/clients (кабинет %s)",
+                    cabinet_only,
+                )
+                return td
     return None
 
 
@@ -1477,6 +1622,24 @@ class VKAdsAPI:
         except Exception as e:
             logger.debug(f"Error fetching VK agency clients (may not be agency): {e}")
             return []
+
+    async def get_agency_clients_raw(self) -> List[Dict[str, Any]]:
+        """Сырые элементы из GET /agency/clients.json (для сопоставления кабинета с user id клиента)."""
+        url = f"{self.base_url}/agency/clients.json"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=self.headers, timeout=30.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    return list(data.get("items") or [])
+                logger.warning(
+                    "VK Ads get_agency_clients_raw: HTTP %s %s",
+                    response.status_code,
+                    (response.text or "")[:300],
+                )
+        except Exception as e:
+            logger.warning("VK Ads get_agency_clients_raw: %s", e)
+        return []
     
     async def get_profiles(self) -> List[Dict[str, Any]]:
         """

@@ -6,7 +6,7 @@ from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import (
     VKAdsAPI,
-    exchange_vk_agency_client_credentials,
+    exchange_vk_agency_client_credentials_for_integration,
     vk_campaigns_error_needs_agency_client_retry,
 )
 from automation.mytarget import MyTargetAPI
@@ -2602,30 +2602,18 @@ async def discover_campaigns(
         except Exception as e:
             err = e
             if vk_campaigns_error_needs_agency_client_retry(err) and VK_CLIENT_SECRET:
-                login = (integration.agency_client_login or "").strip()
-                if login.lower() in ("unknown", "none", ""):
-                    login = ""
-                aid_raw = (integration.account_id or "").strip()
-                if aid_raw.lower() == "unknown":
-                    aid_raw = ""
-                agency_client_id_param = aid_raw if aid_raw.isdigit() else None
-                agency_client_name_param = login or None
-                if agency_client_name_param or agency_client_id_param:
-                    logger.info(
-                        "VK Ads discover_campaigns: повтор через agency_client_credentials "
-                        "(integration=%s, name=%r, client_id=%r)",
-                        integration_id,
-                        agency_client_name_param,
-                        agency_client_id_param,
-                    )
-                    td = await exchange_vk_agency_client_credentials(
-                        client_id=VK_CLIENT_ID,
-                        client_secret=VK_CLIENT_SECRET,
-                        agency_access_token=access_token,
-                        agency_client_name=agency_client_name_param,
-                        agency_client_id=agency_client_id_param,
-                    )
-                    if td:
+                logger.info(
+                    "VK Ads discover_campaigns: повтор через agency_client_credentials (integration=%s)",
+                    integration_id,
+                )
+                td = await exchange_vk_agency_client_credentials_for_integration(
+                    client_id=VK_CLIENT_ID,
+                    client_secret=VK_CLIENT_SECRET,
+                    agency_access_token=access_token,
+                    agency_client_login=integration.agency_client_login,
+                    account_id=integration.account_id,
+                )
+                if td:
                         _vk_persist_token_json_to_integration(integration, db, td)
                         access_token = security.decrypt_token(integration.access_token)
                         api = VKAdsAPI(access_token, account_id=selected_cabinet_id)

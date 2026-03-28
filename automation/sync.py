@@ -9,7 +9,7 @@ from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import (
     VKAdsAPI,
-    exchange_vk_agency_client_credentials,
+    exchange_vk_agency_client_credentials_for_integration,
     vk_campaigns_error_needs_agency_client_retry,
 )
 from automation.reports import generate_weekly_report, generate_monthly_report
@@ -827,23 +827,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         raise
                     from backend_api.integrations import VK_CLIENT_ID
 
-                    login = (integration.agency_client_login or "").strip()
-                    if login.lower() in ("unknown", "none", ""):
-                        login = ""
-                    aid = (integration.account_id or "").strip()
-                    if aid.lower() == "unknown":
-                        aid = ""
-                    ac_id = aid if aid.isdigit() else None
-                    ac_name = login or None
-                    if not ac_name and not ac_id:
-                        raise ex
                     plain = security.decrypt_token(integration.access_token)
-                    td = await exchange_vk_agency_client_credentials(
+                    td = await exchange_vk_agency_client_credentials_for_integration(
                         client_id=VK_CLIENT_ID,
                         client_secret=vk_secret,
                         agency_access_token=plain,
-                        agency_client_name=ac_name,
-                        agency_client_id=ac_id,
+                        agency_client_login=integration.agency_client_login,
+                        account_id=integration.account_id,
                     )
                     if not td:
                         raise ex
