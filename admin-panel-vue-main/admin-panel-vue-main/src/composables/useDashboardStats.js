@@ -40,13 +40,16 @@ export function useDashboardStats() {
   const vkGoalActions = ref([])
 
   const STORAGE_KEY = 'trafic_agent_dashboard_filters'
+  const validChannels = ['all', 'yandex', 'vk']
 
   const loadFiltersFromStorage = () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (!raw) return null
       const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed.period === 'string') return parsed
+      if (!parsed || typeof parsed !== 'object') return null
+      if (typeof parsed.period !== 'string') return null
+      return parsed
       return null
     } catch {
       return null
@@ -56,7 +59,11 @@ export function useDashboardStats() {
   const saveFiltersToStorage = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        channel: filters.channel,
         period: filters.period,
+        client_id: filters.client_id || null,
+        campaign_ids: Array.isArray(filters.campaign_ids) ? filters.campaign_ids : [],
+        vk_goal_action_ids: Array.isArray(filters.vk_goal_action_ids) ? filters.vk_goal_action_ids : [],
         start_date: filters.start_date || '',
         end_date: filters.end_date || ''
       }))
@@ -70,11 +77,17 @@ export function useDashboardStats() {
 
   // Filters state — инициализация из localStorage
   const filters = reactive({
-    channel: 'all',
+    channel: (saved && validChannels.includes(saved.channel)) ? saved.channel : 'all',
     period: (saved && validPeriods.includes(saved.period)) ? saved.period : '14',
-    client_id: null,
-    campaign_ids: [],
-    vk_goal_action_ids: [],
+    client_id: (saved && typeof saved.client_id === 'string' && saved.client_id.trim())
+      ? saved.client_id
+      : null,
+    campaign_ids: Array.isArray(saved?.campaign_ids)
+      ? saved.campaign_ids.filter(Boolean)
+      : [],
+    vk_goal_action_ids: Array.isArray(saved?.vk_goal_action_ids)
+      ? saved.vk_goal_action_ids.filter(Boolean)
+      : [],
     start_date: (saved?.period === 'custom' && saved?.start_date) ? saved.start_date : '',
     end_date: (saved?.period === 'custom' && saved?.end_date) ? saved.end_date : new Date().toISOString().split('T')[0]
   })
@@ -373,9 +386,17 @@ export function useDashboardStats() {
     { deep: true }
   )
 
-  // 4. Сохранять период и даты в localStorage при изменении
+  // 4. Сохранять фильтры дашборда в localStorage при изменении
   watch(
-    () => [filters.period, filters.start_date, filters.end_date],
+    () => [
+      filters.channel,
+      filters.period,
+      filters.client_id,
+      filters.start_date,
+      filters.end_date,
+      filters.campaign_ids,
+      filters.vk_goal_action_ids
+    ],
     () => saveFiltersToStorage(),
     { deep: true }
   )

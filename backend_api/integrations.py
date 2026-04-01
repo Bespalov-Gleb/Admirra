@@ -19,17 +19,21 @@ from datetime import datetime, timedelta, timezone
 import os
 import json
 from core.logging_utils import log_event
+from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
+from core.config import get_config
+
+cfg = get_config()
 
 # Yandex Direct Credentials
-YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
-YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a8019e33cdaaf0")
-YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
-YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
+YANDEX_CLIENT_ID = cfg.oauth.yandex_client_id
+YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
+YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
+YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
-VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "MZzDprGbNsWFXiUf")
-VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "IrMSpXAmwarxeL3ElBaKeJa4tJAcfplfs1wOFQY81gAkTm2SmZ5M7QqVOvEyRgizdhWEM8HvzRNIFhb8fKppwjLZd2Y6DXxUhqDMkiCZ5tSUsMui3Cu5K6dgAAGWQGDmZTPtNMcCuxY54snEKQBEVOI6MC7LAzOpeY5pgUdNtEgfAuh9NgezVurPWHowo7mSUXydDOIFl73LsGmy4lXD1UNotp6szljPePjsy8O2hkX")
+VK_CLIENT_ID = cfg.oauth.vk_client_id
+VK_CLIENT_SECRET = cfg.oauth.vk_client_secret
 # Authorization Code Grant для VK Ads API
 # Auth URL: https://ads.vk.com/hq/settings/access?action=oauth2
 # Token URL: https://ads.vk.com/api/v2/oauth2/token.json
@@ -40,18 +44,15 @@ VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 # Агентство / представительство: create_clients, read_clients, create_agency_payments.
 # Менеджер: read_manager_clients, edit_manager_clients, read_payments.
 # Поле required_permission в JSON ошибки API (например view_campaigns) — внутренний код метода, не имя в scope.
-VK_ADS_OAUTH_SCOPE = os.getenv(
-    "VK_ADS_OAUTH_SCOPE",
-    "read_ads,read_payments,create_ads",
-)
+VK_ADS_OAUTH_SCOPE = cfg.oauth.vk_ads_oauth_scope
 
 # myTarget Credentials (Authorization Code Grant)
 # Для песочницы используем target-sandbox.my.com
 # Для боевого окружения - target.my.com или target.vk.ru
-MYTARGET_CLIENT_ID = os.getenv("MYTARGET_CLIENT_ID", "")
-MYTARGET_CLIENT_SECRET = os.getenv("MYTARGET_CLIENT_SECRET", "")
-MYTARGET_AUTH_URL = os.getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize")
-MYTARGET_TOKEN_URL = os.getenv("MYTARGET_TOKEN_URL", "https://target-sandbox.my.com/api/v2/oauth2/token.json")
+MYTARGET_CLIENT_ID = cfg.oauth.mytarget_client_id
+MYTARGET_CLIENT_SECRET = cfg.oauth.mytarget_client_secret
+MYTARGET_AUTH_URL = cfg.oauth.mytarget_auth_url
+MYTARGET_TOKEN_URL = cfg.oauth.mytarget_token_url
 
 logger = logging.getLogger(__name__)
 
@@ -295,21 +296,7 @@ def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
     Синхронная обертка для BackgroundTasks (FastAPI BackgroundTasks требует синхронную функцию).
     Запускает асинхронную синхронизацию в отдельном event loop.
     """
-    import asyncio
-    import threading
-    
-    def run_in_thread():
-        """Запускает async функцию в отдельном потоке с новым event loop"""
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        try:
-            new_loop.run_until_complete(run_sync_in_background_async(integration_id, days))
-        finally:
-            new_loop.close()
-    
-    # Запускаем в отдельном потоке, чтобы не блокировать основной
-    thread = threading.Thread(target=run_in_thread, daemon=True)
-    thread.start()
+    enqueue_sync_job(integration_id, days)
 
 @router.post("/yandex/exchange")
 async def exchange_yandex_token(
@@ -1118,10 +1105,7 @@ async def trigger_sync(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
     
-    # CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
-    # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
-    # Это гарантирует, что долгие операции синхронизации не заблокируют сайт.
-    run_sync_in_background(integration_id, days)
+    job_id = enqueue_sync_job(integration_id, days)
     
     # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
     integration.sync_status = models.IntegrationSyncStatus.PENDING
@@ -1129,7 +1113,93 @@ async def trigger_sync(
     
     return {
         "status": "queued", 
-        "message": f"Sync queued for last {days} days. Processing in background..."
+        "message": f"Sync queued for last {days} days. Processing in background...",
+        "job_id": str(job_id),
+    }
+
+
+@router.post("/sync/jobs")
+async def create_sync_job(
+    payload: dict = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    integration_id = payload.get("integration_id")
+    days = int(payload.get("days", 7))
+    if not integration_id:
+        raise HTTPException(status_code=400, detail="integration_id is required")
+    try:
+        iid = uuid.UUID(integration_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid integration_id")
+
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == iid,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    job_id = enqueue_sync_job(iid, days)
+    integration.sync_status = models.IntegrationSyncStatus.PENDING
+    db.commit()
+    return {"status": "queued", "job_id": str(job_id)}
+
+
+@router.get("/sync/jobs/{job_id}")
+async def get_sync_job(
+    job_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    job = db.query(models.SyncJob).join(models.Integration).join(models.Client).filter(
+        models.SyncJob.id == job_id,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Sync job not found")
+    return {
+        "id": str(job.id),
+        "integration_id": str(job.integration_id),
+        "status": job.status.value if job.status else None,
+        "stage": job.stage,
+        "progress": job.progress,
+        "attempt": job.attempt,
+        "error": job.error,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+    }
+
+
+@router.get("/{integration_id}/sync-status")
+async def get_integration_sync_status(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    job = db.query(models.SyncJob).filter(
+        models.SyncJob.integration_id == integration_id
+    ).order_by(models.SyncJob.created_at.desc()).first()
+    if not job:
+        return {"integration_id": str(integration_id), "job": None}
+    return {
+        "integration_id": str(integration_id),
+        "job": {
+            "id": str(job.id),
+            "status": job.status.value if job.status else None,
+            "stage": job.stage,
+            "progress": job.progress,
+            "error": job.error,
+            "updated_at": job.updated_at,
+        },
     }
 
 @router.get("/{integration_id}", response_model=schemas.IntegrationResponse)
@@ -2755,31 +2825,26 @@ async def discover_campaigns(
     # Create a map of external_id -> campaign data from API
     discovered_map = {str(dc["id"]): dc for dc in discovered_campaigns}
     
-    # Filter out template/test campaigns (like "CampaignName", "Test Campaign", etc.)
+    # Возвращаем ВСЕ кампании (включая архивные/остановленные и исторические имена).
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
-    
-    # Filter out template campaigns and campaigns from other profiles
-    template_names = ["campaignname", "test campaign", "тест", "test", "шаблон", "template"]
+
     filtered_campaigns = []
     for campaign in all_campaigns:
-        campaign_name_lower = campaign.name.lower().strip()
-        # Skip if name is a template/test name
-        if campaign_name_lower in template_names or campaign_name_lower == "campaignname":
-            logger.info(f"   ⏭️ Skipping template campaign: ID={campaign.external_id}, Name='{campaign.name}'")
-            continue
-        
-        # CRITICAL: Filter out campaigns that don't match the selected profile
-        # If external_id is not numeric (like "CampaignId"), it's invalid
-        if not campaign.external_id or not str(campaign.external_id).isdigit():
-            logger.info(f"   ⏭️ Skipping invalid campaign ID: ID={campaign.external_id}, Name='{campaign.name}'")
-            continue
-        
         # Get state from discovered_campaigns (API data)
         api_campaign = discovered_map.get(str(campaign.external_id))
         
         # Build campaign dict with data from API if available
         # Map state values to match frontend expectations
         campaign_state = api_campaign.get("state", "UNKNOWN") if api_campaign else "UNKNOWN"
+        if campaign_state == "UNKNOWN" and api_campaign:
+            # VK часто возвращает status (active/deleted/blocked) без поля state.
+            raw_status = str(api_campaign.get("status") or "").lower()
+            if raw_status == "active":
+                campaign_state = "ON"
+            elif raw_status == "deleted":
+                campaign_state = "ARCHIVED"
+            elif raw_status == "blocked":
+                campaign_state = "SUSPENDED"
         # IMPORTANT: Keep ARCHIVED state as-is for filtering
         # Map state: OFF -> SUSPENDED for frontend (OFF means paused/stopped)
         # But keep ARCHIVED, ENDED, ON, SUSPENDED as-is
@@ -2802,7 +2867,7 @@ async def discover_campaigns(
         
         filtered_campaigns.append(campaign_dict)
     
-    logger.info(f"✅ Returning {len(filtered_campaigns)} campaigns (filtered out {len(all_campaigns) - len(filtered_campaigns)} template/archived campaigns)")
+    logger.info(f"✅ Returning {len(filtered_campaigns)} campaigns (ALL from DB for integration)")
     return filtered_campaigns
 
 @router.get("/{integration_id}/campaigns-stats")
@@ -3185,7 +3250,7 @@ async def delete_integration(
     # CRITICAL: Clear dashboard cache to ensure fresh data after integration deletion
     # This prevents stale cached data from the deleted integration from appearing
     from backend_api.cache_service import CacheService
-    CacheService.clear()
+    CacheService.invalidate_client(str(integration.client_id))
     logger.info(f"🗑️ Cleared dashboard cache after deleting integration {integration_id}")
     
     logger.info(f"✅ Deleted integration {integration_id} and all related data")

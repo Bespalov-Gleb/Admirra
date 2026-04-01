@@ -2,32 +2,20 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import os
-from dotenv import load_dotenv
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from core import models, schemas
 from core.database import get_db
-
-load_dotenv()
+from core.config import get_config
 
 # Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-it-in-production")
+cfg = get_config()
+SECRET_KEY = cfg.security.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
-
-
-def _env_bool_default_true(name: str, default: bool = True) -> bool:
-    val = os.getenv(name)
-    if val is None:
-        return default
-    return val.strip().lower() in {"1", "true", "yes", "on"}
-
-
-# false — вход и JWT без подтверждения почты (временно, например при SMTP_OFF)
-AUTH_REQUIRE_EMAIL_VERIFIED = _env_bool_default_true("AUTH_REQUIRE_EMAIL_VERIFIED", True)
+AUTH_REQUIRE_EMAIL_VERIFIED = cfg.auth.auth_require_email_verified
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -48,7 +36,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 # Encryption for sensitive tokens
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "7-uWJ-vE7m7A-fH3_X5J8y_jC_kX_1N_1k_2N_3M_4L=") # Change in production!
+ENCRYPTION_KEY = cfg.security.encryption_key
 from cryptography.fernet import Fernet
 
 fernet = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)

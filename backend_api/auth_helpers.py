@@ -1,12 +1,12 @@
 """Хэши токенов подтверждения почты и OTP входа."""
 import hashlib
 import hmac
-import os
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
+from core.config import get_config
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-it-in-production")
+SECRET_KEY = get_config().security.secret_key
 
 
 def hash_verification_token(raw: str) -> str:

@@ -109,6 +109,12 @@
                       <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
                         {{ statusLabels[item.sync_status] || 'Неизвестно' }}
                       </span>
+                    <span
+                      v-if="syncProgressById[item.id] && ['QUEUED','RUNNING'].includes(syncProgressById[item.id].status)"
+                      class="text-[10px] font-semibold text-blue-500"
+                    >
+                      {{ syncProgressById[item.id].progress || 0 }}%
+                    </span>
                       <svg v-if="item.error_message" class="w-3 h-3 text-red-400 cursor-help" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                       </svg>
@@ -232,6 +238,7 @@ const statusLabels = {
 
 const syncingId = ref(null)
 const testingId = ref(null)
+const syncProgressById = ref({})
 
 const toaster = useToaster()
 
@@ -279,11 +286,47 @@ const fetchIntegrations = async () => {
   try {
     const response = await api.get('clients/')
     clients.value = response.data
+    await refreshSyncStatuses()
   } catch (error) {
     console.error('Error fetching integrations:', error)
   } finally {
     loading.value = false
   }
+}
+
+const refreshSyncStatuses = async () => {
+  const integrations = clients.value.flatMap(c => c.integrations || [])
+  await Promise.all(integrations.map(async (item) => {
+    try {
+      const { data } = await api.get(`integrations/${item.id}/sync-status`)
+      if (data?.job) {
+        syncProgressById.value[item.id] = data.job
+      }
+    } catch {
+      // ignore
+    }
+  }))
+}
+
+const pollSyncJob = (integrationId, jobId) => {
+  const pollInterval = setInterval(async () => {
+    try {
+      const { data } = await api.get(`integrations/sync/jobs/${jobId}`)
+      syncProgressById.value[integrationId] = data
+      if (data.status === 'SUCCESS') {
+        clearInterval(pollInterval)
+        toaster.success('Синхронизация завершена успешно!')
+        await fetchIntegrations()
+      } else if (data.status === 'FAILED' || data.status === 'CANCELLED') {
+        clearInterval(pollInterval)
+        toaster.error('Ошибка при синхронизации: ' + (data.error || 'Неизвестная ошибка'))
+        await fetchIntegrations()
+      }
+    } catch {
+      clearInterval(pollInterval)
+    }
+  }, 3000)
+  setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000)
 }
 
 const handleIntegrationSuccess = () => {
@@ -377,30 +420,12 @@ const testConnection = async (id) => {
 const handleSync = async (id) => {
   syncingId.value = id
   try {
-    await api.post(`integrations/${id}/sync`, { days: 90 })
+    const { data } = await api.post(`integrations/${id}/sync`, { days: 90 })
     toaster.info('Синхронизация запущена. Данные появятся через несколько минут.')
     fetchIntegrations()
-    // Ожидаем фактического завершения (SUCCESS/FAILED) — сообщение только после записи в БД
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data } = await api.get('integrations/')
-        const integration = data.find((i) => String(i.id) === String(id))
-        if (!integration) return
-        if (integration.sync_status === 'SUCCESS') {
-          clearInterval(pollInterval)
-          toaster.success('Синхронизация завершена успешно!')
-          fetchIntegrations()
-        } else if (integration.sync_status === 'FAILED') {
-          clearInterval(pollInterval)
-          toaster.error('Ошибка при синхронизации: ' + (integration.error_message || 'Неизвестная ошибка'))
-          fetchIntegrations()
-        }
-      } catch {
-        clearInterval(pollInterval)
-      }
-    }, 3000)
-    // Останавливаем опрос через 10 минут
-    setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000)
+    if (data?.job_id) {
+      pollSyncJob(id, data.job_id)
+    }
   } catch (error) {
     toaster.error('Ошибка при синхронизации: ' + (error.response?.data?.detail || error.message))
   } finally {

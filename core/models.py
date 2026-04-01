@@ -82,6 +82,14 @@ class IntegrationSyncStatus(enum.Enum):
     PENDING = "PENDING"
     NEVER = "NEVER"
 
+
+class SyncJobStatus(enum.Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
 class Integration(Base):
     __tablename__ = "integrations"
     
@@ -121,6 +129,7 @@ class Integration(Base):
 
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
+    sync_jobs = relationship("SyncJob", back_populates="integration", cascade="all, delete-orphan")
 
     @property
     def client_name(self):
@@ -142,6 +151,25 @@ class Campaign(Base):
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
+
+
+class SyncJob(Base):
+    __tablename__ = "sync_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id", ondelete="CASCADE"), index=True, nullable=False)
+    status = Column(Enum(SyncJobStatus), nullable=False, default=SyncJobStatus.QUEUED, index=True)
+    stage = Column(String, nullable=True)  # queued, campaigns, stats, done
+    progress = Column(Integer, nullable=False, default=0)  # 0..100
+    attempt = Column(Integer, nullable=False, default=0)
+    error = Column(String, nullable=True)
+    params = Column(String, nullable=True)  # JSON string for lightweight compatibility
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    integration = relationship("Integration", back_populates="sync_jobs")
 
 class YandexStats(Base):
     __tablename__ = "yandex_stats"

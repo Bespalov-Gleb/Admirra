@@ -45,6 +45,11 @@ VK_GOAL_ACTION_RU: dict[str, str] = {
     "mini_app": "Мини-приложения",
     "profile": "Продвижение профиля",
     "dzen": "Дзен",
+    # Детализация по priced_event_type из документации Package:
+    # 41 — события в Сообществах VK, 43 — in-app события VK Mini Apps, 51 — лидформы.
+    "evt_41_community_actions": "Подписка на сообщество",
+    "evt_43_miniapp_events": "Запуск miniapp приложения",
+    "evt_51_lead_forms": "Лид-формы",
 }
 
 

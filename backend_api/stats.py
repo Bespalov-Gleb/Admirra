@@ -16,6 +16,7 @@ import logging
 import asyncio
 from automation.sync import sync_integration, sync_metrika_goals_background
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+from backend_api.sync_jobs import enqueue_sync_job
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ async def sync_integration_background_async(
         
         # Очищаем кеш дашборда после синхронизации
         from backend_api.cache_service import CacheService
-        CacheService.clear()
+        CacheService.invalidate_client(str(integration.client_id))
         logger.info(f"🗑️ Cleared dashboard cache after sync for integration {integration.id}")
         
     except Exception as e:
@@ -171,20 +172,13 @@ def sync_integration_background(
     Синхронная обертка для запуска синхронизации в отдельном потоке.
     Запускает асинхронную синхронизацию в отдельном event loop, чтобы не блокировать основной event loop FastAPI.
     """
-    import threading
-    
-    def run_in_thread():
-        """Запускает async функцию в отдельном потоке с новым event loop"""
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        try:
-            new_loop.run_until_complete(sync_integration_background_async(integration_id, date_from_str, date_to_str))
-        finally:
-            new_loop.close()
-    
-    # Запускаем в отдельном потоке, чтобы не блокировать основной
-    thread = threading.Thread(target=run_in_thread, daemon=True)
-    thread.start()
+    try:
+        d_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+        d_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+        days = max(1, (d_to - d_from).days + 1)
+    except Exception:
+        days = 7
+    enqueue_sync_job(integration_id, days)
 
 def ensure_data_synced_async(
     db: Session,
@@ -209,7 +203,8 @@ def ensure_data_synced_async(
     
     # Очищаем кеш при запуске синка — следующий запрос получит свежие данные после завершения
     from backend_api.cache_service import CacheService
-    CacheService.clear()
+    for cid in client_ids:
+        CacheService.invalidate_client(str(cid))
     
     # Получаем все интеграции для этих клиентов
     integrations = db.query(models.Integration).filter(
@@ -314,10 +309,6 @@ async def get_summary(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
     
-    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
-    # Синхронизация выполняется асинхронно и не блокирует запрос
-    ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
-    
     print(f"DEBUG: get_summary - campaign_ids: {campaign_ids}, u_campaign_ids: {u_campaign_ids}")
     return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
@@ -374,10 +365,6 @@ async def get_dynamics(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
     
-    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
-    # Синхронизация выполняется асинхронно и не блокирует запрос
-    ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
-
     y_stats = db.query(
         models.YandexStats.date,
         func.sum(models.YandexStats.cost).label("cost"),
@@ -606,11 +593,6 @@ async def get_campaign_stats(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     
-    # CRITICAL: Проверяем наличие данных и запускаем синхронизацию в фоне, если нужно
-    # Синхронизация выполняется асинхронно и не блокирует запрос
-    if d_start:  # Только если указана начальная дата
-        ensure_data_synced_async(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids)
-
     return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
 
 

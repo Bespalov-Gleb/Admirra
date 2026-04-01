@@ -19,10 +19,13 @@ import logging
 import json
 import os
 import uuid
+from core.config import get_config
+
+cfg = get_config()
 
 # Yandex Direct Credentials (should ideally be in a shared config)
-YANDEX_CLIENT_ID = os.getenv("YANDEX_CLIENT_ID", "e2a052c8cac54caeb9b1b05a593be932")
-YANDEX_CLIENT_SECRET = os.getenv("YANDEX_CLIENT_SECRET", "a3ff5920d00e4ee7b8a8019e33cdaaf0")
+YANDEX_CLIENT_ID = cfg.oauth.yandex_client_id
+YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,6 +61,40 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict, verbo
             else:
                 # Re-raise if still not found (shouldn't happen)
                 raise
+
+
+def _bulk_upsert_stats_by_key(db: Session, model, rows: list):
+    """
+    Batched upsert by logical key (client_id, campaign_id, date) without per-row SELECT/flush.
+    """
+    if not rows:
+        return 0
+
+    campaign_ids = list({r["campaign_id"] for r in rows})
+    dates = [r["date"] for r in rows]
+    min_date = min(dates)
+    max_date = max(dates)
+    client_id = rows[0]["client_id"]
+
+    existing = db.query(model).filter(
+        model.client_id == client_id,
+        model.campaign_id.in_(campaign_ids),
+        model.date >= min_date,
+        model.date <= max_date,
+    ).all()
+    existing_map = {(e.client_id, e.campaign_id, e.date): e for e in existing}
+
+    updated = 0
+    for row in rows:
+        key = (row["client_id"], row["campaign_id"], row["date"])
+        rec = existing_map.get(key)
+        if rec:
+            for k, v in row.items():
+                setattr(rec, k, v)
+            updated += 1
+        else:
+            db.add(model(**row))
+    return updated
 
 
 async def _sync_metrika_goals_for_direct(
@@ -419,7 +456,7 @@ def sync_metrika_goals_background(
             )
             db.commit()
             from backend_api.cache_service import CacheService
-            CacheService.clear()
+            CacheService.invalidate_client(str(integration.client_id))
             logger.info(f"✅ Goals-only sync completed for integration {integration_id}")
         except Exception as e:
             logger.error(f"❌ Goals-only sync failed for {integration_id}: {e}")
@@ -515,7 +552,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     db.commit()
                     # CRITICAL: Очищаем кеш дашборда сразу после обновления баланса, чтобы изменения были видны сразу
                     from backend_api.cache_service import CacheService
-                    CacheService.clear()
+                    CacheService.invalidate_client(str(integration.client_id))
                     logger.info(f"✅ Updated and committed balance for integration {integration.id}: {integration.balance} {integration.currency}")
                     logger.info(f"🗑️ Cleared dashboard cache after updating balance")
                 else:
@@ -540,7 +577,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.info(f"🗑️ Cleared balance for integration {integration.id} (was: {old_balance}, now: None) - balance not available or profile mismatch")
                 # Очищаем кеш дашборда, чтобы изменения были видны сразу
                 from backend_api.cache_service import CacheService
-                CacheService.clear()
+                CacheService.invalidate_client(str(integration.client_id))
                 logger.info(f"🗑️ Cleared dashboard cache after clearing balance")
             
             # Обрабатываем статистику
@@ -583,7 +620,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
                             db.commit()
                             from backend_api.cache_service import CacheService
-                            CacheService.clear()
+                            CacheService.invalidate_client(str(integration.client_id))
                             logger.info(f"✅ Metrika goals synced and committed for integration {integration.id} (empty report)")
                         except Exception as goals_err:
                             logger.warning(f"Metrika goals sync failed after empty report: {goals_err}")
@@ -595,7 +632,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     db.commit()
 
                     from backend_api.cache_service import CacheService
-                    CacheService.clear()
+                    CacheService.invalidate_client(str(integration.client_id))
                     logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
                     return
             except Exception as e:
@@ -618,62 +655,42 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 else:
                     raise e
 
+            ext_ids = [str(s["campaign_id"]) for s in stats if s.get("campaign_id") is not None]
+            existing_campaigns = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration.id,
+                models.Campaign.external_id.in_(ext_ids),
+            ).all()
+            campaign_map = {c.external_id: c for c in existing_campaigns}
+            yandex_rows = []
+
             for s in stats:
-                # 1. Ensure Campaign exists in DB
-                campaign_external_id = str(s['campaign_id'])
-                campaign = db.query(models.Campaign).filter_by(
-                    integration_id=integration.id,
-                    external_id=campaign_external_id
-                ).first()
-                
-                # CRITICAL FIX: Skip stats for campaigns not in DB
-                # This happens when Reports API returns data for ALL accessible accounts
-                # but discover-campaigns only found campaigns for the token's account
+                campaign_external_id = str(s["campaign_id"])
+                campaign = campaign_map.get(campaign_external_id)
                 if not campaign:
-                    # #region agent log
                     logger.warning(f"[DEBUG sync SKIP] campaign_id={campaign_external_id} campaign_name={s.get('campaign_name')} not in DB for integration={integration.id}")
-                    # #endregion
-                    logger.warning(
-                        f"Skipping stats for campaign '{s['campaign_name']}' (ID: {campaign_external_id}) - "
-                        f"not found in DB for integration {integration.id}. "
-                        f"This campaign likely belongs to a different account that shares the token."
-                    )
                     continue
-                
-                # Update campaign name if changed
-                if campaign.name != s['campaign_name']:
-                    campaign.name = s['campaign_name']
-                    db.flush()
+                if campaign.name != s["campaign_name"]:
+                    campaign.name = s["campaign_name"]
 
-                # CRITICAL: Sync stats for ALL campaigns, not just active ones
-                # This ensures statistics are available even for stopped/paused campaigns
-                # The is_active flag is for user selection, not for data syncing
-                # if not campaign.is_active:
-                #     continue
-
-                # 2. Update Stats
-                filters = {
+                yandex_rows.append({
                     "client_id": integration.client_id,
                     "campaign_id": campaign.id,
-                    "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
-                }
-                data = {
-                    "campaign_name": s['campaign_name'], 
-                    "impressions": s['impressions'],
-                    "clicks": s['clicks'],
-                    "cost": s['cost'],
-                    "conversions": s['conversions']
-                }
-                logger.info(f"💾 Saving stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}")
-                _update_or_create_stats(db, models.YandexStats, filters, data)
+                    "date": datetime.strptime(s["date"], "%Y-%m-%d").date(),
+                    "campaign_name": s["campaign_name"],
+                    "impressions": s["impressions"],
+                    "clicks": s["clicks"],
+                    "cost": s["cost"],
+                    "conversions": s["conversions"],
+                })
                 # #region agent log
                 if not hasattr(sync_integration, "_yandex_logged"):
                     sync_integration._yandex_logged = set()
-                if str(integration.id) not in sync_integration._yandex_logged:
-                    logger.info(f"[DEBUG sync SAVE] YandexStats filters={filters} data={data} integration_id={integration.id} client_id={integration.client_id}")
+                if str(integration.id) not in sync_integration._yandex_logged and yandex_rows:
+                    logger.info(f"[DEBUG sync SAVE] YandexStats sample={yandex_rows[0]} integration_id={integration.id} client_id={integration.client_id}")
                     sync_integration._yandex_logged.add(str(integration.id))
                 # #endregion
-            
+            _bulk_upsert_stats_by_key(db, models.YandexStats, yandex_rows)
+
             # CRITICAL: Commit stats after processing all campaign stats
             # This ensures data is saved even if group/keyword sync fails
             db.commit()
@@ -681,7 +698,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             
             # Clear cache after saving stats to ensure fresh data on dashboard
             from backend_api.cache_service import CacheService
-            CacheService.clear()
+            CacheService.invalidate_client(str(integration.client_id))
             logger.info(f"🗑️ Cleared dashboard cache after saving Yandex stats for integration {integration.id}")
 
             # CRITICAL: Sync Metrika goals for Direct integrations if goals are selected
@@ -699,7 +716,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     await _sync_metrika_goals_for_direct(db, integration, date_from, date_to, access_token, selected_profile)
                     db.commit()  # CRITICAL: Commit goals data
                     from backend_api.cache_service import CacheService
-                    CacheService.clear()
+                    CacheService.invalidate_client(str(integration.client_id))
                     logger.info(f"✅ Successfully synced and committed Metrika goals for Direct integration {integration.id}")
                     logger.info(f"🗑️ Cleared dashboard cache after Metrika goals sync")
                 except Exception as goals_err:
@@ -803,7 +820,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     db.commit()
                     # CRITICAL: Очищаем кеш дашборда сразу после обновления баланса, чтобы изменения были видны сразу
                     from backend_api.cache_service import CacheService
-                    CacheService.clear()
+                    CacheService.invalidate_client(str(integration.client_id))
                     logger.info(f"✅ Updated and committed balance for integration {integration.id}: {integration.balance} {integration.currency}")
                     logger.info(f"🗑️ Cleared dashboard cache after updating balance")
                 else:
@@ -822,7 +839,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 except Exception as ex:
                     if not vk_campaigns_error_needs_agency_client_retry(ex):
                         raise
-                    vk_secret = os.getenv("VK_CLIENT_SECRET", "").strip()
+                    vk_secret = (os.getenv("VK_CLIENT_SECRET") or "").strip()
                     if not vk_secret:
                         raise
                     from backend_api.integrations import VK_CLIENT_ID
@@ -977,74 +994,53 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 else:
                     raise e
 
-            # CRITICAL: Batch processing to avoid long transactions that block the database
-            # Commit in batches of 200 records to prevent blocking the site during long syncs
-            BATCH_SIZE = 200
-            total_stats = len(stats)
-            processed_count = 0
-            
-            for idx, s in enumerate(stats):
-                campaign_external_id = str(s.get('campaign_id', ''))
-                campaign_name = s.get('campaign_name', 'Unknown VK Campaign')
-                
-                campaign = None
-                if campaign_external_id:
-                    campaign = db.query(models.Campaign).filter_by(
-                        integration_id=integration.id,
-                        external_id=campaign_external_id
-                    ).first()
-                
+            ext_ids = [str(s.get("campaign_id", "")) for s in stats if s.get("campaign_id")]
+            existing_campaigns = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration.id,
+                models.Campaign.external_id.in_(ext_ids),
+            ).all()
+            campaign_map = {c.external_id: c for c in existing_campaigns}
+
+            vk_rows = []
+            for s in stats:
+                campaign_external_id = str(s.get("campaign_id", ""))
+                campaign_name = s.get("campaign_name", "Unknown VK Campaign")
+                campaign = campaign_map.get(campaign_external_id)
                 if not campaign:
                     campaign = models.Campaign(
                         integration_id=integration.id,
                         external_id=campaign_external_id,
                         name=campaign_name,
-                        is_active=True
+                        is_active=True,
                     )
                     db.add(campaign)
                     db.flush()
+                    campaign_map[campaign_external_id] = campaign
                 elif campaign.name != campaign_name:
                     campaign.name = campaign_name
-                    db.flush()
 
-                if not campaign.is_active: continue
+                if not campaign.is_active:
+                    continue
 
-                filters = {
+                vk_rows.append({
                     "client_id": integration.client_id,
                     "campaign_id": campaign.id,
-                    "date": datetime.strptime(s['date'], "%Y-%m-%d").date()
-                }
-                data = {
+                    "date": datetime.strptime(s["date"], "%Y-%m-%d").date(),
                     "campaign_name": campaign_name,
-                    "impressions": s['impressions'],
-                    "clicks": s['clicks'],
-                    "cost": s['cost'],
-                    "conversions": s['conversions'],  # vk.goals = Результат (лиды)
-                    "cpc": s.get('cpc'),  # Средняя цена клика из VK API
-                    "cpa": s.get('cpa')   # vk.cpa = Средняя цена цели из VK API
-                }
-                logger.debug(f"💾 Saving VK stats for campaign '{campaign.name}' (ID: {campaign.external_id}) on {s['date']}: impressions={s['impressions']}, clicks={s['clicks']}, cost={s['cost']}, conversions={s['conversions']}, cpc={s.get('cpc')}, cpa={s.get('cpa')}")
-                
-                _update_or_create_stats(db, models.VKStats, filters, data, verbose=False)
-                processed_count += 1
-                
-                # CRITICAL: Commit in batches to avoid long transactions
-                # This prevents blocking the database and allows the site to remain responsive
-                if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_stats:
-                    try:
-                        db.commit()
-                        # Логируем только каждую 10-ю пачку, чтобы не засорять вывод
-                        if (idx + 1) % (BATCH_SIZE * 10) == 0 or (idx + 1) == total_stats:
-                            logger.info(f"💾 VK stats: {processed_count}/{total_stats} записей обработано...")
-                        await asyncio.sleep(0.1)
-                    except Exception as batch_err:
-                        logger.error(f"❌ Error committing batch for integration {integration.id}: {batch_err}")
-                        db.rollback()
-                        raise
+                    "impressions": s["impressions"],
+                    "clicks": s["clicks"],
+                    "cost": s["cost"],
+                    "conversions": s["conversions"],
+                    "cpc": s.get("cpc"),
+                    "cpa": s.get("cpa"),
+                })
+            _bulk_upsert_stats_by_key(db, models.VKStats, vk_rows)
+            processed_count = len(vk_rows)
+            db.commit()
             
             # Clear cache after saving stats to ensure fresh data on dashboard
             from backend_api.cache_service import CacheService
-            CacheService.clear()
+            CacheService.invalidate_client(str(integration.client_id))
             
             # ИТОГОВАЯ СВОДКА В КОНЦЕ
             logger.info("=" * 80)
@@ -1201,7 +1197,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
         # This prevents stale cached data from appearing on the dashboard
         from backend_api.cache_service import CacheService
-        CacheService.clear()
+        CacheService.invalidate_client(str(integration.client_id))
         logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
 
     except Exception as e:

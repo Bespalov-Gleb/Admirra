@@ -198,13 +198,13 @@ const formatMoney = (val) => {
 const stateLabel = (state) => {
   switch (state) {
     case 'ON':
-      return 'Активна'
+      return 'Включено'
     case 'OFF':
       return 'Остановлена'
     case 'SUSPENDED':
-      return 'Пауза'
+      return 'Остановлена'
     case 'ENDED':
-      return 'Завершена'
+      return 'Остановлена'
     case 'ARCHIVED':
       return 'Архивная'
     default:

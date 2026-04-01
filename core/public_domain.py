@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from typing import Optional
+from core.config import get_config
 
 
 def deploy_env_raw() -> Optional[str]:
-    v = os.getenv("ADMIRRA_DEPLOY_ENV")
+    v = get_config().public_domain.admierra_deploy_env
     if v is None or not str(v).strip():
         return None
     return str(v).strip().lower()
@@ -19,7 +19,7 @@ def deploy_env() -> str:
 
 
 def public_host() -> str:
-    override = (os.getenv("ADMIRRA_PUBLIC_HOST") or "").strip()
+    override = (get_config().public_domain.admierra_public_host or "").strip()
     if override:
         return override.lstrip("/").replace("https://", "").replace("http://", "").split("/")[0]
     d = deploy_env_raw()
@@ -42,7 +42,7 @@ def resolve_frontend_url() -> str:
     3. ADMIRRA_DEPLOY_ENV=prod → https://admirra.ru
     4. переменная не задана — локальная разработка (Vite).
     """
-    explicit = os.getenv("FRONTEND_URL")
+    explicit = get_config().public_domain.frontend_url
     if explicit:
         return explicit.rstrip("/")
 

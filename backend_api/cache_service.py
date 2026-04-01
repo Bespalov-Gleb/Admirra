@@ -44,6 +44,26 @@ class CacheService:
         """
         cls._cache.clear()
 
+    @classmethod
+    def invalidate_contains(cls, token: str):
+        """
+        Remove only keys containing a specific token.
+        """
+        if not token:
+            return
+        keys = [k for k in cls._cache.keys() if token in k]
+        for k in keys:
+            cls._cache.pop(k, None)
+
+    @classmethod
+    def invalidate_client(cls, client_id: str):
+        """
+        Remove cache keys related to a specific client_id.
+        """
+        if not client_id:
+            return
+        cls.invalidate_contains(str(client_id))
+
 def cache_response(ttl: int = 600, skip_cache_when=None):
     """
     Decorator for caching function responses.

@@ -304,6 +304,20 @@ class DashboardIntegrationStatus(BaseModel):
 class SyncRequest(BaseModel):
     days: int = 7
 
+
+class SyncJobResponse(BaseModel):
+    id: UUID
+    integration_id: UUID
+    status: str
+    stage: Optional[str] = None
+    progress: int = 0
+    attempt: int = 0
+    error: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
 # Error Schema
 class ErrorResponse(BaseModel):
     detail: str

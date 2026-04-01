@@ -4,6 +4,7 @@ from core import models
 from datetime import datetime, timedelta
 import uuid
 import json
+import os
 from typing import List, Optional
 
 class StatsService:
@@ -154,7 +155,7 @@ class StatsService:
             debug_logger.info(f"🔍 Campaign IDs: {campaign_ids}")
             
             # CRITICAL: Check what data actually exists in DB for this date range
-            if platform in ["all", "yandex"]:
+            if os.getenv("ENABLE_STATS_DEBUG_SAMPLE", "false").lower() == "true" and platform in ["all", "yandex"]:
                 sample_query = db.query(
                     models.YandexStats.date,
                     models.Campaign.name,

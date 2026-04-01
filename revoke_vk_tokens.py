@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # VK Ads Credentials
-VK_CLIENT_ID = os.getenv("VK_CLIENT_ID", "MZzDprGbNsWFXiUf")
-VK_CLIENT_SECRET = os.getenv("VK_CLIENT_SECRET", "IrMSpXAmwarxeL3ElBaKeJa4tJAcfplfs1wOFQY81wAkTm2SmZ5M7QqVOvEyRgizdhWEM8HvzRNIFhb8fKppwjLZd2Y6DXxUhqDMkiCZ5tSUsMui3Cu5K6dgAAGWQGDmZTPtNMcCuxY54snEKQBEVOI6MC3LAzOpeY5pgUdNtEgfAuh9NgezVurPWHowo7mSUXydDOIFl73LsGmy4lXD1UNotp6szljPePjsy8O2hkX")
+VK_CLIENT_ID = (os.getenv("VK_CLIENT_ID") or "").strip()
+VK_CLIENT_SECRET = (os.getenv("VK_CLIENT_SECRET") or "").strip()
 
 # Добавляем путь к корню проекта для импорта модулей
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))

@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 
@@ -27,22 +26,15 @@ from .services.auth_mail import (
     smtp_delivery_active,
     smtp_enabled,
 )
+from core.config import get_config
 
 logger = logging.getLogger("api")
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 FRONTEND_URL = resolve_frontend_url()
-RESEND_COOLDOWN_SEC = int(os.getenv("AUTH_RESEND_COOLDOWN_SEC", "60"))
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    val = os.getenv(name)
-    if val is None:
-        return default
-    return val.strip().lower() in {"1", "true", "yes", "on"}
-
-
-AUTH_LOGIN_OTP_ENABLED = _env_bool("AUTH_LOGIN_OTP_ENABLED", True)
+cfg = get_config()
+RESEND_COOLDOWN_SEC = cfg.auth.resend_cooldown_sec
+AUTH_LOGIN_OTP_ENABLED = cfg.auth.auth_login_otp_enabled
 
 
 def _frontend_verify_url(raw_token: str) -> str:

@@ -4,17 +4,17 @@
 
 import asyncio
 import logging
-import os
 import smtplib
 from email.message import EmailMessage
 from typing import Optional
+from core.config import get_env, get_bool
 
 logger = logging.getLogger("api.auth_mail")
 
 
 def smtp_enabled() -> bool:
     """false — не пытаемся слать письма (временно при проблемах с сетью/SMTP). По умолчанию true."""
-    v = os.getenv("SMTP_ENABLED", "true").strip().lower()
+    v = str(get_env("SMTP_ENABLED", "true")).strip().lower()
     return v not in ("0", "false", "no", "off")
 
 
@@ -24,12 +24,12 @@ def smtp_delivery_active() -> bool:
 
 
 def _smtp_config():
-    host = os.getenv("SMTP_HOST", "")
-    port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USER", "")
-    password = os.getenv("SMTP_PASSWORD", "")
-    from_addr = os.getenv("SMTP_FROM") or user
-    use_tls = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    host = get_env("SMTP_HOST", "")
+    port = int(get_env("SMTP_PORT", "587"))
+    user = get_env("SMTP_USER", "")
+    password = get_env("SMTP_PASSWORD", "")
+    from_addr = get_env("SMTP_FROM", "") or user
+    use_tls = get_bool("SMTP_USE_TLS", True)
     return host, port, user, password, from_addr, use_tls
 
 
