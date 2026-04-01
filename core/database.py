@@ -6,6 +6,8 @@ from core.config import get_config
 
 # We will use environment variables for the production URL
 SQLALCHEMY_DATABASE_URL = get_config().database.url
+if not SQLALCHEMY_DATABASE_URL:
+    raise RuntimeError("Missing required environment variable: DATABASE_URL")
 
 # Log the database connection info (without password) - use print to ensure it's visible
 if "@" in SQLALCHEMY_DATABASE_URL:

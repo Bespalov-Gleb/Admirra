@@ -62,11 +62,8 @@ def _bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _required(name: str) -> str:
-    value = (getenv(name) or "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
+def _env(name: str, default: str = "") -> str:
+    return (getenv(name) or default).strip()
 
 
 @lru_cache(maxsize=1)
@@ -79,20 +76,20 @@ def get_config() -> Config:
 
     return Config(
         security=SecurityConfig(
-            secret_key=_required("SECRET_KEY"),
-            encryption_key=_required("ENCRYPTION_KEY"),
+            secret_key=_env("SECRET_KEY"),
+            encryption_key=_env("ENCRYPTION_KEY"),
         ),
         database=DatabaseConfig(
-            url=_required("DATABASE_URL"),
+            url=_env("DATABASE_URL"),
         ),
         oauth=OAuthConfig(
-            yandex_client_id=_required("YANDEX_CLIENT_ID"),
-            yandex_client_secret=_required("YANDEX_CLIENT_SECRET"),
-            vk_client_id=_required("VK_CLIENT_ID"),
-            vk_client_secret=_required("VK_CLIENT_SECRET"),
+            yandex_client_id=_env("YANDEX_CLIENT_ID"),
+            yandex_client_secret=_env("YANDEX_CLIENT_SECRET"),
+            vk_client_id=_env("VK_CLIENT_ID"),
+            vk_client_secret=_env("VK_CLIENT_SECRET"),
             vk_ads_oauth_scope=getenv("VK_ADS_OAUTH_SCOPE", "read_ads,read_payments,create_ads"),
-            mytarget_client_id=_required("MYTARGET_CLIENT_ID"),
-            mytarget_client_secret=_required("MYTARGET_CLIENT_SECRET"),
+            mytarget_client_id=_env("MYTARGET_CLIENT_ID"),
+            mytarget_client_secret=_env("MYTARGET_CLIENT_SECRET"),
             mytarget_auth_url=getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize"),
             mytarget_token_url=getenv("MYTARGET_TOKEN_URL", "https://target-sandbox.my.com/api/v2/oauth2/token.json"),
             yandex_auth_url="https://oauth.yandex.ru/authorize",
