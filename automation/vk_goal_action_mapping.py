@@ -5,10 +5,12 @@ API возвращает коды (leadads, socialengagement, traffic и т.д.)
 Источники: Package.objective, AdPlan.objective, типы кампаний.
 """
 
-# Маппинг кодов типов ЦД VK Ads API → русское название
+# Маппинг кодов типов ЦД VK Ads API → русское название.
+# ВАЖНО: разные технические коды (особенно для лид-форм) должны иметь РАЗНЫЕ русские названия,
+# чтобы в UI не было нескольких разных vk_goal_action_id с одинаковым vk_goal_action_name.
 VK_GOAL_ACTION_RU: dict[str, str] = {
-    # Типы ЦД из API (leadads, socialengagement и т.д.)
-    "leadads": "Лид-формы",
+    # Типы ЦД из API (leadads, socialengagement и т.д.) — групповые цели верхнего уровня
+    "leadads": "Лид-формы (группа)",
     "socialengagement": "Действия в социальных сетях",
     # Конверсии (Package.objective)
     "traffic": "Трафик",
@@ -27,8 +29,8 @@ VK_GOAL_ACTION_RU: dict[str, str] = {
     "social_engagement": "Действия в социальных сетях",
     "storevisits": "Посещение точек продаж",
     "store_visits": "Посещение точек продаж",
-    "lead_forms": "Лид-формы",
-    "leadforms": "Лид-формы",
+    "lead_forms": "Лид-формы (группа)",
+    "leadforms": "Лид-формы (группа)",
     "community": "Вступление в сообщество",
     "group_join": "Вступление в сообщество",
     # Узнаваемость (охват)
@@ -46,10 +48,11 @@ VK_GOAL_ACTION_RU: dict[str, str] = {
     "profile": "Продвижение профиля",
     "dzen": "Дзен",
     # Детализация по priced_event_type из документации Package:
-    # 41 — события в Сообществах VK, 43 — in-app события VK Mini Apps, 51 — лидформы.
+    # 41 — события в Сообществах VK, 43 — in-app события VK Mini Apps, 51 — лид-формы.
     "evt_41_community_actions": "Подписка на сообщество",
     "evt_43_miniapp_events": "Запуск miniapp приложения",
-    "evt_51_lead_forms": "Лид-формы",
+    # Для лид-форм даём отдельное атомарное действие, а не групповое название
+    "evt_51_lead_forms": "Отправка лид-формы",
 }
 
 
