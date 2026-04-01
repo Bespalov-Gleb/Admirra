@@ -7,15 +7,15 @@ import logging
 import smtplib
 from email.message import EmailMessage
 from typing import Optional
-from core.config import get_env, get_bool
+from core.config import get_config
 
 logger = logging.getLogger("api.auth_mail")
 
 
 def smtp_enabled() -> bool:
     """false — не пытаемся слать письма (временно при проблемах с сетью/SMTP). По умолчанию true."""
-    v = str(get_env("SMTP_ENABLED", "true")).strip().lower()
-    return v not in ("0", "false", "no", "off")
+    cfg = get_config()
+    return cfg.smtp.enabled
 
 
 def smtp_delivery_active() -> bool:
@@ -24,12 +24,13 @@ def smtp_delivery_active() -> bool:
 
 
 def _smtp_config():
-    host = get_env("SMTP_HOST", "")
-    port = int(get_env("SMTP_PORT", "587"))
-    user = get_env("SMTP_USER", "")
-    password = get_env("SMTP_PASSWORD", "")
-    from_addr = get_env("SMTP_FROM", "") or user
-    use_tls = get_bool("SMTP_USE_TLS", True)
+    cfg = get_config()
+    host = cfg.smtp.host
+    port = cfg.smtp.port
+    user = cfg.smtp.user
+    password = cfg.smtp.password
+    from_addr = cfg.smtp.from_addr
+    use_tls = cfg.smtp.use_tls
     return host, port, user, password, from_addr, use_tls
 
 

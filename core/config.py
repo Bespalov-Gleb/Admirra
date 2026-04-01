@@ -47,12 +47,19 @@ class PublicDomainConfig:
 
 
 @dataclass
+class OpenAIConfig:
+    api_key: str
+    model: str
+
+
+@dataclass
 class Config:
     security: SecurityConfig
     database: DatabaseConfig
     oauth: OAuthConfig
     auth: AuthConfig
     public_domain: PublicDomainConfig
+    openai: OpenAIConfig
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -104,6 +111,10 @@ def get_config() -> Config:
             admierra_deploy_env=(getenv("ADMIRRA_DEPLOY_ENV") or "").strip().lower(),
             admierra_public_host=(getenv("ADMIRRA_PUBLIC_HOST") or "").strip(),
             frontend_url=(getenv("FRONTEND_URL") or "").strip(),
+        ),
+        openai=OpenAIConfig(
+            api_key=_env("OPENAI_API_KEY"),
+            model=_env("OPENAI_MODEL", "gpt-4o-mini"),
         ),
     )
 
