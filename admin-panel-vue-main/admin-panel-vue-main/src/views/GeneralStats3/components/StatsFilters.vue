@@ -115,19 +115,26 @@
             <span>Выбрать все</span>
           </label>
           <div class="h-px bg-gray-100 my-1"></div>
-          <label
-            v-for="goal in vkGoalActions"
-            :key="goal.id"
-            class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-          >
-            <input
-              type="checkbox"
-              class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
-              :checked="selectedGoalIds.includes(goal.id)"
-              @change="toggleGoal(goal.id)"
-            />
-            <span class="truncate" :title="goal.name">{{ goal.name }}</span>
-          </label>
+
+          <!-- Группированный список типов ЦД -->
+          <div v-for="group in groupedVkGoals" :key="group.key" class="mb-1 last:mb-0">
+            <div class="px-2 py-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+              {{ group.name }}
+            </div>
+            <label
+              v-for="goal in group.items"
+              :key="goal.id"
+              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+            >
+              <input
+                type="checkbox"
+                class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
+                :checked="selectedGoalIds.includes(goal.id)"
+                @change="toggleGoal(goal.id)"
+              />
+              <span class="truncate" :title="goal.name">{{ goal.name }}</span>
+            </label>
+          </div>
         </div>
       </Teleport>
     </div>
@@ -234,6 +241,68 @@ const selectedGoalIds = computed(() => props.filters.vk_goal_action_ids || [])
 const allGoalsSelected = computed(() => {
   if (!props.vkGoalActions.length) return false
   return selectedGoalIds.value.length === props.vkGoalActions.length
+})
+
+// Конфигурация групп ЦД VK: какие коды относятся к какой группе
+const VK_GOAL_GROUPS = [
+  {
+    key: 'lead_forms',
+    name: 'Лид-формы',
+    groupIds: ['leadads', 'lead_forms', 'leadforms'],
+    childIds: ['evt_51_lead_forms']
+  },
+  {
+    key: 'social_engagement',
+    name: 'Действия в социальных сетях',
+    groupIds: ['socialengagement', 'social_engagement'],
+    childIds: ['evt_41_community_actions']
+  },
+  {
+    key: 'mini_apps',
+    name: 'Мини-приложения',
+    groupIds: ['mini_app'],
+    childIds: ['evt_43_miniapp_events']
+  }
+]
+
+// Группируем плоский список vkGoalActions во вложенную структуру для UI
+const groupedVkGoals = computed(() => {
+  if (!props.vkGoalActions || !props.vkGoalActions.length) return []
+
+  const byId = new Map(props.vkGoalActions.map(g => [g.id, g]))
+  const usedIds = new Set()
+  const groups = []
+
+  VK_GOAL_GROUPS.forEach(def => {
+    const items = def.childIds
+      .map(id => byId.get(id))
+      .filter(Boolean)
+
+    if (!items.length) {
+      return
+    }
+
+    def.groupIds.forEach(id => usedIds.add(id))
+    def.childIds.forEach(id => usedIds.add(id))
+
+    groups.push({
+      key: def.key,
+      name: def.name,
+      items
+    })
+  })
+
+  // Остальные цели, не попавшие ни в одну группу
+  const others = props.vkGoalActions.filter(g => !usedIds.has(g.id))
+  if (others.length) {
+    groups.push({
+      key: 'other',
+      name: 'Другие действия',
+      items: others
+    })
+  }
+
+  return groups
 })
 
 const updateDropdownPosition = () => {

@@ -101,21 +101,32 @@
               <div v-else class="space-y-4">
                 <div>
                   <p class="text-xs font-semibold text-gray-600 mb-2">Типы целевых действий</p>
-                  <div class="flex flex-wrap gap-2">
-                    <label
-                      v-for="goal in vkGoalActions"
-                      :key="goal.id"
-                      class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border bg-white cursor-pointer transition-colors"
-                      :class="localSelectedGoalIds.includes(goal.id) ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:border-gray-300'"
+                  <div class="space-y-2">
+                    <div
+                      v-for="group in groupedVkGoals"
+                      :key="group.key"
+                      class="border border-gray-200 rounded-xl bg-white"
                     >
-                      <input
-                        type="checkbox"
-                        class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        :checked="localSelectedGoalIds.includes(goal.id)"
-                        @change="toggleGoal(goal.id)"
-                      />
-                      <span class="text-sm text-gray-800">{{ goal.name }}</span>
-                    </label>
+                      <div class="px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                        {{ group.name }}
+                      </div>
+                      <div class="flex flex-wrap gap-2 px-3 py-2">
+                        <label
+                          v-for="goal in group.items"
+                          :key="goal.id"
+                          class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer transition-colors"
+                          :class="localSelectedGoalIds.includes(goal.id) ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:border-gray-300'"
+                        >
+                          <input
+                            type="checkbox"
+                            class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            :checked="localSelectedGoalIds.includes(goal.id)"
+                            @change="toggleGoal(goal.id)"
+                          />
+                          <span class="text-sm text-gray-800">{{ goal.name }}</span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div v-if="localSelectedGoalIds.length > 0">
@@ -193,6 +204,67 @@ const activeTab = ref('campaigns')
 const searchQuery = ref('')
 const localSelected = ref([])
 const localSelectedGoalIds = ref([])
+
+// Конфигурация групп ЦД VK: какие коды относятся к какой группе
+const VK_GOAL_GROUPS = [
+  {
+    key: 'lead_forms',
+    name: 'Лид-формы',
+    groupIds: ['leadads', 'lead_forms', 'leadforms'],
+    childIds: ['evt_51_lead_forms']
+  },
+  {
+    key: 'social_engagement',
+    name: 'Действия в социальных сетях',
+    groupIds: ['socialengagement', 'social_engagement'],
+    childIds: ['evt_41_community_actions']
+  },
+  {
+    key: 'mini_apps',
+    name: 'Мини-приложения',
+    groupIds: ['mini_app'],
+    childIds: ['evt_43_miniapp_events']
+  }
+]
+
+// Группируем плоский список vkGoalActions во вложенную структуру для UI
+const groupedVkGoals = computed(() => {
+  if (!props.vkGoalActions || !props.vkGoalActions.length) return []
+
+  const byId = new Map(props.vkGoalActions.map(g => [g.id, g]))
+  const usedIds = new Set()
+  const groups = []
+
+  VK_GOAL_GROUPS.forEach(def => {
+    const items = def.childIds
+      .map(id => byId.get(id))
+      .filter(Boolean)
+
+    if (!items.length) {
+      return
+    }
+
+    def.groupIds.forEach(id => usedIds.add(id))
+    def.childIds.forEach(id => usedIds.add(id))
+
+    groups.push({
+      key: def.key,
+      name: def.name,
+      items
+    })
+  })
+
+  const others = props.vkGoalActions.filter(g => !usedIds.has(g.id))
+  if (others.length) {
+    groups.push({
+      key: 'other',
+      name: 'Другие действия',
+      items: others
+    })
+  }
+
+  return groups
+})
 
 watch(
   () => props.modelValue,
