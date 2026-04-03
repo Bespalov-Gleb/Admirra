@@ -53,6 +53,33 @@ class OpenAIConfig:
 
 
 @dataclass
+class BillingConfig:
+    billing_enabled: bool
+    billing_env: str
+    billing_enforce_limits: bool
+    billing_admin_whitelist: str
+    trial_days: int
+    plan_start_price_rub: int
+    plan_basic_price_rub: int
+    plan_standard_price_rub: int
+    plan_start_max_projects: int
+    plan_basic_max_projects: int
+    plan_standard_max_projects: int
+    plan_start_ai_limit: int
+    plan_basic_ai_limit: int
+    plan_standard_ai_limit: int
+    ai_period_days: int
+
+
+@dataclass
+class CloudPaymentsConfig:
+    public_id: str
+    api_secret: str
+    currency: str
+    webhook_secret: str
+
+
+@dataclass
 class Config:
     security: SecurityConfig
     database: DatabaseConfig
@@ -60,6 +87,8 @@ class Config:
     auth: AuthConfig
     public_domain: PublicDomainConfig
     openai: OpenAIConfig
+    billing: BillingConfig
+    cloudpayments: CloudPaymentsConfig
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -108,13 +137,36 @@ def get_config() -> Config:
             auth_require_email_verified=_bool("AUTH_REQUIRE_EMAIL_VERIFIED", True),
         ),
         public_domain=PublicDomainConfig(
-            admierra_deploy_env=(getenv("ADMIRRA_DEPLOY_ENV") or "").strip().lower(),
-            admierra_public_host=(getenv("ADMIRRA_PUBLIC_HOST") or "").strip(),
-            frontend_url=(getenv("FRONTEND_URL") or "").strip(),
+            admierra_deploy_env=_env("ADMIRRA_DEPLOY_ENV").lower(),
+            admierra_public_host=_env("ADMIRRA_PUBLIC_HOST"),
+            frontend_url=_env("FRONTEND_URL"),
         ),
         openai=OpenAIConfig(
             api_key=_env("OPENAI_API_KEY"),
             model=_env("OPENAI_MODEL", "gpt-4o-mini"),
+        ),
+        billing=BillingConfig(
+            billing_enabled=_bool("BILLING_ENABLED", False),
+            billing_env=_env("BILLING_ENV", "dev").lower(),
+            billing_enforce_limits=_bool("BILLING_ENFORCE_LIMITS", False),
+            billing_admin_whitelist=_env("BILLING_ADMIN_WHITELIST"),
+            trial_days=int(_env("BILLING_TRIAL_DAYS", "14")),
+            plan_start_price_rub=int(_env("BILLING_PLAN_START_PRICE_RUB", "1590")),
+            plan_basic_price_rub=int(_env("BILLING_PLAN_BASIC_PRICE_RUB", "3990")),
+            plan_standard_price_rub=int(_env("BILLING_PLAN_STANDARD_PRICE_RUB", "9900")),
+            plan_start_max_projects=int(_env("BILLING_PLAN_START_MAX_PROJECTS", "1")),
+            plan_basic_max_projects=int(_env("BILLING_PLAN_BASIC_MAX_PROJECTS", "5")),
+            plan_standard_max_projects=int(_env("BILLING_PLAN_STANDARD_MAX_PROJECTS", "15")),
+            plan_start_ai_limit=int(_env("BILLING_PLAN_START_AI_LIMIT", "30")),
+            plan_basic_ai_limit=int(_env("BILLING_PLAN_BASIC_AI_LIMIT", "100")),
+            plan_standard_ai_limit=int(_env("BILLING_PLAN_STANDARD_AI_LIMIT", "300")),
+            ai_period_days=int(_env("BILLING_AI_PERIOD_DAYS", "30")),
+        ),
+        cloudpayments=CloudPaymentsConfig(
+            public_id=_env("CLOUDPAYMENTS_PUBLIC_ID"),
+            api_secret=_env("CLOUDPAYMENTS_API_SECRET"),
+            currency=_env("CLOUDPAYMENTS_CURRENCY", "RUB"),
+            webhook_secret=_env("CLOUDPAYMENTS_WEBHOOK_SECRET"),
         ),
     )
 

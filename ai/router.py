@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core import models, security
+from backend_api.services.subscription import SubscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ async def chat(
         raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
 
     try:
+        SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
         text = await do_chat(
             db=db,
             user_id=current_user.id,
@@ -78,6 +80,8 @@ async def chat(
             user_message=body.message.strip(),
             history=body.history or [],
         )
+        SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        db.commit()
         return ChatResponse(text=text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -116,6 +120,7 @@ async def generate_report(
             raise HTTPException(status_code=400, detail="Неверный client_id")
 
     try:
+        SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
         text = await do_generate(
             db=db,
             user_id=current_user.id,
@@ -124,6 +129,8 @@ async def generate_report(
             end_date=body.end_date,
             report_type=body.report_type or "full",
         )
+        SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        db.commit()
         return GenerateReportResponse(text=text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

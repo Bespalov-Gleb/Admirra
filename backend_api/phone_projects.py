@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from core.database import get_db
 from core import models, security
+from backend_api.services.subscription import SubscriptionService
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,7 @@ def create_phone_project(
 ):
     """Создать новый проект телефонии"""
     import json
+    SubscriptionService.ensure_can_create_project(db, current_user)
     
     # Генерируем секрет для webhook (URL сформируем после создания проекта)
     webhook_secret = secrets.token_urlsafe(32)

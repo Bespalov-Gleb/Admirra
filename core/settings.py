@@ -1,18 +1,12 @@
 """
 Настройки приложения (AI, отчёты и т.д.).
-Переменные окружения загружаются через dotenv.
+Совместимый слой поверх core.config.get_config().
 """
-import os
-from dotenv import load_dotenv
+from core.config import get_config
 
-load_dotenv()
-
-
-def _get_env(key: str, default: str = "") -> str:
-    return os.getenv(key, default)
-
+cfg = get_config()
 
 # OpenAI / AI Report
-OPENAI_API_KEY: str = _get_env("OPENAI_API_KEY", "")
-AI_PROXY_URL: str = _get_env("AI_PROXY_URL", "")  # e.g. "http://user:pass@proxy:8080"
-OPENAI_MODEL: str = _get_env("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY: str = cfg.openai.api_key
+AI_PROXY_URL: str = ""  # e.g. "http://user:pass@proxy:8080"
+OPENAI_MODEL: str = cfg.openai.model

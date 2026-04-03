@@ -26,6 +26,7 @@ from .services.auth_mail import (
     smtp_delivery_active,
     smtp_enabled,
 )
+from .services.subscription import SubscriptionService
 from core.config import get_config
 
 logger = logging.getLogger("api")
@@ -78,6 +79,8 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    SubscriptionService.ensure_default_subscription(db, new_user)
+    db.commit()
 
     verify_url = _frontend_verify_url(raw_token)
     if smtp_delivery_active():

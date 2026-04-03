@@ -12,6 +12,7 @@ import uuid
 
 from core.database import get_db
 from core import models, security
+from backend_api.services.subscription import SubscriptionService
 from backend_api.reports.pdf_service import generate_report_pdf
 from backend_api.reports.export_service import (
     generate_report_png,
@@ -224,6 +225,9 @@ async def _resolve_report_comment(
     use_comment = (comment or "").strip() if comment else None
     if ai and not use_comment:
         try:
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+            if user:
+                SubscriptionService.ensure_can_use_ai(db, user, requested=1)
             from ai.report_generator import generate_report
             use_comment = await generate_report(
                 db=db, user_id=user_id, client_id=client_id,
@@ -231,6 +235,9 @@ async def _resolve_report_comment(
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
+            if user:
+                SubscriptionService.increment_ai_usage(db, user, requested=1)
+                db.commit()
         except Exception as e:
             logger.exception("AI report failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
@@ -363,6 +370,7 @@ async def create_report_link(
     use_comment = (req.comment or "").strip() if req.comment else None
     if not use_comment:
         try:
+            SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
             from ai.report_generator import generate_report
             use_comment = await generate_report(
                 db=db, user_id=current_user.id, client_id=u_client_id,
@@ -370,6 +378,8 @@ async def create_report_link(
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
+            SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+            db.commit()
         except Exception as e:
             logger.exception("AI report failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
@@ -457,6 +467,7 @@ async def send_report(
             raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
     elif req.report_type in ("ai", "text"):
         try:
+            SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
             from ai.report_generator import generate_report
             ai_text = await generate_report(
                 db=db,
@@ -466,6 +477,8 @@ async def send_report(
                 end_date=req.end_date,
                 report_type="full",
             )
+            SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+            db.commit()
         except Exception as e:
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")

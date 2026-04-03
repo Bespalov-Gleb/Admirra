@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 from backend_api.stats_service import StatsService
+from backend_api.services.subscription import SubscriptionService
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
@@ -54,6 +55,7 @@ def create_client(
     """
     Create a new client.
     """
+    SubscriptionService.ensure_can_create_project(db, current_user)
     new_client = models.Client(
         owner_id=current_user.id,
         **client_in.dict()

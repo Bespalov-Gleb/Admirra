@@ -35,8 +35,13 @@ class User(Base):
     email_verification_token_hash = Column(String, nullable=True)
     email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
     verification_email_last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    is_subscribed = Column(Boolean, nullable=False, default=False)
+    subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    ai_requests_used = Column(Integer, nullable=False, default=0)
+    ai_requests_period_started_at = Column(DateTime(timezone=True), nullable=True)
 
     clients = relationship("Client", back_populates="owner")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
 
 class LoginOtpChallenge(Base):
@@ -89,6 +94,14 @@ class SyncJobStatus(enum.Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+
+
+class SubscriptionStatus(enum.Enum):
+    TRIAL = "TRIAL"
+    ACTIVE = "ACTIVE"
+    PAST_DUE = "PAST_DUE"
+    CANCELED = "CANCELED"
+    EXPIRED = "EXPIRED"
 
 class Integration(Base):
     __tablename__ = "integrations"
@@ -151,6 +164,45 @@ class Campaign(Base):
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
+
+
+class TariffPlan(Base):
+    __tablename__ = "tariff_plans"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String, unique=True, nullable=False, index=True)  # start/basic/standard
+    name = Column(String, nullable=False)
+    price_rub = Column(Integer, nullable=False, default=0)
+    max_projects = Column(Integer, nullable=False, default=1)
+    max_ai_requests_per_period = Column(Integer, nullable=False, default=30)
+    period_days = Column(Integer, nullable=False, default=30)
+    trial_days = Column(Integer, nullable=False, default=14)
+    is_default = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    subscriptions = relationship("Subscription", back_populates="plan")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan_id = Column(UUID(as_uuid=True), ForeignKey("tariff_plans.id", ondelete="SET NULL"), nullable=True, index=True)
+    plan_code = Column(String, nullable=False, default="start", index=True)
+    status = Column(Enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.TRIAL, index=True)
+    cloudpayments_subscription_id = Column(String, nullable=True, index=True)
+    cloudpayments_transaction_id = Column(String, nullable=True, index=True)
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="subscriptions")
+    plan = relationship("TariffPlan", back_populates="subscriptions")
 
 
 class SyncJob(Base):

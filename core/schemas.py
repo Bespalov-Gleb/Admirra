@@ -36,6 +36,8 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     email_verified: bool = False
+    is_subscribed: bool = False
+    subscription_expires_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -321,3 +323,49 @@ class SyncJobResponse(BaseModel):
 # Error Schema
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class BillingPlanResponse(BaseModel):
+    code: str
+    name: str
+    price_rub: int
+    max_projects: int
+    max_ai_requests_per_period: int
+    period_days: int
+    trial_days: int
+    is_default: bool
+    is_active: bool
+
+
+class BillingSubscriptionResponse(BaseModel):
+    plan_code: str
+    plan_name: str
+    status: str
+    is_subscribed: bool
+    subscription_expires_at: Optional[datetime] = None
+    max_projects: int
+    max_ai_requests_per_period: int
+    ai_requests_used: int
+    ai_requests_remaining: int
+    period_days: int
+
+
+class BillingSubscribeRequest(BaseModel):
+    plan_code: str
+    success_url: Optional[str] = None
+    fail_url: Optional[str] = None
+
+
+class BillingSubscribeResponse(BaseModel):
+    public_id: str
+    amount: int
+    currency: str
+    description: str
+    account_id: str
+    email: str
+    plan_code: str
+    trial_days: int
+
+
+class CloudPaymentsWebhookResponse(BaseModel):
+    code: int = 0
