@@ -49,13 +49,24 @@ class CloudPaymentsService:
 
     @staticmethod
     def validate_webhook_signature(raw_body: bytes, signature: str | None) -> bool:
+        """
+        См. https://developers.cloudpayments.ru/#proverka-uvedomleniy :
+        HMAC-SHA256 от тела POST (UTF-8), ключ — API Secret; значение в заголовке в base64.
+        CLOUDPAYMENTS_WEBHOOK_SECRET если задан — используется как ключ; иначе CLOUDPAYMENTS_API_SECRET.
+        """
         cfg = get_config().cloudpayments
-        secret = (cfg.webhook_secret or "").strip()
+        secret = (cfg.webhook_secret or cfg.api_secret or "").strip()
         if not secret:
-            # Если секрет не задан, не валидируем подпись (удобно для dev)
             return True
         if not signature:
             return False
-        digest = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-        return hmac.compare_digest(digest.lower(), signature.strip().lower())
+        sig_clean = signature.strip()
+        expected_b64 = base64.b64encode(
+            hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).digest()
+        ).decode("ascii")
+        if hmac.compare_digest(expected_b64, sig_clean):
+            return True
+        # Обратная совместимость: если в заголовке случайно передали hex
+        expected_hex = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected_hex.lower(), sig_clean.lower())
 
