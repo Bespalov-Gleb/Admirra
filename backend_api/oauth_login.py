@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 import threading
 import time
@@ -131,6 +132,13 @@ def _verify_oauth_state(state: str, provider: str) -> None:
 def _pkce_challenge(verifier: str) -> str:
     d = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(d).decode("ascii").rstrip("=")
+
+
+_VK_PKCE_VERIFIER_RE = re.compile(r"^[a-zA-Z0-9_-]{43,128}$")
+
+
+def _vk_pkce_verifier_ok(verifier: str) -> bool:
+    return bool(_VK_PKCE_VERIFIER_RE.fullmatch(verifier))
 
 
 def _vk_id_pending_cleanup_locked() -> None:
@@ -465,18 +473,44 @@ def vk_oauth_authorize_url(redirect_uri: str):
     return {"url": url}
 
 
+@router.get("/vk/sdk-config", response_model=schemas.OAuthVkSdkConfigResponse)
+def vk_oauth_sdk_config():
+    """
+    Параметры для VK ID Web SDK (One Tap): app и scope.
+    См. https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/web/setup
+    """
+    if not VK_LOGIN_CLIENT_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="Вход через VK ID: задайте VK_LOGIN_CLIENT_ID или VK_CLIENT_ID (приложение из кабинета VK ID)",
+        )
+    scope = VK_LOGIN_SCOPE.replace(",", " ").strip()
+    if not scope:
+        scope = "vkid.personal_info email"
+    return schemas.OAuthVkSdkConfigResponse(app_id=VK_LOGIN_CLIENT_ID, scope=scope)
+
+
 @router.post("/vk/callback", response_model=schemas.Token)
 async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session = Depends(get_db)):
     if not VK_LOGIN_CLIENT_ID:
         raise HTTPException(status_code=503, detail="VK ID для входа не настроен (VK_LOGIN_CLIENT_ID / VK_CLIENT_ID)")
 
     state_key = body.state.strip()
-    code_verifier = _vk_id_pending_pop(state_key)
-    if not code_verifier:
-        raise HTTPException(
-            status_code=400,
-            detail="Сессия входа VK ID истекла или уже использована. Откройте «Войти через VK» снова.",
-        )
+    body_cv = (body.code_verifier or "").strip()
+    if body_cv:
+        if not _vk_pkce_verifier_ok(body_cv):
+            raise HTTPException(
+                status_code=400,
+                detail="Некорректный code_verifier (ожидается 43–128 символов [a-zA-Z0-9_-])",
+            )
+        code_verifier = body_cv
+    else:
+        code_verifier = _vk_id_pending_pop(state_key)
+        if not code_verifier:
+            raise HTTPException(
+                status_code=400,
+                detail="Сессия входа VK ID истекла или уже использована. Откройте «Войти через VK» снова.",
+            )
 
     device_id = (body.device_id or "").strip()
     if not device_id:

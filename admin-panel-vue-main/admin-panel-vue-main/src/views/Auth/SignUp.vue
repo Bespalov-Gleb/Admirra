@@ -27,14 +27,33 @@
                 >
                   Яндекс ID
                 </button>
-                <button
-                  type="button"
-                  :disabled="oauthLoading"
-                  class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50"
-                  @click="handleVkLogin"
-                >
-                  ВКонтакте
-                </button>
+                <div class="flex flex-col justify-center gap-2 min-h-[52px]">
+                  <template v-if="!vkUseFallback">
+                    <div
+                      ref="vkOneTapRef"
+                      class="min-h-[48px] w-full flex flex-col justify-center vk-id-onetap-host"
+                    />
+                    <p class="text-[11px] leading-snug text-gray-500">
+                      Регистрация с VK ID — по
+                      <a
+                        class="text-brand-600 hover:underline"
+                        href="https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/intro/main"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >правилам VK ID</a
+                      >.
+                    </p>
+                  </template>
+                  <button
+                    v-else
+                    type="button"
+                    :disabled="oauthLoading"
+                    class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50"
+                    @click="handleVkLogin"
+                  >
+                    ВКонтакте
+                  </button>
+                </div>
               </div>
               <div class="relative py-4 sm:py-6">
                 <div class="absolute inset-0 flex items-center">
@@ -259,18 +278,23 @@
 <script setup>
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import CommonGridShape from '@/components/common/CommonGridShape.vue'
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
+import { mountVkIdOneTap } from '@/composables/useVkIdOneTap'
+import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 import logoAuth from '@/assets/imgs/logo/AdMirra.png'
 
 const router = useRouter()
-const { register, getErrorMessage } = useAuth()
+const { register, getErrorMessage, setToken, fetchCurrentUser } = useAuth()
 const { startYandexLogin, startVkLogin } = useOAuthLogin()
 const showPassword = ref(false)
 const loading = ref(false)
 const oauthLoading = ref(false)
+const vkOneTapRef = ref(null)
+const vkUseFallback = ref(false)
+let disposeVkOneTap = () => {}
 
 const registerForm = reactive({
   username: '',
@@ -303,6 +327,41 @@ const handleVkLogin = async () => {
     errorMessage.value = getErrorMessage(e, 'Не удалось начать регистрацию через ВКонтакте')
   }
 }
+
+onMounted(async () => {
+  await nextTick()
+  const el = vkOneTapRef.value
+  if (!el) return
+  try {
+    disposeVkOneTap = await mountVkIdOneTap(el, {
+      mode: 'signup',
+      onSuccess: async (accessToken) => {
+        setToken(accessToken)
+        const userResult = await fetchCurrentUser()
+        if (!userResult.success) {
+          errorMessage.value = 'Не удалось загрузить профиль'
+          return
+        }
+        router.push(DEFAULT_DASHBOARD_PATH)
+      },
+      onError: (msg) => {
+        errorMessage.value = msg
+      },
+      onExchangeStart: () => {
+        oauthLoading.value = true
+      },
+      onExchangeEnd: () => {
+        oauthLoading.value = false
+      },
+    })
+  } catch {
+    vkUseFallback.value = true
+  }
+})
+
+onBeforeUnmount(() => {
+  disposeVkOneTap()
+})
 
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value
