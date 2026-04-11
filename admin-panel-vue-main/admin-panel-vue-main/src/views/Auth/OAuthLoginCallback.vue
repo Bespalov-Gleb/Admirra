@@ -31,6 +31,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
+import { parseVkIdPayload } from '@/utils/vkIdPayload'
 
 const route = useRoute()
 const router = useRouter()
@@ -66,8 +67,18 @@ onMounted(async () => {
     return
   }
 
-  const code = route.query.code
-  const state = route.query.state
+  const vkPayload = provider === 'vk' ? parseVkIdPayload(route) : null
+  let code = route.query.code
+  let state = route.query.state
+  let deviceId = route.query.device_id
+  if (Array.isArray(deviceId)) deviceId = deviceId[0]
+
+  if (provider === 'vk' && vkPayload && vkPayload.type === 'code_v2') {
+    code = vkPayload.code
+    state = vkPayload.state
+    deviceId = vkPayload.device_id
+  }
+
   if (!code || !state) {
     error.value = 'Нет кода авторизации. Вернитесь и попробуйте снова.'
     loading.value = false
@@ -85,6 +96,12 @@ onMounted(async () => {
       redirect_uri: redirectUri
     }
     if (provider === 'vk') {
+      if (!deviceId || String(deviceId).trim() === '') {
+        error.value = 'VK ID: нет device_id. Используйте вход с /signin (callback /auth/vk/callback).'
+        loading.value = false
+        return
+      }
+      payload.device_id = String(deviceId).trim()
       const rawUid = route.query.user_id
       const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
       if (uid != null && String(uid).trim() !== '') {

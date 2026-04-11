@@ -45,6 +45,7 @@ import { useAuth } from '../../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
 import { ADMIRRA_PUBLIC_ORIGIN } from '../../config/admirraPublic'
 import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
+import { parseVkIdPayload } from '../../utils/vkIdPayload'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,14 +57,27 @@ const error = ref(null)
 const siteLoginFlow = ref(false)
 
 onMounted(async () => {
+  const vkIdPayload = parseVkIdPayload(route)
   const code = route.query.code
   const state = route.query.state
   const fromSession = sessionStorage.getItem('oauth_site_login') === 'vk'
   const fromJwtState = oauthLoginProviderFromState(state) === 'vk'
-  const siteLogin = fromSession || fromJwtState
+  const fromVkId = vkIdPayload && vkIdPayload.type === 'code_v2'
+  const siteLogin = fromSession || fromJwtState || fromVkId
 
   if (siteLogin) {
     siteLoginFlow.value = true
+  }
+
+  if (vkIdPayload && vkIdPayload.error) {
+    error.value =
+      vkIdPayload.error_description ||
+      vkIdPayload.error ||
+      'Ошибка авторизации VK ID'
+    loading.value = false
+    sessionStorage.removeItem('oauth_site_login')
+    localStorage.removeItem('vk_auth_state')
+    return
   }
 
   const errorParam = route.query.error
@@ -83,12 +97,13 @@ onMounted(async () => {
       'invalid_grant': 'Код авторизации истек. Попробуйте авторизоваться заново.',
     }
     const siteLoginMessages = {
-      'invalid_client': 'Неверный client_id или защищённый ключ. Проверьте VK_LOGIN_CLIENT_ID / VK_LOGIN_CLIENT_SECRET (или VK_CLIENT_*) в .env и приложение на vk.com/apps.',
-      'invalid_redirect_uri': `Добавьте в приложении ВКонтакте (vk.com → Мои приложения → Настройки) доверенный redirect URI: ${window.location.origin}/auth/vk/callback`,
-      'invalid_scope': 'Неверный scope для входа. В .env задайте VK_LOGIN_SCOPE (по умолчанию на бэкенде — email) и включите те же права в настройках приложения VK.',
+      'invalid_client': 'Неверный client_id. Проверьте VK_LOGIN_CLIENT_ID (или VK_CLIENT_ID) — это приложение из кабинета VK ID (id.vk.com), .env на сервере.',
+      'invalid_redirect_uri': `В кабинете VK ID добавьте доверенный redirect URI: ${window.location.origin}/auth/vk/callback`,
+      'invalid_scope': 'Неверный scope. В .env задайте VK_LOGIN_SCOPE (пробелы между правами, например «vkid.personal_info email») и те же доступы в настройках приложения VK ID.',
       'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте войти снова и разрешите доступ.',
       'invalid_grant': 'Код авторизации истек или уже использован. Попробуйте войти снова.',
-      'invalid_request': 'Запрос отклонён (часто это Security Error). Выйдите из аккаунта ВК в браузере и войдите снова; проверьте доверенный домен и redirect URI в vk.com/apps. Для oauth.vk.com нужен тип приложения «Веб»; чисто рекламное приложение VK Ads может не подойти — создайте отдельное приложение и VK_LOGIN_CLIENT_ID.',
+      'invalid_request':
+        'Запрос отклонён VK ID. Проверьте приложение в кабинете VK ID, redirect_uri и базовый домен сайта.',
     }
     const errorMessages = siteLogin ? siteLoginMessages : integrationMessages
 
@@ -99,7 +114,7 @@ onMounted(async () => {
       /security/i.test(String(errorDescription || ''))
     ) {
       errorMessage =
-        'VK: Security Error — чаще всего устаревшая сессия: выйдите из ВК (vk.com → Выйти), войдите снова и повторите вход. Если не помогло: отдельное приложение «Веб» для входа (не только VK Ads), в настройках — базовый домен сайта и точный redirect_uri.'
+        'Устаревший oauth.vk.com даёт Security Error — включён вход через VK ID (id.vk.ru). Убедитесь, что client_id из кабинета VK ID и в настройках приложения указан этот redirect_uri.'
     }
     console.error('[VKCallback] VK OAuth error:', errorParam, errorDescription)
     error.value = errorMessage
@@ -114,20 +129,44 @@ onMounted(async () => {
     sessionStorage.removeItem('oauth_site_login')
     localStorage.removeItem('vk_auth_state')
 
-    if (!code || !state) {
-      error.value = 'Нет кода или state авторизации. Попробуйте войти снова.'
+    const redirectUri = `${window.location.origin}/auth/vk/callback`
+
+    let loginCode = null
+    let loginState = null
+    let deviceId = null
+
+    if (vkIdPayload && vkIdPayload.type === 'code_v2') {
+      loginCode = vkIdPayload.code
+      loginState = vkIdPayload.state
+      deviceId = vkIdPayload.device_id
+    } else if (code && state) {
+      loginCode = code
+      loginState = state
+      deviceId = route.query.device_id
+      if (Array.isArray(deviceId)) deviceId = deviceId[0]
+    }
+
+    if (!loginCode || !loginState) {
+      error.value =
+        'Нет данных VK ID (payload с code/state). Откройте вход через кнопку на сайте и завершите авторизацию в VK ID.'
       loading.value = false
       return
     }
 
-    const redirectUri = `${window.location.origin}/auth/vk/callback`
+    if (!deviceId || String(deviceId).trim() === '') {
+      error.value = 'VK ID не передал device_id. Обновите страницу и войдите снова.'
+      loading.value = false
+      return
+    }
+
     const rawUid = route.query.user_id
     const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
     try {
       const { data } = await api.post('auth/oauth/vk/callback', {
-        code: String(code),
-        state: String(state),
+        code: String(loginCode),
+        state: String(loginState),
         redirect_uri: redirectUri,
+        device_id: String(deviceId).trim(),
         ...(uid != null && String(uid).trim() !== ''
           ? { vk_redirect_user_id: String(uid).trim() }
           : {})

@@ -24,10 +24,11 @@ class OAuthConfig:
     vk_client_id: str
     vk_client_secret: str
     vk_ads_oauth_scope: str
-    # Вход на сайт через oauth.vk.com (VK ID пользователя). Если пусто — fallback на vk_client_id/secret.
+    # Вход на сайт через OAuth 2.1 VK ID (id.vk.ru). Если пусто — vk_client_id. Секрет для обмена кода не требуется (дока VK ID).
     vk_login_client_id: str
     vk_login_client_secret: str
     vk_login_scope: str
+    vk_id_oauth_base: str
     mytarget_client_id: str
     mytarget_client_secret: str
     mytarget_auth_url: str
@@ -142,6 +143,7 @@ def get_config() -> Config:
             vk_login_client_id=_env("VK_LOGIN_CLIENT_ID"),
             vk_login_client_secret=_env("VK_LOGIN_CLIENT_SECRET"),
             vk_login_scope=getenv("VK_LOGIN_SCOPE", "email"),
+            vk_id_oauth_base=getenv("VK_ID_OAUTH_BASE", "https://id.vk.ru").rstrip("/"),
             mytarget_client_id=_env("MYTARGET_CLIENT_ID"),
             mytarget_client_secret=_env("MYTARGET_CLIENT_SECRET"),
             mytarget_auth_url=getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize"),

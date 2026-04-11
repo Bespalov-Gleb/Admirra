@@ -57,7 +57,9 @@ class OAuthLoginCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
     state: str
-    # VK Ads: user_id приходит в query redirect_uri, не в JSON token.json (см. ads.vk.com OAuth Authorization Code)
+    # VK ID OAuth 2.1: device_id из параметра payload после редиректа
+    device_id: Optional[str] = None
+    # VK Ads (legacy): user_id в query редиректа при входе через ads — не используется для VK ID
     vk_redirect_user_id: Optional[str] = None
 
 
