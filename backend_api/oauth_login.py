@@ -12,6 +12,9 @@ redirect_uri может совпадать с callback интеграций (/au
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -55,22 +58,72 @@ VK_OAUTH_API_VERSION = "5.199"
 YANDEX_LOGIN_SCOPE = "login:email login:info"
 
 
+def _oauth_state_prefix(provider: str) -> str:
+    return "site-yandex." if provider == "yandex" else "site-vk."
+
+
 def _sign_oauth_state(provider: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=15)
-    return jwt.encode(
-        {"pur": "oauth_login", "prv": provider, "exp": expire},
-        SECRET_KEY,
-        algorithm=ALGORITHM,
-    )
+    """
+    Короткий state для OAuth провайдеров (особенно VK): без JWT и точек в значении —
+    у VK часто встречается invalid_request / Security Error на длинном state и при «старой» сессии.
+    """
+    exp = int((datetime.utcnow() + timedelta(minutes=15)).timestamp())
+    nonce = secrets.token_hex(16)
+    msg = f"{provider}|{exp}|{nonce}"
+    mac = hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        msg.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    inner = f"{exp}|{nonce}|{mac}"
+    inner_b64 = base64.urlsafe_b64encode(inner.encode("utf-8")).decode("ascii").rstrip("=")
+    return _oauth_state_prefix(provider) + inner_b64
 
 
-def _verify_oauth_state(state: str, provider: str) -> None:
+def _verify_oauth_state_compact(b64_inner: str, provider: str) -> None:
+    pad = "=" * (-len(b64_inner) % 4)
+    try:
+        inner = base64.urlsafe_b64decode(b64_inner + pad).decode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Недействительный параметр state")
+    parts = inner.split("|")
+    if len(parts) != 3:
+        raise HTTPException(status_code=400, detail="Недействительный параметр state")
+    exp_s, nonce, mac = parts
+    try:
+        exp = int(exp_s)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Недействительный параметр state")
+    if int(datetime.utcnow().timestamp()) > exp:
+        raise HTTPException(status_code=400, detail="Истёк параметр state, войдите снова")
+    msg = f"{provider}|{exp_s}|{nonce}"
+    expect = hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        msg.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(mac, expect):
+        raise HTTPException(status_code=400, detail="Недействительный параметр state")
+
+
+def _verify_oauth_state_jwt(state: str, provider: str) -> None:
     try:
         payload = jwt.decode(state, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         raise HTTPException(status_code=400, detail="Недействительный параметр state")
     if payload.get("pur") != "oauth_login" or payload.get("prv") != provider:
         raise HTTPException(status_code=400, detail="Недействительный параметр state")
+
+
+def _verify_oauth_state(state: str, provider: str) -> None:
+    prefix = _oauth_state_prefix(provider)
+    if state.startswith(prefix):
+        _verify_oauth_state_compact(state[len(prefix) :], provider)
+        return
+    if state.count(".") == 2:
+        _verify_oauth_state_jwt(state, provider)
+        return
+    raise HTTPException(status_code=400, detail="Недействительный параметр state")
 
 
 def _synthetic_email(prefix: str, provider_uid: str) -> str:
@@ -342,6 +395,8 @@ def vk_oauth_authorize_url(redirect_uri: str):
     ]
     if VK_LOGIN_SCOPE:
         q.append(f"scope={quote(VK_LOGIN_SCOPE, safe='')}")
+    # Сброс кэша прав / «старая сессия» VK — типичная причина Security Error (поддержка VK).
+    q.append("revoke=1")
     url = f"{VK_OAUTH_AUTHORIZE_URL}?{'&'.join(q)}"
     return {"url": url}
 

@@ -88,10 +88,19 @@ onMounted(async () => {
       'invalid_scope': 'Неверный scope для входа. В .env задайте VK_LOGIN_SCOPE (по умолчанию на бэкенде — email) и включите те же права в настройках приложения VK.',
       'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте войти снова и разрешите доступ.',
       'invalid_grant': 'Код авторизации истек или уже использован. Попробуйте войти снова.',
+      'invalid_request': 'Запрос отклонён (часто это Security Error). Выйдите из аккаунта ВК в браузере и войдите снова; проверьте доверенный домен и redirect URI в vk.com/apps. Для oauth.vk.com нужен тип приложения «Веб»; чисто рекламное приложение VK Ads может не подойти — создайте отдельное приложение и VK_LOGIN_CLIENT_ID.',
     }
     const errorMessages = siteLogin ? siteLoginMessages : integrationMessages
-    
-    const errorMessage = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
+
+    let errorMessage = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
+    if (
+      siteLogin &&
+      errorParam === 'invalid_request' &&
+      /security/i.test(String(errorDescription || ''))
+    ) {
+      errorMessage =
+        'VK: Security Error — чаще всего устаревшая сессия: выйдите из ВК (vk.com → Выйти), войдите снова и повторите вход. Если не помогло: отдельное приложение «Веб» для входа (не только VK Ads), в настройках — базовый домен сайта и точный redirect_uri.'
+    }
     console.error('[VKCallback] VK OAuth error:', errorParam, errorDescription)
     error.value = errorMessage
     loading.value = false

@@ -1,9 +1,12 @@
 /**
- * Распознавание сценария «вход на сайт» по state из URL (JWT от бэкенда oauth_login).
- * Подпись здесь не проверяется — только выбор ветки на клиенте; валидация на сервере.
+ * Распознавание сценария «вход на сайт» по state из URL.
+ * Сейчас: префикс site-yandex. / site-vk. (короткий HMAC-state на бэкенде); раньше — JWT (три части).
+ * Подпись на клиенте не проверяется; валидация на сервере.
  */
 export function oauthLoginProviderFromState(state) {
   if (!state || typeof state !== 'string') return null
+  if (state.startsWith('site-yandex.')) return 'yandex'
+  if (state.startsWith('site-vk.')) return 'vk'
   const parts = state.split('.')
   if (parts.length !== 3) return null
   try {
