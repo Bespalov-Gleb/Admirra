@@ -48,7 +48,15 @@ api.interceptors.response.use(
       const currentPath = window.location.pathname
       // Normalize path (remove trailing slash)
       const normalizedPath = currentPath.replace(/\/$/, '') || '/'
+      const isOAuthCallback =
+        normalizedPath === '/auth/yandex/callback' ||
+        normalizedPath === '/auth/vk/callback' ||
+        normalizedPath === '/auth/mytarget/callback' ||
+        normalizedPath === '/auth/login/yandex/callback' ||
+        normalizedPath === '/auth/login/vk/callback'
+
       const isAuthPage =
+        isOAuthCallback ||
         normalizedPath === '/login' ||
         normalizedPath === '/' ||
         normalizedPath === '/signup' ||

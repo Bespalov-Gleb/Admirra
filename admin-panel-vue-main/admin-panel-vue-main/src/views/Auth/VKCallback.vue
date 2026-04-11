@@ -44,6 +44,7 @@ import { useToaster } from '../../composables/useToaster'
 import { useAuth } from '../../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
 import { ADMIRRA_PUBLIC_ORIGIN } from '../../config/admirraPublic'
+import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,12 +56,16 @@ const error = ref(null)
 const siteLoginFlow = ref(false)
 
 onMounted(async () => {
-  if (sessionStorage.getItem('oauth_site_login') === 'vk') {
+  const code = route.query.code
+  const state = route.query.state
+  const fromSession = sessionStorage.getItem('oauth_site_login') === 'vk'
+  const fromJwtState = oauthLoginProviderFromState(state) === 'vk'
+  const siteLogin = fromSession || fromJwtState
+
+  if (siteLogin) {
     siteLoginFlow.value = true
   }
 
-  const code = route.query.code
-  const state = route.query.state
   const errorParam = route.query.error
   const errorDescription = route.query.error_description
   const user_id = route.query.user_id // VK может вернуть user_id
@@ -88,7 +93,7 @@ onMounted(async () => {
     return
   }
 
-  if (sessionStorage.getItem('oauth_site_login') === 'vk') {
+  if (siteLogin) {
     sessionStorage.removeItem('oauth_site_login')
     localStorage.removeItem('vk_auth_state')
 

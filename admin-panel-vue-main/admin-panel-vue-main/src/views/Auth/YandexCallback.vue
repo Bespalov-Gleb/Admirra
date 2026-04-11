@@ -43,6 +43,7 @@ import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
 import { useAuth } from '../../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
+import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,14 +59,19 @@ const logger = {
 }
 
 onMounted(async () => {
-  if (sessionStorage.getItem('oauth_site_login') === 'yandex') {
+  const stateParam = route.query.state
+  const fromSession = sessionStorage.getItem('oauth_site_login') === 'yandex'
+  const fromJwtState = oauthLoginProviderFromState(stateParam) === 'yandex'
+  const siteLogin = fromSession || fromJwtState
+
+  if (siteLogin) {
     siteLoginFlow.value = true
   }
 
   const code = route.query.code
   const redirectUri = `${window.location.origin}/auth/yandex/callback`
 
-  if (sessionStorage.getItem('oauth_site_login') === 'yandex') {
+  if (siteLogin) {
     sessionStorage.removeItem('oauth_site_login')
 
     if (route.query.error) {
@@ -80,7 +86,7 @@ onMounted(async () => {
       return
     }
 
-    const state = route.query.state
+    const state = stateParam
     if (!state) {
       error.value = 'Параметр state не найден. Попробуйте войти снова.'
       loading.value = false
