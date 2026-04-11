@@ -143,7 +143,8 @@ def get_config() -> Config:
             vk_login_client_id=_env("VK_LOGIN_CLIENT_ID"),
             vk_login_client_secret=_env("VK_LOGIN_CLIENT_SECRET"),
             vk_login_scope=getenv("VK_LOGIN_SCOPE", "email"),
-            vk_id_oauth_base=getenv("VK_ID_OAUTH_BASE", "https://id.vk.ru").rstrip("/"),
+            # Пустое значение в .env не должно обнулять базовый URL (getenv с ключом ="" даёт "" без дефолта).
+            vk_id_oauth_base=(_env("VK_ID_OAUTH_BASE") or "https://id.vk.ru").rstrip("/"),
             mytarget_client_id=_env("MYTARGET_CLIENT_ID"),
             mytarget_client_secret=_env("MYTARGET_CLIENT_SECRET"),
             mytarget_auth_url=getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize"),

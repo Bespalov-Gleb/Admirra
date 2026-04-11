@@ -21,7 +21,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from typing import Optional
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -457,6 +457,11 @@ def vk_oauth_authorize_url(redirect_uri: str):
         f"scope={quote(scope, safe='')}",
     ]
     url = f"{VK_ID_BASE}/authorize?{'&'.join(q)}"
+    parsed = urlparse(url)
+    cid = (parse_qs(parsed.query).get("client_id") or [""])[0]
+    if not str(cid).strip():
+        logger.error("VK ID authorize URL без client_id (проверьте VK_LOGIN_CLIENT_ID / VK_CLIENT_ID)")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка: ссылка VK ID сформирована без client_id")
     return {"url": url}
 
 
