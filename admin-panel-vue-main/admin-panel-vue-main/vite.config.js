@@ -45,9 +45,13 @@ function admirraPublicHtmlOriginPlugin() {
 export default defineConfig({
   plugins: [vue(), admirraPublicHtmlOriginPlugin()],
   resolve: {
+    dedupe: ['@vkid/sdk'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  optimizeDeps: {
+    include: ['@vkid/sdk'],
   },
   server: {
     proxy: {

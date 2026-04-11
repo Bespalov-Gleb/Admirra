@@ -1,4 +1,8 @@
-import * as VKID from '@vkid/sdk'
+import {
+  Auth,
+  Config,
+  ConfigResponseMode,
+} from '@vkid/sdk'
 import api from '@/api/axios'
 
 function randomPkceVerifier() {
@@ -12,18 +16,20 @@ function randomState() {
   return randomPkceVerifier()
 }
 
+function parseAppId(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return null
+  const n = Number.parseInt(s, 10)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
+
 /**
- * VK ID One Tap по доке: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/elements/onetap-button/onetap-web
- * PKCE на фронте, обмен кода на бэкенде: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/how-auth-works/auth-flow-web#Cherez-SDK-s-obmenom-koda-na-bekende
+ * Вход через VK ID Web SDK: Config + Auth.login() (в новой вкладке по умолчанию), обмен кода на бэкенде.
+ * One Tap (iframe button_one_tap_auth) в части окружений открывал authorize.js без client_id; Auth.login
+ * формирует URL /authorize с client_id явно (см. @vkid/sdk auth.js).
  *
- * @param {HTMLElement} container
- * @param {object} options
- * @param {'signin'|'signup'} options.mode
- * @param {(accessToken: string) => Promise<void>} options.onSuccess
- * @param {(message: string) => void} options.onError
- * @param {() => void} [options.onExchangeStart]
- * @param {() => void} [options.onExchangeEnd]
- * @returns {Promise<() => void>} cleanup (close widget)
+ * Док: https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/web/setup
  */
 export async function mountVkIdOneTap(container, options) {
   const { mode, onSuccess, onError, onExchangeStart, onExchangeEnd } = options
@@ -32,8 +38,8 @@ export async function mountVkIdOneTap(container, options) {
   }
 
   const { data: cfg } = await api.get('auth/oauth/vk/sdk-config')
-  const appId = Number.parseInt(String(cfg.app_id).trim(), 10)
-  if (!Number.isFinite(appId) || appId <= 0) {
+  const appId = parseAppId(cfg.app_id)
+  if (appId == null) {
     throw new Error('Некорректный app_id в ответе сервера')
   }
 
@@ -44,31 +50,42 @@ export async function mountVkIdOneTap(container, options) {
 
   const scope = (cfg.scope || 'vkid.personal_info email').replace(/,/g, ' ').trim()
 
-  VKID.Config.init({
+  Config.init({
     app: appId,
     redirectUrl,
     state,
     codeVerifier,
     scope,
-    responseMode: VKID.ConfigResponseMode.Callback,
+    responseMode: ConfigResponseMode.Callback,
   })
 
-  const oneTap = new VKID.OneTap()
+  const snap = Config.get()
+  if (snap.app == null || snap.app === '' || Number(snap.app) === 0) {
+    throw new Error('VK ID SDK: в Config не попал app (client_id)')
+  }
 
-  oneTap.on(VKID.WidgetEvents.ERROR, () => {
-    onError('Ошибка виджета VK ID. Попробуйте ещё раз или войдите другим способом.')
-  })
+  const label =
+    mode === 'signup'
+      ? 'Зарегистрироваться с VK ID'
+      : 'Войти с VK ID'
 
-  oneTap.on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
-    const code = payload?.code
-    const deviceId = payload?.device_id
-    const retState = payload?.state ?? state
-    if (!code || !deviceId) {
-      onError('VK ID не вернул данные для входа.')
-      return
-    }
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.textContent = label
+  btn.className =
+    'vkid-sdk-login-btn inline-flex w-full items-center justify-center gap-3 rounded-lg bg-gray-100 px-8 py-4 text-base font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50'
+
+  const runLogin = async () => {
     onExchangeStart?.()
     try {
+      const payload = await Auth.login()
+      const code = payload?.code
+      const deviceId = payload?.device_id
+      const retState = payload?.state ?? state
+      if (!code || !deviceId) {
+        onError('VK ID не вернул данные для входа.')
+        return
+      }
       const { data: tokenPayload } = await api.post('auth/oauth/vk/callback', {
         code,
         state: retState,
@@ -78,6 +95,10 @@ export async function mountVkIdOneTap(container, options) {
       })
       await onSuccess(tokenPayload.access_token)
     } catch (err) {
+      if (err?.code != null && err?.error) {
+        onError(typeof err.error === 'string' ? err.error : 'Вход через VK отменён или прерван')
+        return
+      }
       const detail = err.response?.data?.detail
       const msg =
         typeof detail === 'string'
@@ -89,20 +110,17 @@ export async function mountVkIdOneTap(container, options) {
     } finally {
       onExchangeEnd?.()
     }
+  }
+
+  btn.addEventListener('click', () => {
+    void runLogin()
   })
 
-  oneTap.render({
-    container,
-    scheme: VKID.Scheme.LIGHT,
-    lang: VKID.Languages.RUS,
-    contentId:
-      mode === 'signup' ? VKID.OneTapContentId.SIGN_UP : VKID.OneTapContentId.SIGN_IN,
-    fastAuthEnabled: true,
-  })
+  container.appendChild(btn)
 
   return () => {
     try {
-      oneTap.close()
+      btn.remove()
     } catch {
       /* ignore */
     }
