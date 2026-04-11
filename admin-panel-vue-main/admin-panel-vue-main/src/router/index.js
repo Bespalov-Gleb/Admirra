@@ -219,6 +219,12 @@ router.beforeEach(async (to, from, next) => {
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
+  const isOAuthCallback =
+    normalizedPath === '/auth/yandex/callback' ||
+    normalizedPath === '/auth/vk/callback' ||
+    normalizedPath === '/auth/mytarget/callback' ||
+    normalizedPath === '/auth/login/yandex/callback' ||
+    normalizedPath === '/auth/login/vk/callback'
   const isLoginPage =
     normalizedPath === '/signin' ||
     normalizedPath === '/signup' ||
@@ -234,13 +240,15 @@ router.beforeEach(async (to, from, next) => {
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
-  const isPublicPage = isLoginPage || isLandingPage
+  // OAuth callbacks должны открываться без токена (обмен code → JWT на странице)
+  const isPublicPage = isLoginPage || isLandingPage || isOAuthCallback
   const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
 
   if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
     next('/signin')
-  } else if (isAuth && isPublicPage && !verifyEmailWithToken) {
+  } else if (isAuth && (isLoginPage || isLandingPage) && !verifyEmailWithToken) {
+    // Уже вошли: с экранов входа/лендинга — на дашборд; OAuth callback не трогаем (интеграция под залогиненным)
     console.log('Router: Already authenticated, redirecting to dashboard...')
     next(DEFAULT_DASHBOARD_PATH)
   }
