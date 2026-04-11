@@ -57,6 +57,8 @@ class OAuthLoginCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
     state: str
+    # VK Ads: user_id приходит в query redirect_uri, не в JSON token.json (см. ads.vk.com OAuth Authorization Code)
+    vk_redirect_user_id: Optional[str] = None
 
 
 class TelegramDeepLinkResponse(BaseModel):

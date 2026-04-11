@@ -79,11 +79,19 @@ onMounted(async () => {
     provider === 'yandex' ? 'auth/oauth/yandex/callback' : 'auth/oauth/vk/callback'
 
   try {
-    const { data } = await api.post(path, {
+    const payload = {
       code: String(code),
       state: String(state),
       redirect_uri: redirectUri
-    })
+    }
+    if (provider === 'vk') {
+      const rawUid = route.query.user_id
+      const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
+      if (uid != null && String(uid).trim() !== '') {
+        payload.vk_redirect_user_id = String(uid).trim()
+      }
+    }
+    const { data } = await api.post(path, payload)
     setToken(data.access_token)
     const userResult = await fetchCurrentUser()
     if (!userResult.success) {

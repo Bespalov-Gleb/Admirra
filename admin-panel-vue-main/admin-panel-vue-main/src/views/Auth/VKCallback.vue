@@ -75,13 +75,21 @@ onMounted(async () => {
   
   // Проверяем ошибки от VK OAuth (VK перенаправляет с ?error=...)
   if (errorParam) {
-    const errorMessages = {
-      'invalid_client': 'Неверный client_id или client_secret. Проверьте настройки приложения в VK Apps и значения в .env файле.',
-      'invalid_redirect_uri': `redirect_uri не совпадает с настройками приложения. В VK Apps должен быть указан: ${ADMIRRA_PUBLIC_ORIGIN}/auth/vk/callback`,
-      'invalid_scope': 'Неверные права доступа. В настройках приложения VK и при согласии доступа разрешите права из документации VK Ads API (например read_ads, read_payments, create_ads).',
+    const integrationMessages = {
+      'invalid_client': 'Неверный client_id или client_secret. Проверьте настройки приложения в VK Ads и значения в .env файле.',
+      'invalid_redirect_uri': `redirect_uri не совпадает с настройками приложения. В VK Ads должен быть указан: ${ADMIRRA_PUBLIC_ORIGIN}/auth/vk/callback`,
+      'invalid_scope': 'Неверные права доступа. В настройках приложения VK Ads разрешите права из документации API (например read_ads, read_payments, create_ads).',
       'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте авторизоваться снова и разрешите доступ.',
       'invalid_grant': 'Код авторизации истек. Попробуйте авторизоваться заново.',
     }
+    const siteLoginMessages = {
+      'invalid_client': 'Неверный client_id или защищённый ключ. Проверьте VK_LOGIN_CLIENT_ID / VK_LOGIN_CLIENT_SECRET (или VK_CLIENT_*) в .env и приложение на vk.com/apps.',
+      'invalid_redirect_uri': `Добавьте в приложении ВКонтакте (vk.com → Мои приложения → Настройки) доверенный redirect URI: ${window.location.origin}/auth/vk/callback`,
+      'invalid_scope': 'Неверный scope для входа. В .env задайте VK_LOGIN_SCOPE (по умолчанию на бэкенде — email) и включите те же права в настройках приложения VK.',
+      'access_denied': 'Вы отклонили запрос прав доступа. Попробуйте войти снова и разрешите доступ.',
+      'invalid_grant': 'Код авторизации истек или уже использован. Попробуйте войти снова.',
+    }
+    const errorMessages = siteLogin ? siteLoginMessages : integrationMessages
     
     const errorMessage = errorMessages[errorParam] || errorDescription || `Ошибка авторизации VK: ${errorParam}`
     console.error('[VKCallback] VK OAuth error:', errorParam, errorDescription)
@@ -104,11 +112,16 @@ onMounted(async () => {
     }
 
     const redirectUri = `${window.location.origin}/auth/vk/callback`
+    const rawUid = route.query.user_id
+    const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
     try {
       const { data } = await api.post('auth/oauth/vk/callback', {
         code: String(code),
         state: String(state),
-        redirect_uri: redirectUri
+        redirect_uri: redirectUri,
+        ...(uid != null && String(uid).trim() !== ''
+          ? { vk_redirect_user_id: String(uid).trim() }
+          : {})
       })
       setToken(data.access_token)
       const userResult = await fetchCurrentUser()
