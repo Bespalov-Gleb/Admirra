@@ -46,6 +46,26 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+
+class OAuthAuthorizeUrlResponse(BaseModel):
+    """URL для редиректа браузера на страницу авторизации провайдера (Яндекс / VK)."""
+
+    url: str
+
+
+class OAuthLoginCallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    state: str
+
+
+class TelegramDeepLinkResponse(BaseModel):
+    """Ссылка для открытия Telegram в чате с ботом (кнопка Start)."""
+
+    deep_link: str
+    expires_in_seconds: int = 900
+
+
 class RegisterPendingResponse(BaseModel):
     """Регистрация без JWT — нужно подтвердить почту."""
     email: EmailStr

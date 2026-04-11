@@ -10,6 +10,10 @@
   python -m scripts.test_cloudpayments api-test
   python -m scripts.test_cloudpayments webhook-send --account-id <UUID пользователя>
 
+В контейнере backend (без кавычек на всю команду — иначе docker ищет один «бинарник»):
+  docker compose exec backend python -m scripts.test_cloudpayments api-test
+  docker exec <имя_контейнера> python -m scripts.test_cloudpayments webhook-send --account-id <UUID>
+
 Переменные .env: CLOUDPAYMENTS_PUBLIC_ID, CLOUDPAYMENTS_API_SECRET,
 опционально CLOUDPAYMENTS_WEBHOOK_SECRET (для подписи; иначе берётся API Secret).
 """
@@ -136,8 +140,8 @@ def main() -> None:
     p_wh = sub.add_parser("webhook-send", help="POST тестового webhook на бэкенд")
     p_wh.add_argument(
         "--url",
-        default="http://127.0.0.1:8000/api/billing/cloudpayments/webhook",
-        help="Полный URL эндпоинта webhook",
+        default="http://127.0.0.1:8001/api/billing/cloudpayments/webhook",
+        help="Полный URL эндпоинта webhook (в Docker backend слушает 8001, см. Dockerfile/compose)",
     )
     p_wh.add_argument(
         "--account-id",

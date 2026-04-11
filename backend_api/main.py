@@ -58,6 +58,8 @@ mimetypes.add_type('application/javascript', '.js')
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from backend_api.auth import router as auth_router
+from backend_api.oauth_login import router as oauth_login_router
+from backend_api.telegram_report_link import link_router as telegram_link_router, webhook_router as telegram_webhook_router
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
@@ -169,6 +171,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(oauth_login_router, prefix="/api")
+app.include_router(telegram_link_router, prefix="/api")
+app.include_router(telegram_webhook_router, prefix="/api")
 app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")

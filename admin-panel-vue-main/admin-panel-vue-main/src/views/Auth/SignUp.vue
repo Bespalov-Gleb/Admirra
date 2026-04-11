@@ -20,14 +20,20 @@
             <div>
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                 <button
-                  class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800"
+                  type="button"
+                  :disabled="oauthLoading"
+                  class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50"
+                  @click="handleYandexLogin"
                 >
-                  Войти с Яндекс ID
+                  Яндекс ID
                 </button>
                 <button
-                  class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800"
+                  type="button"
+                  :disabled="oauthLoading"
+                  class="inline-flex items-center justify-center gap-3 py-4 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-8 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50"
+                  @click="handleVkLogin"
                 >
-                  Войти через Вконтакте
+                  ВКонтакте
                 </button>
               </div>
               <div class="relative py-4 sm:py-6">
@@ -256,12 +262,15 @@ import CommonGridShape from '@/components/common/CommonGridShape.vue'
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { useOAuthLogin } from '@/composables/useOAuthLogin'
 import logoAuth from '@/assets/imgs/logo/AdMirra.png'
 
 const router = useRouter()
-const { register } = useAuth()
+const { register, getErrorMessage } = useAuth()
+const { startYandexLogin, startVkLogin } = useOAuthLogin()
 const showPassword = ref(false)
 const loading = ref(false)
+const oauthLoading = ref(false)
 
 const registerForm = reactive({
   username: '',
@@ -272,6 +281,28 @@ const registerForm = reactive({
 })
 
 const errorMessage = ref('')
+
+const handleYandexLogin = async () => {
+  errorMessage.value = ''
+  oauthLoading.value = true
+  try {
+    await startYandexLogin()
+  } catch (e) {
+    oauthLoading.value = false
+    errorMessage.value = getErrorMessage(e, 'Не удалось начать регистрацию через Яндекс')
+  }
+}
+
+const handleVkLogin = async () => {
+  errorMessage.value = ''
+  oauthLoading.value = true
+  try {
+    await startVkLogin()
+  } catch (e) {
+    oauthLoading.value = false
+    errorMessage.value = getErrorMessage(e, 'Не удалось начать регистрацию через ВКонтакте')
+  }
+}
 
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value

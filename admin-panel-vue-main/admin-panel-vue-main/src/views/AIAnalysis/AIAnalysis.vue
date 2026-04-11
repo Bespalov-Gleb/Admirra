@@ -52,7 +52,7 @@
           :disabled="sendingTg"
           class="p-2.5 rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 transition-colors disabled:opacity-50"
           title="Отправить в Telegram"
-          @click="showTgModal = true"
+          @click="handleTelegramSendClick"
         >
           <PaperAirplaneIcon class="w-5 h-5" />
         </button>
@@ -69,24 +69,21 @@
     </div>
 
     <!-- Модалки отправки -->
-    <div v-if="showTgModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgModal = false">
+    <div v-if="showTgLinkModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgLinkModal = false">
       <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
-        <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить в Telegram</h3>
-        <p class="text-sm text-gray-500 mb-4">AI-отчёт будет сгенерирован и отправлен в указанный чат.</p>
-        <input
-          v-model="tgChatId"
-          type="text"
-          placeholder="Chat ID"
-          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm mb-4"
-        />
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Подключите Telegram</h3>
+        <p class="text-sm text-gray-500 mb-4">
+          В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
+        </p>
         <div class="flex gap-3">
-          <button class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="showTgModal = false">Отмена</button>
+          <button type="button" class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="closeTgLinkModal">Отмена</button>
           <button
+            type="button"
             class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-            :disabled="sendingTg || !tgChatId.trim()"
-            @click="submitTelegram"
+            :disabled="tgLinkChecking"
+            @click="confirmTgLinked"
           >
-            {{ sendingTg ? 'Отправка...' : 'Отправить' }}
+            {{ tgLinkChecking ? 'Проверка...' : 'Готово' }}
           </button>
         </div>
       </div>
@@ -200,8 +197,10 @@ import {
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
+import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
 
 const toaster = useToaster()
+const { openTelegramBotForLinking } = useTelegramReportLink()
 
 const clients = ref([])
 const selectedProjectId = ref('')
@@ -229,9 +228,11 @@ const inputMessage = ref('')
 const aiError = ref('')
 const messagesContainer = ref(null)
 
-const showTgModal = ref(false)
+const showTgLinkModal = ref(false)
+const tgLinkChecking = ref(false)
+const pendingTgSend = ref(false)
+const reportTelegramChatId = ref('')
 const showEmailModal = ref(false)
-const tgChatId = ref('')
 const emailRecipients = ref('')
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
@@ -251,7 +252,7 @@ onMounted(async () => {
       api.get('/auth/me').catch(() => ({ data: {} }))
     ])
     clients.value = clientsRes.data || []
-    tgChatId.value = meRes.data?.report_telegram_chat_id || ''
+    reportTelegramChatId.value = meRes.data?.report_telegram_chat_id || ''
     emailRecipients.value = (meRes.data?.report_email_recipients || []).join(', ')
   } catch {
     clients.value = []
@@ -331,8 +332,16 @@ async function handleSendMessage() {
   }
 }
 
-async function submitTelegram() {
-  const chatId = tgChatId.value.trim()
+async function refreshTelegramChatFromServer() {
+  try {
+    const { data } = await api.get('/auth/me')
+    reportTelegramChatId.value = data?.report_telegram_chat_id || ''
+  } catch {
+    /* ignore */
+  }
+}
+
+async function submitTelegramWithChatId(chatId) {
   if (!chatId || sendingTg.value) return
   sendingTg.value = true
   try {
@@ -345,12 +354,53 @@ async function submitTelegram() {
       end_date: endDate.value
     })
     toaster.success('AI-отчёт отправлен в Telegram')
-    showTgModal.value = false
   } catch (err) {
     aiError.value = err.response?.data?.detail || 'Ошибка отправки в Telegram'
     toaster.error(err.response?.data?.detail || 'Ошибка отправки')
   } finally {
     sendingTg.value = false
+  }
+}
+
+function closeTgLinkModal() {
+  showTgLinkModal.value = false
+  pendingTgSend.value = false
+}
+
+async function confirmTgLinked() {
+  tgLinkChecking.value = true
+  try {
+    await refreshTelegramChatFromServer()
+    const chatId = reportTelegramChatId.value.trim()
+    if (!chatId) {
+      toaster.error('Сначала нажмите Start в чате с ботом в Telegram')
+      return
+    }
+    showTgLinkModal.value = false
+    const sendNow = pendingTgSend.value
+    pendingTgSend.value = false
+    if (sendNow) {
+      await submitTelegramWithChatId(chatId)
+    }
+  } finally {
+    tgLinkChecking.value = false
+  }
+}
+
+async function handleTelegramSendClick() {
+  await refreshTelegramChatFromServer()
+  const chatId = reportTelegramChatId.value.trim()
+  if (chatId) {
+    await submitTelegramWithChatId(chatId)
+    return
+  }
+  try {
+    await openTelegramBotForLinking()
+    pendingTgSend.value = true
+    showTgLinkModal.value = true
+  } catch (err) {
+    const d = err.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось открыть Telegram')
   }
 }
 

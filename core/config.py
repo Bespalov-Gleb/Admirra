@@ -37,6 +37,8 @@ class AuthConfig:
     resend_cooldown_sec: int
     auth_login_otp_enabled: bool
     auth_require_email_verified: bool
+    # Домен для синтетического email (VK и Яндекс без почты в ответе). Должен проходить проверку EmailStr.
+    oauth_login_synthetic_email_domain: str
 
 
 @dataclass
@@ -80,6 +82,14 @@ class CloudPaymentsConfig:
 
 
 @dataclass
+class TelegramBotConfig:
+    """Тот же бот, что для lead_validator (TELEGRAM_BOT_TOKEN). Webhook — для привязки чата к пользователю."""
+    bot_token: str
+    webhook_secret: str
+    bot_username: str  # без @; если пусто — username подтянется через getMe
+
+
+@dataclass
 class Config:
     security: SecurityConfig
     database: DatabaseConfig
@@ -89,6 +99,7 @@ class Config:
     openai: OpenAIConfig
     billing: BillingConfig
     cloudpayments: CloudPaymentsConfig
+    telegram_bot: TelegramBotConfig
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -135,6 +146,10 @@ def get_config() -> Config:
             resend_cooldown_sec=int(getenv("AUTH_RESEND_COOLDOWN_SEC", "60")),
             auth_login_otp_enabled=_bool("AUTH_LOGIN_OTP_ENABLED", True),
             auth_require_email_verified=_bool("AUTH_REQUIRE_EMAIL_VERIFIED", True),
+            oauth_login_synthetic_email_domain=_env(
+                "OAUTH_LOGIN_SYNTHETIC_EMAIL_DOMAIN",
+                "oauth-login.localhost",
+            ),
         ),
         public_domain=PublicDomainConfig(
             admierra_deploy_env=_env("ADMIRRA_DEPLOY_ENV").lower(),
@@ -167,6 +182,11 @@ def get_config() -> Config:
             api_secret=_env("CLOUDPAYMENTS_API_SECRET"),
             currency=_env("CLOUDPAYMENTS_CURRENCY", "RUB"),
             webhook_secret=_env("CLOUDPAYMENTS_WEBHOOK_SECRET"),
+        ),
+        telegram_bot=TelegramBotConfig(
+            bot_token=_env("TELEGRAM_BOT_TOKEN"),
+            webhook_secret=_env("TELEGRAM_WEBHOOK_SECRET"),
+            bot_username=_env("TELEGRAM_BOT_USERNAME"),
         ),
     )
 

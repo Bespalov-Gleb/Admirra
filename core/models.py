@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean
+from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -42,6 +42,9 @@ class User(Base):
 
     clients = relationship("Client", back_populates="owner")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
+    oauth_identities = relationship(
+        "UserOAuthIdentity", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class LoginOtpChallenge(Base):
@@ -55,6 +58,47 @@ class LoginOtpChallenge(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
     consumed = Column(Boolean, default=False, nullable=False)
+
+
+class TelegramLinkToken(Base):
+    """
+    Одноразовый токен для deep link t.me/<bot>?start=<token>.
+    После /start в Telegram webhook привязывает chat_id к пользователю.
+    """
+
+    __tablename__ = "telegram_link_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", backref="telegram_link_tokens")
+
+
+class UserOAuthIdentity(Base):
+    """
+    Привязка аккаунта приложения к Яндекс ID / VK ID (тот же OAuth-приложение, что и для VK Ads).
+    Не путать с токенами интеграций рекламных кабинетов.
+    """
+
+    __tablename__ = "user_oauth_identities"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String(32), nullable=False)  # yandex | vk
+    provider_user_id = Column(String(128), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="oauth_identities")
+
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_uid"),
+        UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),
+    )
+
 
 class Client(Base):
     __tablename__ = "clients"

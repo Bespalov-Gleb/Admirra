@@ -45,6 +45,18 @@ const routes = [
     component: () => import('../views/Auth/PendingEmailVerification.vue'),
     meta: { layout: 'auth' }
   },
+  {
+    path: '/auth/login/yandex/callback',
+    name: 'OAuthLoginYandexCallback',
+    component: () => import('../views/Auth/OAuthLoginCallback.vue'),
+    meta: { layout: 'auth', oauthProvider: 'yandex' }
+  },
+  {
+    path: '/auth/login/vk/callback',
+    name: 'OAuthLoginVkCallback',
+    component: () => import('../views/Auth/OAuthLoginCallback.vue'),
+    meta: { layout: 'auth', oauthProvider: 'vk' }
+  },
   // Старые пути для обратной совместимости
   {
     path: '/login',

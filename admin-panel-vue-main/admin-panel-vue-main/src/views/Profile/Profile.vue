@@ -181,12 +181,27 @@
           </div>
           <p class="text-sm text-gray-500 mb-4">Настройки по умолчанию для отправки отчётов в Telegram и на Email.</p>
           <div class="space-y-4">
-            <Input
-              v-model="userData.reportTelegramChatId"
-              label="Telegram Chat ID"
-              placeholder="-1001234567890"
-              :readonly="!isReportSettingsEdit"
-            />
+            <div class="p-4 border border-gray-200 rounded-lg bg-gray-50/50">
+              <p class="text-sm font-medium text-gray-900 mb-1">Telegram для отчётов</p>
+              <p v-if="userData.reportTelegramChatId" class="text-sm text-green-700 mb-3">Чат подключён — отчёты будут приходить в ваш диалог с ботом.</p>
+              <p v-else class="text-sm text-gray-600 mb-3">Откройте бота в Telegram и нажмите Start — без ввода числового Chat ID.</p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="px-4 py-2 text-sm font-medium text-white bg-[#0088cc] rounded-lg hover:bg-[#0077b5] transition-colors"
+                  @click="connectTelegramFromProfile"
+                >
+                  Открыть бота в Telegram
+                </button>
+                <button
+                  type="button"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  @click="loadProfile"
+                >
+                  Обновить статус
+                </button>
+              </div>
+            </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Email получателей (через запятую)</label>
               <input
@@ -283,6 +298,9 @@ import Modal from '../../components/Modal.vue'
 import ChangePasswordModal from '../Settings/components/ChangePasswordModal.vue'
 import Alert from '../../components/Alert.vue'
 import api from '../../api/axios'
+import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
+
+const { openTelegramBotForLinking } = useTelegramReportLink()
 
 const isEditMode = ref(false)
 const isReportSettingsEdit = ref(false)
@@ -325,13 +343,22 @@ const toggleReportSettingsEdit = () => {
   isReportSettingsEdit.value = !isReportSettingsEdit.value
 }
 
+const connectTelegramFromProfile = async () => {
+  try {
+    await openTelegramBotForLinking()
+    showAlertMessage('В Telegram нажмите Start, затем «Обновить статус»')
+  } catch (e) {
+    const d = e.response?.data?.detail
+    showAlertMessage(typeof d === 'string' ? d : 'Не удалось открыть Telegram')
+  }
+}
+
 const saveReportSettings = async () => {
   try {
     const emails = userData.value.reportEmailRecipientsStr
       ? userData.value.reportEmailRecipientsStr.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
       : []
     const payload = {
-      report_telegram_chat_id: userData.value.reportTelegramChatId || null,
       report_email_recipients: emails.length > 0 ? emails : null
     }
     const { data } = await api.put('/auth/me', payload)
