@@ -760,6 +760,7 @@ const loadingAuth = ref(false)
 const initYandexAuth = async () => {
   loadingAuth.value = true
   try {
+    sessionStorage.removeItem('oauth_site_login')
     // redirect_uri — текущий origin; для VK в кабинете добавьте тот же хост (см. ADMIRRA_DEPLOY_ENV / prod vs dev)
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
     
@@ -790,6 +791,7 @@ const initVKAuth = async () => {
   error.value = null
   
   try {
+    sessionStorage.removeItem('oauth_site_login')
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     
     console.log('[initVKAuth] Starting VK Ads OAuth authorization...')

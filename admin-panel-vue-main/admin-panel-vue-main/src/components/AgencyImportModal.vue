@@ -163,7 +163,8 @@ const initAuth = async () => {
         // Wait! The user needs to get the token. 
         // Let's rely on the existing callback logic but store a flag "is_agency_import" in localStorage.
         localStorage.setItem('is_agency_import', 'true')
-        
+        sessionStorage.removeItem('oauth_site_login')
+
         const redirectUri = `${window.location.origin}/auth/yandex/callback`
         const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
         if (data.url) {

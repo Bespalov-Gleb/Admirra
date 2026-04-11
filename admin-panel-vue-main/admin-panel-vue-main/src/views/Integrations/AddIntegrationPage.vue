@@ -529,6 +529,7 @@ const loadingAuth = ref(false)
 const initYandexAuth = async () => {
   loadingAuth.value = true
   try {
+    sessionStorage.removeItem('oauth_site_login')
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
     
     // Save form state to localStorage
@@ -558,6 +559,7 @@ const initVKAuth = async () => {
   error.value = null
   
   try {
+    sessionStorage.removeItem('oauth_site_login')
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     
     console.log('[initVKAuth] Starting VK Ads OAuth authorization...')

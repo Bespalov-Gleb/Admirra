@@ -1,7 +1,8 @@
 """
 Вход и регистрация через Яндекс ID и VK ID (тот же OAuth client_id, что для интеграций рекламы).
 
-Callback-URL отличаются от /auth/yandex/callback и /auth/vk/callback (интеграции), чтобы не ломать мастер подключения.
+redirect_uri может совпадать с callback интеграций (/auth/yandex/callback, /auth/vk/callback):
+фронт помечает вход в sessionStorage и после возврата вызывает эти эндпоинты, а не exchange интеграции.
 """
 
 from __future__ import annotations
@@ -190,8 +191,8 @@ def _find_user_by_email_ci(db: Session, email: str) -> Optional[models.User]:
 @router.get("/yandex/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)
 def yandex_oauth_authorize_url(redirect_uri: str):
     """
-    redirect_uri — зарегистрированный в кабинете Яндекс OAuth URL callback входа
-    (например https://app.example.com/auth/login/yandex/callback), не путать с callback интеграции Директа.
+    redirect_uri — зарегистрированный в кабинете Яндекс OAuth (часто тот же, что у Директа:
+    https://app.example.com/auth/yandex/callback).
     """
     if not YANDEX_CLIENT_ID or not YANDEX_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Яндекс OAuth не настроен на сервере")
@@ -299,7 +300,7 @@ async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Ses
 def vk_oauth_authorize_url(redirect_uri: str):
     """
     Тот же Authorization Code Grant, что для VK Ads API (VK ID).
-    redirect_uri — callback входа, например .../auth/login/vk/callback
+    redirect_uri — callback (может совпадать с интеграцией: .../auth/vk/callback)
     """
     if not VK_CLIENT_ID:
         raise HTTPException(status_code=503, detail="VK OAuth не настроен на сервере")

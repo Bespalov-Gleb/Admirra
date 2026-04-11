@@ -3,17 +3,32 @@
     <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center space-y-4">
       <div v-if="loading" class="flex flex-col items-center">
         <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <h2 class="text-xl font-bold text-gray-900">Подключение Яндекс Директ...</h2>
-        <p class="text-gray-500">Пожалуйста, подождите, мы настраиваем интеграцию.</p>
+        <h2 class="text-xl font-bold text-gray-900">
+          {{ siteLoginFlow ? 'Вход через Яндекс...' : 'Подключение Яндекс Директ...' }}
+        </h2>
+        <p class="text-gray-500">
+          {{ siteLoginFlow ? 'Завершаем авторизацию.' : 'Пожалуйста, подождите, мы настраиваем интеграцию.' }}
+        </p>
       </div>
 
       <div v-else-if="error" class="flex flex-col items-center">
         <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </div>
-        <h2 class="text-xl font-bold text-gray-900">Ошибка подключения</h2>
+        <h2 class="text-xl font-bold text-gray-900">{{ siteLoginFlow ? 'Не удалось войти' : 'Ошибка подключения' }}</h2>
         <p class="text-red-500 text-sm mb-6">{{ error }}</p>
-        <router-link to="/settings" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors">
+        <router-link
+          v-if="siteLoginFlow"
+          to="/signin"
+          class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+        >
+          На страницу входа
+        </router-link>
+        <router-link
+          v-else
+          to="/settings"
+          class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+        >
           Вернуться в настройки
         </router-link>
       </div>
@@ -26,22 +41,74 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
+import { useAuth } from '../../composables/useAuth'
+import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
 
 const route = useRoute()
 const router = useRouter()
 const toaster = useToaster()
+const { setToken, fetchCurrentUser, getErrorMessage } = useAuth()
 
 const loading = ref(true)
 const error = ref(null)
+const siteLoginFlow = ref(false)
 
-// Simple logger for debugging
 const logger = {
   info: (msg) => console.log(`[YandexCallback] ${msg}`)
 }
 
 onMounted(async () => {
+  if (sessionStorage.getItem('oauth_site_login') === 'yandex') {
+    siteLoginFlow.value = true
+  }
+
   const code = route.query.code
-  
+  const redirectUri = `${window.location.origin}/auth/yandex/callback`
+
+  if (sessionStorage.getItem('oauth_site_login') === 'yandex') {
+    sessionStorage.removeItem('oauth_site_login')
+
+    if (route.query.error) {
+      error.value = String(route.query.error_description || route.query.error || 'Вход отменён')
+      loading.value = false
+      return
+    }
+
+    if (!code) {
+      error.value = 'Код авторизации не найден'
+      loading.value = false
+      return
+    }
+
+    const state = route.query.state
+    if (!state) {
+      error.value = 'Параметр state не найден. Попробуйте войти снова.'
+      loading.value = false
+      return
+    }
+
+    try {
+      const { data } = await api.post('auth/oauth/yandex/callback', {
+        code: String(code),
+        state: String(state),
+        redirect_uri: redirectUri
+      })
+      setToken(data.access_token)
+      const userResult = await fetchCurrentUser()
+      if (!userResult.success) {
+        throw new Error('Не удалось загрузить профиль')
+      }
+      router.push(DEFAULT_DASHBOARD_PATH)
+    } catch (err) {
+      console.error(err)
+      const d = err.response?.data?.detail
+      error.value = getErrorMessage(err, typeof d === 'string' ? d : 'Не удалось войти через Яндекс')
+    } finally {
+      loading.value = false
+    }
+    return
+  }
+
   if (!code) {
     error.value = 'Код авторизации не найден'
     loading.value = false
@@ -49,35 +116,27 @@ onMounted(async () => {
   }
 
   try {
-    // Determine redirect URI used during auth
-    const redirectUri = `${window.location.origin}/auth/yandex/callback`
-    
-    // Retrieve client info if saved
     const clientName = localStorage.getItem('yandex_auth_client_name')
     const clientId = localStorage.getItem('yandex_auth_client_id')
-    
-    const payload = { 
-      code, 
+
+    const payload = {
+      code,
       redirect_uri: redirectUri,
-      client_name: clientName, // Pass it to backend
-      client_id: clientId // CRITICAL: Pass client_id to link integration to correct project
+      client_name: clientName,
+      client_id: clientId
     }
-    
+
     const response = await api.post('integrations/yandex/exchange', payload)
-    
+
     const isAgency = response.data.is_agency
-    
-    // Clean up localStorage
+
     localStorage.removeItem('yandex_auth_client_name')
     localStorage.removeItem('yandex_auth_client_id')
-    
+
     if (isAgency) {
-      // For agency accounts, optionally show import modal
-      // But for now, just proceed to wizard like normal accounts
       logger.info('Agency account detected, but proceeding to wizard')
     }
-    
-    // Proceed to wizard step 2 (profile selection)
+
     toaster.success('Яндекс Директ успешно подключен!')
     router.push({
       path: '/integrations/wizard',
