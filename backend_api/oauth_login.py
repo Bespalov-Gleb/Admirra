@@ -143,7 +143,7 @@ async def _vk_ads_exchange_code_for_login(code: str, redirect_uri: str) -> dict:
 
 
 def _synthetic_email(prefix: str, provider_uid: str) -> str:
-    domain = (cfg.auth.oauth_login_synthetic_email_domain or "oauth-login.localhost").strip().lower()
+    domain = (cfg.auth.oauth_login_synthetic_email_domain or "vk-oauth.admirra.ru").strip().lower()
     safe_uid = "".join(c if c.isalnum() else "_" for c in str(provider_uid))[:80]
     return f"{prefix}_{safe_uid}@{domain}"
 

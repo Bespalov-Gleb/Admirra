@@ -156,9 +156,10 @@ def get_config() -> Config:
             resend_cooldown_sec=int(getenv("AUTH_RESEND_COOLDOWN_SEC", "60")),
             auth_login_otp_enabled=_bool("AUTH_LOGIN_OTP_ENABLED", True),
             auth_require_email_verified=_bool("AUTH_REQUIRE_EMAIL_VERIFIED", True),
+            # Домен должен проходить EmailStr (не использовать .localhost — зарезервировано в pydantic-email-validator).
             oauth_login_synthetic_email_domain=_env(
                 "OAUTH_LOGIN_SYNTHETIC_EMAIL_DOMAIN",
-                "oauth-login.localhost",
+                "vk-oauth.admirra.ru",
             ),
         ),
         public_domain=PublicDomainConfig(
