@@ -204,17 +204,11 @@
       <div class="pointer-events-none absolute hidden lg:block" style="left: 380px; top: 42px; width: 345.75px; height: 188.24px">
         <img :src="imgWlBg" alt="" class="absolute inset-0 z-0 h-full w-full object-cover" />
       </div>
-      <!-- Передний макет + поверх только «параллелограмм» списка: #24252E 36% + blur (макет Rectangle 1430107297) -->
       <div
         class="pointer-events-none absolute hidden lg:block z-20"
         style="left: 401px; top: 94px; width: 375px; height: 274px"
       >
         <img :src="imgWlFg" alt="" class="absolute inset-0 h-full w-full object-contain object-left-top" />
-        <div
-          aria-hidden="true"
-          class="absolute z-[15] rounded-[10.66px] border border-white/[0.06] bg-[rgb(36_37_46/0.36)] backdrop-blur-[85.7px]"
-          style="left: 6.5%; top: 35%; width: 273px; height: 200px; max-width: 74%"
-        />
       </div>
       <div class="w-full lg:w-[280px] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
         <div class="mb-6">
