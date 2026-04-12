@@ -201,14 +201,38 @@
           </li>
         </ul>
       </div>
-      <div class="pointer-events-none absolute hidden lg:block" style="left: 380px; top: 42px; width: 345.75px; height: 188.24px">
-        <img :src="imgWlBg" alt="" class="absolute inset-0 z-0 h-full w-full object-cover" />
-      </div>
       <div
-        class="pointer-events-none absolute hidden lg:block z-20"
-        style="left: 401px; top: 94px; width: 375px; height: 274px"
+        class="pointer-events-none absolute z-20 hidden lg:block isolate"
+        style="left: 380px; top: 42px; width: 396px; height: 326px"
       >
-        <img :src="imgWlFgDark" alt="" class="absolute inset-0 h-full w-full object-contain object-left-top" />
+        <img
+          :src="imgWlBg"
+          alt=""
+          class="absolute left-0 top-0 z-0 h-[188.24px] w-[345.75px] max-w-none object-cover"
+        />
+        <div class="absolute left-[21px] top-[52px] z-[1] h-[274px] w-[375px] overflow-visible">
+          <div
+            aria-hidden="true"
+            class="absolute overflow-hidden"
+            style="
+              left: 53.707px;
+              top: 39.5718px;
+              width: 273.556px;
+              height: 200.554px;
+              border-radius: 10.66px;
+              transform: matrix(1, 0, -0.0742825, 0.997237, 0, 0);
+              transform-origin: 0 0;
+              -webkit-backdrop-filter: blur(22px);
+              backdrop-filter: blur(22px);
+              background: rgba(36, 37, 46, 0.82);
+            "
+          />
+        </div>
+        <img
+          :src="imgWlFgDark"
+          alt=""
+          class="absolute left-[21px] top-[52px] z-[2] h-[274px] w-[375px] max-w-none object-contain object-left-top"
+        />
       </div>
       <div class="w-full lg:w-[280px] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
         <div class="mb-6">
