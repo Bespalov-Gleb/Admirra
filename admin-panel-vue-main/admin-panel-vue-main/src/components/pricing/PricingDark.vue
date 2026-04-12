@@ -50,7 +50,7 @@
           </div>
           <div class="mb-8">
             <div class="text-[40px] font-bold leading-none mb-1">{{ priceStart }}</div>
-            <div class="text-[#94A3B8] text-sm">{{ perStart }}</div>
+            <div class="text-white/90 text-sm">{{ perStart }}</div>
           </div>
           <ul class="space-y-4">
             <li
@@ -75,10 +75,7 @@
           </button>
           <div class="w-full bg-[#1F2432] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
             <p class="text-center text-white text-[13px] font-medium">
-              <span class="bg-gradient-to-r from-[#3B82F6] to-[#38BDF8] text-transparent bg-clip-text">{{
-                trialStart
-              }}</span>
-              — подключение за 5 минут
+              {{ trialStart }} — подключение за 5 минут
             </p>
           </div>
         </div>
@@ -104,7 +101,7 @@
           </div>
           <div class="mb-8">
             <div class="text-[40px] font-bold leading-none mb-1">{{ priceBasic }}</div>
-            <div class="text-blue-100 text-sm">{{ perBasic }}</div>
+            <div class="text-white/90 text-sm">{{ perBasic }}</div>
           </div>
           <ul class="space-y-4">
             <li
@@ -127,8 +124,10 @@
             Перейти на тариф {{ plans.basic.name }}
             <img :src="iconHeartOnBlue" alt="" class="w-[16px] h-[16px]" />
           </button>
-          <div class="w-full py-3 mt-1">
-            <p class="text-center text-blue-100 text-[13px] font-medium">
+          <div
+            class="w-full rounded-b-[16px] rounded-t-[4px] bg-white/[0.16] py-3 mt-1 backdrop-blur-[6px]"
+          >
+            <p class="text-center text-white text-[13px] font-medium">
               {{ trialBasic }} — подключение за 5 минут
             </p>
           </div>
@@ -148,7 +147,7 @@
           </div>
           <div class="mb-8">
             <div class="text-[40px] font-bold leading-none mb-1">{{ priceStandard }}</div>
-            <div class="text-[#94A3B8] text-sm">{{ perStandard }}</div>
+            <div class="text-white/90 text-sm">{{ perStandard }}</div>
           </div>
           <ul class="space-y-4">
             <li
@@ -173,10 +172,7 @@
           </button>
           <div class="w-full bg-[#1F2432] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
             <p class="text-center text-white text-[13px] font-medium">
-              <span class="bg-gradient-to-r from-[#3B82F6] to-[#38BDF8] text-transparent bg-clip-text">{{
-                trialStandard
-              }}</span>
-              — подключение за 5 минут
+              {{ trialStandard }} — подключение за 5 минут
             </p>
           </div>
         </div>
@@ -209,14 +205,17 @@
       </div>
       <div class="pointer-events-none absolute hidden lg:block" style="left: 380px; top: 42px; width: 345.75px; height: 188.24px">
         <img :src="imgWlBg" alt="" class="absolute inset-0 z-0 h-full w-full object-cover" />
-        <div class="absolute inset-0 z-[1] bg-[#292E3C]/60" aria-hidden="true" />
       </div>
-      <div class="pointer-events-none absolute hidden lg:block z-20" style="left: 401px; top: 94px">
-        <img
-          :src="imgWlFg"
-          alt=""
-          class="object-contain brightness-[0.48] contrast-[1.06] saturate-[0.9]"
-          style="width: 375px; height: 274px"
+      <!-- Передний макет + поверх только «параллелограмм» списка: #24252E 36% + blur (макет Rectangle 1430107297) -->
+      <div
+        class="pointer-events-none absolute hidden lg:block z-20"
+        style="left: 401px; top: 94px; width: 375px; height: 274px"
+      >
+        <img :src="imgWlFg" alt="" class="absolute inset-0 h-full w-full object-contain object-left-top" />
+        <div
+          aria-hidden="true"
+          class="absolute z-[15] rounded-[10.66px] border border-white/[0.06] bg-[rgb(36_37_46/0.36)] backdrop-blur-[85.7px]"
+          style="left: 6.5%; top: 35%; width: 273px; height: 200px; max-width: 74%"
         />
       </div>
       <div class="w-full lg:w-[280px] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
