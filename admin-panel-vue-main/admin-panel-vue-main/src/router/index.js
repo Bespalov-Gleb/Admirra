@@ -154,6 +154,11 @@ const routes = [
     component: () => import('../views/History/History.vue')
   },
   {
+    path: '/tariffs',
+    name: 'Tariffs',
+    component: () => import('../views/Tariffs/TariffsPage.vue')
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('../views/Settings/Settings.vue')

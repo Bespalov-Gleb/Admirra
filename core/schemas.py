@@ -381,6 +381,13 @@ class BillingSubscribeRequest(BaseModel):
     fail_url: Optional[str] = None
 
 
+class BillingRecurrentParams(BaseModel):
+    """Параметры рекуррентного списания для виджета CloudPayments (data.cloudPayments.recurrent)."""
+
+    interval: str
+    period: int = 1
+
+
 class BillingSubscribeResponse(BaseModel):
     public_id: str
     amount: int
@@ -390,6 +397,7 @@ class BillingSubscribeResponse(BaseModel):
     email: str
     plan_code: str
     trial_days: int
+    recurrent: Optional[BillingRecurrentParams] = None
 
 
 class CloudPaymentsWebhookResponse(BaseModel):

@@ -236,10 +236,10 @@
           </div>
 
           <h4 class="text-[13px] font-bold text-white leading-snug mb-1">Повысить до премиум</h4>
-          <p class="text-[11px] text-white/60 leading-relaxed mb-3">Повысте ваш аккаунт и разблокируйте все функции</p>
+          <p class="text-[11px] text-white/60 leading-relaxed mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
 
           <router-link
-            to="/settings"
+            to="/tariffs"
             @click="closeMobileMenu"
             class="block w-full py-2 text-center text-[12px] font-semibold text-white rounded-[10px] transition-colors hover:opacity-90"
             style="background-color: #2563EB;"

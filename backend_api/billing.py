@@ -1,6 +1,7 @@
+import json
 import uuid
 from datetime import timedelta
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -12,6 +13,32 @@ from core.config import get_config
 from core.database import get_db
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
+
+
+def _coerce_json_data(raw: Any) -> Dict[str, Any]:
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return {}
+        try:
+            parsed = json.loads(s)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _recurrent_for_plan(plan) -> Optional[schemas.BillingRecurrentParams]:
+    d = int(plan.period_days or 30)
+    if d >= 28:
+        return schemas.BillingRecurrentParams(interval="Month", period=1)
+    if d >= 7:
+        return schemas.BillingRecurrentParams(interval="Week", period=max(1, d // 7))
+    return schemas.BillingRecurrentParams(interval="Day", period=max(1, d))
 
 
 def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
@@ -86,9 +113,10 @@ async def subscribe(
         currency=cfg.cloudpayments.currency,
         description=f"Подписка {plan.name}",
         account_id=str(current_user.id),
-        email=current_user.email,
+        email=current_user.email or "",
         plan_code=plan.code,
         trial_days=plan.trial_days,
+        recurrent=_recurrent_for_plan(plan),
     )
 
 
@@ -117,7 +145,10 @@ async def cloudpayments_webhook(
         return schemas.CloudPaymentsWebhookResponse(code=0)
 
     sub = SubscriptionService.ensure_default_subscription(db, user)
-    plan_code = str(data.get("JsonData", {}).get("plan_code") or sub.plan_code or "start").lower()
+    json_data = _coerce_json_data(data.get("JsonData"))
+    if not json_data.get("plan_code"):
+        json_data = {**json_data, **_coerce_json_data(data.get("Data"))}
+    plan_code = str(json_data.get("plan_code") or sub.plan_code or "start").lower()
     plan = SubscriptionService.get_plan_from_config(plan_code)
     event_name = (data.get("Type") or data.get("Event") or "").lower()
     success = bool(data.get("Success", True))

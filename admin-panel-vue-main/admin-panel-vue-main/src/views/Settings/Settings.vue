@@ -31,10 +31,22 @@
         <div v-if="activeTab === 'integrations'">
           <IntegrationsTab />
         </div>
+        <div v-else-if="activeTab === 'payment'">
+          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ activeTabLabel }}</h1>
+          <p class="text-gray-600 dark:text-gray-400 mb-6 max-w-xl">
+            Тарифы, цены и оплата подписки доступны на отдельной странице.
+          </p>
+          <router-link
+            to="/tariffs"
+            class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-[#2563EB] text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Смотреть тарифы
+          </router-link>
+        </div>
         <div v-else>
-          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">{{ activeTabLabel }}</h1>
+          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-6">{{ activeTabLabel }}</h1>
           <div class="text-center py-12">
-            <p class="text-gray-500">Настройка {{ activeTabLabel.toLowerCase() }} в разработке</p>
+            <p class="text-gray-500 dark:text-gray-400">Настройка {{ activeTabLabel.toLowerCase() }} в разработке</p>
           </div>
         </div>
       </div>

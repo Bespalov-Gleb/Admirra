@@ -42,6 +42,11 @@ export default {
       },
       boxShadow: {
         'theme-xs': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+        card: '0px 4px 20px rgba(0, 0, 0, 0.05)',
+      },
+      backgroundImage: {
+        'btn-gradient':
+          'linear-gradient(270deg, #06B5D4 0.35%, #1F9DE4 32.08%, #2563EB 96.51%)',
       },
     },
   },
