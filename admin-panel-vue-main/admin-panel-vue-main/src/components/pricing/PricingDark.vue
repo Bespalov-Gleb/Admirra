@@ -5,12 +5,12 @@
       <p class="text-[#94A3B8] text-[15px]">
         Выберите подходящий тариф в зависимости от количества проектов и задач аналитики
       </p>
-      <div class="mt-8 flex flex-wrap items-center gap-3">
+      <div class="mt-8 flex flex-wrap items-center gap-[10px]">
         <button
           type="button"
           :class="[
-            'px-10 py-4 rounded-[20px] text-[16px] font-medium transition-colors shadow-sm',
-            billingPeriod === 'month' ? 'bg-[#3B82F6] text-white' : 'bg-[#2E3545] text-white hover:bg-[#394154]',
+            'box-border w-[77px] h-[39px] shrink-0 rounded-[12px] px-[17px] flex items-center justify-center text-[14px] font-medium leading-none transition-colors shadow-sm',
+            billingPeriod === 'month' ? 'bg-[#2563EB] text-white' : 'bg-[#2E3545] text-white hover:bg-[#394154]',
           ]"
           @click="billingPeriod = 'month'"
         >
