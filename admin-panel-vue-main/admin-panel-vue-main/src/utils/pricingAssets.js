@@ -9,3 +9,4 @@ export { default as iconFox } from '@/assets/pricing/icons/photo_2026-03-12_15-4
 export { default as imgBasicBg } from '@/assets/pricing/images/af4cdfe1a0bbc30d8ed3d66855ce3a72e6cc7f02.jpg'
 export { default as imgWlBg } from '@/assets/pricing/images/Group 2147258649.svg'
 export { default as imgWlFg } from '@/assets/pricing/images/Group 2147258661.svg'
+export { default as imgWlFgDark } from '@/assets/pricing/images/Group 2147258661-dark.svg'

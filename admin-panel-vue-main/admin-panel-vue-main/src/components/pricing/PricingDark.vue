@@ -208,7 +208,7 @@
         class="pointer-events-none absolute hidden lg:block z-20"
         style="left: 401px; top: 94px; width: 375px; height: 274px"
       >
-        <img :src="imgWlFg" alt="" class="absolute inset-0 h-full w-full object-contain object-left-top" />
+        <img :src="imgWlFgDark" alt="" class="absolute inset-0 h-full w-full object-contain object-left-top" />
       </div>
       <div class="w-full lg:w-[280px] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
         <div class="mb-6">
@@ -249,7 +249,7 @@ import {
   iconFox,
   imgBasicBg,
   imgWlBg,
-  imgWlFg,
+  imgWlFgDark,
 } from '@/utils/pricingAssets'
 import {
   formatRub,
