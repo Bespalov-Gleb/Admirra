@@ -41,10 +41,10 @@
         class="w-full lg:w-[385px] min-h-[626px] bg-[#292E3C] rounded-[24px] p-8 flex flex-col justify-between relative"
       >
         <div>
-          <div class="flex items-center gap-2 mb-6">
-            <div class="flex items-center">
-              <img :src="iconEll96Alt" class="w-3 h-3" alt="" />
-              <img :src="iconEll97Alt" class="w-3 h-3 -ml-1.5 relative z-10" alt="" />
+          <div class="flex items-start gap-2 mb-6">
+            <div class="flex items-center mt-1">
+              <img :src="iconEll96" class="h-3 w-3" alt="" />
+              <img :src="iconEll97" class="relative z-10 -ml-1.5 h-3 w-3" alt="" />
             </div>
             <h3 class="text-[18px] font-bold">{{ plans.start.name }}</h3>
           </div>
@@ -73,7 +73,7 @@
             Перейти на тариф {{ plans.start.name }}
             <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
           </button>
-          <div class="w-full bg-[#1F2432] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
+          <div class="w-full bg-[#3F4659] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
             <p class="text-center text-white text-[13px] font-medium">
               {{ trialStart }} — подключение за 5 минут
             </p>
@@ -124,10 +124,8 @@
             Перейти на тариф {{ plans.basic.name }}
             <img :src="iconHeartOnBlue" alt="" class="w-[16px] h-[16px]" />
           </button>
-          <div
-            class="w-full rounded-b-[16px] rounded-t-[4px] bg-white/[0.16] py-3 mt-1 backdrop-blur-[6px]"
-          >
-            <p class="text-center text-white text-[13px] font-medium">
+          <div class="w-full py-3 mt-1">
+            <p class="text-center text-blue-100 text-[13px] font-medium">
               {{ trialBasic }} — подключение за 5 минут
             </p>
           </div>
@@ -138,10 +136,10 @@
         class="w-full lg:w-[385px] min-h-[626px] bg-[#292E3C] rounded-[24px] p-8 flex flex-col justify-between relative"
       >
         <div>
-          <div class="flex items-center gap-2 mb-6">
-            <div class="flex items-center">
-              <img :src="iconEll96Alt" class="w-3 h-3" alt="" />
-              <img :src="iconEll97Alt" class="w-3 h-3 -ml-1.5 relative z-10" alt="" />
+          <div class="flex items-start gap-2 mb-6">
+            <div class="flex items-center mt-1">
+              <img :src="iconEll96" class="h-3 w-3" alt="" />
+              <img :src="iconEll97" class="relative z-10 -ml-1.5 h-3 w-3" alt="" />
             </div>
             <h3 class="text-[18px] font-bold">{{ plans.standard.name }}</h3>
           </div>
@@ -170,7 +168,7 @@
             Перейти на тариф {{ plans.standard.name }}
             <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
           </button>
-          <div class="w-full bg-[#1F2432] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
+          <div class="w-full bg-[#3F4659] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
             <p class="text-center text-white text-[13px] font-medium">
               {{ trialStandard }} — подключение за 5 минут
             </p>
