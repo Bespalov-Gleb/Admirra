@@ -21,16 +21,17 @@
         <button
           type="button"
           :class="[
-            'box-border flex h-[46px] w-[152px] shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] text-[14px] font-medium leading-tight shadow-sm transition-colors',
-            billingPeriod === 'year'
-              ? 'bg-[#2563EB] text-white'
-              : 'bg-[#FFFFFF] text-[#475569] hover:bg-gray-50',
+            'box-border flex h-[46px] w-[152px] shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] shadow-sm transition-colors',
+            billingPeriod === 'year' ? 'bg-[#2563EB]' : 'bg-[#FFFFFF] hover:bg-gray-50',
           ]"
           @click="billingPeriod = 'year'"
         >
-          <span class="shrink-0">Год</span>
           <span
-            class="whitespace-nowrap rounded-full bg-gradient-to-r from-[#3B82F6] to-[#38BDF8] px-1.5 py-0.5 text-[10px] font-medium text-white leading-tight"
+            class="shrink-0 font-sans text-[13px] font-medium leading-[100%] tracking-normal"
+            :class="billingPeriod === 'year' ? 'text-white' : 'text-[#5F5F5F]'"
+          >Год</span>
+          <span
+            class="inline-flex h-[18px] w-[82px] shrink-0 items-center justify-center rounded-[30px] bg-btn-gradient pl-[7px] pr-[6px] font-sans text-[10px] font-semibold leading-[100%] tracking-normal text-white"
           >
             Экономия 30%
           </span>
