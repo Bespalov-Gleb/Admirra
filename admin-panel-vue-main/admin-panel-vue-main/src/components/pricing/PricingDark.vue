@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-[1215px] mx-auto py-4 px-0 font-sans text-white">
+  <div class="max-w-[1215px] py-4 px-0 font-sans text-white">
     <div class="mb-10">
       <h1 class="text-3xl md:text-4xl font-bold mb-3">Тарифы</h1>
       <p class="text-[#94A3B8] text-[15px]">
