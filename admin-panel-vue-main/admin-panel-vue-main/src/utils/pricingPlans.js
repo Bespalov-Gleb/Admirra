@@ -37,6 +37,14 @@ export function normalizePlansFromApi(rows) {
   }
 }
 
+/** Месяц × 12, минус 30%, округление вверх до десятков рублей. */
+export function yearlyPriceFromMonthly(monthlyRub) {
+  const m = Number(monthlyRub)
+  if (Number.isNaN(m) || m < 0) return 0
+  const afterDiscount = m * 12 * 0.7
+  return Math.ceil(afterDiscount / 10) * 10
+}
+
 export function formatRub(n) {
   const v = Number(n)
   if (Number.isNaN(v)) return '—'

@@ -9,7 +9,7 @@
         <button
           type="button"
           :class="[
-            'box-border w-[77px] h-[39px] shrink-0 rounded-[12px] px-[17px] flex items-center justify-center font-sans text-[13px] font-medium leading-[100%] tracking-normal transition-colors shadow-sm',
+            'box-border flex h-[46px] w-[77px] shrink-0 items-center justify-center rounded-[12px] px-[17px] font-sans text-[13px] font-medium leading-[100%] tracking-normal shadow-sm transition-colors',
             billingPeriod === 'month'
               ? 'bg-[#2563EB] text-white'
               : 'bg-white text-[#475569] hover:bg-gray-50',
@@ -21,7 +21,7 @@
         <button
           type="button"
           :class="[
-            'box-border flex h-[46px] w-[152px] shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] shadow-sm transition-colors',
+            'box-border flex h-[46px] min-w-[152px] w-max shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] shadow-sm transition-colors',
             billingPeriod === 'year' ? 'bg-[#2563EB]' : 'bg-[#FFFFFF] hover:bg-gray-50',
           ]"
           @click="billingPeriod = 'year'"
@@ -31,7 +31,7 @@
             :class="billingPeriod === 'year' ? 'text-white' : 'text-[#5F5F5F]'"
           >Год</span>
           <span
-            class="inline-flex h-[18px] w-[82px] shrink-0 items-center justify-center rounded-[30px] bg-btn-gradient pl-[7px] pr-[6px] font-sans text-[10px] font-semibold leading-[100%] tracking-normal text-white"
+            class="inline-flex h-[18px] min-w-[82px] w-max max-w-none shrink-0 items-center justify-center whitespace-nowrap rounded-[30px] bg-btn-gradient px-[7px] font-sans text-[10px] font-semibold leading-[100%] tracking-normal text-white"
           >
             Экономия 30%
           </span>
@@ -269,6 +269,7 @@ import {
   usersBullet,
   aiBullet,
   trialPhrase,
+  yearlyPriceFromMonthly,
 } from '@/utils/pricingPlans'
 
 const props = defineProps({
@@ -280,21 +281,21 @@ defineEmits(['subscribe', 'contact-wl'])
 
 const billingPeriod = ref('month')
 
-/** Бэкенд отдаёт помесячную цену; переключатель «Год» пока только UI (без отдельного прайса на API). */
-const yearFactor = computed(() => 1)
-
-function scaledPrice(plan) {
-  return Math.round(Number(plan.price_rub) * yearFactor.value)
+function billingPriceRub(plan) {
+  const monthly = Number(plan.price_rub)
+  if (Number.isNaN(monthly)) return 0
+  if (billingPeriod.value === 'year') return yearlyPriceFromMonthly(monthly)
+  return Math.round(monthly)
 }
 
-const priceStart = computed(() => formatRub(scaledPrice(props.plans.start)))
-const priceBasic = computed(() => formatRub(scaledPrice(props.plans.basic)))
-const priceStandard = computed(() => formatRub(scaledPrice(props.plans.standard)))
+const priceStart = computed(() => formatRub(billingPriceRub(props.plans.start)))
+const priceBasic = computed(() => formatRub(billingPriceRub(props.plans.basic)))
+const priceStandard = computed(() => formatRub(billingPriceRub(props.plans.standard)))
 
-const perStart = computed(() => perProjectLine(scaledPrice(props.plans.start), props.plans.start.max_projects))
-const perBasic = computed(() => perProjectLine(scaledPrice(props.plans.basic), props.plans.basic.max_projects))
+const perStart = computed(() => perProjectLine(billingPriceRub(props.plans.start), props.plans.start.max_projects))
+const perBasic = computed(() => perProjectLine(billingPriceRub(props.plans.basic), props.plans.basic.max_projects))
 const perStandard = computed(() =>
-  perProjectLine(scaledPrice(props.plans.standard), props.plans.standard.max_projects)
+  perProjectLine(billingPriceRub(props.plans.standard), props.plans.standard.max_projects)
 )
 
 function bulletLines(plan) {
