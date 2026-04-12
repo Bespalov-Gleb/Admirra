@@ -184,13 +184,13 @@
     </div>
 
     <div
-      class="w-full h-auto lg:h-[368px] mt-[30px] bg-[#292E3C] rounded-[30px] p-8 lg:p-12 shadow-card flex flex-col lg:flex-row justify-between relative overflow-hidden"
+      class="w-full h-auto lg:h-[368px] mt-[30px] rounded-[30px] border border-white/[0.06] bg-[#24252E] p-8 lg:p-12 shadow-card flex flex-col lg:flex-row justify-between relative overflow-hidden"
     >
       <div class="w-full lg:w-[360px] shrink-0 z-10 mb-8 lg:mb-0">
         <div class="flex items-start gap-2 mb-6">
-          <div class="flex items-center mt-1">
-            <img :src="iconEll96Alt" class="w-3 h-3" alt="" />
-            <img :src="iconEll97Alt" class="w-3 h-3 -ml-1.5 relative z-10" alt="" />
+          <div class="relative mt-1 h-3 w-[18px] shrink-0" aria-hidden="true">
+            <span class="absolute left-0 top-0 h-3 w-3 rounded-full bg-[#BCCBF7]" />
+            <span class="absolute left-[6px] top-0 z-10 h-3 w-3 rounded-full bg-white shadow-sm" />
           </div>
           <h3 class="text-[18px] font-bold leading-tight">
             White Label -<br />персонализация<br />кабинета и отчетности
@@ -207,12 +207,12 @@
           </li>
         </ul>
       </div>
-      <div class="absolute hidden lg:block" style="left: 380px; top: 42px; width: 345.75px; height: 188.24px">
+      <div class="pointer-events-none absolute hidden lg:block" style="left: 380px; top: 42px; width: 345.75px; height: 188.24px">
+        <img :src="imgWlBg" alt="" class="absolute inset-0 z-0 h-full w-full object-cover" />
         <div
-          class="absolute bg-white z-0"
-          style="left: 12%; top: 15%; right: 12%; bottom: 18%; border-radius: 8px"
-        ></div>
-        <img :src="imgWlBg" alt="" class="absolute inset-0 w-full h-full object-cover z-10" />
+          class="absolute z-[5] rounded-[11px] border border-white/[0.08] bg-[rgb(36_37_46/0.36)] backdrop-blur-[86px]"
+          style="left: 9%; top: 14%; width: min(273px, 85%); height: min(200px, 78%)"
+        />
       </div>
       <div class="absolute hidden lg:block z-20" style="left: 401px; top: 94px">
         <img :src="imgWlFg" alt="" class="object-contain pointer-events-none" style="width: 375px; height: 274px" />
