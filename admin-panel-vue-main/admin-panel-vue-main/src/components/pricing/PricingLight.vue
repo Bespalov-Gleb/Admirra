@@ -9,7 +9,7 @@
         <button
           type="button"
           :class="[
-            'box-border w-[77px] h-[39px] shrink-0 rounded-[12px] px-[17px] flex items-center justify-center text-[14px] font-medium leading-none transition-colors shadow-sm',
+            'box-border w-[77px] h-[39px] shrink-0 rounded-[12px] px-[17px] flex items-center justify-center font-sans text-[13px] font-medium leading-[100%] tracking-normal transition-colors shadow-sm',
             billingPeriod === 'month'
               ? 'bg-[#2563EB] text-white'
               : 'bg-white text-[#475569] hover:bg-gray-50',
@@ -21,24 +21,21 @@
         <button
           type="button"
           :class="[
-            'px-8 py-4 rounded-[20px] text-[16px] font-medium flex items-center gap-3 shadow-sm transition-colors',
+            'box-border flex h-[46px] w-[152px] shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] text-[14px] font-medium leading-tight shadow-sm transition-colors',
             billingPeriod === 'year'
-              ? 'bg-[#3B82F6] text-white'
-              : 'bg-white text-[#475569] hover:bg-gray-50',
+              ? 'bg-[#2563EB] text-white'
+              : 'bg-[#FFFFFF] text-[#475569] hover:bg-gray-50',
           ]"
           @click="billingPeriod = 'year'"
         >
-          Год
+          <span class="shrink-0">Год</span>
           <span
-            class="bg-gradient-to-r from-[#3B82F6] to-[#38BDF8] text-white text-[13px] px-3.5 py-1 rounded-full font-medium"
+            class="whitespace-nowrap rounded-full bg-gradient-to-r from-[#3B82F6] to-[#38BDF8] px-1.5 py-0.5 text-[10px] font-medium text-white leading-tight"
           >
             Экономия 30%
           </span>
         </button>
       </div>
-      <p class="text-[12px] text-[#64748B] mt-3 max-w-xl">
-        Отображается месячная цена с сервера. Годовой биллинг и скидки — уточняйте в поддержке.
-      </p>
     </div>
 
     <div class="flex flex-col lg:flex-row gap-[30px] justify-between relative z-10">
