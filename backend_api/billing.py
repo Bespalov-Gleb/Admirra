@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -30,6 +31,42 @@ def _coerce_json_data(raw: Any) -> Dict[str, Any]:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def _parse_webhook_payload(raw_body: bytes, content_type: str) -> Dict[str, Any]:
+    body = (raw_body or b"").decode("utf-8", errors="ignore").strip()
+    if not body:
+        return {}
+
+    # CloudPayments обычно шлет JSON, но может прийти и form-urlencoded.
+    if "application/json" in (content_type or "").lower():
+        try:
+            parsed = json.loads(body)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+    try:
+        parsed = json.loads(body)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    form = parse_qs(body, keep_blank_values=True)
+    if not form:
+        return {}
+
+    data: Dict[str, Any] = {k: (v[-1] if isinstance(v, list) and v else v) for k, v in form.items()}
+    # В form-data поля JsonData/Data часто приходят строкой JSON.
+    for key in ("JsonData", "Data"):
+        if key in data:
+            maybe = _coerce_json_data(data.get(key))
+            if maybe:
+                data[key] = maybe
+    if isinstance(data.get("Success"), str):
+        data["Success"] = data["Success"].strip().lower() in {"1", "true", "yes", "ok"}
+    return data
 
 
 def _recurrent_for_plan(plan) -> Optional[schemas.BillingRecurrentParams]:
@@ -155,7 +192,9 @@ async def cloudpayments_webhook(
     if not CloudPaymentsService.validate_webhook_signature(raw_body, sign):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
-    data = await request.json()
+    data = _parse_webhook_payload(raw_body, request.headers.get("Content-Type", ""))
+    if not data:
+        return schemas.CloudPaymentsWebhookResponse(code=0)
     account_id = str(data.get("AccountId") or "").strip()
     if not account_id:
         return schemas.CloudPaymentsWebhookResponse(code=0)
