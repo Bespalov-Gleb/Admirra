@@ -68,7 +68,7 @@
             type="button"
             :disabled="!!paying"
             class="w-full bg-btn-gradient text-white py-4 rounded-t-[16px] rounded-b-[4px] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
-            @click="$emit('subscribe', 'start')"
+            @click="$emit('subscribe', 'start', billingPeriod)"
           >
             Перейти на тариф {{ plans.start.name }}
             <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
@@ -119,7 +119,7 @@
             type="button"
             :disabled="!!paying"
             class="w-full bg-white text-[#2563EB] py-4 rounded-[16px] font-medium flex justify-center items-center gap-2 hover:bg-gray-50 transition-colors z-10 disabled:opacity-50"
-            @click="$emit('subscribe', 'basic')"
+            @click="$emit('subscribe', 'basic', billingPeriod)"
           >
             Перейти на тариф {{ plans.basic.name }}
             <img :src="iconHeartOnBlue" alt="" class="w-[16px] h-[16px]" />
@@ -163,7 +163,7 @@
             type="button"
             :disabled="!!paying"
             class="w-full bg-btn-gradient text-white py-4 rounded-t-[16px] rounded-b-[4px] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
-            @click="$emit('subscribe', 'standard')"
+            @click="$emit('subscribe', 'standard', billingPeriod)"
           >
             Перейти на тариф {{ plans.standard.name }}
             <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
@@ -302,14 +302,20 @@ function billingPriceRub(plan) {
   return Math.round(monthly)
 }
 
+function monthlyPriceRub(plan) {
+  const monthly = Number(plan.price_rub)
+  if (Number.isNaN(monthly)) return 0
+  return Math.round(monthly)
+}
+
 const priceStart = computed(() => formatRub(billingPriceRub(props.plans.start)))
 const priceBasic = computed(() => formatRub(billingPriceRub(props.plans.basic)))
 const priceStandard = computed(() => formatRub(billingPriceRub(props.plans.standard)))
 
-const perStart = computed(() => perProjectLine(billingPriceRub(props.plans.start), props.plans.start.max_projects))
-const perBasic = computed(() => perProjectLine(billingPriceRub(props.plans.basic), props.plans.basic.max_projects))
+const perStart = computed(() => perProjectLine(monthlyPriceRub(props.plans.start), props.plans.start.max_projects))
+const perBasic = computed(() => perProjectLine(monthlyPriceRub(props.plans.basic), props.plans.basic.max_projects))
 const perStandard = computed(() =>
-  perProjectLine(billingPriceRub(props.plans.standard), props.plans.standard.max_projects)
+  perProjectLine(monthlyPriceRub(props.plans.standard), props.plans.standard.max_projects)
 )
 
 function bulletLines(plan) {

@@ -377,6 +377,7 @@ class BillingSubscriptionResponse(BaseModel):
 
 class BillingSubscribeRequest(BaseModel):
     plan_code: str
+    billing_period: str = "month"
     success_url: Optional[str] = None
     fail_url: Optional[str] = None
 
@@ -396,6 +397,7 @@ class BillingSubscribeResponse(BaseModel):
     account_id: str
     email: str
     plan_code: str
+    billing_period: str = "month"
     trial_days: int
     recurrent: Optional[BillingRecurrentParams] = None
 

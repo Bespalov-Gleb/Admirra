@@ -41,6 +41,29 @@ def _recurrent_for_plan(plan) -> Optional[schemas.BillingRecurrentParams]:
     return schemas.BillingRecurrentParams(interval="Day", period=max(1, d))
 
 
+def _normalize_billing_period(raw: Any) -> str:
+    return "year" if str(raw or "").strip().lower() == "year" else "month"
+
+
+def _yearly_price_from_monthly(monthly_rub: Any) -> int:
+    m = float(monthly_rub or 0)
+    if m <= 0:
+        return 0
+    return int(((m * 12 * 0.7 + 9) // 10) * 10)
+
+
+def _recurrent_for_billing_period(plan, billing_period: str) -> Optional[schemas.BillingRecurrentParams]:
+    if billing_period == "year":
+        return schemas.BillingRecurrentParams(interval="Month", period=12)
+    return _recurrent_for_plan(plan)
+
+
+def _billing_period_days(plan, billing_period: str) -> int:
+    if billing_period == "year":
+        return 365
+    return int(plan.period_days or 30)
+
+
 def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
     return schemas.BillingPlanResponse(
         code=plan.code,
@@ -102,6 +125,7 @@ async def subscribe(
     db: Session = Depends(get_db),
 ):
     plan = SubscriptionService.get_plan_from_config(body.plan_code)
+    billing_period = _normalize_billing_period(body.billing_period)
     cfg = get_config()
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
@@ -109,14 +133,15 @@ async def subscribe(
     # Для фронта готовим данные виджета, а реальную активацию фиксируем вебхуком.
     return schemas.BillingSubscribeResponse(
         public_id=cfg.cloudpayments.public_id,
-        amount=plan.price_rub,
+        amount=_yearly_price_from_monthly(plan.price_rub) if billing_period == "year" else plan.price_rub,
         currency=cfg.cloudpayments.currency,
-        description=f"Подписка {plan.name}",
+        description=f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})",
         account_id=str(current_user.id),
         email=current_user.email or "",
         plan_code=plan.code,
+        billing_period=billing_period,
         trial_days=plan.trial_days,
-        recurrent=_recurrent_for_plan(plan),
+        recurrent=_recurrent_for_billing_period(plan, billing_period),
     )
 
 
@@ -149,6 +174,7 @@ async def cloudpayments_webhook(
     if not json_data.get("plan_code"):
         json_data = {**json_data, **_coerce_json_data(data.get("Data"))}
     plan_code = str(json_data.get("plan_code") or sub.plan_code or "start").lower()
+    billing_period = _normalize_billing_period(json_data.get("billing_period"))
     plan = SubscriptionService.get_plan_from_config(plan_code)
     event_name = (data.get("Type") or data.get("Event") or "").lower()
     success = bool(data.get("Success", True))
@@ -161,7 +187,7 @@ async def cloudpayments_webhook(
     if success and ("pay" in event_name or "recurrent" in event_name or not event_name):
         sub.status = models.SubscriptionStatus.ACTIVE
         sub.current_period_start = now
-        sub.current_period_end = now + timedelta(days=plan.period_days)
+        sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
     elif "cancel" in event_name:

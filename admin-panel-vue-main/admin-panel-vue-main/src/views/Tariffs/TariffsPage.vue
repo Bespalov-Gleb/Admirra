@@ -58,11 +58,12 @@ onMounted(async () => {
   }
 })
 
-async function onSubscribe(planCode) {
+async function onSubscribe(planCode, billingPeriod = 'month') {
   paying.value = planCode
   try {
     const { data } = await api.post('billing/subscribe', {
       plan_code: planCode,
+      billing_period: billingPeriod,
       success_url: `${window.location.origin}/tariffs`,
       fail_url: `${window.location.origin}/tariffs`,
     })
@@ -74,6 +75,7 @@ async function onSubscribe(planCode) {
       account_id: data.account_id,
       email: data.email,
       plan_code: data.plan_code,
+      billing_period: data.billing_period || billingPeriod,
       recurrent: data.recurrent || null,
     })
     if (result.status === 'cancelled') {

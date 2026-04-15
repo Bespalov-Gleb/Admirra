@@ -44,6 +44,7 @@ export async function payWithCloudPayments(payload) {
 
   const data = {
     plan_code: payload.plan_code,
+    billing_period: payload.billing_period || 'month',
   }
   if (payload.recurrent?.interval) {
     data.cloudPayments = {
