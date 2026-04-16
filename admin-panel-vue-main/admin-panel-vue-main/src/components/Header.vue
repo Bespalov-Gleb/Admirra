@@ -8,7 +8,7 @@
               <div class="col-auto">
                 <div class="dropdown" ref="projectMenuRef">
                   <button class="dropdown-head" @click="toggleProjectMenu">
-                    <div class="avatar-36x36"><img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" /></div>
+                    <div class="avatar-36x36"><img class="img-cover" :src="'/admirra/img/avatars/avatar-36x36.png'" alt="#" /></div>
                     <div class="dropdown-head__info">
                       <div>{{ currentProjectName }}</div>
                       <div class="_subtext">Отчеты агентства в одном месте</div>
