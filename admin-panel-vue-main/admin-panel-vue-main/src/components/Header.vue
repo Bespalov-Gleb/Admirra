@@ -68,16 +68,37 @@
         </div>
       </div>
 
-      <!-- Правая часть — Кнопка, уведомления, профиль (по макету) -->
+      <!-- Правая часть -->
       <div class="flex items-center gap-3 flex-shrink-0">
+        <div class="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-50 dark:bg-white/10">
+          <div class="text-xs text-gray-500 dark:text-gray-400">Ваш тариф:</div>
+          <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ subscription.planName }}</div>
+          <div v-if="subscription.expiresAtLabel" class="text-xs text-gray-500 dark:text-gray-400">
+            Действует до {{ subscription.expiresAtLabel }}
+          </div>
+          <button
+            @click="() => router.push('/tariffs')"
+            class="ml-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-white/20 dark:text-[#4A7AFF] dark:hover:bg-white/10 transition-colors text-xs font-semibold"
+          >
+            Продлить
+          </button>
+        </div>
+
+        <button
+          @click="() => router.push('/contact')"
+          class="hidden lg:flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/15 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300"
+        >
+          Предложить идею
+        </button>
+
         <button
           @click="() => router.push('/projects/create')"
           class="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-[#4A7AFF] rounded-xl hover:bg-blue-700 dark:hover:bg-[#5A8BFF] transition-colors text-white text-sm font-medium"
         >
           <PlusIcon class="w-5 h-5" />
-          Добавить новый проект
+          Перейти на тариф Старт
         </button>
-        
+
         <div class="relative">
           <button
             data-notifications-button
@@ -111,7 +132,7 @@
                   Отметить все как прочитанные
                 </button>
               </div>
-              
+
               <div class="max-h-96 overflow-y-auto">
                 <div
                   v-if="notifications.length === 0"
@@ -141,14 +162,6 @@
                     <XMarkIcon class="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-              
-              <div class="p-4 border-t border-gray-200 dark:border-white/10">
-                <button
-                  class="w-full text-sm text-blue-600 dark:text-[#4A7AFF] hover:text-blue-700 dark:hover:text-[#5A8BFF] font-medium text-center"
-                >
-                  Показать все уведомления
-                </button>
               </div>
             </div>
           </Teleport>
@@ -235,6 +248,13 @@
             </div>
           </Teleport>
         </div>
+
+        <button
+          @click="handleLogoutClick"
+          class="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15 transition-colors text-sm font-medium"
+        >
+          Выход
+        </button>
       </div>
     </div>
   </header>
@@ -249,8 +269,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { Teleport } from 'vue'
 import {
   UserIcon,
@@ -270,16 +290,15 @@ import ConfirmModal from './ConfirmModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
-import { useToaster } from '../composables/useToaster'
 import { useProjects } from '../composables/useProjects'
+import api from '../api/axios'
 
 const router = useRouter()
-const route = useRoute()
 const { toggleMobileMenu } = useSidebar()
 const { user, forceLogout } = useAuth()
 // Initialize theme
 const { isDarkMode, toggleTheme } = useTheme()
-const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
+const { projects, currentProjectId, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 // Project Menu State
 const isProjectMenuOpen = ref(false)
@@ -294,31 +313,6 @@ const handleProjectSelect = (id) => {
     isProjectMenuOpen.value = false
 }
 
-const openAddProject = () => {
-    router.push('/integrations/wizard')
-    isProjectMenuOpen.value = false
-}
-
-
-const getProjectWord = (count) => {
-    if (count % 10 === 1 && count % 100 !== 11) return 'проект'
-    if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'проекта'
-    return 'проектов'
-}
-
-
-
-const isProjectsPage = computed(() => route.path.startsWith('/projects'))
-const headerButtonText = computed(() => isProjectsPage.value ? 'Создать проект' : 'Добавить интеграцию')
-
-const handleHeaderAction = () => {
-    if (isProjectsPage.value) {
-        router.push('/projects/create')
-    } else {
-        router.push('/integrations/wizard')
-    }
-}
-
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)
 const showLogoutModal = ref(false)
@@ -326,6 +320,13 @@ const profileMenuRef = ref(null)
 const notificationsRef = ref(null)
 const profileMenuPosition = ref({ top: '0px', right: '0px' })
 const notificationsPosition = ref({ top: '0px', right: '0px' })
+const notifications = ref([])
+const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+const subscription = ref({
+  planName: '—',
+  expiresAt: null,
+  expiresAtLabel: '',
+})
 
 const displayName = computed(() => {
   if (!user.value) return 'Загрузка...'
@@ -334,9 +335,6 @@ const displayName = computed(() => {
   }
   return user.value.username || user.value.email
 })
-
-const notifications = ref([])
-const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 const toggleProfileMenu = async () => {
   if (isProfileMenuOpen.value) {
@@ -372,6 +370,13 @@ const updateProfileMenuPosition = async () => {
   }
 }
 
+const getProfileMenuStyle = () => {
+  return {
+    top: profileMenuPosition.value.top,
+    right: profileMenuPosition.value.right
+  }
+}
+
 const updateNotificationsPosition = async () => {
   await nextTick()
   const button = document.querySelector('[data-notifications-button]')
@@ -381,13 +386,6 @@ const updateNotificationsPosition = async () => {
       top: `${rect.bottom + 8}px`,
       right: `${window.innerWidth - rect.right}px`
     }
-  }
-}
-
-const getProfileMenuStyle = () => {
-  return {
-    top: profileMenuPosition.value.top,
-    right: profileMenuPosition.value.right
   }
 }
 
@@ -410,7 +408,92 @@ const handleLogoutClick = () => {
 const handleLogout = () => {
   forceLogout()
   showLogoutModal.value = false
-  router.push('/login')
+  router.push('/signin')
+}
+
+const formatDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('ru-RU')
+}
+
+const formatAgo = (iso) => {
+  if (!iso) return 'Недавно'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'Недавно'
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000)
+  if (diffMin < 1) return 'Только что'
+  if (diffMin < 60) return `${diffMin} мин назад`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `${diffH} ч назад`
+  const diffD = Math.floor(diffH / 24)
+  return `${diffD} дн назад`
+}
+
+const loadSubscription = async () => {
+  try {
+    const { data } = await api.get('billing/subscription')
+    subscription.value = {
+      planName: data?.plan_name || data?.plan_code || '—',
+      expiresAt: data?.subscription_expires_at || null,
+      expiresAtLabel: formatDate(data?.subscription_expires_at),
+    }
+  } catch {
+    subscription.value = {
+      planName: '—',
+      expiresAt: null,
+      expiresAtLabel: '',
+    }
+  }
+}
+
+const buildNotificationsFromBackend = async () => {
+  const rows = []
+  try {
+    const { data: integrations } = await api.get('integrations/')
+    for (const integration of integrations || []) {
+      try {
+        const { data: status } = await api.get(`integrations/${integration.id}/sync-status`)
+        const job = status?.job
+        if (!job) continue
+        const st = String(job.status || '').toUpperCase()
+        if (st === 'FAILED') {
+          rows.push({
+            id: `sync-failed-${integration.id}-${job.id}`,
+            title: `Ошибка синхронизации: ${integration.client_name || integration.platform}`,
+            time: formatAgo(job.updated_at),
+            read: false,
+          })
+        } else if (st === 'RUNNING' || st === 'QUEUED') {
+          rows.push({
+            id: `sync-running-${integration.id}-${job.id}`,
+            title: `Синхронизация выполняется: ${integration.client_name || integration.platform}`,
+            time: formatAgo(job.updated_at),
+            read: false,
+          })
+        }
+      } catch {
+        // ignore one integration errors
+      }
+    }
+  } catch {
+    // ignore global errors
+  }
+
+  if (subscription.value.expiresAt) {
+    const expires = new Date(subscription.value.expiresAt)
+    const daysLeft = Math.ceil((expires.getTime() - Date.now()) / 86400000)
+    if (Number.isFinite(daysLeft) && daysLeft >= 0 && daysLeft <= 7) {
+      rows.push({
+        id: 'subscription-expiring',
+        title: `Подписка истекает через ${daysLeft} дн`,
+        time: `До ${subscription.value.expiresAtLabel}`,
+        read: false,
+      })
+    }
+  }
+  notifications.value = rows
 }
 
 const markAsRead = (id) => {
@@ -428,8 +511,6 @@ const removeNotification = (id) => {
   notifications.value = notifications.value.filter(n => n.id !== id)
 }
 
-// No longer needed - navigation happens on page
-
 // Закрытие dropdown при клике вне его
 const handleClickOutside = (event) => {
   const target = event.target
@@ -442,7 +523,7 @@ const handleClickOutside = (event) => {
       closeProfileMenu()
     }
   }
-  
+
   // Проверяем уведомления
   if (showNotifications.value) {
     const notificationsButton = target.closest('[data-notifications-button]')
@@ -462,6 +543,8 @@ const handleClickOutside = (event) => {
 
 onMounted(() => {
   fetchProjects() // Ensure projects are loaded
+  loadSubscription()
+  buildNotificationsFromBackend()
   document.addEventListener('click', handleClickOutside)
 })
 
