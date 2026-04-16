@@ -22,7 +22,6 @@ import { computed } from 'vue'
 import SidebarV2 from '../components/SidebarV2.vue'
 import Header from '../components/Header.vue'
 import { useSidebar } from '../composables/useSidebar'
-import '/admirra/css/style.css'
 
 const { isCollapsed } = useSidebar()
 
