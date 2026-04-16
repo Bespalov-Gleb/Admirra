@@ -57,10 +57,10 @@ class OAuthLoginCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
     state: str
-    # Опционально: VK Ads редирект может передать user_id в query
+    # VK ID OAuth 2.1 callback параметры (PKCE).
     device_id: Optional[str] = None
     code_verifier: Optional[str] = None
-    # VK Ads (legacy): user_id в query редиректа при входе через ads — не используется для VK ID
+    # Legacy поле для старого VK Ads login flow. Оставлено для обратной совместимости.
     vk_redirect_user_id: Optional[str] = None
 
 
@@ -400,6 +400,8 @@ class BillingSubscribeResponse(BaseModel):
     billing_period: str = "month"
     trial_days: int
     recurrent: Optional[BillingRecurrentParams] = None
+    # Объект чека для CloudPayments/CloudKassir (options.receipt в виджете).
+    receipt: Optional[dict] = None
 
 
 class CloudPaymentsWebhookResponse(BaseModel):

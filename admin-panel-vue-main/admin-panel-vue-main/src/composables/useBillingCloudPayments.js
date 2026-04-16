@@ -53,6 +53,9 @@ export async function payWithCloudPayments(payload) {
         period: Number(payload.recurrent.period) || 1,
       },
     }
+    if (payload.receipt && typeof payload.receipt === 'object') {
+      data.cloudPayments.recurrent.receipt = payload.receipt
+    }
   }
 
   const options = {
@@ -65,6 +68,9 @@ export async function payWithCloudPayments(payload) {
     language: 'ru-RU',
     skin: 'classic',
     data,
+  }
+  if (payload.receipt && typeof payload.receipt === 'object') {
+    options.receipt = payload.receipt
   }
 
   return new Promise((resolve, reject) => {

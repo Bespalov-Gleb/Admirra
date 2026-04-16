@@ -1,11 +1,12 @@
 """
-Вход и регистрация через Яндекс ID и VK.
+Вход и регистрация через Яндекс ID и VK ID.
 
 - Яндекс: OAuth приложения Директа / login.
-- VK: тот же OAuth, что у интеграции VK Ads — ads.vk.com, Authorization Code Grant,
-  обмен на https://ads.vk.com/api/v2/oauth2/token.json (см. backend_api/integrations.get_vk_auth_url).
+- VK: OAuth 2.1 VK ID (id.vk.ru) с PKCE + обмен кода на токены на бэкенде.
 
-redirect_uri совпадает с интеграциями (/auth/vk/callback): ветвление на странице callback — по sessionStorage.oauth_site_login.
+Документация VK ID:
+- https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/auth-without-sdk/auth-without-sdk-web
+- https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/work-with-user-info/user-info
 """
 
 from __future__ import annotations
@@ -44,16 +45,25 @@ YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
 YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
 
-# VK вход на сайт = те же VK_CLIENT_ID / scope, что и интеграция VK Ads
-VK_ADS_CLIENT_ID = (cfg.oauth.vk_client_id or "").strip()
-VK_ADS_OAUTH_SCOPE = (cfg.oauth.vk_ads_oauth_scope or "read_ads,read_payments,create_ads").strip()
-VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
+# VK ID login (отдельно от VK Ads интеграции).
+VK_LOGIN_CLIENT_ID = (cfg.oauth.vk_login_client_id or cfg.oauth.vk_client_id or "").strip()
+VK_LOGIN_SCOPE = (cfg.oauth.vk_login_scope or "email").strip()
+VK_ID_OAUTH_BASE = (cfg.oauth.vk_id_oauth_base or "https://id.vk.ru").rstrip("/")
+VK_ID_AUTHORIZE_URL = f"{VK_ID_OAUTH_BASE}/authorize"
+VK_ID_TOKEN_URL = f"{VK_ID_OAUTH_BASE}/oauth2/auth"
+VK_ID_USER_INFO_URL = f"{VK_ID_OAUTH_BASE}/oauth2/user_info"
 
 # Только профиль для входа в приложение (отдельно от direct:api при подключении Директа)
 YANDEX_LOGIN_SCOPE = "login:email login:info"
 
 
 def _oauth_state_prefix(provider: str) -> str:
+    # RFC-совместимые символы для state: a-zA-Z0-9_- (без точки).
+    return "site-yandex_" if provider == "yandex" else "site-vk_"
+
+
+def _oauth_state_legacy_prefix(provider: str) -> str:
+    # Обратная совместимость со старыми state (до миграции на VK ID).
     return "site-yandex." if provider == "yandex" else "site-vk."
 
 
@@ -108,38 +118,71 @@ def _verify_oauth_state_jwt(state: str, provider: str) -> None:
 
 
 def _verify_oauth_state(state: str, provider: str) -> None:
-    prefix = _oauth_state_prefix(provider)
-    if state.startswith(prefix):
-        _verify_oauth_state_compact(state[len(prefix) :], provider)
-        return
+    prefixes = (_oauth_state_prefix(provider), _oauth_state_legacy_prefix(provider))
+    for prefix in prefixes:
+        if state.startswith(prefix):
+            _verify_oauth_state_compact(state[len(prefix) :], provider)
+            return
     if state.count(".") == 2:
         _verify_oauth_state_jwt(state, provider)
         return
     raise HTTPException(status_code=400, detail="Недействительный параметр state")
 
 
-async def _vk_ads_exchange_code_for_login(code: str, redirect_uri: str) -> dict:
-    """Обмен кода на токен VK Ads API — как в integrations.exchange_vk_token_oauth."""
+async def _vk_id_exchange_code_for_login(
+    code: str,
+    redirect_uri: str,
+    device_id: str,
+    code_verifier: str,
+    state: str,
+) -> dict:
+    """Обмен authorization_code на токены VK ID (OAuth 2.1 + PKCE)."""
     form = {
         "grant_type": "authorization_code",
         "code": code,
-        "client_id": VK_ADS_CLIENT_ID,
+        "client_id": VK_LOGIN_CLIENT_ID,
+        "code_verifier": code_verifier,
+        "device_id": device_id,
         "redirect_uri": redirect_uri,
+        "state": state,
     }
     async with httpx.AsyncClient() as client:
-        r = await client.post(VK_ADS_TOKEN_URL, data=form, timeout=30.0)
+        r = await client.post(VK_ID_TOKEN_URL, data=form, timeout=30.0)
     try:
         data = r.json()
     except Exception:
-        logger.warning("VK Ads token.json: non-JSON %s %s", r.status_code, r.text[:300])
-        raise HTTPException(status_code=400, detail="Не удалось обменять код VK Ads на токен")
+        logger.warning("VK ID oauth2/auth: non-JSON %s %s", r.status_code, r.text[:300])
+        raise HTTPException(status_code=400, detail="Не удалось обменять код VK ID на токены")
     if r.status_code != 200:
         err = data.get("error_description") or data.get("error") or r.text[:200]
-        logger.warning("VK Ads token exchange failed: %s", err)
-        raise HTTPException(status_code=400, detail=str(err) if err else "Ошибка обмена кода VK Ads")
+        logger.warning("VK ID token exchange failed: %s", err)
+        raise HTTPException(status_code=400, detail=str(err) if err else "Ошибка обмена кода VK ID")
     if not data.get("access_token"):
-        raise HTTPException(status_code=400, detail="VK Ads не вернул access_token")
+        raise HTTPException(status_code=400, detail="VK ID не вернул access_token")
     return data
+
+
+async def _vk_id_user_info(access_token: str) -> dict:
+    """Получение профиля пользователя VK ID по access_token."""
+    form = {
+        "client_id": VK_LOGIN_CLIENT_ID,
+        "access_token": access_token,
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.post(VK_ID_USER_INFO_URL, data=form, timeout=20.0)
+    try:
+        data = r.json()
+    except Exception:
+        logger.warning("VK ID user_info: non-JSON %s %s", r.status_code, r.text[:300])
+        raise HTTPException(status_code=400, detail="Не удалось получить профиль VK ID")
+    if r.status_code != 200:
+        err = data.get("error_description") or data.get("error") or r.text[:200]
+        logger.warning("VK ID user_info failed: %s", err)
+        raise HTTPException(status_code=400, detail=str(err) if err else "Ошибка запроса профиля VK ID")
+    user = data.get("user")
+    if not isinstance(user, dict):
+        raise HTTPException(status_code=400, detail="VK ID не вернул профиль пользователя")
+    return user
 
 
 def _synthetic_email(prefix: str, provider_uid: str) -> str:
@@ -359,55 +402,78 @@ async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Ses
 
 
 @router.get("/vk/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)
-def vk_oauth_authorize_url(redirect_uri: str):
+def vk_oauth_authorize_url(redirect_uri: str, code_challenge: str):
     """
-    OAuth VK Ads — тот же URL, что GET /integrations/vk/auth-url (мастер интеграций).
-    Док: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
+    OAuth VK ID для входа на сайт (Authorization Code + PKCE).
     """
-    if not VK_ADS_CLIENT_ID:
+    if not VK_LOGIN_CLIENT_ID:
         raise HTTPException(
             status_code=503,
-            detail="VK_CLIENT_ID не задан — нужен для входа и интеграции VK Ads",
+            detail="VK_LOGIN_CLIENT_ID (или VK_CLIENT_ID) не задан — нужен для входа через VK ID",
+        )
+    challenge = (code_challenge or "").strip()
+    if len(challenge) < 32:
+        raise HTTPException(
+            status_code=400,
+            detail="Некорректный code_challenge для VK ID",
         )
     state = _sign_oauth_state("vk")
     enc_redirect = quote(redirect_uri, safe="")
-    enc_scope = quote(VK_ADS_OAUTH_SCOPE, safe="")
+    enc_scope = quote(VK_LOGIN_SCOPE, safe="")
     enc_state = quote(state, safe="")
+    enc_challenge = quote(challenge, safe="")
     url = (
-        f"https://ads.vk.com/hq/settings/access"
-        f"?action=oauth2&response_type=code"
-        f"&client_id={VK_ADS_CLIENT_ID}"
+        f"{VK_ID_AUTHORIZE_URL}"
+        f"?response_type=code"
+        f"&client_id={VK_LOGIN_CLIENT_ID}"
+        f"&redirect_uri={enc_redirect}"
         f"&state={enc_state}"
         f"&scope={enc_scope}"
-        f"&redirect_uri={enc_redirect}"
+        f"&code_challenge={enc_challenge}"
+        f"&code_challenge_method=S256"
     )
     return {"url": url}
 
 
 @router.post("/vk/callback", response_model=schemas.Token)
 async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session = Depends(get_db)):
-    if not VK_ADS_CLIENT_ID:
-        raise HTTPException(status_code=503, detail="VK_CLIENT_ID не задан")
+    if not VK_LOGIN_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="VK_LOGIN_CLIENT_ID (или VK_CLIENT_ID) не задан")
 
     _verify_oauth_state(body.state.strip(), "vk")
 
-    token_data = await _vk_ads_exchange_code_for_login(
+    device_id = (body.device_id or "").strip()
+    code_verifier = (body.code_verifier or "").strip()
+    if not device_id:
+        raise HTTPException(status_code=400, detail="Отсутствует device_id в callback VK ID")
+    if len(code_verifier) < 43:
+        raise HTTPException(status_code=400, detail="Отсутствует или некорректный code_verifier для VK ID")
+
+    token_data = await _vk_id_exchange_code_for_login(
         body.code.strip(),
         body.redirect_uri.strip(),
+        device_id,
+        code_verifier,
+        body.state.strip(),
     )
+    access_token = (token_data.get("access_token") or "").strip()
+    if not access_token:
+        raise HTTPException(status_code=400, detail="VK ID не вернул access_token")
 
-    vk_uid = token_data.get("user_id")
-    if vk_uid is None and body.vk_redirect_user_id:
-        vk_uid = body.vk_redirect_user_id.strip()
+    user_info = await _vk_id_user_info(access_token)
+
+    vk_uid = user_info.get("user_id", token_data.get("user_id"))
     vk_uid_str = str(vk_uid).strip() if vk_uid is not None else ""
     if not vk_uid_str:
-        logger.warning("VK Ads login: no user_id in token, keys=%s", list(token_data.keys()))
+        logger.warning("VK ID login: no user_id, token_keys=%s", list(token_data.keys()))
         raise HTTPException(
             status_code=400,
-            detail="VK Ads не вернул user_id в ответе token.json. Откройте вход снова; при редиректе должен быть user_id в query.",
+            detail="VK ID не вернул user_id пользователя",
         )
 
-    email = None
+    email = (user_info.get("email") or "").strip() or None
+    first_name = (user_info.get("first_name") or "").strip() or None
+    last_name = (user_info.get("last_name") or "").strip() or None
 
     identity = (
         db.query(models.UserOAuthIdentity)
@@ -428,6 +494,10 @@ async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session
         if user:
             _attach_identity(db, user, "vk", vk_uid_str)
             user.email_verified = True
+            if first_name and not user.first_name:
+                user.first_name = first_name
+            if last_name and not user.last_name:
+                user.last_name = last_name
             db.add(user)
             try:
                 db.commit()
@@ -445,8 +515,8 @@ async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session
     user = models.User(
         email=email,
         username=None,
-        first_name=None,
-        last_name=None,
+        first_name=first_name,
+        last_name=last_name,
         password_hash=security.get_password_hash(secrets.token_urlsafe(48)),
         role=models.UserRole.MANAGER,
         email_verified=True,

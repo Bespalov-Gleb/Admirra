@@ -30,6 +30,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
+import { consumeVkPkceByState } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 
 const route = useRoute()
@@ -68,6 +69,7 @@ onMounted(async () => {
 
   const code = route.query.code
   const state = route.query.state
+  const deviceIdRaw = route.query.device_id
   if (!code || !state) {
     error.value = 'Нет кода авторизации. Вернитесь и попробуйте снова.'
     loading.value = false
@@ -86,11 +88,16 @@ onMounted(async () => {
       redirect_uri: redirectUri,
     }
     if (provider === 'vk') {
-      const rawUid = route.query.user_id
-      const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
-      if (uid != null && String(uid).trim() !== '') {
-        payload.vk_redirect_user_id = String(uid).trim()
+      const deviceId = Array.isArray(deviceIdRaw) ? deviceIdRaw[0] : deviceIdRaw
+      const codeVerifier = consumeVkPkceByState(String(state))
+      if (!deviceId || !String(deviceId).trim()) {
+        throw new Error('VK ID не вернул device_id. Начните вход заново.')
       }
+      if (!codeVerifier) {
+        throw new Error('Не найден code_verifier для VK ID. Начните вход заново.')
+      }
+      payload.device_id = String(deviceId).trim()
+      payload.code_verifier = codeVerifier
     }
     const { data } = await api.post(path, payload)
     setToken(data.access_token)

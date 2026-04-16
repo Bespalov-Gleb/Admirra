@@ -101,6 +101,39 @@ def _billing_period_days(plan, billing_period: str) -> int:
     return int(plan.period_days or 30)
 
 
+def _build_cloudpayments_receipt(
+    *,
+    amount: int,
+    description: str,
+    customer_email: str,
+    cfg,
+) -> Dict[str, Any]:
+    total = round(float(amount), 2)
+    email = (customer_email or "").strip()
+    return {
+        "items": [
+            {
+                "label": description,
+                "price": total,
+                "quantity": 1.0,
+                "amount": total,
+                "vat": int(cfg.cloudpayments.receipt_vat),
+                "method": int(cfg.cloudpayments.receipt_method),
+                "object": int(cfg.cloudpayments.receipt_object),
+                "measurementUnit": "услуга",
+            }
+        ],
+        "taxationSystem": int(cfg.cloudpayments.receipt_taxation_system),
+        "email": email,
+        "amounts": {
+            "electronic": total,
+            "advancePayment": 0.0,
+            "credit": 0.0,
+            "provision": 0.0,
+        },
+    }
+
+
 def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
     return schemas.BillingPlanResponse(
         code=plan.code,
@@ -167,18 +200,28 @@ async def subscribe(
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
 
-    # Для фронта готовим данные виджета, а реальную активацию фиксируем вебхуком.
+    amount = _yearly_price_from_monthly(plan.price_rub) if billing_period == "year" else plan.price_rub
+    description = f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})"
+    receipt = _build_cloudpayments_receipt(
+        amount=amount,
+        description=description,
+        customer_email=current_user.email or "",
+        cfg=cfg,
+    )
+
+    # Для фронта готовим данные виджета, включая receipt для автоматической фискализации.
     return schemas.BillingSubscribeResponse(
         public_id=cfg.cloudpayments.public_id,
-        amount=_yearly_price_from_monthly(plan.price_rub) if billing_period == "year" else plan.price_rub,
+        amount=amount,
         currency=cfg.cloudpayments.currency,
-        description=f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})",
+        description=description,
         account_id=str(current_user.id),
         email=current_user.email or "",
         plan_code=plan.code,
         billing_period=billing_period,
         trial_days=plan.trial_days,
         recurrent=_recurrent_for_billing_period(plan, billing_period),
+        receipt=receipt,
     )
 
 

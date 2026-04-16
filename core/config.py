@@ -84,6 +84,11 @@ class CloudPaymentsConfig:
     api_secret: str
     currency: str
     webhook_secret: str
+    # Параметры онлайн-чека (CloudKassir через CloudPayments receipt).
+    receipt_taxation_system: int
+    receipt_vat: int
+    receipt_method: int
+    receipt_object: int
 
 
 @dataclass
@@ -193,6 +198,10 @@ def get_config() -> Config:
             api_secret=_env("CLOUDPAYMENTS_API_SECRET"),
             currency=_env("CLOUDPAYMENTS_CURRENCY", "RUB"),
             webhook_secret=_env("CLOUDPAYMENTS_WEBHOOK_SECRET"),
+            receipt_taxation_system=int(_env("CLOUDPAYMENTS_RECEIPT_TAXATION_SYSTEM", "0")),
+            receipt_vat=int(_env("CLOUDPAYMENTS_RECEIPT_VAT", "0")),
+            receipt_method=int(_env("CLOUDPAYMENTS_RECEIPT_METHOD", "0")),
+            receipt_object=int(_env("CLOUDPAYMENTS_RECEIPT_OBJECT", "4")),
         ),
         telegram_bot=TelegramBotConfig(
             bot_token=_env("TELEGRAM_BOT_TOKEN"),
