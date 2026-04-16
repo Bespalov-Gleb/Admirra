@@ -261,30 +261,21 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronDownIcon,
   ArrowRightOnRectangleIcon,
-  PhoneIcon,
-  UserCircleIcon,
   ComputerDesktopIcon,
   SparklesIcon,
   Squares2X2Icon,
-  ClockIcon,
-  Cog6ToothIcon,
-  UserGroupIcon,
   ArchiveBoxIcon,
-  SignalIcon,
-  ChartBarIcon,
-  QuestionMarkCircleIcon,
   CpuChipIcon,
   LinkIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
-import { useProjects } from '../composables/useProjects'
 import ConfirmModal from './ConfirmModal.vue'
 import logoFull from '../assets/imgs/logo/logo-dark.png'
 import logoFullDark from '../assets/imgs/logo/AdMirra.png'
@@ -292,64 +283,71 @@ import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
 import IconProject from '../assets/icons/menu/project.vue'
 import IconGroup from '../assets/icons/menu/group.vue'
-import IconChannels from '../assets/icons/menu/channels.vue'
 import IconSetting from '../assets/icons/menu/setting.vue'
 import IconClock from '../assets/icons/menu/clock.vue'
+import { ADMIRRA_PUBLIC_HOST } from '../config/admirraPublic'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
 const { forceLogout } = useAuth()
-const { currentProjectName, setCurrentProject, fetchProjects, currentProjectId } = useProjects()
 
 const route = useRoute()
 const router = useRouter()
 const isDashboardSubmenuOpen = ref(false)
-const isPhoneSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
-const menuItems = [
-  {
-    name: 'Аналитика',
-    icon: Squares2X2Icon,
-    submenuKey: 'dashboard',
-    children: [
-      { name: 'Аналитика проекта', path: '/dashboard/general-3' },
-      { name: 'Общая статистика', path: '/dashboard/general' },
-    ]
-  },
-  { name: 'AI Отчет', path: '/ai-analysis', icon: SparklesIcon },
-  { name: 'Проекты', path: '/projects', icon: IconProject },
-  { name: 'Команда', path: '/team', icon: IconGroup },
-  { name: 'Интеграции', path: '/integrations', icon: LinkIcon },
-  { name: 'Каналы', path: '/channels', icon: IconChannels },
-  {
-    name: 'Телефония',
-    icon: PhoneIcon,
-    submenuKey: 'phone',
-    children: [
-      { name: 'Проекты', path: '/phone-projects' },
-      { name: 'Квалификатор', path: '/phone-api' },
-      { name: 'Интеграция', path: '/phone-integration' },
-      { name: 'Лиды', path: '/phone-leads' },
-      { name: 'Статистика', path: '/phone-stats' },
-      { name: 'Отчёты', path: '/phone-reports' },
-    ]
-  },
-]
+const currentHost = computed(() => {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    return window.location.hostname.toLowerCase()
+  }
+  return (ADMIRRA_PUBLIC_HOST || '').toLowerCase()
+})
+
+const showQualifierLink = computed(() => {
+  const host = currentHost.value
+  return !!host && !host.endsWith('.ru') && host !== 'admirra.ru'
+})
+
+const menuItems = computed(() => {
+  const items = [
+    {
+      name: 'Аналитика',
+      icon: Squares2X2Icon,
+      submenuKey: 'dashboard',
+      children: [
+        { name: 'Аналитика проекта', path: '/dashboard/general-3' },
+        { name: 'AI отчет по проекту', path: '/ai-analysis' },
+      ]
+    },
+    { name: 'Проекты', path: '/projects', icon: IconProject },
+    { name: 'Интеграции', path: '/integrations', icon: LinkIcon },
+  ]
+
+  if (showQualifierLink.value) {
+    items.push({ name: 'Квалификатор', path: '/phone-api', icon: ArchiveBoxIcon })
+  }
+
+  items.push(
+    { name: 'Команда', path: '/team', icon: IconGroup },
+    { name: 'История', path: '/history', icon: IconClock },
+    { name: 'Настройки', path: '/settings', icon: IconSetting },
+  )
+
+  return items
+})
 
 const middleLinks = computed(() => [
-  { name: 'История', path: '/history', icon: IconClock },
-  { name: 'Настройки', path: '/settings', icon: IconSetting },
+  { name: 'Тарифы', path: '/tariffs', icon: CpuChipIcon },
 ])
 
 const bottomLinks = computed(() => [
-  { name: 'Помощь', path: '/help', icon: QuestionMarkCircleIcon },
-  { name: 'Тех. поддержка', path: '/contact', icon: ComputerDesktopIcon },
+  { name: 'Поддержка', path: '/contact', icon: ComputerDesktopIcon },
+  { name: 'Выход', action: handleLogoutClick, icon: ArrowRightOnRectangleIcon },
 ])
 
 const isActive = (path) => {
   if (!route?.path || !path) return false
-  return route.path === path
+  return route.path === path || route.path.startsWith(`${path}/`)
 }
 
 const isSubmenuActive = (item) => {
@@ -359,7 +357,6 @@ const isSubmenuActive = (item) => {
 
 const isSubmenuOpenForKey = (key) => {
   if (key === 'dashboard') return isDashboardSubmenuOpen.value
-  if (key === 'phone') return isPhoneSubmenuOpen.value
   return false
 }
 
@@ -368,20 +365,15 @@ const toggleSubmenu = (key) => {
     toggleCollapse()
     setTimeout(() => {
       if (key === 'dashboard') isDashboardSubmenuOpen.value = true
-      if (key === 'phone') isPhoneSubmenuOpen.value = true
     }, 100)
   } else {
     if (key === 'dashboard') isDashboardSubmenuOpen.value = !isDashboardSubmenuOpen.value
-    if (key === 'phone') isPhoneSubmenuOpen.value = !isPhoneSubmenuOpen.value
   }
 }
 
 watch(() => route?.path, (path) => {
   if (path?.startsWith('/dashboard')) {
     isDashboardSubmenuOpen.value = true
-  }
-  if (path?.startsWith('/phone')) {
-    isPhoneSubmenuOpen.value = true
   }
 }, { immediate: true })
 
@@ -394,7 +386,6 @@ const handleToggleCollapse = () => {
   toggleCollapse()
   if (isCollapsed.value) {
     isDashboardSubmenuOpen.value = false
-    isPhoneSubmenuOpen.value = false
   }
 }
 
@@ -414,6 +405,6 @@ function handleLogoutClick() {
 const handleLogout = () => {
   forceLogout()
   showLogoutModal.value = false
-  router.push('/login')
+  router.push('/signin')
 }
 </script>

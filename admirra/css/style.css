@@ -8,6 +8,7 @@
 @import "style/ui.css";
 
 /* libs */
+@import "libs/swiper.css";
 
 /* media queries */
 @import "media.css";

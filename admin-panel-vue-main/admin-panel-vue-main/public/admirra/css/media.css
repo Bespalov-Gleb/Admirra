@@ -140,6 +140,15 @@
 	.head-page {
 		border-radius: 0 0 3rem 3rem;
 	}
+	.blog-posts {
+		row-gap: 2rem;
+		margin-left: -1rem;
+		margin-right: -1rem;
+		& > * {
+			padding-left: 1rem;
+			padding-right: 1rem;
+		}
+	}
 }
 
 /* 992px */
@@ -195,6 +204,10 @@
 	}
 	.footer-bottom__menu {
 		width: 200px;
+	}
+
+	.image-block {
+		padding: 5rem;
 	}
 }
 
@@ -279,6 +292,10 @@
 			width: 100%;
 		}
 	}
+
+	.image-block {
+		padding: 3rem;
+	}
 }
 
 /* 576px */
@@ -358,8 +375,30 @@
 	}
 	.head-page__inner {
 		.header {
-			margin-bottom: 7rem;
+			margin-bottom: 1rem;
 		}
+	}
+	.head-page__content {
+		padding-top: 6rem;
+	}
+
+	.blog-posts {
+		max-width: 380px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.our-blog__heading {
+		text-align: center;
+	}
+
+	.image-block {
+		padding: 1rem;
+	}
+
+	.blockquote {
+		padding: 2rem;
+		font-size: 1.7rem;
 	}
 }
 

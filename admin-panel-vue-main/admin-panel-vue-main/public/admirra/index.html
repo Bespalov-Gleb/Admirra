@@ -14,7 +14,7 @@
 	<body>
 		<section class="hero">
 			<div class="hero__inner">
-				<header class="header anim-fadeInDown">
+				<header class="header">
 					<div class="header__inner">
 						<img class="logo" src="img/logo.png" alt="logo" />
 						<nav class="menu d-none d-lg-block">
@@ -45,15 +45,15 @@
 				</header>
 
 				<div class="hero__content">
-					<h1 class="heading-1 weight-500 anim-zoomIn">
+					<h1 class="heading-1 weight-500">
 						<span class="weight-300">Сервис аналитики рекламы и&nbsp;автоматических отчётов</span> <br />
 						<strong>
 							для&nbsp;Яндекс Директ <i class="icon-direct"></i> и ВК Рекламы <i class="icon-target"></i>
 							со&nbsp;встроенным ИИ агентом
 						</strong>
 					</h1>
-					<p class="hero__description anim-fadeInUp">АдМирра заменяет сложные инструменты отчетности, объединяет рекламные кабинеты, лиды и ключевые метрики маркетинга в одном дашборде. Контролируйте&nbsp;CPL, заявки и эффективность рекламы без Excel и ручных отчётов.</p>
-					<div class="to-action anim-bounceIn delay-03s">
+					<p class="hero__description">АдМирра заменяет сложные инструменты отчетности, объединяет рекламные кабинеты, лиды и ключевые метрики маркетинга в одном дашборде. Контролируйте&nbsp;CPL, заявки и эффективность рекламы без Excel и ручных отчётов.</p>
+					<div class="to-action">
 						<div>
 							<a class="btn _big" href="/signup" target="_top">
 								<div class="btn__inner">
@@ -70,10 +70,31 @@
 					</div>
 				</div>
 
-				<div class="hero-art anim-fadeInLeft">
+				<div class="hero-art">
 					<div class="hero-art__tablet">
 						<div class="hero-art__tablet-screen">
-							<img src="img/hero/screen.png" alt="#" />
+							<video class="hero-art__video" poster="video/screen.png">
+								<source src="video/video.mp4" type="video/mp4" />
+							</video>
+							<button class="hero-art__video-btn">
+								<svg><use href="img/svg/sprite.svg#play"></use></svg>
+							</button>
+							<script>
+								var heroTabletScreen = document.querySelector(".hero-art__tablet-screen");
+								var heroVideo = document.querySelector(".hero-art__video");
+								var heroVideoBtn = document.querySelector(".hero-art__video-btn");
+								heroVideoBtn.onclick = function () {
+									if (heroVideo.paused) {
+										heroVideo.play();
+										heroVideo.setAttribute("controls", "true");
+										heroTabletScreen.classList.add("active");
+									} else {
+										heroVideo.pause();
+										heroVideo.removeAttribute("controls", "true");
+										heroTabletScreen.classList.remove("active");
+									}
+								};
+							</script>
 						</div>
 					</div>
 					<div class="ui-1"></div>
@@ -110,7 +131,7 @@
 		<section class="hero-advantages container-xl" id="advantages">
 			<div class="row g-5 justify-content-center">
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="hero-advantages__item anim-bounceIn">
+					<div class="hero-advantages__item">
 						<i class="icon-schedule"></i>
 						<h6 class="heading-6">
 							Маркетинговым <br />
@@ -123,7 +144,7 @@
 					</div>
 				</div>
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="hero-advantages__item anim-bounceIn delay-01s">
+					<div class="hero-advantages__item">
 						<i class="icon-diagram"></i>
 						<h6 class="heading-6">
 							Специалистам <br />
@@ -136,7 +157,7 @@
 					</div>
 				</div>
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="hero-advantages__item anim-bounceIn delay-02s">
+					<div class="hero-advantages__item">
 						<i class="icon-folder"></i>
 						<h6 class="heading-6">
 							Маркетологам <br />
@@ -149,10 +170,10 @@
 		</section>
 
 		<section class="about container-xl" id="about">
-			<h2 class="heading-1 text-center anim-fadeInUp">Вы — специалист по маркетингу, ориентированному на результат, <span class="weight-300">а&nbsp;не&nbsp;специалист по анализу данных</span></h2>
+			<h2 class="heading-1 text-center">Вы — специалист по маркетингу, ориентированному на результат, <span class="weight-300">а&nbsp;не&nbsp;специалист по анализу данных</span></h2>
 			<div class="row g-5">
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="about-item anim-zoomIn">
+					<div class="about-item">
 						<div class="about-item__content _one">
 							<i class="icon-twocircle"></i>
 							<h5 class="heading-5">Почему маркетинговую аналитику сложно контролировать</h5>
@@ -190,7 +211,7 @@
 					</div>
 				</div>
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="about-item anim-zoomIn delay-01s">
+					<div class="about-item">
 						<div class="about-item__content _two">
 							<i class="icon-twocircle"></i>
 							<h5 class="heading-5">Большинство платформ аналитики сложные и&nbsp;перегруженные</h5>
@@ -214,7 +235,7 @@
 					</div>
 				</div>
 				<div class="col-12 col-md-6 col-xl-4">
-					<div class="about-item _primary anim-zoomIn delay-02s">
+					<div class="about-item _primary">
 						<div class="about-item__content _three">
 							<i class="icon-twocircle"></i>
 							<h5 class="heading-5">Наш сервис показывает только важные данные</h5>
@@ -235,7 +256,7 @@
 					</div>
 				</div>
 				<div class="col-12 col-md-6 col-xl-12">
-					<div class="about-item anim-zoomIn delay-03s">
+					<div class="about-item">
 						<div class="about-item__content _four">
 							<i class="icon-twocircle"></i>
 							<h5 class="col-12 col-lg-9 col-xl-7 heading-5">Составлять отчеты стало проще, чем когда-либо</h5>
@@ -250,9 +271,9 @@
 		<section class="service" id="service">
 			<div class="service__inner">
 				<div class="container-xl">
-					<h2 class="heading-1 text-center weight-500 mb-5 anim-fadeInUp"><span class="weight-300">Основные</span> возможности сервиса</h2>
+					<h2 class="heading-1 text-center weight-500 mb-5"><span class="weight-300">Основные</span> возможности сервиса</h2>
 					<div class="service__content">
-						<div class="service__item anim-fadeInLeft">
+						<div class="service__item">
 							<div class="service__descrp">
 								<i class="icon-circle">
 									<svg class="fill-stroke"><use href="img/svg/sprite.svg#layers"></use></svg>
@@ -280,7 +301,7 @@
 								<img class="_ui-one" src="img/service/ui-one.png" alt="#" />
 							</picture>
 						</div>
-						<div class="service__item anim-fadeInLeft">
+						<div class="service__item">
 							<div class="service__descrp">
 								<i class="icon-circle">
 									<svg class="fill-stroke"><use href="img/svg/sprite.svg#chart"></use></svg>
@@ -302,7 +323,7 @@
 								<img class="_ui-two" src="img/service/ui-two.png" alt="#" />
 							</picture>
 						</div>
-						<div class="service__item anim-fadeInLeft">
+						<div class="service__item">
 							<div class="service__descrp">
 								<i class="icon-circle">
 									<svg class="fill-stroke"><use href="img/svg/sprite.svg#globe"></use></svg>
@@ -330,7 +351,7 @@
 								<img class="_ui-three" src="img/service/ui-three.png" alt="#" />
 							</div>
 						</div>
-						<div class="service__item anim-fadeInLeft">
+						<div class="service__item">
 							<div class="service__descrp">
 								<i class="icon-circle">
 									<svg class="fill-stroke"><use href="img/svg/sprite.svg#download"></use></svg>
@@ -354,9 +375,9 @@
 							</div>
 						</div>
 					</div>
-					<div class="to-action _horizontal anim-bounceIn">
+					<div class="to-action _horizontal">
 						<div>
-							<a class="btn _big" href="/signup" target="_top">
+							<a class="btn _big" href="reg.html">
 								<div class="btn__inner">
 									<span class="btn__text">ПОПРОБОВАТЬ БЕСПЛАТНО</span>
 									<span class="btn__icon">
@@ -378,8 +399,8 @@
 
 		<section id="integrations">
 			<div class="integrations">
-				<h2 class="heading-1 weight-500 text-center pb-5 anim-fadeInDown">Интеграции</h2>
-				<div class="integrations-slider swiper anim-fadeInUp">
+				<h2 class="heading-1 weight-500 text-center pb-5">Интеграции</h2>
+				<div class="integrations-slider swiper">
 					<div class="swiper-wrapper">
 						<div class="swiper-slide">
 							<picture>
@@ -428,12 +449,12 @@
 
 		<section class="tariff" id="tariff">
 			<div class="container-xl">
-				<div class="pb-4 mb-3 anim-fadeInDown">
+				<div class="pb-4 mb-3">
 					<h2 class="heading-1 weight-500 text-center">Тарифы</h2>
 				</div>
-				<p class="text-20 weight-300 text-center mb-5 anim-fadeInUp">Выберите подходящий тариф в зависимости от количества проектов и задач аналитики.</p>
+				<p class="text-20 weight-300 text-center mb-5">Выберите подходящий тариф в зависимости от количества проектов и задач аналитики.</p>
 				<div class="tariff-tabs">
-					<div class="tariff-tabs__nav anim-fadeInUp">
+					<div class="tariff-tabs__nav">
 						<div class="tariff-tabs__inner">
 							<div class="tariff-tabs__item">
 								<a href="#tariff-1">Месяц</a>
@@ -449,7 +470,7 @@
 					<div id="tariff-1">
 						<div class="row justify-content-center g-5 mb-5 pb-3">
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card anim-bounceIn">
+								<div class="tariff-card">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -464,7 +485,7 @@
 												<div class="list__plus">
 													<svg><use href="img/svg/sprite.svg#plus"></use></svg>
 												</div>
-												<span>1 Проект</span>
+												<span>1 проект</span>
 											</li>
 											<li class="list__item">
 												<div class="list__plus">
@@ -513,7 +534,7 @@
 								</div>
 							</div>
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card _primary anim-bounceIn delay-01s">
+								<div class="tariff-card _primary">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -521,14 +542,14 @@
 										</h4>
 										<div class="ui-price">
 											<div class="_current">3 990 ₽</div>
-											<small class="_old">498 руб/проект</small>
+											<small class="_old">798 руб/проект</small>
 										</div>
 										<ul class="list _style-one weight-500">
 											<li class="list__item">
 												<div class="list__plus">
 													<svg><use href="img/svg/sprite.svg#plus"></use></svg>
 												</div>
-												<span>До 8 Проектов</span>
+												<span>5 проектов</span>
 											</li>
 											<li class="list__item">
 												<div class="list__plus">
@@ -577,7 +598,7 @@
 								</div>
 							</div>
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card anim-bounceIn delay-02s">
+								<div class="tariff-card">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -585,14 +606,14 @@
 										</h4>
 										<div class="ui-price">
 											<div class="_current">9 990 ₽</div>
-											<small class="_old">333 руб/проект</small>
+											<small class="_old">660 руб/проект</small>
 										</div>
 										<ul class="list _style-one weight-500">
 											<li class="list__item">
 												<div class="list__plus">
 													<svg><use href="img/svg/sprite.svg#plus"></use></svg>
 												</div>
-												<span>До 30 Проектов</span>
+												<span>15 проектов</span>
 											</li>
 											<li class="list__item">
 												<div class="list__plus">
@@ -645,7 +666,7 @@
 					<div id="tariff-2">
 						<div class="row justify-content-center g-5 mb-5 pb-3">
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card anim-bounceIn">
+								<div class="tariff-card">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -709,7 +730,7 @@
 								</div>
 							</div>
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card _primary anim-bounceIn delay-01s">
+								<div class="tariff-card _primary">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -773,7 +794,7 @@
 								</div>
 							</div>
 							<div class="col-12 col-md-6 col-lg-4">
-								<div class="tariff-card anim-bounceIn delay-02s">
+								<div class="tariff-card">
 									<div class="tariff-card__content">
 										<h4 class="tariff-card__caption heading-4">
 											<i class="icon-twocircle"></i>
@@ -840,7 +861,7 @@
 					</div>
 				</div>
 
-				<div class="white-label anim-zoomIn">
+				<div class="white-label">
 					<div class="row g-5">
 						<div class="col-12 col-sm-6 col-lg-4">
 							<div class="white-label__about">
@@ -909,17 +930,17 @@
 
 		<section class="faq">
 			<div class="container-xl">
-				<h2 class="heading-1 weight-500 text-center mb-5 anim-fadeInDown">Отвечаем на популярные вопросы</h2>
+				<h2 class="heading-1 weight-500 text-center mb-5">Отвечаем на популярные вопросы</h2>
 				<div class="row g-5 py-4">
 					<div class="col-12 col-md-6">
-						<div class="faq__hero anim-zoomIn">
+						<div class="faq__hero">
 							<picture class="faq__hero-pic">
 								<img src="img/faq/hero.png" alt="hero" />
 							</picture>
 						</div>
 					</div>
 					<div class="col-12 col-md-6">
-						<div class="faq-questions anim-fadeInRight">
+						<div class="faq-questions">
 							<div class="faq-item is-open">
 								<div class="faq-head">
 									<h5 class="weight-500">Нужно ли устанавливать программу?</h5>
@@ -986,7 +1007,7 @@
 			</div>
 		</section>
 
-		<section class="offer anim-zoomIn">
+		<section class="offer">
 			<div class="offer__inner">
 				<div class="container-xl">
 					<div class="offer__content">
@@ -1014,6 +1035,92 @@
 							</div>
 						</div>
 					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="our-blog">
+			<div class="container-xl">
+				<div class="row align-items-center">
+					<div class="col">
+						<h2 class="our-blog__heading heading-1 weight-500">Наш блог</h2>
+					</div>
+					<div class="col-auto d-none d-sm-block">
+						<a class="btn _medium _white _outline d-flex" href="#">
+							<div class="btn__inner px-5">
+								<span class="btn__text px-3">СМОТРЕТЬ ВСЕ СТАТЬИ</span>
+							</div>
+						</a>
+					</div>
+				</div>
+				<div class="blog-posts row">
+					<div class="col-12 col-sm-6 col-md-4">
+						<div class="blog-card">
+							<picture class="blog-card__picture">
+								<div class="badge-group">
+									<div class="badge">АНАЛИТИКА</div>
+									<div class="badge">25 марта 2026</div>
+								</div>
+								<img class="img-cover" src="img/blog/post.jpg" alt="#" />
+							</picture>
+							<h4 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и&nbsp;оптимизировать рекламу</h4>
+							<p class="blog-card__text">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и&nbsp;собираем в&nbsp;понятный отчет.</p>
+							<div class="blog-card__action">
+								<a class="btn _white _lagre" href="#">
+									<div class="btn__inner">
+										<span class="btn__text">Смотреть подробнее</span>
+									</div>
+								</a>
+							</div>
+						</div>
+					</div>
+					<div class="col-12 col-sm-6 col-md-4">
+						<div class="blog-card">
+							<picture class="blog-card__picture">
+								<div class="badge-group">
+									<div class="badge">АНАЛИТИКА</div>
+									<div class="badge">25 марта 2026</div>
+								</div>
+								<img class="img-cover" src="img/blog/post.jpg" alt="#" />
+							</picture>
+							<h4 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и&nbsp;оптимизировать рекламу</h4>
+							<p class="blog-card__text">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и&nbsp;собираем в&nbsp;понятный отчет.</p>
+							<div class="blog-card__action">
+								<a class="btn _white _lagre" href="#">
+									<div class="btn__inner">
+										<span class="btn__text">Смотреть подробнее</span>
+									</div>
+								</a>
+							</div>
+						</div>
+					</div>
+					<div class="col-12 col-sm-6 col-md-4">
+						<div class="blog-card">
+							<picture class="blog-card__picture">
+								<div class="badge-group">
+									<div class="badge">АНАЛИТИКА</div>
+									<div class="badge">25 марта 2026</div>
+								</div>
+								<img class="img-cover" src="img/blog/post.jpg" alt="#" />
+							</picture>
+							<h4 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и&nbsp;оптимизировать рекламу</h4>
+							<p class="blog-card__text">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и&nbsp;собираем в&nbsp;понятный отчет.</p>
+							<div class="blog-card__action">
+								<a class="btn _white _lagre" href="#">
+									<div class="btn__inner">
+										<span class="btn__text">Смотреть подробнее</span>
+									</div>
+								</a>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="pt-5 d-flex justify-content-center d-sm-none">
+					<a class="btn _medium _white _outline" href="#">
+						<div class="btn__inner px-5">
+							<span class="btn__text px-3">СМОТРЕТЬ ВСЕ СТАТЬИ</span>
+						</div>
+					</a>
 				</div>
 			</div>
 		</section>
@@ -1102,8 +1209,6 @@
 		<script src="js/swiper.js" defer></script>
 		<script src="js/beefup.js" defer></script>
 		<script src="js/easytabs.js" defer></script>
-		<script src="js/animate-css.js" defer></script>
-		<script src="js/waypoints.js" defer></script>
 		<script src="js/main.js" defer></script>
 	</body>
 </html>
