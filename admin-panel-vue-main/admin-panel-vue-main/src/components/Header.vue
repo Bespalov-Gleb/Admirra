@@ -1,30 +1,28 @@
 <template>
-  <header class="bg-white dark:bg-[#2C2F3D] border-b border-gray-100 dark:border-white/10 px-4 sm:px-6 lg:px-8 py-3.5 z-30 font-[Inter]">
-    <div class="flex items-center justify-between gap-4">
-      <!-- Левая часть — Трафик агентство (по макету) -->
-      <div class="flex items-center gap-3 flex-shrink-0">
+  <header class="relative z-30 border-b border-[#ECEEF2] bg-[#F8F9FB] px-3 sm:px-4 lg:px-6 py-2 font-[Inter]">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         <button
           @click="toggleMobileMenu"
-          class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-300"
+          class="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E6E8ED] bg-white text-[#5C6370]"
           aria-label="Открыть меню"
         >
-          <Bars3Icon class="w-6 h-6" />
+          <Bars3Icon class="w-5 h-5" />
         </button>
-        
-        <!-- Блок агентства: иконка + текст + dropdown -->
-        <div class="relative" ref="projectMenuRef">
-          <button 
+
+        <div class="relative min-w-0" ref="projectMenuRef">
+          <button
             @click="toggleProjectMenu"
-            class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors text-left"
+            class="flex h-11 items-center gap-2 rounded-xl border border-[#E6E8ED] bg-white px-2.5 pr-2 text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
           >
-            <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <ChartBarIcon class="w-5 h-5 text-blue-600 dark:text-[#4A7AFF]" />
+            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#EEF4FF] text-[#2E6BFF]">
+              <ChartBarIcon class="w-4 h-4" />
             </div>
-            <div>
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ currentProjectName }}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Отчёты агентства в одном месте</p>
+            <div class="min-w-0 hidden sm:block">
+              <div class="truncate text-[12px] font-semibold leading-4 text-[#2B2F3A]">{{ currentProjectName }}</div>
+              <div class="truncate text-[10px] leading-3 text-[#8A90A2]">Отчеты агентства в одном месте</div>
             </div>
-            <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+            <ChevronDownIcon class="w-4 h-4 text-[#B1B6C4] shrink-0" />
           </button>
 
           <div 
@@ -68,17 +66,17 @@
         </div>
       </div>
 
-      <!-- Правая часть -->
-      <div class="flex items-center gap-3 flex-shrink-0">
-        <div class="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-50 dark:bg-white/10">
-          <div class="text-xs text-gray-500 dark:text-gray-400">Ваш тариф:</div>
-          <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ subscription.planName }}</div>
-          <div v-if="subscription.expiresAtLabel" class="text-xs text-gray-500 dark:text-gray-400">
-            Действует до {{ subscription.expiresAtLabel }}
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="hidden xl:flex h-11 items-center rounded-xl border border-[#E6E8ED] bg-white px-3">
+          <div class="pr-3">
+            <div class="text-[11px] leading-4 text-[#626A7C]">
+              Ваш тариф: <span class="font-semibold text-[#1F2430]">{{ subscription.planName }}</span>
+            </div>
+            <div v-if="subscription.expiresAtLabel" class="text-[10px] leading-3 text-[#8E95A7]">Действует до {{ subscription.expiresAtLabel }}</div>
           </div>
           <button
             @click="() => router.push('/tariffs')"
-            class="ml-2 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-white/20 dark:text-[#4A7AFF] dark:hover:bg-white/10 transition-colors text-xs font-semibold"
+            class="h-7 rounded-lg border border-[#BFD3FF] bg-white px-3 text-[11px] font-semibold text-[#2E6BFF] hover:bg-[#F3F7FF]"
           >
             Продлить
           </button>
@@ -86,16 +84,17 @@
 
         <button
           @click="() => router.push('/contact')"
-          class="hidden lg:flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/15 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300"
+          class="hidden lg:inline-flex h-11 items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#1F7BFF] to-[#2DC8D8] px-4 text-[13px] font-medium text-white shadow-[0_8px_18px_rgba(31,123,255,0.28)]"
         >
           Предложить идею
+          <span class="text-[14px]">💡</span>
         </button>
 
         <button
           @click="() => router.push('/projects/create')"
-          class="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-[#4A7AFF] rounded-xl hover:bg-blue-700 dark:hover:bg-[#5A8BFF] transition-colors text-white text-sm font-medium"
+          class="hidden 2xl:inline-flex h-11 items-center gap-2 rounded-xl bg-[#2E6BFF] px-4 text-[13px] font-semibold text-white shadow-[0_8px_18px_rgba(46,107,255,0.32)]"
         >
-          <PlusIcon class="w-5 h-5" />
+          <span class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/40 text-sm leading-none">+</span>
           Перейти на тариф Старт
         </button>
 
@@ -103,13 +102,13 @@
           <button
             data-notifications-button
             @click="toggleNotifications"
-            class="relative p-2.5 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors"
+            class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E6E8ED] bg-white text-[#646C7F]"
             aria-label="Уведомления"
           >
-            <BellIcon class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <BellIcon class="w-5 h-5" />
             <span
               v-if="unreadCount > 0"
-              class="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-green-500 text-white text-[10px] font-semibold rounded-md flex items-center justify-center"
+              class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#69C55B] text-white text-[10px] font-semibold rounded-md flex items-center justify-center"
             >
               {{ unreadCount }}
             </span>
@@ -167,18 +166,17 @@
           </Teleport>
         </div>
 
-        <!-- Профиль (по макету: аватар + имя + dropdown) -->
         <div class="relative">
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 transition-colors"
+            class="flex h-10 items-center gap-2 rounded-xl border border-[#E6E8ED] bg-white px-2.5"
           >
-            <div class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-              <ProfileHeader class="w-5 h-5 text-blue-600 dark:text-[#4A7AFF]" />
+            <div class="w-7 h-7 rounded-full bg-[#E8F3FF] flex items-center justify-center overflow-hidden flex-shrink-0">
+              <ProfileHeader class="w-4 h-4 text-[#2E6BFF]" />
             </div>
-            <span class="text-sm font-medium text-gray-900 dark:text-white hidden sm:inline">{{ displayName }}</span>
-            <ChevronDownIcon class="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span class="text-[12px] font-medium text-[#2B2F3A] hidden md:inline max-w-[130px] truncate">{{ displayName }}</span>
+            <ChevronDownIcon class="w-4 h-4 text-[#B1B6C4] flex-shrink-0" />
           </button>
 
           <!-- Выпадающее меню профиля -->
@@ -251,7 +249,7 @@
 
         <button
           @click="handleLogoutClick"
-          class="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/20 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/15 transition-colors text-sm font-medium"
+          class="h-10 rounded-xl border border-[#E6E8ED] bg-white px-4 text-[13px] font-medium text-[#565E71] hover:bg-[#F5F7FB]"
         >
           Выход
         </button>
