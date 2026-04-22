@@ -1,11 +1,15 @@
 /* base */
+@import "normalize.css";
 @import "reset.css";
 @import "base.css";
 @import "grid.css";
 
 /* style */
+@import "style/components.css";
 @import "style/blocks.css";
 @import "style/ui.css";
+
+@import "darkmode.css";
 
 /* libs */
 @import "libs/swiper.css";

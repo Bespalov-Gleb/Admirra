@@ -1,231 +1,436 @@
 <template>
-  <div class="space-y-4 sm:space-y-6">
-    <!-- Заголовок с фильтрами и переключателем вида -->
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 sm:gap-4">
-      <!-- Заголовок -->
-      <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 flex-shrink-0">Проекты</h1>
-      
-      <!-- Фильтры и переключатель вида -->
-      <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-1 lg:flex-initial lg:justify-end">
-        <!-- Фильтр по периоду -->
-        <div class="relative flex-shrink-0">
-          <select
-            v-model="selectedPeriod"
-            class="w-full sm:w-auto sm:min-w-[180px] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
-          >
-            <option value="14">Последние 14 дней</option>
-            <option value="7">Последние 7 дней</option>
-            <option value="30">Последние 30 дней</option>
-            <option value="90">Последние 90 дней</option>
-            <option value="month">Текущий месяц</option>
-            <option value="year">Текущий год</option>
-          </select>
-          <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 pointer-events-none">
-            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
-        
-        <!-- Фильтр "Все" -->
-        <div class="relative flex-shrink-0">
-          <select
-            v-model="selectedFilter"
-            class="w-full sm:w-auto sm:min-w-[100px] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
-          >
-            <option value="all">Все</option>
-            <option value="active">Активные</option>
-            <option value="paused">Приостановленные</option>
-            <option value="completed">Завершенные</option>
-          </select>
-          <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 pointer-events-none">
-            <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
-
-        <!-- Переключатель вида -->
-        <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          <button 
-            @click="viewMode = 'cards'"
-            class="p-2 rounded transition-all"
-            :class="viewMode === 'cards' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'"
-            title="Карточки"
-          >
-            <ViewColumnsIcon class="w-5 h-5" :class="viewMode === 'cards' ? 'text-blue-600' : 'text-gray-500'" />
-          </button>
-          <button 
-            @click="viewMode = 'table'"
-            class="p-2 rounded transition-all"
-            :class="viewMode === 'table' ? 'bg-white shadow-sm' : 'hover:bg-gray-50'"
-            title="Таблица"
-          >
-            <Bars3Icon class="w-5 h-5" :class="viewMode === 'table' ? 'text-blue-600' : 'text-gray-500'" />
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Карточки проектов -->
-    <div v-if="viewMode === 'cards'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <ProjectCard
-        v-for="project in filteredProjects"
-        :key="project.id"
-        :project="project"
-      />
-    </div>
-
-    <!-- Таблица проектов -->
-    <ProjectsTable 
-      v-else
-      :projects="enrichedProjects"
-      :loading="loading"
-      :search-query="searchQuery"
-      @add-project="handleAddProject"
-      @view-project="handleViewProject"
-      @edit-project="handleEditProject"
-      @delete-project="handleDeleteProject"
-    />
-
-    <!-- Пустое состояние для карточек -->
-    <div v-if="viewMode === 'cards' && filteredProjects.length === 0" class="text-center py-12">
-      <p class="text-gray-500">Проекты не найдены</p>
-    </div>
-  </div>
+				<section class="main-section">
+					<div class="py-4 mb-3">
+						<h3 class="heading-3">Проекты</h3>
+					</div>
+					<div class="row gy-3 mb-5">
+						<div class="col-12 col-md">
+							<div class="row gy-3">
+								<div class="col-auto">
+									<select>
+										<option>Все</option>
+										<option value="1">Some option</option>
+										<option value="2">Another option</option>
+										<option value="3" disabled>A disabled option</option>
+										<option value="4">Potato option</option>
+									</select>
+								</div>
+								<div class="col-auto">
+									<select>
+										<option>2 недели</option>
+										<option value="1">3 недели</option>
+										<option value="2">4 недели</option>
+										<option value="3">5 недель</option>
+									</select>
+								</div>
+								<div class="col-12 col-sm-auto">
+									<div class="input-item">
+										<input class="input _search-project" type="text" placeholder="Поиск по проектам, номерам или доменам" />
+										<div class="input-icon">
+											<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="col-12 col-md-auto">
+							<div class="row g-3">
+								<div class="col-auto">
+									<button class="btn _primary">
+										<div class="btn__inner">
+											<span class="btn__text">Массовое редактирование</span>
+											<div class="btn__icon">
+												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#edit"></use></svg>
+											</div>
+										</div>
+									</button>
+								</div>
+								<div class="col-auto ms-auto">
+									<div class="row">
+										<div class="col-auto">
+											<button class="btn-ico">
+												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#grid"></use></svg>
+											</button>
+										</div>
+										<div class="col-auto">
+											<button class="btn-ico _active">
+												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#rows"></use></svg>
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="bg-white radius-base py-5 mb-5">
+						<div class="table-container">
+							<table>
+								<thead>
+									<tr class="gray56">
+										<th class="bb-light px-3 pb-3">
+											<div class="ps-4">
+												<label class="choise-checkbox">
+													<input class="choise-checkbox__input" type="checkbox" />
+													<span class="choise-checkbox__box">
+														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
+													</span>
+												</label>
+											</div>
+										</th>
+										<th class="bb-light px-3 pb-3">Проект</th>
+										<th class="bb-light px-3 pb-3">Интеграции</th>
+										<th class="bb-light px-3 pb-3">Показы</th>
+										<th class="bb-light px-3 pb-3">Клики</th>
+										<th class="bb-light px-3 pb-3">Расходы</th>
+										<th class="bb-light px-3 pb-3">Лиды</th>
+										<th class="bb-light px-3 pb-3">CPC</th>
+										<th class="bb-light px-3 pb-3">CPA</th>
+										<th class="bb-light px-3 pb-3">Актуальный баланс&nbsp;в&nbsp;ЛК:</th>
+										<th class="bb-light px-3 pb-3">Статус</th>
+										<th class="bb-light px-3 pb-3">Дата&nbsp;создания</th>
+										<th class="bb-light px-3 pb-3">Действия</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr v-for="project in projects" :key="project.id">
+										<td class="bb-light px-3 py-5">
+											<div class="ps-4">
+												<label class="choise-checkbox">
+													<input class="choise-checkbox__input" type="checkbox" />
+													<span class="choise-checkbox__box">
+														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
+													</span>
+												</label>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="d-flex">
+												<div class="avatar-30x30 align-self-center">
+													<img class="img-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="#" />
+												</div>
+												<div class="ps-4 align-self-center">
+													<h4 class="mb-1 gray">{{ project.title }}</h4>
+													<p class="text-11 gray56">ID:&nbsp;{{ project.id }}</p>
+												</div>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="d-flex">
+												<img v-if="project.channels.includes('YANDEX_DIRECT')" class="me-2" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
+												<img v-if="project.channels.includes('VK_ADS')" class="me-2" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" />
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">{{ project.impressions }}</div>
+											<div class="badge _sm _success" v-if="project.trend > 0">
+												<span class="weight-600">+{{ Number(project.trend).toFixed(1) }}%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">{{ project.clicks }}</div>
+											<div class="badge _sm _success" v-if="project.trend > 0">
+												<span class="weight-600">+{{ Number(project.trend).toFixed(1) }}%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2"><b>{{ Number(project.expenses).toLocaleString() }}&nbsp;₽</b></div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">{{ project.leads }}</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">{{ Number(project.cpc).toFixed(2) }}</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">{{ Number(project.cpa).toFixed(2) }}</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="h-100 bg-orangelight radius p-3">
+												<div class="h-100 d-flex align-items-center justify-content-center">
+													<div class="px-3 c71663e">Баланс</div>
+													<div class="badge-white c71663e">{{ project.budgetRemaining }}₽</div>
+												</div>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="badge _success">
+												<span class="weight-600">{{ project.status }}</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15">{{ project.createdAt }}</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="dropdown">
+												<button class="dropdown-head _no-style">
+													<div class="action-btn-ui">
+														<svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+													</div>
+												</button>
+												<div class="dropdown-body _action _right">
+													<div class="dropdown-block">
+														<div class="py-3">
+															<router-link :to="'/project-card?id=' + project.id" class="dropdown-menu-item">
+																<div class="dropdown-menu-item__icon">
+																	<svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+																</div>
+																<span class="pe-3">Просмотр</span>
+															</router-link>
+															<button class="dropdown-menu-item">
+																<div class="dropdown-menu-item__icon">
+																	<svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+																</div>
+																<span class="pe-3">Редактировать</span>
+															</button>
+															<button @click.prevent="deleteProject(project.id)" class="dropdown-menu-item _danger">
+																<div class="dropdown-menu-item__icon">
+																	<svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+																</div>
+																<span class="pe-3">Удалить</span>
+															</button>
+														</div>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr>
+										<td class="bb-light px-3 py-5">
+											<div class="ps-4">
+												<label class="choise-checkbox">
+													<input class="choise-checkbox__input" type="checkbox" checked />
+													<span class="choise-checkbox__box">
+														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
+													</span>
+												</label>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="d-flex">
+												<div class="avatar-30x30 align-self-center">
+													<img class="img-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="#" />
+												</div>
+												<div class="ps-4 align-self-center">
+													<h4 class="mb-1 gray">Дейтелинг Иркутск</h4>
+													<p class="text-11 gray56">ID:&nbsp;098409843080980</p>
+												</div>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="d-flex">
+												<img class="me-2" width="22" src="/admirra/img/icons/yandex-direct.png" alt="#" />
+												<img class="me-2" width="22" src="/admirra/img/icons/vk-ads.png" alt="#" />
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">1205</div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">1205</div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2"><b>90,190&nbsp;₽</b></div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">67</div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">67</div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15 mb-2">67</div>
+											<div class="badge _sm _success">
+												<span class="weight-600">+15.6%</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="h-100 bg-orangelight radius p-3">
+												<div class="h-100 d-flex align-items-center justify-content-center">
+													<img width="18" src="/admirra/img/icons/yandex-direct.png" alt="yandex direct" />
+													<div class="px-3 c71663e">Yandex&nbsp;Direct</div>
+													<div class="badge-white c71663e">10&nbsp;200₽</div>
+												</div>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="badge _success">
+												<span class="weight-600">Активен</span>
+											</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="text-15">09.03.2026</div>
+										</td>
+										<td class="bb-light px-3 py-5">
+											<div class="dropdown">
+												<button class="dropdown-head _no-style">
+													<div class="action-btn-ui">
+														<svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+													</div>
+												</button>
+												<div class="dropdown-body _action _right">
+													<div class="dropdown-block">
+														<div class="py-3">
+															<router-link to="/project-card" class="dropdown-menu-item">
+																<div class="dropdown-menu-item__icon">
+																	<svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+																</div>
+																<span class="pe-3">Просмотр</span>
+															</router-link>
+															<button class="dropdown-menu-item">
+																<div class="dropdown-menu-item__icon">
+																	<svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+																</div>
+																<span class="pe-3">Редактировать</span>
+															</button>
+															<button class="dropdown-menu-item _danger">
+																<div class="dropdown-menu-item__icon">
+																	<svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+																</div>
+																<span class="pe-3">Удалить</span>
+															</button>
+														</div>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+						<div class="row pt-5 px-5 align-items-end">
+							<div class="col col-sm-4">
+								<div class="row gy-2 align-items-center">
+									<div class="col-12">
+										<div class="gray weight-500">Элементов на&nbsp;странице:</div>
+									</div>
+									<div class="col-auto">
+										<select class="select-outline wide _sm _dropdown-bottom">
+											<option>10</option>
+											<option value="1">20</option>
+											<option value="2">30</option>
+										</select>
+									</div>
+								</div>
+							</div>
+							<div class="col-12 col-sm-4 order-1 order-sm-0">
+								<div class="py-4 gray weight-500 text-center">1-3 из 3</div>
+							</div>
+							<div class="col-auto col-sm-4 d-flex">
+								<div class="ms-auto">
+									<a class="btn-nav" href="#">
+										<svg><use href="/admirra/img/svg/sprite.svg#prev"></use></svg>
+									</a>
+									<span>&nbsp;</span>
+									<a class="btn-nav" href="#">
+										<svg><use href="/admirra/img/svg/sprite.svg#next"></use></svg>
+									</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { MagnifyingGlassIcon, ViewColumnsIcon, Bars3Icon } from '@heroicons/vue/24/outline'
-import ProjectCard from './components/ProjectCard.vue'
-import ProjectsTable from './components/ProjectsTable.vue'
-import api from '../../api/axios'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, nextTick } from 'vue'
 
-const router = useRouter()
-
-const searchQuery = ref('')
-const selectedPeriod = ref('14')
-const selectedFilter = ref('all')
-const loading = ref(true)
 const projects = ref([])
-const viewMode = ref('table') // 'cards' or 'table'
+const loading = ref(true)
 
-const fetchProjects = async () => {
+const fetchProjects = () => {
   loading.value = true
-  try {
-    // Calculate dates based on selectedPeriod
-    const end = new Date()
-    const start = new Date()
-    start.setDate(end.getDate() - (parseInt(selectedPeriod.value) - 1))
+  setTimeout(() => {
+    projects.value = [
+      {
+        id: '098409843080980',
+        title: 'Дейтелинг Иркутск',
+        channels: ['YANDEX_DIRECT', 'VK_ADS'],
+        impressions: '1205',
+        clicks: '1205',
+        expenses: '90190',
+        leads: '67',
+        cpc: '67.00',
+        cpa: '67.00',
+        budgetRemaining: '10 200',
+        trend: 15.6,
+        status: 'Активен',
+        createdAt: '09.03.2026'
+      },
+      {
+        id: '098409843080981',
+        title: 'Ремонт Квартир',
+        channels: ['YANDEX_DIRECT'],
+        impressions: '3500',
+        clicks: '420',
+        expenses: '45000',
+        leads: '32',
+        cpc: '107.00',
+        cpa: '1406.00',
+        budgetRemaining: '5 000',
+        trend: 5.2,
+        status: 'Активен',
+        createdAt: '10.03.2026'
+      },
+      {
+        id: '098409843080982',
+        title: 'Автосервис',
+        channels: ['VK_ADS'],
+        impressions: '800',
+        clicks: '102',
+        expenses: '12000',
+        leads: '15',
+        cpc: '117.00',
+        cpa: '800.00',
+        budgetRemaining: '1 200',
+        trend: -2.0,
+        status: 'Остановлен',
+        createdAt: '11.03.2026'
+      }
+    ]
+    loading.value = false
     
-    const formatDate = (date) => date.toISOString().split('T')[0]
-    
-    const response = await api.get('clients/stats', {
-      params: {
-        start_date: formatDate(start),
-        end_date: formatDate(end)
+    // Инициализация jQuery плагинов после загрузки данных
+    nextTick(() => {
+      if (window.jQuery) {
+        window.jQuery('.dropdown').beefup({
+          trigger: ".dropdown-head",
+          content: ".dropdown-body",
+          selfClose: true,
+          animation: "fade",
+        });
       }
     })
-    
-    projects.value = response.data.map(client => ({
-      id: client.id,
-      title: client.name,
-      description: client.description,
-      impressions: client.summary?.impressions || 0,
-      clicks: client.summary?.clicks || 0,
-      cpc: client.summary?.cpc || 0,
-      expenses: client.summary?.expenses || 0,
-      leads: client.summary?.leads || 0,
-      cpa: client.summary?.cpa || 0,
-      budgetRemaining: 0, 
-      channels: (client.integrations || []).map(i => {
-        const platformMap = {
-          'YANDEX_DIRECT': 'Яндекс.Директ',
-          'VK_ADS': 'ВКонтакте',
-          'GOOGLE_ADS': 'Google Ads',
-          'FACEBOOK_ADS': 'Facebook Ads'
-        }
-        return platformMap[i.platform] || i.platform
-      }),
-      trend: client.summary?.trends?.expenses || 0
-    }))
-  } catch (error) {
-    console.error('Error fetching projects:', error)
-  } finally {
-    loading.value = false
-  }
+  }, 500)
 }
 
-// Re-fetch when period changes
-watch(selectedPeriod, () => {
-  fetchProjects()
-})
+const deleteProject = (projectId) => {
+  if (confirm('Вы уверены, что хотите удалить этот проект?')) {
+    projects.value = projects.value.filter(p => p.id !== projectId)
+  }
+}
 
 onMounted(() => {
   fetchProjects()
-})
 
-const filteredProjects = computed(() => {
-  let result = projects.value
-
-  // Фильтр по поиску
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(project =>
-      project.title.toLowerCase().includes(query)
-    )
-  }
-
-  // Фильтр по статусу
-  if (selectedFilter.value && selectedFilter.value !== 'all') {
-    // Здесь можно добавить логику фильтрации по статусу
-  }
-
-  return result
-})
-
-// Enriched projects with additional fields for table view
-const enrichedProjects = computed(() => {
-  return filteredProjects.value.map(project => ({
-    ...project,
-    tag: 'A',
-    status: 'active',
-    globalLimit: 50,
-    limit: 10,
-    sitesCount: 7,
-    dealsReceived: 0,
-    dealsToday: 0,
-    providers: [],
-    created_at: new Date().toISOString()
-  }))
-})
-
-// Event handlers for table actions
-const handleAddProject = () => {
-  router.push('/integrations')
-}
-
-const handleViewProject = (projectId) => {
-  router.push(`/projects/${projectId}`)
-}
-
-const handleEditProject = (projectId) => {
-  router.push(`/integrations?edit=${projectId}`)
-}
-
-const handleDeleteProject = async (projectId) => {
-  if (confirm('Вы уверены, что хотите удалить этот проект? Все интеграции, кампании и статистика будут безвозвратно удалены.')) {
-    try {
-      await api.delete(`clients/${projectId}`)
-      // Remove from local state
-      projects.value = projects.value.filter(p => p.id !== projectId)
-      console.log('✅ Проект успешно удален:', projectId)
-    } catch (error) {
-      console.error('❌ Ошибка при удалении проекта:', error)
-      alert('Не удалось удалить проект. Проверьте консоль для деталей.')
+  nextTick(() => {
+    if (window.jQuery) {
+      window.jQuery('select').niceSelect();
     }
-  }
-}
+  });
+})
 </script>
