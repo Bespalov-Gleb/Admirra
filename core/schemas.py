@@ -102,6 +102,15 @@ class VerifyEmailRequest(BaseModel):
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
+
+class PasswordResetRequestBody(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmBody(BaseModel):
+    token: str
+    new_password: str
+
 class LoginVerifyRequest(BaseModel):
     challenge_id: UUID
     code: str

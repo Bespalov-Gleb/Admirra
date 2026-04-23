@@ -3,29 +3,17 @@
     <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center space-y-4">
       <div v-if="loading" class="flex flex-col items-center">
         <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <h2 class="text-xl font-bold text-gray-900">
-          {{ siteLoginFlow ? 'Вход через VK...' : 'Подключение VK Ads...' }}
-        </h2>
-        <p class="text-gray-500">
-          {{ siteLoginFlow ? 'Завершаем авторизацию.' : 'Пожалуйста, подождите, мы настраиваем интеграцию.' }}
-        </p>
+        <h2 class="text-xl font-bold text-gray-900">Подключение VK Ads...</h2>
+        <p class="text-gray-500">Пожалуйста, подождите, мы настраиваем интеграцию.</p>
       </div>
 
       <div v-else-if="error" class="flex flex-col items-center">
         <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </div>
-        <h2 class="text-xl font-bold text-gray-900">{{ siteLoginFlow ? 'Не удалось войти' : 'Ошибка подключения' }}</h2>
+        <h2 class="text-xl font-bold text-gray-900">Ошибка подключения</h2>
         <p class="text-red-500 text-sm mb-6">{{ error }}</p>
         <router-link
-          v-if="siteLoginFlow"
-          to="/signin"
-          class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
-        >
-          На страницу входа
-        </router-link>
-        <router-link
-          v-else
           to="/projects/create"
           class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
         >
@@ -41,29 +29,32 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
-import { useAuth } from '../../composables/useAuth'
-import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
 import { ADMIRRA_PUBLIC_ORIGIN } from '../../config/admirraPublic'
 import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
 
 const route = useRoute()
 const router = useRouter()
 const toaster = useToaster()
-const { setToken, fetchCurrentUser, getErrorMessage } = useAuth()
 
 const loading = ref(true)
 const error = ref(null)
-const siteLoginFlow = ref(false)
 
 onMounted(async () => {
   const code = route.query.code
   const state = route.query.state
-  const fromSession = sessionStorage.getItem('oauth_site_login') === 'vk'
-  const fromJwtState = oauthLoginProviderFromState(state) === 'vk'
-  const siteLogin = fromSession || fromJwtState
 
-  if (siteLogin) {
-    siteLoginFlow.value = true
+  // Если state принадлежит VK ID site-login, это не наш callback — он обрабатывается OAuthLoginCallback.vue
+  if (oauthLoginProviderFromState(state) === 'vk') {
+    sessionStorage.removeItem('oauth_site_login')
+    router.replace({ path: '/auth/login/vk/callback', query: route.query })
+    return
+  }
+
+  // Устаревший sessionStorage-флаг — тоже редиректим
+  if (sessionStorage.getItem('oauth_site_login') === 'vk') {
+    sessionStorage.removeItem('oauth_site_login')
+    router.replace({ path: '/auth/login/vk/callback', query: route.query })
+    return
   }
 
   const errorParam = route.query.error
@@ -98,47 +89,6 @@ onMounted(async () => {
     return
   }
 
-  if (siteLogin) {
-    sessionStorage.removeItem('oauth_site_login')
-    localStorage.removeItem('vk_auth_state')
-
-    const redirectUri = `${window.location.origin}/auth/vk/callback`
-
-    if (!code || !state) {
-      error.value =
-        'Нет кода авторизации. Откройте вход через кнопку на сайте и завершите авторизацию в VK Ads.'
-      loading.value = false
-      return
-    }
-
-    const rawUid = route.query.user_id
-    const uid = Array.isArray(rawUid) ? rawUid[0] : rawUid
-    try {
-      const body = {
-        code: String(code),
-        state: String(state),
-        redirect_uri: redirectUri,
-      }
-      if (uid != null && String(uid).trim() !== '') {
-        body.vk_redirect_user_id = String(uid).trim()
-      }
-      const { data } = await api.post('auth/oauth/vk/callback', body)
-      setToken(data.access_token)
-      const userResult = await fetchCurrentUser()
-      if (!userResult.success) {
-        throw new Error('Не удалось загрузить профиль')
-      }
-      router.push(DEFAULT_DASHBOARD_PATH)
-    } catch (err) {
-      console.error('[VKCallback] Site login error:', err)
-      const d = err.response?.data?.detail
-      error.value = getErrorMessage(err, typeof d === 'string' ? d : 'Не удалось войти через VK')
-    } finally {
-      loading.value = false
-    }
-    return
-  }
-  
   // Проверка CSRF защиты: сравниваем state из callback с сохраненным
   const savedState = localStorage.getItem('vk_auth_state')
   if (state && savedState && state !== savedState) {

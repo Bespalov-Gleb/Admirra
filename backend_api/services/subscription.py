@@ -168,8 +168,10 @@ class SubscriptionService:
         if SubscriptionService.is_admin_bypass(user):
             return
         plan = SubscriptionService.get_user_plan(db, user)
-        projects_count = db.query(models.Client).filter(models.Client.owner_id == user.id).count()
-        if projects_count < plan.max_projects:
+        clients_count = db.query(models.Client).filter(models.Client.owner_id == user.id).count()
+        phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user.id).count()
+        total = clients_count + phone_count
+        if total < plan.max_projects:
             return
         if not SubscriptionService.billing_enforced():
             return
@@ -205,6 +207,20 @@ class SubscriptionService:
             return
         if not SubscriptionService.billing_enforced():
             return
+        # Создаём уведомление о превышении лимита (только если billing_enforced)
+        try:
+            from backend_api.services.notifications import create_notification
+            create_notification(
+                db,
+                user_id=user.id,
+                type="limit_warn",
+                title="Лимит AI-запросов исчерпан",
+                body=f"Вы использовали все {limit} AI-запросов за текущий период. Перейдите на более высокий тариф.",
+                meta={"plan_code": plan.code, "limit": limit},
+            )
+            db.flush()
+        except Exception:
+            pass
         raise HTTPException(
             status_code=429,
             detail=f"Превышен лимит AI-запросов для тарифа '{plan.name}' ({limit} за период)",

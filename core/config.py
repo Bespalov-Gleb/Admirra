@@ -92,6 +92,17 @@ class CloudPaymentsConfig:
 
 
 @dataclass
+class SmtpConfig:
+    enabled: bool
+    host: str
+    port: int
+    user: str
+    password: str
+    from_addr: str
+    use_tls: bool
+
+
+@dataclass
 class TelegramBotConfig:
     """Тот же бот, что для lead_validator (TELEGRAM_BOT_TOKEN). Webhook — для привязки чата к пользователю."""
     bot_token: str
@@ -110,6 +121,7 @@ class Config:
     billing: BillingConfig
     cloudpayments: CloudPaymentsConfig
     telegram_bot: TelegramBotConfig
+    smtp: SmtpConfig
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -207,6 +219,15 @@ def get_config() -> Config:
             bot_token=_env("TELEGRAM_BOT_TOKEN"),
             webhook_secret=_env("TELEGRAM_WEBHOOK_SECRET"),
             bot_username=_env("TELEGRAM_BOT_USERNAME"),
+        ),
+        smtp=SmtpConfig(
+            enabled=_bool("SMTP_ENABLED", False),
+            host=_env("SMTP_HOST"),
+            port=int(_env("SMTP_PORT", "587")),
+            user=_env("SMTP_USER"),
+            password=_env("SMTP_PASSWORD"),
+            from_addr=_env("SMTP_FROM", "noreply@admirra.ru"),
+            use_tls=_bool("SMTP_USE_TLS", True),
         ),
     )
 

@@ -984,6 +984,7 @@ async def exchange_mytarget_token(
     }
 
 from .services import IntegrationService
+from .services.subscription import SubscriptionService
 
 @router.post("/", response_model=schemas.IntegrationResponse, status_code=status.HTTP_201_CREATED)
 async def create_integration(
@@ -994,6 +995,9 @@ async def create_integration(
     """
     Create or update an integration manually. 
     """
+    # Проверка активности подписки перед созданием интеграции
+    SubscriptionService.require_active_subscription(db, current_user)
+
     # 1. Automate VK Ads token exchange if credentials provided
     access_token = integration.access_token
     refresh_token = integration.refresh_token

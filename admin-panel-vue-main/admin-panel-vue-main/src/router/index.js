@@ -67,6 +67,12 @@ const routes = [
     redirect: '/signup'
   },
   {
+    path: '/reset-password/confirm',
+    name: 'ResetPasswordConfirm',
+    component: () => import('../views/Auth/ResetPassword.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/forgot-password',
     redirect: '/reset-password'
   },
@@ -234,6 +240,7 @@ router.beforeEach(async (to, from, next) => {
     normalizedPath === '/signin' ||
     normalizedPath === '/signup' ||
     normalizedPath === '/reset-password' ||
+    normalizedPath === '/reset-password/confirm' ||
     normalizedPath === '/two-step-verification' ||
     normalizedPath === '/verify-email' ||
     normalizedPath === '/pending-email-verification' ||

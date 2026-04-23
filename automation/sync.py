@@ -1205,6 +1205,23 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         integration.sync_status = models.IntegrationSyncStatus.FAILED
         integration.error_message = f"{type(e).__name__}: {str(e)}"
         db.flush()
+        # Создаём in-app уведомление об ошибке синхронизации
+        try:
+            from backend_api.services.notifications import create_notification
+            owner_id = integration.client.owner_id if integration.client else None
+            if owner_id:
+                platform_name = integration.platform.value if integration.platform else "интеграции"
+                create_notification(
+                    db,
+                    user_id=owner_id,
+                    type="sync_failed",
+                    title=f"Ошибка синхронизации {platform_name}",
+                    body=str(e)[:200],
+                    meta={"integration_id": str(integration.id)},
+                )
+                db.flush()
+        except Exception as notify_err:
+            logger.warning(f"Failed to create sync-failed notification: {notify_err}")
         raise e
 
 async def sync_data(days: int = 7, max_concurrent: int = 5):

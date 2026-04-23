@@ -7,78 +7,114 @@
         <!-- Левая колонка: как на SignIn / SignUp -->
         <div class="flex flex-col flex-1 w-full lg:w-1/2 bg-white">
           <div class="flex flex-col justify-center flex-1 w-full max-w-lg mx-auto pt-16 pb-10 px-0 sm:px-4">
-            <div class="mb-8 sm:mb-10">
-              <h1
-                class="mb-3 font-semibold text-gray-900 text-3xl sm:text-4xl"
-              >
-                Восстановление пароля
-              </h1>
-              <p class="text-base text-gray-600">
-                Введите ваш email — отправим ссылку для сброса пароля
-              </p>
-            </div>
-            <div>
-              <form @submit.prevent="handleResetPassword">
-                <div class="space-y-5">
-                  <div>
-                    <label
-                      for="email"
-                      class="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      E-mail<span class="text-red-500">*</span>
-                    </label>
-                    <input
-                      v-model="resetForm.email"
-                      type="email"
-                      id="email"
-                      name="email"
-                      placeholder="Введите email"
-                      autocomplete="email"
-                      class="h-16 w-full rounded-lg border border-gray-300 bg-white px-5 py-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                    />
+            <!-- Режим запроса сброса -->
+            <template v-if="!isConfirmMode">
+              <div class="mb-8 sm:mb-10">
+                <h1 class="mb-3 font-semibold text-gray-900 text-3xl sm:text-4xl">
+                  Восстановление пароля
+                </h1>
+                <p class="text-base text-gray-600">
+                  Введите ваш email — отправим ссылку для сброса пароля
+                </p>
+              </div>
+              <div>
+                <form @submit.prevent="handleResetPassword">
+                  <div class="space-y-5">
+                    <div>
+                      <label for="email" class="mb-2 block text-sm font-medium text-gray-700">
+                        E-mail<span class="text-red-500">*</span>
+                      </label>
+                      <input
+                        v-model="resetForm.email"
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="Введите email"
+                        autocomplete="email"
+                        class="h-16 w-full rounded-lg border border-gray-300 bg-white px-5 py-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      />
+                    </div>
+                    <div v-if="errorMsg" class="p-3 rounded-lg bg-red-50 border border-red-200">
+                      <p class="text-sm text-red-700">{{ errorMsg }}</p>
+                    </div>
+                    <div class="pt-1">
+                      <button
+                        type="submit"
+                        :disabled="loading || emailSent"
+                        class="flex items-center justify-center w-full px-4 py-4 text-base font-semibold text-white transition rounded-lg bg-brand-500 shadow-md hover:bg-brand-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span v-if="loading" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        {{ loading ? 'Отправка...' : emailSent ? 'Письмо отправлено' : 'Отправить ссылку для сброса' }}
+                      </button>
+                    </div>
                   </div>
-                  <div class="pt-1">
-                    <button
-                      type="submit"
-                      :disabled="loading || emailSent"
-                      class="flex items-center justify-center w-full px-4 py-4 text-base font-semibold text-white transition rounded-lg bg-brand-500 shadow-md hover:bg-brand-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span
-                        v-if="loading"
-                        class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"
-                      ></span>
-                      {{
-                        loading
-                          ? 'Отправка...'
-                          : emailSent
-                            ? 'Письмо отправлено'
-                            : 'Отправить ссылку для сброса'
-                      }}
-                    </button>
-                  </div>
+                </form>
+                <div v-if="emailSent" class="mt-5 p-4 rounded-lg bg-green-50 border border-green-200">
+                  <p class="text-sm text-green-800">
+                    Если email зарегистрирован, ссылка для сброса пароля отправлена на {{ resetForm.email }}
+                  </p>
                 </div>
-              </form>
-              <div
-                v-if="emailSent"
-                class="mt-5 p-4 rounded-lg bg-green-50 border border-green-200"
-              >
-                <p class="text-sm text-green-800">
-                  Мы отправили ссылку для сброса пароля на {{ resetForm.email }}
-                </p>
+                <div class="mt-5">
+                  <p class="text-sm font-normal text-center text-gray-700 sm:text-start">
+                    Вспомнили пароль?
+                    <router-link to="/signin" class="text-brand-500 hover:text-brand-600 font-medium">Войти</router-link>
+                  </p>
+                </div>
               </div>
-              <div class="mt-5">
-                <p
-                  class="text-sm font-normal text-center text-gray-700 sm:text-start"
-                >
-                  Вспомнили пароль?
-                  <router-link
-                    to="/signin"
-                    class="text-brand-500 hover:text-brand-600 font-medium"
-                    >Войти</router-link
-                  >
-                </p>
+            </template>
+
+            <!-- Режим подтверждения нового пароля -->
+            <template v-else>
+              <div class="mb-8 sm:mb-10">
+                <h1 class="mb-3 font-semibold text-gray-900 text-3xl sm:text-4xl">
+                  Новый пароль
+                </h1>
+                <p class="text-base text-gray-600">Придумайте надёжный пароль (минимум 8 символов)</p>
               </div>
-            </div>
+              <div>
+                <form @submit.prevent="handleConfirmPassword">
+                  <div class="space-y-5">
+                    <div>
+                      <label for="password" class="mb-2 block text-sm font-medium text-gray-700">
+                        Новый пароль<span class="text-red-500">*</span>
+                      </label>
+                      <input
+                        v-model="confirmForm.password"
+                        type="password"
+                        id="password"
+                        placeholder="Введите новый пароль"
+                        class="h-16 w-full rounded-lg border border-gray-300 bg-white px-5 py-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label for="password-repeat" class="mb-2 block text-sm font-medium text-gray-700">
+                        Повторите пароль<span class="text-red-500">*</span>
+                      </label>
+                      <input
+                        v-model="confirmForm.passwordRepeat"
+                        type="password"
+                        id="password-repeat"
+                        placeholder="Повторите пароль"
+                        class="h-16 w-full rounded-lg border border-gray-300 bg-white px-5 py-4 text-base text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      />
+                    </div>
+                    <div v-if="errorMsg" class="p-3 rounded-lg bg-red-50 border border-red-200">
+                      <p class="text-sm text-red-700">{{ errorMsg }}</p>
+                    </div>
+                    <div class="pt-1">
+                      <button
+                        type="submit"
+                        :disabled="loading"
+                        class="flex items-center justify-center w-full px-4 py-4 text-base font-semibold text-white transition rounded-lg bg-brand-500 shadow-md hover:bg-brand-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span v-if="loading" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        {{ loading ? 'Сохранение...' : 'Установить новый пароль' }}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -104,37 +140,66 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import CommonGridShape from '@/components/common/CommonGridShape.vue'
 import logoAuth from '@/assets/imgs/logo/AdMirra.png'
+import api from '@/api/axios'
+import { useAuth } from '@/composables/useAuth'
+
+const route = useRoute()
+const router = useRouter()
+const { setToken, fetchCurrentUser } = useAuth()
 
 const loading = ref(false)
 const emailSent = ref(false)
+const errorMsg = ref('')
 
-const resetForm = reactive({
-  email: ''
-})
+// Определяем, в каком режиме мы находимся
+const confirmToken = computed(() => route.query.token || '')
+const isConfirmMode = computed(() => !!confirmToken.value)
 
-const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-}
+const resetForm = reactive({ email: '' })
+const confirmForm = reactive({ password: '', passwordRepeat: '' })
+
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
 const handleResetPassword = async () => {
-  if (!resetForm.email) return
-  if (!isValidEmail(resetForm.email)) return
-
+  if (!resetForm.email || !isValidEmail(resetForm.email)) return
   loading.value = true
-
+  errorMsg.value = ''
   try {
-    // TODO: Реализовать API endpoint для сброса пароля
-    // await api.post('auth/reset-password', { email: resetForm.email })
-
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
+    await api.post('auth/reset-password/request', { email: resetForm.email })
     emailSent.value = true
-  } catch (error) {
-    console.error('Ошибка при отправке письма:', error)
+  } catch (err) {
+    errorMsg.value = err.response?.data?.detail || 'Не удалось отправить запрос'
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleConfirmPassword = async () => {
+  if (confirmForm.password.length < 8) {
+    errorMsg.value = 'Пароль должен быть не менее 8 символов'
+    return
+  }
+  if (confirmForm.password !== confirmForm.passwordRepeat) {
+    errorMsg.value = 'Пароли не совпадают'
+    return
+  }
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    const { data } = await api.post('auth/reset-password/confirm', {
+      token: confirmToken.value,
+      new_password: confirmForm.password,
+    })
+    setToken(data.access_token)
+    await fetchCurrentUser()
+    router.push('/')
+  } catch (err) {
+    errorMsg.value = err.response?.data?.detail || 'Ссылка недействительна или срок действия истёк'
   } finally {
     loading.value = false
   }

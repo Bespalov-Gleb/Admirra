@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend_api.services.cloudpayments import CloudPaymentsService
+from backend_api.services.notifications import create_notification
 from backend_api.services.subscription import SubscriptionService
 from core import models, schemas, security
 from core.config import get_config
@@ -173,12 +174,16 @@ def get_my_subscription(
     SubscriptionService._ensure_ai_period(current_user, plan)
     used = int(current_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
+    # Синхронизируем is_subscribed с реальным состоянием подписки
+    is_active = SubscriptionService._is_subscription_active(current_user, sub)
+    if current_user.is_subscribed != is_active:
+        current_user.is_subscribed = is_active
     db.flush()
     return schemas.BillingSubscriptionResponse(
         plan_code=plan.code,
         plan_name=plan.name,
         status=sub.status.value,
-        is_subscribed=bool(current_user.is_subscribed),
+        is_subscribed=is_active,
         subscription_expires_at=current_user.subscription_expires_at,
         max_projects=plan.max_projects,
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
@@ -272,12 +277,35 @@ async def cloudpayments_webhook(
         sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
+        create_notification(
+            db,
+            user_id=user.id,
+            type="payment_ok",
+            title=f"Оплата прошла — тариф «{plan.name}»",
+            body=f"Ваша подписка активна до {sub.current_period_end.strftime('%d.%m.%Y')}.",
+            meta={"plan_code": plan.code, "billing_period": billing_period},
+        )
     elif "cancel" in event_name:
         sub.status = models.SubscriptionStatus.CANCELED
         user.is_subscribed = False
+        create_notification(
+            db,
+            user_id=user.id,
+            type="payment_failed",
+            title="Подписка отменена",
+            body="Ваша подписка была отменена. Вы можете оформить её заново в разделе «Тарифы».",
+        )
     else:
         sub.status = models.SubscriptionStatus.PAST_DUE
         user.is_subscribed = False
+        create_notification(
+            db,
+            user_id=user.id,
+            type="payment_failed",
+            title="Ошибка оплаты",
+            body="Не удалось провести платёж. Проверьте данные карты или выберите другой способ оплаты.",
+            meta={"plan_code": plan.code},
+        )
 
     db.flush()
     db.commit()

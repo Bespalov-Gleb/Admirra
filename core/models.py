@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint
+from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -35,6 +35,10 @@ class User(Base):
     email_verification_token_hash = Column(String, nullable=True)
     email_verification_expires_at = Column(DateTime(timezone=True), nullable=True)
     verification_email_last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    # Сброс пароля
+    password_reset_token_hash = Column(String, nullable=True)
+    password_reset_expires_at = Column(DateTime(timezone=True), nullable=True)
+
     is_subscribed = Column(Boolean, nullable=False, default=False)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     ai_requests_used = Column(Integer, nullable=False, default=0)
@@ -426,6 +430,22 @@ class PhoneProject(Base):
     owner = relationship("User", foreign_keys=[owner_id])
     client = relationship("Client", foreign_keys=[client_id])
     leads = relationship("Lead", back_populates="project", cascade="all, delete-orphan")
+
+
+class Notification(Base):
+    """In-app уведомления пользователя."""
+    __tablename__ = "notifications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(64), nullable=False)   # sync_failed | payment_ok | payment_failed | limit_warn | system
+    title = Column(String(255), nullable=False)
+    body = Column(String(1000), nullable=True)
+    is_read = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    meta = Column(JSON, nullable=True)          # доп. данные: integration_id, plan_code и т.д.
+
+    user = relationship("User", backref="notifications")
 
 
 class LeadStatus(enum.Enum):

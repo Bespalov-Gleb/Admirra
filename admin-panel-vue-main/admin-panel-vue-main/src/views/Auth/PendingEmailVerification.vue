@@ -90,6 +90,18 @@ const errorMessage = ref('')
 const infoMessage = ref('')
 let cooldownTimer = null
 
+const startCooldown = (seconds) => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+  resendCooldown.value = seconds
+  cooldownTimer = setInterval(() => {
+    resendCooldown.value--
+    if (resendCooldown.value <= 0 && cooldownTimer) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
+
 const handleResend = async () => {
   const email = typeof route.query.email === 'string' ? route.query.email : ''
   if (!email) {
@@ -103,16 +115,16 @@ const handleResend = async () => {
     const result = await resendVerification(email)
     if (result.success) {
       infoMessage.value = 'Если email зарегистрирован и не подтверждён, письмо отправлено.'
-      resendCooldown.value = 60
-      cooldownTimer = setInterval(() => {
-        resendCooldown.value--
-        if (resendCooldown.value <= 0 && cooldownTimer) {
-          clearInterval(cooldownTimer)
-          cooldownTimer = null
-        }
-      }, 1000)
+      startCooldown(60)
     } else {
-      errorMessage.value = result.message || 'Не удалось отправить'
+      // Сервер вернул 429 с текстом "через N с." — парсим
+      const msg = result.message || ''
+      const match = msg.match(/через\s+(\d+)\s*с\./)
+      if (match) {
+        startCooldown(parseInt(match[1]))
+      } else {
+        errorMessage.value = msg || 'Не удалось отправить'
+      }
     }
   } finally {
     resendLoading.value = false

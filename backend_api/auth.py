@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -22,7 +23,9 @@ from .auth_helpers import (
 from .services.auth_mail import (
     is_configured as smtp_configured,
     send_login_otp_email,
+    send_reset_password_email,
     send_verification_link_email,
+    send_welcome_email,
     smtp_delivery_active,
     smtp_enabled,
 )
@@ -108,7 +111,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
 
 
 @router.post("/verify-email", response_model=schemas.Token)
-def verify_email(body: schemas.VerifyEmailRequest, db: Session = Depends(get_db)):
+async def verify_email(body: schemas.VerifyEmailRequest, db: Session = Depends(get_db)):
     """Подтверждение почты по одноразовому токену из ссылки — выдача JWT."""
     raw = (body.token or "").strip()
     if not raw:
@@ -131,6 +134,10 @@ def verify_email(body: schemas.VerifyEmailRequest, db: Session = Depends(get_db)
     user.email_verification_expires_at = None
     db.add(user)
     db.commit()
+
+    if smtp_delivery_active():
+        username = user.first_name or user.username or "Пользователь"
+        await send_welcome_email(user.email, username)
 
     access_token = security.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
@@ -272,6 +279,55 @@ def login_verify_otp(body: schemas.LoginVerifyRequest, db: Session = Depends(get
         db.commit()
         raise HTTPException(status_code=401, detail="User not found")
 
+    db.commit()
+
+    access_token = security.create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/reset-password/request", status_code=status.HTTP_200_OK)
+async def reset_password_request(body: schemas.PasswordResetRequestBody, db: Session = Depends(get_db)):
+    """Шаг 1 сброса пароля: отправляет ссылку на email (ответ всегда 200, чтобы не раскрывать наличие аккаунта)."""
+    generic = {"message": "Если указанный email зарегистрирован, ссылка для сброса пароля отправлена."}
+    user = db.query(models.User).filter(models.User.email == body.email).first()
+    if not user:
+        return generic
+
+    raw_token = generate_email_verification_raw_token()
+    user.password_reset_token_hash = hash_verification_token(raw_token)
+    user.password_reset_expires_at = verification_expiry(1)  # 1 час
+    db.add(user)
+    db.commit()
+
+    if smtp_delivery_active():
+        reset_url = f"{FRONTEND_URL}/reset-password/confirm?token={raw_token}"
+        await send_reset_password_email(user.email, reset_url)
+    return generic
+
+
+@router.post("/reset-password/confirm", response_model=schemas.Token)
+def reset_password_confirm(body: schemas.PasswordResetConfirmBody, db: Session = Depends(get_db)):
+    """Шаг 2 сброса пароля: проверяет токен и обновляет пароль."""
+    raw = (body.token or "").strip()
+    if not raw or len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Неверный запрос")
+
+    th = hash_verification_token(raw)
+    user = (
+        db.query(models.User)
+        .filter(
+            models.User.password_reset_token_hash == th,
+            models.User.password_reset_expires_at > utcnow(),
+        )
+        .first()
+    )
+    if not user:
+        raise HTTPException(status_code=400, detail="Ссылка недействительна или срок действия истёк")
+
+    user.password_hash = security.get_password_hash(body.new_password)
+    user.password_reset_token_hash = None
+    user.password_reset_expires_at = None
+    db.add(user)
     db.commit()
 
     access_token = security.create_access_token(data={"sub": user.email})

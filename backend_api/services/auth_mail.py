@@ -75,6 +75,36 @@ async def send_verification_link_email(to_email: str, verify_url: str) -> bool:
         return False
 
 
+async def send_welcome_email(to_email: str, username: str) -> bool:
+    subject = "Добро пожаловать в AdMirra!"
+    body = (
+        f"Здравствуйте, {username}!\n\n"
+        f"Ваш аккаунт успешно подтверждён.\n"
+        f"Логин: {to_email}\n"
+        f"Для доступа используйте пароль, указанный при регистрации.\n\n"
+        f"Команда AdMirra\n"
+    )
+    try:
+        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+    except Exception as e:
+        logger.exception("send_welcome_email failed: %s", e)
+        return False
+
+
+async def send_reset_password_email(to_email: str, reset_url: str) -> bool:
+    subject = "Сброс пароля — AdMirra"
+    body = (
+        f"Здравствуйте!\n\n"
+        f"Для установки нового пароля перейдите по ссылке:\n{reset_url}\n\n"
+        f"Ссылка действительна 1 час. Если вы не запрашивали сброс — проигнорируйте это письмо.\n"
+    )
+    try:
+        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+    except Exception as e:
+        logger.exception("send_reset_password_email failed: %s", e)
+        return False
+
+
 async def send_login_otp_email(to_email: str, code: str) -> bool:
     subject = "Код входа — AdMirra"
     body = (

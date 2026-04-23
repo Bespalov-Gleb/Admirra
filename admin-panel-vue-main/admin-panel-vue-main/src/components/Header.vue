@@ -126,13 +126,14 @@
                   class="p-4 border-b border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-start gap-3 cursor-pointer"
                 >
                   <div
-                    v-if="!notification.read"
+                    v-if="!notification.is_read"
                     class="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"
                   ></div>
                   <div v-else class="w-2 h-2 flex-shrink-0"></div>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-200">{{ notification.title }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ notification.time }}</p>
+                    <p v-if="notification.body" class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">{{ notification.body }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ formatTime(notification.created_at) }}</p>
                   </div>
                   <button
                     @click.stop="removeNotification(notification.id)"
@@ -252,6 +253,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Teleport } from 'vue'
+import api from '../api/axios'
 import {
   UserIcon,
   Cog6ToothIcon,
@@ -336,7 +338,24 @@ const displayName = computed(() => {
 })
 
 const notifications = ref([])
-const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)
+
+let notificationsPollTimer = null
+
+const fetchNotifications = async () => {
+  try {
+    const { data } = await api.get('notifications/')
+    notifications.value = data
+  } catch (e) {
+    // Тихо игнорируем (пользователь может быть не авторизован)
+  }
+}
+
+const formatTime = (isoStr) => {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 const toggleProfileMenu = async () => {
   if (isProfileMenuOpen.value) {
@@ -413,15 +432,21 @@ const handleLogout = () => {
   router.push('/login')
 }
 
-const markAsRead = (id) => {
+const markAsRead = async (id) => {
   const notification = notifications.value.find(n => n.id === id)
-  if (notification && !notification.read) {
-    notification.read = true
+  if (notification && !notification.is_read) {
+    notification.is_read = true
+    try {
+      await api.post(`notifications/${id}/read`)
+    } catch (e) { /* ignore */ }
   }
 }
 
-const markAllAsRead = () => {
-  notifications.value.forEach(n => { n.read = true })
+const markAllAsRead = async () => {
+  notifications.value.forEach(n => { n.is_read = true })
+  try {
+    await api.post('notifications/read-all')
+  } catch (e) { /* ignore */ }
 }
 
 const removeNotification = (id) => {
@@ -461,11 +486,14 @@ const handleClickOutside = (event) => {
 }
 
 onMounted(() => {
-  fetchProjects() // Ensure projects are loaded
+  fetchProjects()
+  fetchNotifications()
+  notificationsPollTimer = setInterval(fetchNotifications, 30_000)
   document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (notificationsPollTimer) clearInterval(notificationsPollTimer)
 })
 </script>
