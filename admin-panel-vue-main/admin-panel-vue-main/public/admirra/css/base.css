@@ -149,8 +149,11 @@
 }
 
 html {
-	font-size: 10px;
 	overflow-x: hidden;
+}
+
+.main-section {
+	font-size: 10px;
 }
 
 body {

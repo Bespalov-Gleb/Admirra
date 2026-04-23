@@ -138,3 +138,8 @@ html {
 .animate-bounce-slow {
   animation: bounce-slow 3s infinite;
 }
+
+/* Remove wrapper padding when rendering mockup design pages */
+.main-content-wrapper:has(> .main-section) {
+  padding: 0 !important;
+}

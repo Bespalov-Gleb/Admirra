@@ -9,7 +9,7 @@
         <Header />
       </header>
       <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637]">
-        <div class="w-full px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+        <div class="w-full px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 main-content-wrapper">
           <router-view />
         </div>
       </main>
