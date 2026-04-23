@@ -1,14 +1,24 @@
-/* base */
+/* base (landing) */
 @import "reset.css";
 @import "base.css";
 @import "grid.css";
 
-/* style */
+/* base (app — 13 new pages) */
+@import "base-app.css";
+
+/* landing blocks */
 @import "style/blocks.css";
 @import "style/ui.css";
+
+/* app blocks (13 new pages) */
+@import "components.css";
+@import "blocks.css";
+@import "ui-app.css";
+@import "darkmode.css";
 
 /* libs */
 @import "libs/swiper.css";
 
 /* media queries */
 @import "media.css";
+@import "media-app.css";

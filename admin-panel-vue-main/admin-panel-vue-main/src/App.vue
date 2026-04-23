@@ -7,6 +7,7 @@ import AuthLayout from './layouts/AuthLayout.vue'
 import MainLayout from './layouts/MainLayout.vue'
 import FullWidthLayout from './layouts/FullWidthLayout.vue'
 import LandingLayout from './layouts/LandingLayout.vue'
+import MockupLayout from './layouts/MockupLayout.vue'
 
 const route = useRoute()
 const { checkAuth, isLoading } = useAuth()
@@ -29,6 +30,11 @@ const layout = computed(() => {
   // Лендинг AdMirra
   if (route.meta.layout === 'landing') {
     return LandingLayout
+  }
+
+  // Mockup pages (13 new pages with new design)
+  if (route.meta.layout === 'mockup') {
+    return MockupLayout
   }
   
   // Legacy support for paths if they are not in router meta yet

@@ -70,8 +70,8 @@ defineProps({
       },
       { id: 'projects', label: 'Проекты', icon: '/admirra/img/svg/sprite.svg#layers', route: '/project-rows' },
       { id: 'integrations', label: 'Интеграции', icon: '/admirra/img/svg/sprite.svg#setting', route: '/integrations' },
-      { id: 'team', label: 'Команда', icon: '/admirra/img/svg/sprite.svg#group' },
-      { id: 'history', label: 'История', icon: '/admirra/img/svg/sprite.svg#clock' },
+      { id: 'team', label: 'Команда', icon: '/admirra/img/svg/sprite.svg#group', route: '/team' },
+      { id: 'history', label: 'История', icon: '/admirra/img/svg/sprite.svg#clock', route: '/history' },
       { id: 'tariffs', label: 'Тарифы', emoji: '👑', route: '/tariffs' }
     ]
   },

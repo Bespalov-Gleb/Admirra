@@ -26,6 +26,12 @@
               <svg><use :href="arrowIcon"></use></svg>
             </div>
           </button>
+          <router-link v-else-if="item.route" class="navigation-link w-100" :to="item.route" @click="$emit('close')">
+            <i class="navigation-icon">
+              <svg :class="{ _stroke: item.isStroke }"><use :href="item.icon"></use></svg>
+            </i>
+            <span class="navigation-text">{{ item.label }}</span>
+          </router-link>
           <button v-else class="navigation-link w-100" @click="$emit('navigate', item)">
             <i class="navigation-icon">
               <svg :class="{ _stroke: item.isStroke }"><use :href="item.icon"></use></svg>
@@ -74,8 +80,8 @@ defineProps({
     type: Array,
     default: () => [
       { label: 'Аналитика', icon: '/admirra/img/svg/sprite.svg#grid', isStroke: true, subItems: true },
-      { label: 'Проекты', icon: '/admirra/img/svg/sprite.svg#layers' },
-      { label: 'Интеграции', icon: '/admirra/img/svg/sprite.svg#setting' }
+      { label: 'Проекты', icon: '/admirra/img/svg/sprite.svg#layers', route: '/project-rows' },
+      { label: 'Интеграции', icon: '/admirra/img/svg/sprite.svg#setting', route: '/integrations' }
     ]
   },
   arrowIcon: { type: String, default: '/admirra/img/svg/sprite.svg#arrow' },
