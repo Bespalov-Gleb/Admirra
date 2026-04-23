@@ -1,0 +1,190 @@
+ИНСТРУКЦИЯ ПО НАСТРОЙКЕ ТОКЕНОВ / ВЕБХУКОВ / ENV (ТЕЛЕФОНИЯ)
+
+Этот файл описывает, где получать токены и какие переменные окружения нужны
+для модуля телефонии/валидации лидов.
+
+1) ОБЩИЕ WEBHOOK-И (ТЕФЛОНИЯ)
+1.1. Webhook URL проекта телефонии
+    - URL формируется автоматически после создания проекта:
+      /api/webhook/phone/{project_id}
+    - Полный URL: https://ВАШ_ДОМЕН/api/webhook/phone/{project_id}
+    - Этот URL показывается в UI "Проекты телефонии" во вкладке "Webhook".
+
+1.2. Webhook Secret
+    - Для каждого проекта генерируется секрет.
+    - Внешние сервисы должны отправлять заголовок:
+      X-Webhook-Secret: <секрет>
+    - Секрет можно скопировать в UI (вкладка "Webhook").
+
+1.3. Встроенные webhook-и для Tilda/Marquiz
+    - Tilda: https://ВАШ_ДОМЕН/api/webhook/tilda/
+    - Marquiz: https://ВАШ_ДОМЕН/api/webhook/marquiz/
+    - Эти URL показаны в разделе "Квалификатор лидов" (PhoneAPI).
+
+
+2) DADATA (ВАЛИДАЦИЯ ТЕЛЕФОНА/EMAIL)
+ENV:
+  - DADATA_API_KEY
+  - DADATA_SECRET_KEY
+  - DADATA_TIMEOUT (опц.)
+  - DADATA_CACHE_TTL_SEC (опц.)
+  - DADATA_RETRY_ATTEMPTS (опц.)
+  - DADATA_RETRY_BACKOFF_SEC (опц.)
+ГДЕ ПОЛУЧИТЬ:
+  - https://dadata.ru/ (личный кабинет → API ключи)
+  - Документация: https://dadata.ru/api/clean/
+
+
+3) TELEGRAM УВЕДОМЛЕНИЯ
+ENV:
+  - TELEGRAM_BOT_TOKEN
+  - TELEGRAM_CHAT_ID
+  - TELEGRAM_ENABLED=true/false
+ГДЕ ПОЛУЧИТЬ:
+  - Создать бота: https://t.me/BotFather
+  - Получить chat_id:
+    1) Напишите боту в чат.
+    2) Откройте https://api.telegram.org/bot<ТОКЕН>/getUpdates
+       и возьмите chat.id.
+  - Документация: https://core.telegram.org/bots/api
+
+
+4) CAPTCHA (CLOUDFLARE TURNSTILE ИЛИ RECAPTCHA)
+ENV:
+  - TURNSTILE_SITE_KEY (для фронтенда)
+  - TURNSTILE_SECRET_KEY (для бэкенда)
+  
+  Альтернатива - Google reCAPTCHA:
+  - RECAPTCHA_SITE_KEY
+  - RECAPTCHA_SECRET_KEY
+  - RECAPTCHA_MIN_SCORE (опц., default: 0.5)
+  
+  Альтернатива - Yandex SmartCaptcha:
+  - SMARTCAPTCHA_CLIENT_KEY
+  - SMARTCAPTCHA_SERVER_KEY
+
+ГДЕ ПОЛУЧИТЬ:
+  - Cloudflare Turnstile (РЕКОМЕНДУЕТСЯ, БЕСПЛАТНО):
+    https://dash.cloudflare.com/ → Turnstile → Add site
+    Быстрее и лучше чем reCAPTCHA, не раздражает пользователей
+    
+  - Google reCAPTCHA:
+    https://www.google.com/recaptcha/admin/create
+    Выберите v3 (невидимая) или v2 (с галочкой "Я не робот")
+    
+  - Yandex SmartCaptcha (для российских сайтов):
+    https://console.cloud.yandex.ru/
+    
+  - Документация: см. файл CAPTCHA_SETUP.md
+
+
+5) REDIS (ДЕДУПЛИКАЦИЯ, RATE LIMIT, КЕШ)
+ENV:
+  - REDIS_ENABLED=true/false
+  - REDIS_URL (например redis://localhost:6379)
+
+
+6) BITRIX24 (ПОИСК ДУБЛИКАТОВ)
+ENV:
+  - BITRIX24_WEBHOOK_URL
+ГДЕ ПОЛУЧИТЬ:
+  - В Битрикс24: Приложения → Входящие вебхуки
+  - Пример: https://<domain>.bitrix24.ru/rest/<user_id>/<webhook_token>
+  - Документация: https://training.bitrix24.com/rest_help/
+
+
+7) СПАМ-БАЗЫ (SpravPortal / Kaspersky)
+ENV:
+  - SPRAVPORTAL_API_KEY
+  - KASPERSKY_API_KEY
+ГДЕ ПОЛУЧИТЬ:
+  - SpravPortal WhoCalls: https://spravportal.ru/api/who-calls
+  - Kaspersky Who Calls: https://who-calls.ru/api
+ПРИМЕЧАНИЕ:
+  - При отсутствии ключей модуль работает, но внешняя проверка отключена.
+
+
+8) СОЦСЕТИ/МЕССЕНДЖЕРЫ
+ENV:
+  - VK_API_TOKEN
+  - GETCONTACT_UNOFFICIAL_TOKEN, GETCONTACT_UNOFFICIAL_AES_KEY (неофициальное API — имя по телефону)
+  - GETCONTACT_API_KEY, GETCONTACT_API_URL (коммерческое, если есть)
+  - NUMBUSTER_API_KEY, NUMBUSTER_API_URL
+  - TELEGRAM_CHECKER_API_ID, TELEGRAM_CHECKER_API_HASH, TELEGRAM_CHECKER_SESSION (Telethon)
+ГДЕ ПОЛУЧИТЬ:
+  - VK API: users.search требует ПОЛЬЗОВАТЕЛЬСКИЙ OAuth-токен (не сервисный, иначе ошибка 1051).
+    OAuth Implicit Flow: https://oauth.vk.com/authorize?client_id=APP_ID&scope=offline&redirect_uri=https://oauth.vk.com/blank.html&response_type=token
+  - GetContact неофициальное (имя по номеру для поиска в VK):
+    Токен и AES_KEY из /data/data/app.source.getcontact/shared_prefs/GetContactSettingsPref.xml
+    на рутированном Android. См. https://github.com/SijyKijy/GetContactAPI, https://github.com/kovinevmv/getcontact
+  - Telegram (Telethon): api_id/api_hash с https://my.telegram.org
+    pip install telethon
+    Один раз: python -m scripts.create_telegram_session (создаёт сессию)
+  - NumBuster: https://numbuster.com/
+
+
+9) ГОСУСЛУГИ (ВНЕШНИЙ ПРОВАЙДЕР)
+ENV:
+  - GOSUSLUGI_API_URL
+  - GOSUSLUGI_API_KEY
+  - GOSUSLUGI_TIMEOUT
+ГДЕ ПОЛУЧИТЬ:
+  - Зависит от выбранного провайдера (официальный API или сторонний сервис)
+ФОРМАТ ЗАПРОСА:
+  POST {GOSUSLUGI_API_URL}
+  Header: Authorization: Bearer {GOSUSLUGI_API_KEY}
+  Body: {"phone": "<номер>"}
+ФОРМАТ ОТВЕТА:
+  {"registered": true, "name": "...", "surname": "...", "middle_name": "..."}
+
+
+9) ЯНДЕКС.МЕТРИКА (ОФФЛАЙН-КОНВЕРСИИ)
+ENV:
+  - METRICA_COUNTER_ID
+  - METRICA_OAUTH_TOKEN
+  - METRICA_ENABLED=true/false
+ГДЕ ПОЛУЧИТЬ:
+  - OAuth токен: https://oauth.yandex.ru/
+  - Счетчик Метрики: https://metrika.yandex.ru/
+  - Документация: https://yandex.ru/dev/metrika/
+
+
+10) EMAIL ВЫГРУЗКА (SMTP)
+ENV:
+  - SMTP_HOST
+  - SMTP_PORT (обычно 587)
+  - SMTP_USER
+  - SMTP_PASSWORD
+  - SMTP_FROM
+  - SMTP_USE_TLS=true/false
+ГДЕ ПОЛУЧИТЬ:
+  - Зависит от почтового провайдера (Gmail, Yandex, Mail.ru и т.д.)
+
+
+11) AIRTABLE (ЛОГ ОТКЛОНЕНИЙ)
+ENV:
+  - AIRTABLE_API_KEY
+  - AIRTABLE_BASE_ID
+  - AIRTABLE_TABLE_NAME (опц.)
+ГДЕ ПОЛУЧИТЬ:
+  - https://airtable.com/
+  - Документация: https://airtable.com/developers/web/api/introduction
+
+
+12) ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ
+ENV:
+  - FAIL_OPEN_MODE=true/false
+  - UTM_VALIDATION_ENABLED=true/false
+  - MX_CHECK_ENABLED=true/false
+  - JS_TOKEN_ENABLED=true/false
+  - ALERT_THRESHOLD_PERCENT
+  - ALERT_LOOKBACK_DAYS
+  - PLACEMENT_BLACKLIST_THRESHOLD
+  - PLACEMENT_BLACKLIST_MIN_LEADS
+  - PLACEMENT_BLACKLIST_TTL_DAYS
+
+
+Примечание:
+Если нужна помощь с конкретным провайдером или готовые шаблоны
+для вставки в Tilda/Marquiz (js_token + X-Webhook-Secret) — скажи.
+

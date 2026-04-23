@@ -1,0 +1,1065 @@
+<template>
+  <div class="space-y-6 overflow-x-hidden w-full font-[Inter]">
+    <!-- Сообщение при синхронизации: данные скрыты -->
+    <div v-if="dataHiddenBySync" class="flex items-center justify-center min-h-[50vh] px-4">
+      <div class="max-w-md w-full text-center py-12 px-8 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 shadow-lg">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <svg class="w-7 h-7 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-gray-800 mb-2">Идёт синхронизация</h3>
+        <p class="text-sm text-gray-500">Данные обновляются. Статистика появится через несколько минут.</p>
+      </div>
+    </div>
+
+    <!-- Основной контент -->
+    <div v-else class="space-y-6">
+      <div v-if="statsError" class="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
+        {{ statsError }}
+      </div>
+
+      <!-- Шапка: без белого фона, фильтры и кнопки на одной строке -->
+      <div class="mb-6">
+        <div class="flex flex-col gap-4">
+          <!-- Строка 1: только заголовок -->
+          <div class="flex flex-col gap-1 min-w-0">
+            <p class="flex items-center gap-1.5 text-[11px] font-medium text-[rgba(105,105,105,0.76)] dark:text-gray-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#82d944] flex-shrink-0" />
+              Общая аналитика по всем активным проектам
+            </p>
+            <h1 class="text-[27px] font-bold text-[#09183F] dark:text-white truncate leading-[1.2]">
+              {{ dashboardTitle }}
+            </h1>
+          </div>
+          <!-- Строка 2: фильтры + кнопки отправки -->
+          <div class="flex flex-wrap items-center gap-3">
+            <select
+              v-model="filters.channel"
+              @change="fetchStats"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20"
+            >
+              <option value="all">Все каналы</option>
+              <option value="yandex">Yandex Direct</option>
+              <option value="vk">VK Ads</option>
+            </select>
+            <button
+              type="button"
+              @click="campaignModalOpen = true"
+              :disabled="!filters.client_id || loadingCampaigns"
+              class="h-[38px] min-w-[140px] pl-4 pr-4 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 text-left flex items-center justify-between gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span class="truncate">
+                {{ campaignButtonLabel }}
+              </span>
+              <ChevronDownIcon class="w-4 h-4 flex-shrink-0 text-gray-400" />
+            </button>
+            <CampaignSelectModal
+              v-model="campaignModalOpen"
+              :campaigns="allCampaigns"
+              :campaigns-for-goals="allCampaignsForGoalsTab"
+              :selected-ids="filters.campaign_ids || []"
+              :channel="filters.channel"
+              :vk-goal-actions="vkGoalActions"
+              :selected-goal-ids="filters.vk_goal_action_ids || []"
+              :loading="loadingCampaigns"
+              @apply="(ids) => { filters.campaign_ids = ids; fetchStats(); }"
+              @apply-goals="handleApplyGoals"
+            />
+            <select
+              v-model="filters.period"
+              @change="handlePeriodChange"
+              class="h-[38px] min-w-[140px] pl-3 pr-9 bg-white dark:bg-[#2A2D3C] border border-gray-200 dark:border-white/20 rounded-[10px] text-[12px] font-medium text-gray-700 dark:text-gray-200 outline-none appearance-none focus:border-[#2563EB] dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20"
+            >
+              <option value="7">Неделя</option>
+              <option value="14">2 недели</option>
+              <option value="30">Месяц</option>
+              <option value="90">Квартал</option>
+              <option value="custom">Свой период</option>
+            </select>
+            <DateRangePicker
+              v-if="filters.period === 'custom'"
+              :model-value="{ start: filters.start_date, end: filters.end_date }"
+              @change="(d) => { if (d.start) filters.start_date = d.start; if (d.end) filters.end_date = d.end; handlePeriodChange() }"
+              class="[&_.date-input]:h-[38px] [&_.date-input]:rounded-[10px] [&_.date-input]:text-[12px]"
+            />
+            <!-- Кнопка синхронизации -->
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] border border-gray-200 dark:border-white/20 text-[12px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="syncingIntegrations"
+              :title="syncingIntegrations ? 'Синхронизация запущена...' : 'Синхронизировать данные интеграций'"
+              @click="handleSyncIntegrations"
+            >
+              <ArrowPathIcon class="w-4 h-4" :class="syncingIntegrations ? 'animate-spin' : ''" />
+              Синхронизация
+            </button>
+            <!-- Кнопка экспорта с выпадающим меню -->
+            <div class="relative" @click.stop>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 px-4 h-[38px] rounded-[10px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[12px] font-semibold hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
+                :disabled="sendingExport || sendingTg"
+                @click="showExportDropdownHeader = !showExportDropdownHeader"
+              >
+                {{ sendingExport ? 'Скачивание...' : sendingTg ? 'Отправка...' : 'Экспорт отчёта' }}
+                <ChevronDownIcon class="w-4 h-4 transition-transform" :class="showExportDropdownHeader ? 'rotate-180' : ''" />
+              </button>
+              <div
+                v-if="showExportDropdownHeader"
+                class="absolute top-full right-0 mt-1 py-1.5 min-w-[220px] bg-white dark:bg-[#2A2D3C] rounded-[10px] shadow-lg border border-gray-100 dark:border-white/10 z-50"
+              >
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadPdf()"
+                >
+                  <ArrowDownTrayIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в PDF
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadPng()"
+                >
+                  <PhotoIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в PNG
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleDownloadDocx()"
+                >
+                  <DocumentTextIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Скачать в DOCX
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleGetLink()"
+                >
+                  <LinkIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  Получить ссылку
+                </button>
+                <div class="border-t border-gray-100 dark:border-white/10 my-1" />
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="showExportDropdownHeader = false; handleSendTelegram()"
+                >
+                  <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" viewBox="0 0 32 32" fill="currentColor"><path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/></svg>
+                  Отправить в Telegram
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- График + сайдбар бок о бок (по макету) -->
+      <div class="grid grid-cols-1 lg:grid-cols-[2.7fr_1fr] gap-4 lg:gap-6 items-stretch min-h-[500px] lg:min-h-[580px]">
+        <!-- График слева (~73%) — увеличенная высота -->
+        <div class="relative flex flex-col min-h-[580px]">
+            <div v-if="loading" class="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-[20px]">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Обновление...</span>
+            </div>
+          </div>
+          <StatisticsChart class="flex-1 min-h-0 flex flex-col"
+            :dynamics="dynamics"
+            :selected-metrics="selectedMetrics"
+            :period="filters.period"
+            :include-vat="includeVat"
+            @update:period="(p) => { filters.period = p; handlePeriodChange(); }"
+            @update:include-vat="includeVat = $event"
+          />
+        </div>
+        <!-- Сайдбар справа (~27%) — каналы меньше, отчёты больше; высота блока не меняется -->
+        <div class="flex flex-col gap-4 min-h-0">
+          <ConnectedChannelsV3
+            class="flex-[1] min-h-[200px]"
+            :integrations="integrations"
+            @connect="() => $router.push('/integrations/wizard')"
+          />
+          <ReportSendingBlock
+            class="flex-[1] min-h-[200px]"
+            :sending-tg="sendingTg"
+            :sending-email="sendingEmail"
+            :saving="reportSaving"
+            :initial-schedule="userReportSettings.report_schedule"
+            :telegram-configured="!!userReportSettings.telegram_chat_id"
+            :email-configured="(userReportSettings.email_recipients?.length ?? 0) > 0"
+            @send-telegram="handleSendTelegram"
+            @send-email="handleSendEmail"
+            @save="handleReportSave"
+            @schedule-change="handleScheduleChange"
+          />
+        </div>
+      </div>
+
+      <!-- KPI карточки (внизу по макету) -->
+      <div class="w-full">
+            <div v-if="loading && !summary.expenses" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <Skeleton v-for="i in 6" :key="i" class="h-28 rounded-[10px]" />
+        </div>
+        <KPIOverview
+          v-else-if="summary && summary.expenses !== undefined"
+          :summary="summary"
+          :slot-config="slotConfig"
+          :selected-metrics="selectedMetrics"
+          :loading="loading"
+          :include-vat="includeVat"
+          @update:slot-config="handleSlotConfigUpdate"
+          @toggle-metric="toggleMetric"
+          @remove-metric="handleRemoveMetric"
+          @add-metric="handleAddMetric"
+        />
+      </div>
+
+      <!-- Основной контент: цели, эффективность, кампании, посты, активность -->
+      <div class="space-y-6">
+          <!-- Статистика по ключевым целям (3 колонки по макету) -->
+          <KeyGoalsStatsV3
+            v-if="filters.client_id"
+            :client-id="filters.client_id"
+            :start-date="filters.start_date"
+            :end-date="filters.end_date"
+            :channel="filters.channel"
+            :campaign-ids="filters.campaign_ids"
+            :total-leads="summary?.leads"
+          />
+
+          <!-- Лучшие рекламные кампании (таблица) -->
+          <CampaignTableV3
+            :campaigns="campaigns"
+            :loading="loading"
+            :include-vat="includeVat"
+          />
+
+          <!-- Активность по дням + Возраст аудитории -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <div class="min-h-[360px]">
+              <ActivityByWeekday
+                :client-id="filters.client_id || ''"
+                :start-date="filters.start_date"
+                :end-date="filters.end_date"
+                :platform="filters.channel"
+                :campaign-ids="filters.campaign_ids || []"
+                :goal-action-ids="filters.vk_goal_action_ids || []"
+              />
+            </div>
+            <div class="min-h-[360px]">
+              <AudienceAge
+                :client-id="filters.client_id || ''"
+                :start-date="filters.start_date"
+                :end-date="filters.end_date"
+              />
+            </div>
+          </div>
+
+          <!-- Комментарий к отчету -->
+          <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm font-[Inter]">
+            <!-- Шапка блока -->
+            <div class="flex items-center justify-between gap-4 mb-5">
+              <div class="flex items-center gap-3">
+                <!-- Иконка кошелька -->
+                <div class="w-11 h-11 rounded-[10px] bg-white dark:bg-white/10 shadow-sm border border-gray-100 dark:border-white/10 flex items-center justify-center flex-shrink-0">
+                  <WalletIcon class="w-6 h-6 text-[#2563EB] dark:text-[#4A7AFF]" />
+                </div>
+                <div>
+                  <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white leading-tight" style="font-family: Inter, sans-serif;">Комментарий к отчету</h3>
+                  <p class="text-[15px] font-normal text-[#ABABAB] dark:text-gray-500 leading-tight" style="font-family: 'Open Sans', sans-serif;">за отчетный период</p>
+                </div>
+              </div>
+              <!-- Кнопки управления -->
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <!-- Сгенерировать -->
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] text-white text-[14px] font-normal hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
+                  :disabled="generatingReport"
+                  @click="handleGenerateReport"
+                >
+                  <span v-if="generatingReport" class="w-3.5 h-3.5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  <SparklesIcon v-else class="w-3.5 h-3.5" />
+                  {{ generatingReport ? 'Генерация...' : 'Сгенерировать' }}
+                </button>
+                <!-- Редактировать / Сохранить -->
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-[12px] border border-gray-200 dark:border-white/20 text-[14px] font-normal text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                  @click="toggleEditComment"
+                >
+                  <CheckIcon v-if="editingComment" class="w-3.5 h-3.5 text-green-600" />
+                  <PencilIcon v-else class="w-3.5 h-3.5" />
+                  {{ editingComment ? 'Сохранить' : 'Редактировать' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Текст комментария / редактор -->
+            <div v-if="generatingReport" class="py-8 flex items-center justify-center gap-3 text-gray-400 dark:text-gray-500 text-sm">
+              <span class="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+              Генерация комментария...
+            </div>
+            <textarea
+              v-else-if="editingComment"
+              v-model="reportComment"
+              class="w-full min-h-[180px] text-[15px] font-normal text-gray-700 dark:text-gray-200 leading-[1.6] border border-[#2563EB]/30 dark:border-[#4A7AFF]/30 rounded-[10px] p-4 resize-y outline-none bg-white dark:bg-white/5 focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#4A7AFF]/20 focus:border-[#2563EB] dark:focus:border-[#4A7AFF] transition-colors"
+              placeholder="Введите комментарий к отчету..."
+            />
+            <div v-else-if="reportComment" class="text-[15px] font-normal text-gray-700 dark:text-gray-200 leading-[1.6] whitespace-pre-wrap">{{ reportComment }}</div>
+            <div v-else class="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+              Нажмите «Сгенерировать», чтобы получить AI-комментарий, или «Редактировать», чтобы написать вручную
+            </div>
+
+            <!-- Кнопка экспорта с выпадающим меню -->
+            <div class="flex flex-wrap gap-3 mt-6 justify-end">
+              <div class="relative" @click.stop>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-2 text-white text-[14px] font-normal rounded-[12px] bg-[#2563EB] dark:bg-[#4A7AFF] hover:bg-[#1d4ed8] dark:hover:bg-[#5A8BFF] transition-colors disabled:opacity-50"
+                  style="height: 43px; padding: 15px 14px;"
+                  :disabled="sendingExport || sendingTg"
+                  @click="showExportDropdownComment = !showExportDropdownComment"
+                >
+                  {{ sendingExport ? 'Скачивание...' : sendingTg ? 'Отправка...' : 'Экспорт отчёта' }}
+                  <ChevronDownIcon class="w-4 h-4 transition-transform" :class="showExportDropdownComment ? 'rotate-180' : ''" />
+                </button>
+                <div
+                  v-if="showExportDropdownComment"
+                  class="absolute top-full right-0 mt-1 py-1.5 min-w-[220px] bg-white dark:bg-[#2A2D3C] rounded-[10px] shadow-lg border border-gray-100 dark:border-white/10 z-50"
+                >
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadPdf()"
+                  >
+                    <ArrowDownTrayIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в PDF
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadPng()"
+                  >
+                    <PhotoIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в PNG
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleDownloadDocx()"
+                  >
+                    <DocumentTextIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Скачать в DOCX
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleGetLink()"
+                  >
+                    <LinkIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Получить ссылку
+                  </button>
+                  <div class="border-t border-gray-100 dark:border-white/10 my-1" />
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[14px] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                    @click="showExportDropdownComment = false; handleSendTelegram()"
+                  >
+                    <PaperAirplaneIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    Отправить в Telegram
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+      </div>
+
+    <!-- Telegram: привязка через t.me (без ввода chat id) -->
+    <Teleport to="body">
+      <div v-if="showTgLinkModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgLinkModal = false">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl border border-gray-100 dark:border-white/10">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Подключите Telegram</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Откройте бота в Telegram и нажмите <strong>Start</strong> (или «Запустить»). Затем нажмите «Готово» здесь — после этого отчёт отправится автоматически.
+          </p>
+          <div class="flex flex-col sm:flex-row justify-end gap-2">
+            <button type="button" class="px-4 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-sm" @click="closeTgLinkModal">
+              Отмена
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2.5 bg-[#2563EB] text-white rounded-xl hover:bg-[#1d4ed8] text-sm disabled:opacity-50"
+              :disabled="tgLinkChecking"
+              @click="confirmTgLinkedAndContinue"
+            >
+              {{ tgLinkChecking ? 'Проверка...' : 'Готово' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Модальное окно Email -->
+    <Teleport to="body">
+      <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить на Email</h3>
+          <p class="text-sm text-gray-500 mb-4">Введите email получателей через запятую</p>
+          <input
+            v-model="emailRecipients"
+            type="text"
+            placeholder="email1@example.com, email2@example.com"
+            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 mb-4"
+          />
+          <div class="flex justify-end gap-2">
+            <button class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl" @click="showEmailModal = false">Отмена</button>
+            <button
+              class="px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50"
+              :disabled="sendingEmail"
+              @click="submitEmail"
+            >
+              {{ sendingEmail ? 'Отправка...' : 'Отправить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Модальное окно выбора метрики -->
+    <Teleport to="body">
+      <div v-if="addMetricModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="addMetricModalOpen = false">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+          <h3 class="text-lg font-semibold text-gray-900 mb-3">Добавить метрику</h3>
+          <p class="text-sm text-gray-500 mb-4">Выберите метрику для отображения</p>
+          <div class="space-y-2">
+            <button
+              v-for="id in hiddenMetricsForAdd"
+              :key="id"
+              type="button"
+              class="w-full px-4 py-3 text-left rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-[#2563EB] transition-colors text-sm font-medium text-gray-700"
+              @click="handleSelectMetricToAdd(id)"
+            >
+              {{ { expenses: 'Расходы', impressions: 'Показы', clicks: 'Клики', cpc: 'CPC', leads: 'Лиды', cpa: 'CPA' }[id] || id }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="w-full mt-4 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm"
+            @click="addMetricModalOpen = false"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+  </div>
+</div>
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ArrowPathIcon, CheckIcon } from '@heroicons/vue/24/solid'
+import { ArrowDownTrayIcon, PaperAirplaneIcon, PencilIcon, WalletIcon, SparklesIcon, ChevronDownIcon, PhotoIcon, DocumentTextIcon, LinkIcon } from '@heroicons/vue/24/outline'
+// Components
+import CampaignSelectModal from '../../components/CampaignSelectModal.vue'
+import StatisticsChart from './components/StatisticsChart.vue'
+import KeyGoalsStatsV3 from './components/KeyGoalsStatsV3.vue'
+import CampaignTableV3 from './components/CampaignTableV3.vue'
+import KPIOverview from './components/KPIOverview.vue'
+import ActivityByWeekday from './components/ActivityByWeekday.vue'
+import AudienceAge from './components/AudienceAge.vue'
+import ConnectedChannelsV3 from './components/ConnectedChannelsV3.vue'
+import ReportSendingBlock from './components/ReportSendingBlock.vue'
+import Skeleton from '../../components/ui/Skeleton.vue'
+import DateRangePicker from '../../components/ui/DateRangePicker.vue'
+
+// Logic
+import { useDashboardStats } from '../../composables/useDashboardStats'
+import { useSyncStatus } from '../../composables/useSyncStatus'
+import { useRoute, useRouter } from 'vue-router'
+import { useToaster } from '../../composables/useToaster'
+import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
+import { useProjects } from '../../composables/useProjects'
+import api from '../../api/axios'
+
+const { isSyncingForProject } = useSyncStatus()
+
+const {
+  summary,
+  dynamics,
+  campaigns,
+  clients,
+  allCampaigns,
+  allCampaignsForGoalsTab,
+  loading,
+  error: statsError,
+  filters,
+  handlePeriodChange,
+  fetchStats,
+  fetchAllCampaignsForGoalsTab,
+  loadingCampaigns,
+  vkGoalActions,
+  loadingVkGoalActions
+} = useDashboardStats()
+
+const campaignModalOpen = ref(false)
+const showExportDropdownHeader = ref(false)
+const showExportDropdownComment = ref(false)
+
+const closeExportDropdowns = () => {
+  showExportDropdownHeader.value = false
+  showExportDropdownComment.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeExportDropdowns)
+  refreshUserReportSettings()
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeExportDropdowns)
+})
+
+watch(campaignModalOpen, (open) => {
+  if (open && filters.channel === 'vk') fetchAllCampaignsForGoalsTab()
+})
+
+const handleApplyGoals = ({ campaignIds, goalActionIds }) => {
+  filters.campaign_ids = campaignIds || []
+  filters.vk_goal_action_ids = goalActionIds || []
+  fetchStats()
+}
+
+const campaignButtonLabel = computed(() => {
+  if (!filters.client_id) return 'Сначала проект'
+  if (loadingCampaigns.value) return 'Загрузка...'
+  if (!allCampaigns.value.length) return 'Нет кампаний'
+  return 'Кампании'
+})
+
+const dataHiddenBySync = computed(() => isSyncingForProject(filters.client_id || null))
+
+const { currentProjectId, setCurrentProject } = useProjects()
+const toaster = useToaster()
+const route = useRoute()
+const router = useRouter()
+
+const includeVat = ref(true)
+const integrations = ref([])
+
+// Fetch integrations for selected client (dashboard endpoint — без чувствительных данных)
+const fetchIntegrations = async () => {
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data } = await api.get('dashboard/integrations', { params })
+    integrations.value = data || []
+  } catch {
+    integrations.value = []
+  }
+}
+
+watch(() => filters.client_id, fetchIntegrations, { immediate: true })
+
+const syncingIntegrations = ref(false)
+const handleSyncIntegrations = async () => {
+  if (syncingIntegrations.value) return
+  syncingIntegrations.value = true
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data: list } = await api.get('integrations/', { params })
+    if (!list?.length) {
+      toaster.info('Нет подключённых интеграций для синхронизации')
+      return
+    }
+    for (const int of list) {
+      await api.post(`integrations/${int.id}/sync`, { days: 90 })
+    }
+    toaster.info(`Синхронизация запущена для ${list.length} каналов. Данные появятся через несколько минут.`)
+    fetchIntegrations()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию')
+  } finally {
+    syncingIntegrations.value = false
+  }
+}
+
+// Auto-sync stats when VAT checkbox changes
+watch(includeVat, () => {
+  // Reuse existing fetch logic so both KPI и графики обновляются
+  fetchStats()
+})
+
+// --- Project Synchronization ---
+
+// Sync Global -> Local
+watch(currentProjectId, (newId) => {
+  if (filters.client_id !== newId) {
+    filters.client_id = newId
+  }
+}, { immediate: true })
+
+// Sync Local -> Global
+watch(() => filters.client_id, (newId) => {
+  if (currentProjectId.value !== newId) {
+    setCurrentProject(newId)
+  }
+})
+
+// --- State & UI Logic ---
+
+const DASHBOARD_METRICS_STORAGE_KEY = 'dashboard_metrics_config'
+const DEFAULT_SLOT_CONFIG = ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
+const METRIC_IDS = ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
+
+function loadSlotConfig() {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_METRICS_STORAGE_KEY)
+    if (!raw) return [...DEFAULT_SLOT_CONFIG]
+    const parsed = JSON.parse(raw)
+    const slots = Array.isArray(parsed?.slots) ? parsed.slots : []
+    const result = []
+    for (let i = 0; i < 6; i++) {
+      const v = slots[i]
+      result.push(v === null || (typeof v === 'string' && METRIC_IDS.includes(v)) ? v : null)
+    }
+    return result
+  } catch {
+    return [...DEFAULT_SLOT_CONFIG]
+  }
+}
+
+function saveSlotConfig(slots) {
+  try {
+    localStorage.setItem(DASHBOARD_METRICS_STORAGE_KEY, JSON.stringify({ slots }))
+  } catch (e) {
+    console.warn('Could not save metrics config:', e)
+  }
+}
+
+const slotConfig = ref(loadSlotConfig())
+
+watch(slotConfig, (val) => {
+  saveSlotConfig(val)
+}, { deep: true })
+
+const addMetricModalOpen = ref(false)
+const addMetricSlotIndex = ref(0)
+
+const hiddenMetricsForAdd = computed(() => {
+  const used = new Set(slotConfig.value.filter(Boolean))
+  return METRIC_IDS.filter(id => !used.has(id))
+})
+
+const handleAddMetric = (slotIndex) => {
+  addMetricSlotIndex.value = slotIndex
+  addMetricModalOpen.value = true
+}
+
+const handleSelectMetricToAdd = (metricId) => {
+  const cfg = [...slotConfig.value]
+  if (cfg[addMetricSlotIndex.value] == null && METRIC_IDS.includes(metricId)) {
+    cfg[addMetricSlotIndex.value] = metricId
+    slotConfig.value = cfg
+  }
+  addMetricModalOpen.value = false
+}
+
+const handleRemoveMetric = (slotIndex) => {
+  const cfg = [...slotConfig.value]
+  cfg[slotIndex] = null
+  slotConfig.value = cfg
+}
+
+const handleSlotConfigUpdate = (newConfig) => {
+  slotConfig.value = newConfig
+}
+
+const selectedMetrics = ref(['expenses']) // По умолчанию активен Расход
+
+const toggleMetric = (metric) => {
+  const index = selectedMetrics.value.indexOf(metric)
+  if (index > -1) {
+    // Remove if already selected
+    selectedMetrics.value.splice(index, 1)
+  } else {
+    // Add if not selected
+    selectedMetrics.value.push(metric)
+  }
+}
+
+const headerLabel = computed(() => 'Общая аналитика по всем активным проектам')
+
+const dynamicSubtitle = computed(() => {
+  if (filters.campaign_ids?.length > 0) return 'Детальная статистика выбранной кампании'
+  if (filters.client_id) return 'Аналитика и показатели эффективности проекта'
+  if (filters.channel !== 'all') return 'Статистика по конкретному рекламному каналу'
+  return 'Общая аналитика по всем активным проектам'
+})
+
+const dashboardTitle = computed(() => {
+  if (filters.campaign_ids?.length > 0) {
+    const campaignId = filters.campaign_ids[0]
+    const campaign = allCampaigns.value.find(c => c.id === campaignId)
+    return campaign ? `Отчет по кампании: ${campaign.name}` : `Отчет по кампаниям (${filters.campaign_ids.length})`
+  }
+  if (filters.client_id) {
+    const client = clients.value.find(c => c.id === filters.client_id)
+    return client ? `Отчет по проекту: ${client.name}` : 'Отчет по проекту'
+  }
+  if (filters.channel !== 'all') {
+    const channelMap = { yandex: 'Яндекс.Директ', vk: 'VK Ads' }
+    return `Отчет: ${channelMap[filters.channel] || filters.channel}`
+  }
+  return 'Отчет по всем проектам'
+})
+
+// --- Handlers ---
+
+const handleDateChange = () => {
+  // When custom dates are changed, fetch stats
+  fetchStats()
+}
+
+const handleExport = async () => {
+  try {
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      platform: filters.channel,
+      client_id: filters.client_id || undefined,
+      campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined,
+      goal_action_ids: (filters.channel === 'vk' && filters.vk_goal_action_ids.length > 0)
+        ? filters.vk_goal_action_ids
+        : undefined
+    }
+
+    const response = await api.get('dashboard/export/csv', {
+      params,
+      responseType: 'blob'
+    })
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `report_${filters.start_date}_${filters.end_date}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    
+    toaster.success('Отчет успешно сформирован')
+  } catch (err) {
+    console.error('Export error:', err)
+    toaster.error('Не удалось скачать отчет')
+  }
+}
+
+// --- Получить отчёт ---
+const sendingTg = ref(false)
+const sendingEmail = ref(false)
+
+// --- Комментарий к отчету ---
+const generatingReport = ref(false)
+const reportComment = ref('')
+const editingComment = ref(false)
+
+// Ключ localStorage зависит от периода и клиента
+const commentStorageKey = computed(() =>
+  `report_comment::${filters.client_id || 'all'}::${filters.start_date}::${filters.end_date}`
+)
+
+// Загружаем сохранённый комментарий при смене периода/клиента
+watch(commentStorageKey, (key) => {
+  editingComment.value = false
+  reportComment.value = localStorage.getItem(key) || ''
+}, { immediate: true })
+
+// Сохраняем комментарий в localStorage при любом изменении
+watch(reportComment, (val) => {
+  if (val) {
+    localStorage.setItem(commentStorageKey.value, val)
+  } else {
+    localStorage.removeItem(commentStorageKey.value)
+  }
+})
+
+const toggleEditComment = () => {
+  editingComment.value = !editingComment.value
+}
+
+const handleGenerateReport = async () => {
+  generatingReport.value = true
+  editingComment.value = false
+  reportComment.value = ''
+  try {
+    const { data } = await api.post('ai/generate-report', {
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      report_type: 'full'
+    })
+    reportComment.value = data?.text || ''
+    if (reportComment.value) toaster.success('Отчет сгенерирован')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
+  } finally {
+    generatingReport.value = false
+  }
+}
+
+// Получить готовый текст или сгенерировать, если его нет
+const getOrGenerateComment = async () => {
+  if (reportComment.value) return reportComment.value
+  await handleGenerateReport()
+  return reportComment.value
+}
+
+const sendingExport = ref(false)
+
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(new Blob([blob]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+const getReportPayload = () => ({
+  start_date: filters.start_date,
+  end_date: filters.end_date,
+  client_id: filters.client_id || undefined,
+  ai: true,
+  ...(reportComment.value?.trim() ? { comment: reportComment.value.trim() } : {})
+})
+
+// При наличии сгенерированного комментария используем POST (comment в body)
+// Иначе GET — comment в query string превышает лимит URL (~2–8 КБ) и вызывает ошибку
+const usePostForDownload = () => !!reportComment.value?.trim()
+
+const handleDownloadPdf = async () => {
+  sendingExport.value = true
+  try {
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/pdf', payload, { responseType: 'blob' })
+      : await api.get('reports/pdf', { params: payload, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.pdf`)
+    toaster.success('AI-отчёт скачан')
+  } catch (err) {
+    toaster.error('Не удалось скачать PDF')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleDownloadPng = async () => {
+  sendingExport.value = true
+  try {
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/png', payload, { responseType: 'blob' })
+      : await api.get('reports/png', { params: payload, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
+    toaster.success('Отчёт в PNG скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать PNG')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleDownloadDocx = async () => {
+  sendingExport.value = true
+  try {
+    const payload = getReportPayload()
+    const response = usePostForDownload()
+      ? await api.post('reports/docx', payload, { responseType: 'blob' })
+      : await api.get('reports/docx', { params: payload, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.docx`)
+    toaster.success('Отчёт в DOCX скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать DOCX')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleGetLink = async () => {
+  sendingExport.value = true
+  try {
+    const { data } = await api.post('reports/link', {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || null,
+      comment: reportComment.value?.trim() || null
+    })
+    const base = window.location.origin
+    const fullUrl = `${base}${data.url.startsWith('/') ? '' : '/'}${data.url}`
+    await navigator.clipboard.writeText(fullUrl)
+    window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    toaster.success('Ссылка скопирована и открыта в новой вкладке. Действует 24 часа.')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось создать ссылку')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const showTgLinkModal = ref(false)
+const tgLinkChecking = ref(false)
+const pendingTgSendAfterLink = ref(false)
+const showEmailModal = ref(false)
+const emailRecipients = ref('')
+const { openTelegramBotForLinking } = useTelegramReportLink()
+
+const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [], report_schedule: '' })
+
+async function refreshUserReportSettings() {
+  try {
+    const { data } = await api.get('/auth/me')
+    userReportSettings.value.telegram_chat_id = data.report_telegram_chat_id || ''
+    userReportSettings.value.email_recipients = data.report_email_recipients || []
+    userReportSettings.value.report_schedule = data.report_schedule || 'mon_10'
+  } catch {
+    /* ignore */
+  }
+}
+
+async function executeTelegramReportSend(chatId) {
+  sendingTg.value = true
+  try {
+    const text = await getOrGenerateComment()
+    await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['telegram'],
+      telegram_chat_id: chatId,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
+    })
+    toaster.success('Отчёт отправлен в Telegram')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+    throw err
+  } finally {
+    sendingTg.value = false
+  }
+}
+
+const closeTgLinkModal = () => {
+  showTgLinkModal.value = false
+  pendingTgSendAfterLink.value = false
+}
+
+const confirmTgLinkedAndContinue = async () => {
+  tgLinkChecking.value = true
+  try {
+    await refreshUserReportSettings()
+    const chatId = (userReportSettings.value.telegram_chat_id || '').trim()
+    if (!chatId) {
+      toaster.error('Сначала нажмите Start в чате с ботом в Telegram')
+      return
+    }
+    showTgLinkModal.value = false
+    const shouldSend = pendingTgSendAfterLink.value
+    pendingTgSendAfterLink.value = false
+    if (shouldSend) {
+      await executeTelegramReportSend(chatId)
+    }
+  } finally {
+    tgLinkChecking.value = false
+  }
+}
+
+const handleSendTelegram = async () => {
+  const existing = (userReportSettings.value.telegram_chat_id || '').trim()
+  if (existing) {
+    await executeTelegramReportSend(existing)
+    return
+  }
+  try {
+    await openTelegramBotForLinking()
+    pendingTgSendAfterLink.value = true
+    showTgLinkModal.value = true
+  } catch (err) {
+    const d = err.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось открыть Telegram. Проверьте настройки бота на сервере.')
+  }
+}
+
+const handleSendEmail = () => {
+  emailRecipients.value = userReportSettings.value.email_recipients.join(', ')
+  showEmailModal.value = true
+}
+
+const reportSaving = ref(false)
+const handleReportSave = async (schedule) => {
+  reportSaving.value = true
+  try {
+    await api.patch('/auth/me', { report_schedule: schedule })
+    userReportSettings.value.report_schedule = schedule
+    toaster.success('Расписание сохранено')
+  } catch {
+    toaster.error('Не удалось сохранить расписание')
+  } finally {
+    reportSaving.value = false
+  }
+}
+const handleScheduleChange = () => { /* опционально: предпросмотр */ }
+
+const submitEmail = async () => {
+  const emails = emailRecipients.value.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
+  if (!emails.length) {
+    toaster.error('Введите хотя бы один email')
+    return
+  }
+  sendingEmail.value = true
+  try {
+    const text = await getOrGenerateComment()
+    const { data } = await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['email'],
+      email_recipients: emails,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
+    })
+    if (data?.results?.email) {
+      toaster.success('AI-отчёт отправлен на email')
+      showEmailModal.value = false
+      emailRecipients.value = ''
+    } else {
+      toaster.error(data?.results?.email_error || 'Не удалось отправить email')
+    }
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingEmail.value = false
+  }
+}
+
+// React to post-callback redirect (integrations)
+watch(() => route.query.new_integration_id, (id) => {
+  if (id) {
+    router.push({
+      path: '/integrations/wizard',
+      query: {
+        resume_integration_id: id,
+        initial_step: 2
+      }
+    })
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+}, { immediate: true })
+
+</script>

@@ -1,0 +1,357 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
+import { DEFAULT_DASHBOARD_PATH } from '../constants/config'
+
+const routes = [
+  {
+    path: '/',
+    name: 'Landing',
+    component: () => import('../views/Landing/Landing.vue'),
+    meta: { layout: 'landing' }
+  },
+  {
+    path: '/signin',
+    name: 'SignIn',
+    component: () => import('../views/Auth/SignIn.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/signup',
+    name: 'SignUp',
+    component: () => import('../views/Auth/SignUp.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('../views/Auth/ResetPassword.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/two-step-verification',
+    name: 'TwoStepVerification',
+    component: () => import('../views/Auth/TwoStepVerification.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: () => import('../views/Auth/VerifyEmail.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/pending-email-verification',
+    name: 'PendingEmailVerification',
+    component: () => import('../views/Auth/PendingEmailVerification.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/auth/login/yandex/callback',
+    name: 'OAuthLoginYandexCallback',
+    component: () => import('../views/Auth/OAuthLoginCallback.vue'),
+    meta: { layout: 'auth', oauthProvider: 'yandex' }
+  },
+  {
+    path: '/auth/login/vk/callback',
+    name: 'OAuthLoginVkCallback',
+    component: () => import('../views/Auth/OAuthLoginCallback.vue'),
+    meta: { layout: 'auth', oauthProvider: 'vk' }
+  },
+  // Старые пути для обратной совместимости
+  {
+    path: '/login',
+    redirect: '/signin'
+  },
+  {
+    path: '/register',
+    redirect: '/signup'
+  },
+  {
+    path: '/forgot-password',
+    redirect: '/reset-password'
+  },
+  {
+    path: '/auth/yandex/callback',
+    name: 'YandexCallback',
+    component: () => import('../views/Auth/YandexCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/auth/vk/callback',
+    name: 'VKCallback',
+    component: () => import('../views/Auth/VKCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/auth/mytarget/callback',
+    name: 'MyTargetCallback',
+    component: () => import('../views/Auth/MyTargetCallback.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/dashboard/general',
+    name: 'GeneralStats',
+    component: () => import('../views/GeneralStats/GeneralStats.vue')
+  },
+  {
+    path: '/dashboard/general-2',
+    name: 'GeneralStats2',
+    component: () => import('../views/GeneralStats2/GeneralStats2.vue')
+  },
+  {
+    path: '/products',
+    name: 'Products',
+    component: () => import('../views/Product/Products.vue')
+  },
+  {
+    path: '/projects',
+    name: 'Projects',
+    component: () => import('../views/Project/Projects.vue')
+  },
+  {
+    path: '/phone-api',
+    name: 'PhoneAPI',
+    component: () => import('../views/PhoneAPI/PhoneAPI.vue')
+  },
+  {
+    path: '/phone-integration',
+    name: 'PhoneIntegration',
+    component: () => import('../views/PhoneAPI/PhoneIntegration.vue')
+  },
+  {
+    path: '/phone-projects',
+    name: 'PhoneProjects',
+    component: () => import('../views/PhoneProjects/PhoneProjects.vue')
+  },
+  {
+    path: '/phone-leads',
+    name: 'PhoneLeads',
+    component: () => import('../views/PhoneLeads/PhoneLeads.vue')
+  },
+  {
+    path: '/phone-stats',
+    name: 'PhoneStats',
+    component: () => import('../views/PhoneStats/PhoneStats.vue')
+  },
+  {
+    path: '/phone-reports',
+    name: 'PhoneReports',
+    component: () => import('../views/PhoneReports/PhoneReports.vue')
+  },
+  {
+    path: '/channels',
+    name: 'Channels',
+    component: () => import('../views/Channels/Channels.vue')
+  },
+  {
+    path: '/team',
+    name: 'Team',
+    component: () => import('../views/Team/Team.vue')
+  },
+  {
+    path: '/history',
+    name: 'History',
+    component: () => import('../views/History/History.vue')
+  },
+  {
+    path: '/tariffs',
+    name: 'Tariffs',
+    component: () => import('../views/Tariffs/TariffsPage.vue')
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('../views/Settings/Settings.vue')
+  },
+  {
+    path: '/help',
+    name: 'Help',
+    component: () => import('../views/Help/Help.vue')
+  },
+  {
+    path: '/contact',
+    name: 'Contact',
+    component: () => import('../views/Contact/Contact.vue')
+  },
+  {
+    path: '/dashboard/general-3',
+    name: 'GeneralStats3',
+    component: () => import('../views/GeneralStats3/GeneralStats3.vue')
+  },
+  {
+    path: '/ai-analysis',
+    name: 'AIAnalysis',
+    component: () => import('../views/AIAnalysis/AIAnalysis.vue')
+  },
+  {
+    path: '/profile',
+    name: 'Profile',
+    component: () => import('../views/Profile/Profile.vue')
+  },
+  {
+    path: '/integrations',
+    name: 'Integrations',
+    component: () => import('../views/Integrations/IntegrationsPage.vue')
+  },
+  {
+    path: '/integrations/wizard',
+    name: 'AddIntegration',
+    component: () => import('../views/Integrations/AddIntegrationPage.vue')
+    // Using MainLayout (with sidebar) to match screen 2
+  },
+  {
+    path: '/projects/create',
+    name: 'CreateProject',
+    component: () => import('../views/Project/CreateProjectPage.vue')
+  },
+  {
+    path: '/preview-banner',
+    name: 'PreviewBanner',
+    component: () => import('../views/Dashboard/components/CreateProjectBanner.vue'),
+    meta: { layout: 'auth' } // Using auth layout for a clean centered look
+  },
+  // Mockup Routes
+  {
+    path: '/mockup/main',
+    name: 'MockupMain',
+    component: () => import('../views/Mockup/Main.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/projects',
+    name: 'MockupProjects',
+    component: () => import('../views/Mockup/ProjectRows.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/project-card',
+    name: 'MockupProjectCard',
+    component: () => import('../views/Mockup/ProjectCard.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/create',
+    name: 'MockupCreate',
+    component: () => import('../views/Mockup/Create.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/tariffs',
+    name: 'MockupTariffs',
+    component: () => import('../views/Mockup/Tariffs.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/integrations',
+    name: 'MockupIntegrations',
+    component: () => import('../views/Mockup/Integrations.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/integration-1',
+    name: 'MockupIntegration1',
+    component: () => import('../views/Mockup/Integration-1.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/integration-2',
+    name: 'MockupIntegration2',
+    component: () => import('../views/Mockup/Integration-2.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/integration-3',
+    name: 'MockupIntegration3',
+    component: () => import('../views/Mockup/Integration-3.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/integration-4',
+    name: 'MockupIntegration4',
+    component: () => import('../views/Mockup/Integration-4.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/ads-channel',
+    name: 'MockupAdsChannel',
+    component: () => import('../views/Mockup/AdsChannel.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/team',
+    name: 'MockupTeam',
+    component: () => import('../views/Mockup/Team.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/mockup/history',
+    name: 'MockupHistory',
+    component: () => import('../views/Mockup/History.vue'),
+    meta: { layout: 'mockup' }
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes
+})
+
+// Проверка аутентификации перед переходом
+router.beforeEach(async (to, from, next) => {
+  const { checkAuth } = useAuth()
+  const isAuth = await checkAuth()
+  
+  // Normalize path
+  const normalizedPath = to.path.replace(/\/$/, '') || '/'
+  const isOAuthCallback =
+    normalizedPath === '/auth/yandex/callback' ||
+    normalizedPath === '/auth/vk/callback' ||
+    normalizedPath === '/auth/mytarget/callback' ||
+    normalizedPath === '/auth/login/yandex/callback' ||
+    normalizedPath === '/auth/login/vk/callback'
+  const isLoginPage =
+    normalizedPath === '/signin' ||
+    normalizedPath === '/signup' ||
+    normalizedPath === '/reset-password' ||
+    normalizedPath === '/two-step-verification' ||
+    normalizedPath === '/verify-email' ||
+    normalizedPath === '/pending-email-verification' ||
+    normalizedPath === '/login' ||
+    normalizedPath === '/register' ||
+    normalizedPath === '/forgot-password' ||
+    normalizedPath === '/preview-banner'
+  const isLandingPage = normalizedPath === '/'
+
+  console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
+
+  // OAuth callbacks должны открываться без токена (обмен code → JWT на странице)
+  const isPublicPage = isLoginPage || isLandingPage || isOAuthCallback
+  const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
+
+  if (!isAuth && !isPublicPage) {
+    console.warn('Router: Unauthorized access attempt, redirecting to login...')
+    next('/signin')
+  } else if (isAuth && (isLoginPage || isLandingPage) && !verifyEmailWithToken) {
+    // Уже вошли: с экранов входа/лендинга — на дашборд; OAuth callback не трогаем (интеграция под залогиненным)
+    console.log('Router: Already authenticated, redirecting to dashboard...')
+    next(DEFAULT_DASHBOARD_PATH)
+  }
+  // Иначе разрешаем переход
+  else {
+    next()
+  }
+})
+
+// Обработка ошибок при загрузке компонентов (например, ChunkLoadError)
+router.onError((error, to) => {
+  if (error.message.includes('Failed to fetch dynamically imported module') || error.message.includes('chunk')) {
+    console.error('Critical: Chunk load error detected for path:', to.path, error)
+    console.warn('Attempting page refresh to recover from chunk error...')
+    window.location.reload()
+  } else {
+    console.error('Router error:', error)
+  }
+})
+
+export default router
+

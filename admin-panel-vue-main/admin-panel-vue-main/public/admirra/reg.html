@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<title>AdMirra - Сервис аналитики и рекламы</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+		<!-- favicon -->
+		<link href="img/favicon.png" sizes="32x32" rel="icon" type="image/png" />
+
+		<!-- style -->
+		<link rel="stylesheet" href="css/style.css" />
+	</head>
+	<body>
+		<div class="entry">
+			<div class="entry-aside">
+				<div>
+					<a class="logo-link" href="index.html">
+						<img class="logo" src="img/logo.png" alt="logo" />
+					</a>
+				</div>
+				<form class="entry-form" id="reg-form">
+					<h2 class="heading-1 weight-500 mb-4 pb-3">
+						<span class="weight-300">Добро пожаловать!</span> <br />
+						Создайте аккаунт
+					</h2>
+					<div class="entry-social">
+						<a class="btn _normal _yandex" href="#" data-oauth-provider="yandex">
+							<div class="btn__inner">
+								<i class="icon-yandex"></i>
+								<span class="btn__text">Продолжить с Яндекс ID</span>
+							</div>
+						</a>
+						<a class="btn _normal _vk" href="#" data-oauth-provider="vk">
+							<div class="btn__inner">
+								<i class="icon-vk"></i>
+								<span class="btn__text">Продолжить через ВК</span>
+							</div>
+						</a>
+						<a class="btn _normal _max" href="#" data-oauth-provider="max">
+							<div class="btn__inner">
+								<i class="icon-max"></i>
+								<span class="btn__text">Войти через Max</span>
+							</div>
+						</a>
+					</div>
+					<div class="or-line">
+						<div class="or-line__text">или</div>
+					</div>
+					<div class="row gy-4">
+						<div class="col-12 col-sm-6">
+							<div class="input-row">
+								<label class="input-row__label" for="reg-first-name">Имя <span class="_required">*</span></label>
+								<input class="input" id="reg-first-name" name="first_name" type="text" placeholder="Введите ваше имя" required />
+							</div>
+						</div>
+						<div class="col-12 col-sm-6">
+							<div class="input-row">
+								<label class="input-row__label" for="reg-last-name">Фамилия <span class="_required">*</span></label>
+								<input class="input" id="reg-last-name" name="last_name" type="text" placeholder="Введите вашу фамилию" required />
+							</div>
+						</div>
+					</div>
+					<div class="input-row">
+						<label class="input-row__label" for="reg-email">E-mail <span class="_required">*</span></label>
+						<input class="input" id="reg-email" name="email" type="email" placeholder="Введите ваш email" required />
+					</div>
+					<div class="input-row">
+						<label class="input-row__label" for="reg-password">Пароль <span class="_required">*</span></label>
+						<div class="input-row__pass">
+							<input class="input" id="reg-password" name="password" type="password" placeholder="Введите пароль" required />
+							<a class="input-eye" href="#" onclick="return show_hide_password(this);">
+								<svg class="input-eye__on"><use href="img/svg/sprite.svg#eye-on"></use></svg>
+								<svg class="input-eye__off"><use href="img/svg/sprite.svg#eye-off"></use></svg>
+							</a>
+						</div>
+						<script>
+							function show_hide_password(target) {
+								var input = document.getElementById("reg-password");
+								if (input.getAttribute("type") == "password") {
+									target.classList.add("view");
+									input.setAttribute("type", "text");
+								} else {
+									target.classList.remove("view");
+									input.setAttribute("type", "password");
+								}
+								return false;
+							}
+						</script>
+					</div>
+					<div class="row">
+						<div class="col">
+							<div class="choise">
+								<label class="choise-checkbox">
+									<input class="choise-checkbox__input" type="checkbox" id="reg-agree" />
+									<span class="choise-checkbox__box">
+										<svg><use href="img/svg/sprite.svg#check"></use></svg>
+									</span>
+								</label>
+								<label class="choise__text weight-500 pe-3" for="reg-agree">Согласен с условиями сервиса</label>
+							</div>
+						</div>
+						<div class="col-auto"></div>
+					</div>
+					<div id="reg-error" class="input-row" style="display: none">
+						<div class="link" style="color: #dc2626"></div>
+					</div>
+					<div>
+						<button class="d-flex btn _medium _radius-12 text-15" type="submit" id="reg-submit">
+							<div class="btn__inner"><span class="btn__text">ЗАРЕГИСТРИРОВАТЬСЯ</span></div>
+						</button>
+					</div>
+					<div class="d-flex flex-wrap justify-content-center justify-content-xl-start weight-500">
+						У вас нет аккаунта ?&nbsp;
+						<a class="link weight-600" href="entry.html">Войти</a>
+					</div>
+				</form>
+			</div>
+			<div class="entry-art">
+				<div class="entry-art__inner">
+					<picture class="entry-art__fox">
+						<img src="img/fox-welcome.webp" alt="fox" />
+					</picture>
+					<div class="entry-art__ui1"></div>
+					<div class="entry-art__ui2"></div>
+					<div class="entry-art__ui3"></div>
+					<div class="entry-art__ui4"></div>
+				</div>
+			</div>
+		</div>
+		<footer class="footer">
+			<div class="container-xl">
+				<div class="footer-top">
+					<img class="logo" src="img/logo.png" alt="logo" />
+					<div class="social-bar">
+						<a class="social-bar__item" href="#">
+							<svg class="social-bar__icon _max"><use href="img/svg/sprite.svg#max"></use></svg>
+						</a>
+						<a class="social-bar__item" href="#">
+							<svg class="social-bar__icon _telegram"><use href="img/svg/sprite.svg#telegram"></use></svg>
+						</a>
+						<a class="social-bar__item" href="#">
+							<svg class="social-bar__icon _vk"><use href="img/svg/sprite.svg#vk"></use></svg>
+						</a>
+					</div>
+					<form class="subscribe-email">
+						<div class="subscribe-email__caption weight-500">Подпишитесь на&nbsp;новости</div>
+						<div class="subscribe-email__form">
+							<input type="email" placeholder="Введите ваш email" />
+							<button class="btn _normal" type="submit">
+								<div class="btn__inner"><span class="btn__text">Подписаться</span></div>
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+			<hr class="hr-line" />
+			<nav class="footer-menu">
+				<a href="index.html#advantages">Для кого</a>
+				<a href="index.html#about">Пример дашборда</a>
+				<a href="index.html#service">Возможности</a>
+				<a href="index.html#integrations">Интеграции</a>
+				<a href="index.html#tariff">Цены</a>
+			</nav>
+			<div class="footer-bottom">
+				<div class="container-xl">
+					<div class="footer-bottom__inner">
+						<div class="footer-bottom__left">
+							<div class="footer-bottom__menu gy-5">
+								<h6 class="weight-600">Ресурсы</h6>
+								<ul class="gy-5">
+									<li><a href="#">Документация</a></li>
+									<li><a href="#">Блог</a></li>
+									<li><a href="#">FAQ</a></li>
+								</ul>
+							</div>
+							<div class="footer-bottom__menu gy-5">
+								<h6 class="weight-600">Контакты</h6>
+								<ul class="gy-5">
+									<li><a href="#">Email</a></li>
+									<li><a href="#">Telegram</a></li>
+									<li><a href="#">Поддержка</a></li>
+								</ul>
+							</div>
+						</div>
+						<div class="footer-bottom__center">
+							<div class="gy-5 text-center">
+								<h6 class="weight-600">АдМирра</h6>
+								<p>Автоматические отчёты и маркетинговые дашборды</p>
+								<div>
+									<img src="img/pay.png" width="99" alt="pay" />
+								</div>
+								<div>© 2026 Все права защищены</div>
+							</div>
+						</div>
+						<div class="footer-bottom__right">
+							<div class="footer-bottom__menu gy-5">
+								<h6 class="weight-600">Документы</h6>
+								<ul class="gy-5">
+									<li><a href="agreement.html">Договор оферты</a></li>
+									<li><a href="user-agreement.html">Политика конфиденциальности</a></li>
+									<li><a href="personal-data.html">Согласие на обработку персональных данных</a></li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</footer>
+		<script src="js/jquery.js" defer></script>
+		<script src="js/swiper.js" defer></script>
+		<script src="js/beefup.js" defer></script>
+		<script src="js/easytabs.js" defer></script>
+		<script src="js/main.js" defer></script>
+		<script src="js/auth-pages.js" defer></script>
+	</body>
+</html>

@@ -1,0 +1,246 @@
+from typing import Optional
+from pathlib import Path
+import logging
+import time
+import uuid
+from fastapi import FastAPI, Request, Depends
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse # Changed from fastapi.responses.FileResponse
+from core.database import engine
+from core import models
+import os
+from dotenv import load_dotenv
+
+# Load .env file for local development (Docker Compose loads it automatically)
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("api")
+
+# Enable automatic table creation with retry logic
+def init_db_with_retry(max_retries=10, retry_delay=2):
+    """
+    Initialize database with retry logic to handle cases when DB is not ready yet.
+    """
+    from sqlalchemy.exc import OperationalError
+    
+    for attempt in range(max_retries):
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created successfully")
+            return
+        except OperationalError as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                raise
+
+init_db_with_retry()
+
+# Fix for bcrypt 4.0.0+ and passlib compatibility
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type("about", (object,), {"__version__": bcrypt.__version__})
+
+import mimetypes
+mimetypes.add_type('application/javascript', '.js')
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from backend_api.auth import router as auth_router
+from backend_api.oauth_login import router as oauth_login_router
+from backend_api.telegram_report_link import link_router as telegram_link_router, webhook_router as telegram_webhook_router
+from backend_api.integrations import router as integrations_router
+from backend_api.stats import router as stats_router
+from backend_api.clients import router as clients_router
+from backend_api.campaigns import router as campaigns_router
+from backend_api.phone_projects import router as phone_projects_router
+from backend_api.phone_leads import router as phone_leads_router
+from backend_api.phone_stats import router as phone_stats_router
+from backend_api.billing import router as billing_router
+
+try:
+    from ai.router import router as ai_router
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
+
+try:
+    from backend_api.reports.router import router as reports_router
+    REPORTS_AVAILABLE = True
+except ImportError:
+    REPORTS_AVAILABLE = False
+
+# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
+try:
+    from lead_validator.router import router as lead_validator_router
+    from lead_validator.webhook_router import router as webhook_router
+    from lead_validator.tasks.alert_scheduler import run_daily_alerts, run_weekly_report
+    LEAD_VALIDATOR_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Lead Validator module not available: {e}. Some endpoints will be disabled.")
+    LEAD_VALIDATOR_AVAILABLE = False
+
+lead_scheduler: Optional[AsyncIOScheduler] = None
+
+app = FastAPI(
+    title="Analytics SAAS API",
+    description="Professional API for Advertising Campaign Analytics. Supports Yandex Direct, VK Ads, and Yandex Metrica.",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+@app.on_event("startup")
+async def startup_event():
+    """Инициализация при старте приложения"""
+    from automation.request_queue import get_request_queue
+    await get_request_queue()  # Инициализируем очередь запросов
+    logger.info("✅ Application startup complete - request queue initialized")
+
+    # Планировщик для задач телефонии и отчётов
+    global lead_scheduler
+    lead_scheduler = AsyncIOScheduler()
+    if LEAD_VALIDATOR_AVAILABLE:
+        lead_scheduler.add_job(run_daily_alerts, "cron", hour=9, minute=0, id="lead_daily_alerts")
+        lead_scheduler.add_job(run_weekly_report, "cron", day_of_week="mon", hour=9, minute=30, id="lead_weekly_report")
+    if REPORTS_AVAILABLE:
+        from backend_api.reports.scheduler import run_scheduled_reports
+        lead_scheduler.add_job(run_scheduled_reports, "cron", hour=10, minute=0, id="report_scheduled_send")
+    if lead_scheduler.get_jobs():
+        lead_scheduler.start()
+        logger.info("✅ Scheduler started (leads + reports)")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Очистка при остановке приложения"""
+    from automation.request_queue import shutdown_request_queue
+    await shutdown_request_queue()
+    logger.info("✅ Application shutdown complete - request queue stopped")
+
+    global lead_scheduler
+    if lead_scheduler:
+        lead_scheduler.shutdown()
+        lead_scheduler = None
+        logger.info("✅ Lead validator scheduler stopped")
+
+
+@app.middleware("http")
+async def request_id_logging_middleware(request: Request, call_next):
+    """
+    Добавляет X-Request-ID к каждому запросу и логирует его.
+    Если заголовок уже пришёл от прокси, переиспользуем его.
+    """
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    start_time = time.time()
+
+    # Пробрасываем request_id дальше по пайплайну (если где-то пригодится)
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+
+    duration_ms = (time.time() - start_time) * 1000
+    response.headers["X-Request-ID"] = request_id
+
+    logger.info(
+        f"[{request_id}] {request.client.host if request.client else '-'} "
+        f"{request.method} {request.url.path} -> {response.status_code} "
+        f"({duration_ms:.1f} ms)"
+    )
+
+    return response
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    import json
+    logger.error(f"Validation Error on {request.url.path}: {exc.errors()}")
+    logger.error(f"Request body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body) if hasattr(exc, 'body') else None},
+    )
+
+app.include_router(auth_router, prefix="/api")
+app.include_router(oauth_login_router, prefix="/api")
+app.include_router(telegram_link_router, prefix="/api")
+app.include_router(telegram_webhook_router, prefix="/api")
+app.include_router(clients_router, prefix="/api")
+app.include_router(integrations_router, prefix="/api")
+app.include_router(stats_router, prefix="/api")
+app.include_router(campaigns_router, prefix="/api")
+app.include_router(phone_projects_router, prefix="/api")
+app.include_router(phone_leads_router, prefix="/api")
+app.include_router(phone_stats_router, prefix="/api")
+app.include_router(billing_router, prefix="/api")
+
+if AI_AVAILABLE:
+    app.include_router(ai_router, prefix="/api")
+
+if REPORTS_AVAILABLE:
+    app.include_router(reports_router, prefix="/api")
+
+# Lead Validator routers (публичные webhook'и и защищённые эндпоинты)
+if LEAD_VALIDATOR_AVAILABLE:
+    app.include_router(lead_validator_router, prefix="/api")
+    app.include_router(webhook_router, prefix="/api")  # Публичные webhook'и для Tilda/Marquiz
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, replace with actual frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# The admin SPA (Vue) is served by Nginx in the frontend container.
+# Лендинг AdMirra: единственный источник — Vue `public/admirra`
+# (Landing.vue: iframe src="/admirra/index.html"). Vite копирует public в dist.
+# Ниже — та же папка на бэкенде для прямого доступа к :8001/admirra/
+
+
+def _resolve_admirra_static_dir() -> Optional[Path]:
+    """
+    Только путь внутри trafic_agent:
+    admin-panel-vue-main/admin-panel-vue-main/public/admirra
+    """
+    here = Path(__file__).resolve().parent
+    trafic_agent_root = here.parent
+    candidate = (
+        trafic_agent_root
+        / "admin-panel-vue-main"
+        / "admin-panel-vue-main"
+        / "public"
+        / "admirra"
+    )
+    if candidate.is_dir() and (candidate / "index.html").is_file():
+        return candidate
+    return None
+
+
+_admirra_dir = _resolve_admirra_static_dir()
+if _admirra_dir is not None:
+    app.mount(
+        "/admirra",
+        StaticFiles(directory=str(_admirra_dir), html=True),
+        name="admirra",
+    )
+    logger.info("AdMirra static mounted at /admirra/ from %s", _admirra_dir)
+else:
+    logger.warning(
+        "AdMirra static not found (expected admin-panel-vue-main/.../public/admirra)"
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend_api.main:app", host="0.0.0.0", port=8000, reload=True)
