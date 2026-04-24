@@ -1,0 +1,414 @@
+:root {
+	--bgPage: #f5f7f9;
+	--bgLayout: #fff;
+
+	--black: #171717;
+	--dark: #2c2c2c;
+	--dark80: rgba(44, 44, 44, 0.8);
+	--dark500: #323741;
+	--light: #f5f7f9;
+	--azure: #ecf3fe;
+	--azureLight: #f8fafb;
+	--silver: #cfcfcf;
+	--accent: #2563eb;
+	--accentLight: #5187ff;
+	--success: #82d944;
+	--danger: #ff243a;
+	--beige: #c7ae8d;
+	--lavender: #b2c5db;
+	--slategray: #9cadc2;
+
+	--accent-gradient: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+
+	--gray: #696969;
+	--gray500: #515151;
+	--gray85: rgba(105, 105, 105, 0.85);
+	--gray75: rgba(105, 105, 105, 0.75);
+	--gray60: rgba(105, 105, 105, 0.6);
+	--gray56: rgba(105, 105, 105, 0.56);
+	--gray30: rgba(105, 105, 105, 0.3);
+
+	--radius: 1.2rem;
+	--radius-base: 1.5rem;
+	--radius-normal: 2rem;
+	--radius-medium: 3rem;
+}
+
+.dark80 {
+	color: var(--dark80);
+}
+.gray {
+	color: var(--gray);
+}
+.gray500 {
+	color: var(--gray500);
+}
+.gray85 {
+	color: var(--gray85);
+}
+.gray75 {
+	color: var(--gray75);
+}
+.gray60 {
+	color: var(--gray60);
+}
+.gray56 {
+	color: var(--gray56);
+}
+.gray30 {
+	color: var(--gray30);
+}
+.silver {
+	color: var(--silver);
+}
+.beige {
+	color: var(--beige);
+}
+.lavender {
+	color: var(--lavender);
+}
+.slategray {
+	color: var(--slategray);
+}
+.c71663e {
+	color: #71663e;
+}
+.c254b78 {
+	color: #254b78;
+}
+.c662529 {
+	color: #662529;
+}
+.c579f75 {
+	color: #579f75;
+}
+.c5e82bc {
+	color: #5e82bc;
+}
+.c4d7c92 {
+	color: #4d7c92;
+}
+.c46725d {
+	color: #46725d;
+}
+.accent-gradient {
+	background: var(--accent-gradient);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	text-fill-color: transparent;
+}
+
+/* Inter font faces */
+@font-face {
+	font-family: "Inter";
+	src: url(../fonts/inter/Inter-Light.woff2) format("woff2");
+	font-weight: 300;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Inter";
+	src: url(../fonts/inter/Inter-Regular.woff2) format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Inter";
+	src: url(../fonts/inter/Inter-Medium.woff2) format("woff2");
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Inter";
+	src: url(../fonts/inter/Inter-SemiBold.woff2) format("woff2");
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Inter";
+	src: url(../fonts/inter/Inter-Bold.woff2) format("woff2");
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+/* Mockup page root font-size — activated via JS class on <html> */
+html.mockup-page {
+	font-size: 10px !important;
+}
+
+/* Scoped body styles for mockup pages */
+.main-layout {
+	color: var(--black);
+	font: 400 1.3rem/130% "Inter", sans-serif;
+	font-optical-sizing: auto;
+	background-color: var(--bgPage);
+}
+
+.main-layout a {
+	-webkit-tap-highlight-color: transparent;
+	color: var(--accent);
+}
+.main-layout a:hover {
+	text-decoration: none;
+	color: var(--accentLight);
+}
+
+.table-container {
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.overflow-y-hidden {
+	overflow-y: hidden;
+}
+
+/* heading */
+[class*="heading-"] {
+	font-weight: 600;
+	line-height: 1;
+}
+.heading-1 {
+	font-size: 4rem;
+}
+.heading-2 {
+	font-size: 3.5rem;
+}
+.heading-3 {
+	font-size: 3rem;
+}
+.heading-4 {
+	font-size: 2.5rem;
+}
+.heading-5 {
+	font-size: 2rem;
+}
+.heading-6 {
+	font-size: 1.7rem;
+}
+
+/* utils */
+.w-100 {
+	width: 100%;
+}
+.h-100 {
+	height: 100%;
+}
+
+/* Forms — scoped to mockup pages */
+.main-layout ::placeholder {
+	transition: 0.5s;
+	color: rgba(0, 0, 0, 0.3);
+}
+.main-layout :focus::placeholder {
+	color: rgba(0, 0, 0, 0.1);
+}
+
+.main-layout input,
+.main-layout label,
+.main-layout button {
+	-webkit-tap-highlight-color: transparent;
+}
+.main-layout input[type="text"],
+.main-layout input[type="password"],
+.main-layout input[type="email"],
+.main-layout input[type="search"],
+.main-layout input[type="tel"],
+.main-layout input[type="url"],
+.main-layout textarea {
+	height: 4.6rem;
+	padding: 0 1.7rem;
+	font: 400 1.3rem/130% "Inter", sans-serif;
+	color: var(--dark);
+	background-color: #fff;
+	transition: 0.5s;
+	border-radius: var(--radius);
+	border: 0;
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.main-layout input:focus,
+.main-layout textarea:focus {
+	box-shadow:
+		inset 0 0 0 1px rgba(37, 99, 235, 0.24),
+		0 0 10px rgba(37, 99, 235, 0.15);
+}
+.main-layout textarea {
+	width: 100%;
+	height: auto;
+	min-height: 100px;
+	padding-top: 1rem;
+	padding-bottom: 1rem;
+	resize: none;
+}
+.main-layout button {
+	font: 400 1.3rem/130% "Inter", sans-serif;
+}
+
+/* border */
+.border-gray10 {
+	border: 1px solid rgba(105, 105, 105, 0.1);
+}
+
+/* weight */
+.weight-300 {
+	font-weight: 300;
+}
+.weight-400 {
+	font-weight: 400;
+}
+.weight-500 {
+	font-weight: 500;
+}
+.weight-600 {
+	font-weight: 600;
+}
+.weight-700 {
+	font-weight: 700;
+}
+
+/* text */
+.uppercase {
+	text-transform: uppercase;
+}
+.text-left {
+	text-align: left;
+}
+.text-right {
+	text-align: right;
+}
+.text-center {
+	text-align: center;
+}
+.text-10 {
+	font-size: 1rem;
+}
+.text-11 {
+	font-size: 1.1rem;
+}
+.text-12 {
+	font-size: 1.2rem;
+}
+.text-13 {
+	font-size: 1.3rem;
+}
+.text-14 {
+	font-size: 1.4rem;
+}
+.text-15 {
+	font-size: 1.5rem;
+}
+.text-16 {
+	font-size: 1.6rem;
+}
+.text-17 {
+	font-size: 1.7rem;
+}
+.text-18 {
+	font-size: 1.8rem;
+}
+.text-20 {
+	font-size: 2rem;
+}
+.text-21 {
+	font-size: 2.1rem;
+}
+.text-35 {
+	font-size: 3.5rem;
+}
+
+.nowrap-text {
+	white-space: nowrap;
+}
+
+/* line height */
+.lh-100 {
+	line-height: 100%;
+}
+.lh-110 {
+	line-height: 110%;
+}
+.lh-120 {
+	line-height: 120%;
+}
+.lh-125 {
+	line-height: 125%;
+}
+.lh-135 {
+	line-height: 135%;
+}
+.lh-150 {
+	line-height: 150%;
+}
+
+/* colors */
+.color-gradient {
+	background: var(--accent-gradient);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	text-fill-color: transparent;
+}
+
+/* backgrounds */
+.bg-white {
+	background-color: var(--bgLayout);
+}
+.bg-azurelight {
+	background-color: var(--azureLight);
+}
+.bg-orangelight {
+	background-color: #fff2e4;
+}
+.bg-oceanlight {
+	background-color: #f0f7ff;
+}
+.bg-roselight {
+	background-color: #fff0f1;
+}
+
+/* image */
+.img-cover {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* radius */
+.radius {
+	border-radius: var(--radius);
+}
+.radius-base {
+	border-radius: var(--radius-base);
+}
+.radius-medium {
+	border-radius: var(--radius-medium);
+}
+.radius-normal {
+	border-radius: var(--radius-normal);
+}
+
+/* border */
+.bb-light {
+	border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.maxw-300 {
+	max-width: 300px;
+}
+.maxw-340 {
+	max-width: 340px;
+}
+.maxw-400 {
+	max-width: 400px;
+}
+.maxw-450 {
+	max-width: 450px;
+}
+.maxw-500 {
+	max-width: 500px;
+}

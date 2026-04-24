@@ -152,17 +152,20 @@ const routes = [
   {
     path: '/team',
     name: 'Team',
-    component: () => import('../views/Team/Team.vue')
+    component: () => import('../views/Mockup/Team.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/history',
     name: 'History',
-    component: () => import('../views/History/History.vue')
+    component: () => import('../views/Mockup/History.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/tariffs',
     name: 'Tariffs',
-    component: () => import('../views/Tariffs/TariffsPage.vue')
+    component: () => import('../views/Mockup/Tariffs.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/settings',
@@ -197,7 +200,8 @@ const routes = [
   {
     path: '/integrations',
     name: 'Integrations',
-    component: () => import('../views/Integrations/IntegrationsPage.vue')
+    component: () => import('../views/Mockup/Integrations.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/integrations/wizard',
@@ -214,7 +218,61 @@ const routes = [
     path: '/preview-banner',
     name: 'PreviewBanner',
     component: () => import('../views/Dashboard/components/CreateProjectBanner.vue'),
-    meta: { layout: 'auth' } // Using auth layout for a clean centered look
+    meta: { layout: 'auth' }
+  },
+  {
+    path: '/main',
+    name: 'MockupMain',
+    component: () => import('../views/Mockup/Main.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/create',
+    name: 'MockupCreate',
+    component: () => import('../views/Mockup/Create.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/project-rows',
+    name: 'MockupProjectRows',
+    component: () => import('../views/Mockup/ProjectRows.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/project-card',
+    name: 'MockupProjectCard',
+    component: () => import('../views/Mockup/ProjectCard.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/ads-channel',
+    name: 'MockupAdsChannel',
+    component: () => import('../views/Mockup/AdsChannel.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/integration-1',
+    name: 'MockupIntegration1',
+    component: () => import('../views/Mockup/Integration-1.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/integration-2',
+    name: 'MockupIntegration2',
+    component: () => import('../views/Mockup/Integration-2.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/integration-3',
+    name: 'MockupIntegration3',
+    component: () => import('../views/Mockup/Integration-3.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
+    path: '/integration-4',
+    name: 'MockupIntegration4',
+    component: () => import('../views/Mockup/Integration-4.vue'),
+    meta: { layout: 'mockup' }
   }
 ]
 

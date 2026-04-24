@@ -149,10 +149,10 @@
       </nav>
     </div>
 
-    <!-- Средняя навигация: Синхронизация, История, Настройки -->
-    <div class="shrink-0">
-      <nav class="px-3 space-y-1.5 pt-4 pb-2">
-        <div v-for="link in middleLinks" :key="link.name" class="relative group">
+    <!-- Нижняя навигация -->
+    <div class="mt-auto shrink-0 pb-4">
+      <nav class="px-3 space-y-1.5 py-2">
+        <div v-for="link in bottomLinks" :key="link.name" class="relative group">
           <button
             @click="link.action ? link.action() : handleLinkClick(link.path)"
             :class="[
@@ -180,76 +180,6 @@
       </nav>
     </div>
 
-    <!-- Распорка -->
-    <div class="flex-1"></div>
-
-    <!-- Нижняя навигация: Помощь, Тех. поддержка -->
-    <div class="shrink-0">
-      <nav class="px-3 space-y-1.5 py-2">
-        <div v-for="link in bottomLinks" :key="link.name" class="relative group">
-          <button
-            @click="link.action ? link.action() : handleLinkClick(link.path)"
-            :class="[
-              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
-              isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
-            ]"
-          >
-            <component
-              :is="link.icon"
-              class="w-6 h-6 flex-shrink-0"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-            />
-            <span
-              v-if="!isCollapsed"
-              class="text-[12px] font-semibold"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-            >{{ link.name }}</span>
-          </button>
-          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-            {{ link.name }}
-            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-          </div>
-        </div>
-      </nav>
-    </div>
-
-    <!-- Промо-карточка -->
-    <div v-if="!isCollapsed" class="px-10 pb-3 pt-1">
-      <div class="rounded-[16px] relative overflow-hidden p-4 bg-[#24252E] dark:bg-[#232637]">
-        <!-- Синий тонирующий слой -->
-        <div class="absolute inset-0" style="background: rgba(37,99,235,0.32);"></div>
-        <!-- Паттерн точек -->
-        <div
-          class="absolute inset-0"
-          style="background-image: radial-gradient(circle, rgba(255,255,255,0.13) 1px, transparent 1px); background-size: 16px 16px;"
-        ></div>
-
-        <!-- Контент поверх слоёв -->
-        <div class="relative z-10">
-          <!-- Иконка -->
-          <div
-            class="w-8 h-8 rounded-[8px] flex items-center justify-center mb-2.5"
-            style="background: linear-gradient(135deg, rgba(77,178,255,0.30), rgba(116,195,255,0.30));"
-          >
-            <CpuChipIcon class="w-4 h-4 text-white" />
-          </div>
-
-          <h4 class="text-[13px] font-bold text-white leading-snug mb-1">Повысить до премиум</h4>
-          <p class="text-[11px] text-white/60 leading-relaxed mb-3">Повысьте ваш аккаунт и разблокируйте все функции</p>
-
-          <router-link
-            to="/tariffs"
-            @click="closeMobileMenu"
-            class="block w-full py-2 text-center text-[12px] font-semibold text-white rounded-[10px] transition-colors hover:opacity-90"
-            style="background-color: #2563EB;"
-          >
-            Смотреть тарифы
-          </router-link>
-        </div>
-      </div>
-    </div>
-
   </aside>
 
   <ConfirmModal
@@ -267,11 +197,14 @@ import {
   ChevronDownIcon,
   ArrowRightOnRectangleIcon,
   ComputerDesktopIcon,
-  SparklesIcon,
   Squares2X2Icon,
   ArchiveBoxIcon,
   CpuChipIcon,
   LinkIcon,
+  ClockIcon,
+  Cog6ToothIcon,
+  UserGroupIcon,
+  RectangleStackIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -282,9 +215,6 @@ import logoFullDark from '../assets/imgs/logo/AdMirra.png'
 import logoFav from '../assets/imgs/logo/Fav.png'
 import MenuArrow from '../assets/icons/menu-arrow.vue'
 import IconProject from '../assets/icons/menu/project.vue'
-import IconGroup from '../assets/icons/menu/group.vue'
-import IconSetting from '../assets/icons/menu/setting.vue'
-import IconClock from '../assets/icons/menu/clock.vue'
 import { ADMIRRA_PUBLIC_HOST } from '../config/admirraPublic'
 
 const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
@@ -320,7 +250,7 @@ const menuItems = computed(() => {
       ]
     },
     { name: 'Проекты', path: '/projects', icon: IconProject },
-    { name: 'Интеграции', path: '/integrations', icon: LinkIcon },
+    { name: 'Интеграции', path: '/integrations/wizard', icon: RectangleStackIcon },
   ]
 
   if (showQualifierLink.value) {
@@ -328,17 +258,14 @@ const menuItems = computed(() => {
   }
 
   items.push(
-    { name: 'Команда', path: '/team', icon: IconGroup },
-    { name: 'История', path: '/history', icon: IconClock },
-    { name: 'Настройки', path: '/settings', icon: IconSetting },
+    { name: 'Команда', path: '/team', icon: UserGroupIcon },
+    { name: 'История', path: '/history', icon: ClockIcon },
+    { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
+    { name: 'Тарифы', path: '/tariffs', icon: CpuChipIcon },
   )
 
   return items
 })
-
-const middleLinks = computed(() => [
-  { name: 'Тарифы', path: '/tariffs', icon: CpuChipIcon },
-])
 
 const bottomLinks = computed(() => [
   { name: 'Поддержка', path: '/contact', icon: ComputerDesktopIcon },
