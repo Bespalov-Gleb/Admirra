@@ -96,13 +96,11 @@ const routes = [
   },
   {
     path: '/dashboard/general',
-    name: 'GeneralStats',
-    component: () => import('../views/GeneralStats/GeneralStats.vue')
+    redirect: '/main'
   },
   {
     path: '/dashboard/general-2',
-    name: 'GeneralStats2',
-    component: () => import('../views/GeneralStats2/GeneralStats2.vue')
+    redirect: '/main'
   },
   {
     path: '/products',
@@ -111,8 +109,7 @@ const routes = [
   },
   {
     path: '/projects',
-    name: 'Projects',
-    component: () => import('../views/Project/Projects.vue')
+    redirect: '/project-rows'
   },
   {
     path: '/phone-api',
@@ -164,13 +161,14 @@ const routes = [
   {
     path: '/tariffs',
     name: 'Tariffs',
-    component: () => import('../views/Mockup/Tariffs.vue'),
+    component: () => import('../views/Tariffs/TariffsPage.vue'),
     meta: { layout: 'mockup' }
   },
   {
     path: '/settings',
     name: 'Settings',
-    component: () => import('../views/Settings/Settings.vue')
+    component: () => import('../views/Settings/Settings.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/help',
@@ -180,22 +178,26 @@ const routes = [
   {
     path: '/contact',
     name: 'Contact',
-    component: () => import('../views/Contact/Contact.vue')
+    component: () => import('../views/Contact/Contact.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/dashboard/general-3',
     name: 'GeneralStats3',
-    component: () => import('../views/GeneralStats3/GeneralStats3.vue')
+    component: () => import('../views/GeneralStats3/GeneralStats3.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/ai-analysis',
     name: 'AIAnalysis',
-    component: () => import('../views/AIAnalysis/AIAnalysis.vue')
+    component: () => import('../views/AIAnalysis/AIAnalysis.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/profile',
     name: 'Profile',
-    component: () => import('../views/Profile/Profile.vue')
+    component: () => import('../views/Profile/Profile.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/integrations',
@@ -206,13 +208,12 @@ const routes = [
   {
     path: '/integrations/wizard',
     name: 'AddIntegration',
-    component: () => import('../views/Integrations/AddIntegrationPage.vue')
-    // Using MainLayout (with sidebar) to match screen 2
+    component: () => import('../views/Mockup/IntegrationWizard.vue'),
+    meta: { layout: 'mockup' }
   },
   {
     path: '/projects/create',
-    name: 'CreateProject',
-    component: () => import('../views/Project/CreateProjectPage.vue')
+    redirect: '/create'
   },
   {
     path: '/preview-banner',

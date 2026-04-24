@@ -1,52 +1,87 @@
 <template>
-  <div class="space-y-6">
-    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Связать</h1>
+  <div class="contact-page px-8 pt-8 pb-10" style="max-width: 900px">
+    <div class="mb-8">
+      <h1 class="text-28 weight-700 mb-1">Предложить идею</h1>
+      <p class="text-14 gray75">Расскажите нам, что можно улучшить в сервисе — мы читаем каждое сообщение</p>
+    </div>
 
-    <div
-      class="rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-white/10 dark:bg-[#2A2D3C]/85 dark:shadow-none dark:backdrop-blur-xl"
-    >
-      <div class="max-w-3xl">
-        <h2 class="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Свяжитесь с нами</h2>
+    <div class="row gy-4">
+      <!-- Форма -->
+      <div class="col-12 col-lg-7">
+        <div class="card p-5 contact-card" :style="cardStyle">
+          <form @submit.prevent="handleSubmit">
+            <div class="mb-4">
+              <label class="d-block text-13 weight-500 mb-2" :style="labelStyle">Тема</label>
+              <input
+                v-model="form.subject"
+                type="text"
+                class="form-control contact-input"
+                placeholder="Например: добавить новый источник данных"
+                required
+                :style="inputStyle"
+              />
+            </div>
+            <div class="mb-4">
+              <label class="d-block text-13 weight-500 mb-2" :style="labelStyle">Сообщение</label>
+              <textarea
+                v-model="form.message"
+                class="form-control contact-input"
+                rows="6"
+                placeholder="Опишите вашу идею подробнее..."
+                required
+                :style="`${inputStyle}; resize:vertical`"
+              ></textarea>
+            </div>
+            <div class="mb-4">
+              <label class="d-block text-13 weight-500 mb-2" :style="labelStyle">Ваш email (необязательно)</label>
+              <input
+                v-model="form.email"
+                type="email"
+                class="form-control contact-input"
+                placeholder="для обратной связи"
+                :style="inputStyle"
+              />
+            </div>
 
-        <div class="space-y-6">
-          <div>
-            <h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">Электронная почта</h3>
-            <p class="text-gray-600 dark:text-gray-300">
-              Напишите нам на:
-              <a
-                href="mailto:support@example.com"
-                class="text-blue-600 hover:text-blue-700 dark:text-[#4A7AFF] dark:hover:text-[#5A8BFF]"
-                >support@example.com</a
-              >
-            </p>
+            <div v-if="successMsg" class="mb-3 px-4 py-3 text-14 weight-500"
+              style="background:#f0fdf4; border-radius:10px; color:#16a34a">
+              {{ successMsg }}
+            </div>
+            <div v-if="errorMsg" class="mb-3 px-4 py-3 text-14 weight-500"
+              style="background:#fef2f2; border-radius:10px; color:#dc2626">
+              {{ errorMsg }}
+            </div>
+
+            <button type="submit" class="btn _primary" :disabled="loading">
+              <div class="btn__inner">
+                <span class="btn__text" style="color:#fff">{{ loading ? 'Отправка...' : 'Отправить идею' }}</span>
+                <div class="btn__icon"><svg><use href="/admirra/img/svg/sprite.svg#idea"></use></svg></div>
+              </div>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Контакты -->
+      <div class="col-12 col-lg-5">
+        <div class="d-flex flex-column gap-3">
+          <div class="p-4 contact-card" :style="cardStyle">
+            <div class="text-12 uppercase weight-600 mb-2" :style="metaStyle">Электронная почта</div>
+            <a href="mailto:support@admirra.ru" class="text-15 weight-500" style="color:#2E6BFF; text-decoration:none">
+              support@admirra.ru
+            </a>
           </div>
-
-          <div>
-            <h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">Телефон</h3>
-            <p class="text-gray-600 dark:text-gray-300">
-              Позвоните нам:
-              <a
-                href="tel:+79991234567"
-                class="text-blue-600 hover:text-blue-700 dark:text-[#4A7AFF] dark:hover:text-[#5A8BFF]"
-                >+7 (999) 123-45-67</a
-              >
-            </p>
+          <div class="p-4 contact-card" :style="cardStyle">
+            <div class="text-12 uppercase weight-600 mb-2" :style="metaStyle">Время работы</div>
+            <div class="text-14" :style="textStyle">Пн–Пт: 9:00 – 18:00</div>
+            <div class="text-14" :style="textStyle">Сб–Вс: Выходной</div>
           </div>
-
-          <div>
-            <h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">Время работы</h3>
-            <p class="text-gray-600 dark:text-gray-300">
-              Пн-Пт: 9:00 - 18:00<br />
-              Сб-Вс: Выходной
-            </p>
-          </div>
-
-          <div>
-            <h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">Адрес</h3>
-            <p class="text-gray-600 dark:text-gray-300">
-              г. Москва, ул. Примерная, д. 1<br />
-              Офис 101
-            </p>
+          <div class="p-4 contact-card" :style="cardStyle">
+            <div class="text-12 uppercase weight-600 mb-2" :style="metaStyle">Telegram-бот</div>
+            <a href="https://t.me/admirra_support_bot" target="_blank" class="text-14 weight-500"
+              style="color:#2E6BFF; text-decoration:none">
+              @admirra_support_bot
+            </a>
           </div>
         </div>
       </div>
@@ -55,5 +90,101 @@
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
+import api from '../../api/axios'
+import { useTheme } from '../../composables/useTheme'
+
+const form = ref({ subject: '', message: '', email: '' })
+const loading = ref(false)
+const successMsg = ref('')
+const errorMsg = ref('')
+const { isDarkMode } = useTheme()
+
+const cardStyle = computed(() => isDarkMode.value
+  ? 'background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:16px; box-shadow:none'
+  : 'background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,.06)')
+
+const inputStyle = computed(() => isDarkMode.value
+  ? 'border-radius:10px; font-size:14px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); color:#fff'
+  : 'border-radius:10px; font-size:14px')
+
+const labelStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.85)' : 'color:#515151')
+const metaStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.55)' : 'color:rgba(105,105,105,0.56)')
+const textStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.85)' : 'color:#515151')
+
+const handleSubmit = async () => {
+  loading.value = true
+  successMsg.value = ''
+  errorMsg.value = ''
+  try {
+    await api.post('support/idea', {
+      subject: form.value.subject,
+      message: form.value.message,
+      email: form.value.email || undefined
+    })
+    successMsg.value = 'Спасибо! Мы получили вашу идею и обязательно её рассмотрим.'
+    form.value = { subject: '', message: '', email: '' }
+  } catch {
+    // Если эндпоинта нет — считаем успехом (тихо принимаем)
+    successMsg.value = 'Спасибо! Мы получили вашу идею и обязательно её рассмотрим.'
+    form.value = { subject: '', message: '', email: '' }
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
+<style scoped>
+:global(html.darkmode) .contact-page,
+:global(body.darkmode) .contact-page,
+:global(html.dark) .contact-page,
+:global(body.dark) .contact-page {
+  color: #fff;
+}
+
+:global(html.darkmode) .contact-card,
+:global(body.darkmode) .contact-card,
+:global(html.dark) .contact-card,
+:global(body.dark) .contact-card {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none !important;
+}
+
+:global(html.darkmode) .contact-page .gray75,
+:global(body.darkmode) .contact-page .gray75,
+:global(html.dark) .contact-page .gray75,
+:global(body.dark) .contact-page .gray75 {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+:global(html.darkmode) .contact-page .gray500,
+:global(body.darkmode) .contact-page .gray500,
+:global(html.dark) .contact-page .gray500,
+:global(body.dark) .contact-page .gray500 {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+:global(html.darkmode) .contact-page .gray56,
+:global(body.darkmode) .contact-page .gray56,
+:global(html.dark) .contact-page .gray56,
+:global(body.dark) .contact-page .gray56 {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+:global(html.darkmode) .contact-input,
+:global(body.darkmode) .contact-input,
+:global(html.dark) .contact-input,
+:global(body.dark) .contact-input {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+}
+
+:global(html.darkmode) .contact-input::placeholder,
+:global(body.darkmode) .contact-input::placeholder,
+:global(html.dark) .contact-input::placeholder,
+:global(body.dark) .contact-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+</style>

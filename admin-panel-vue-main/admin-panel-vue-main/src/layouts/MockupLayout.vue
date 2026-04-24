@@ -1,15 +1,10 @@
 <template>
   <div class="main-layout">
-    <MockupSidebar :is-collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
+    <MockupSidebar :is-collapsed="sidebarCollapsed" />
 
     <div class="content-wrapper">
       <MockupHeader
-        :project-menu-open="projectMenuOpen"
         @toggle-sidebar-size="sidebarCollapsed = !sidebarCollapsed"
-        @toggle-project-menu="projectMenuOpen = !projectMenuOpen"
-        @select-project="projectMenuOpen = false"
-        @create-project="$router.push('/create')"
-        @renew-tariff="$router.push('/tariffs')"
         @toggle-mobile-menu="sidebarPanelOpen = !sidebarPanelOpen"
       />
 
@@ -27,17 +22,34 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import MockupHeader from '../components/mockup/MockupHeader.vue'
 import MockupSidebar from '../components/mockup/MockupSidebar.vue'
 import MockupSidebarPanel from '../components/mockup/MockupSidebarPanel.vue'
+import { useTheme } from '../composables/useTheme'
 
 const sidebarCollapsed = ref(false)
 const sidebarPanelOpen = ref(false)
-const projectMenuOpen = ref(false)
+const { isDarkMode } = useTheme()
 
 onMounted(() => {
   document.documentElement.classList.add('mockup-page')
+  // Переприменяем тему после добавления mockup-page, чтобы darkmode-класс не слетал
+  if (isDarkMode.value) {
+    document.documentElement.classList.add('darkmode')
+    document.documentElement.classList.add('dark')
+  }
+})
+
+// При переключении темы внутри mockup-страниц — сразу применяем/снимаем класс
+watch(isDarkMode, (dark) => {
+  if (dark) {
+    document.documentElement.classList.add('darkmode')
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('darkmode')
+    document.documentElement.classList.remove('dark')
+  }
 })
 
 onUnmounted(() => {
@@ -63,7 +75,8 @@ onUnmounted(() => {
 
 .main-content {
   flex: 1;
-  padding: 0;
+  /* Небольшой общий зазор от сайдбара и правого края */
+  padding: 0 12px;
 }
 
 .main__lightBg {

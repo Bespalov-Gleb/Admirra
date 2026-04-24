@@ -11,9 +11,14 @@
       <div class="row gy-3 mb-5">
         <div class="col-12 col-lg">
           <div class="row gy-3">
-            <div v-for="(filter, idx) in filters" :key="idx" class="col-12 col-sm-auto">
-              <select class="wide" @change="$emit('filter-change', { filter, value: $event.target.value })">
-                <option v-for="opt in filter.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            <div class="col-12 col-sm-auto">
+              <select class="wide">
+                <option value="1">Все каналы</option>
+              </select>
+            </div>
+            <div class="col-12 col-sm-auto">
+              <select class="wide">
+                <option value="1">Кампании</option>
               </select>
             </div>
             <div class="col-12 col-sm-auto">
@@ -30,21 +35,11 @@
           </div>
         </div>
         <div class="col-12 col-sm-auto">
-          <button class="btn _primary w-100" @click="$emit('download-pdf')">
+          <button class="btn _primary w-100" @click="router.push('/dashboard/general-3')">
             <div class="btn__inner">
-              <span class="btn__text">Скачать отчет в&nbsp;PDF</span>
+              <span class="btn__text">Детальная аналитика</span>
               <div class="btn__icon">
-                <svg class="_download"><use :href="downloadIcon"></use></svg>
-              </div>
-            </div>
-          </button>
-        </div>
-        <div class="col-12 col-sm-auto">
-          <button class="btn _primary w-100" @click="$emit('download-telegram')">
-            <div class="btn__inner">
-              <span class="btn__text">Скачать отчет в&nbsp;Telegram</span>
-              <div class="btn__icon">
-                <svg class="_download"><use :href="downloadIcon"></use></svg>
+                <svg class="_stroke"><use :href="arrowIcon"></use></svg>
               </div>
             </div>
           </button>
@@ -65,7 +60,7 @@
                 </div>
               </div>
               <div class="ms-auto ps-3">
-                <button class="circle-btn" @click="$emit('card-action', card)">
+                <button class="circle-btn" @click="router.push('/dashboard/general-3')">
                   <svg><use :href="upIcon"></use></svg>
                 </button>
               </div>
@@ -84,8 +79,6 @@
         </div>
       </div>
 
-      <!-- Остальные блоки (таблица, посты, комментарий) также переведены на пропсы -->
-      <!-- Для краткости здесь опущены полные реализации всех секций, но принцип тот же -->
       <div class="white-block radius-normal mb-4">
         <div class="pt-2">
           <h4 class="mb-3 text-20 weight-500 gray500">{{ tableTitle }}</h4>
@@ -120,58 +113,81 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useProjects } from '../../composables/useProjects'
 
-defineProps({
-  title: { type: String, default: 'Отчет по проекту: Дейтелинг Иркутск' },
-  subtitle: { type: String, default: 'Общая аналитика по всем активным проектам' },
-  filters: {
-    type: Array,
-    default: () => [
-      { id: 'channels', options: [{ value: '1', label: 'Все каналы' }] },
-      { id: 'campaigns', options: [{ value: '1', label: 'Компании' }] },
-      { id: 'period', options: [{ value: '1', label: 'Свой период' }] }
-    ]
-  },
-  statsCards: {
-    type: Array,
-    default: () => [
-      { title: 'Расходы', subtitle: 'За период', value: '90,190.55 ₽', change: '+15.6%', trendValue: '+1.4k', trendLabel: 'за эту неделю', icon: '/admirra/img/svg/sprite.svg#wallet', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
-      { title: 'Показы', subtitle: 'По всем каналам', value: '120,302', change: '+15.6%', trendValue: '+1.4k', trendLabel: 'за эту неделю', icon: '/admirra/img/svg/sprite.svg#diagrama', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' }
-    ]
-  },
-  tableTitle: { type: String, default: 'Статистика по ключевым целям' },
-  tableSubtitle: { type: String, default: 'За период' },
-  tableHeaders: { type: Array, default: () => ['Название кампании', 'Расход', 'Показы', 'Клики', 'CPC', 'Лиды', 'CPA'] },
-  tableData: {
-    type: Array,
-    default: () => [
-      { name: 'Дейтелинг Про Иркутск', variant: 'linen', cells: [{ value: '90,190.55 ₽', change: '+15.6%', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' }] }
-    ]
-  },
-  calendarIcon: { type: String, default: '/admirra/img/svg/sprite.svg#datepiker' },
-  arrowIcon: { type: String, default: '/admirra/img/svg/sprite.svg#arrow' },
-  downloadIcon: { type: String, default: '/admirra/img/svg/sprite.svg#download' },
-  upIcon: { type: String, default: '/admirra/img/svg/sprite.svg#up' }
-})
+const router = useRouter()
+const { projects, currentProject, currentProjectName, fetchProjects, isLoading } = useProjects()
 
-defineEmits(['filter-change', 'download-pdf', 'download-telegram', 'card-action'])
+const calendarIcon = '/admirra/img/svg/sprite.svg#datepiker'
+const arrowIcon = '/admirra/img/svg/sprite.svg#arrow'
+const upIcon = '/admirra/img/svg/sprite.svg#up'
 
-onMounted(() => {
+const title = computed(() =>
+  currentProject.value
+    ? `Обзор проекта: ${currentProject.value.name}`
+    : 'Общий обзор'
+)
+const subtitle = 'Аналитика по активным проектам'
+const statsCards = computed(() => [
+  {
+    title: 'Проектов',
+    subtitle: 'Всего в аккаунте',
+    value: String(projects.value.length),
+    change: '',
+    trendValue: '',
+    trendLabel: '',
+    icon: '/admirra/img/svg/sprite.svg#diagrama',
+    iconClass: '_blue',
+    badgeClass: '_info',
+    badgeIcon: ''
+  },
+  {
+    title: 'Интеграций',
+    subtitle: 'Всего подключено',
+    value: String(projects.value.reduce((acc, p) => acc + (p.integrations?.length || 0), 0)),
+    change: '',
+    trendValue: '',
+    trendLabel: '',
+    icon: '/admirra/img/svg/sprite.svg#wallet',
+    iconClass: '_green',
+    badgeClass: '_success',
+    badgeIcon: ''
+  }
+])
+
+const tableTitle = 'Проекты'
+const tableSubtitle = 'Список всех ваших проектов'
+const tableHeaders = ['Название', 'Кол-во интеграций']
+const tableData = computed(() =>
+  projects.value.map(p => ({
+    name: p.name,
+    variant: '',
+    cells: [{ value: String(p.integrations?.length || 0), change: '', badgeClass: '', badgeIcon: '' }]
+  }))
+)
+
+onMounted(async () => {
+  await fetchProjects()
+  if (projects.value.length === 0 && !isLoading.value) {
+    router.push('/create')
+    return
+  }
   setTimeout(() => {
     if (window.jQuery) {
       window.jQuery('select').niceSelect('destroy')
       window.jQuery('select').niceSelect()
     }
     if (window.AirDatepicker) {
-      new window.AirDatepicker("#datepikerProjectReport", {
+      new window.AirDatepicker('#datepikerProjectReport', {
         multipleDates: 2,
-        selectedDates: ["2026-04-01", "2026-04-30"],
+        selectedDates: ['2026-04-01', '2026-04-30'],
         range: true,
-        multipleDatesSeparator: " - ",
+        multipleDatesSeparator: ' - '
       })
     }
-  }, 100)
+  }, 150)
 })
 </script>
 

@@ -2,146 +2,96 @@
   <div class="admirra-page-wrapper">
     <section class="main-section">
       <div class="py-4 mb-3">
-        <h3 class="heading-3">{{ title }}</h3>
+        <h3 class="heading-3">Проекты</h3>
       </div>
+
       <div class="row gy-3 mb-5">
         <div class="col-12 col-md">
           <div class="row gy-3">
-            <div v-for="(filter, idx) in filters" :key="idx" class="col-auto">
-              <select class="wide" @change="$emit('filter-change', { filter, value: $event.target.value })">
-                <option v-for="opt in filter.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-            </div>
             <div class="col-12 col-sm-auto">
               <div class="input-item">
-                <input class="input _search-project" type="text" :placeholder="searchPlaceholder" @input="$emit('search', $event.target.value)" />
+                <input
+                  class="input _search-project"
+                  :class="{ 'is-dark-input': isDarkMode }"
+                  :style="searchInputStyle"
+                  type="text"
+                  placeholder="Поиск по проектам"
+                  v-model="search"
+                />
                 <div class="input-icon">
-                  <svg class="_stroke"><use :href="searchIcon"></use></svg>
+                  <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <div class="col-12 col-md-auto">
-          <div class="row g-3">
-            <div class="col-auto">
-              <button class="btn _primary" @click="$emit('bulk-edit')">
-                <div class="btn__inner">
-                  <span class="btn__text">{{ bulkEditLabel }}</span>
-                  <div class="btn__icon">
-                    <svg class="_stroke"><use :href="editIcon"></use></svg>
-                  </div>
-                </div>
-              </button>
+          <button class="btn _primary" @click="$router.push('/create')">
+            <div class="btn__inner">
+              <span class="btn__text">Новый проект</span>
+              <div class="btn__icon-plus">+</div>
             </div>
-            <div class="col-auto ms-auto">
-              <div class="row">
-                <div class="col-auto">
-                  <button :class="['btn-ico', { _active: viewType === 'grid' }]" @click="$emit('change-view', 'grid')">
-                    <svg class="_stroke"><use :href="gridIcon"></use></svg>
-                  </button>
-                </div>
-                <div class="col-auto">
-                  <button :class="['btn-ico', { _active: viewType === 'rows' }]" @click="$emit('change-view', 'rows')">
-                    <svg class="_stroke"><use :href="rowsIcon"></use></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          </button>
         </div>
       </div>
-      <div class="bg-white radius-base py-5 mb-5">
+
+      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка...</div>
+
+      <div v-else-if="filteredProjects.length === 0" class="py-5 text-center gray56">
+        {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
+      </div>
+
+      <div v-else class="projects-table-wrap bg-white radius-base py-5 mb-5">
         <div class="table-container">
           <table>
             <thead>
               <tr class="gray56">
-                <th class="bb-light px-3 pb-3">
-                  <div class="ps-4">
-                    <label class="choise-checkbox">
-                      <input class="choise-checkbox__input" type="checkbox" @change="$emit('select-all', $event.target.checked)" />
-                      <span class="choise-checkbox__box">
-                        <svg><use :href="checkIcon"></use></svg>
-                      </span>
-                    </label>
-                  </div>
-                </th>
-                <th v-for="head in tableHeaders" :key="head" class="bb-light px-3 pb-3">{{ head }}</th>
+                <th class="bb-light px-3 pb-3">Проект</th>
+                <th class="bb-light px-3 pb-3">Платформа</th>
+                <th class="bb-light px-3 pb-3">Кол-во интеграций</th>
                 <th class="bb-light px-3 pb-3">Действия</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="project in projects" :key="project.id">
-                <td class="bb-light px-3 py-5">
-                  <div class="ps-4">
-                    <label class="choise-checkbox">
-                      <input class="choise-checkbox__input" type="checkbox" :checked="project.selected" @change="$emit('select-project', { project, selected: $event.target.checked })" />
-                      <span class="choise-checkbox__box">
-                        <svg><use :href="checkIcon"></use></svg>
-                      </span>
-                    </label>
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="d-flex">
-                    <div class="avatar-30x30 align-self-center">
-                      <img class="img-cover" :src="project.avatar" alt="#" />
+              <tr v-for="project in filteredProjects" :key="project.id">
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex align-items-center">
+                    <div class="project-avatar avatar-30x30 me-3 align-self-center">
+                      <span class="project-avatar-text">{{ projectInitials(project.name) }}</span>
                     </div>
-                    <div class="ps-4 align-self-center">
-                      <h4 class="mb-1 gray">{{ project.title }}</h4>
-                      <p class="text-11 gray56">ID:&nbsp;{{ project.id }}</p>
+                    <div>
+                      <div class="weight-500 gray mb-1">{{ project.name }}</div>
+                      <div class="text-11 gray56">ID: {{ project.id }}</div>
                     </div>
                   </div>
                 </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="d-flex">
-                    <img v-for="channel in project.channels" :key="channel.id" class="me-2" width="22" :src="channel.icon" alt="#" />
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex align-items-center gap-2">
+                    <img v-if="hasPlatform(project, 'YANDEX')" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" title="Yandex Direct" />
+                    <img v-if="hasPlatform(project, 'VK')" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" title="VK Ads" />
+                    <span v-if="!project.integrations || project.integrations.length === 0" class="gray56 text-13">—</span>
                   </div>
                 </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="text-15 mb-2">{{ project.impressions }}</div>
-                  <div v-if="project.trend > 0" class="badge _sm _success">
-                    <span class="weight-600">+{{ project.trend }}%</span>
-                  </div>
+                <td class="bb-light px-3 py-4">
+                  <div class="text-15">{{ project.integrations?.length || 0 }}</div>
                 </td>
-                <!-- Другие колонки аналогично -->
-                <td class="bb-light px-3 py-5">
-                   <div class="text-15 mb-2">{{ project.clicks }}</div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                   <div class="text-15 mb-2"><b>{{ project.expenses }}&nbsp;₽</b></div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                   <div class="text-15 mb-2">{{ project.leads }}</div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                   <div class="text-15 mb-2">{{ project.cpc }}</div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                   <div class="text-15 mb-2">{{ project.cpa }}</div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="h-100 bg-orangelight radius p-3">
-                    <div class="h-100 d-flex align-items-center justify-content-center">
-                      <div class="px-3 c71663e">Баланс</div>
-                      <div class="badge-white c71663e">{{ project.budgetRemaining }}₽</div>
-                    </div>
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                  <div :class="['badge', project.statusClass]">
-                    <span class="weight-600">{{ project.status }}</span>
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="text-15">{{ project.createdAt }}</div>
-                </td>
-                <td class="bb-light px-3 py-5">
-                  <div class="dropdown">
-                    <button class="dropdown-head _no-style" @click="$emit('open-actions', project)">
-                      <div class="action-btn-ui">
-                        <svg><use :href="dottsIcon"></use></svg>
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex gap-2">
+                    <button
+                      class="btn _sm _white"
+                      @click="openProject(project)"
+                      title="Открыть аналитику"
+                    >
+                      <div class="btn__inner px-3">
+                        <span class="btn__text text-13">Открыть</span>
                       </div>
+                    </button>
+                    <button
+                      class="btn-action _danger"
+                      @click="confirmDelete(project)"
+                      title="Удалить"
+                    >
+                      <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
                     </button>
                   </div>
                 </td>
@@ -149,32 +99,20 @@
             </tbody>
           </table>
         </div>
-        <div class="row pt-5 px-5 align-items-end">
-          <div class="col col-sm-4">
-            <div class="row gy-2 align-items-center">
-              <div class="col-12">
-                <div class="gray weight-500">{{ itemsPerPageLabel }}</div>
-              </div>
-              <div class="col-auto">
-                <select class="select-outline wide _sm _dropdown-bottom" @change="$emit('change-page-size', $event.target.value)">
-                  <option v-for="size in pageSizes" :key="size" :value="size">{{ size }}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-sm-4 order-1 order-sm-0">
-            <div class="py-4 gray weight-500 text-center">{{ paginationInfo }}</div>
-          </div>
-          <div class="col-auto col-sm-4 d-flex">
-            <div class="ms-auto">
-              <button class="btn-nav" @click="$emit('prev-page')">
-                <svg><use :href="prevIcon"></use></svg>
-              </button>
-              <span>&nbsp;</span>
-              <button class="btn-nav" @click="$emit('next-page')">
-                <svg><use :href="nextIcon"></use></svg>
-              </button>
-            </div>
+      </div>
+
+      <!-- Диалог подтверждения удаления -->
+      <div v-if="deleteTarget" class="modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center">
+        <div class="delete-modal bg-white radius-base p-5" style="max-width:400px;width:90%">
+          <h4 class="heading-4 mb-3">Удалить проект?</h4>
+          <p class="text-14 gray56 mb-4">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
+          <div class="d-flex gap-3">
+            <button class="btn _primary" :disabled="deleting" @click="doDelete">
+              <div class="btn__inner"><span class="btn__text">{{ deleting ? 'Удаление...' : 'Удалить' }}</span></div>
+            </button>
+            <button class="btn _white" @click="deleteTarget = null">
+              <div class="btn__inner"><span class="btn__text gray">Отмена</span></div>
+            </button>
           </div>
         </div>
       </div>
@@ -183,59 +121,154 @@
 </template>
 
 <script setup>
-import { onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '../../api/axios'
+import { useProjects } from '../../composables/useProjects'
+import { useTheme } from '../../composables/useTheme'
 
-defineProps({
-  title: { type: String, default: 'Проекты' },
-  searchPlaceholder: { type: String, default: 'Поиск по проектам, номерам или доменам' },
-  bulkEditLabel: { type: String, default: 'Массовое редактирование' },
-  itemsPerPageLabel: { type: String, default: 'Элементов на странице:' },
-  paginationInfo: { type: String, default: '1-3 из 3' },
-  viewType: { type: String, default: 'rows' },
-  filters: {
-    type: Array,
-    default: () => [
-      { id: 'type', options: [{ value: 'all', label: 'Все' }] },
-      { id: 'period', options: [{ value: '2w', label: '2 недели' }] }
-    ]
-  },
-  tableHeaders: {
-    type: Array,
-    default: () => ['Проект', 'Интеграции', 'Показы', 'Клики', 'Расходы', 'Лиды', 'CPC', 'CPA', 'Актуальный баланс в ЛК:', 'Статус', 'Дата создания']
-  },
-  projects: {
-    type: Array,
-    default: () => []
-  },
-  pageSizes: { type: Array, default: () => [10, 20, 30] },
-  searchIcon: { type: String, default: '/admirra/img/svg/sprite.svg#search' },
-  editIcon: { type: String, default: '/admirra/img/svg/sprite.svg#edit' },
-  gridIcon: { type: String, default: '/admirra/img/svg/sprite.svg#grid' },
-  rowsIcon: { type: String, default: '/admirra/img/svg/sprite.svg#rows' },
-  checkIcon: { type: String, default: '/admirra/img/svg/sprite.svg#check' },
-  dottsIcon: { type: String, default: '/admirra/img/svg/sprite.svg#dotts' },
-  prevIcon: { type: String, default: '/admirra/img/svg/sprite.svg#prev' },
-  nextIcon: { type: String, default: '/admirra/img/svg/sprite.svg#next' }
+const router = useRouter()
+const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
+const { isDarkMode } = useTheme()
+
+const search = ref('')
+const deleteTarget = ref(null)
+const deleting = ref(false)
+
+const searchInputStyle = computed(() => isDarkMode.value
+  ? 'background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); color:#fff'
+  : '')
+
+onMounted(fetchProjects)
+
+const filteredProjects = computed(() => {
+  if (!search.value.trim()) return projects.value
+  const q = search.value.toLowerCase()
+  return projects.value.filter(p => p.name?.toLowerCase().includes(q))
 })
 
-defineEmits(['filter-change', 'search', 'bulk-edit', 'change-view', 'select-all', 'select-project', 'open-actions', 'change-page-size', 'prev-page', 'next-page'])
+const projectInitials = (name) => {
+  if (!name) return '?'
+  return name.trim().slice(0, 2).toUpperCase()
+}
 
-onMounted(() => {
-  nextTick(() => {
-    if (window.jQuery) {
-      window.jQuery('select').niceSelect()
-    }
-  })
-})
+const hasPlatform = (project, platform) => {
+  return project.integrations?.some(i => i.platform?.toUpperCase() === platform)
+}
+
+const openProject = (project) => {
+  setCurrentProject(project.id)
+  router.push('/dashboard/general-3')
+}
+
+const confirmDelete = (project) => {
+  deleteTarget.value = project
+}
+
+const doDelete = async () => {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  try {
+    await api.delete(`clients/${deleteTarget.value.id}`)
+    deleteTarget.value = null
+    await fetchProjects()
+  } catch (err) {
+    console.error('Delete project error:', err)
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <style scoped>
-.admirra-page-wrapper {
-  /* Scoped styles */
+.admirra-page-wrapper { }
+.btn-nav { background: none; border: none; cursor: pointer; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+
+.project-avatar {
+  background: #e8eef9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.btn-nav {
-  background: none;
-  border: none;
-  cursor: pointer;
+
+.project-avatar-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b6fa0;
+}
+
+:global(html.darkmode) .projects-table-wrap,
+:global(body.darkmode) .projects-table-wrap,
+:global(html.dark) .projects-table-wrap,
+:global(body.dark) .projects-table-wrap {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:global(html.darkmode) .projects-table-wrap .bb-light,
+:global(body.darkmode) .projects-table-wrap .bb-light,
+:global(html.dark) .projects-table-wrap .bb-light,
+:global(body.dark) .projects-table-wrap .bb-light {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:global(html.darkmode) .projects-table-wrap .gray,
+:global(body.darkmode) .projects-table-wrap .gray,
+:global(html.dark) .projects-table-wrap .gray,
+:global(body.dark) .projects-table-wrap .gray {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+:global(html.darkmode) .projects-table-wrap .text-15,
+:global(body.darkmode) .projects-table-wrap .text-15,
+:global(html.dark) .projects-table-wrap .text-15,
+:global(body.dark) .projects-table-wrap .text-15 {
+  color: #fff !important;
+}
+
+:global(html.darkmode) .project-avatar,
+:global(body.darkmode) .project-avatar,
+:global(html.dark) .project-avatar,
+:global(body.dark) .project-avatar {
+  background: rgba(46, 107, 255, 0.18) !important;
+}
+
+:global(html.darkmode) .project-avatar-text,
+:global(body.darkmode) .project-avatar-text,
+:global(html.dark) .project-avatar-text,
+:global(body.dark) .project-avatar-text {
+  color: #9cc0ff !important;
+}
+
+:global(html.darkmode) .input._search-project,
+:global(body.darkmode) .input._search-project,
+:global(html.dark) .input._search-project,
+:global(body.dark) .input._search-project {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #fff !important;
+}
+
+:global(html.darkmode) .input._search-project::placeholder,
+:global(body.darkmode) .input._search-project::placeholder,
+:global(html.dark) .input._search-project::placeholder,
+:global(body.dark) .input._search-project::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.is-dark-input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+:global(html.darkmode) .delete-modal,
+:global(body.darkmode) .delete-modal,
+:global(html.dark) .delete-modal,
+:global(body.dark) .delete-modal {
+  background: rgba(35, 37, 48, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>

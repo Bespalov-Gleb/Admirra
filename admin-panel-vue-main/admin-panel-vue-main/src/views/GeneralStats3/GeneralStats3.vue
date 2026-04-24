@@ -383,18 +383,18 @@
     <!-- Telegram: привязка через t.me (без ввода chat id) -->
     <Teleport to="body">
       <div v-if="showTgLinkModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgLinkModal = false">
-        <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl border border-gray-100 dark:border-white/10">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Подключите Telegram</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <div class="gs3-modal bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl border border-gray-100 dark:border-white/10">
+          <h3 class="gs3-modal-title font-semibold text-gray-900 dark:text-white mb-2">Подключите Telegram</h3>
+          <p class="gs3-modal-text text-gray-600 dark:text-gray-400 mb-4">
             Откройте бота в Telegram и нажмите <strong>Start</strong> (или «Запустить»). Затем нажмите «Готово» здесь — после этого отчёт отправится автоматически.
           </p>
           <div class="flex flex-col sm:flex-row justify-end gap-2">
-            <button type="button" class="px-4 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-sm" @click="closeTgLinkModal">
+            <button type="button" class="gs3-modal-btn px-4 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl" @click="closeTgLinkModal">
               Отмена
             </button>
             <button
               type="button"
-              class="px-4 py-2.5 bg-[#2563EB] text-white rounded-xl hover:bg-[#1d4ed8] text-sm disabled:opacity-50"
+              class="gs3-modal-btn px-4 py-2.5 bg-[#2563EB] text-white rounded-xl hover:bg-[#1d4ed8] disabled:opacity-50"
               :disabled="tgLinkChecking"
               @click="confirmTgLinkedAndContinue"
             >
@@ -408,19 +408,19 @@
     <!-- Модальное окно Email -->
     <Teleport to="body">
       <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
-        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
-          <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить на Email</h3>
-          <p class="text-sm text-gray-500 mb-4">Введите email получателей через запятую</p>
+        <div class="gs3-modal bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+          <h3 class="gs3-modal-title font-semibold text-gray-900 mb-3">Отправить на Email</h3>
+          <p class="gs3-modal-text text-gray-500 mb-4">Введите email получателей через запятую</p>
           <input
             v-model="emailRecipients"
             type="text"
             placeholder="email1@example.com, email2@example.com"
-            class="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 mb-4"
+            class="gs3-modal-input w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 mb-4"
           />
           <div class="flex justify-end gap-2">
-            <button class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl" @click="showEmailModal = false">Отмена</button>
+            <button class="gs3-modal-btn px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl" @click="showEmailModal = false">Отмена</button>
             <button
-              class="px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50"
+              class="gs3-modal-btn px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50"
               :disabled="sendingEmail"
               @click="submitEmail"
             >
@@ -434,15 +434,15 @@
     <!-- Модальное окно выбора метрики -->
     <Teleport to="body">
       <div v-if="addMetricModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="addMetricModalOpen = false">
-        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
-          <h3 class="text-lg font-semibold text-gray-900 mb-3">Добавить метрику</h3>
-          <p class="text-sm text-gray-500 mb-4">Выберите метрику для отображения</p>
+        <div class="gs3-modal bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl">
+          <h3 class="gs3-modal-title font-semibold text-gray-900 mb-3">Добавить метрику</h3>
+          <p class="gs3-modal-text text-gray-500 mb-4">Выберите метрику для отображения</p>
           <div class="space-y-2">
             <button
               v-for="id in hiddenMetricsForAdd"
               :key="id"
               type="button"
-              class="w-full px-4 py-3 text-left rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-[#2563EB] transition-colors text-sm font-medium text-gray-700"
+              class="gs3-modal-btn w-full px-4 py-3 text-left rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-[#2563EB] transition-colors font-medium text-gray-700"
               @click="handleSelectMetricToAdd(id)"
             >
               {{ { expenses: 'Расходы', impressions: 'Показы', clicks: 'Клики', cpc: 'CPC', leads: 'Лиды', cpa: 'CPA' }[id] || id }}
@@ -450,7 +450,7 @@
           </div>
           <button
             type="button"
-            class="w-full mt-4 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-sm"
+            class="gs3-modal-btn w-full mt-4 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl"
             @click="addMetricModalOpen = false"
           >
             Отмена
@@ -1063,3 +1063,28 @@ watch(() => route.query.new_integration_id, (id) => {
 }, { immediate: true })
 
 </script>
+
+<style scoped>
+.gs3-modal {
+  min-width: 360px;
+}
+
+.gs3-modal-title {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.gs3-modal-text,
+.gs3-modal-btn,
+.gs3-modal-input {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .gs3-modal {
+    min-width: 0;
+    width: calc(100% - 24px);
+  }
+}
+</style>

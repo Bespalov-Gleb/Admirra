@@ -138,3 +138,29 @@ html {
 .animate-bounce-slow {
   animation: bounce-slow 3s infinite;
 }
+
+/* Принудительный фикс тёмного хедера — var(--bgLayout) может не срабатывать из-за специфичности */
+html.darkmode .header,
+body.darkmode .header {
+  background-color: rgba(36, 37, 46, 0.95) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+html.darkmode .header .dropdown-head__info,
+html.darkmode .header .gray500,
+html.darkmode .header .dropdown-head__info > div,
+body.darkmode .header .dropdown-head__info,
+body.darkmode .header .gray500,
+body.darkmode .header .dropdown-head__info > div {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+html.darkmode .header .circle-arrow svg,
+body.darkmode .header .circle-arrow svg {
+  stroke: rgba(255, 255, 255, 0.6);
+}
+
+html.darkmode .logo,
+body.darkmode .logo {
+  color: #fff !important;
+}

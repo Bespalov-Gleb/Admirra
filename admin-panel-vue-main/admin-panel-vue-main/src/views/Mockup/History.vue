@@ -1,64 +1,80 @@
 <template>
-  <div class="admirra-page-wrapper">
+  <div class="admirra-page-wrapper" @click="closeAllMenus">
     <section class="main-section">
       <div class="section-header pt-4">
-        <h3 class="heading-3">{{ title }}</h3>
+        <h3 class="heading-3">История</h3>
       </div>
+
       <div class="row gy-3 mb-5">
-        <div v-for="(filter, index) in filters" :key="index" class="col-12 col-sm-auto">
-          <select class="wide" @change="$emit('filter-change', { filter, value: $event.target.value })">
-            <option v-for="option in filter.options" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
+        <div class="col-12 col-sm-auto">
+          <select class="wide" v-model="filterProject" @change="onFilterChange">
+            <option value="">Все проекты</option>
+            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <select class="wide" v-model="filterPeriod" @change="onFilterChange">
+            <option value="14">Последние 14 дней</option>
+            <option value="7">Последние 7 дней</option>
+            <option value="30">Последние 30 дней</option>
           </select>
         </div>
       </div>
-      <div class="history">
-        <div v-for="(item, index) in historyItems" :key="index" :class="['row history-item', item.variantClass]">
+
+      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка...</div>
+
+      <div v-else-if="historyItems.length === 0" class="py-5 text-center gray56">
+        История действий пуста
+      </div>
+
+      <div v-else class="history">
+        <div
+          v-for="(item, index) in historyItems"
+          :key="index"
+          :class="['row history-item', variantClasses[index % variantClasses.length]]"
+        >
+          <!-- Пользователь -->
           <div class="col col-xl-3">
             <div class="d-flex">
-              <div class="avatar-36x36 me-4">
-                <img class="img-cover" :src="item.avatar" alt="#" />
+              <div class="avatar-36x36 me-4" style="background:#e8eef9;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <span style="font-size:13px;font-weight:700;color:#4b6fa0">
+                  {{ (item.user_email || '?').slice(0, 2).toUpperCase() }}
+                </span>
               </div>
               <div class="weight-500">
-                <div class="mb-1 text-15 gray">{{ item.userName }}</div>
-                <div class="text-13 gray56">{{ item.userRole }}</div>
+                <div class="mb-1 text-15 gray">{{ item.user_email || '—' }}</div>
+                <div class="text-13 gray56">{{ item.user_role || 'Пользователь' }}</div>
               </div>
             </div>
           </div>
-          <div class="history-item__descrp col">{{ item.description }}</div>
+
+          <!-- Описание -->
+          <div class="history-item__descrp col">{{ formatDescription(item) }}</div>
+
+          <!-- Время -->
           <div class="history-item__time col col-xl-3">
-            <time>{{ item.time }}</time>
+            <time>{{ formatDate(item.created_at) }}</time>
           </div>
+
+          <!-- Меню действий -->
           <div class="col-auto col-xl-1">
-            <div class="history-item__more dropdown">
-              <button class="dropdown-head _no-style" @click="$emit('toggle-menu', index)">
+            <div class="history-item__more dropdown" :class="{ '_open': openMenuIndex === index }">
+              <button
+                class="dropdown-head _no-style"
+                @click.stop="toggleMenu(index)"
+              >
                 <div class="action-btn-ui">
-                  <svg><use :href="dottsIcon"></use></svg>
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
                 </div>
               </button>
-              <!-- Dropdown body logic should be handled by parent or a separate component, 
-                   keeping static for now but emitting actions -->
-              <div class="dropdown-body _action _right">
+              <div v-if="openMenuIndex === index" class="dropdown-body _action _right" style="display:block">
                 <div class="dropdown-block">
                   <div class="py-3">
-                    <button class="dropdown-menu-item" @click="$emit('view', item)">
+                    <button class="dropdown-menu-item" @click.stop="closeAllMenus">
                       <div class="dropdown-menu-item__icon">
-                        <svg class="_sm"><use :href="eyeIcon"></use></svg>
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
                       </div>
                       <span class="pe-3">Просмотр</span>
-                    </button>
-                    <button class="dropdown-menu-item" @click="$emit('edit', item)">
-                      <div class="dropdown-menu-item__icon">
-                        <svg class="_stroke _lg"><use :href="penIcon"></use></svg>
-                      </div>
-                      <span class="pe-3">Редактировать</span>
-                    </button>
-                    <button class="dropdown-menu-item _danger" @click="$emit('delete', item)">
-                      <div class="dropdown-menu-item__icon">
-                        <svg><use :href="deleteIcon"></use></svg>
-                      </div>
-                      <span class="pe-3">Удалить</span>
                     </button>
                   </div>
                 </div>
@@ -72,39 +88,66 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+import api from '../../api/axios'
+import { useProjects } from '../../composables/useProjects'
 
-defineProps({
-  title: {
-    type: String,
-    default: 'История'
-  },
-  filters: {
-    type: Array,
-    default: () => [
-      { id: 'staff', options: [{ value: '1', label: 'Все сотрудники' }, { value: '2', label: 'подпункт 1' }] },
-      { id: 'channels', options: [{ value: '1', label: 'Все каналы' }, { value: '2', label: 'подпункт 1' }] },
-      { id: 'period', options: [{ value: '1', label: 'Последние 14 дней' }, { value: '2', label: 'подпункт 1' }] },
-      { id: 'project', options: [{ value: '1', label: 'Выбрать проект' }, { value: '2', label: 'подпункт 1' }] }
-    ]
-  },
-  historyItems: {
-    type: Array,
-    default: () => [
-      { variantClass: '_linen', avatar: '/admirra/img/avatars/user2.jpg', userName: 'Петр Петров', userRole: 'Сотрудник', description: 'Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД', time: '15:04 (МСК) - 13.03.2026' },
-      { variantClass: '_oldlace', avatar: '/admirra/img/avatars/user1.jpg', userName: 'Петр Петров', userRole: 'Сотрудник', description: 'Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД', time: '15:04 (МСК) - 13.03.2026' },
-      { variantClass: '_aliceblue', avatar: '/admirra/img/avatars/user3.jpg', userName: 'Петр Петров', userRole: 'Сотрудник', description: 'Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД', time: '15:04 (МСК) - 13.03.2026' }
-    ]
-  },
-  dottsIcon: { type: String, default: '/admirra/img/svg/sprite.svg#dotts' },
-  eyeIcon: { type: String, default: '/admirra/img/svg/sprite.svg#eye' },
-  penIcon: { type: String, default: '/admirra/img/svg/sprite.svg#pen' },
-  deleteIcon: { type: String, default: '/admirra/img/svg/sprite.svg#delete' }
-})
+const { projects, fetchProjects } = useProjects()
 
-defineEmits(['filter-change', 'toggle-menu', 'view', 'edit', 'delete'])
+const historyItems = ref([])
+const isLoading = ref(false)
+const openMenuIndex = ref(null)
+const filterProject = ref('')
+const filterPeriod = ref('14')
 
-onMounted(() => {
+const variantClasses = ['_linen', '_oldlace', '_aliceblue', '']
+
+const fetchHistory = async () => {
+  isLoading.value = true
+  try {
+    const params = {}
+    if (filterProject.value) params.client_id = filterProject.value
+    if (filterPeriod.value) params.days = filterPeriod.value
+    const { data } = await api.get('history/', { params })
+    historyItems.value = Array.isArray(data) ? data : (data.items || data.results || [])
+  } catch (err) {
+    // Если API истории нет — показываем пустой список
+    console.warn('History API not available:', err?.response?.status)
+    historyItems.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const onFilterChange = () => fetchHistory()
+
+const toggleMenu = (index) => {
+  openMenuIndex.value = openMenuIndex.value === index ? null : index
+}
+
+const closeAllMenus = () => {
+  openMenuIndex.value = null
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  return d.toLocaleString('ru-RU', {
+    hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  })
+}
+
+const formatDescription = (item) => {
+  if (item.description) return item.description
+  if (item.action) return item.action
+  if (item.event_type) return item.event_type
+  return '—'
+}
+
+onMounted(async () => {
+  await fetchProjects()
+  await fetchHistory()
   setTimeout(() => {
     if (window.jQuery) {
       window.jQuery('select').niceSelect('destroy')
@@ -115,7 +158,5 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.admirra-page-wrapper {
-  /* Scoped styles */
-}
+.admirra-page-wrapper { }
 </style>

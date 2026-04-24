@@ -5,6 +5,17 @@ const isAuthenticated = ref(false)
 const user = ref(null)
 const isLoading = ref(true)
 const tokenKey = 'auth_token'
+const isDevSkipAuth =
+  import.meta.env.DEV &&
+  String(import.meta.env.VITE_DEV_SKIP_AUTH || '').toLowerCase() === 'true'
+
+const devUser = {
+  id: 'dev-local-user',
+  email: 'devlocal@admirra.test',
+  username: 'devlocal',
+  first_name: 'Dev',
+  last_name: 'Local'
+}
 
 let authPromise = null
 let initialCheckDone = false
@@ -38,6 +49,12 @@ export function useAuth() {
   }
 
   const fetchCurrentUser = async () => {
+    if (isDevSkipAuth) {
+      user.value = devUser
+      isAuthenticated.value = true
+      return { success: true, data: devUser }
+    }
+
     try {
       const response = await api.get('auth/me')
       user.value = response.data
@@ -63,6 +80,14 @@ export function useAuth() {
   }
 
   const checkAuth = async () => {
+    if (isDevSkipAuth) {
+      user.value = devUser
+      isAuthenticated.value = true
+      isLoading.value = false
+      initialCheckDone = true
+      return true
+    }
+
     const token = localStorage.getItem(tokenKey)
 
     if (authPromise) {

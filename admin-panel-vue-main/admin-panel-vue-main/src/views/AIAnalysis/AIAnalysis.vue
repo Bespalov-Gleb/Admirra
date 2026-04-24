@@ -1,16 +1,16 @@
 <template>
-  <div class="flex flex-col overflow-x-hidden w-full min-h-[calc(100vh-8rem)] pb-8">
+  <div class="flex flex-col overflow-x-hidden w-full h-full pb-6 px-8 pt-8" style="min-height: calc(100vh - 80px); font-size: 16px">
     <!-- Заголовок -->
     <div class="flex-shrink-0 mb-4">
-      <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">AI Анализ</h1>
-      <p class="text-sm text-gray-500 mt-1">Аналитика и рекомендации на основе данных рекламных кампаний</p>
+      <h1 :style="`font-size:28px; font-weight:700; color:${c.titleColor}; margin-bottom:4px`">AI Анализ</h1>
+      <p :style="`font-size:14px; color:${c.subtitleColor}`">Аналитика и рекомендации на основе данных рекламных кампаний</p>
     </div>
 
     <!-- Проект + период + кнопки -->
     <div class="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
       <select
         v-model="selectedProjectId"
-        class="px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 appearance-none cursor-pointer"
+        :style="`font-size:14px; padding:10px 14px; border:1px solid ${c.inputBorder}; border-radius:12px; background:${c.inputBg}; color:${c.inputColor}; outline:none; cursor:pointer; min-width:140px`"
       >
         <option value="">Все проекты</option>
         <option v-for="client in clients" :key="client.id" :value="client.id">
@@ -20,66 +20,68 @@
       <input
         v-model="startDate"
         type="date"
-        class="px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        :style="`font-size:14px; padding:10px 14px; border:1px solid ${c.inputBorder}; border-radius:12px; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
       />
-      <span class="text-gray-400">—</span>
+      <span :style="`color:${c.subtitleColor}; font-size:16px`">—</span>
       <input
         v-model="endDate"
         type="date"
-        class="px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        :style="`font-size:14px; padding:10px 14px; border:1px solid ${c.inputBorder}; border-radius:12px; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
       />
       <button
-        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-medium rounded-2xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        style="display:inline-flex; align-items:center; gap:8px; padding:12px 24px; background:linear-gradient(to right,#8b5cf6,#9333ea); color:#fff; font-size:15px; font-weight:500; border-radius:16px; border:none; cursor:pointer; box-shadow:0 4px 15px rgba(139,92,246,.3)"
         :disabled="generatingReport"
+        :style="generatingReport ? 'opacity:.6;cursor:not-allowed' : ''"
         @click="handleGenerateReport">
         <span v-if="generatingReport" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        <DocumentTextIcon v-else class="w-5 h-5" />
+        <DocumentTextIcon v-else style="width:20px;height:20px" />
         {{ generatingReport ? 'Генерация...' : 'Сформировать отчёт' }}
       </button>
       <button
-        class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        style="display:inline-flex; align-items:center; gap:8px; padding:12px 24px; background:linear-gradient(to right,#3b82f6,#06b6d4); color:#fff; font-size:15px; font-weight:500; border-radius:16px; border:none; cursor:pointer; box-shadow:0 4px 15px rgba(59,130,246,.3)"
         :disabled="generatingRecommendations"
+        :style="generatingRecommendations ? 'opacity:.6;cursor:not-allowed' : ''"
         @click="handleGetRecommendations">
         <span v-if="generatingRecommendations" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        <LightBulbIcon v-else class="w-5 h-5" />
+        <LightBulbIcon v-else style="width:20px;height:20px" />
         {{ generatingRecommendations ? 'Генерация...' : 'Получить рекомендации' }}
       </button>
       <!-- Отправка AI-отчёта -->
-      <div class="flex items-center gap-2 ml-2 pl-4 border-l border-gray-200">
-        <span class="text-xs text-gray-500">Отправить:</span>
+      <div :style="`display:flex; align-items:center; gap:8px; margin-left:8px; padding-left:16px; border-left:1px solid ${c.dividerColor}`">
+        <span :style="`font-size:13px; color:${c.dividerText}`">Отправить:</span>
         <button
           type="button"
           :disabled="sendingTg"
-          class="p-2.5 rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 transition-colors disabled:opacity-50"
+          :style="`padding:10px; border-radius:12px; background:${c.sendBtnBg}; border:none; cursor:pointer; color:${c.sendBtnColor}; display:flex`"
           title="Отправить в Telegram"
           @click="handleTelegramSendClick"
         >
-          <PaperAirplaneIcon class="w-5 h-5" />
+          <PaperAirplaneIcon style="width:20px;height:20px" />
         </button>
         <button
           type="button"
           :disabled="sendingEmail"
-          class="p-2.5 rounded-xl bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 transition-colors disabled:opacity-50"
+          :style="`padding:10px; border-radius:12px; background:${c.sendBtnBg}; border:none; cursor:pointer; color:${c.sendBtnColor}; display:flex`"
           title="Отправить на Email"
           @click="showEmailModal = true"
         >
-          <EnvelopeIcon class="w-5 h-5" />
+          <EnvelopeIcon style="width:20px;height:20px" />
         </button>
       </div>
     </div>
 
     <!-- Модалки отправки -->
     <div v-if="showTgLinkModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgLinkModal = false">
-      <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Подключите Telegram</h3>
-        <p class="text-sm text-gray-500 mb-4">
+      <div :style="`background:${c.modalBg}; border-radius:24px; padding:24px; width:100%; max-width:448px; margin:0 16px; box-shadow:0 25px 50px rgba(0,0,0,0.35)`">
+        <h3 :style="`font-size:18px; font-weight:600; color:${c.modalText}; margin-bottom:8px`">Подключите Telegram</h3>
+        <p :style="`font-size:14px; color:${c.modalSubText}; margin-bottom:16px`">
           В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
         </p>
-        <div class="flex gap-3">
-          <button type="button" class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="closeTgLinkModal">Отмена</button>
+        <div style="display:flex; gap:12px">
+          <button type="button" :style="`flex:1; padding:10px; border-radius:12px; background:${isDarkMode?'rgba(255,255,255,0.08)':'#f3f4f6'}; color:${c.modalText}; border:none; cursor:pointer; font-size:14px`" @click="closeTgLinkModal">Отмена</button>
           <button
             type="button"
-            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            style="flex:1; padding:10px; border-radius:12px; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:14px"
             :disabled="tgLinkChecking"
             @click="confirmTgLinked"
           >
@@ -89,19 +91,19 @@
       </div>
     </div>
     <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
-      <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
-        <h3 class="text-lg font-semibold text-gray-900 mb-3">Отправить на Email</h3>
-        <p class="text-sm text-gray-500 mb-4">AI-отчёт будет сгенерирован и отправлен на указанные адреса.</p>
+      <div :style="`background:${c.modalBg}; border-radius:24px; padding:24px; width:100%; max-width:448px; margin:0 16px; box-shadow:0 25px 50px rgba(0,0,0,0.35)`">
+        <h3 :style="`font-size:18px; font-weight:600; color:${c.modalText}; margin-bottom:12px`">Отправить на Email</h3>
+        <p :style="`font-size:14px; color:${c.modalSubText}; margin-bottom:16px`">AI-отчёт будет сгенерирован и отправлен на указанные адреса.</p>
         <input
           v-model="emailRecipients"
           type="text"
           placeholder="email1@example.com, email2@example.com"
-          class="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm mb-4"
+          :style="`width:100%; padding:10px 16px; border:1px solid ${c.inputBorder}; border-radius:12px; font-size:14px; background:${c.inputBg}; color:${c.inputColor}; margin-bottom:16px; box-sizing:border-box`"
         />
-        <div class="flex gap-3">
-          <button class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200" @click="showEmailModal = false">Отмена</button>
+        <div style="display:flex; gap:12px">
+          <button :style="`flex:1; padding:10px; border-radius:12px; background:${isDarkMode?'rgba(255,255,255,0.08)':'#f3f4f6'}; color:${c.modalText}; border:none; cursor:pointer; font-size:14px`" @click="showEmailModal = false">Отмена</button>
           <button
-            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            style="flex:1; padding:10px; border-radius:12px; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:14px"
             :disabled="sendingEmail || !emailRecipients.trim()"
             @click="submitEmail"
           >
@@ -112,48 +114,48 @@
     </div>
 
     <!-- Чат — растягивается до низа страницы с отступом -->
-    <div class="flex-1 flex flex-col min-h-[320px]">
-      <div class="h-full flex flex-col bg-white/80 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-lg overflow-hidden min-h-0">
+    <div class="flex-1 flex flex-col" style="min-height: 400px">
+      <div
+        class="h-full flex flex-col overflow-hidden min-h-0"
+        :style="`min-height:400px; border-radius:24px; background:${c.chatBg}; border:1px solid ${c.chatBorder}; backdrop-filter:blur(20px); box-shadow:0 4px 24px rgba(0,0,0,${isDarkMode?'.25':'.07'})`"
+      >
         <!-- Шапка чата -->
-        <div class="px-6 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50/80 to-white/80 flex-shrink-0">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-              <SparklesIcon class="w-4 h-4 text-white" />
+        <div :style="`padding:16px 24px; border-bottom:1px solid ${c.chatHeaderBorder}; background:${c.chatHeaderBg}; flex-shrink:0`">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#8b5cf6,#9333ea);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <SparklesIcon style="width:18px;height:18px;color:#fff" />
             </div>
             <div>
-              <h3 class="font-bold text-gray-900 text-sm">AI Ассистент</h3>
-              <p class="text-xs text-gray-500">Задайте вопрос или выберите действие выше</p>
+              <div :style="`font-size:15px; font-weight:700; color:${c.titleColor}`">AI Ассистент</div>
+              <div :style="`font-size:13px; color:${c.subtitleColor}`">Задайте вопрос или выберите действие выше</div>
             </div>
           </div>
         </div>
 
         <!-- Область сообщений -->
-        <div ref="messagesContainer" class="flex-1 p-6 overflow-y-auto min-h-0">
-          <div v-if="messages.length === 0 && !sendingMessage" class="flex flex-col items-center justify-center h-full min-h-[120px] text-center">
-            <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-              <ChatBubbleLeftRightIcon class="w-7 h-7 text-gray-400" />
+        <div ref="messagesContainer" style="flex:1; padding:24px; overflow-y:auto; min-height:0">
+          <div v-if="messages.length === 0 && !sendingMessage" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:160px;text-align:center">
+            <div :style="`width:56px;height:56px;border-radius:16px;background:${c.emptyIconBg};display:flex;align-items:center;justify-content:center;margin-bottom:12px`">
+              <ChatBubbleLeftRightIcon :style="`width:28px;height:28px;color:${c.emptyTextColor}`" />
             </div>
-            <p class="text-gray-500 text-sm max-w-xs">
+            <p :style="`font-size:14px; color:${c.emptyTextColor}; max-width:280px; line-height:1.5`">
               Задайте вопрос в поле ниже или используйте кнопки выше для формирования отчёта или рекомендаций.
             </p>
           </div>
-          <div v-else class="space-y-4">
-            <div v-if="aiError" class="p-4 rounded-xl bg-red-50 text-red-600 text-sm">
+          <div v-else style="display:flex;flex-direction:column;gap:16px">
+            <div v-if="aiError" style="padding:16px;border-radius:12px;background:#fef2f2;color:#dc2626;font-size:14px">
               {{ aiError }}
             </div>
             <div
               v-for="(msg, idx) in messages"
               :key="idx"
-              :class="[
-                'p-4 rounded-xl text-sm',
-                msg.role === 'user'
-                  ? 'ml-8 bg-violet-50 text-gray-900'
-                  : 'mr-8 bg-gray-50 text-gray-800 whitespace-pre-wrap'
-              ]"
+              :style="msg.role === 'user'
+                ? `margin-left:10%;padding:16px;border-radius:12px;background:${c.msgUserBg};color:${c.msgUserColor};font-size:14px;line-height:1.6`
+                : `margin-right:10%;padding:16px;border-radius:12px;background:${c.msgAiBg};color:${c.msgAiColor};font-size:14px;line-height:1.6;white-space:pre-wrap`"
             >
               {{ msg.content }}
             </div>
-            <div v-if="sendingMessage" class="p-4 rounded-xl bg-gray-50 text-gray-500 text-sm flex items-center gap-2">
+            <div v-if="sendingMessage" :style="`padding:16px;border-radius:12px;background:${c.msgAiBg};color:${c.emptyTextColor};font-size:14px;display:flex;align-items:center;gap:8px`">
               <span class="w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
               Ответ генерируется...
             </div>
@@ -161,19 +163,19 @@
         </div>
 
         <!-- Поле ввода -->
-        <div class="p-4 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
-          <form @submit.prevent="handleSendMessage" class="flex gap-3">
+        <div :style="`padding:16px; border-top:1px solid ${c.chatFooterBorder}; background:${c.chatFooterBg}; flex-shrink:0`">
+          <form @submit.prevent="handleSendMessage" style="display:flex; gap:12px">
             <input
               v-model="inputMessage"
               type="text"
               placeholder="Введите сообщение..."
               :disabled="sendingMessage"
-              class="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 placeholder-gray-400"
+              :style="`flex:1; font-size:14px; padding:14px 16px; border-radius:12px; border:1px solid ${c.inputBorder}; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
             />
             <button
               type="submit"
               :disabled="sendingMessage || !inputMessage.trim()"
-              class="px-5 py-3 rounded-xl bg-violet-600 text-white font-medium text-sm hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :style="`padding:14px 20px; border-radius:12px; background:#7c3aed; color:#fff; font-size:15px; font-weight:500; border:none; cursor:pointer; opacity:${(sendingMessage || !inputMessage.trim()) ? '.5' : '1'}`"
             >
               Отправить
             </button>
@@ -185,7 +187,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import {
   DocumentTextIcon,
   LightBulbIcon,
@@ -198,6 +200,64 @@ import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
+import { useTheme } from '../../composables/useTheme'
+
+const { isDarkMode } = useTheme()
+
+// Цветовые токены для тёмной/светлой темы
+const c = computed(() => isDarkMode.value ? {
+  pageBg: 'transparent',
+  titleColor: '#ffffff',
+  subtitleColor: 'rgba(255,255,255,0.6)',
+  inputBg: 'rgba(255,255,255,0.07)',
+  inputBorder: 'rgba(255,255,255,0.15)',
+  inputColor: '#ffffff',
+  chatBg: 'rgba(255,255,255,0.04)',
+  chatBorder: 'rgba(255,255,255,0.08)',
+  chatHeaderBg: 'rgba(255,255,255,0.06)',
+  chatHeaderBorder: 'rgba(255,255,255,0.08)',
+  chatFooterBg: 'rgba(255,255,255,0.03)',
+  chatFooterBorder: 'rgba(255,255,255,0.08)',
+  msgUserBg: 'rgba(139,92,246,0.18)',
+  msgUserColor: '#e5d9ff',
+  msgAiBg: 'rgba(255,255,255,0.06)',
+  msgAiColor: 'rgba(255,255,255,0.85)',
+  emptyIconBg: 'rgba(255,255,255,0.08)',
+  emptyTextColor: 'rgba(255,255,255,0.45)',
+  sendBtnBg: '#f1f5f9',
+  sendBtnColor: '#475569',
+  dividerColor: 'rgba(255,255,255,0.08)',
+  dividerText: 'rgba(255,255,255,0.45)',
+  modalBg: '#2a2b38',
+  modalText: '#ffffff',
+  modalSubText: 'rgba(255,255,255,0.55)',
+} : {
+  pageBg: 'transparent',
+  titleColor: '#171717',
+  subtitleColor: '#696969',
+  inputBg: '#ffffff',
+  inputBorder: '#d1d5db',
+  inputColor: '#374151',
+  chatBg: 'rgba(255,255,255,0.8)',
+  chatBorder: 'rgba(255,255,255,0.8)',
+  chatHeaderBg: 'linear-gradient(to right,rgba(249,250,251,.8),rgba(255,255,255,.8))',
+  chatHeaderBorder: '#f3f4f6',
+  chatFooterBg: 'rgba(249,250,251,.5)',
+  chatFooterBorder: '#f3f4f6',
+  msgUserBg: '#f5f3ff',
+  msgUserColor: '#111827',
+  msgAiBg: '#f9fafb',
+  msgAiColor: '#1f2937',
+  emptyIconBg: '#f3f4f6',
+  emptyTextColor: '#6b7280',
+  sendBtnBg: '#f1f5f9',
+  sendBtnColor: '#475569',
+  dividerColor: '#e5e7eb',
+  dividerText: '#6b7280',
+  modalBg: '#ffffff',
+  modalText: '#111827',
+  modalSubText: '#6b7280',
+})
 
 const toaster = useToaster()
 const { openTelegramBotForLinking } = useTelegramReportLink()

@@ -1,1 +1,1 @@
-export const DEFAULT_DASHBOARD_PATH = '/projects/create'
+export const DEFAULT_DASHBOARD_PATH = '/main'
