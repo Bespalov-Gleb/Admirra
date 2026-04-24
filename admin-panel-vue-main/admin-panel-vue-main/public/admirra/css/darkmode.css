@@ -1,0 +1,334 @@
+.darkmode {
+	--bgPage: #24252e;
+	--bgLayout: rgba(255, 255, 255, 0.05);
+
+	--black: #fff;
+	--white80: rgba(255, 255, 255, 0.8);
+	--light: rgba(255, 255, 255, 0.05);
+
+	--azureLight: rgba(248, 250, 251, 0.1);
+
+	--gray: #dedede;
+	--gray500: #fff;
+	--gray85: rgba(255, 255, 255, 0.85);
+	--gray75: rgba(255, 255, 255, 0.75);
+	--gray60: rgba(255, 255, 255, 0.6);
+	--gray56: rgba(255, 255, 255, 0.56);
+	--gray30: rgba(255, 255, 255, 0.3);
+
+	--dark80: rgba(255, 255, 255, 0.85);
+	--darkLight: #3a3c49;
+	--darkLightHover: #2c365e;
+
+	input,
+	textarea {
+		color: rgba(255, 255, 255, 0.6);
+		background-color: transparent;
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+		color: #fff;
+		&::placeholder {
+			color: rgba(255, 255, 255, 0.6);
+		}
+	}
+
+	.input-icon {
+		background-color: transparent;
+		svg {
+			width: 1rem;
+			height: 1rem;
+		}
+	}
+
+	.logo {
+		background-image: url(../img/logo-white.png);
+	}
+	.main__lightBg {
+		opacity: 1;
+	}
+	.circle-arrow {
+		background-color: var(--light);
+		fill: rgba(255, 255, 255, 0.3);
+	}
+	.dropdown-head,
+	.btn-ui {
+		background: var(--darkLight);
+		&:hover {
+			background: var(--darkLightHover);
+		}
+	}
+	.dropdown-block {
+		color: #fff;
+		background-color: var(--darkLight);
+		&::after {
+			border-bottom-color: var(--darkLight);
+		}
+	}
+	.btn-ui__icon svg {
+		fill: #fff;
+	}
+	.btn {
+		&._outline-primary {
+			border-color: rgba(225, 225, 225, 0.35);
+			&:hover {
+				border-color: var(--accent);
+			}
+		}
+	}
+	.tariff-tabs__item a {
+		background-color: var(--darkLight);
+		color: #fff;
+		&:hover {
+			background-color: var(--darkLightHover);
+		}
+		&.active {
+			background-color: var(--accent);
+		}
+	}
+	.tariff-card {
+		background-color: var(--bgLayout);
+		&._primary {
+			background-color: var(--accent);
+		}
+	}
+	.to-action__info {
+		background-color: rgba(225, 225, 225, 0.1);
+		border-radius: var(--radius);
+		padding: 3.5rem 0 1.2rem 1.5rem;
+		margin-top: -2rem;
+	}
+	.list__item {
+		color: var(--gray56);
+		&:has(.list__plus) {
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+			&:last-child {
+				border-bottom: 0;
+			}
+		}
+	}
+	.white-label__action-text {
+		color: var(--gray56);
+	}
+	.navigation-link {
+		color: var(--gray75);
+		background-color: transparent;
+		&:hover {
+			color: var(--accent);
+		}
+	}
+	.navigation-item.is-open {
+		.navigation-link {
+			background-color: var(--darkLight);
+			color: #fff;
+			.circle-arrow {
+				background-color: var(--light);
+				fill: rgba(255, 255, 255, 0.3);
+			}
+			.navigation-icon svg {
+				fill: #fff;
+				&._stroke {
+					fill: none;
+					stroke: #fff;
+				}
+			}
+		}
+	}
+	.navigation-subitem {
+		&::before {
+			border-color: #54565f;
+		}
+	}
+	.navigation-sublink:hover {
+		background-color: var(--darkLight);
+		color: #fff;
+	}
+
+	.white-label__ui {
+		background-image: url(../img/white-label/ui-dark.png);
+	}
+
+	.border-gray10 {
+		border-color: rgba(255, 255, 255, 0.15);
+	}
+
+	.nice-select {
+		color: rgba(255, 255, 255, 0.6);
+		background-color: transparent;
+		border-color: rgba(255, 255, 255, 0.4);
+		.arrow {
+			background-color: transparent;
+			svg {
+				width: 0.9rem;
+				height: 0.9rem;
+				fill: rgba(255, 255, 255, 0.7);
+			}
+		}
+		&.open .list {
+			background-color: var(--darkLight);
+			box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+			.selected {
+				background-color: var(--accent);
+				color: #fff;
+			}
+		}
+	}
+
+	.badge {
+		background-color: rgba(255, 255, 255, 0.1);
+		text-shadow: 0px 0px 25px rgb(255, 255, 255, 0.5);
+		&._success {
+			background-color: rgba(0, 255, 78, 0.06);
+		}
+		&._danger {
+			background-color: rgba(255, 46, 66, 0.1);
+		}
+	}
+
+	.choise-checkbox__box {
+		background-color: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+	.choise-checkbox__input:checked + .choise-checkbox__box {
+		background-color: rgba(255, 255, 255, 0);
+	}
+
+	.bb-light {
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.hr-line {
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.burger {
+		background-color: var(--darkLight);
+	}
+
+	.sidebar-panel__aside {
+		background-color: var(--bgPage);
+	}
+
+	.action-btn-ui {
+		background-color: var(--darkLight);
+	}
+
+	.caption {
+		background-color: rgba(225, 225, 225, 0.15);
+		&._light {
+			background-color: rgba(0, 110, 255, 0.07);
+			border-color: #88aeff;
+			color: #88aeff;
+		}
+	}
+
+	.select-card {
+		.silver {
+			color: rgba(225, 225, 225, 0.5);
+		}
+	}
+	.select-card__check {
+		background-color: rgba(225, 225, 225, 0.15);
+	}
+	.select-card:has(.select-card__input:checked) {
+		background-color: rgba(37, 99, 235, 0.1);
+	}
+
+	.btn {
+		&._outline-gray {
+			color: #fff;
+		}
+		&._white {
+			.btn__icon-info {
+				background-color: rgba(0, 0, 0, 0.2);
+				svg {
+					fill: #fff;
+					&._stroke {
+						fill: none;
+						stroke: #fff;
+					}
+				}
+			}
+		}
+	}
+
+	.caption-item {
+		background-color: rgba(0, 0, 0, 0.2);
+		.c71663e {
+			color: #f6ca2b;
+		}
+	}
+	.caption-item__icon {
+		background-color: rgba(32, 32, 32, 0.6);
+	}
+
+	.card-info {
+		background-color: rgba(0, 68, 255, 0.1);
+		.card-info__header {
+			border-bottom-color: rgba(0, 68, 255, 0.3);
+		}
+		/* style cards */
+		&._lavender {
+			background-color: rgba(131, 131, 255, 0.2);
+			.card-info__header {
+				border-bottom-color: rgba(131, 131, 255, 0.3);
+			}
+		}
+		&._linen {
+			background-color: rgba(229, 182, 120, 0.2);
+			.card-info__header {
+				border-bottom-color: rgba(229, 182, 120, 0.3);
+			}
+			.caption-item__icon {
+				background-color: rgba(0, 0, 0, 0.2);
+			}
+		}
+	}
+
+	.card-base {
+		&._oldlace {
+			background-color: rgba(255, 145, 0, 0.1);
+		}
+		&._aliceblue {
+			background-color: rgba(0, 119, 255, 0.1);
+		}
+		&._linen {
+			background-color: rgba(255, 0, 0, 0.1);
+		}
+		&._lavender {
+			background-color: rgba(0, 0, 255, 0.1);
+		}
+	}
+
+	.team-item.is-open .team-item__header {
+		border-bottom-color: rgb(255, 255, 255, 0.07);
+	}
+
+	.total-card {
+		background-color: #24252e;
+		&::after {
+			opacity: 1;
+		}
+		&::before {
+			opacity: 0.15;
+			background-size: 130px;
+		}
+	}
+
+	.table-style {
+		.td {
+			background-color: rgba(225, 225, 225, 0.05);
+		}
+		.badge {
+			background-color: inherit !important;
+			&._success {
+				background-color: rgba(0, 255, 78, 0.06) !important;
+			}
+			&._danger {
+				background-color: rgba(255, 46, 66, 0.1) !important;
+			}
+		}
+	}
+
+	.history-item {
+		background-color: rgba(225, 225, 225, 0.05) !important;
+	}
+}
