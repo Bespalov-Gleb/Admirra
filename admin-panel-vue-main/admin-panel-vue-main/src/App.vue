@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from './composables/useAuth'
 import Toaster from './components/ui/Toaster.vue'
@@ -10,11 +10,7 @@ import LandingLayout from './layouts/LandingLayout.vue'
 import MockupLayout from './layouts/MockupLayout.vue'
 
 const route = useRoute()
-const { checkAuth, isLoading } = useAuth()
-
-onMounted(() => {
-  checkAuth()
-})
+const { isLoading } = useAuth()
 
 const layout = computed(() => {
   // Check for auth layout meta or fallback to MainLayout
