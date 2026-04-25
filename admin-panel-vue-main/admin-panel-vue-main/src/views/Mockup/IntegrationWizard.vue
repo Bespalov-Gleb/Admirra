@@ -17,10 +17,10 @@
         <!-- ===== ШАГ 1: ПРОЕКТ ===== -->
         <section :class="['steps-track__section', { '_active': step === 1 }]">
           <div class="steps-track__header">
-            <div class="steps-track__marker">
-              <div class="steps-track__marker-text">1</div>
+            <div class="steps-track__marker" :style="markerStyle(1)">
+              <div class="steps-track__marker-text" :style="markerTextStyle(1)">1</div>
             </div>
-            <div class="steps-track__caption">Проект</div>
+            <div class="steps-track__caption" :style="captionStyle(1)">Проект</div>
           </div>
 
           <div v-if="step === 1" class="steps-track__content">
@@ -60,8 +60,7 @@
                   <div class="weight-500 gray mb-2">Проект</div>
                   <select
                     class="select-light wide mb-3"
-                    :value="form.client_id"
-                    @change="form.client_id = $event.target.value"
+                    v-model="form.client_id"
                   >
                     <option value="">— Выберите проект —</option>
                     <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -143,10 +142,10 @@
         <!-- ===== ШАГ 2: ПРОФИЛЬ ===== -->
         <section :class="['steps-track__section', { '_active': step === 2 }]">
           <div class="steps-track__header">
-            <div class="steps-track__marker">
-              <div class="steps-track__marker-text">2</div>
+            <div class="steps-track__marker" :style="markerStyle(2)">
+              <div class="steps-track__marker-text" :style="markerTextStyle(2)">2</div>
             </div>
-            <div class="steps-track__caption">Профиль</div>
+            <div class="steps-track__caption" :style="captionStyle(2)">Профиль</div>
           </div>
 
           <div v-if="step === 2" class="steps-track__content">
@@ -241,10 +240,10 @@
         <!-- ===== ШАГ 3: СЧЕТЧИКИ И ЦЕЛИ ===== -->
         <section :class="['steps-track__section', { '_active': step === 3 }]">
           <div class="steps-track__header">
-            <div class="steps-track__marker">
-              <div class="steps-track__marker-text">3</div>
+            <div class="steps-track__marker" :style="markerStyle(3)">
+              <div class="steps-track__marker-text" :style="markerTextStyle(3)">3</div>
             </div>
-            <div class="steps-track__caption">Счетчики и цели</div>
+            <div class="steps-track__caption" :style="captionStyle(3)">Счетчики и цели</div>
           </div>
 
           <div v-if="step === 3" class="steps-track__content">
@@ -431,10 +430,10 @@
         <!-- ===== ШАГ 4: СВОДКА ===== -->
         <section :class="['steps-track__section', { '_active': step === 4 }]">
           <div class="steps-track__header">
-            <div class="steps-track__marker">
-              <div class="steps-track__marker-text">4</div>
+            <div class="steps-track__marker" :style="markerStyle(4)">
+              <div class="steps-track__marker-text" :style="markerTextStyle(4)">4</div>
             </div>
-            <div class="steps-track__caption">Сводка</div>
+            <div class="steps-track__caption" :style="captionStyle(4)">Сводка</div>
           </div>
 
           <div v-if="step === 4" class="steps-track__content">
@@ -595,7 +594,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
@@ -652,13 +651,33 @@ onMounted(async () => {
     }
   }
 
-  setTimeout(() => {
-    if (window.jQuery) {
-      window.jQuery('select').niceSelect('destroy')
-      window.jQuery('select').niceSelect()
-    }
-  }, 100)
 })
+
+watch(isNewProject, (val) => {
+  if (val) {
+    form.client_id = ''
+  } else {
+    form.client_name = ''
+  }
+})
+
+const markerStyle = (idx) => (
+  step.value === idx
+    ? 'background:linear-gradient(135deg,#2e6bff,#06b5d4) !important;'
+    : 'background:rgba(167,179,198,0.2) !important;'
+)
+
+const markerTextStyle = (idx) => (
+  step.value === idx
+    ? 'color:#fff !important; opacity:1 !important;'
+    : 'color:rgba(88,102,126,.95) !important; opacity:1 !important;'
+)
+
+const captionStyle = (idx) => (
+  step.value === idx
+    ? 'color:#2e6bff !important;'
+    : 'color:rgba(105,105,105,.75) !important;'
+)
 
 const selectProfile = (cabinet) => {
   form.account_id = cabinet.login
