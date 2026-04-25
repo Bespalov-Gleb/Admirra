@@ -90,8 +90,8 @@
                   <div class="mt-auto">
                     <button
                       :class="['btn d-flex w-100', form.platform === 'YANDEX_DIRECT' ? '' : '_vk']"
-                      :disabled="loadingAuth || (!form.client_id && !form.client_name)"
-                      @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
+                      :disabled="loadingAuth"
+                      @click="handleConnectClick"
                     >
                       <div class="btn__inner">
                         <span class="btn__text">
@@ -724,7 +724,8 @@ const initYandexAuth = async () => {
     const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
     if (data?.url) {
       redirected = true
-      window.location.href = data.url
+      toaster.info('Переходим в Яндекс OAuth...')
+      window.location.assign(data.url)
       return
     }
     throw new Error('OAuth URL не получен')
@@ -750,7 +751,8 @@ const initVKAuth = async () => {
     if (data?.state) localStorage.setItem('vk_auth_state', data.state)
     if (data?.url) {
       redirected = true
-      window.location.href = data.url
+      toaster.info('Переходим в VK OAuth...')
+      window.location.assign(data.url)
       return
     }
     throw new Error('OAuth URL не получен')
@@ -784,6 +786,19 @@ const doFinish = async () => {
   }
 }
 
+const handleConnectClick = async () => {
+  if (!form.client_id && !form.client_name) {
+    error.value = 'Выберите проект или включите "Создать новый проект"'
+    toaster.warning('Сначала выберите проект')
+    return
+  }
+  if (form.platform === 'YANDEX_DIRECT') {
+    await initYandexAuth()
+  } else {
+    await initVKAuth()
+  }
+}
+
 const toggleGoalSelection = (id) => {
   const idx = selectedGoalIds.value.indexOf(id)
   if (idx > -1) selectedGoalIds.value.splice(idx, 1)
@@ -797,15 +812,30 @@ const toggleGoalSelection = (id) => {
 
 /* В треке шагов подсвечиваем только активный шаг */
 :deep(.steps-track__section .steps-track__marker) {
-  background: rgba(46, 107, 255, 0.12);
+  background: rgba(167, 179, 198, 0.2) !important;
 }
 
 :deep(.steps-track__section .steps-track__marker-text) {
-  color: rgba(46, 107, 255, 0.7);
+  color: rgba(88, 102, 126, 0.95) !important;
+  opacity: 1 !important;
 }
 
 :deep(.steps-track__section .steps-track__caption) {
-  color: rgba(105, 105, 105, 0.75);
+  color: rgba(105, 105, 105, 0.75) !important;
+}
+
+/* Даже если где-то остается _completed, делаем его визуально неактивным */
+:deep(.steps-track__section._completed .steps-track__marker) {
+  background: rgba(167, 179, 198, 0.2) !important;
+}
+
+:deep(.steps-track__section._completed .steps-track__marker-text) {
+  color: rgba(88, 102, 126, 0.95) !important;
+  opacity: 1 !important;
+}
+
+:deep(.steps-track__section._completed .steps-track__caption) {
+  color: rgba(105, 105, 105, 0.75) !important;
 }
 
 :deep(.steps-track__section._active .steps-track__marker) {
