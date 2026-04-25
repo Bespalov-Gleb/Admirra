@@ -1,1 +1,1 @@
-export const DEFAULT_DASHBOARD_PATH = '/main'
+export const DEFAULT_DASHBOARD_PATH = '/dashboard/general-3'

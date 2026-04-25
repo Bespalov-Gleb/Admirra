@@ -15,7 +15,7 @@
       <div class="steps-track mb-4">
 
         <!-- ===== ШАГ 1: ПРОЕКТ ===== -->
-        <section :class="['steps-track__section', step > 1 ? '_completed' : '']">
+        <section :class="['steps-track__section', { '_active': step === 1 }]">
           <div class="steps-track__header">
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">1</div>
@@ -141,7 +141,7 @@
         </section>
 
         <!-- ===== ШАГ 2: ПРОФИЛЬ ===== -->
-        <section :class="['steps-track__section', step > 2 ? '_completed' : '']">
+        <section :class="['steps-track__section', { '_active': step === 2 }]">
           <div class="steps-track__header">
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">2</div>
@@ -239,7 +239,7 @@
         </section>
 
         <!-- ===== ШАГ 3: СЧЕТЧИКИ И ЦЕЛИ ===== -->
-        <section :class="['steps-track__section', step > 3 ? '_completed' : '']">
+        <section :class="['steps-track__section', { '_active': step === 3 }]">
           <div class="steps-track__header">
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">3</div>
@@ -429,7 +429,7 @@
         </section>
 
         <!-- ===== ШАГ 4: СВОДКА ===== -->
-        <section class="steps-track__section">
+        <section :class="['steps-track__section', { '_active': step === 4 }]">
           <div class="steps-track__header">
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">4</div>
@@ -714,6 +714,7 @@ const initYandexAuth = async () => {
   if (loadingAuth.value) return
   loadingAuth.value = true
   error.value = null
+  let redirected = false
   try {
     if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
     if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
@@ -721,10 +722,16 @@ const initYandexAuth = async () => {
 
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
     const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
-    if (data.url) window.location.href = data.url
+    if (data?.url) {
+      redirected = true
+      window.location.href = data.url
+      return
+    }
+    throw new Error('OAuth URL не получен')
   } catch (err) {
-    error.value = 'Не удалось инициализировать авторизацию Яндекс'
-    loadingAuth.value = false
+    error.value = err.response?.data?.detail || 'Не удалось инициализировать авторизацию Яндекс'
+  } finally {
+    if (!redirected) loadingAuth.value = false
   }
 }
 
@@ -732,6 +739,7 @@ const initVKAuth = async () => {
   if (loadingAuth.value) return
   loadingAuth.value = true
   error.value = null
+  let redirected = false
   try {
     if (form.client_id) localStorage.setItem('vk_auth_client_id', form.client_id)
     if (form.client_name) localStorage.setItem('vk_auth_client_name', form.client_name)
@@ -739,12 +747,17 @@ const initVKAuth = async () => {
 
     const redirectUri = `${window.location.origin}/auth/vk/callback`
     const { data } = await api.get(`integrations/vk/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
-    if (data.state) localStorage.setItem('vk_auth_state', data.state)
-    if (data.url) window.location.href = data.url
-    else throw new Error('OAuth URL не получен')
+    if (data?.state) localStorage.setItem('vk_auth_state', data.state)
+    if (data?.url) {
+      redirected = true
+      window.location.href = data.url
+      return
+    }
+    throw new Error('OAuth URL не получен')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Не удалось инициализировать авторизацию VK'
-    loadingAuth.value = false
+  } finally {
+    if (!redirected) loadingAuth.value = false
   }
 }
 
@@ -781,4 +794,29 @@ const toggleGoalSelection = (id) => {
 <style scoped>
 .admirra-page-wrapper { }
 .btn._vk { background: linear-gradient(135deg, #0077ff, #005fcc); color: #fff; }
+
+/* В треке шагов подсвечиваем только активный шаг */
+:deep(.steps-track__section .steps-track__marker) {
+  background: rgba(46, 107, 255, 0.12);
+}
+
+:deep(.steps-track__section .steps-track__marker-text) {
+  color: rgba(46, 107, 255, 0.7);
+}
+
+:deep(.steps-track__section .steps-track__caption) {
+  color: rgba(105, 105, 105, 0.75);
+}
+
+:deep(.steps-track__section._active .steps-track__marker) {
+  background: linear-gradient(135deg, #2e6bff, #06b5d4);
+}
+
+:deep(.steps-track__section._active .steps-track__marker-text) {
+  color: #fff;
+}
+
+:deep(.steps-track__section._active .steps-track__caption) {
+  color: #2e6bff;
+}
 </style>

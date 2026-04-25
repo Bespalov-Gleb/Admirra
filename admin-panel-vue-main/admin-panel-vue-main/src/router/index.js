@@ -96,11 +96,11 @@ const routes = [
   },
   {
     path: '/dashboard/general',
-    redirect: '/main'
+    redirect: '/dashboard/general-3'
   },
   {
     path: '/dashboard/general-2',
-    redirect: '/main'
+    redirect: '/dashboard/general-3'
   },
   {
     path: '/products',
