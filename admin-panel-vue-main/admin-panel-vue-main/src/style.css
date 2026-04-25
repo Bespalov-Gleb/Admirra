@@ -34,6 +34,27 @@ html {
     font-size: 90%; 
 }
 
+/* Страницы входа/регистрации: поля с белым фоном — текст и маска пароля должны быть тёмными.
+   Глобальный admirra .darkmode input { color:#fff } иначе даёт невидимые точки пароля на белом. */
+html.darkmode .auth-shell input:not([type="checkbox"]):not([type="radio"]),
+html.darkmode .auth-shell textarea,
+html.dark .auth-shell input:not([type="checkbox"]):not([type="radio"]),
+html.dark .auth-shell textarea,
+body.darkmode .auth-shell input:not([type="checkbox"]):not([type="radio"]),
+body.darkmode .auth-shell textarea {
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+    caret-color: #111827 !important;
+}
+
+html.darkmode .auth-shell input::placeholder,
+html.darkmode .auth-shell textarea::placeholder,
+html.dark .auth-shell input::placeholder,
+html.dark .auth-shell textarea::placeholder {
+    color: rgba(17, 24, 39, 0.45) !important;
+    -webkit-text-fill-color: rgba(17, 24, 39, 0.45) !important;
+}
+
 .main-bg-color {
     background-color: #202937;
 }
