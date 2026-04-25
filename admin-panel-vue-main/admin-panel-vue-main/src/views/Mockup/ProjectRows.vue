@@ -43,12 +43,22 @@
 
       <div v-else class="projects-table-wrap bg-white radius-base py-5 mb-5">
         <div class="table-container">
-          <table>
+          <table class="projects-table">
+            <colgroup>
+              <col class="col-project" />
+              <col class="col-id" />
+              <col class="col-platforms" />
+              <col class="col-integrations" />
+              <col class="col-updated" />
+              <col class="col-actions" />
+            </colgroup>
             <thead>
               <tr class="gray56">
                 <th class="bb-light px-3 pb-3">Проект</th>
-                <th class="bb-light px-3 pb-3">Платформа</th>
-                <th class="bb-light px-3 pb-3">Кол-во интеграций</th>
+                <th class="bb-light px-3 pb-3">ID</th>
+                <th class="bb-light px-3 pb-3">Платформы</th>
+                <th class="bb-light px-3 pb-3">Интеграции</th>
+                <th class="bb-light px-3 pb-3">Обновлено</th>
                 <th class="bb-light px-3 pb-3">Действия</th>
               </tr>
             </thead>
@@ -61,9 +71,12 @@
                     </div>
                     <div>
                       <div class="weight-500 gray mb-1">{{ project.name }}</div>
-                      <div class="text-11 gray56">ID: {{ project.id }}</div>
+                      <div class="text-11 gray56">{{ project.description || 'Без описания' }}</div>
                     </div>
                   </div>
+                </td>
+                <td class="bb-light px-3 py-4">
+                  <div class="project-id-cell">{{ shortId(project.id) }}</div>
                 </td>
                 <td class="bb-light px-3 py-4">
                   <div class="d-flex align-items-center gap-2">
@@ -73,10 +86,15 @@
                   </div>
                 </td>
                 <td class="bb-light px-3 py-4">
-                  <div class="text-15">{{ project.integrations?.length || 0 }}</div>
+                  <div class="text-15">
+                    {{ activeIntegrations(project) }} / {{ project.integrations?.length || 0 }}
+                  </div>
                 </td>
                 <td class="bb-light px-3 py-4">
-                  <div class="d-flex gap-2">
+                  <div class="text-13 gray56">{{ formatProjectDate(project.updated_at || project.created_at) }}</div>
+                </td>
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex gap-2 project-actions">
                     <button
                       class="btn _sm _white"
                       @click="openProject(project)"
@@ -152,8 +170,27 @@ const projectInitials = (name) => {
   return name.trim().slice(0, 2).toUpperCase()
 }
 
+const shortId = (id) => {
+  if (!id) return '—'
+  const value = String(id)
+  if (value.length <= 12) return value
+  return `${value.slice(0, 8)}...${value.slice(-4)}`
+}
+
+const formatProjectDate = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('ru-RU')
+}
+
 const hasPlatform = (project, platform) => {
   return project.integrations?.some(i => i.platform?.toUpperCase() === platform)
+}
+
+const activeIntegrations = (project) => {
+  if (!project.integrations?.length) return 0
+  return project.integrations.filter(i => i.is_active).length
 }
 
 const openProject = (project) => {
@@ -199,6 +236,39 @@ const doDelete = async () => {
   font-size: 12px;
   font-weight: 700;
   color: #4b6fa0;
+}
+
+.projects-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.projects-table th,
+.projects-table td {
+  vertical-align: middle;
+}
+
+.projects-table th {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.col-project { width: 28%; }
+.col-id { width: 16%; }
+.col-platforms { width: 14%; }
+.col-integrations { width: 12%; }
+.col-updated { width: 14%; }
+.col-actions { width: 16%; }
+
+.project-id-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: rgba(105, 105, 105, 0.85);
+}
+
+.project-actions {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
 }
 
 :global(html.darkmode) .projects-table-wrap,

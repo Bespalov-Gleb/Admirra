@@ -256,38 +256,45 @@
               </div>
               <div v-if="loadingStates.campaigns" class="py-4 gray56">Загрузка кампаний...</div>
               <div v-else-if="campaigns.length === 0" class="py-4 gray56">Нет доступных кампаний.</div>
-              <div v-else class="row g-3">
-                <div class="col-12">
-                  <label class="choise-checkbox">
-                    <input
-                      class="choise-checkbox__input"
-                      type="checkbox"
-                      :checked="allFromProfile"
-                      @change="allFromProfile = $event.target.checked; selectedCampaignIds = $event.target.checked ? campaigns.map(c => c.id) : []"
-                    />
-                    <span class="choise-checkbox__box">
-                      <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-                    </span>
-                    <span class="ps-2 weight-500 gray">Выбрать все</span>
-                  </label>
+              <div v-else>
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                  <button
+                    type="button"
+                    class="btn _sm _white"
+                    @click="toggleAllCampaigns"
+                  >
+                    <div class="btn__inner px-3">
+                      <span class="btn__text text-13">
+                        {{ allCampaignsSelected ? 'Снять все' : 'Отметить все' }}
+                      </span>
+                    </div>
+                  </button>
+                  <div class="text-13 gray56">
+                    Выбрано: {{ selectedCampaignIds.length }} из {{ campaigns.length }}
+                  </div>
                 </div>
-                <div
-                  v-for="campaign in campaigns"
-                  :key="campaign.id"
-                  class="col-12 col-sm-6 col-md-4"
-                >
-                  <label class="choise-checkbox d-flex align-items-center">
-                    <input
-                      class="choise-checkbox__input"
-                      type="checkbox"
-                      :checked="selectedCampaignIds.includes(campaign.id)"
-                      @change="toggleCampaignSelection(campaign.id)"
-                    />
-                    <span class="choise-checkbox__box">
-                      <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-                    </span>
-                    <span class="ps-2 text-13 gray">{{ campaign.name || campaign.external_id }}</span>
-                  </label>
+
+                <div class="row g-3 wizard-campaigns-grid">
+                  <div
+                    v-for="campaign in campaigns"
+                    :key="campaign.id"
+                    class="col-12 col-sm-6 col-lg-4"
+                  >
+                    <label class="campaign-option">
+                      <input
+                        class="campaign-option__input"
+                        type="checkbox"
+                        :checked="selectedCampaignIds.includes(campaign.id)"
+                        @change="toggleCampaignSelection(campaign.id)"
+                      />
+                      <span class="campaign-option__box">
+                        <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
+                      </span>
+                      <span class="campaign-option__text">
+                        {{ campaign.name || campaign.external_id || `Кампания ${campaign.id}` }}
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -295,7 +302,21 @@
             <!-- Счетчики метрики (только для Яндекс) -->
             <div v-if="form.platform === 'YANDEX_DIRECT'" class="p-5 bg-white radius-base mb-5">
               <div class="mb-5">
-                <h5 class="heading-5 weight-500">Счетчики метрики</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                  <h5 class="heading-5 weight-500 mb-0">Счетчики метрики</h5>
+                  <button
+                    type="button"
+                    class="btn _sm _white"
+                    :disabled="loadingStates.counters || counters.length === 0"
+                    @click="toggleAllCounters"
+                  >
+                    <div class="btn__inner px-3">
+                      <span class="btn__text text-13">
+                        {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
+                      </span>
+                    </div>
+                  </button>
+                </div>
                 <p class="pt-3 text-15 weight-500 gray56">Выберите счетчики для отслеживания целей</p>
               </div>
               <div v-if="loadingStates.counters" class="py-4 gray56">Загрузка счетчиков...</div>
@@ -594,7 +615,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
@@ -632,6 +653,12 @@ const {
 const step = ref(1)
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
+const allCampaignsSelected = computed(() =>
+  campaigns.value.length > 0 && selectedCampaignIds.value.length === campaigns.value.length
+)
+const allCountersSelected = computed(() =>
+  counters.value.length > 0 && selectedCounterIds.value.length === counters.value.length
+)
 
 onMounted(async () => {
   await fetchProjects()
@@ -818,6 +845,26 @@ const handleConnectClick = async () => {
   }
 }
 
+const toggleAllCampaigns = () => {
+  if (!campaigns.value.length) return
+  if (allCampaignsSelected.value) {
+    selectedCampaignIds.value = []
+    allFromProfile.value = false
+  } else {
+    selectedCampaignIds.value = campaigns.value.map(c => c.id)
+    allFromProfile.value = true
+  }
+}
+
+const toggleAllCounters = () => {
+  if (!counters.value.length) return
+  if (allCountersSelected.value) {
+    selectedCounterIds.value = []
+  } else {
+    selectedCounterIds.value = counters.value.map(c => c.id)
+  }
+}
+
 const toggleGoalSelection = (id) => {
   const idx = selectedGoalIds.value.indexOf(id)
   if (idx > -1) selectedGoalIds.value.splice(idx, 1)
@@ -828,6 +875,65 @@ const toggleGoalSelection = (id) => {
 <style scoped>
 .admirra-page-wrapper { }
 .btn._vk { background: linear-gradient(135deg, #0077ff, #005fcc); color: #fff; }
+
+/* Читаемая сетка рекламных кампаний */
+.wizard-campaigns-grid .col-12 {
+  min-width: 0;
+}
+
+.campaign-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(44, 44, 44, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.campaign-option__input {
+  display: none;
+}
+
+.campaign-option__box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid rgba(44, 44, 44, 0.2);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.campaign-option__box svg {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+}
+
+.campaign-option__input:checked + .campaign-option__box {
+  background: #2e6bff;
+  border-color: #2e6bff;
+}
+
+.campaign-option__input:checked + .campaign-option__box svg {
+  opacity: 1;
+  fill: #fff;
+}
+
+.campaign-option__text {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #2c2c2c;
+  white-space: normal;
+  word-break: break-word;
+}
 
 /* Селект проекта в стиле интерфейса */
 .integration-select {
