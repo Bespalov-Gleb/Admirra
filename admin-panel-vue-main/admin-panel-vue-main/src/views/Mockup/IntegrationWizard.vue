@@ -59,7 +59,7 @@
                   <!-- Выбор проекта -->
                   <div class="weight-500 gray mb-2">Проект</div>
                   <select
-                    class="select-light wide mb-3"
+                    class="select-light wide mb-3 integration-select"
                     v-model="form.client_id"
                   >
                     <option value="">— Выберите проект —</option>
@@ -828,6 +828,47 @@ const toggleGoalSelection = (id) => {
 <style scoped>
 .admirra-page-wrapper { }
 .btn._vk { background: linear-gradient(135deg, #0077ff, #005fcc); color: #fff; }
+
+/* Селект проекта в стиле интерфейса */
+.integration-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  height: 44px;
+  padding: 0 38px 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(44, 44, 44, 0.12);
+  background-color: #ffffff;
+  color: #2c2c2c;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #7c8597 50%),
+    linear-gradient(135deg, #7c8597 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.integration-select:hover {
+  border-color: rgba(46, 107, 255, 0.35);
+}
+
+.integration-select:focus {
+  border-color: #2e6bff;
+  box-shadow: 0 0 0 3px rgba(46, 107, 255, 0.15);
+}
+
+.integration-select option {
+  color: #2c2c2c;
+  background: #ffffff;
+}
 
 /* В треке шагов подсвечиваем только активный шаг */
 :deep(.steps-track__section .steps-track__marker) {
