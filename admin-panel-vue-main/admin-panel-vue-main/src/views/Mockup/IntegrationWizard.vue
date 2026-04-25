@@ -345,7 +345,7 @@
                   :key="goal.id"
                   class="col-12 col-sm-6 col-md-auto"
                 >
-                  <div :class="['select-card', form.primary_goal_id === goal.id ? '_selected' : '']">
+                  <div class="select-card goal-select-card">
                     <input
                       class="select-card__input"
                       type="checkbox"
@@ -374,12 +374,11 @@
                             <button
                               type="button"
                               class="select-card__favorites"
+                              :class="{ 'is-primary': form.primary_goal_id === goal.id }"
                               @click.stop="selectPrimaryGoal(goal.id)"
-                              :title="form.primary_goal_id === goal.id ? 'Основная цель' : 'Сделать основной'"
+                              :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной (только одна)'"
                             >
-                              <svg :class="{ active: form.primary_goal_id === goal.id }">
-                                <use href="/admirra/img/svg/sprite.svg#star"></use>
-                              </svg>
+                              <svg><use href="/admirra/img/svg/sprite.svg#star"></use></svg>
                             </button>
                           </div>
                         </div>
@@ -478,9 +477,13 @@
                       <div class="iconbox _md _radius">
                         <svg><use href="/admirra/img/svg/sprite.svg#wallet"></use></svg>
                       </div>
-                      <div class="text-15 weight-500">
+                      <div class="text-15 weight-500 flex-grow-1">
                         <h6 class="card-info__title">Счетчики</h6>
-                        <p class="gray500 pt-2">Выбрано: {{ selectedCounterIds.length }}</p>
+                        <p class="gray500 pt-2 mb-1">Выбрано: {{ selectedCounterIds.length }}</p>
+                        <ul v-if="summaryCounterLines.length" class="integration-summary-list gray500 text-13 mb-0 ps-3">
+                          <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
+                        </ul>
+                        <p v-else class="gray500 pt-1 mb-0 text-13">Нет выбранных счётчиков</p>
                       </div>
                     </div>
                   </div>
@@ -496,6 +499,23 @@
                         <p class="gray500 pt-2">
                           {{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="form.platform === 'YANDEX_DIRECT'" class="col-12 col-md-6">
+                  <div class="card-info _lavender">
+                    <div class="card-info__header">
+                      <div class="iconbox _md _radius">
+                        <svg><use href="/admirra/img/svg/sprite.svg#group"></use></svg>
+                      </div>
+                      <div class="text-15 weight-500 flex-grow-1">
+                        <h6 class="card-info__title">Дополнительные цели</h6>
+                        <p class="gray500 pt-2 mb-1">Отмечено: {{ summaryAdditionalGoalLines.length }}</p>
+                        <ul v-if="summaryAdditionalGoalLines.length" class="integration-summary-list gray500 text-13 mb-0 ps-3">
+                          <li v-for="(name, i) in summaryAdditionalGoalLines" :key="i">{{ name }}</li>
+                        </ul>
+                        <p v-else class="gray500 pt-1 mb-0 text-13">Не выбраны (галочки на шаге 3)</p>
                       </div>
                     </div>
                   </div>
@@ -636,6 +656,33 @@ const allGoalsSelected = computed(() =>
   goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length
 )
 
+const summaryCounterLines = computed(() =>
+  selectedCounterIds.value
+    .map((id) => counters.value.find((c) => c.id === id))
+    .filter(Boolean)
+    .map((c) => `${c.name || 'Счётчик'} · ID ${c.id}`)
+)
+
+const summaryAdditionalGoalLines = computed(() => {
+  const primary = form.primary_goal_id
+  return selectedGoalIds.value
+    .filter((id) => id !== primary)
+    .map((id) => goals.value.find((g) => g.id === id)?.name || String(id))
+})
+
+let counterGoalsDebounce = null
+watch(
+  selectedCounterIds,
+  () => {
+    if (step.value !== 3 || !lastIntegrationId.value || form.platform !== 'YANDEX_DIRECT') return
+    clearTimeout(counterGoalsDebounce)
+    counterGoalsDebounce = setTimeout(() => {
+      fetchGoals(lastIntegrationId.value)
+    }, 400)
+  },
+  { deep: true }
+)
+
 onMounted(async () => {
   await fetchProjects()
 
@@ -701,21 +748,22 @@ const goToStep3 = async () => {
     return
   }
   step.value = 3
-  fetchCampaigns(lastIntegrationId.value)
+  await fetchCampaigns(lastIntegrationId.value)
   allFromProfile.value = true
   if (form.platform === 'YANDEX_DIRECT') {
-    fetchCounters(lastIntegrationId.value)
+    await fetchCounters(lastIntegrationId.value)
+    await fetchGoals(lastIntegrationId.value)
   }
 }
 
-const goToStep4 = () => {
+const goToStep4 = async () => {
   // РК теперь выбираются автоматически (all_campaigns=true), поэтому валидация по кампаниям не нужна.
   if (form.platform === 'YANDEX_DIRECT') {
     if (!selectedCounterIds.value.length) {
       error.value = 'Выберите хотя бы один счетчик'
       return
     }
-    fetchGoals(lastIntegrationId.value)
+    await fetchGoals(lastIntegrationId.value)
   }
   error.value = null
   step.value = 4
@@ -932,5 +980,25 @@ const toggleGoalSelection = (id) => {
 
 :deep(.steps-track__section._active .steps-track__caption) {
   color: #2e6bff;
+}
+
+/* Глобальный стиль .select-card:has(input:checked) красит «избранное» в оранжевый — для целей это только звезда «основная» */
+:deep(.goal-select-card.select-card:has(.select-card__input:checked) .select-card__favorites:not(.is-primary)) {
+  background-color: var(--bgLayout, #f1f3f5) !important;
+}
+:deep(.goal-select-card.select-card:has(.select-card__input:checked) .select-card__favorites:not(.is-primary) svg) {
+  fill: #e9e9e9 !important;
+}
+:deep(.goal-select-card .select-card__favorites.is-primary) {
+  background-color: #fa812e !important;
+}
+:deep(.goal-select-card .select-card__favorites.is-primary svg) {
+  fill: #fff !important;
+}
+
+.integration-summary-list {
+  max-height: 7.5rem;
+  overflow-y: auto;
+  line-height: 1.35;
 }
 </style>

@@ -175,6 +175,12 @@ export function useIntegrationWizard() {
         goals.value = Array.isArray(data) ? data : []
       }
 
+      const goalIdSet = new Set(goals.value.map((g) => g.id))
+      selectedGoalIds.value = selectedGoalIds.value.filter((id) => goalIdSet.has(id))
+      if (form.primary_goal_id != null && !goalIdSet.has(form.primary_goal_id)) {
+        form.primary_goal_id = null
+      }
+
       // Автовыбор основной цели по конверсии, если ещё не выбрана
       if (goals.value.length > 0 && !form.primary_goal_id) {
         const bestGoal = [...goals.value].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
@@ -265,7 +271,11 @@ export function useIntegrationWizard() {
   }
 
   const selectPrimaryGoal = (id) => {
-    form.primary_goal_id = id
+    if (form.primary_goal_id === id) {
+      form.primary_goal_id = null
+    } else {
+      form.primary_goal_id = id
+    }
   }
 
   const finishConnection = async () => {

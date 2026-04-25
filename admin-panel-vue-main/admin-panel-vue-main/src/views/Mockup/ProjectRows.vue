@@ -35,7 +35,7 @@
         <div class="col-12 col-md-auto">
           <div class="row g-3">
             <div class="col-auto">
-              <button class="btn _primary">
+              <button type="button" class="btn _primary" @click="openMassEdit">
                 <div class="btn__inner">
                   <span class="btn__text">Массовое редактирование</span>
                   <div class="btn__icon"><svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#edit"></use></svg></div>
@@ -150,6 +150,16 @@
           <table class="projects-rows-table">
             <thead>
               <tr class="gray56">
+                <th class="bb-light px-3 pb-3" style="width:2.5rem">
+                  <label class="d-flex align-items-center justify-content-center mb-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="form-check-input"
+                      :checked="allRowsSelected"
+                      @change="toggleSelectAllRows"
+                    />
+                  </label>
+                </th>
                 <th class="bb-light px-3 pb-3">Проект</th>
                 <th class="bb-light px-3 pb-3">Интеграции</th>
                 <th class="bb-light px-3 pb-3">Показы</th>
@@ -164,6 +174,14 @@
             </thead>
             <tbody>
               <tr v-for="project in filteredProjects" :key="project.id">
+                <td class="bb-light px-3 py-4 align-middle">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :checked="selectedProjectIds.includes(project.id)"
+                    @change="toggleProjectRow(project.id)"
+                  />
+                </td>
                 <td class="bb-light px-3 py-4">
                   <div class="d-flex align-items-center">
                     <div class="project-avatar-32 me-3">{{ projectInitials(project.name) }}</div>
@@ -202,6 +220,37 @@
         </div>
       </div>
 
+      <!-- Массовое редактирование -->
+      <div
+        v-if="massEditOpen"
+        class="modal-overlay"
+        style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem"
+        @click.self="massEditOpen = false"
+      >
+        <div class="bg-white radius-base p-5 mass-edit-modal" style="max-width:480px;width:100%">
+          <h4 class="heading-4 mb-2">Массовое редактирование</h4>
+          <p class="text-14 gray56 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
+          <ul class="text-13 gray56 mb-3 ps-3 mass-edit-names">
+            <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
+          </ul>
+          <textarea
+            v-model="massEditDescription"
+            class="input w-100 mb-4"
+            rows="4"
+            placeholder="Описание проекта (необязательно оставить пустым — тогда только список)"
+            style="min-height:6rem;resize:vertical"
+          />
+          <div class="d-flex gap-3 flex-wrap">
+            <button class="btn _primary" type="button" :disabled="massSaving" @click="applyMassDescription">
+              <div class="btn__inner"><span class="btn__text">{{ massSaving ? 'Сохранение...' : 'Применить описание' }}</span></div>
+            </button>
+            <button class="btn _white" type="button" :disabled="massSaving" @click="massEditOpen = false">
+              <div class="btn__inner"><span class="btn__text gray">Закрыть</span></div>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Диалог подтверждения удаления -->
       <div
         v-if="deleteTarget"
@@ -226,15 +275,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useTheme } from '../../composables/useTheme'
+import { useToaster } from '../../composables/useToaster'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const { isDarkMode } = useTheme()
+const toaster = useToaster()
 
 const viewType = ref('grid')
 const periodDays = ref(14)
@@ -242,6 +293,10 @@ const search = ref('')
 const deleting = ref(false)
 const deleteTarget = ref(null)
 const metricsByProjectId = ref({})
+const selectedProjectIds = ref([])
+const massEditOpen = ref(false)
+const massEditDescription = ref('')
+const massSaving = ref(false)
 
 const searchInputStyle = computed(() => isDarkMode.value
   ? 'background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); color:#fff'
@@ -254,6 +309,75 @@ const filteredProjects = computed(() => {
     p.name?.toLowerCase().includes(q) ||
     String(p.id || '').toLowerCase().includes(q)
   )
+})
+
+const allRowsSelected = computed(() => {
+  const list = filteredProjects.value
+  if (!list.length) return false
+  return list.every((p) => selectedProjectIds.value.includes(p.id))
+})
+
+const selectedProjectIdList = computed(() => [...selectedProjectIds.value])
+
+const projectNameById = (id) => projects.value.find((p) => p.id === id)?.name || String(id)
+
+const toggleProjectRow = (id) => {
+  const idx = selectedProjectIds.value.indexOf(id)
+  if (idx > -1) selectedProjectIds.value.splice(idx, 1)
+  else selectedProjectIds.value.push(id)
+}
+
+const toggleSelectAllRows = () => {
+  const ids = filteredProjects.value.map((p) => p.id)
+  if (allRowsSelected.value) {
+    selectedProjectIds.value = selectedProjectIds.value.filter((id) => !ids.includes(id))
+  } else {
+    const set = new Set([...selectedProjectIds.value, ...ids])
+    selectedProjectIds.value = Array.from(set)
+  }
+}
+
+const openMassEdit = () => {
+  if (viewType.value !== 'rows') {
+    toaster.warning('Переключитесь в табличный режим и отметьте проекты галочками.')
+    return
+  }
+  if (!selectedProjectIds.value.length) {
+    toaster.warning('Отметьте один или несколько проектов в таблице.')
+    return
+  }
+  massEditDescription.value = ''
+  massEditOpen.value = true
+}
+
+const applyMassDescription = async () => {
+  if (!selectedProjectIds.value.length) return
+  const desc = massEditDescription.value.trim()
+  if (!desc) {
+    toaster.warning('Введите текст описания — он будет записан во все выбранные проекты.')
+    return
+  }
+  massSaving.value = true
+  try {
+    await Promise.all(
+      selectedProjectIds.value.map((id) =>
+        api.put(`clients/${id}`, { description: desc })
+      )
+    )
+    toaster.success(`Описание обновлено для ${selectedProjectIds.value.length} проектов.`)
+    massEditOpen.value = false
+    await fetchProjects()
+    await loadProjectMetrics()
+  } catch (err) {
+    console.error(err)
+    toaster.error(err.response?.data?.detail || 'Не удалось сохранить изменения.')
+  } finally {
+    massSaving.value = false
+  }
+}
+
+watch(viewType, (v) => {
+  if (v !== 'rows') selectedProjectIds.value = []
 })
 
 const emptyMetric = () => ({
