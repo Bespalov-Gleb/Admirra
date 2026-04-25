@@ -103,6 +103,12 @@ class SmtpConfig:
 
 
 @dataclass
+class SupportConfig:
+    """Куда слать обращения с формы «Предложить идею» (POST /api/support/idea)."""
+    inbox_email: str
+
+
+@dataclass
 class TelegramBotConfig:
     """Тот же бот, что для lead_validator (TELEGRAM_BOT_TOKEN). Webhook — для привязки чата к пользователю."""
     bot_token: str
@@ -122,6 +128,7 @@ class Config:
     cloudpayments: CloudPaymentsConfig
     telegram_bot: TelegramBotConfig
     smtp: SmtpConfig
+    support: SupportConfig
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -228,6 +235,9 @@ def get_config() -> Config:
             password=_env("SMTP_PASSWORD"),
             from_addr=_env("SMTP_FROM", "noreply@admirra.ru"),
             use_tls=_bool("SMTP_USE_TLS", True),
+        ),
+        support=SupportConfig(
+            inbox_email=_env("SUPPORT_INBOX_EMAIL", "support@admirra.ru"),
         ),
     )
 

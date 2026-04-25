@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 profile-page-root" :class="{ 'profile-page--dark': isDarkMode }">
     <!-- Заголовок -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Профиль</h1>
@@ -8,7 +8,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Левая колонка - Аватар и основная информация -->
       <div class="lg:col-span-1">
-        <div class="bg-white rounded-lg  p-6">
+        <div class="profile-card bg-white rounded-lg p-6">
           <!-- Аватар -->
           <div class="flex flex-col items-center mb-6">
             <div class="relative mb-4">
@@ -22,7 +22,7 @@
                 <CameraIcon class="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </button>
             </div>
-            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{{ userData.fullName }}</h2>
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{{ userDisplayName }}</h2>
             <p class="text-sm text-gray-500 mt-1">{{ userData.email }}</p>
             <span class="mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
               {{ userData.role }}
@@ -50,7 +50,7 @@
       <!-- Правая колонка - Детальная информация -->
       <div class="lg:col-span-2 space-y-6">
         <!-- Личная информация -->
-        <div class="bg-white rounded-lg p-6">
+        <div class="profile-card bg-white rounded-lg p-6">
           <div class="flex items-center justify-between mb-6">
             <h2 class="text-xl font-bold text-gray-900">Личная информация</h2>
             <button
@@ -129,7 +129,7 @@
         </div>
 
         <!-- Безопасность -->
-        <div class="bg-white rounded-lg p-6">
+        <div class="profile-card bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Безопасность</h2>
 
           <div class="space-y-4">
@@ -169,7 +169,7 @@
         </div>
 
         <!-- Доставка отчётов -->
-        <div class="bg-white rounded-lg p-6">
+        <div class="profile-card bg-white rounded-lg p-6">
           <div class="flex items-center justify-between mb-6">
             <h2 class="text-xl font-bold text-gray-900">Доставка отчётов</h2>
             <button
@@ -181,7 +181,7 @@
           </div>
           <p class="text-sm text-gray-500 mb-4">Настройки по умолчанию для отправки отчётов в Telegram и на Email.</p>
           <div class="space-y-4">
-            <div class="p-4 border border-gray-200 rounded-lg bg-gray-50/50">
+            <div class="profile-report-telegram-box p-4 border border-gray-200 rounded-lg bg-gray-50/50">
               <p class="text-sm font-medium text-gray-900 mb-1">Telegram для отчётов</p>
               <p v-if="userData.reportTelegramChatId" class="text-sm text-green-700 mb-3">Чат подключён — отчёты будут приходить в ваш диалог с ботом.</p>
               <p v-else class="text-sm text-gray-600 mb-3">Откройте бота в Telegram и нажмите Start — без ввода числового Chat ID.</p>
@@ -229,7 +229,7 @@
         </div>
 
         <!-- Настройки уведомлений (заглушка, пока без бэкенда) -->
-        <div class="bg-white rounded-lg p-6">
+        <div class="profile-card bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Уведомления</h2>
           <p class="text-sm text-gray-500">Настройки уведомлений будут доступны в следующей версии.</p>
         </div>
@@ -299,8 +299,10 @@ import ChangePasswordModal from '../Settings/components/ChangePasswordModal.vue'
 import Alert from '../../components/Alert.vue'
 import api from '../../api/axios'
 import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
+import { useTheme } from '../../composables/useTheme'
 
 const { openTelegramBotForLinking } = useTelegramReportLink()
+const { isDarkMode } = useTheme()
 
 const isEditMode = ref(false)
 const isReportSettingsEdit = ref(false)
@@ -321,6 +323,12 @@ const userData = ref({
   reportEmailRecipientsStr: '',
   lastPasswordChange: '—',
   twoFactorEnabled: false
+})
+
+const userDisplayName = computed(() => {
+  const u = userData.value
+  const n = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
+  return n || u.username || u.email || 'Пользователь'
 })
 
 const stats = ref({
@@ -452,3 +460,139 @@ onMounted(() => {
 })
 </script>
 
+<style scoped>
+/* Светлая тема: карточки остаются как в Tailwind */
+
+.profile-page--dark .profile-card.bg-white {
+  background-color: rgba(35, 37, 48, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-page--dark button.bg-white {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #e2e8f0 !important;
+}
+
+.profile-page--dark button.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #e2e8f0 !important;
+}
+
+.profile-page--dark .text-gray-900 {
+  color: #f1f5f9 !important;
+}
+
+.profile-page--dark .text-gray-700 {
+  color: #e2e8f0 !important;
+}
+
+.profile-page--dark .text-gray-600 {
+  color: #94a3b8 !important;
+}
+
+.profile-page--dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+.profile-page--dark .text-gray-400 {
+  color: #64748b !important;
+}
+
+.profile-page--dark .bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.profile-page--dark .bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.profile-page--dark .bg-gray-200 {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.profile-page--dark .border-gray-200,
+.profile-page--dark .border-gray-300 {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.profile-page--dark .profile-report-telegram-box {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.profile-page--dark .hover\:bg-gray-200:hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.profile-page--dark .hover\:bg-gray-50:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.profile-page--dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.22) !important;
+}
+
+.profile-page--dark .text-blue-800 {
+  color: #93c5fd !important;
+}
+
+.profile-page--dark .text-green-600 {
+  color: #4ade80 !important;
+}
+
+.profile-page--dark .text-green-700 {
+  color: #86efac !important;
+}
+
+.profile-page--dark :deep(input) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f1f5f9 !important;
+}
+
+.profile-page--dark :deep(input::placeholder) {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.profile-page--dark :deep(input.bg-gray-100),
+.profile-page--dark :deep(input.cursor-not-allowed) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+}
+
+.profile-page--dark :deep(label) {
+  color: #cbd5e1 !important;
+}
+
+.profile-page--dark textarea {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f1f5f9 !important;
+}
+
+.profile-page--dark textarea::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.profile-page--dark textarea.bg-gray-100,
+.profile-page--dark textarea.cursor-not-allowed {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+}
+
+.profile-page--dark input.w-full.px-4 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f1f5f9 !important;
+}
+
+.profile-page--dark input.w-full.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+}
+
+.profile-page--dark .text-gray-600 svg,
+.profile-page--dark .text-gray-600 :deep(svg) {
+  color: #94a3b8;
+}
+</style>

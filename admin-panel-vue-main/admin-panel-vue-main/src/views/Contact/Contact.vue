@@ -33,22 +33,22 @@
               ></textarea>
             </div>
             <div class="mb-4">
-              <label class="d-block text-13 weight-500 mb-2" :style="labelStyle">Ваш email (необязательно)</label>
+              <label class="d-block text-13 weight-500 mb-2" :style="labelStyle">Ваш email <span :style="metaStyle">(обязательно — чтобы мы могли ответить)</span></label>
               <input
                 v-model="form.email"
                 type="email"
                 class="form-control contact-input"
-                placeholder="для обратной связи"
+                placeholder="name@example.com"
+                required
+                autocomplete="email"
                 :style="inputStyle"
               />
             </div>
 
-            <div v-if="successMsg" class="mb-3 px-4 py-3 text-14 weight-500"
-              style="background:#f0fdf4; border-radius:10px; color:#16a34a">
+            <div v-if="successMsg" class="mb-3 px-4 py-3 text-14 weight-500" :style="successAlertStyle">
               {{ successMsg }}
             </div>
-            <div v-if="errorMsg" class="mb-3 px-4 py-3 text-14 weight-500"
-              style="background:#fef2f2; border-radius:10px; color:#dc2626">
+            <div v-if="errorMsg" class="mb-3 px-4 py-3 text-14 weight-500" :style="errorAlertStyle">
               {{ errorMsg }}
             </div>
 
@@ -112,22 +112,44 @@ const labelStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.8
 const metaStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.55)' : 'color:rgba(105,105,105,0.56)')
 const textStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.85)' : 'color:#515151')
 
+const successAlertStyle = computed(() => isDarkMode.value
+  ? 'background:rgba(34,197,94,0.18); border-radius:10px; color:#86efac; border:1px solid rgba(34,197,94,0.35)'
+  : 'background:#f0fdf4; border-radius:10px; color:#16a34a')
+
+const errorAlertStyle = computed(() => isDarkMode.value
+  ? 'background:rgba(248,113,113,0.15); border-radius:10px; color:#fca5a5; border:1px solid rgba(248,113,113,0.35)'
+  : 'background:#fef2f2; border-radius:10px; color:#dc2626')
+
+const formatApiError = (err) => {
+  const d = err.response?.data?.detail
+  if (typeof d === 'string') return d
+  if (Array.isArray(d)) {
+    return d.map((e) => e.msg || e.message || JSON.stringify(e)).join('; ')
+  }
+  if (d && typeof d === 'object') return d.message || JSON.stringify(d)
+  return err.message || 'Не удалось отправить. Попробуйте позже.'
+}
+
 const handleSubmit = async () => {
   loading.value = true
   successMsg.value = ''
   errorMsg.value = ''
+  const email = (form.value.email || '').trim()
+  if (!email) {
+    errorMsg.value = 'Укажите email — без него мы не сможем ответить.'
+    loading.value = false
+    return
+  }
   try {
     await api.post('support/idea', {
-      subject: form.value.subject,
-      message: form.value.message,
-      email: form.value.email || undefined
+      subject: form.value.subject.trim(),
+      message: form.value.message.trim(),
+      email
     })
-    successMsg.value = 'Спасибо! Мы получили вашу идею и обязательно её рассмотрим.'
+    successMsg.value = 'Спасибо! Идея отправлена на почту команды. Мы свяжемся с вами при необходимости.'
     form.value = { subject: '', message: '', email: '' }
-  } catch {
-    // Если эндпоинта нет — считаем успехом (тихо принимаем)
-    successMsg.value = 'Спасибо! Мы получили вашу идею и обязательно её рассмотрим.'
-    form.value = { subject: '', message: '', email: '' }
+  } catch (err) {
+    errorMsg.value = formatApiError(err)
   } finally {
     loading.value = false
   }

@@ -39,7 +39,7 @@ def is_configured() -> bool:
     return bool(host and from_addr)
 
 
-def _send_sync(to_email: str, subject: str, body_text: str) -> bool:
+def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[str] = None) -> bool:
     if not smtp_enabled():
         logger.warning("Auth email skipped: SMTP_ENABLED=false")
         return False
@@ -51,6 +51,8 @@ def _send_sync(to_email: str, subject: str, body_text: str) -> bool:
     msg["Subject"] = subject
     msg["From"] = from_addr
     msg["To"] = to_email
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(body_text)
     with smtplib.SMTP(host, port, timeout=15) as server:
         if use_tls:
@@ -115,4 +117,30 @@ async def send_login_otp_email(to_email: str, code: str) -> bool:
         return await asyncio.to_thread(_send_sync, to_email, subject, body)
     except Exception as e:
         logger.exception("send_login_otp_email failed: %s", e)
+        return False
+
+
+async def send_support_idea_email(
+    inbox_to: str,
+    subject: str,
+    message: str,
+    sender_email: str,
+) -> bool:
+    """Письмо команде с формы обратной связи; Reply-To — email отправителя для ответа в почтовом клиенте."""
+    safe_subject = (subject or "").strip()[:500] or "Без темы"
+    text = (message or "").strip()
+    if len(text) > 20000:
+        text = text[:20000] + "\n\n[…текст обрезан]"
+    body = (
+        "Обращение с формы «Предложить идея» (AdMirra).\n\n"
+        f"Тема: {safe_subject}\n"
+        f"Контактный email: {sender_email}\n\n"
+        "Сообщение:\n"
+        f"{text}\n"
+    )
+    subject_line = f"[AdMirra] Идея: {safe_subject}"[:998]
+    try:
+        return await asyncio.to_thread(_send_sync, inbox_to, subject_line, body, reply_to=sender_email)
+    except Exception as e:
+        logger.exception("send_support_idea_email failed: %s", e)
         return False

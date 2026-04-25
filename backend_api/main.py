@@ -69,6 +69,7 @@ from backend_api.phone_leads import router as phone_leads_router
 from backend_api.phone_stats import router as phone_stats_router
 from backend_api.billing import router as billing_router
 from backend_api.notifications import router as notifications_router
+from backend_api.support import router as support_router
 
 try:
     from ai.router import router as ai_router
@@ -184,6 +185,7 @@ app.include_router(phone_leads_router, prefix="/api")
 app.include_router(phone_stats_router, prefix="/api")
 app.include_router(billing_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(support_router, prefix="/api")
 
 if AI_AVAILABLE:
     app.include_router(ai_router, prefix="/api")
