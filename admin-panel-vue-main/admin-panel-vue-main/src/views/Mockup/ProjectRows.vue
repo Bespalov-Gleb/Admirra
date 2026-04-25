@@ -1,5 +1,5 @@
 <template>
-  <div class="admirra-page-wrapper">
+  <div class="admirra-page-wrapper" :class="{ 'projects-page--dark': isDarkMode }">
     <section class="main-section">
       <div class="py-4 mb-3">
         <h3 class="heading-3">Проекты</h3>
@@ -7,27 +7,30 @@
 
       <div class="row gy-3 mb-5">
         <div class="col-12 col-md">
-          <div class="row gy-3">
-            <div class="col-auto">
-              <select class="wide" v-model="periodDays" @change="reloadMetrics">
+          <div class="projects-filters-row">
+            <div class="projects-filters-period">
+              <select
+                class="projects-period-select"
+                :class="{ 'is-dark-input': isDarkMode }"
+                v-model.number="periodDays"
+                @change="reloadMetrics"
+              >
                 <option :value="14">2 недели</option>
                 <option :value="30">30 дней</option>
                 <option :value="90">90 дней</option>
               </select>
             </div>
-            <div class="col-12 col-sm-auto">
-              <div class="input-item">
-                <input
-                  class="input _search-project"
-                  :class="{ 'is-dark-input': isDarkMode }"
-                  :style="searchInputStyle"
-                  type="text"
-                  placeholder="Поиск по проектам, номерам или доменам"
-                  v-model="search"
-                />
-                <div class="input-icon">
-                  <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
-                </div>
+            <div class="projects-filters-search input-item">
+              <input
+                class="input _search-project"
+                :class="{ 'is-dark-input': isDarkMode }"
+                :style="searchInputStyle"
+                type="text"
+                placeholder="Поиск по проектам, номерам или доменам"
+                v-model="search"
+              />
+              <div class="input-icon">
+                <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
               </div>
             </div>
           </div>
@@ -68,7 +71,7 @@
       <!-- ВИД 1: Карточки (как в новом макете) -->
       <div v-else-if="viewType === 'grid'" class="row gy-4 mb-5">
         <div v-for="project in filteredProjects" :key="project.id" class="col-12 col-xxl-6">
-          <div class="h-100 bg-white radius-base">
+          <div class="h-100 radius-base projects-grid-card">
             <div class="p-5">
               <div class="row pb-3 mb-4">
                 <div class="col">
@@ -77,13 +80,13 @@
                       <div class="project-avatar-40">{{ projectInitials(project.name) }}</div>
                     </div>
                     <div class="ps-4 align-self-center">
-                      <h4 class="mb-1 text-15 gray">{{ project.name }}</h4>
-                      <p class="gray56">{{ project.description || 'Описание проекта краткое' }}</p>
+                      <h4 class="mb-1 text-15 gray project-card-title">{{ project.name }}</h4>
+                      <p class="gray56 project-card-desc">{{ project.description || 'Описание проекта краткое' }}</p>
                     </div>
                   </div>
                 </div>
                 <div class="col-auto">
-                  <button class="circle-btn" @click="openProject(project)">
+                  <button type="button" class="circle-btn project-card-open" @click="openProject(project)">
                     <svg><use href="/admirra/img/svg/sprite.svg#up"></use></svg>
                   </button>
                 </div>
@@ -91,18 +94,18 @@
 
               <div class="row g-4">
                 <div v-for="(stat, idx) in getProjectStats(project)" :key="idx" class="col-12 col-sm-6 col-md-4">
-                  <div class="d-flex flex-column h-100 p-4 bg-azurelight radius lh-110">
+                  <div class="d-flex flex-column h-100 p-4 bg-azurelight radius lh-110 projects-metric-tile">
                     <div class="d-flex pb-2 mb-4">
                       <div class="iconbox">
                         <svg><use :href="stat.icon"></use></svg>
                       </div>
                       <div class="ps-3 align-self-center">
-                        <h4 class="mb-1 gray">{{ stat.label }}</h4>
-                        <p class="text-12 gray56">{{ stat.subtitle }}</p>
+                        <h4 class="mb-1 gray metric-label">{{ stat.label }}</h4>
+                        <p class="text-12 gray56 metric-sub">{{ stat.subtitle }}</p>
                       </div>
                     </div>
                     <div class="d-flex align-items-center mt-auto">
-                      <b class="text-20 me-3">{{ stat.value }}</b>
+                      <b class="text-20 me-3 metric-value">{{ stat.value }}</b>
                       <div class="badge _success">
                         <svg class="badge__icon"><use href="/admirra/img/svg/sprite.svg#rating-up"></use></svg>
                         {{ stat.change }}
@@ -113,9 +116,9 @@
               </div>
             </div>
 
-            <hr class="hr-line" />
+            <hr class="hr-line projects-card-hr" />
             <div class="p-5">
-              <div class="gray mb-3">Актуальный баланс в ЛК:</div>
+              <div class="gray mb-3 balance-section-title">Актуальный баланс в ЛК:</div>
               <div class="row g-4">
                 <div v-if="hasPlatform(project, 'YANDEX')" class="col-12 col-sm-6 col-md-4">
                   <div class="h-100 radius p-3 bg-orangelight">
@@ -145,7 +148,7 @@
       </div>
 
       <!-- ВИД 2: Таблица (новая локальная вёрстка, не старый экран) -->
-      <div v-else class="projects-rows-wrap bg-white radius-base py-4 mb-5">
+      <div v-else class="projects-rows-wrap radius-base py-4 mb-5 projects-table-shell">
         <div class="table-container">
           <table class="projects-rows-table">
             <thead>
@@ -227,7 +230,7 @@
         style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem"
         @click.self="massEditOpen = false"
       >
-        <div class="bg-white radius-base p-5 mass-edit-modal" style="max-width:480px;width:100%">
+        <div class="radius-base p-5 mass-edit-modal projects-modal-panel" style="max-width:480px;width:100%">
           <h4 class="heading-4 mb-2">Массовое редактирование</h4>
           <p class="text-14 gray56 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
           <ul class="text-13 gray56 mb-3 ps-3 mass-edit-names">
@@ -257,7 +260,7 @@
         class="modal-overlay"
         style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center"
       >
-        <div class="delete-modal bg-white radius-base p-5" style="max-width:400px;width:90%">
+        <div class="delete-modal radius-base p-5 projects-modal-panel" style="max-width:400px;width:90%">
           <h4 class="heading-4 mb-3">Удалить проект?</h4>
           <p class="text-14 gray56 mb-4">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
           <div class="d-flex gap-3">
@@ -486,6 +489,93 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.projects-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.projects-filters-period {
+  flex: 0 0 auto;
+}
+
+.projects-filters-search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.projects-filters-search :deep(.input._search-project) {
+  width: 100%;
+  max-width: 35.4rem;
+}
+
+.projects-period-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  display: block;
+  min-width: 11.5rem;
+  height: 4.4rem;
+  padding: 0 2.5rem 0 1.4rem;
+  margin: 0;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(44, 44, 44, 0.12);
+  background-color: #fff;
+  color: #2c2c2c;
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #7c8597 50%),
+    linear-gradient(135deg, #7c8597 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.6rem) calc(50% - 0.15rem),
+    calc(100% - 1.1rem) calc(50% - 0.15rem);
+  background-size: 0.5rem 0.5rem, 0.5rem 0.5rem;
+  background-repeat: no-repeat;
+}
+
+.projects-period-select:hover {
+  border-color: rgba(46, 107, 255, 0.35);
+}
+
+.projects-period-select:focus {
+  border-color: #2e6bff;
+  box-shadow: 0 0 0 3px rgba(46, 107, 255, 0.15);
+}
+
+.projects-period-select option {
+  color: #2c2c2c;
+  background: #fff;
+}
+
+.projects-period-select.is-dark-input {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.5) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.6rem) calc(50% - 0.15rem),
+    calc(100% - 1.1rem) calc(50% - 0.15rem);
+  background-size: 0.5rem 0.5rem, 0.5rem 0.5rem;
+  background-repeat: no-repeat;
+}
+
+.projects-period-select.is-dark-input:hover {
+  border-color: rgba(46, 107, 255, 0.45);
+}
+
+.projects-period-select.is-dark-input:focus {
+  border-color: #6b9aff;
+  box-shadow: 0 0 0 3px rgba(46, 107, 255, 0.2);
+}
+
 .project-avatar-40,
 .project-avatar-32 {
   display: inline-flex;
@@ -499,6 +589,20 @@ onMounted(async () => {
 
 .project-avatar-40 { width: 40px; height: 40px; font-size: 12px; }
 .project-avatar-32 { width: 32px; height: 32px; font-size: 11px; }
+
+.projects-grid-card {
+  background: #fff;
+  border: 1px solid transparent;
+}
+
+.projects-table-shell {
+  background: #fff;
+  border: 1px solid rgba(44, 44, 44, 0.06);
+}
+
+.projects-modal-panel {
+  background: #fff;
+}
 
 .projects-rows-wrap { overflow: hidden; }
 .projects-rows-table { width: 100%; min-width: 1080px; border-collapse: collapse; }
@@ -521,14 +625,41 @@ onMounted(async () => {
 :global(body.dark) .delete-modal {
   background: rgba(35, 37, 48, 0.96) !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e8eaed;
+}
+
+:global(html.darkmode) .delete-modal .heading-4,
+:global(body.darkmode) .delete-modal .heading-4 {
+  color: #f1f5f9 !important;
+}
+
+:global(html.darkmode) .delete-modal .gray56,
+:global(body.darkmode) .delete-modal .gray56 {
+  color: #94a3b8 !important;
 }
 
 :global(html.darkmode) .projects-rows-wrap,
 :global(body.darkmode) .projects-rows-wrap,
 :global(html.dark) .projects-rows-wrap,
-:global(body.dark) .projects-rows-wrap {
-  background: rgba(255, 255, 255, 0.05) !important;
+:global(body.dark) .projects-rows-wrap,
+:global(html.darkmode) .projects-table-shell,
+:global(body.darkmode) .projects-table-shell,
+:global(html.dark) .projects-table-shell,
+:global(body.dark) .projects-table-shell {
+  background: rgba(35, 37, 48, 0.94) !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:global(html.darkmode) .projects-rows-table th,
+:global(html.darkmode) .projects-rows-table td,
+:global(body.darkmode) .projects-rows-table th,
+:global(body.darkmode) .projects-rows-table td {
+  color: #e8eaed;
+}
+
+:global(html.darkmode) .projects-rows-table .bb-light,
+:global(body.darkmode) .projects-rows-table .bb-light {
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 :global(html.darkmode) .is-dark-input::placeholder,
@@ -536,5 +667,238 @@ onMounted(async () => {
 :global(html.dark) .is-dark-input::placeholder,
 :global(body.dark) .is-dark-input::placeholder {
   color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Тёмная тема: карточки сетки и таблица */
+.projects-page--dark :deep(.heading-3) {
+  color: #f1f5f9 !important;
+}
+
+.projects-page--dark .py-5.text-center.gray56,
+.projects-page--dark .text-center.gray56 {
+  color: #94a3b8 !important;
+}
+
+.projects-page--dark .projects-grid-card {
+  background: rgba(35, 37, 48, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.projects-page--dark .project-card-title,
+.projects-page--dark .metric-label {
+  color: #f1f5f9 !important;
+}
+
+.projects-page--dark .project-card-desc,
+.projects-page--dark .metric-sub {
+  color: #94a3b8 !important;
+}
+
+.projects-page--dark .metric-value {
+  color: #f8fafc !important;
+}
+
+.projects-page--dark .projects-metric-tile {
+  background: rgba(46, 107, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.projects-page--dark .projects-metric-tile :deep(.iconbox) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.projects-page--dark .projects-metric-tile :deep(.iconbox svg) {
+  fill: #93c5fd;
+}
+
+.projects-page--dark .projects-metric-tile :deep(.badge._success) {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+
+.projects-page--dark .projects-metric-tile :deep(.badge__icon) {
+  fill: currentColor;
+}
+
+.projects-page--dark .projects-card-hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 1;
+}
+
+.projects-page--dark .balance-section-title {
+  color: #cbd5e1 !important;
+}
+
+.projects-page--dark .bg-orangelight {
+  background: rgba(255, 140, 66, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.projects-page--dark .bg-oceanlight {
+  background: rgba(59, 130, 246, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.projects-page--dark .bg-azurelight {
+  background: rgba(46, 107, 255, 0.12) !important;
+}
+
+.projects-page--dark .c71663e,
+.projects-page--dark .c5385C1 {
+  color: #e2e8f0 !important;
+}
+
+.projects-page--dark .badge-white {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.projects-page--dark .gray56 {
+  color: #94a3b8 !important;
+}
+
+.projects-page--dark .project-card-open.circle-btn {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.projects-page--dark .project-card-open.circle-btn svg {
+  fill: #cbd5e1;
+}
+
+.projects-page--dark .project-avatar-40,
+.projects-page--dark .project-avatar-32 {
+  background: rgba(46, 107, 255, 0.25);
+  color: #bfdbfe;
+}
+
+.projects-page--dark .projects-table-shell {
+  background: rgba(35, 37, 48, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.projects-page--dark .projects-rows-table th,
+.projects-page--dark .projects-rows-table td {
+  color: #e8eaed;
+}
+
+.projects-page--dark .projects-rows-table .gray,
+.projects-page--dark .projects-rows-table .weight-500.gray {
+  color: #f1f5f9 !important;
+}
+
+.projects-page--dark .bb-light {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.projects-page--dark .projects-rows-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.projects-page--dark .projects-rows-table :deep(.btn._white) {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.projects-page--dark .projects-rows-table :deep(.btn._white .btn__text) {
+  color: #e8eaed !important;
+}
+
+:global(html.darkmode) .projects-rows-table .btn._white,
+:global(body.darkmode) .projects-rows-table .btn._white {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+:global(html.darkmode) .projects-rows-table .btn._white .btn__text,
+:global(body.darkmode) .projects-rows-table .btn._white .btn__text {
+  color: #e8eaed !important;
+}
+
+.projects-page--dark .status-pill._active {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.projects-page--dark .status-pill._inactive {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fca5a5;
+}
+
+.projects-page--dark :deep(.btn-ico) {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.projects-page--dark :deep(.btn-ico._active) {
+  background: rgba(46, 107, 255, 0.35);
+  border-color: rgba(46, 107, 255, 0.5);
+}
+
+.projects-page--dark :deep(.btn-ico svg) {
+  stroke: #e2e8f0;
+}
+
+.projects-page--dark .projects-filters-search :deep(.input-icon) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.projects-page--dark .projects-filters-search :deep(.input-icon svg._stroke) {
+  stroke: #94a3b8;
+}
+
+.projects-page--dark .projects-modal-panel {
+  background: rgba(35, 37, 48, 0.98) !important;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.projects-page--dark .projects-modal-panel .heading-4 {
+  color: #f1f5f9 !important;
+}
+
+.projects-page--dark .projects-modal-panel .gray56 {
+  color: #94a3b8 !important;
+}
+
+.projects-page--dark .projects-modal-panel textarea.input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+}
+
+.projects-page--dark .projects-modal-panel textarea.input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Таблица: глобальные классы тёмной темы (если isDarkMode синхронен с html) */
+:global(html.darkmode) .projects-grid-card,
+:global(body.darkmode) .projects-grid-card,
+:global(html.dark) .projects-grid-card,
+:global(body.dark) .projects-grid-card {
+  background: rgba(35, 37, 48, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:global(html.darkmode) .projects-grid-card .gray,
+:global(body.darkmode) .projects-grid-card .gray {
+  color: #e8eaed !important;
+}
+
+:global(html.darkmode) .projects-grid-card .gray56,
+:global(body.darkmode) .projects-grid-card .gray56 {
+  color: #94a3b8 !important;
+}
+
+:global(html.darkmode) .projects-metric-tile,
+:global(body.darkmode) .projects-metric-tile {
+  background: rgba(46, 107, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:global(html.darkmode) .projects-metric-tile b.text-20,
+:global(body.darkmode) .projects-metric-tile b.text-20 {
+  color: #f8fafc !important;
 }
 </style>
