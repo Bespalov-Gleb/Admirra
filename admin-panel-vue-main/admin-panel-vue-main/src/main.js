@@ -6,13 +6,21 @@ import router from './router'
 import './composables/useTheme'
 import { useAuth } from './composables/useAuth'
 
-const app = createApp(App)
-app.use(router)
+const bootstrap = async () => {
+  const app = createApp(App)
+  app.use(router)
 
-// Важно: монтируем приложение только после готовности роутера и проверки сессии,
-// чтобы избежать краткого рендера "старого" layout при перезагрузке.
-await router.isReady()
-const { checkAuth } = useAuth()
-await checkAuth()
+  try {
+    // Мягкая прединициализация, чтобы уменьшить "мигание" layout при refresh
+    await router.isReady()
+    const { checkAuth } = useAuth()
+    await checkAuth()
+  } catch (err) {
+    // Никогда не блокируем монтирование всего приложения
+    console.error('Bootstrap init error:', err)
+  } finally {
+    app.mount('#app')
+  }
+}
 
-app.mount('#app')
+bootstrap()
