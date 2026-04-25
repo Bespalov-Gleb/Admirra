@@ -322,7 +322,19 @@
             <!-- Цели (только для Яндекс) -->
             <div v-if="form.platform === 'YANDEX_DIRECT'" class="p-5 bg-white radius-base mb-5">
               <div class="mb-5">
-                <h5 class="heading-5 weight-500">Цели и конверсии</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                  <h5 class="heading-5 weight-500 mb-0">Цели и конверсии</h5>
+                  <button
+                    type="button"
+                    class="btn _sm _white"
+                    :disabled="loadingStates.goals || goals.length === 0"
+                    @click="toggleAllGoals"
+                  >
+                    <div class="btn__inner px-3">
+                      <span class="btn__text text-13">{{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}</span>
+                    </div>
+                  </button>
+                </div>
                 <p class="pt-3 text-15 weight-500 gray56">Выберите основную цель (★) и дополнительные</p>
               </div>
               <div v-if="loadingStates.goals" class="py-4 gray56">Загрузка целей...</div>
@@ -337,7 +349,7 @@
                     <input
                       class="select-card__input"
                       type="checkbox"
-                      :checked="selectedGoalIds.includes(goal.id) || form.primary_goal_id === goal.id"
+                      :checked="selectedGoalIds.includes(goal.id)"
                       @change="toggleGoalSelection(goal.id)"
                     />
                     <div class="select-card__inner">
@@ -620,6 +632,9 @@ const loadingAuth = ref(false)
 const allCountersSelected = computed(() =>
   counters.value.length > 0 && selectedCounterIds.value.length === counters.value.length
 )
+const allGoalsSelected = computed(() =>
+  goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length
+)
 
 onMounted(async () => {
   await fetchProjects()
@@ -814,6 +829,15 @@ const toggleAllCounters = () => {
     selectedCounterIds.value = []
   } else {
     selectedCounterIds.value = counters.value.map(c => c.id)
+  }
+}
+
+const toggleAllGoals = () => {
+  if (!goals.value.length) return
+  if (allGoalsSelected.value) {
+    selectedGoalIds.value = []
+  } else {
+    selectedGoalIds.value = goals.value.map(g => g.id)
   }
 }
 

@@ -180,9 +180,6 @@ export function useIntegrationWizard() {
         const bestGoal = [...goals.value].sort((a, b) => (b.conversion_rate || 0) - (a.conversion_rate || 0))[0]
         if (bestGoal) {
           form.primary_goal_id = bestGoal.id
-          if (!selectedGoalIds.value.includes(bestGoal.id)) {
-            selectedGoalIds.value.push(bestGoal.id)
-          }
         }
       }
     } catch (err) {
