@@ -1,140 +1,67 @@
 <template>
-  <div class="admirra-page-wrapper">
-    <section class="main-section">
-      <div class="py-4 mb-3">
-        <h3 class="heading-3">Проекты</h3>
-      </div>
+  <div>
+    <div v-if="isLoading" class="admirra-page-wrapper">
+      <section class="main-section">
+        <div class="py-5 text-center gray56">Загрузка проектов...</div>
+      </section>
+    </div>
 
-      <div class="row gy-3 mb-5">
-        <div class="col-12 col-md">
-          <div class="row gy-3">
-            <div class="col-12 col-sm-auto">
-              <div class="input-item">
-                <input
-                  class="input _search-project"
-                  :class="{ 'is-dark-input': isDarkMode }"
-                  :style="searchInputStyle"
-                  type="text"
-                  placeholder="Поиск по проектам"
-                  v-model="search"
-                />
-                <div class="input-icon">
-                  <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
-                </div>
-              </div>
-            </div>
-          </div>
+    <div v-else-if="projects.length === 0" class="admirra-page-wrapper">
+      <section class="main-section">
+        <div class="py-4 mb-3">
+          <h3 class="heading-3">Проекты</h3>
         </div>
-        <div class="col-12 col-md-auto">
-          <button class="btn _primary" @click="$router.push('/create')">
-            <div class="btn__inner">
-              <span class="btn__text">Новый проект</span>
-              <div class="btn__icon-plus">+</div>
-            </div>
+        <div class="py-5 text-center gray56">У вас пока нет проектов</div>
+      </section>
+    </div>
+
+    <ProjectCard
+      v-else-if="viewType === 'grid'"
+      :title="'Проекты'"
+      :view-type="viewType"
+      :projects="gridProjects"
+      :filters="filters"
+      @search="search = $event"
+      @change-view="viewType = $event"
+      @open-project="openProject"
+      @bulk-edit="noop"
+    />
+
+    <div v-else class="admirra-page-wrapper">
+      <section class="main-section">
+        <div class="py-4 mb-3">
+          <h3 class="heading-3">Проекты</h3>
+        </div>
+        <ProjectsTable
+          :projects="tableProjects"
+          :loading="isLoading"
+          :search-query="search"
+          @viewProject="openProjectById"
+          @editProject="openProjectById"
+          @deleteProject="confirmDeleteById"
+        />
+      </section>
+    </div>
+
+    <!-- Диалог подтверждения удаления -->
+    <div
+      v-if="deleteTarget"
+      class="modal-overlay"
+      style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center"
+    >
+      <div class="delete-modal bg-white radius-base p-5" style="max-width:400px;width:90%">
+        <h4 class="heading-4 mb-3">Удалить проект?</h4>
+        <p class="text-14 gray56 mb-4">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
+        <div class="d-flex gap-3">
+          <button class="btn _primary" :disabled="deleting" @click="doDelete">
+            <div class="btn__inner"><span class="btn__text">{{ deleting ? 'Удаление...' : 'Удалить' }}</span></div>
+          </button>
+          <button class="btn _white" @click="deleteTarget = null">
+            <div class="btn__inner"><span class="btn__text gray">Отмена</span></div>
           </button>
         </div>
       </div>
-
-      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка...</div>
-
-      <div v-else-if="filteredProjects.length === 0" class="py-5 text-center gray56">
-        {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
-      </div>
-
-      <div v-else class="projects-table-wrap bg-white radius-base py-5 mb-5">
-        <div class="table-container">
-          <table class="projects-table">
-            <colgroup>
-              <col class="col-project" />
-              <col class="col-id" />
-              <col class="col-platforms" />
-              <col class="col-integrations" />
-              <col class="col-updated" />
-              <col class="col-actions" />
-            </colgroup>
-            <thead>
-              <tr class="gray56">
-                <th class="bb-light px-3 pb-3">Проект</th>
-                <th class="bb-light px-3 pb-3">ID</th>
-                <th class="bb-light px-3 pb-3">Платформы</th>
-                <th class="bb-light px-3 pb-3">Интеграции</th>
-                <th class="bb-light px-3 pb-3">Обновлено</th>
-                <th class="bb-light px-3 pb-3">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="project in filteredProjects" :key="project.id">
-                <td class="bb-light px-3 py-4">
-                  <div class="d-flex align-items-center">
-                    <div class="project-avatar avatar-30x30 me-3 align-self-center">
-                      <span class="project-avatar-text">{{ projectInitials(project.name) }}</span>
-                    </div>
-                    <div>
-                      <div class="weight-500 gray mb-1">{{ project.name }}</div>
-                      <div class="text-11 gray56">{{ project.description || 'Без описания' }}</div>
-                    </div>
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-4">
-                  <div class="project-id-cell">{{ shortId(project.id) }}</div>
-                </td>
-                <td class="bb-light px-3 py-4">
-                  <div class="d-flex align-items-center gap-2">
-                    <img v-if="hasPlatform(project, 'YANDEX')" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" title="Yandex Direct" />
-                    <img v-if="hasPlatform(project, 'VK')" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" title="VK Ads" />
-                    <span v-if="!project.integrations || project.integrations.length === 0" class="gray56 text-13">—</span>
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-4">
-                  <div class="text-15">
-                    {{ activeIntegrations(project) }} / {{ project.integrations?.length || 0 }}
-                  </div>
-                </td>
-                <td class="bb-light px-3 py-4">
-                  <div class="text-13 gray56">{{ formatProjectDate(project.updated_at || project.created_at) }}</div>
-                </td>
-                <td class="bb-light px-3 py-4">
-                  <div class="d-flex gap-2 project-actions">
-                    <button
-                      class="btn _sm _white"
-                      @click="openProject(project)"
-                      title="Открыть аналитику"
-                    >
-                      <div class="btn__inner px-3">
-                        <span class="btn__text text-13">Открыть</span>
-                      </div>
-                    </button>
-                    <button
-                      class="btn-action _danger"
-                      @click="confirmDelete(project)"
-                      title="Удалить"
-                    >
-                      <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Диалог подтверждения удаления -->
-      <div v-if="deleteTarget" class="modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center">
-        <div class="delete-modal bg-white radius-base p-5" style="max-width:400px;width:90%">
-          <h4 class="heading-4 mb-3">Удалить проект?</h4>
-          <p class="text-14 gray56 mb-4">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
-          <div class="d-flex gap-3">
-            <button class="btn _primary" :disabled="deleting" @click="doDelete">
-              <div class="btn__inner"><span class="btn__text">{{ deleting ? 'Удаление...' : 'Удалить' }}</span></div>
-            </button>
-            <button class="btn _white" @click="deleteTarget = null">
-              <div class="btn__inner"><span class="btn__text gray">Отмена</span></div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
 
@@ -143,63 +70,119 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
-import { useTheme } from '../../composables/useTheme'
+import ProjectCard from './ProjectCard.vue'
+import ProjectsTable from '../Project/components/ProjectsTable.vue'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
-const { isDarkMode } = useTheme()
 
+const viewType = ref('grid')
 const search = ref('')
-const deleteTarget = ref(null)
 const deleting = ref(false)
+const deleteTarget = ref(null)
 
-const searchInputStyle = computed(() => isDarkMode.value
-  ? 'background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); color:#fff'
-  : '')
+const filters = computed(() => [
+  {
+    id: 'scope',
+    options: [
+      { value: 'all', label: 'Все' }
+    ]
+  },
+  {
+    id: 'period',
+    options: [
+      { value: '14', label: '2 недели' }
+    ]
+  }
+])
 
 onMounted(fetchProjects)
 
 const filteredProjects = computed(() => {
   if (!search.value.trim()) return projects.value
   const q = search.value.toLowerCase()
-  return projects.value.filter(p => p.name?.toLowerCase().includes(q))
+  return projects.value.filter(p =>
+    p.name?.toLowerCase().includes(q) ||
+    String(p.id || '').toLowerCase().includes(q)
+  )
 })
 
-const projectInitials = (name) => {
-  if (!name) return '?'
-  return name.trim().slice(0, 2).toUpperCase()
+const integrationPlatforms = (project) => {
+  const list = (project.integrations || []).map(i => i.platform?.toUpperCase()).filter(Boolean)
+  return Array.from(new Set(list))
 }
 
-const shortId = (id) => {
-  if (!id) return '—'
-  const value = String(id)
-  if (value.length <= 12) return value
-  return `${value.slice(0, 8)}...${value.slice(-4)}`
+const hasPlatform = (project, platform) => integrationPlatforms(project).includes(platform)
+
+const formatMoney = (value) => {
+  const n = Number(value || 0)
+  return `${n.toLocaleString('ru-RU')} ₽`
 }
 
-const formatProjectDate = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('ru-RU')
-}
+const gridProjects = computed(() => {
+  return filteredProjects.value.map((project) => {
+    const integrationsCount = project.integrations?.length || 0
+    const yandex = hasPlatform(project, 'YANDEX')
+    const vk = hasPlatform(project, 'VK')
 
-const hasPlatform = (project, platform) => {
-  return project.integrations?.some(i => i.platform?.toUpperCase() === platform)
-}
+    return {
+      id: project.id,
+      name: project.name || 'Без названия',
+      description: project.description || 'Описание проекта краткое',
+      avatar: '/admirra/img/avatars/avatar-40x40.png',
+      stats: [
+        { label: 'Показы', subtitle: 'По всем каналам', value: '0', change: '+0%', icon: '/admirra/img/svg/sprite.svg#diagrama', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
+        { label: 'Клики', subtitle: 'Все переходы', value: '0', change: '+0%', icon: '/admirra/img/svg/sprite.svg#cursore', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
+        { label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(0), change: '+0%', icon: '/admirra/img/svg/sprite.svg#world', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
+        { label: 'Расходы', subtitle: 'За период', value: formatMoney(0), change: '+0%', icon: '/admirra/img/svg/sprite.svg#wallet', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
+        { label: 'Лиды', subtitle: 'По всем каналам', value: '0 шт', change: '+0%', icon: '/admirra/img/svg/sprite.svg#group', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' },
+        { label: 'CPA', subtitle: 'Стоимость лида', value: formatMoney(0), change: '+0%', icon: '/admirra/img/svg/sprite.svg#star', badgeClass: '_success', badgeIcon: '/admirra/img/svg/sprite.svg#rating-up' }
+      ],
+      balances: [
+        ...(yandex ? [{ name: 'Yandex Direct', value: `${integrationsCount} интегр.`, icon: '/admirra/img/icons/yandex-direct.png', bgClass: 'bg-orangelight', textClass: 'c71663e' }] : []),
+        ...(vk ? [{ name: 'VK Ads Manager', value: `${integrationsCount} интегр.`, icon: '/admirra/img/icons/vk-ads.png', bgClass: 'bg-oceanlight', textClass: 'c5385C1' }] : [])
+      ]
+    }
+  })
+})
 
-const activeIntegrations = (project) => {
-  if (!project.integrations?.length) return 0
-  return project.integrations.filter(i => i.is_active).length
-}
+const tableProjects = computed(() => {
+  return filteredProjects.value.map((project) => {
+    const channels = []
+    if (hasPlatform(project, 'YANDEX')) channels.push('Яндекс.Директ')
+    if (hasPlatform(project, 'VK')) channels.push('ВКонтакте')
+    const active = (project.integrations || []).some(i => i.is_active)
+
+    return {
+      id: String(project.id),
+      title: project.name || 'Без названия',
+      description: project.description || '',
+      channels,
+      impressions: 0,
+      clicks: 0,
+      expenses: 0,
+      leads: 0,
+      cpc: 0,
+      cpa: 0,
+      status: active ? 'active' : 'inactive',
+      created_at: project.created_at
+    }
+  })
+})
 
 const openProject = (project) => {
   setCurrentProject(project.id)
   router.push('/dashboard/general-3')
 }
 
-const confirmDelete = (project) => {
-  deleteTarget.value = project
+const openProjectById = (projectId) => {
+  const p = projects.value.find(x => String(x.id) === String(projectId))
+  if (p) openProject(p)
+}
+
+const confirmDeleteById = (projectId) => {
+  const p = projects.value.find(x => String(x.id) === String(projectId))
+  if (p) deleteTarget.value = p
 }
 
 const doDelete = async () => {
@@ -215,125 +198,11 @@ const doDelete = async () => {
     deleting.value = false
   }
 }
+
+const noop = () => {}
 </script>
 
 <style scoped>
-.admirra-page-wrapper { }
-.btn-nav { background: none; border: none; cursor: pointer; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-
-.project-avatar {
-  background: #e8eef9;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.project-avatar-text {
-  font-size: 12px;
-  font-weight: 700;
-  color: #4b6fa0;
-}
-
-.projects-table {
-  table-layout: fixed;
-  width: 100%;
-}
-
-.projects-table th,
-.projects-table td {
-  vertical-align: middle;
-}
-
-.projects-table th {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.col-project { width: 28%; }
-.col-id { width: 16%; }
-.col-platforms { width: 14%; }
-.col-integrations { width: 12%; }
-.col-updated { width: 14%; }
-.col-actions { width: 16%; }
-
-.project-id-cell {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 12px;
-  color: rgba(105, 105, 105, 0.85);
-}
-
-.project-actions {
-  justify-content: flex-start;
-  flex-wrap: nowrap;
-}
-
-:global(html.darkmode) .projects-table-wrap,
-:global(body.darkmode) .projects-table-wrap,
-:global(html.dark) .projects-table-wrap,
-:global(body.dark) .projects-table-wrap {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-:global(html.darkmode) .projects-table-wrap .bb-light,
-:global(body.darkmode) .projects-table-wrap .bb-light,
-:global(html.dark) .projects-table-wrap .bb-light,
-:global(body.dark) .projects-table-wrap .bb-light {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-:global(html.darkmode) .projects-table-wrap .gray,
-:global(body.darkmode) .projects-table-wrap .gray,
-:global(html.dark) .projects-table-wrap .gray,
-:global(body.dark) .projects-table-wrap .gray {
-  color: rgba(255, 255, 255, 0.88) !important;
-}
-
-:global(html.darkmode) .projects-table-wrap .text-15,
-:global(body.darkmode) .projects-table-wrap .text-15,
-:global(html.dark) .projects-table-wrap .text-15,
-:global(body.dark) .projects-table-wrap .text-15 {
-  color: #fff !important;
-}
-
-:global(html.darkmode) .project-avatar,
-:global(body.darkmode) .project-avatar,
-:global(html.dark) .project-avatar,
-:global(body.dark) .project-avatar {
-  background: rgba(46, 107, 255, 0.18) !important;
-}
-
-:global(html.darkmode) .project-avatar-text,
-:global(body.darkmode) .project-avatar-text,
-:global(html.dark) .project-avatar-text,
-:global(body.dark) .project-avatar-text {
-  color: #9cc0ff !important;
-}
-
-:global(html.darkmode) .input._search-project,
-:global(body.darkmode) .input._search-project,
-:global(html.dark) .input._search-project,
-:global(body.dark) .input._search-project {
-  background: rgba(255, 255, 255, 0.07) !important;
-  border-color: rgba(255, 255, 255, 0.16) !important;
-  color: #fff !important;
-}
-
-:global(html.darkmode) .input._search-project::placeholder,
-:global(body.darkmode) .input._search-project::placeholder,
-:global(html.dark) .input._search-project::placeholder,
-:global(body.dark) .input._search-project::placeholder {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.is-dark-input::placeholder {
-  color: rgba(255, 255, 255, 0.5) !important;
-}
-
 :global(html.darkmode) .delete-modal,
 :global(body.darkmode) .delete-modal,
 :global(html.dark) .delete-modal,
