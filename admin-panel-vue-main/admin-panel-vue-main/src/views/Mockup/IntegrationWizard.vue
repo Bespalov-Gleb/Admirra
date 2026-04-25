@@ -663,14 +663,14 @@ watch(isNewProject, (val) => {
 
 const markerStyle = (idx) => (
   step.value === idx
-    ? 'background:linear-gradient(135deg,#2e6bff,#06b5d4) !important;'
-    : 'background:rgba(167,179,198,0.2) !important;'
+    ? 'background:#cfdef9 !important; border:0.4rem solid #e1eaf9 !important;'
+    : 'background:#edeff1 !important; border:0.4rem solid #f1f3f5 !important;'
 )
 
 const markerTextStyle = (idx) => (
   step.value === idx
-    ? 'color:#fff !important; opacity:1 !important;'
-    : 'color:rgba(88,102,126,.95) !important; opacity:1 !important;'
+    ? 'background:#2e6bff !important; color:#fff !important; opacity:1 !important;'
+    : 'background:#fff !important; color:rgba(105,105,105,.56) !important; opacity:1 !important;'
 )
 
 const captionStyle = (idx) => (
