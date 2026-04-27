@@ -1,80 +1,387 @@
 <template>
-  <div class="admirra-page-wrapper" @click="closeAllMenus">
-    <section class="main-section">
+  <div class="admirra-page-wrapper">
+  <section class="main-section">
       <div class="section-header pt-4">
         <h3 class="heading-3">История</h3>
       </div>
-
       <div class="row gy-3 mb-5">
         <div class="col-12 col-sm-auto">
-          <select class="wide" v-model="filterProject" @change="onFilterChange">
-            <option value="">Все проекты</option>
-            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+          <select class="wide">
+            <option value="1">Все сотрудники</option>
+            <option value="2">подпункт 1</option>
+            <option value="3">подпункт 2</option>
+            <option value="3">подпункт 3</option>
           </select>
         </div>
         <div class="col-12 col-sm-auto">
-          <select class="wide" v-model="filterPeriod" @change="onFilterChange">
-            <option value="14">Последние 14 дней</option>
-            <option value="7">Последние 7 дней</option>
-            <option value="30">Последние 30 дней</option>
+          <select class="wide">
+            <option value="1">Все каналы</option>
+            <option value="2">подпункт 1</option>
+            <option value="3">подпункт 2</option>
+            <option value="3">подпункт 3</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <select class="wide">
+            <option value="1">Последние 14 дней</option>
+            <option value="2">подпункт 1</option>
+            <option value="3">подпункт 2</option>
+            <option value="3">подпункт 3</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <select class="wide">
+            <option value="1">Выбрать проект</option>
+            <option value="2">подпункт 1</option>
+            <option value="3">подпункт 2</option>
+            <option value="3">подпункт 3</option>
           </select>
         </div>
       </div>
-
-      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка...</div>
-
-      <div v-else-if="historyItems.length === 0" class="py-5 text-center gray56">
-        История действий пуста
-      </div>
-
-      <div v-else class="history">
-        <div
-          v-for="(item, index) in historyItems"
-          :key="index"
-          :class="['row history-item', variantClasses[index % variantClasses.length]]"
-        >
-          <!-- Пользователь -->
+      <div class="history">
+        <div class="row history-item _linen">
           <div class="col col-xl-3">
             <div class="d-flex">
-              <div class="avatar-36x36 me-4" style="background:#e8eef9;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <span style="font-size:13px;font-weight:700;color:#4b6fa0">
-                  {{ (item.user_email || '?').slice(0, 2).toUpperCase() }}
-                </span>
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user2.jpg" alt="#" />
               </div>
               <div class="weight-500">
-                <div class="mb-1 text-15 gray">{{ item.user_email || '—' }}</div>
-                <div class="text-13 gray56">{{ item.user_role || 'Пользователь' }}</div>
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
               </div>
             </div>
           </div>
-
-          <!-- Описание -->
-          <div class="history-item__descrp col">{{ formatDescription(item) }}</div>
-
-          <!-- Время -->
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
           <div class="history-item__time col col-xl-3">
-            <time>{{ formatDate(item.created_at) }}</time>
+            <time>15:04 (МСК) - 13.03.2026</time>
           </div>
-
-          <!-- Меню действий -->
           <div class="col-auto col-xl-1">
-            <div class="history-item__more dropdown" :class="{ '_open': openMenuIndex === index }">
-              <button
-                class="dropdown-head _no-style"
-                @click.stop="toggleMenu(index)"
-              >
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
                 <div class="action-btn-ui">
                   <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
                 </div>
               </button>
-              <div v-if="openMenuIndex === index" class="dropdown-body _action _right" style="display:block">
+              <div class="dropdown-body _action _right">
                 <div class="dropdown-block">
                   <div class="py-3">
-                    <button class="dropdown-menu-item" @click.stop="closeAllMenus">
+                    <button class="dropdown-menu-item">
                       <div class="dropdown-menu-item__icon">
                         <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
                       </div>
                       <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _oldlace">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user1.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _aliceblue">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user3.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _lavender">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user2.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _rose">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user1.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _linen">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user2.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row history-item _oldlace">
+          <div class="col col-xl-3">
+            <div class="d-flex">
+              <div class="avatar-36x36 me-4">
+                <img class="img-cover" src="/admirra/img/avatars/user1.jpg" alt="#" />
+              </div>
+              <div class="weight-500">
+                <div class="mb-1 text-15 gray">Петр Петров</div>
+                <div class="text-13 gray56">Сотрудник</div>
+              </div>
+            </div>
+          </div>
+          <div class="history-item__descrp col"> Сформирован AI отчет | ПРОЕКТ: ПРИОРИТИ | ЯД </div>
+          <div class="history-item__time col col-xl-3">
+            <time>15:04 (МСК) - 13.03.2026</time>
+          </div>
+          <div class="col-auto col-xl-1">
+            <div class="history-item__more dropdown">
+              <button class="dropdown-head _no-style">
+                <div class="action-btn-ui">
+                  <svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
+                </div>
+              </button>
+              <div class="dropdown-body _action _right">
+                <div class="dropdown-block">
+                  <div class="py-3">
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
+                      </div>
+                      <span class="pe-3">Просмотр</span>
+                    </button>
+                    <button class="dropdown-menu-item">
+                      <div class="dropdown-menu-item__icon">
+                        <svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
+                      </div>
+                      <span class="pe-3">Редактировать</span>
+                    </button>
+                    <button class="dropdown-menu-item _danger">
+                      <div class="dropdown-menu-item__icon">
+                        <svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
+                      </div>
+                      <span class="pe-3">Удалить</span>
                     </button>
                   </div>
                 </div>

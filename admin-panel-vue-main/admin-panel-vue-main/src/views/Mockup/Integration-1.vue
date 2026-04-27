@@ -1,9 +1,9 @@
 <template>
   <div class="admirra-page-wrapper">
-    <section class="main-section">
+  <section class="main-section">
       <div class="section-header pt-4 mt-1">
-        <h3 class="heading-3 mb-2">{{ title }}</h3>
-        <p class="section-header__descrp">{{ subtitle }}</p>
+        <h3 class="heading-3 mb-2">Новая интеграция</h3>
+        <p class="section-header__descrp">Добавление рекламного канала</p>
       </div>
       <div class="steps-track mb-4">
         <section class="steps-track__section">
@@ -11,37 +11,34 @@
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">1</div>
             </div>
-            <div class="steps-track__caption">{{ step1Title }}</div>
+            <div class="steps-track__caption">Проект</div>
           </div>
           <div class="steps-track__content">
             <div class="row g-4">
               <div class="col-sm-6 col-md-5 col-lg-4 col-xxl-3">
                 <div class="h-100 p-5 bg-white radius-base d-flex flex-column">
-                  <div class="weight-500 gray mb-3">{{ historyDepthLabel }}</div>
-                  <select class="select-light wide mb-1" @change="$emit('update:historyDepth', $event.target.value)">
-                    <option v-for="opt in historyOptions" :key="opt.value" :value="opt.value">
-                      {{ opt.label }}
-                    </option>
+                  <div class="weight-500 gray mb-3">Глубина истории</div>
+                  <select class="select-light wide mb-1">
+                    <option>Все</option>
+                    <option value="1">Some option</option>
+                    <option value="2">Another option</option>
+                    <option value="3" disabled>A disabled option</option>
+                    <option value="4">Potato option</option>
                   </select>
                   <div class="py-4 mb-2">
-                    <div class="weight-500 gray mb-3">{{ syncLabel }}</div>
+                    <div class="weight-500 gray mb-3">Автосинхронизация</div>
                     <label class="switches _light _big">
-                      <input 
-                        class="switches__input" 
-                        type="checkbox" 
-                        :checked="autoSync" 
-                        @change="$emit('update:autoSync', $event.target.checked)"
-                      />
-                      <span class="switches__text">{{ syncText }}</span>
+                      <input class="switches__input" type="checkbox" name="switches" checked />
+                      <span class="switches__text">24/7</span>
                       <span class="switches__indicator"></span>
                     </label>
                   </div>
                   <div class="mt-auto">
-                    <button class="btn d-flex" @click="$emit('connect')">
+                    <a class="btn d-flex" href="#">
                       <div class="btn__inner">
-                        <span class="btn__text">{{ connectButtonText }}</span>
+                        <span class="btn__text">Подключить Яндекс&nbsp;Директ</span>
                       </div>
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -49,26 +46,29 @@
                 <div class="dark-bg">
                   <div class="dark-bg__inner p-5">
                     <div class="mb-4">
-                      <img width="40" :src="channelIcon" alt="#" />
+                      <img width="40" src="/admirra/img/yandex-direct.png" alt="#" />
                     </div>
-                    <h4 class="heading-4 pe-5 lh-120 weight-500 mb-3">{{ channelTitle }}</h4>
-                    <p class="silver weight-300 text-15 lh-135 mb-4" v-html="channelDescription"></p>
+                    <h4 class="heading-4 pe-5 lh-120 weight-500 mb-3">Интеграция с Яндекс.Директ</h4>
+                    <p class="silver weight-300 text-15 lh-135 mb-4">
+                      Автоматический сбор кампаний, <br />
+                      ключевых слов и статистики
+                    </p>
                     <div class="mt-auto">
                       <div class="row g-2">
                         <div class="col">
                           <div class="alert-dark">
                             <div class="alert-dark__inner">
-                              <div :class="['dotty', apiStatusClass]"></div>
-                              <span>API:&nbsp;{{ apiStatusLabel }}</span>
+                              <div class="dotty _success"></div>
+                              <span>API:&nbsp;СОЕДИНЕНО</span>
                             </div>
                           </div>
                         </div>
                         <div class="col-auto">
-                          <button class="btn _outline" @click="$emit('how-it-works')">
+                          <a class="btn _outline" href="#">
                             <div class="btn__inner">
-                              <span class="btn__text">{{ howItWorksText }}</span>
+                              <span class="btn__text">Как это работает?</span>
                             </div>
-                          </button>
+                          </a>
                         </div>
                       </div>
                     </div>
@@ -84,7 +84,7 @@
             <div class="steps-track__marker">
               <div class="steps-track__marker-text">2</div>
             </div>
-            <div class="steps-track__caption">{{ step2Title }}</div>
+            <div class="steps-track__caption">Профиль</div>
           </div>
         </section>
       </div>
