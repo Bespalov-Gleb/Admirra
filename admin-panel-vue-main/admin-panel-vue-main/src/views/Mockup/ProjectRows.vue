@@ -1,350 +1,279 @@
 <template>
-  <div class="admirra-page-wrapper">
-  <section class="main-section">
-  					<div class="py-4 mb-3">
-  						<h3 class="heading-3">Проекты</h3>
-  					</div>
-  					<div class="row gy-3 mb-5">
-  						<div class="col-12 col-md">
-  							<div class="row gy-3">
-  								<div class="col-auto">
-  									<select>
-  										<option>Все</option>
-  										<option value="1">Some option</option>
-  										<option value="2">Another option</option>
-  										<option value="3" disabled>A disabled option</option>
-  										<option value="4">Potato option</option>
-  									</select>
-  								</div>
-  								<div class="col-auto">
-  									<select>
-  										<option>2 недели</option>
-  										<option value="1">3 недели</option>
-  										<option value="2">4 недели</option>
-  										<option value="3">5 недель</option>
-  									</select>
-  								</div>
-  								<div class="col-12 col-sm-auto">
-  									<div class="input-item">
-  										<input class="input _search-project" type="text" placeholder="Поиск по проектам, номерам или доменам" />
-  										<div class="input-icon">
-  											<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
-  										</div>
-  									</div>
-  								</div>
-  							</div>
-  						</div>
-  						<div class="col-12 col-md-auto">
-  							<div class="row g-3">
-  								<div class="col-auto">
-  									<button class="btn _primary">
-  										<div class="btn__inner">
-  											<span class="btn__text">Массовое редактирование</span>
-  											<div class="btn__icon">
-  												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#edit"></use></svg>
-  											</div>
-  										</div>
-  									</button>
-  								</div>
-  								<div class="col-auto ms-auto">
-  									<div class="row">
-  										<div class="col-auto">
-  											<button class="btn-ico">
-  												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#grid"></use></svg>
-  											</button>
-  										</div>
-  										<div class="col-auto">
-  											<button class="btn-ico _active">
-  												<svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#rows"></use></svg>
-  											</button>
-  										</div>
-  									</div>
-  								</div>
-  							</div>
-  						</div>
-  					</div>
-  					<div class="bg-white radius-base py-5 mb-5">
-  						<div class="table-container">
-  							<table>
-  								<thead>
-  									<tr class="gray56">
-  										<th class="bb-light px-3 pb-3">
-  											<div class="ps-4">
-  												<label class="choise-checkbox">
-  													<input class="choise-checkbox__input" type="checkbox" />
-  													<span class="choise-checkbox__box">
-  														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-  													</span>
-  												</label>
-  											</div>
-  										</th>
-  										<th class="bb-light px-3 pb-3">Проект</th>
-  										<th class="bb-light px-3 pb-3">Интеграции</th>
-  										<th class="bb-light px-3 pb-3">Показы</th>
-  										<th class="bb-light px-3 pb-3">Клики</th>
-  										<th class="bb-light px-3 pb-3">Расходы</th>
-  										<th class="bb-light px-3 pb-3">Лиды</th>
-  										<th class="bb-light px-3 pb-3">CPC</th>
-  										<th class="bb-light px-3 pb-3">CPA</th>
-  										<th class="bb-light px-3 pb-3">Актуальный баланс&nbsp;в&nbsp;ЛК:</th>
-  										<th class="bb-light px-3 pb-3">Статус</th>
-  										<th class="bb-light px-3 pb-3">Дата&nbsp;создания</th>
-  										<th class="bb-light px-3 pb-3">Действия</th>
-  									</tr>
-  								</thead>
-  								<tbody>
-  									<tr v-for="project in projects" :key="project.id">
-  										<td class="bb-light px-3 py-5">
-  											<div class="ps-4">
-  												<label class="choise-checkbox">
-  													<input class="choise-checkbox__input" type="checkbox" />
-  													<span class="choise-checkbox__box">
-  														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-  													</span>
-  												</label>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="d-flex">
-  												<div class="avatar-30x30 align-self-center">
-  													<img class="img-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="#" />
-  												</div>
-  												<div class="ps-4 align-self-center">
-  													<h4 class="mb-1 gray">{{ project.title }}</h4>
-  													<p class="text-11 gray56">ID:&nbsp;{{ project.id }}</p>
-  												</div>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="d-flex">
-  												<img v-if="project.channels.includes('YANDEX_DIRECT')" class="me-2" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
-  												<img v-if="project.channels.includes('VK_ADS')" class="me-2" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" />
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">{{ project.impressions }}</div>
-  											<div class="badge _sm _success" v-if="project.trend > 0">
-  												<span class="weight-600">+{{ Number(project.trend).toFixed(1) }}%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">{{ project.clicks }}</div>
-  											<div class="badge _sm _success" v-if="project.trend > 0">
-  												<span class="weight-600">+{{ Number(project.trend).toFixed(1) }}%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2"><b>{{ Number(project.expenses).toLocaleString() }}&nbsp;₽</b></div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">{{ project.leads }}</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">{{ Number(project.cpc).toFixed(2) }}</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">{{ Number(project.cpa).toFixed(2) }}</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="h-100 bg-orangelight radius p-3">
-  												<div class="h-100 d-flex align-items-center justify-content-center">
-  													<div class="px-3 c71663e">Баланс</div>
-  													<div class="badge-white c71663e">{{ project.budgetRemaining }}₽</div>
-  												</div>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="badge _success">
-  												<span class="weight-600">{{ project.status }}</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15">{{ project.createdAt }}</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="dropdown">
-  												<button class="dropdown-head _no-style">
-  													<div class="action-btn-ui">
-  														<svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
-  													</div>
-  												</button>
-  												<div class="dropdown-body _action _right">
-  													<div class="dropdown-block">
-  														<div class="py-3">
-  															<router-link :to="'/project-card?id=' + project.id" class="dropdown-menu-item">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
-  																</div>
-  																<span class="pe-3">Просмотр</span>
-  															</router-link>
-  															<button class="dropdown-menu-item">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
-  																</div>
-  																<span class="pe-3">Редактировать</span>
-  															</button>
-  															<button @click.prevent="deleteProject(project.id)" class="dropdown-menu-item _danger">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
-  																</div>
-  																<span class="pe-3">Удалить</span>
-  															</button>
-  														</div>
-  													</div>
-  												</div>
-  											</div>
-  										</td>
-  									</tr>
-  									<tr>
-  										<td class="bb-light px-3 py-5">
-  											<div class="ps-4">
-  												<label class="choise-checkbox">
-  													<input class="choise-checkbox__input" type="checkbox" checked />
-  													<span class="choise-checkbox__box">
-  														<svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-  													</span>
-  												</label>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="d-flex">
-  												<div class="avatar-30x30 align-self-center">
-  													<img class="img-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="#" />
-  												</div>
-  												<div class="ps-4 align-self-center">
-  													<h4 class="mb-1 gray">Дейтелинг Иркутск</h4>
-  													<p class="text-11 gray56">ID:&nbsp;098409843080980</p>
-  												</div>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="d-flex">
-  												<img class="me-2" width="22" src="/admirra/img/icons/yandex-direct.png" alt="#" />
-  												<img class="me-2" width="22" src="/admirra/img/icons/vk-ads.png" alt="#" />
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">1205</div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">1205</div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2"><b>90,190&nbsp;₽</b></div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">67</div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">67</div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15 mb-2">67</div>
-  											<div class="badge _sm _success">
-  												<span class="weight-600">+15.6%</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="h-100 bg-orangelight radius p-3">
-  												<div class="h-100 d-flex align-items-center justify-content-center">
-  													<img width="18" src="/admirra/img/icons/yandex-direct.png" alt="yandex direct" />
-  													<div class="px-3 c71663e">Yandex&nbsp;Direct</div>
-  													<div class="badge-white c71663e">10&nbsp;200₽</div>
-  												</div>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="badge _success">
-  												<span class="weight-600">Активен</span>
-  											</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="text-15">09.03.2026</div>
-  										</td>
-  										<td class="bb-light px-3 py-5">
-  											<div class="dropdown">
-  												<button class="dropdown-head _no-style">
-  													<div class="action-btn-ui">
-  														<svg><use href="/admirra/img/svg/sprite.svg#dotts"></use></svg>
-  													</div>
-  												</button>
-  												<div class="dropdown-body _action _right">
-  													<div class="dropdown-block">
-  														<div class="py-3">
-  															<router-link to="/project-card" class="dropdown-menu-item">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg class="_sm"><use href="/admirra/img/svg/sprite.svg#eye"></use></svg>
-  																</div>
-  																<span class="pe-3">Просмотр</span>
-  															</router-link>
-  															<button class="dropdown-menu-item">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg class="_stroke _lg"><use href="/admirra/img/svg/sprite.svg#pen"></use></svg>
-  																</div>
-  																<span class="pe-3">Редактировать</span>
-  															</button>
-  															<button class="dropdown-menu-item _danger">
-  																<div class="dropdown-menu-item__icon">
-  																	<svg><use href="/admirra/img/svg/sprite.svg#delete"></use></svg>
-  																</div>
-  																<span class="pe-3">Удалить</span>
-  															</button>
-  														</div>
-  													</div>
-  												</div>
-  											</div>
-  										</td>
-  									</tr>
-  								</tbody>
-  							</table>
-  						</div>
-  						<div class="row pt-5 px-5 align-items-end">
-  							<div class="col col-sm-4">
-  								<div class="row gy-2 align-items-center">
-  									<div class="col-12">
-  										<div class="gray weight-500">Элементов на&nbsp;странице:</div>
-  									</div>
-  									<div class="col-auto">
-  										<select class="select-outline wide _sm _dropdown-bottom">
-  											<option>10</option>
-  											<option value="1">20</option>
-  											<option value="2">30</option>
-  										</select>
-  									</div>
-  								</div>
-  							</div>
-  							<div class="col-12 col-sm-4 order-1 order-sm-0">
-  								<div class="py-4 gray weight-500 text-center">1-3 из 3</div>
-  							</div>
-  							<div class="col-auto col-sm-4 d-flex">
-  								<div class="ms-auto">
-  									<a class="btn-nav" href="#">
-  										<svg><use href="/admirra/img/svg/sprite.svg#prev"></use></svg>
-  									</a>
-  									<span>&nbsp;</span>
-  									<a class="btn-nav" href="#">
-  										<svg><use href="/admirra/img/svg/sprite.svg#next"></use></svg>
-  									</a>
-  								</div>
-  							</div>
-  						</div>
-  					</div>
-  				</section>
+  <div class="admirra-page-wrapper" :class="{ 'projects-page--dark': isDarkMode }">
+    <section class="main-section">
+      <div class="py-4 mb-3">
+        <h3 class="heading-3">Проекты</h3>
+      </div>
+
+      <div class="row gy-3 mb-5">
+        <div class="col-12 col-md">
+          <div class="projects-filters-row">
+            <div class="projects-filters-period">
+              <select
+                class="projects-period-select"
+                :class="{ 'is-dark-input': isDarkMode }"
+                v-model.number="periodDays"
+                @change="reloadMetrics"
+              >
+                <option :value="14">2 недели</option>
+                <option :value="30">30 дней</option>
+                <option :value="90">90 дней</option>
+              </select>
+            </div>
+            <div class="projects-filters-search input-item">
+              <input
+                class="input _search-project"
+                :class="{ 'is-dark-input': isDarkMode }"
+                :style="searchInputStyle"
+                type="text"
+                placeholder="Поиск по проектам, номерам или доменам"
+                v-model="search"
+              />
+              <div class="input-icon">
+                <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-auto">
+          <div class="row g-3">
+            <div class="col-auto">
+              <button type="button" class="btn _primary" @click="openMassEdit">
+                <div class="btn__inner">
+                  <span class="btn__text">Массовое редактирование</span>
+                  <div class="btn__icon"><svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#edit"></use></svg></div>
+                </div>
+              </button>
+            </div>
+            <div class="col-auto ms-auto">
+              <div class="row">
+                <div class="col-auto">
+                  <button :class="['btn-ico', { _active: viewType === 'grid' }]" @click="viewType = 'grid'">
+                    <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#grid"></use></svg>
+                  </button>
+                </div>
+                <div class="col-auto">
+                  <button :class="['btn-ico', { _active: viewType === 'rows' }]" @click="viewType = 'rows'">
+                    <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#rows"></use></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка проектов...</div>
+      <div v-else-if="filteredProjects.length === 0" class="py-5 text-center gray56">
+        {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
+      </div>
+
+      <!-- ВИД 1: Карточки (как в новом макете) -->
+      <div v-else-if="viewType === 'grid'" class="row gy-4 mb-5">
+        <div v-for="project in filteredProjects" :key="project.id" class="col-12 col-xxl-6">
+          <div class="h-100 radius-base projects-grid-card">
+            <div class="p-5">
+              <div class="row pb-3 mb-4">
+                <div class="col">
+                  <div class="d-flex">
+                    <div class="avatar-40x40 align-self-center">
+                      <div class="project-avatar-40">{{ projectInitials(project.name) }}</div>
+                    </div>
+                    <div class="ps-4 align-self-center">
+                      <h4 class="mb-1 text-15 gray project-card-title">{{ project.name }}</h4>
+                      <p class="gray56 project-card-desc">{{ project.description || 'Описание проекта краткое' }}</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <button type="button" class="circle-btn project-card-open" @click="openProject(project)">
+                    <svg><use href="/admirra/img/svg/sprite.svg#up"></use></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="row g-4">
+                <div v-for="(stat, idx) in getProjectStats(project)" :key="idx" class="col-12 col-sm-6 col-md-4">
+                  <div class="d-flex flex-column h-100 p-4 bg-azurelight radius lh-110 projects-metric-tile">
+                    <div class="d-flex pb-2 mb-4">
+                      <div class="iconbox">
+                        <svg><use :href="stat.icon"></use></svg>
+                      </div>
+                      <div class="ps-3 align-self-center">
+                        <h4 class="mb-1 gray metric-label">{{ stat.label }}</h4>
+                        <p class="text-12 gray56 metric-sub">{{ stat.subtitle }}</p>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-center mt-auto">
+                      <b class="text-20 me-3 metric-value">{{ stat.value }}</b>
+                      <div class="badge _success">
+                        <svg class="badge__icon"><use href="/admirra/img/svg/sprite.svg#rating-up"></use></svg>
+                        {{ stat.change }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <hr class="hr-line projects-card-hr" />
+            <div class="p-5">
+              <div class="gray mb-3 balance-section-title">Актуальный баланс в ЛК:</div>
+              <div class="row g-4">
+                <div v-if="hasPlatform(project, 'YANDEX')" class="col-12 col-sm-6 col-md-4">
+                  <div class="h-100 radius p-3 bg-orangelight">
+                    <div class="h-100 d-flex align-items-center justify-content-center">
+                      <img width="18" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
+                      <div class="px-3 c71663e">Yandex Direct</div>
+                      <div class="badge-white c71663e">{{ formatMoney(getProjectMetric(project.id).balance) }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="hasPlatform(project, 'VK')" class="col-12 col-sm-6 col-md-4">
+                  <div class="h-100 radius p-3 bg-oceanlight">
+                    <div class="h-100 d-flex align-items-center justify-content-center">
+                      <img width="18" src="/admirra/img/icons/vk-ads.png" alt="VK" />
+                      <div class="px-3 c5385C1">VK Ads Manager</div>
+                      <div class="badge-white c5385C1">{{ formatMoney(getProjectMetric(project.id).balance) }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="!project.integrations?.length" class="col-12 col-sm-6 col-md-4">
+                  <div class="h-100 radius p-3 bg-azurelight d-flex align-items-center justify-content-center gray56">Нет интеграций</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ВИД 2: Таблица (новая локальная вёрстка, не старый экран) -->
+      <div v-else class="projects-rows-wrap radius-base py-4 mb-5 projects-table-shell">
+        <div class="table-container">
+          <table class="projects-rows-table">
+            <thead>
+              <tr class="gray56">
+                <th class="bb-light px-3 pb-3" style="width:2.5rem">
+                  <label class="d-flex align-items-center justify-content-center mb-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="form-check-input"
+                      :checked="allRowsSelected"
+                      @change="toggleSelectAllRows"
+                    />
+                  </label>
+                </th>
+                <th class="bb-light px-3 pb-3">Проект</th>
+                <th class="bb-light px-3 pb-3">Интеграции</th>
+                <th class="bb-light px-3 pb-3">Показы</th>
+                <th class="bb-light px-3 pb-3">Клики</th>
+                <th class="bb-light px-3 pb-3">Расходы</th>
+                <th class="bb-light px-3 pb-3">Лиды</th>
+                <th class="bb-light px-3 pb-3">CPC</th>
+                <th class="bb-light px-3 pb-3">CPA</th>
+                <th class="bb-light px-3 pb-3">Статус</th>
+                <th class="bb-light px-3 pb-3">Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="project in filteredProjects" :key="project.id">
+                <td class="bb-light px-3 py-4 align-middle">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :checked="selectedProjectIds.includes(project.id)"
+                    @change="toggleProjectRow(project.id)"
+                  />
+                </td>
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex align-items-center">
+                    <div class="project-avatar-32 me-3">{{ projectInitials(project.name) }}</div>
+                    <div>
+                      <div class="weight-500 gray mb-1">{{ project.name }}</div>
+                      <div class="text-11 gray56">ID: {{ shortId(project.id) }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="bb-light px-3 py-4">
+                  <div class="d-flex align-items-center gap-2">
+                    <img v-if="hasPlatform(project, 'YANDEX')" width="20" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
+                    <img v-if="hasPlatform(project, 'VK')" width="20" src="/admirra/img/icons/vk-ads.png" alt="VK" />
+                    <span v-if="!project.integrations?.length" class="text-13 gray56">—</span>
+                  </div>
+                </td>
+                <td class="bb-light px-3 py-4">{{ formatNumber(getProjectMetric(project.id).impressions) }}</td>
+                <td class="bb-light px-3 py-4">{{ formatNumber(getProjectMetric(project.id).clicks) }}</td>
+                <td class="bb-light px-3 py-4">{{ formatMoney(getProjectMetric(project.id).expenses) }}</td>
+                <td class="bb-light px-3 py-4">{{ formatNumber(getProjectMetric(project.id).leads) }}</td>
+                <td class="bb-light px-3 py-4">{{ formatMoney(getProjectMetric(project.id).cpc) }}</td>
+                <td class="bb-light px-3 py-4">{{ formatMoney(getProjectMetric(project.id).cpa) }}</td>
+                <td class="bb-light px-3 py-4">
+                  <span :class="['status-pill', project.integrations?.some(i => i.is_active) ? '_active' : '_inactive']">
+                    {{ project.integrations?.some(i => i.is_active) ? 'Активен' : 'Неактивен' }}
+                  </span>
+                </td>
+                <td class="bb-light px-3 py-4">
+                  <button class="btn _sm _white" @click="openProject(project)">
+                    <div class="btn__inner px-3"><span class="btn__text text-13">Открыть</span></div>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Массовое редактирование -->
+      <div
+        v-if="massEditOpen"
+        class="modal-overlay"
+        style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem"
+        @click.self="massEditOpen = false"
+      >
+        <div class="radius-base p-5 mass-edit-modal projects-modal-panel" style="max-width:480px;width:100%">
+          <h4 class="heading-4 mb-2">Массовое редактирование</h4>
+          <p class="text-14 gray56 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
+          <ul class="text-13 gray56 mb-3 ps-3 mass-edit-names">
+            <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
+          </ul>
+          <textarea
+            v-model="massEditDescription"
+            class="input w-100 mb-4"
+            rows="4"
+            placeholder="Описание проекта (необязательно оставить пустым — тогда только список)"
+            style="min-height:6rem;resize:vertical"
+          />
+          <div class="d-flex gap-3 flex-wrap">
+            <button class="btn _primary" type="button" :disabled="massSaving" @click="applyMassDescription">
+              <div class="btn__inner"><span class="btn__text">{{ massSaving ? 'Сохранение...' : 'Применить описание' }}</span></div>
+            </button>
+            <button class="btn _white" type="button" :disabled="massSaving" @click="massEditOpen = false">
+              <div class="btn__inner"><span class="btn__text gray">Закрыть</span></div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Диалог подтверждения удаления -->
+      <div
+        v-if="deleteTarget"
+        class="modal-overlay"
+        style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center"
+      >
+        <div class="delete-modal radius-base p-5 projects-modal-panel" style="max-width:400px;width:90%">
+          <h4 class="heading-4 mb-3">Удалить проект?</h4>
+          <p class="text-14 gray56 mb-4">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
+          <div class="d-flex gap-3">
+            <button class="btn _primary" :disabled="deleting" @click="doDelete">
+              <div class="btn__inner"><span class="btn__text">{{ deleting ? 'Удаление...' : 'Удалить' }}</span></div>
+            </button>
+            <button class="btn _white" @click="deleteTarget = null">
+              <div class="btn__inner"><span class="btn__text gray">Отмена</span></div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 

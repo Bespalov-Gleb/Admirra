@@ -1,468 +1,86 @@
 <template>
   <div class="admirra-page-wrapper">
-  <section class="main-section">
+    <section class="main-section">
       <div class="section-header pt-4">
-        <h3 class="heading-3">Команда</h3>
+        <h3 class="heading-3">{{ title }}</h3>
       </div>
       <div class="row gy-3 mb-5">
         <div class="col">
           <div class="row gy-3">
-            <div class="col-auto">
-              <a class="btn _primary" href="#">
+            <div v-for="tab in tabs" :key="tab.id" class="col-auto">
+              <button 
+                :class="['btn', currentTab === tab.id ? '_primary' : '_white']" 
+                @click="$emit('change-tab', tab.id)"
+              >
                 <div class="btn__inner">
-                  <span class="btn__text">Сотрудники</span>
+                  <span :class="['btn__text', { gray: currentTab !== tab.id }]">{{ tab.label }}</span>
                 </div>
-              </a>
-            </div>
-            <div class="col-auto">
-              <a class="btn _white" href="#">
-                <div class="btn__inner">
-                  <span class="btn__text gray">Клиенты</span>
-                </div>
-              </a>
+              </button>
             </div>
           </div>
         </div>
         <div class="col-auto">
-          <button class="btn _primary">
+          <button class="btn _primary" @click="$emit('add-member')">
             <div class="btn__inner">
-              <span class="btn__text">Добавить сотрудника</span>
+              <span class="btn__text">{{ addButtonLabel }}</span>
               <div class="btn__icon-plus">+</div>
             </div>
           </button>
         </div>
       </div>
-      <div class="mb-4 pb-2">
-        <div class="team-item is-open">
+      
+      <div v-for="(member, mIdx) in members" :key="mIdx" class="mb-4 pb-2">
+        <div :class="['team-item', { 'is-open': member.isOpen }]">
           <div class="row team-item__header">
             <div class="col col-lg-4 col-xl-3">
               <div class="d-flex">
                 <div class="avatar-36x36 me-4">
-                  <img class="img-cover" src="/admirra/img/avatars/user1.jpg" alt="#" />
+                  <img class="img-cover" :src="member.avatar" alt="#" />
                 </div>
                 <div class="weight-500">
-                  <div class="mb-1 text-15 gray">Петр Петров</div>
-                  <div class="gray56">testemail@mail.ru</div>
+                  <div class="mb-1 text-15 gray">{{ member.name }}</div>
+                  <div class="gray56">{{ member.email }}</div>
                 </div>
               </div>
             </div>
             <div class="col-auto col-lg">
-              <button class="team-item__project-toggle">
-                <span>Доступ к проектам</span>
+              <button class="team-item__project-toggle" @click="$emit('toggle-member', member)">
+                <span>{{ projectsToggleLabel }}</span>
                 <div class="circle-arrow _light">
-                  <svg><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
+                  <svg><use :href="arrowIcon"></use></svg>
                 </div>
               </button>
             </div>
             <div class="col-12 col-lg-auto">
               <div class="row">
                 <div class="col col-lg-auto">
-                  <button class="btn _primary">
+                  <button class="btn _primary" @click="$emit('add-access', member)">
                     <div class="btn__inner">
-                      <span class="btn__text">Добавить доступ к&nbsp;проекту</span>
+                      <span class="btn__text">{{ addAccessLabel }}</span>
                       <div class="btn__icon-plus">+</div>
                     </div>
                   </button>
                 </div>
                 <div class="col-auto col-lg-auto">
-                  <button class="btn-action _danger">
-                    <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
+                  <button class="btn-action _danger" @click="$emit('delete-member', member)">
+                    <svg><use :href="basketIcon"></use></svg>
                   </button>
                 </div>
               </div>
             </div>
           </div>
-          <div class="team-item__project-content row g-4">
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _oldlace">
+          <div v-if="member.isOpen" class="team-item__project-content row g-4" style="display: flex;">
+            <div v-for="(project, pIdx) in member.projects" :key="pIdx" class="col-12 col-sm-auto">
+              <div :class="['card-base', project.variantClass]">
                 <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
+                  <img class="img-cover" :src="project.icon" alt="#" />
                 </div>
-                <div class="weight-500 gray500">ЖК Сливки / Яндекс</div>
-                <a class="btn _sm _white mt-auto" href="#">
+                <div class="weight-500 gray500">{{ project.name }}</div>
+                <button class="btn _sm _white mt-auto" @click="$emit('revoke-access', { member, project })">
                   <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
+                    <span class="btn__text gray">{{ revokeAccessLabel }}</span>
                   </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _aliceblue">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _linen">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _lavender">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="mb-4 pb-2">
-        <div class="team-item">
-          <div class="row team-item__header">
-            <div class="col col-lg-4 col-xl-3">
-              <div class="d-flex">
-                <div class="avatar-36x36 me-4">
-                  <img class="img-cover" src="/admirra/img/avatars/user2.jpg" alt="#" />
-                </div>
-                <div class="weight-500">
-                  <div class="mb-1 text-15 gray">Петр Петров</div>
-                  <div class="gray56">testemail@mail.ru</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-auto col-lg">
-              <button class="team-item__project-toggle">
-                <span>Доступ к проектам</span>
-                <div class="circle-arrow _light">
-                  <svg><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                </div>
-              </button>
-            </div>
-            <div class="col-12 col-lg-auto">
-              <div class="row">
-                <div class="col col-lg-auto">
-                  <button class="btn _primary">
-                    <div class="btn__inner">
-                      <span class="btn__text">Добавить доступ к&nbsp;проекту</span>
-                      <div class="btn__icon-plus">+</div>
-                    </div>
-                  </button>
-                </div>
-                <div class="col-auto col-lg-auto">
-                  <button class="btn-action _danger">
-                    <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="team-item__project-content row g-4">
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _oldlace">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">ЖК Сливки / Яндекс</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _aliceblue">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _linen">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _lavender">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="mb-4 pb-2">
-        <div class="team-item">
-          <div class="row team-item__header">
-            <div class="col col-lg-4 col-xl-3">
-              <div class="d-flex">
-                <div class="avatar-36x36 me-4">
-                  <img class="img-cover" src="/admirra/img/avatars/user3.jpg" alt="#" />
-                </div>
-                <div class="weight-500">
-                  <div class="mb-1 text-15 gray">Петр Петров</div>
-                  <div class="gray56">testemail@mail.ru</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-auto col-lg">
-              <button class="team-item__project-toggle">
-                <span>Доступ к проектам</span>
-                <div class="circle-arrow _light">
-                  <svg><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                </div>
-              </button>
-            </div>
-            <div class="col-12 col-lg-auto">
-              <div class="row">
-                <div class="col col-lg-auto">
-                  <button class="btn _primary">
-                    <div class="btn__inner">
-                      <span class="btn__text">Добавить доступ к&nbsp;проекту</span>
-                      <div class="btn__icon-plus">+</div>
-                    </div>
-                  </button>
-                </div>
-                <div class="col-auto col-lg-auto">
-                  <button class="btn-action _danger">
-                    <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="team-item__project-content row g-4">
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _oldlace">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">ЖК Сливки / Яндекс</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _aliceblue">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _linen">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _lavender">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="mb-4 pb-2">
-        <div class="team-item">
-          <div class="row team-item__header">
-            <div class="col col-lg-4 col-xl-3">
-              <div class="d-flex">
-                <div class="avatar-36x36 me-4">
-                  <img class="img-cover" src="/admirra/img/avatars/user4.jpg" alt="#" />
-                </div>
-                <div class="weight-500">
-                  <div class="mb-1 text-15 gray">Петр Петров</div>
-                  <div class="gray56">testemail@mail.ru</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-auto col-lg">
-              <button class="team-item__project-toggle">
-                <span>Доступ к проектам</span>
-                <div class="circle-arrow _light">
-                  <svg><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                </div>
-              </button>
-            </div>
-            <div class="col-12 col-lg-auto">
-              <div class="row">
-                <div class="col col-lg-auto">
-                  <button class="btn _primary">
-                    <div class="btn__inner">
-                      <span class="btn__text">Добавить доступ к&nbsp;проекту</span>
-                      <div class="btn__icon-plus">+</div>
-                    </div>
-                  </button>
-                </div>
-                <div class="col-auto col-lg-auto">
-                  <button class="btn-action _danger">
-                    <svg><use href="/admirra/img/svg/sprite.svg#basket"></use></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="team-item__project-content row g-4">
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _oldlace">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">ЖК Сливки / Яндекс</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _aliceblue">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _linen">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base _lavender">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Дейтелинг Иркутск</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-            <div class="col-12 col-sm-auto">
-              <div class="card-base">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
-                </div>
-                <div class="weight-500 gray500">Акт Приорити</div>
-                <a class="btn _sm _white mt-auto" href="#">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
-                  </div>
-                </a>
+                </button>
               </div>
             </div>
           </div>
