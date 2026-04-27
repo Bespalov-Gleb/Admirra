@@ -698,6 +698,10 @@ onMounted(async () => {
   color: #f8fafc !important;
 }
 
+.metric-value {
+  white-space: nowrap;
+}
+
 .projects-page--dark .projects-metric-tile {
   background: rgba(46, 107, 255, 0.14) !important;
   border: 1px solid rgba(255, 255, 255, 0.08);
