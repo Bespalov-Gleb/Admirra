@@ -5,9 +5,9 @@
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Профиль</h1>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Левая колонка - Аватар и основная информация -->
-      <div class="lg:col-span-1">
+    <div class="space-y-6">
+      <!-- Верхняя карточка: аватар и основная информация -->
+      <div>
         <div class="profile-card bg-white rounded-lg p-6">
           <!-- Аватар -->
           <div class="flex flex-col items-center mb-6">
@@ -47,8 +47,8 @@
         </div>
       </div>
 
-      <!-- Правая колонка - Детальная информация -->
-      <div class="lg:col-span-2 space-y-6">
+      <!-- Остальные блоки -->
+      <div class="space-y-6">
         <!-- Личная информация -->
         <div class="profile-card bg-white rounded-lg p-6">
           <div class="flex items-center justify-between mb-6">

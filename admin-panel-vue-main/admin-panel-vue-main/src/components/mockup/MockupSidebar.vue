@@ -1,5 +1,14 @@
 <template>
   <aside :class="['main-aside d-none d-xxxl-flex', { '_collapsed': isCollapsed }]">
+    <div class="mockup-sidebar__top">
+      <router-link class="logo" to="/main">AdMirra</router-link>
+      <button class="header__aside-btn" @click="$emit('toggle-sidebar-size')">
+        <div class="circle-arrow _light">
+          <svg><use :href="arrowIcon"></use></svg>
+        </div>
+      </button>
+    </div>
+
     <nav class="navigation">
       <div
         v-for="item in navItems"
@@ -98,7 +107,7 @@ const props = defineProps({
   questionIcon: { type: String, default: '/admirra/img/svg/sprite.svg#question' }
 })
 
-defineEmits(['nav-click'])
+defineEmits(['nav-click', 'toggle-sidebar-size'])
 
 // Раскрытые группы
 const openItems = ref([])
@@ -147,5 +156,12 @@ const toggleItem = (id) => {
 .navigation-item.is-open .navigation-submenu {
   display: flex !important;
   flex-direction: column;
+}
+
+.mockup-sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
 }
 </style>

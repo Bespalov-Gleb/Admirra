@@ -1,10 +1,12 @@
 <template>
   <div class="main-layout">
-    <MockupSidebar :is-collapsed="sidebarCollapsed" />
+    <MockupSidebar
+      :is-collapsed="sidebarCollapsed"
+      @toggle-sidebar-size="sidebarCollapsed = !sidebarCollapsed"
+    />
 
     <div class="content-wrapper">
       <MockupHeader
-        @toggle-sidebar-size="sidebarCollapsed = !sidebarCollapsed"
         @toggle-mobile-menu="sidebarPanelOpen = !sidebarPanelOpen"
       />
 

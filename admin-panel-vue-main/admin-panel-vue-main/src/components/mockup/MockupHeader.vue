@@ -1,16 +1,6 @@
 <template>
   <header class="header">
     <div class="header__inner">
-      <!-- Левый блок: логотип + кнопка сворачивания сайдбара -->
-      <div class="header__aside">
-        <router-link class="logo" to="/main">AdMirra</router-link>
-        <button class="header__aside-btn d-none d-xxxl-block" @click="$emit('toggle-sidebar-size')">
-          <div class="circle-arrow _light">
-            <svg><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-          </div>
-        </button>
-      </div>
-
       <!-- Основной контент хедера -->
       <div class="header__content">
         <div class="row gy-2">
@@ -232,7 +222,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useTheme } from '../../composables/useTheme'
 import { useProjects } from '../../composables/useProjects'
 
-defineEmits(['toggle-sidebar-size', 'toggle-mobile-menu'])
+defineEmits(['toggle-mobile-menu'])
 
 const router = useRouter()
 const { user, forceLogout } = useAuth()
@@ -430,11 +420,14 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding-right: 14px;
+  padding: 7px 12px;
 }
 
 .mockup-header__idea-btn .btn__text {
   color: #ffffff !important;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 600;
 }
 
 .mockup-header__idea-icon {
@@ -456,7 +449,14 @@ onUnmounted(() => {
   border: none !important;
 }
 
+.mockup-header__add-project-btn .btn__inner {
+  padding: 7px 12px;
+}
+
 .mockup-header__add-project-btn .btn__text {
   color: #ffffff !important;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 600;
 }
 </style>
