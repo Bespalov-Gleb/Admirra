@@ -1,15 +1,14 @@
 <template>
   <div class="admirra-page-wrapper">
-    <section class="main-section">
-      <!-- Кнопки добавления платформ -->
+  <section class="main-section">
       <div class="row gy-3 pb-5">
         <div class="col-auto">
-          <button class="btn _sm _white _radius" @click="$router.push('/integrations/wizard')">
+          <button class="btn _sm _white _radius">
             <div class="btn__inner">
               <div class="btn__icon-img">
-                <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
+                <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="yandex" />
               </div>
-              <span class="btn__text weight-400" style="color:#cc3300">Yandex Direct</span>
+              <span class="btn__text weight-400 c71663e">Yandex Direct</span>
               <div class="btn__icon-info ms-2">
                 <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
               </div>
@@ -17,12 +16,64 @@
           </button>
         </div>
         <div class="col-auto">
-          <button class="btn _sm _white _radius" @click="$router.push('/integrations/wizard')">
+          <button class="btn _sm _white _radius">
             <div class="btn__inner">
               <div class="btn__icon-img">
-                <img class="img-cover" src="/admirra/img/icons/vk-ads.png" alt="VK" />
+                <img class="img-cover" src="/admirra/img/icons/vk-ads.png" alt="vk" />
               </div>
-              <span class="btn__text weight-400" style="color:#0077ff">ВК Ads</span>
+              <span class="btn__text weight-400 c254b78">ВК Ads</span>
+              <div class="btn__icon-info ms-2">
+                <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="col-auto">
+          <button class="btn _sm _white _radius">
+            <div class="btn__inner">
+              <div class="btn__icon-img">
+                <img class="img-cover" src="/admirra/img/icons/avito.png" alt="avito" />
+              </div>
+              <span class="btn__text weight-400 c579f75">Avito</span>
+              <div class="btn__icon-info ms-2">
+                <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="col-auto">
+          <button class="btn _sm _white _radius">
+            <div class="btn__inner">
+              <div class="btn__icon-img">
+                <img class="img-cover" src="/admirra/img/icons/google-ads.png" alt="google ads" />
+              </div>
+              <span class="btn__text weight-400 c5e82bc">Google Ads</span>
+              <div class="btn__icon-info ms-2">
+                <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="col-auto">
+          <button class="btn _sm _white _radius">
+            <div class="btn__inner">
+              <div class="btn__icon-img">
+                <img class="img-cover" src="/admirra/img/icons/telegram.png" alt="telegram" />
+              </div>
+              <span class="btn__text weight-400 c4d7c92">Telegram</span>
+              <div class="btn__icon-info ms-2">
+                <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="col-auto">
+          <button class="btn _sm _white _radius">
+            <div class="btn__inner">
+              <div class="btn__icon-img">
+                <img class="img-cover" src="/admirra/img/icons/google-sheets.png" alt="google sheets" />
+              </div>
+              <span class="btn__text weight-400 c46725d">Google Sheets</span>
               <div class="btn__icon-info ms-2">
                 <svg><use href="/admirra/img/svg/sprite.svg#plus-bold"></use></svg>
               </div>
@@ -30,80 +81,62 @@
           </button>
         </div>
       </div>
-
       <div class="section-header pt-4">
         <h3 class="heading-3">Активные интеграции</h3>
       </div>
-
       <div class="row gy-4 mb-5">
         <div class="col-auto">
-          <button class="btn _primary" @click="$router.push('/integrations/wizard')">
+          <router-link to="/integration-1" class="btn _primary">
             <div class="btn__inner">
               <span class="btn__text">Добавить подключение</span>
               <div class="btn__icon-plus">+</div>
             </div>
-          </button>
+          </router-link>
         </div>
         <div class="col-12 col-sm-auto">
           <div class="input-item">
-            <input class="input w-100" type="text" placeholder="Поиск интеграций" v-model="search" />
+            <input class="input w-100" type="text" placeholder="Поиск цели" />
             <div class="input-icon">
               <svg class="_stroke"><use href="/admirra/img/svg/sprite.svg#search"></use></svg>
             </div>
           </div>
         </div>
       </div>
-
-      <div v-if="isLoading" class="py-5 text-center gray56">Загрузка...</div>
-
-      <div v-else-if="filteredIntegrations.length === 0" class="py-5 text-center gray56">
-        {{ search ? 'Ничего не найдено' : 'Нет активных интеграций. Добавьте первое подключение.' }}
-      </div>
-
-      <div v-else class="row g-4">
-        <div
-          v-for="integration in filteredIntegrations"
-          :key="integration.id"
-          class="col-12 col-sm-11 col-md-9 col-lg-8 col-xl-6"
-        >
+      <div class="row g-4">
+        <div class="col-12 col-sm-11 col-md-9 col-lg-8 col-xl-6">
           <div class="integration-card">
             <div class="integration-card__header">
               <div class="row weight-500">
                 <div class="col-auto">
-                  <div class="avatar-36x36" style="background:#e8eef9;border-radius:50%;display:flex;align-items:center;justify-content:center">
-                    <span style="font-size:13px;font-weight:700;color:#4b6fa0">
-                      {{ (integration.client_name || '?').slice(0, 2).toUpperCase() }}
-                    </span>
+                  <div class="avatar-36x36">
+                    <img class="img-cover" src="/admirra/img/avatars/user.jpg" alt="#" />
                   </div>
                 </div>
                 <div class="col">
                   <div class="mb-1 gray56">Проект</div>
-                  <div class="text-15 gray">{{ integration.client_name || '—' }}</div>
+                  <div class="text-15 gray">ЖК Сливки / Яндекс</div>
                 </div>
               </div>
               <div class="ms-sm-auto">
-                <div class="caption _light _md">{{ platformLabel(integration.platform) }}</div>
+                <div class="caption _light _md">1&nbsp;КАНАЛ</div>
               </div>
             </div>
-
             <div class="integration-card__content">
               <div class="row gy-3 mb-3">
                 <div class="col-12 col-sm">
                   <div class="row">
                     <div class="col-auto">
                       <div class="avatar-33x33">
-                        <img class="img-cover" :src="platformIcon(integration.platform)" :alt="integration.platform" />
+                        <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="#" />
                       </div>
                     </div>
                     <div class="col">
-                      <div class="text-15 gray mb-1">{{ platformLabel(integration.platform) }}</div>
-                      <div class="d-flex flex-wrap align-items-center">
-                        <span :class="['dotty align-self-center me-2', syncStatusClass(integration.sync_status)]"></span>
-                        <span class="gray56 uppercase">{{ syncStatusLabel(integration.sync_status) }}</span>
-                        <template v-if="integration.last_sync_at">
-                          <span class="px-1 gray56 text-10">|</span>
-                          <time class="gray30">{{ formatDate(integration.last_sync_at) }}</time>
-                        </template>
+                      <div class="text-15 gray mb-1">Yandex Direct</div>
+                      <div class="d-flex flex-wrap">
+                        <span class="dotty _success align-self-center me-2"></span>
+                        <span class="gray56 uppercase">Активно</span>
+                        <span class="px-1 gray56 text-10">|</span>
+                        <time class="gray30" datetime="2026-03-11T00:10">Последняя: 00:10,&nbsp;11&nbsp;мар.</time>
                       </div>
                     </div>
                   </div>
@@ -115,13 +148,192 @@
                   </div>
                 </div>
               </div>
-
               <div class="row gy-3 align-items-end">
                 <div class="col-12 col-sm-auto">
-                  <div class="caption w-100">ID: {{ integration.external_account_id || integration.id }}</div>
+                  <div class="caption w-100">ID: SLIVKI-ASA-3830-GUPG</div>
                 </div>
                 <div class="col-12 col-sm-auto ms-auto">
-                  <button class="btn _sm _white w-100" @click="$router.push('/integrations/wizard')">
+                  <button class="btn _sm _white w-100">
+                    <div class="btn__inner px-4">
+                      <span class="btn__text weight-400 c71663e">Настроить</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-11 col-md-9 col-lg-8 col-xl-6">
+          <div class="integration-card">
+            <div class="integration-card__header">
+              <div class="row weight-500">
+                <div class="col-auto">
+                  <div class="avatar-36x36">
+                    <img class="img-cover" src="/admirra/img/avatars/user.jpg" alt="#" />
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="mb-1 gray56">Проект</div>
+                  <div class="text-15 gray">ЖК Сливки / Яндекс</div>
+                </div>
+              </div>
+              <div class="ms-sm-auto">
+                <div class="caption _light _md">1&nbsp;КАНАЛ</div>
+              </div>
+            </div>
+            <div class="integration-card__content">
+              <div class="row gy-3 mb-3">
+                <div class="col-12 col-sm">
+                  <div class="row">
+                    <div class="col-auto">
+                      <div class="avatar-33x33">
+                        <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="#" />
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="text-15 gray mb-1">Yandex Direct</div>
+                      <div class="d-flex flex-wrap">
+                        <span class="dotty _success align-self-center me-2"></span>
+                        <span class="gray56 uppercase">Активно</span>
+                        <span class="px-1 gray56 text-10">|</span>
+                        <time class="gray30" datetime="2026-03-11T00:10">Последняя: 00:10,&nbsp;11&nbsp;мар.</time>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <div class="badge-text _md">
+                    <span class="weight-500">24 часа</span>
+                    <svg class="badge-text__icon _stroke"><use href="/admirra/img/svg/sprite.svg#refresh-line"></use></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="row gy-3 align-items-end">
+                <div class="col-12 col-sm-auto">
+                  <div class="caption w-100">ID: SLIVKI-ASA-3830-GUPG</div>
+                </div>
+                <div class="col-12 col-sm-auto ms-auto">
+                  <button class="btn _sm _white w-100">
+                    <div class="btn__inner px-4">
+                      <span class="btn__text weight-400 c71663e">Настроить</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-11 col-md-9 col-lg-8 col-xl-6">
+          <div class="integration-card">
+            <div class="integration-card__header">
+              <div class="row weight-500">
+                <div class="col-auto">
+                  <div class="avatar-36x36">
+                    <img class="img-cover" src="/admirra/img/avatars/user.jpg" alt="#" />
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="mb-1 gray56">Проект</div>
+                  <div class="text-15 gray">ЖК Сливки / Яндекс</div>
+                </div>
+              </div>
+              <div class="ms-sm-auto">
+                <div class="caption _light _md">1&nbsp;КАНАЛ</div>
+              </div>
+            </div>
+            <div class="integration-card__content">
+              <div class="row gy-3 mb-3">
+                <div class="col-12 col-sm">
+                  <div class="row">
+                    <div class="col-auto">
+                      <div class="avatar-33x33">
+                        <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="#" />
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="text-15 gray mb-1">Yandex Direct</div>
+                      <div class="d-flex flex-wrap">
+                        <span class="dotty _success align-self-center me-2"></span>
+                        <span class="gray56 uppercase">Активно</span>
+                        <span class="px-1 gray56 text-10">|</span>
+                        <time class="gray30" datetime="2026-03-11T00:10">Последняя: 00:10,&nbsp;11&nbsp;мар.</time>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <div class="badge-text _md">
+                    <span class="weight-500">24 часа</span>
+                    <svg class="badge-text__icon _stroke"><use href="/admirra/img/svg/sprite.svg#refresh-line"></use></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="row gy-3 align-items-end">
+                <div class="col-12 col-sm-auto">
+                  <div class="caption w-100">ID: SLIVKI-ASA-3830-GUPG</div>
+                </div>
+                <div class="col-12 col-sm-auto ms-auto">
+                  <button class="btn _sm _white w-100">
+                    <div class="btn__inner px-4">
+                      <span class="btn__text weight-400 c71663e">Настроить</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-sm-11 col-md-9 col-lg-8 col-xl-6">
+          <div class="integration-card">
+            <div class="integration-card__header">
+              <div class="row weight-500">
+                <div class="col-auto">
+                  <div class="avatar-36x36">
+                    <img class="img-cover" src="/admirra/img/avatars/user.jpg" alt="#" />
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="mb-1 gray56">Проект</div>
+                  <div class="text-15 gray">ЖК Сливки / Яндекс</div>
+                </div>
+              </div>
+              <div class="ms-sm-auto">
+                <div class="caption _light _md">1&nbsp;КАНАЛ</div>
+              </div>
+            </div>
+            <div class="integration-card__content">
+              <div class="row gy-3 mb-3">
+                <div class="col-12 col-sm">
+                  <div class="row">
+                    <div class="col-auto">
+                      <div class="avatar-33x33">
+                        <img class="img-cover" src="/admirra/img/icons/yandex-direct.png" alt="#" />
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="text-15 gray mb-1">Yandex Direct</div>
+                      <div class="d-flex flex-wrap">
+                        <span class="dotty _success align-self-center me-2"></span>
+                        <span class="gray56 uppercase">Активно</span>
+                        <span class="px-1 gray56 text-10">|</span>
+                        <time class="gray30" datetime="2026-03-11T00:10">Последняя: 00:10,&nbsp;11&nbsp;мар.</time>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <div class="badge-text _md">
+                    <span class="weight-500">24 часа</span>
+                    <svg class="badge-text__icon _stroke"><use href="/admirra/img/svg/sprite.svg#refresh-line"></use></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="row gy-3 align-items-end">
+                <div class="col-12 col-sm-auto">
+                  <div class="caption w-100">ID: SLIVKI-ASA-3830-GUPG</div>
+                </div>
+                <div class="col-12 col-sm-auto ms-auto">
+                  <button class="btn _sm _white w-100">
                     <div class="btn__inner px-4">
                       <span class="btn__text weight-400 c71663e">Настроить</span>
                     </div>
