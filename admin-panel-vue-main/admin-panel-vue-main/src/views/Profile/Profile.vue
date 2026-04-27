@@ -23,8 +23,8 @@
               </button>
             </div>
             <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{{ userDisplayName }}</h2>
-            <p class="text-sm text-gray-500 mt-1">{{ userData.email }}</p>
-            <span class="mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+            <p class="text-base text-gray-500 mt-1">{{ userData.email }}</p>
+            <span class="mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
               {{ userData.role }}
             </span>
           </div>
@@ -32,15 +32,15 @@
           <!-- Статистика -->
           <div class=" pt-6 space-y-4">
             <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-600">Проектов</span>
+              <span class="text-base text-gray-600">Проектов</span>
               <span class="text-lg font-semibold text-gray-900">{{ stats.projects }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-600">Активных</span>
+              <span class="text-base text-gray-600">Активных</span>
               <span class="text-lg font-semibold text-green-600">{{ stats.active }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-600">Завершенных</span>
+              <span class="text-base text-gray-600">Завершенных</span>
               <span class="text-lg font-semibold text-gray-900">{{ stats.completed }}</span>
             </div>
           </div>
@@ -55,7 +55,7 @@
             <h2 class="text-xl font-bold text-gray-900">Личная информация</h2>
             <button
               @click="toggleEditMode"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              class="px-4 py-2.5 text-base font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               {{ isEditMode ? 'Отмена' : 'Редактировать' }}
             </button>
@@ -93,20 +93,20 @@
             />
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">FinanceToken для Яндекс.Директа</label>
+              <label class="block text-base font-medium text-gray-700 mb-2">FinanceToken для Яндекс.Директа</label>
               <textarea
                 v-model="userData.yandexFinanceToken"
                 :readonly="!isEditMode"
                 rows="3"
                 placeholder="Вставьте сюда ваш FinanceToken из настроек Яндекс.Директа"
                 :class="[
-                  'w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors resize-none font-mono text-xs',
+                  'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors resize-none font-mono text-sm',
                   isEditMode
                     ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
                     : 'border-gray-300 bg-gray-100 cursor-not-allowed'
                 ]"
               ></textarea>
-              <p class="mt-1 text-xs text-gray-500">
+              <p class="mt-1 text-sm text-gray-500">
                 Токен будет использоваться только для чтения баланса через AccountManagement API.
               </p>
             </div>
@@ -115,13 +115,13 @@
           <div v-if="isEditMode" class="mt-6 flex justify-end gap-3">
             <button
               @click="cancelEdit"
-              class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              class="px-6 py-3 text-base font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Отмена
             </button>
             <button
               @click="saveChanges"
-              class="px-6 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+              class="px-6 py-3 text-base font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
             >
               Сохранить изменения
             </button>
@@ -135,12 +135,12 @@
           <div class="space-y-4">
             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <p class="text-sm font-medium text-gray-900">Пароль</p>
-                <p class="text-xs text-gray-500 mt-1">Последнее изменение: {{ userData.lastPasswordChange }}</p>
+                <p class="text-base font-medium text-gray-900">Пароль</p>
+                <p class="text-sm text-gray-500 mt-1">Последнее изменение: {{ userData.lastPasswordChange }}</p>
               </div>
               <button
                 @click="showChangePasswordModal = true"
-                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                class="px-4 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Изменить пароль
               </button>
@@ -148,15 +148,15 @@
 
             <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <p class="text-sm font-medium text-gray-900">Двухфакторная аутентификация</p>
-                <p class="text-xs text-gray-500 mt-1">
+                <p class="text-base font-medium text-gray-900">Двухфакторная аутентификация</p>
+                <p class="text-sm text-gray-500 mt-1">
                   {{ userData.twoFactorEnabled ? 'Включена' : 'Отключена' }}
                 </p>
               </div>
               <button
                 @click="toggleTwoFactor"
                 :class="[
-                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  'px-4 py-2.5 text-base font-medium rounded-lg transition-colors',
                   userData.twoFactorEnabled
                     ? 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
                     : 'text-white bg-gray-900 hover:bg-gray-800'
@@ -174,28 +174,28 @@
             <h2 class="text-xl font-bold text-gray-900">Доставка отчётов</h2>
             <button
               @click="toggleReportSettingsEdit"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              class="px-4 py-2.5 text-base font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               {{ isReportSettingsEdit ? 'Отмена' : 'Редактировать' }}
             </button>
           </div>
-          <p class="text-sm text-gray-500 mb-4">Настройки по умолчанию для отправки отчётов в Telegram и на Email.</p>
+          <p class="text-base text-gray-500 mb-4">Настройки по умолчанию для отправки отчётов в Telegram и на Email.</p>
           <div class="space-y-4">
             <div class="profile-report-telegram-box p-4 border border-gray-200 rounded-lg bg-gray-50/50">
-              <p class="text-sm font-medium text-gray-900 mb-1">Telegram для отчётов</p>
-              <p v-if="userData.reportTelegramChatId" class="text-sm text-green-700 mb-3">Чат подключён — отчёты будут приходить в ваш диалог с ботом.</p>
-              <p v-else class="text-sm text-gray-600 mb-3">Откройте бота в Telegram и нажмите Start — без ввода числового Chat ID.</p>
+              <p class="text-base font-medium text-gray-900 mb-1">Telegram для отчётов</p>
+              <p v-if="userData.reportTelegramChatId" class="text-base text-green-700 mb-3">Чат подключён — отчёты будут приходить в ваш диалог с ботом.</p>
+              <p v-else class="text-base text-gray-600 mb-3">Откройте бота в Telegram и нажмите Start — без ввода числового Chat ID.</p>
               <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  class="px-4 py-2 text-sm font-medium text-white bg-[#0088cc] rounded-lg hover:bg-[#0077b5] transition-colors"
+                  class="px-4 py-2.5 text-base font-medium text-white bg-[#0088cc] rounded-lg hover:bg-[#0077b5] transition-colors"
                   @click="connectTelegramFromProfile"
                 >
                   Открыть бота в Telegram
                 </button>
                 <button
                   type="button"
-                  class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  class="px-4 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   @click="loadProfile"
                 >
                   Обновить статус
@@ -203,14 +203,14 @@
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Email получателей (через запятую)</label>
+              <label class="block text-base font-medium text-gray-700 mb-2">Email получателей (через запятую)</label>
               <input
                 v-model="userData.reportEmailRecipientsStr"
                 :readonly="!isReportSettingsEdit"
                 type="text"
                 placeholder="email1@example.com, email2@example.com"
                 :class="[
-                  'w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors',
+                  'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-base',
                   isReportSettingsEdit
                     ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
                     : 'border-gray-300 bg-gray-100 cursor-not-allowed'
@@ -221,7 +221,7 @@
           <div v-if="isReportSettingsEdit" class="mt-6 flex justify-end">
             <button
               @click="saveReportSettings"
-              class="px-6 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+              class="px-6 py-3 text-base font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
             >
               Сохранить
             </button>
@@ -231,7 +231,7 @@
         <!-- Настройки уведомлений (заглушка, пока без бэкенда) -->
         <div class="profile-card bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Уведомления</h2>
-          <p class="text-sm text-gray-500">Настройки уведомлений будут доступны в следующей версии.</p>
+          <p class="text-base text-gray-500">Настройки уведомлений будут доступны в следующей версии.</p>
         </div>
       </div>
     </div>
@@ -594,5 +594,16 @@ onMounted(() => {
 .profile-page--dark .text-gray-600 svg,
 .profile-page--dark .text-gray-600 :deep(svg) {
   color: #94a3b8;
+}
+
+/* Увеличенный базовый размер типографики и полей именно на странице профиля */
+.profile-page-root :deep(label.block.transition-all) {
+  font-size: 1rem;
+}
+
+.profile-page-root :deep(input.w-full) {
+  font-size: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }
 </style>

@@ -82,10 +82,20 @@
           <div class="col-auto align-self-center ms-auto">
             <div class="row gy-2 align-items-center">
               <div class="col-auto d-none d-lg-block">
-                <a class="btn _primary" href="#" @click.prevent="router.push('/contact')">
+                <a class="btn mockup-header__idea-btn" href="#" @click.prevent="router.push('/contact')">
                   <div class="btn__inner">
-                    <span class="btn__text" style="color:#fff">Предложить идею</span>
-                    <div class="btn__icon"><svg><use href="/admirra/img/svg/sprite.svg#idea"></use></svg></div>
+                    <span class="btn__text">Предложить идею</span>
+                    <div class="btn__icon mockup-header__idea-icon">
+                      <svg><use href="/admirra/img/svg/sprite.svg#idea"></use></svg>
+                    </div>
+                  </div>
+                </a>
+              </div>
+
+              <div class="col-auto d-none d-lg-block">
+                <a class="btn mockup-header__add-project-btn" href="#" @click.prevent="router.push('/create')">
+                  <div class="btn__inner">
+                    <span class="btn__text">Добавить новый проект</span>
                   </div>
                 </a>
               </div>
@@ -409,5 +419,44 @@ onUnmounted(() => {
   cursor: pointer;
   display: flex;
   align-items: center;
+}
+
+.mockup-header__idea-btn {
+  background: linear-gradient(90deg, #06b5d4 0%, #1f9de4 52%, #2563eb 100%) !important;
+  border: none !important;
+}
+
+.mockup-header__idea-btn .btn__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
+}
+
+.mockup-header__idea-btn .btn__text {
+  color: #ffffff !important;
+}
+
+.mockup-header__idea-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+}
+
+.mockup-header__idea-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mockup-header__add-project-btn {
+  background: #2563eb !important;
+  border: none !important;
+}
+
+.mockup-header__add-project-btn .btn__text {
+  color: #ffffff !important;
 }
 </style>

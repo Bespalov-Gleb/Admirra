@@ -284,8 +284,11 @@ const router = createRouter({
 
 // Проверка аутентификации перед переходом
 router.beforeEach(async (to, from, next) => {
-  const { checkAuth } = useAuth()
-  const isAuth = await checkAuth()
+  const { checkAuth, isAuthenticated, getToken } = useAuth()
+  let isAuth = Boolean(isAuthenticated.value && getToken())
+  if (!isAuth) {
+    isAuth = await checkAuth()
+  }
   
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
