@@ -27,8 +27,8 @@ const { isCollapsed } = useSidebar()
 
 const mainMargin = computed(() => {
   if (isCollapsed.value) {
-    return 'lg:ml-20'
+    return 'min-[1920px]:ml-20'
   }
-  return 'lg:ml-[270px]'
+  return 'min-[1920px]:ml-[270px]'
 })
 </script>

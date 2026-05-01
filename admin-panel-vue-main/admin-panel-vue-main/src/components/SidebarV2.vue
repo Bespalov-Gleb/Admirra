@@ -1,180 +1,206 @@
 <template>
-  <!-- Overlay для мобильных -->
+  <!-- Mobile overlay -->
   <div
     v-if="isMobileMenuOpen"
     @click="closeMobileMenu"
-    class="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-  ></div>
+    class="fixed inset-0 bg-black/50 z-40 min-[1920px]:hidden"
+  />
 
   <aside
     :class="[
-      'fixed left-0 top-0 h-screen flex flex-col transition-all duration-300 z-50 font-[Inter]',
-      'bg-white dark:bg-[#2C2F3D] border-r border-gray-100 dark:border-white/10',
-      isCollapsed ? 'w-20' : 'w-[270px]',
-      'lg:translate-x-0',
-      isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      'fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300',
+      'bg-white dark:bg-[#2C2F3D]',
+      'border-r border-black/5 dark:border-white/10',
+      isCollapsed ? 'w-[72px]' : 'w-[270px]',
+      isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full min-[1920px]:translate-x-0',
     ]"
   >
-    <!-- Логотип -->
-    <div class="px-4 pt-5 pb-3">
-      <div class="flex items-center justify-between">
-        <div @click="handleBrandClick" class="flex items-center gap-2 cursor-pointer hover:opacity-80">
-          <img 
-            :src="isCollapsed ? logoFav : (isDarkMode ? logoFullDark : logoFull)" 
-            :alt="'AdMirra'" 
-            :class="[
-              isCollapsed ? 'h-8 w-8 mx-auto' : 'h-10 w-auto'
-            ]" 
-          />
-        </div>
-        <button
-          v-if="!isCollapsed"
-          @click="handleToggleCollapse"
-          class="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        >
-          <MenuArrow />
-        </button>
+    <!-- Logo header — matches header__aside height (76px) -->
+    <div
+      :class="[
+        'flex items-center justify-between flex-shrink-0 border-b border-black/5 dark:border-white/10',
+        'h-[76px]',
+        isCollapsed ? 'px-[14px]' : 'px-6',
+      ]"
+    >
+      <div @click="handleBrandClick" class="cursor-pointer hover:opacity-80 transition-opacity">
+        <img
+          :src="logoSrc"
+          alt="AdMirra"
+          :class="isCollapsed ? 'h-8 w-8 object-contain' : 'h-[31px] w-[144px] object-contain object-left'"
+        />
       </div>
     </div>
 
-    <!-- Основная навигация -->
-    <div class="shrink min-h-0 overflow-y-auto scrollbar-hide py-3">
-      <nav class="px-3 space-y-1.5">
-        <div v-for="item in menuItems" :key="item.name" class="relative group">
+    <button
+      @click="handleToggleCollapse"
+      class="absolute left-full top-[38px] z-10 -ml-3 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5f7f9] transition-colors active:bg-[#5187ff] dark:bg-[#2C2F3D] min-[1920px]:flex"
+    >
+      <ChevronDownIcon
+        :class="[
+          'h-3 w-3 text-[#696969]/75 transition-transform duration-500 active:text-white',
+          isCollapsed ? 'rotate-90' : '-rotate-90',
+        ]"
+      />
+    </button>
 
-          <!-- Пункт с подменю — обёртка только вокруг кнопки для позиционирования полоски -->
-          <div v-if="item.children" class="relative">
-            <div
-              v-if="isSubmenuActive(item)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] dark:bg-[#4A7AFF] z-10"
-            ></div>
-            <button
-              @click="toggleSubmenu(item.submenuKey)"
-              :class="[
-                'w-full flex items-center gap-3 pl-6 pr-4 py-3.5 text-left rounded-[10px] transition-all',
-                isCollapsed ? 'justify-center' : '',
-                isSubmenuActive(item) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
-              ]"
-            >
-              <component
-                :is="item.icon"
-                class="w-6 h-6 flex-shrink-0"
-                :class="isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-              />
-              <template v-if="!isCollapsed">
-                <span
-                  class="flex-1 text-[12px] font-semibold"
-                  :class="isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-                >{{ item.name }}</span>
-                <ChevronDownIcon
-                  class="w-3.5 h-3.5 transition-transform"
-                  :class="[
-                    isSubmenuActive(item) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400',
-                    isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : ''
-                  ]"
-                />
-              </template>
-            </button>
-          </div>
+    <!-- Main navigation -->
+    <div class="flex-1 overflow-y-auto scrollbar-hide py-[15px]">
+      <nav class="px-[11px] space-y-[10px]">
+        <div v-for="item in menuItems" :key="item.name" class="relative">
 
-          <!-- Обычный пункт — обёртка только вокруг кнопки для позиционирования полоски -->
-          <div v-else class="relative">
-            <div
-              v-if="isActive(item.path)"
-              class="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#2563EB] dark:bg-[#4A7AFF] z-10"
-            ></div>
-            <button
-              @click="handleLinkClick(item.path)"
-              :class="[
-                'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
-                isCollapsed ? 'justify-center' : '',
-                isActive(item.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
-              ]"
-            >
-              <component
-                :is="item.icon"
-                class="w-6 h-6 flex-shrink-0"
-                :class="isActive(item.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-              />
-              <span
-                v-if="!isCollapsed"
-                class="text-[12px] font-semibold"
-                :class="isActive(item.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-              >{{ item.name }}</span>
-            </button>
-          </div>
-
-          <!-- Tooltip свёрнутое -->
-          <div
-            v-if="isCollapsed"
-            class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50"
-          >
-            {{ item.name }}
-            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900"></div>
-          </div>
-
-          <!-- Подменю с соединяющими линиями -->
-          <div v-if="item.children && !isCollapsed && isSubmenuOpenForKey(item.submenuKey)" class="relative pt-0.5 pb-1">
-            <div
-              v-for="(child, idx) in item.children"
-              :key="child.path"
-              class="relative pl-[56px] pr-0"
-            >
-              <!-- Вертикальный отрезок: от верха до низа, только для не-последних элементов -->
+          <!-- Item with submenu -->
+          <template v-if="item.children">
+            <div class="relative">
+              <!-- Active left indicator -->
               <div
-                v-if="idx < item.children.length - 1"
-                class="absolute left-[36px] top-0 bottom-0 w-[1.5px] bg-gray-200 dark:bg-white/20"
-              ></div>
-
-              <!-- Закруглённая ветка L-образная (верх → середина + горизонталь) -->
-              <div
-                class="absolute left-[36px] w-[14px] border-l-[1.5px] border-b-[1.5px] border-gray-200 dark:border-white/20 rounded-bl-[6px]"
-                style="top: 0; height: calc(50% + 1px);"
-              ></div>
-
+                v-if="isSubmenuActive(item)"
+                class="absolute left-0 top-[7px] bottom-[7px] w-[3px] rounded-full bg-[#2563eb] dark:bg-[#4A7AFF]"
+              />
               <button
-                @click="handleLinkClick(child.path)"
-                class="w-full flex items-center py-[9px] px-3 text-left rounded-[8px] transition-all"
-                :class="isActive(child.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'"
+                @click="toggleSubmenu(item.submenuKey)"
+                :class="[
+                  'group w-full flex items-center min-h-[46px] rounded-xl transition-all duration-500 text-left',
+                  isSubmenuActive(item)
+                    ? 'bg-[#ecf3fe] dark:bg-white/10'
+                    : 'hover:bg-[#ecf3fe]/60 dark:hover:bg-white/5',
+                ]"
               >
-                <span
-                  class="text-[11px] font-semibold"
-                  :class="isActive(child.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-                >{{ child.name }}</span>
+                <!-- Icon area: 49px wide -->
+                <span class="w-[49px] flex-shrink-0 flex items-center justify-center">
+                  <component
+                    :is="item.icon"
+                    class="w-5 h-5 transition-colors duration-500"
+                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  />
+                </span>
+                <template v-if="!isCollapsed">
+                  <span
+                    class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
+                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  >{{ item.name }}</span>
+                  <!-- Arrow -->
+                  <span
+                    :class="[
+                      'mr-[18px] ml-[10px] w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 transition-all duration-500',
+                      isSubmenuActive(item) ? 'bg-white dark:bg-white/10' : 'bg-[#f5f7f9] dark:bg-white/5',
+                    ]"
+                  >
+                    <ChevronDownIcon
+                      class="w-3 h-3 transition-transform duration-500"
+                      :class="[
+                        isSubmenuActive(item) ? 'text-[#2563eb]' : 'text-[#696969]/75',
+                        isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : '',
+                      ]"
+                    />
+                  </span>
+                </template>
               </button>
             </div>
-          </div>
+
+            <!-- Submenu -->
+            <div
+              :class="[
+                'grid transition-[grid-template-rows,opacity,padding-top] duration-300 ease-out',
+                !isCollapsed && isSubmenuOpenForKey(item.submenuKey) ? 'grid-rows-[1fr] opacity-100 pt-[10px]' : 'grid-rows-[0fr] opacity-0 pt-0',
+              ]"
+            >
+              <div class="min-h-0 overflow-hidden pl-[33px] flex flex-col gap-[10px]">
+                <div
+                  v-for="child in item.children"
+                  :key="child.path"
+                  class="relative before:content-[''] before:absolute before:left-[-15px] before:bottom-1/2 before:w-[10px] before:h-[120px] before:border-l before:border-b before:border-[#e7e7e7] before:dark:border-white/20 before:rounded-bl-[10px]"
+                >
+                  <button
+                    @click="handleLinkClick(child.path)"
+                    :class="[
+                      'inline-flex items-center min-h-[33px] px-[12px] py-[7px] rounded-xl text-left transition-all duration-500',
+                      isActive(child.path)
+                        ? 'bg-[#ecf3fe] text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]'
+                        : 'text-[#696969]/75 hover:bg-[#ecf3fe] hover:text-[#2563eb] dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-[#4A7AFF]',
+                    ]"
+                  >
+                    <span class="text-[12px] font-medium leading-none">{{ child.name }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Regular item -->
+          <template v-else>
+            <div class="relative">
+              <div
+                v-if="isActive(item.path)"
+                class="absolute left-0 top-[7px] bottom-[7px] w-[3px] rounded-full bg-[#2563eb] dark:bg-[#4A7AFF]"
+              />
+              <button
+                @click="handleLinkClick(item.path)"
+                :class="[
+                  'group w-full flex items-center min-h-[46px] rounded-xl transition-all duration-500 text-left',
+                  isActive(item.path)
+                    ? 'bg-[#ecf3fe] dark:bg-white/10'
+                    : 'hover:bg-[#ecf3fe]/60 dark:hover:bg-white/5',
+                ]"
+              >
+                <span class="w-[49px] flex-shrink-0 flex items-center justify-center">
+                  <component
+                    :is="item.icon"
+                    class="w-5 h-5 transition-colors duration-500"
+                    :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  />
+                </span>
+                <span
+                  v-if="!isCollapsed"
+                  class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
+                  :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                >{{ item.name }}</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Collapsed tooltip -->
+          <div
+            v-if="isCollapsed"
+            class="absolute left-[72px] ml-2 top-0 px-3 py-2 bg-gray-900 dark:bg-[#1a1a2e] text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 hidden"
+          >{{ item.name }}</div>
 
         </div>
       </nav>
     </div>
 
-    <!-- Нижняя навигация -->
-    <div class="mt-auto shrink-0 pb-4">
-      <nav class="px-3 space-y-1.5 py-2">
-        <div v-for="link in bottomLinks" :key="link.name" class="relative group">
-          <button
-            @click="link.action ? link.action() : handleLinkClick(link.path)"
-            :class="[
-              'w-full flex items-center gap-3 pl-6 pr-8 py-3.5 text-left rounded-[10px] transition-all',
-              isCollapsed ? 'justify-center' : '',
-              link.path && isActive(link.path) ? 'bg-[#EBF3FF] dark:bg-white/10' : 'hover:bg-gray-100/70 dark:hover:bg-white/5'
-            ]"
-          >
-            <component
-              :is="link.icon"
-              class="w-6 h-6 flex-shrink-0"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
+    <!-- Bottom: separator + support + logout -->
+    <div class="flex-shrink-0 pb-4">
+      <hr class="mx-[11px] border-black/5 dark:border-white/10 my-2" />
+      <nav class="px-[11px] space-y-[10px]">
+        <div v-for="link in bottomLinks" :key="link.name">
+          <div class="relative">
+            <div
+              v-if="link.path && isActive(link.path)"
+              class="absolute left-0 top-[7px] bottom-[7px] w-[3px] rounded-full bg-[#2563eb]"
             />
-            <span
-              v-if="!isCollapsed"
-              class="text-[12px] font-semibold"
-              :class="link.path && isActive(link.path) ? 'text-[#2563EB] dark:text-[#4A7AFF]' : 'text-[#696969]/[0.76] dark:text-gray-400'"
-            >{{ link.name }}</span>
-          </button>
-          <div v-if="isCollapsed" class="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-[#2A2D3C] text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-            {{ link.name }}
-            <div class="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-[#2A2D3C]"></div>
+            <button
+              @click="link.action ? link.action() : handleLinkClick(link.path)"
+              :class="[
+                'group w-full flex items-center min-h-[46px] rounded-xl transition-all duration-500 text-left',
+                link.path && isActive(link.path)
+                  ? 'bg-[#ecf3fe] dark:bg-white/10'
+                  : 'hover:bg-[#ecf3fe]/60 dark:hover:bg-white/5',
+              ]"
+            >
+              <span class="w-[49px] flex-shrink-0 flex items-center justify-center">
+                <component
+                  :is="link.icon"
+                class="w-5 h-5 transition-colors duration-500"
+                  :class="link.path && isActive(link.path) ? 'text-[#2563eb]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                />
+              </span>
+              <span
+                v-if="!isCollapsed"
+                class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
+                :class="link.path && isActive(link.path) ? 'text-[#2563eb]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+              >{{ link.name }}</span>
+            </button>
           </div>
         </div>
       </nav>
@@ -195,12 +221,9 @@ import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronDownIcon,
-  ArrowRightOnRectangleIcon,
   ComputerDesktopIcon,
   Squares2X2Icon,
-  ArchiveBoxIcon,
-  CpuChipIcon,
-  LinkIcon,
+  ChatBubbleLeftRightIcon,
   ClockIcon,
   Cog6ToothIcon,
   UserGroupIcon,
@@ -210,14 +233,9 @@ import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import ConfirmModal from './ConfirmModal.vue'
-import logoFull from '../assets/imgs/logo/logo-dark.png'
-import logoFullDark from '../assets/imgs/logo/AdMirra.png'
-import logoFav from '../assets/imgs/logo/Fav.png'
-import MenuArrow from '../assets/icons/menu-arrow.vue'
-import IconProject from '../assets/icons/menu/project.vue'
 import { ADMIRRA_PUBLIC_HOST } from '../config/admirraPublic'
 
-const { isCollapsed, toggleCollapse, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
+const { isCollapsed, toggleCollapse, isMobileViewport, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
 const { forceLogout } = useAuth()
 
@@ -225,6 +243,11 @@ const route = useRoute()
 const router = useRouter()
 const isDashboardSubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
+
+const logoSrc = computed(() => {
+  if (isCollapsed.value) return '/admirra/img/favicon/favicon-96x96.png'
+  return isDarkMode.value ? '/admirra/img/logo-white.png' : '/admirra/img/logo.png'
+})
 
 const currentHost = computed(() => {
   if (typeof window !== 'undefined' && window.location?.hostname) {
@@ -241,7 +264,7 @@ const showQualifierLink = computed(() => {
 const menuItems = computed(() => {
   const items = [
     {
-      name: 'Аналитика',
+      name: 'Проекты',
       icon: Squares2X2Icon,
       submenuKey: 'dashboard',
       children: [
@@ -249,19 +272,17 @@ const menuItems = computed(() => {
         { name: 'AI отчет по проекту', path: '/ai-analysis' },
       ]
     },
-    { name: 'Проекты', path: '/projects', icon: IconProject },
     { name: 'Интеграции', path: '/integrations/wizard', icon: RectangleStackIcon },
   ]
 
   if (showQualifierLink.value) {
-    items.push({ name: 'Квалификатор', path: '/phone-api', icon: ArchiveBoxIcon })
+    items.push({ name: 'Квалификатор лидов', path: '/phone-api', icon: ChatBubbleLeftRightIcon })
   }
 
   items.push(
     { name: 'Команда', path: '/team', icon: UserGroupIcon },
     { name: 'История', path: '/history', icon: ClockIcon },
     { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
-    { name: 'Тарифы', path: '/tariffs', icon: CpuChipIcon },
   )
 
   return items
@@ -269,7 +290,6 @@ const menuItems = computed(() => {
 
 const bottomLinks = computed(() => [
   { name: 'Поддержка', path: '/contact', icon: ComputerDesktopIcon },
-  { name: 'Выход', action: handleLogoutClick, icon: ArrowRightOnRectangleIcon },
 ])
 
 const isActive = (path) => {
@@ -317,7 +337,7 @@ const handleToggleCollapse = () => {
 }
 
 const handleBrandClick = () => {
-  if (window.innerWidth < 1024) {
+  if (isMobileViewport.value) {
     if (!isMobileMenuOpen.value) toggleMobileMenu()
   } else {
     if (isCollapsed.value) toggleCollapse()
