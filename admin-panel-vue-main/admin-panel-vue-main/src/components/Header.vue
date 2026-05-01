@@ -15,8 +15,8 @@
             <div class="text-[14px] font-medium leading-none text-[#515151] dark:text-gray-100">{{ headerProjectName }}</div>
             <div class="pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-gray-400">Отчеты агентства в одном месте</div>
           </div>
-          <span class="ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/10">
-            <svg class="w-[9px] h-[9px] text-gray-500 transition-transform duration-500" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
+          <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
+            <svg class="w-[9px] h-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
               <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
@@ -106,8 +106,8 @@
         >
           <span class="flex items-center gap-2.5">
             Перейти на тариф Старт
-            <span class="grid h-[15px] w-[15px] place-items-center rounded-full bg-black/20 text-[10px] font-medium leading-none">
-              <span class="-translate-y-px">+</span>
+            <span class="inline-flex h-[15px] w-[15px] items-center justify-center rounded-full bg-black/20 text-[10px] font-medium leading-[15px]">
+              <span class="block leading-none">+</span>
             </span>
           </span>
         </button>
@@ -182,8 +182,8 @@
               <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-30x30.png" alt="#" />
             </div>
             <span class="hidden max-w-[150px] truncate text-[14px] font-medium text-[#515151] dark:text-gray-100 md:block">{{ displayName }}</span>
-            <span class="ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/10">
-              <svg class="h-[9px] w-[9px] text-gray-500 transition-transform duration-500" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
+            <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
+              <svg class="h-[9px] w-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
                 <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </span>
@@ -483,5 +483,20 @@ onUnmounted(() => {
 
 .is-active .burger-line-bottom {
   opacity: 0;
+}
+
+:global(.dark) .header-arrow-circle,
+:global(.darkmode) .header-arrow-circle {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) [data-notifications-button] svg,
+:global(.darkmode) [data-notifications-button] svg {
+  fill: rgba(255, 255, 255, 0.68);
+}
+
+:global(.dark) .burger-line,
+:global(.darkmode) .burger-line {
+  background: rgba(255, 255, 255, 0.72);
 }
 </style>

@@ -2,10 +2,10 @@
   <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
     <div class="pt-[15px] pb-[15px] mb-[10px]">
       <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Новая интеграция</h3>
-      <p class="mt-[8px] text-[15px] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)]">Добавление рекламного канала</p>
+      <p class="mt-[8px] text-[15px] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)] dark:text-white/55">Добавление рекламного канала</p>
     </div>
 
-    <div v-if="error" class="wizard-alert mb-[20px]">
+    <div v-if="error" class="wizard-alert mb-[20px] dark:!bg-red-500/10 dark:!text-red-300">
       {{ error }}
     </div>
 
@@ -13,24 +13,24 @@
       <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 1, 'wizard-step-section--done': step > 1 }">
         <button
           type="button"
-          class="wizard-step"
+          class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
           :class="{ 'wizard-step--active': step === 1, 'wizard-step--done': step > 1 }"
           @click="goToVisibleStep(1)"
         >
-          <span class="wizard-step__number">1</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">1</span>
           <span class="wizard-step__label">Проект</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(1)" class="wizard-content">
         <div class="wizard-grid">
-          <div class="wizard-panel">
+          <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
             <div class="field-block">
-              <div class="field-label">Рекламный канал</div>
+              <div class="field-label dark:!text-white/65">Рекламный канал</div>
               <div class="platform-grid">
                 <button
                   type="button"
-                  class="platform-choice"
+                  class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
                   :class="{ 'platform-choice--active': form.platform === 'YANDEX_DIRECT' }"
                   @click="form.platform = 'YANDEX_DIRECT'"
                 >
@@ -39,7 +39,7 @@
                 </button>
                 <button
                   type="button"
-                  class="platform-choice"
+                  class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
                   :class="{ 'platform-choice--active': form.platform === 'VK_ADS' }"
                   @click="form.platform = 'VK_ADS'"
                 >
@@ -50,25 +50,25 @@
             </div>
 
             <div class="field-block">
-              <div class="field-label">Проект</div>
+              <div class="field-label dark:!text-white/65">Проект</div>
               <div class="custom-select" :class="{ open: openSelect === 'project', disabled: isNewProject }">
                 <button
                   type="button"
-                  class="cs-head"
+                  class="cs-head dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
                   :disabled="isNewProject"
                   @click="toggleProjectSelect"
                 >
                   <span class="cs-current">{{ projectSelectLabel }}</span>
-                  <span class="cs-arrow">
+                  <span class="cs-arrow dark:!bg-white/10">
                     <svg width="5" height="4" viewBox="0 0 9 6" fill="none">
-                      <path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                   </span>
                 </button>
-                <div class="cs-list">
+                <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
                   <button
                     type="button"
-                    class="cs-option"
+                    class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
                     :class="{ selected: !form.client_id }"
                     @click="selectProject('')"
                   >
@@ -78,7 +78,7 @@
                     v-for="p in projects"
                     :key="p.id"
                     type="button"
-                    class="cs-option"
+                    class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
                     :class="{ selected: String(form.client_id) === String(p.id) }"
                     @click="selectProject(p.id)"
                   >
@@ -88,16 +88,16 @@
               </div>
             </div>
 
-            <label class="switch-row">
+            <label class="switch-row dark:!text-white/70">
               <input v-model="isNewProject" type="checkbox" />
-              <span class="switch-row__control"></span>
+              <span class="switch-row__control dark:!bg-white/10"></span>
               <span>Создать новый проект</span>
             </label>
 
             <input
               v-if="isNewProject"
               v-model="form.client_name"
-              class="wizard-input"
+              class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
               type="text"
               placeholder="Название нового проекта"
             />
@@ -132,29 +132,29 @@
       <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
         <button
           type="button"
-          class="wizard-step"
+          class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
           :class="{ 'wizard-step--active': step === 2, 'wizard-step--done': step > 2 }"
           @click="goToVisibleStep(2)"
         >
-          <span class="wizard-step__number">2</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">2</span>
           <span class="wizard-step__label">Профиль</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(2)" class="wizard-content">
-        <div class="wizard-panel">
+        <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
-            <h4>Выберите рекламный кабинет для интеграции</h4>
+            <h4 class="dark:!text-white/90">Выберите рекламный кабинет для интеграции</h4>
           </div>
 
-          <div v-if="loadingStates.profiles" class="empty-line">Загрузка профилей...</div>
-          <div v-else-if="profiles.length === 0" class="empty-line">Нет доступных профилей. Проверьте авторизацию.</div>
+          <div v-if="loadingStates.profiles" class="empty-line dark:!text-white/55">Загрузка профилей...</div>
+          <div v-else-if="profiles.length === 0" class="empty-line dark:!text-white/55">Нет доступных профилей. Проверьте авторизацию.</div>
 
           <div v-else class="cards-grid">
             <label
               v-for="cabinet in profiles"
               :key="cabinet.login"
-              class="select-tile"
+              class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': form.account_id === cabinet.login }"
             >
               <input
@@ -165,21 +165,21 @@
                 @change="selectProfile(cabinet)"
               />
               <span class="select-tile__top">
-                <span class="select-tile__avatar">
+                <span class="select-tile__avatar dark:!bg-white/10">
                   <img :src="platformIcon" :alt="platformName" />
                 </span>
-                <span class="select-tile__check">✓</span>
+                <span class="select-tile__check dark:!bg-white/10">✓</span>
               </span>
-              <span class="select-tile__title">{{ cabinet.name || cabinet.login }}</span>
-              <span class="select-tile__meta">{{ cabinet.login }}</span>
-              <span class="select-tile__caption">{{ cabinet.type || 'Рекламный кабинет' }}</span>
+              <span class="select-tile__title dark:!text-white/85">{{ cabinet.name || cabinet.login }}</span>
+              <span class="select-tile__meta dark:!text-white/50">{{ cabinet.login }}</span>
+              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ cabinet.type || 'Рекламный кабинет' }}</span>
             </label>
           </div>
 
           <div class="wizard-actions">
-            <button type="button" class="secondary-btn" @click="step = 1">Назад</button>
+            <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 1">Назад</button>
             <div class="wizard-actions__right">
-              <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+              <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
               <button
                 type="button"
                 class="primary-btn"
@@ -198,33 +198,33 @@
       <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 3, 'wizard-step-section--done': step > 3 }">
         <button
           type="button"
-          class="wizard-step"
+          class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
           :class="{ 'wizard-step--active': step === 3, 'wizard-step--done': step > 3 }"
           @click="goToVisibleStep(3)"
         >
-          <span class="wizard-step__number">3</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">3</span>
           <span class="wizard-step__label">Счетчики и цели</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(3)" class="wizard-content">
-        <div class="wizard-panel soft-panel">
+        <div class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div>
-            <h4>Рекламные кампании</h4>
-            <p>Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
+            <h4 class="dark:!text-white/90">Рекламные кампании</h4>
+            <p class="dark:!text-white/55">Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
           </div>
-          <div class="status-pill">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
+          <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
           </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px]">
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
-              <h4>Счетчики метрики</h4>
-              <p>Выберите счетчики для отслеживания целей</p>
+              <h4 class="dark:!text-white/90">Счетчики метрики</h4>
+              <p class="dark:!text-white/55">Выберите счетчики для отслеживания целей</p>
             </div>
             <button
               type="button"
-              class="small-btn"
+              class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
               :disabled="loadingStates.counters || counters.length === 0"
               @click="toggleAllCounters"
             >
@@ -232,14 +232,14 @@
             </button>
           </div>
 
-          <div v-if="loadingStates.counters" class="empty-line">Загрузка счетчиков...</div>
-          <div v-else-if="counters.length === 0" class="empty-line">Нет доступных счетчиков.</div>
+          <div v-if="loadingStates.counters" class="empty-line dark:!text-white/55">Загрузка счетчиков...</div>
+          <div v-else-if="counters.length === 0" class="empty-line dark:!text-white/55">Нет доступных счетчиков.</div>
 
           <div v-else class="cards-grid">
             <label
               v-for="counter in counters"
               :key="counter.id"
-              class="select-tile"
+              class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': selectedCounterIds.includes(counter.id) }"
             >
               <input
@@ -248,24 +248,24 @@
                 @change="toggleCounterSelection(counter.id)"
               />
               <span class="select-tile__top">
-                <span class="select-tile__avatar select-tile__avatar--text">{{ (counter.name || '?').slice(0, 2).toUpperCase() }}</span>
-                <span class="select-tile__check">✓</span>
+                <span class="select-tile__avatar select-tile__avatar--text dark:!bg-white/10 dark:!text-white/65">{{ (counter.name || '?').slice(0, 2).toUpperCase() }}</span>
+                <span class="select-tile__check dark:!bg-white/10">✓</span>
               </span>
-              <span class="select-tile__title">{{ counter.name }}</span>
-              <span class="select-tile__meta">ID: {{ counter.id }}</span>
+              <span class="select-tile__title dark:!text-white/85">{{ counter.name }}</span>
+              <span class="select-tile__meta dark:!text-white/50">ID: {{ counter.id }}</span>
             </label>
           </div>
         </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px]">
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
-              <h4>Цели и конверсии</h4>
-              <p>Выберите основную цель и дополнительные цели</p>
+              <h4 class="dark:!text-white/90">Цели и конверсии</h4>
+              <p class="dark:!text-white/55">Выберите основную цель и дополнительные цели</p>
             </div>
             <button
               type="button"
-              class="small-btn"
+              class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
               :disabled="loadingStates.goals || goals.length === 0"
               @click="toggleAllGoals"
             >
@@ -273,14 +273,14 @@
             </button>
           </div>
 
-          <div v-if="loadingStates.goals" class="empty-line">Загрузка целей...</div>
-          <div v-else-if="goals.length === 0" class="empty-line">Нет доступных целей.</div>
+          <div v-if="loadingStates.goals" class="empty-line dark:!text-white/55">Загрузка целей...</div>
+          <div v-else-if="goals.length === 0" class="empty-line dark:!text-white/55">Нет доступных целей.</div>
 
           <div v-else class="cards-grid">
             <label
               v-for="goal in goals"
               :key="goal.id"
-              class="select-tile"
+              class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': selectedGoalIds.includes(goal.id) }"
             >
               <input
@@ -289,16 +289,16 @@
                 @change="toggleGoalSelection(goal.id)"
               />
               <span class="select-tile__top">
-                <span class="select-tile__avatar select-tile__avatar--text">{{ (goal.name || '?').slice(0, 2).toUpperCase() }}</span>
-                <span class="select-tile__check">✓</span>
+                <span class="select-tile__avatar select-tile__avatar--text dark:!bg-white/10 dark:!text-white/65">{{ (goal.name || '?').slice(0, 2).toUpperCase() }}</span>
+                <span class="select-tile__check dark:!bg-white/10">✓</span>
               </span>
-              <span class="select-tile__title">{{ goal.name }}</span>
-              <span class="select-tile__meta">ID: {{ goal.id }}</span>
+              <span class="select-tile__title dark:!text-white/85">{{ goal.name }}</span>
+              <span class="select-tile__meta dark:!text-white/50">ID: {{ goal.id }}</span>
               <span class="select-tile__footer">
-                <span class="select-tile__caption">{{ goal.type || 'Цель' }}</span>
+                <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ goal.type || 'Цель' }}</span>
                 <button
                   type="button"
-                  class="favorite-btn"
+                  class="favorite-btn dark:!bg-white/10 dark:!text-white/45"
                   :class="{ 'favorite-btn--active': form.primary_goal_id === goal.id }"
                   :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной'"
                   @click.stop.prevent="selectPrimaryGoal(goal.id)"
@@ -311,9 +311,9 @@
         </div>
 
         <div class="wizard-actions mt-[20px]">
-          <button type="button" class="secondary-btn" @click="step = 2">Назад</button>
+          <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 2">Назад</button>
           <div class="wizard-actions__right">
-            <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+            <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
             <button type="button" class="primary-btn" @click="goToStep4">Далее</button>
           </div>
         </div>
@@ -324,52 +324,52 @@
       <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 4 }">
         <button
           type="button"
-          class="wizard-step"
+          class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
           :class="{ 'wizard-step--active': step === 4 }"
           @click="goToVisibleStep(4)"
         >
-          <span class="wizard-step__number">4</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">4</span>
           <span class="wizard-step__label">Сводка</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(4)" class="wizard-content">
-        <div class="wizard-panel">
+        <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
-              <h4>Сводка интеграции</h4>
-              <p>Проверьте настройки перед подключением</p>
+              <h4 class="dark:!text-white/90">Сводка интеграции</h4>
+              <p class="dark:!text-white/55">Проверьте настройки перед подключением</p>
             </div>
           </div>
 
           <div class="summary-grid">
-            <div class="summary-card summary-card--blue">
-              <span class="summary-card__icon"><img :src="platformIcon" :alt="platformName" /></span>
-              <span class="summary-card__label">Платформа</span>
-              <strong>{{ platformName }}</strong>
+            <div class="summary-card summary-card--blue dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10"><img :src="platformIcon" :alt="platformName" /></span>
+              <span class="summary-card__label dark:!text-white/50">Платформа</span>
+              <strong class="dark:!text-white/85">{{ platformName }}</strong>
             </div>
-            <div class="summary-card summary-card--green">
-              <span class="summary-card__icon">↻</span>
-              <span class="summary-card__label">Кампании</span>
-              <strong>{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
+            <div class="summary-card summary-card--green dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">↻</span>
+              <span class="summary-card__label dark:!text-white/50">Кампании</span>
+              <strong class="dark:!text-white/85">{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--yellow">
-              <span class="summary-card__icon">#</span>
-              <span class="summary-card__label">Счетчики</span>
-              <strong>Выбрано: {{ selectedCounterIds.length }}</strong>
+            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--yellow dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">#</span>
+              <span class="summary-card__label dark:!text-white/50">Счетчики</span>
+              <strong class="dark:!text-white/85">Выбрано: {{ selectedCounterIds.length }}</strong>
               <ul v-if="summaryCounterLines.length">
                 <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
               </ul>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT' && form.primary_goal_id" class="summary-card summary-card--cyan">
-              <span class="summary-card__icon">★</span>
-              <span class="summary-card__label">Основная цель</span>
-              <strong>{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
+            <div v-if="form.platform === 'YANDEX_DIRECT' && form.primary_goal_id" class="summary-card summary-card--cyan dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">★</span>
+              <span class="summary-card__label dark:!text-white/50">Основная цель</span>
+              <strong class="dark:!text-white/85">{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--violet">
-              <span class="summary-card__icon">+</span>
-              <span class="summary-card__label">Дополнительные цели</span>
-              <strong>Отмечено: {{ summaryAdditionalGoalLines.length }}</strong>
+            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--violet dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">+</span>
+              <span class="summary-card__label dark:!text-white/50">Дополнительные цели</span>
+              <strong class="dark:!text-white/85">Отмечено: {{ summaryAdditionalGoalLines.length }}</strong>
               <ul v-if="summaryAdditionalGoalLines.length">
                 <li v-for="(name, i) in summaryAdditionalGoalLines" :key="i">{{ name }}</li>
               </ul>
@@ -394,9 +394,9 @@
         </div>
 
         <div class="wizard-actions mt-[20px]">
-          <button type="button" class="secondary-btn" @click="step = 3">Назад</button>
+          <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 3">Назад</button>
           <div class="wizard-actions__right">
-            <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+            <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
             <button
               type="button"
               class="primary-btn"
@@ -1367,6 +1367,173 @@ const toggleGoalSelection = (id) => {
 .final-switch {
   margin-top: 28px;
   color: #fff;
+}
+:global(.dark) .wizard-alert,
+:global(.darkmode) .wizard-alert {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+:global(.dark) .wizard-step-section::before,
+:global(.darkmode) .wizard-step-section::before {
+  background: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .wizard-step,
+:global(.darkmode) .wizard-step,
+:global(.dark) .wizard-panel,
+:global(.darkmode) .wizard-panel {
+  background: #2c2f3d;
+}
+:global(.dark) .wizard-step,
+:global(.darkmode) .wizard-step {
+  color: rgba(255, 255, 255, 0.7);
+}
+:global(.dark) .wizard-step__number,
+:global(.darkmode) .wizard-step__number,
+:global(.dark) .cs-arrow,
+:global(.darkmode) .cs-arrow,
+:global(.dark) .switch-row__control,
+:global(.darkmode) .switch-row__control,
+:global(.dark) .final-switch span,
+:global(.darkmode) .final-switch span,
+:global(.dark) .favorite-btn,
+:global(.darkmode) .favorite-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+:global(.dark) .wizard-step--active,
+:global(.darkmode) .wizard-step--active {
+  color: #67a8ff;
+}
+:global(.dark) .field-label,
+:global(.darkmode) .field-label,
+:global(.dark) .switch-row,
+:global(.darkmode) .switch-row {
+  color: rgba(255, 255, 255, 0.66);
+}
+:global(.dark) .platform-choice,
+:global(.darkmode) .platform-choice,
+:global(.dark) .cs-head,
+:global(.darkmode) .cs-head,
+:global(.dark) .cs-list,
+:global(.darkmode) .cs-list,
+:global(.dark) .wizard-input,
+:global(.darkmode) .wizard-input,
+:global(.dark) .secondary-btn,
+:global(.darkmode) .secondary-btn,
+:global(.dark) .small-btn,
+:global(.darkmode) .small-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .platform-choice:not(.platform-choice--active),
+:global(.darkmode) .platform-choice:not(.platform-choice--active) {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .custom-select.open .cs-head,
+:global(.darkmode) .custom-select.open .cs-head {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+:global(.dark) .cs-arrow path,
+:global(.darkmode) .cs-arrow path {
+  stroke: rgba(255, 255, 255, 0.65);
+}
+:global(.dark) .cs-option,
+:global(.darkmode) .cs-option {
+  color: rgba(255, 255, 255, 0.72);
+}
+:global(.dark) .cs-option:hover,
+:global(.darkmode) .cs-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .cs-option.selected,
+:global(.darkmode) .cs-option.selected {
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .wizard-input::placeholder,
+:global(.darkmode) .wizard-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+:global(.dark) .ghost-btn,
+:global(.darkmode) .ghost-btn,
+:global(.dark) .status-pill,
+:global(.darkmode) .status-pill,
+:global(.dark) .select-tile,
+:global(.darkmode) .select-tile {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.68);
+}
+:global(.dark) .select-tile,
+:global(.darkmode) .select-tile {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .panel-head h4,
+:global(.darkmode) .panel-head h4,
+:global(.dark) .soft-panel h4,
+:global(.darkmode) .soft-panel h4,
+:global(.dark) .select-tile__title,
+:global(.darkmode) .select-tile__title {
+  color: rgba(255, 255, 255, 0.86);
+}
+:global(.dark) .panel-head p,
+:global(.darkmode) .panel-head p,
+:global(.dark) .soft-panel p,
+:global(.darkmode) .soft-panel p,
+:global(.dark) .empty-line,
+:global(.darkmode) .empty-line,
+:global(.dark) .select-tile__meta,
+:global(.darkmode) .select-tile__meta,
+:global(.dark) .summary-card__label,
+:global(.darkmode) .summary-card__label {
+  color: rgba(255, 255, 255, 0.5);
+}
+:global(.dark) .select-tile__avatar,
+:global(.darkmode) .select-tile__avatar,
+:global(.dark) .select-tile__check,
+:global(.darkmode) .select-tile__check,
+:global(.dark) .select-tile__caption,
+:global(.darkmode) .select-tile__caption,
+:global(.dark) .summary-card__icon,
+:global(.darkmode) .summary-card__icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+}
+:global(.dark) .select-tile--active,
+:global(.darkmode) .select-tile--active {
+  border-color: rgba(103, 168, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+:global(.dark) .platform-choice--active,
+:global(.darkmode) .platform-choice--active {
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%) !important;
+  color: #fff !important;
+}
+:global(.dark) .wizard-step--active .wizard-step__number,
+:global(.darkmode) .wizard-step--active .wizard-step__number,
+:global(.dark) .wizard-step--done .wizard-step__number,
+:global(.darkmode) .wizard-step--done .wizard-step__number,
+:global(.dark) .select-tile--active .select-tile__check,
+:global(.darkmode) .select-tile--active .select-tile__check {
+  background: #2563eb !important;
+  color: #fff !important;
+}
+:global(.dark) .favorite-btn--active,
+:global(.darkmode) .favorite-btn--active {
+  background: #fa812e !important;
+  color: #fff !important;
+}
+:global(.dark) .summary-card,
+:global(.darkmode) .summary-card {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.76);
+}
+:global(.dark) .summary-card strong,
+:global(.darkmode) .summary-card strong {
+  color: rgba(255, 255, 255, 0.88);
+}
+:global(.dark) .summary-card ul,
+:global(.darkmode) .summary-card ul {
+  color: rgba(255, 255, 255, 0.58);
 }
 @media (max-width: 1023px) {
   .wizard-grid,

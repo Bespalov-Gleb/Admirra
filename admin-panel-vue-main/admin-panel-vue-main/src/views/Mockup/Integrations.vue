@@ -31,11 +31,11 @@
       <div class="search-wrap">
         <input
           v-model="search"
-          class="search-input"
+          class="search-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/45"
           type="text"
           placeholder="Поиск интеграций"
         />
-        <div class="search-icon">
+        <div class="search-icon dark:!bg-white/10">
           <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
             <circle cx="7" cy="7" r="5.5" stroke="#696969" stroke-width="1.5"/>
             <path d="M11 11L14 14" stroke="#696969" stroke-width="1.5" stroke-linecap="round"/>
@@ -45,12 +45,12 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)]">
+    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       Загрузка…
     </div>
 
     <!-- Empty -->
-    <div v-else-if="filteredIntegrations.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)]">
+    <div v-else-if="filteredIntegrations.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       {{ search ? 'Ничего не найдено' : 'Нет активных интеграций. Добавьте первое подключение.' }}
     </div>
 
@@ -244,6 +244,19 @@ const formatDate = (dateStr) => {
 .platform-btn:hover  { background-color: #2563eb; transform: scale(1.03); }
 .platform-btn:hover .platform-btn__label { color: #fff !important; }
 .platform-btn:active { transform: scale(0.97); transition: transform 0s; }
+:global(.dark) .platform-btn,
+:global(.darkmode) .platform-btn {
+  background-color: #2C2F3D;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+:global(.dark) .platform-btn__label,
+:global(.darkmode) .platform-btn__label {
+  color: rgba(255,255,255,0.78) !important;
+}
+:global(.dark) .platform-btn:hover,
+:global(.darkmode) .platform-btn:hover {
+  background-color: #2563eb;
+}
 
 .platform-btn__icon {
   width: 14px;
@@ -327,6 +340,16 @@ const formatDate = (dateStr) => {
 }
 .search-input:focus { box-shadow: inset 0 0 0 1px rgba(37,99,235,0.24), 0 0 10px rgba(37,99,235,0.15); }
 .search-input::placeholder { color: rgba(0,0,0,0.3); }
+:global(.dark) .search-input,
+:global(.darkmode) .search-input {
+  background-color: #2C2F3D;
+  color: rgba(255,255,255,0.86);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
+}
+:global(.dark) .search-input::placeholder,
+:global(.darkmode) .search-input::placeholder {
+  color: rgba(255,255,255,0.42);
+}
 .search-icon {
   display: flex;
   align-items: center;
@@ -341,6 +364,10 @@ const formatDate = (dateStr) => {
   transform: translateY(-50%);
   pointer-events: none;
 }
+:global(.dark) .search-icon,
+:global(.darkmode) .search-icon {
+  background-color: rgba(255,255,255,0.08);
+}
 
 /* ── Integration card ── */
 .int-card {
@@ -350,6 +377,21 @@ const formatDate = (dateStr) => {
   padding: 30px;
   background-color: #fff;
   border-radius: 15px;
+}
+:global(.dark) .int-card,
+:global(.darkmode) .int-card {
+  background-color: #2C2F3D;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+:global(.dark) .int-card .text-\[\#696969\],
+:global(.darkmode) .int-card .text-\[\#696969\] {
+  color: rgba(255,255,255,0.82) !important;
+}
+:global(.dark) .int-card .text-\[rgba\(105\,105\,105\,0\.56\)\],
+:global(.darkmode) .int-card .text-\[rgba\(105\,105\,105\,0\.56\)\],
+:global(.dark) .int-card .text-\[rgba\(44\,44\,44\,0\.4\)\],
+:global(.darkmode) .int-card .text-\[rgba\(44\,44\,44\,0\.4\)\] {
+  color: rgba(255,255,255,0.55) !important;
 }
 
 /* ── Card header ── */
@@ -399,6 +441,11 @@ const formatDate = (dateStr) => {
   border-radius: 15px;
   border: 1px solid #e9e9e9;
 }
+:global(.dark) .int-card__body,
+:global(.darkmode) .int-card__body {
+  background-color: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.10);
+}
 
 /* ── Sync dot ── */
 .sync-dot {
@@ -439,6 +486,12 @@ const formatDate = (dateStr) => {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+:global(.dark) .id-badge,
+:global(.darkmode) .id-badge {
+  background-color: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.45);
+}
 
 /* ── Configure button — скругление как было у badge, hover синий ── */
 .configure-btn {
@@ -459,4 +512,10 @@ const formatDate = (dateStr) => {
 }
 .configure-btn:hover  { background-color: #2563eb; border-color: #2563eb; color: #fff; transform: scale(1.03); }
 .configure-btn:active { transform: scale(0.97); transition: transform 0s; }
+:global(.dark) .configure-btn,
+:global(.darkmode) .configure-btn {
+  background-color: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75);
+}
 </style>

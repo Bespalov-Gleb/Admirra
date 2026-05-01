@@ -12,15 +12,15 @@
       <div class="flex flex-wrap items-center gap-[10px]">
         <!-- Dropdown: Все -->
         <div class="custom-select" :class="{ open: openSelect === 'type' }" v-click-outside="() => closeSelect('type')">
-          <button class="cs-head" @click="toggleSelect('type')">
+          <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('type')">
             <span class="cs-current">{{ projectFilterLabel }}</span>
-            <span class="cs-arrow"><svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cs-arrow dark:!bg-white/10"><svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
-          <div class="cs-list">
+          <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <div
               v-for="opt in projectFilterOptions"
               :key="opt.value"
-              class="cs-option"
+              class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
               :class="{ selected: projectFilter === opt.value }"
               @click="selectProjectFilter(opt.value)"
             >{{ opt.label }}</div>
@@ -29,15 +29,15 @@
 
         <!-- Dropdown: Период -->
         <div class="custom-select" :class="{ open: openSelect === 'period' }" v-click-outside="() => closeSelect('period')">
-          <button class="cs-head" @click="toggleSelect('period')">
+          <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('period')">
             <span class="cs-current">{{ periodLabel }}</span>
-            <span class="cs-arrow"><svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cs-arrow dark:!bg-white/10"><svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
-          <div class="cs-list">
+          <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <div
               v-for="opt in periodOptions"
               :key="opt.value"
-              class="cs-option"
+              class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
               :class="{ selected: periodDays === opt.value }"
               @click="selectPeriod(opt.value)"
             >{{ opt.label }}</div>
@@ -48,10 +48,10 @@
           <input
             v-model="search"
             type="text"
-            class="search-input"
+            class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
             placeholder="Поиск по проектам, номерам или доменам"
           />
-          <div class="search-icon-circle">
+          <div class="search-icon-circle dark:!bg-white/10">
             <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
               <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
               <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
@@ -73,7 +73,7 @@
         </button>
 
         <div class="flex">
-          <button class="view-btn _active" aria-label="Карточки">
+          <button class="view-btn _active dark:!bg-[#33405f] dark:!text-[#67a8ff]" aria-label="Карточки">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <rect x="1" y="1" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
               <rect x="10.5" y="1" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
@@ -81,7 +81,7 @@
               <rect x="10.5" y="10.5" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
             </svg>
           </button>
-          <button class="view-btn" aria-label="Строки" @click="router.push('/project-rows')">
+          <button class="view-btn dark:!text-white/35 dark:hover:!bg-white/5 dark:hover:!text-[#67a8ff]" aria-label="Строки" @click="router.push('/project-rows')">
             <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
               <rect x="1" y="1" width="16" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
               <rect x="1" y="8" width="16" height="5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
@@ -99,7 +99,7 @@
 
     <!-- Projects grid -->
     <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[15px] mb-[30px]">
-      <div v-for="project in filteredProjects" :key="project.id" class="bg-white rounded-[15px]">
+      <div v-for="project in filteredProjects" :key="project.id" class="project-card bg-white rounded-[15px]">
 
         <!-- Card body -->
         <div class="p-[30px]">
@@ -149,7 +149,7 @@
         </div>
 
         <!-- Divider -->
-        <hr class="m-0 border-0 border-t border-[rgba(0,0,0,0.05)]" />
+        <hr class="project-divider m-0 border-0 border-t border-[rgba(0,0,0,0.05)]" />
 
         <!-- Balance section -->
         <div class="p-[30px]">
@@ -159,7 +159,7 @@
               v-for="balance in projectBalances(project)"
               :key="balance.name"
               :style="{ backgroundColor: balance.bg }"
-              class="rounded-[12px] p-[10px]"
+              class="balance-tile rounded-[12px] p-[10px]"
             >
               <div class="flex items-center justify-center">
                 <img :src="balance.icon" :alt="balance.name" width="18" class="flex-shrink-0" />
@@ -612,5 +612,106 @@ onMounted(async () => {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+:global(.dark) .cs-head,
+:global(.darkmode) .cs-head,
+:global(.dark) .cs-list,
+:global(.darkmode) .cs-list {
+  background-color: #2c2f3d;
+  color: rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .custom-select.open .cs-head,
+:global(.darkmode) .custom-select.open .cs-head {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+:global(.dark) .cs-arrow,
+:global(.darkmode) .cs-arrow,
+:global(.dark) .search-icon-circle,
+:global(.darkmode) .search-icon-circle {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .cs-arrow path,
+:global(.darkmode) .cs-arrow path {
+  stroke: rgba(255, 255, 255, 0.65);
+}
+:global(.dark) .cs-option,
+:global(.darkmode) .cs-option {
+  color: rgba(255, 255, 255, 0.72);
+}
+:global(.dark) .cs-option:hover,
+:global(.darkmode) .cs-option:hover,
+:global(.dark) .cs-option.selected,
+:global(.darkmode) .cs-option.selected {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .search-input,
+:global(.darkmode) .search-input {
+  background-color: #2c2f3d;
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .search-input::placeholder,
+:global(.darkmode) .search-input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.55) !important;
+}
+:global(.dark) .view-btn._active,
+:global(.darkmode) .view-btn._active {
+  background-color: rgba(74, 122, 255, 0.14);
+  color: #67a8ff;
+}
+:global(.dark) .project-card,
+:global(.darkmode) .project-card {
+  background-color: #2c2f3d;
+}
+:global(.dark) .view-btn:not(._active),
+:global(.darkmode) .view-btn:not(._active) {
+  color: rgba(255, 255, 255, 0.32);
+}
+:global(.dark) .view-btn:not(._active):hover,
+:global(.darkmode) .view-btn:not(._active):hover {
+  color: #67a8ff;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .project-card h4,
+:global(.darkmode) .project-card h4 {
+  color: rgba(255, 255, 255, 0.82);
+}
+:global(.dark) .project-card p,
+:global(.darkmode) .project-card p {
+  color: rgba(255, 255, 255, 0.5);
+}
+:global(.dark) .project-divider,
+:global(.darkmode) .project-divider {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .circle-open-btn,
+:global(.darkmode) .circle-open-btn {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+:global(.dark) .circle-open-btn path,
+:global(.darkmode) .circle-open-btn path {
+  stroke: rgba(255, 255, 255, 0.65);
+}
+:global(.dark) .stat-box,
+:global(.darkmode) .stat-box {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+:global(.dark) .iconbox,
+:global(.darkmode) .iconbox,
+:global(.dark) .badge-white,
+:global(.darkmode) .badge-white {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .balance-tile,
+:global(.darkmode) .balance-tile {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .stat-box b,
+:global(.darkmode) .stat-box b {
+  color: rgba(255, 255, 255, 0.9);
 }
 </style>

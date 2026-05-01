@@ -14,7 +14,9 @@
           v-for="tab in tabs"
           :key="tab.id"
           class="tab-btn"
-          :class="currentTab === tab.id ? 'tab-btn--active' : 'tab-btn--inactive'"
+          :class="currentTab === tab.id
+            ? 'tab-btn--active dark:!bg-[#2563eb] dark:!text-white'
+            : 'tab-btn--inactive dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] dark:hover:!bg-white/10'"
           @click="currentTab = tab.id"
         >{{ tab.label }}</button>
       </div>
@@ -34,7 +36,7 @@
       <div
         v-for="(member, idx) in members"
         :key="member.id"
-        class="team-item"
+        class="team-item dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10"
       >
         <div
           class="team-header"
@@ -45,16 +47,16 @@
               <span>{{ (member.name || '?').slice(0, 2).toUpperCase() }}</span>
             </div>
             <div class="min-w-0">
-              <div class="text-[15px] font-medium text-[#696969] leading-none mb-[4px] truncate">{{ member.name }}</div>
-              <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none truncate">{{ member.email }}</div>
+              <div class="text-[15px] font-medium text-[#696969] leading-none mb-[4px] truncate dark:!text-white/85">{{ member.name }}</div>
+              <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none truncate dark:!text-white/55">{{ member.email }}</div>
             </div>
           </div>
 
-          <button class="toggle-btn" @click="toggleMember(idx)">
-            <span class="text-[15px] text-[#696969] font-medium">Доступ к проектам</span>
-            <span class="toggle-arrow" :class="{ 'toggle-arrow--open': openIndex === idx }">
+          <button class="toggle-btn dark:!text-white/75" @click="toggleMember(idx)">
+            <span class="text-[15px] text-[#696969] font-medium dark:!text-white/75">Доступ к проектам</span>
+            <span class="toggle-arrow dark:!bg-white/10" :class="{ 'toggle-arrow--open': openIndex === idx }">
               <svg width="7" height="5" viewBox="0 0 9 6" fill="none">
-                <path d="M0.5 1L4.5 5L8.5 1" stroke="#696969" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </span>
           </button>
@@ -64,7 +66,7 @@
               <span>Добавить доступ к&nbsp;проекту</span>
               <span class="icon-plus">+</span>
             </button>
-            <button class="delete-btn" title="Удалить" @click="removeMember(member)">
+            <button class="delete-btn dark:!bg-white/10" title="Удалить">
               <svg width="16" height="16" viewBox="0 0 20 22" fill="none">
                 <path d="M1 5H19M8 9V17M12 9V17M3 5L4 19C4 20.1 4.9 21 6 21H14C15.1 21 16 20.1 16 19L17 5M7 5V3C7 1.9 7.9 1 9 1H11C12.1 1 13 1.9 13 3V5" stroke="#afafaf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -82,14 +84,14 @@
                   <div
                     v-for="(project, pIdx) in member.projects"
                     :key="pIdx"
-                    class="project-card"
+                    class="project-card dark:!bg-white/5 dark:!border-white/10"
                     :style="{ backgroundColor: project.color }"
                   >
-                    <div class="project-card__icon">
+                    <div class="project-card__icon dark:!bg-white/10">
                       <span>{{ project.name.slice(0, 2).toUpperCase() }}</span>
                     </div>
-                    <div class="text-[14px] font-medium text-[#515151] leading-[1.3] flex-1">{{ project.name }}</div>
-                    <button class="revoke-btn" @click="revokeAccess(member, project)">Отозвать доступ</button>
+                    <div class="text-[14px] font-medium text-[#515151] leading-[1.3] flex-1 dark:!text-white/85">{{ project.name }}</div>
+                    <button class="revoke-btn dark:!border-white/15 dark:!bg-white/10 dark:!text-white/70">Отозвать доступ</button>
                   </div>
                 </div>
               </div>
@@ -99,9 +101,9 @@
       </div>
     </div>
 
-    <div v-else class="team-empty">
-      <p class="text-[15px] font-medium leading-none text-[#696969]">Сотрудники пока не добавлены</p>
-      <p class="mt-[8px] text-[13px] leading-[1.4] text-[rgba(105,105,105,0.56)]">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
+    <div v-else class="team-empty dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+      <p class="text-[15px] font-medium leading-none text-[#696969] dark:!text-white/80">Сотрудники пока не добавлены</p>
+      <p class="mt-[8px] text-[13px] leading-[1.4] text-[rgba(105,105,105,0.56)] dark:!text-white/55">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
     </div>
 
   </div>
@@ -270,6 +272,19 @@ onMounted(async () => {
 .tab-btn--active  { background-color: #2563eb; color: #fff; }
 .tab-btn--inactive { background-color: #fff; color: rgba(105, 105, 105, 0.7); }
 .tab-btn--inactive:hover { background-color: #f5f7f9; }
+:global(.dark) .tab-btn--active,
+:global(.darkmode) .tab-btn--active {
+  color: #fff !important;
+}
+:global(.dark) .tab-btn--inactive,
+:global(.darkmode) .tab-btn--inactive {
+  background-color: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+}
+:global(.dark) .tab-btn--inactive:hover,
+:global(.darkmode) .tab-btn--inactive:hover {
+  background-color: rgba(255,255,255,0.12);
+}
 
 /* ── Add member button ── */
 .add-btn {
@@ -317,8 +332,25 @@ onMounted(async () => {
   text-align: center;
 }
 :global(.dark) .team-item,
-:global(.dark) .team-empty {
-  background-color: #1f2937;
+:global(.darkmode) .team-item,
+:global(.dark) .team-empty,
+:global(.darkmode) .team-empty {
+  background-color: #2C2F3D;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+:global(.dark) .team-empty p,
+:global(.darkmode) .team-empty p {
+  color: rgba(255,255,255,0.72) !important;
+}
+:global(.dark) .team-item .text-\[\#696969\],
+:global(.darkmode) .team-item .text-\[\#696969\],
+:global(.dark) .team-item .text-\[\#515151\],
+:global(.darkmode) .team-item .text-\[\#515151\] {
+  color: rgba(255,255,255,0.82) !important;
+}
+:global(.dark) .team-item .text-\[rgba\(105\,105\,105\,0\.56\)\],
+:global(.darkmode) .team-item .text-\[rgba\(105\,105\,105\,0\.56\)\] {
+  color: rgba(255,255,255,0.55) !important;
 }
 
 /* ── Header ── */
@@ -339,6 +371,10 @@ onMounted(async () => {
 .team-header--open {
   border-bottom-color: rgba(64, 64, 64, 0.12);
 }
+:global(.dark) .team-header--open,
+:global(.darkmode) .team-header--open {
+  border-bottom-color: rgba(255,255,255,0.10);
+}
 
 /* ── Projects toggle ── */
 .toggle-btn {
@@ -354,6 +390,10 @@ onMounted(async () => {
 }
 .toggle-btn:hover { color: #2563eb; }
 .toggle-btn:hover .toggle-arrow { background-color: #dbeafe; }
+:global(.dark) .toggle-btn,
+:global(.darkmode) .toggle-btn {
+  color: rgba(255,255,255,0.72);
+}
 .toggle-arrow {
   display: flex;
   align-items: center;
@@ -366,6 +406,10 @@ onMounted(async () => {
   transition: transform 0.5s, background-color 0.5s;
 }
 .toggle-arrow--open { transform: rotate(180deg); }
+:global(.dark) .toggle-arrow,
+:global(.darkmode) .toggle-arrow {
+  background-color: rgba(255,255,255,0.08);
+}
 
 /* ── Access button ── */
 .access-btn {
@@ -406,6 +450,10 @@ onMounted(async () => {
 }
 .delete-btn:hover svg path { stroke: #fff; }
 .delete-btn svg path { transition: stroke 0.3s; }
+:global(.dark) .delete-btn,
+:global(.darkmode) .delete-btn {
+  background-color: rgba(255,255,255,0.08);
+}
 
 /* ── Projects content ── */
 .projects-content {
@@ -449,6 +497,15 @@ onMounted(async () => {
   border-radius: 12px;
   border: 1px solid rgba(105, 105, 105, 0.08);
 }
+:global(.dark) .project-card,
+:global(.darkmode) .project-card {
+  background-color: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.10);
+}
+:global(.dark) .project-card__icon,
+:global(.darkmode) .project-card__icon {
+  background-color: rgba(255,255,255,0.08);
+}
 .project-card__icon {
   width: 30px;
   height: 30px;
@@ -485,6 +542,12 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .revoke-btn:hover { border-color: #ef4444; color: #ef4444; }
+:global(.dark) .revoke-btn,
+:global(.darkmode) .revoke-btn {
+  background-color: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.70);
+}
 
 
 /* ── Member avatar ── */
