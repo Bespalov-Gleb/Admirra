@@ -223,17 +223,16 @@ import {
   ChevronDownIcon,
   ComputerDesktopIcon,
   Squares2X2Icon,
-  ChatBubbleLeftRightIcon,
   ClockIcon,
   Cog6ToothIcon,
   UserGroupIcon,
   RectangleStackIcon,
+  CreditCardIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import ConfirmModal from './ConfirmModal.vue'
-import { ADMIRRA_PUBLIC_HOST } from '../config/admirraPublic'
 
 const { isCollapsed, toggleCollapse, isMobileViewport, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
@@ -249,22 +248,10 @@ const logoSrc = computed(() => {
   return isDarkMode.value ? '/admirra/img/logo-white.png' : '/admirra/img/logo.png'
 })
 
-const currentHost = computed(() => {
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    return window.location.hostname.toLowerCase()
-  }
-  return (ADMIRRA_PUBLIC_HOST || '').toLowerCase()
-})
-
-const showQualifierLink = computed(() => {
-  const host = currentHost.value
-  return !!host && !host.endsWith('.ru') && host !== 'admirra.ru'
-})
-
 const menuItems = computed(() => {
   const items = [
     {
-      name: 'Проекты',
+      name: 'Аналитика',
       icon: Squares2X2Icon,
       submenuKey: 'dashboard',
       children: [
@@ -272,16 +259,14 @@ const menuItems = computed(() => {
         { name: 'AI отчет по проекту', path: '/ai-analysis' },
       ]
     },
+    { name: 'Проекты', path: '/project-rows', icon: RectangleStackIcon },
     { name: 'Интеграции', path: '/integrations/wizard', icon: RectangleStackIcon },
   ]
-
-  if (showQualifierLink.value) {
-    items.push({ name: 'Квалификатор лидов', path: '/phone-api', icon: ChatBubbleLeftRightIcon })
-  }
 
   items.push(
     { name: 'Команда', path: '/team', icon: UserGroupIcon },
     { name: 'История', path: '/history', icon: ClockIcon },
+    { name: 'Тарифы', path: '/tariffs', icon: CreditCardIcon },
     { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
   )
 

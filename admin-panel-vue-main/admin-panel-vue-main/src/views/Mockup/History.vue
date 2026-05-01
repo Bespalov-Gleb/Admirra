@@ -16,20 +16,20 @@
         :class="{ open: openSelect === 'project' }"
         v-click-outside="() => closeSelect('project')"
       >
-        <button class="cs-head" @click="toggleSelect('project')">
+        <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('project')">
           <span class="cs-current">{{ projectLabel }}</span>
-          <span class="cs-arrow">
+          <span class="cs-arrow dark:!bg-white/10">
             <svg width="5" height="4" viewBox="0 0 9 6" fill="none">
-              <path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
         </button>
-        <div class="cs-list">
-          <div class="cs-option" :class="{ selected: filterProject === '' }" @click="selectProject('')">Все проекты</div>
+        <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+          <div class="cs-option dark:!text-white/70 dark:hover:!bg-white/5" :class="{ selected: filterProject === '' }" @click="selectProject('')">Все проекты</div>
           <div
             v-for="p in projects"
             :key="p.id"
-            class="cs-option"
+            class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
             :class="{ selected: filterProject === p.id }"
             @click="selectProject(p.id)"
           >{{ p.name }}</div>
@@ -42,19 +42,19 @@
         :class="{ open: openSelect === 'period' }"
         v-click-outside="() => closeSelect('period')"
       >
-        <button class="cs-head" @click="toggleSelect('period')">
+        <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('period')">
           <span class="cs-current">{{ periodLabel }}</span>
-          <span class="cs-arrow">
+          <span class="cs-arrow dark:!bg-white/10">
             <svg width="5" height="4" viewBox="0 0 9 6" fill="none">
-              <path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
         </button>
-        <div class="cs-list">
+        <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
           <div
             v-for="opt in periodOptions"
             :key="opt.value"
-            class="cs-option"
+            class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
             :class="{ selected: filterPeriod === opt.value }"
             @click="selectPeriod(opt.value)"
           >{{ opt.label }}</div>
@@ -63,12 +63,12 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)]">
+    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       Загрузка…
     </div>
 
     <!-- Empty -->
-    <div v-else-if="historyItems.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)]">
+    <div v-else-if="historyItems.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       История действий пуста
     </div>
 
@@ -262,6 +262,16 @@ onMounted(async () => {
   white-space: nowrap;
 }
 .custom-select.open .cs-head { border-color: rgba(0, 0, 0, 0.1); }
+:global(.dark) .cs-head,
+:global(.darkmode) .cs-head {
+  background-color: #2C2F3D;
+  color: rgba(255,255,255,0.62);
+  border-color: rgba(255,255,255,0.08);
+}
+:global(.dark) .custom-select.open .cs-head,
+:global(.darkmode) .custom-select.open .cs-head {
+  border-color: rgba(255,255,255,0.14);
+}
 .cs-current { margin-right: 25px; }
 .cs-arrow {
   display: flex;
@@ -275,6 +285,10 @@ onMounted(async () => {
   transition: transform 0.3s;
 }
 .custom-select.open .cs-arrow { transform: rotate(180deg); }
+:global(.dark) .cs-arrow,
+:global(.darkmode) .cs-arrow {
+  background-color: rgba(255,255,255,0.08);
+}
 .cs-list {
   position: absolute;
   top: calc(100% + 4px);
@@ -291,6 +305,11 @@ onMounted(async () => {
   transform: scale(0.75) translateY(-21px);
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
+:global(.dark) .cs-list,
+:global(.darkmode) .cs-list {
+  background-color: #3a3c49;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+}
 .custom-select.open .cs-list {
   opacity: 1;
   pointer-events: auto;
@@ -306,6 +325,16 @@ onMounted(async () => {
 }
 .cs-option:hover { background-color: #f5f7f9; }
 .cs-option.selected { font-weight: 600; }
+:global(.dark) .cs-option,
+:global(.darkmode) .cs-option {
+  color: rgba(255,255,255,0.74);
+}
+:global(.dark) .cs-option:hover,
+:global(.darkmode) .cs-option:hover,
+:global(.dark) .cs-option.selected,
+:global(.darkmode) .cs-option.selected {
+  background-color: rgba(255,255,255,0.07);
+}
 
 /* ── History list ── */
 .history-list {
@@ -316,6 +345,11 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 30px;
 }
+:global(.dark) .history-list,
+:global(.darkmode) .history-list {
+  background-color: #2C2F3D;
+  border: 1px solid rgba(255,255,255,0.08);
+}
 .history-row {
   display: grid;
   grid-template-columns: 1fr;
@@ -324,6 +358,21 @@ onMounted(async () => {
   padding: 20px 22px;
   border-radius: 15px;
   font-size: 15px;
+}
+:global(.dark) .history-row,
+:global(.darkmode) .history-row {
+  background-color: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+:global(.dark) .history-row .text-\[\#696969\],
+:global(.darkmode) .history-row .text-\[\#696969\],
+:global(.dark) .history-row .text-\[\#2c2c2c\],
+:global(.darkmode) .history-row .text-\[\#2c2c2c\] {
+  color: rgba(255,255,255,0.82) !important;
+}
+:global(.dark) .history-row .text-\[rgba\(105\,105\,105\,0\.56\)\],
+:global(.darkmode) .history-row .text-\[rgba\(105\,105\,105\,0\.56\)\] {
+  color: rgba(255,255,255,0.55) !important;
 }
 @media (min-width: 1280px) {
   .history-row {
@@ -362,6 +411,14 @@ onMounted(async () => {
   transition: background-color 0.2s;
 }
 .action-dots-btn:hover { background-color: #f5f7f9; }
+:global(.dark) .action-dots-btn,
+:global(.darkmode) .action-dots-btn {
+  background-color: rgba(255,255,255,0.06);
+}
+:global(.dark) .action-dots-btn:hover,
+:global(.darkmode) .action-dots-btn:hover {
+  background-color: rgba(255,255,255,0.12);
+}
 
 /* ── Action dropdown menu ── */
 .action-menu {
@@ -375,6 +432,11 @@ onMounted(async () => {
   z-index: 100;
   padding: 8px 0;
 }
+:global(.dark) .action-menu,
+:global(.darkmode) .action-menu {
+  background-color: #3a3c49;
+  box-shadow: 0 0 15px rgba(0,0,0,0.25);
+}
 .action-menu__arrow {
   position: absolute;
   bottom: 100%;
@@ -385,6 +447,10 @@ onMounted(async () => {
   border-right: 7px solid transparent;
   border-bottom: 7px solid #fff;
   filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.06));
+}
+:global(.dark) .action-menu__arrow,
+:global(.darkmode) .action-menu__arrow {
+  border-bottom-color: #3a3c49;
 }
 .action-menu-item {
   display: flex;
@@ -399,6 +465,14 @@ onMounted(async () => {
   transition: color 0.2s;
 }
 .action-menu-item:hover { color: #2563eb; }
+:global(.dark) .action-menu-item,
+:global(.darkmode) .action-menu-item {
+  color: rgba(255,255,255,0.72);
+}
+:global(.dark) .action-menu-item:hover,
+:global(.darkmode) .action-menu-item:hover {
+  color: #4A7AFF;
+}
 .action-menu-item__icon {
   width: 45px;
   display: flex;
