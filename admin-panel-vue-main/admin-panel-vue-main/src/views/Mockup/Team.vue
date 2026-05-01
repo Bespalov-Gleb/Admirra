@@ -1,209 +1,374 @@
 <template>
-  <div class="admirra-page-wrapper">
-    <section class="main-section">
-      <div class="section-header pt-4">
-        <h3 class="heading-3">{{ title }}</h3>
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+
+    <!-- Heading -->
+    <div class="pt-[15px] pb-[15px] mb-[10px]">
+      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Команда</h3>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-[10px] mb-[30px]">
+      <!-- Tabs -->
+      <div class="flex gap-[10px]">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="tab-btn"
+          :class="currentTab === tab.id ? 'tab-btn--active' : 'tab-btn--inactive'"
+          @click="currentTab = tab.id"
+        >{{ tab.label }}</button>
       </div>
-      <div class="row gy-3 mb-5">
-        <div class="col">
-          <div class="row gy-3">
-            <div v-for="tab in tabs" :key="tab.id" class="col-auto">
-              <button
-                :class="['btn', currentTab === tab.id ? '_primary' : '_white']"
-                @click="switchTab(tab.id)"
-              >
-                <div class="btn__inner">
-                  <span :class="['btn__text', { gray: currentTab !== tab.id }]">{{ tab.label }}</span>
-                </div>
-              </button>
+
+      <!-- Add member -->
+      <button class="add-btn">
+        <span>Добавить сотрудника</span>
+        <span class="icon-plus">+</span>
+      </button>
+    </div>
+
+    <div v-if="members.length" class="flex flex-col gap-[15px]">
+      <div
+        v-for="(member, idx) in members"
+        :key="member.id"
+        class="team-item"
+      >
+        <div
+          class="team-header"
+          :class="{ 'team-header--open': openIndex === idx }"
+        >
+          <div class="flex items-center gap-[15px] min-w-0">
+            <div class="member-avatar flex-shrink-0">
+              <span>{{ (member.name || '?').slice(0, 2).toUpperCase() }}</span>
+            </div>
+            <div class="min-w-0">
+              <div class="text-[15px] font-medium text-[#696969] leading-none mb-[4px] truncate">{{ member.name }}</div>
+              <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none truncate">{{ member.email }}</div>
             </div>
           </div>
-        </div>
-        <div class="col-auto">
-          <button class="btn _primary" @click="handleAddMember">
-            <div class="btn__inner">
-              <span class="btn__text">{{ currentTab === 'staff' ? 'Добавить сотрудника' : 'Добавить клиента' }}</span>
-              <div class="btn__icon-plus">+</div>
-            </div>
+
+          <button class="toggle-btn" @click="toggleMember(idx)">
+            <span class="text-[15px] text-[#696969] font-medium">Доступ к проектам</span>
+            <span class="toggle-arrow" :class="{ 'toggle-arrow--open': openIndex === idx }">
+              <svg width="7" height="5" viewBox="0 0 9 6" fill="none">
+                <path d="M0.5 1L4.5 5L8.5 1" stroke="#696969" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
           </button>
+
+          <div class="flex items-center gap-[10px]">
+            <button class="access-btn">
+              <span>Добавить доступ к&nbsp;проекту</span>
+              <span class="icon-plus">+</span>
+            </button>
+            <button class="delete-btn" title="Удалить">
+              <svg width="16" height="16" viewBox="0 0 20 22" fill="none">
+                <path d="M1 5H19M8 9V17M12 9V17M3 5L4 19C4 20.1 4.9 21 6 21H14C15.1 21 16 20.1 16 19L17 5M7 5V3C7 1.9 7.9 1 9 1H11C12.1 1 13 1.9 13 3V5" stroke="#afafaf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
-      
-      <div v-for="(member, mIdx) in members" :key="member.id || mIdx" class="mb-4 pb-2">
-        <div :class="['team-item', { 'is-open': member.isOpen }]">
-          <div class="row team-item__header">
-            <div class="col col-lg-4 col-xl-3">
-              <div class="d-flex">
-                <div class="avatar-36x36 me-4">
-                  <img class="img-cover" :src="member.avatar" alt="#" />
-                </div>
-                <div class="weight-500">
-                  <div class="mb-1 text-15 gray">{{ member.name }}</div>
-                  <div class="gray56">{{ member.email }}</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-auto col-lg">
-              <button class="team-item__project-toggle" @click="member.isOpen = !member.isOpen">
-                <span>{{ projectsToggleLabel }}</span>
-                <div class="circle-arrow _light">
-                  <svg><use :href="arrowIcon"></use></svg>
-                </div>
-              </button>
-            </div>
-            <div class="col-12 col-lg-auto">
-              <div class="row">
-                <div class="col col-lg-auto">
-                  <button class="btn _primary" @click="addAccess(member)">
-                    <div class="btn__inner">
-                      <span class="btn__text">Добавить доступ к проекту</span>
-                      <div class="btn__icon-plus">+</div>
+
+        <Transition
+          name="team-projects"
+        >
+          <div v-if="openIndex === idx" class="projects-content">
+            <div class="projects-content__inner">
+              <div class="projects-content__body">
+                <div class="flex flex-wrap gap-[15px]">
+                  <div
+                    v-for="(project, pIdx) in member.projects"
+                    :key="pIdx"
+                    class="project-card"
+                    :style="{ backgroundColor: project.color }"
+                  >
+                    <div class="project-card__icon">
+                      <span>{{ project.name.slice(0, 2).toUpperCase() }}</span>
                     </div>
-                  </button>
-                </div>
-                <div class="col-auto col-lg-auto">
-                  <button class="btn-action _danger" @click="deleteMember(member)">
-                    <svg><use :href="basketIcon"></use></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div v-if="member.isOpen" class="team-item__project-content row g-4" style="display: flex;">
-            <div v-for="(project, pIdx) in member.projects" :key="pIdx" class="col-12 col-sm-auto">
-              <div :class="['card-base', project.variantClass]">
-                <div class="avatar-30x30 mb-2">
-                  <img class="img-cover" :src="project.icon" alt="#" />
-                </div>
-                <div class="weight-500 gray500">{{ project.name }}</div>
-                <button class="btn _sm _white mt-auto" @click="revokeAccess(member, project)">
-                  <div class="btn__inner">
-                    <span class="btn__text gray">Отозвать доступ</span>
+                    <div class="text-[14px] font-medium text-[#515151] leading-[1.3] flex-1">{{ project.name }}</div>
+                    <button class="revoke-btn">Отозвать доступ</button>
                   </div>
-                </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Transition>
       </div>
-    </section>
+    </div>
+
+    <div v-else class="team-empty">
+      <p class="text-[15px] font-medium leading-none text-[#696969]">Сотрудники пока не добавлены</p>
+      <p class="mt-[8px] text-[13px] leading-[1.4] text-[rgba(105,105,105,0.56)]">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import api from '../../api/axios'
+import { ref } from 'vue'
 
-const title = 'Команда'
 const tabs = [
-  { id: 'staff', label: 'Сотрудники' },
-  { id: 'clients', label: 'Клиенты' }
+  { id: 'staff',   label: 'Сотрудники' },
+  { id: 'clients', label: 'Клиенты' },
 ]
 const currentTab = ref('staff')
+const openIndex = ref(null)
 const members = ref([])
-const projects = ref([])
-const arrowIcon = '/admirra/img/svg/sprite.svg#arrow'
-const basketIcon = '/admirra/img/svg/sprite.svg#basket'
 
-const roleVariant = (idx) => (idx % 2 ? '_aliceblue' : '_oldlace')
-
-const tabEndpoint = computed(() => (currentTab.value === 'staff' ? 'team/members?role=member' : 'team/clients'))
-
-const loadProjects = async () => {
-  try {
-    const { data } = await api.get('team/projects')
-    projects.value = data || []
-  } catch {
-    projects.value = []
-  }
+function toggleMember(idx) {
+  openIndex.value = openIndex.value === idx ? null : idx
 }
-
-const normalizeMembers = (list) => (list || []).map((m, idx) => ({
-  id: m.id,
-  user_id: m.user_id,
-  name: m.full_name || m.email,
-  email: m.email,
-  status: m.status,
-  avatar: '/admirra/img/avatars/user1.jpg',
-  isOpen: true,
-  projects: (m.projects || []).map((p, pIdx) => ({
-    id: p.id,
-    name: p.name,
-    icon: '/admirra/img/avatars/avatar-36x36.png',
-    variantClass: roleVariant(pIdx),
-  })),
-}))
-
-const loadMembers = async () => {
-  const { data } = await api.get(tabEndpoint.value)
-  members.value = normalizeMembers(data)
-}
-
-const switchTab = async (tabId) => {
-  currentTab.value = tabId
-  await loadMembers()
-}
-
-const handleAddMember = async () => {
-  const email = window.prompt(`Email ${currentTab.value === 'staff' ? 'сотрудника' : 'клиента'}`)
-  if (!email) return
-  const endpoint = currentTab.value === 'staff' ? 'team/members/invite' : 'team/clients/invite'
-  await api.post(endpoint, { email })
-  await loadMembers()
-}
-
-const addAccess = async (member) => {
-  const memberKey = member.user_id || member.id
-  if (!memberKey) {
-    window.alert('Пользователь еще не принял приглашение')
-    return
-  }
-  const excluded = new Set((member.projects || []).map((p) => p.id))
-  const available = projects.value.filter((p) => !excluded.has(p.id))
-  if (!available.length) {
-    window.alert('Нет доступных проектов для выдачи')
-    return
-  }
-  const optionsText = available.map((p) => `${p.id}: ${p.name}`).join('\n')
-  const selectedId = window.prompt(`Введите ID проекта для доступа:\n${optionsText}`)
-  if (!selectedId) return
-  const endpoint = currentTab.value === 'staff' ? `team/members/${memberKey}/projects` : `team/clients/${memberKey}/projects`
-  await api.post(endpoint, { project_id: selectedId })
-  await loadMembers()
-}
-
-const revokeAccess = async (member, project) => {
-  const ok = window.confirm(`Отозвать доступ к проекту "${project.name}" у "${member.name}"?`)
-  if (!ok) return
-  const memberKey = member.user_id || member.id
-  const endpoint = currentTab.value === 'staff'
-    ? `team/members/${memberKey}/projects/${project.id}`
-    : `team/clients/${memberKey}/projects/${project.id}`
-  await api.delete(endpoint)
-  await loadMembers()
-}
-
-const deleteMember = async (member) => {
-  const ok = window.confirm(`Удалить ${member.name}? Все доступы будут отозваны.`)
-  if (!ok) return
-  const memberKey = member.user_id || member.id
-  const endpoint = currentTab.value === 'staff' ? `team/members/${memberKey}` : `team/clients/${memberKey}`
-  await api.delete(endpoint)
-  await loadMembers()
-}
-
-onMounted(async () => {
-  await loadProjects()
-  await loadMembers()
-})
 </script>
 
 <style scoped>
-.admirra-page-wrapper {
-  /* Scoped styles */
+/* ── Tabs ── */
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 8px 20px;
+  border-radius: 23px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+  white-space: nowrap;
 }
-/* Ensure project content handles visibility correctly if not using jQuery slideToggle */
-.team-item__project-content {
-  transition: all 0.3s ease;
+.tab-btn--active  { background-color: #2563eb; color: #fff; }
+.tab-btn--inactive { background-color: #fff; color: rgba(105, 105, 105, 0.7); }
+.tab-btn--inactive:hover { background-color: #f5f7f9; }
+
+/* ── Add member button ── */
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 20px;
+  border-radius: 23px;
+  background-color: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.3s;
+  white-space: nowrap;
+}
+.add-btn:hover { background-color: #1d4ed8; }
+.icon-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.2);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ── Team item ── */
+.team-item {
+  background-color: #fff;
+  border-radius: 15px;
+  overflow: hidden;
+}
+.team-empty {
+  min-height: 150px;
+  padding: 32px 22px;
+  border-radius: 15px;
+  background-color: #fff;
+  text-align: center;
+}
+:global(.dark) .team-item,
+:global(.dark) .team-empty {
+  background-color: #1f2937;
+}
+
+/* ── Header ── */
+.team-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+  align-items: center;
+  padding: 20px 22px;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s ease;
+}
+@media (min-width: 1024px) {
+  .team-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  }
+}
+.team-header--open {
+  border-bottom-color: rgba(64, 64, 64, 0.12);
+}
+
+/* ── Projects toggle ── */
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #696969;
+  transition: color 0.5s;
+}
+.toggle-btn:hover { color: #2563eb; }
+.toggle-btn:hover .toggle-arrow { background-color: #dbeafe; }
+.toggle-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #f5f7f9;
+  flex-shrink: 0;
+  transition: transform 0.5s, background-color 0.5s;
+}
+.toggle-arrow--open { transform: rotate(180deg); }
+
+/* ── Access button ── */
+.access-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 20px;
+  border-radius: 23px;
+  background-color: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.3s;
+}
+.access-btn:hover { background-color: #1d4ed8; }
+
+/* ── Delete button ── */
+.delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 4px;
+  background-color: #f5f7f9;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.3s, transform 0.3s;
+}
+.delete-btn:hover {
+  background-color: #ef4444;
+  transform: scale(1.03);
+}
+.delete-btn:hover svg path { stroke: #fff; }
+.delete-btn svg path { transition: stroke 0.3s; }
+
+/* ── Projects content ── */
+.projects-content {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  overflow: hidden;
+  will-change: grid-template-rows, opacity;
+}
+.projects-content__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.projects-content__body {
+  padding: 21px 22px 20px;
+}
+.team-projects-enter-active,
+.team-projects-leave-active {
+  transition:
+    grid-template-rows 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.28s ease;
+}
+.team-projects-enter-from,
+.team-projects-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.team-projects-enter-to,
+.team-projects-leave-from {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* ── Project card ── */
+.project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 160px;
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid rgba(105, 105, 105, 0.08);
+}
+.project-card__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #e8eef9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.project-card__icon span {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4b6fa0;
+  line-height: 1;
+}
+
+/* ── Revoke button ── */
+.revoke-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 16px;
+  border-radius: 18px;
+  background-color: #fff;
+  color: rgba(105, 105, 105, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid rgba(105, 105, 105, 0.15);
+  cursor: pointer;
+  margin-top: auto;
+  transition: border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+.revoke-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+
+/* ── Member avatar ── */
+.member-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e8eef9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.member-avatar span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b6fa0;
+  line-height: 1;
 }
 </style>

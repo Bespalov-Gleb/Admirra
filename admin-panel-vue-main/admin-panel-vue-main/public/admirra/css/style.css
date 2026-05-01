@@ -22,3 +22,192 @@
 /* media queries */
 @import "media.css";
 @import "media-app.css";
+
+/* landing header fixes after app imports */
+.hero .header {
+	display: flex;
+	position: relative;
+	background-color: transparent;
+}
+
+.hero .header__inner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-width: 0;
+	width: 100%;
+	max-width: 1240px;
+	min-height: 7.5rem;
+	padding: 1rem 3.3rem;
+	column-gap: 2.5rem;
+	background-color: #fff;
+	border-radius: 100px;
+	border: 0;
+	margin: 0 auto;
+}
+
+.hero .header__aside {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex: 0 1 auto;
+	gap: 1rem 2rem;
+	width: auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 0;
+	border: 0;
+	position: static;
+}
+
+.hero .header .logo {
+	flex-shrink: 0;
+	transform: translateY(-1px);
+}
+
+.hero .header .menu {
+	align-self: center;
+}
+
+.hero .header .btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: auto;
+	min-width: 14.5rem;
+	height: 4.2rem;
+	min-height: 0;
+	padding: 0.8rem 2.5rem;
+	font-size: 1rem;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.hero .header .btn__inner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	line-height: 1;
+}
+
+.hero .header .btn__text {
+	display: block;
+	line-height: 1;
+}
+
+.hero .header .btn:hover,
+.hero .header .btn:active {
+	transform: none;
+}
+
+@media only screen and (max-width: 992px) {
+	.hero .header__inner {
+		padding-left: 2rem;
+		padding-right: 2rem;
+		column-gap: 1.5rem;
+	}
+
+	.hero .header__aside {
+		gap: 1rem;
+	}
+
+	.hero .header .btn {
+		min-width: auto;
+		padding-left: 1.7rem;
+		padding-right: 1.7rem;
+	}
+}
+
+@media only screen and (max-width: 768px) {
+	.hero .header .btn {
+		padding-left: 1.4rem;
+		padding-right: 1.4rem;
+	}
+}
+
+/* landing tariff fixes after app imports */
+#tariff {
+	display: block;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: 4rem 0;
+}
+
+#tariff .container-xl {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+#tariff .tariff-tabs {
+	width: 100%;
+}
+
+#tariff .tariff-tabs__nav {
+	display: flex;
+	justify-content: center;
+	width: 100%;
+	padding-bottom: 4rem;
+}
+
+#tariff .tariff-tabs__inner {
+	display: inline-flex;
+	justify-content: center;
+	gap: 0;
+	overflow: visible;
+	border-radius: 10rem;
+	background-color: transparent;
+	box-shadow: none;
+}
+
+#tariff .tariff-tabs__item {
+	position: relative;
+}
+
+#tariff .tariff-tabs__item a {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	column-gap: 1rem;
+	min-width: 23rem;
+	min-height: 6rem;
+	padding: 1rem 3rem;
+	font-size: 2.2rem;
+	font-weight: 600;
+	text-align: center;
+	text-decoration: none;
+	color: var(--black);
+	background-color: #fff;
+	border: 0;
+	border-radius: 10rem;
+	box-shadow: none;
+	outline: 0;
+	transition: 0.3s;
+}
+
+#tariff .tariff-tabs__item.active a {
+	color: #fff;
+	background: var(--accent-gradient);
+}
+
+#tariff .tariff-tabs__item.active .badge-text {
+	color: var(--accent);
+	background: #fff;
+}
+
+#tariff .row {
+	justify-content: center;
+	width: 100%;
+	margin-left: 0;
+	margin-right: 0;
+}
+
+@media only screen and (max-width: 768px) {
+	#tariff .tariff-tabs__item a {
+		min-width: auto;
+		padding-left: 2.2rem;
+		padding-right: 2.2rem;
+	}
+}

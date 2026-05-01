@@ -1,612 +1,416 @@
 <template>
-  <div class="admirra-page-wrapper">
-    <section class="main-section">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+    <div class="pt-[15px] pb-[15px] mb-[10px]">
+      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Новая интеграция</h3>
+      <p class="mt-[8px] text-[15px] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)]">Добавление рекламного канала</p>
+    </div>
 
-      <div class="section-header pt-4 mt-1">
-        <h3 class="heading-3 mb-2">Новая интеграция</h3>
-        <p class="section-header__descrp">Добавление рекламного канала</p>
-      </div>
+    <div v-if="error" class="wizard-alert mb-[20px]">
+      {{ error }}
+    </div>
 
-      <!-- Ошибка -->
-      <div v-if="error" class="alert _danger mb-4">
-        <div class="alert__inner">{{ error }}</div>
-      </div>
+    <div class="wizard-shell">
+      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 1, 'wizard-step-section--done': step > 1 }">
+        <button
+          type="button"
+          class="wizard-step"
+          :class="{ 'wizard-step--active': step === 1, 'wizard-step--done': step > 1 }"
+          @click="goToVisibleStep(1)"
+        >
+          <span class="wizard-step__number">1</span>
+          <span class="wizard-step__label">Проект</span>
+        </button>
 
-      <div class="steps-track mb-4">
-
-        <!-- ===== ШАГ 1: ПРОЕКТ ===== -->
-        <section :class="['steps-track__section', { '_active': step === 1 }]">
-          <div class="steps-track__header">
-            <div class="steps-track__marker" :style="markerStyle(1)">
-              <div class="steps-track__marker-text" :style="markerTextStyle(1)">1</div>
-            </div>
-            <div class="steps-track__caption" :style="captionStyle(1)">Проект</div>
-          </div>
-
-          <div v-if="step === 1" class="steps-track__content">
-            <div class="row g-4">
-              <!-- Настройки -->
-              <div class="col-sm-6 col-md-5 col-lg-4 col-xxl-3">
-                <div class="h-100 p-5 bg-white radius-base d-flex flex-column">
-
-                  <!-- Выбор платформы -->
-                  <div class="weight-500 gray mb-3">Рекламный канал</div>
-                  <div class="row g-3 mb-4">
-                    <div class="col-12">
-                      <button
-                        :class="['btn w-100', form.platform === 'YANDEX_DIRECT' ? '_primary' : '_white']"
-                        @click="form.platform = 'YANDEX_DIRECT'"
-                      >
-                        <div class="btn__inner">
-                          <img width="20" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" class="me-2" />
-                          <span class="btn__text">Yandex Direct</span>
-                        </div>
-                      </button>
-                    </div>
-                    <div class="col-12">
-                      <button
-                        :class="['btn w-100', form.platform === 'VK_ADS' ? '_primary' : '_white']"
-                        @click="form.platform = 'VK_ADS'"
-                      >
-                        <div class="btn__inner">
-                          <img width="20" src="/admirra/img/icons/vk-ads.png" alt="VK" class="me-2" />
-                          <span class="btn__text">VK Ads</span>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Выбор проекта -->
-                  <div class="weight-500 gray mb-2">Проект</div>
-                  <select
-                    class="select-light wide mb-3 integration-select"
-                    v-model="form.client_id"
-                  >
-                    <option value="">— Выберите проект —</option>
-                    <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
-                  </select>
-
-                  <!-- Или создать новый -->
-                  <div class="py-3">
-                    <label class="switches _light _big">
-                      <input
-                        class="switches__input"
-                        type="checkbox"
-                        v-model="isNewProject"
-                      />
-                      <span class="switches__text">Создать новый проект</span>
-                      <span class="switches__indicator"></span>
-                    </label>
-                  </div>
-                  <input
-                    v-if="isNewProject"
-                    class="input mb-3"
-                    type="text"
-                    placeholder="Название нового проекта"
-                    v-model="form.client_name"
-                  />
-
-                  <div class="mt-auto">
-                    <button
-                      :class="['btn d-flex w-100', form.platform === 'YANDEX_DIRECT' ? '' : '_vk']"
-                      :disabled="loadingAuth"
-                      @click="handleConnectClick"
-                    >
-                      <div class="btn__inner">
-                        <span class="btn__text">
-                          {{ loadingAuth ? 'Перенаправление...' : (form.platform === 'YANDEX_DIRECT' ? 'Подключить Яндекс Директ' : 'Подключить VK Ads') }}
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Инфо-карточка платформы -->
-              <div class="col-sm-12 col-md col-xl-auto">
-                <div class="dark-bg">
-                  <div class="dark-bg__inner p-5">
-                    <div class="mb-4">
-                      <img
-                        width="40"
-                        :src="form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png'"
-                        alt="#"
-                      />
-                    </div>
-                    <h4 class="heading-4 pe-5 lh-120 weight-500 mb-3">
-                      {{ form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads' }}
-                    </h4>
-                    <p class="silver weight-300 text-15 lh-135 mb-4">
-                      Автоматический сбор кампаний,<br />ключевых слов и статистики
-                    </p>
-                    <div class="mt-auto">
-                      <div class="row g-2">
-                        <div class="col">
-                          <div class="alert-dark">
-                            <div class="alert-dark__inner">
-                              <div class="dotty _success"></div>
-                              <span>API: СОЕДИНЕНО</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="dark-bg__light _pos1"><div class="lightBlurBg _xl"></div></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ===== ШАГ 2: ПРОФИЛЬ ===== -->
-        <section :class="['steps-track__section', { '_active': step === 2 }]">
-          <div class="steps-track__header">
-            <div class="steps-track__marker" :style="markerStyle(2)">
-              <div class="steps-track__marker-text" :style="markerTextStyle(2)">2</div>
-            </div>
-            <div class="steps-track__caption" :style="captionStyle(2)">Профиль</div>
-          </div>
-
-          <div v-if="step === 2" class="steps-track__content">
-            <div class="p-5 bg-white radius-base mb-4">
-              <div class="mb-5">
-                <h5 class="heading-5 weight-500">Выберите рекламный кабинет для интеграции</h5>
-              </div>
-
-              <div v-if="loadingStates.profiles" class="py-4 gray56">Загрузка профилей...</div>
-
-              <div v-else-if="profiles.length === 0" class="py-4 gray56">
-                Нет доступных профилей. Проверьте авторизацию.
-              </div>
-
-              <div v-else class="row g-4">
-                <div v-for="cabinet in profiles" :key="cabinet.login" class="col col-sm-auto">
-                  <div class="select-card">
-                    <input
-                      class="select-card__input"
-                      type="radio"
-                      name="card-ads"
-                      :value="cabinet.login"
-                      :checked="form.account_id === cabinet.login"
-                      @change="selectProfile(cabinet)"
-                    />
-                    <div class="select-card__inner">
-                      <div class="select-card__header">
-                        <div class="avatar-30x30">
-                          <img
-                            class="img-cover"
-                            :src="form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png'"
-                            alt="#"
-                          />
-                        </div>
-                        <div class="select-card__check">
-                          <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-                        </div>
-                      </div>
-                      <div class="select-card__content">
-                        <div class="weight-500">
-                          <div class="gray500 text-15 mb-1">{{ cabinet.name || cabinet.login }}</div>
-                          <div class="silver uppercase">{{ cabinet.login }}</div>
-                        </div>
-                        <div class="mt-auto">
-                          <div class="caption">{{ cabinet.type || 'Рекламный кабинет' }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="row g-3 pt-2">
-              <div class="col">
-                <button class="btn _white" @click="step = 1">
-                  <div class="btn__inner">
-                    <div class="btn__icon-info">
-                      <svg class="prev"><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                    </div>
-                    <span class="btn__text">Назад</span>
-                  </div>
+        <Transition name="step-expand">
+          <div v-if="isStepVisible(1)" class="wizard-content">
+        <div class="wizard-grid">
+          <div class="wizard-panel">
+            <div class="field-block">
+              <div class="field-label">Рекламный канал</div>
+              <div class="platform-grid">
+                <button
+                  type="button"
+                  class="platform-choice"
+                  :class="{ 'platform-choice--active': form.platform === 'YANDEX_DIRECT' }"
+                  @click="form.platform = 'YANDEX_DIRECT'"
+                >
+                  <img src="/admirra/img/icons/yandex-direct.png" alt="Yandex Direct" />
+                  <span>Yandex Direct</span>
+                </button>
+                <button
+                  type="button"
+                  class="platform-choice"
+                  :class="{ 'platform-choice--active': form.platform === 'VK_ADS' }"
+                  @click="form.platform = 'VK_ADS'"
+                >
+                  <img src="/admirra/img/icons/vk-ads.png" alt="VK Ads" />
+                  <span>VK Ads</span>
                 </button>
               </div>
-              <div class="col-auto">
-                <div class="row">
-                  <div class="col-auto">
-                    <button class="btn _outline-gray" @click="handleCancel">
-                      <div class="btn__inner"><span class="btn__text">Отмена</span></div>
-                    </button>
-                  </div>
-                  <div class="col-auto">
-                    <button
-                      class="btn _primary"
-                      :disabled="!form.account_id || loadingStates.profiles"
-                      @click="goToStep3"
-                    >
-                      <div class="btn__inner">
-                        <span class="btn__text">Далее</span>
-                        <div class="btn__icon-info">
-                          <svg class="next"><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ===== ШАГ 3: СЧЕТЧИКИ И ЦЕЛИ ===== -->
-        <section :class="['steps-track__section', { '_active': step === 3 }]">
-          <div class="steps-track__header">
-            <div class="steps-track__marker" :style="markerStyle(3)">
-              <div class="steps-track__marker-text" :style="markerTextStyle(3)">3</div>
-            </div>
-            <div class="steps-track__caption" :style="captionStyle(3)">Счетчики и цели</div>
-          </div>
-
-          <div v-if="step === 3" class="steps-track__content">
-
-            <!-- Кампании выбираются автоматически -->
-            <div class="p-5 bg-white radius-base mb-5">
-              <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                <div>
-                  <h5 class="heading-5 weight-500 mb-2">Рекламные кампании</h5>
-                  <p class="text-15 weight-500 gray56 mb-0">
-                    Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.
-                  </p>
-                </div>
-                <div class="text-13 gray56">
-                  {{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}
-                </div>
-              </div>
             </div>
 
-            <!-- Счетчики метрики (только для Яндекс) -->
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="p-5 bg-white radius-base mb-5">
-              <div class="mb-5">
-                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                  <h5 class="heading-5 weight-500 mb-0">Счетчики метрики</h5>
+            <div class="field-block">
+              <div class="field-label">Проект</div>
+              <div class="custom-select" :class="{ open: openSelect === 'project', disabled: isNewProject }">
+                <button
+                  type="button"
+                  class="cs-head"
+                  :disabled="isNewProject"
+                  @click="toggleProjectSelect"
+                >
+                  <span class="cs-current">{{ projectSelectLabel }}</span>
+                  <span class="cs-arrow">
+                    <svg width="5" height="4" viewBox="0 0 9 6" fill="none">
+                      <path d="M0.5 1L4.5 5L8.5 1" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                </button>
+                <div class="cs-list">
                   <button
                     type="button"
-                    class="btn _sm _white"
-                    :disabled="loadingStates.counters || counters.length === 0"
-                    @click="toggleAllCounters"
+                    class="cs-option"
+                    :class="{ selected: !form.client_id }"
+                    @click="selectProject('')"
                   >
-                    <div class="btn__inner px-3">
-                      <span class="btn__text text-13">
-                        {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
-                      </span>
-                    </div>
+                    Выберите проект
                   </button>
-                </div>
-                <p class="pt-3 text-15 weight-500 gray56">Выберите счетчики для отслеживания целей</p>
-              </div>
-              <div v-if="loadingStates.counters" class="py-4 gray56">Загрузка счетчиков...</div>
-              <div v-else-if="counters.length === 0" class="py-4 gray56">Нет доступных счетчиков.</div>
-              <div v-else class="row g-4">
-                <div
-                  v-for="counter in counters"
-                  :key="counter.id"
-                  class="col-12 col-sm-6 col-md-auto"
-                >
-                  <div class="select-card">
-                    <input
-                      class="select-card__input"
-                      type="checkbox"
-                      :checked="selectedCounterIds.includes(counter.id)"
-                      @change="toggleCounterSelection(counter.id)"
-                    />
-                    <div class="select-card__inner">
-                      <div class="select-card__header">
-                        <div class="avatar-30x30">
-                          <div class="avatar-text">{{ (counter.name || '?').slice(0,2).toUpperCase() }}</div>
-                        </div>
-                        <div class="select-card__check">
-                          <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-                        </div>
-                      </div>
-                      <div class="select-card__content _width-normal">
-                        <div class="weight-500">
-                          <div class="gray500 text-15 mb-1">{{ counter.name }}</div>
-                          <div class="silver uppercase">ID: {{ counter.id }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Цели (только для Яндекс) -->
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="p-5 bg-white radius-base mb-5">
-              <div class="mb-5">
-                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                  <h5 class="heading-5 weight-500 mb-0">Цели и конверсии</h5>
                   <button
+                    v-for="p in projects"
+                    :key="p.id"
                     type="button"
-                    class="btn _sm _white"
-                    :disabled="loadingStates.goals || goals.length === 0"
-                    @click="toggleAllGoals"
+                    class="cs-option"
+                    :class="{ selected: String(form.client_id) === String(p.id) }"
+                    @click="selectProject(p.id)"
                   >
-                    <div class="btn__inner px-3">
-                      <span class="btn__text text-13">{{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}</span>
-                    </div>
+                    {{ p.name }}
                   </button>
                 </div>
-                <p class="pt-3 text-15 weight-500 gray56">Выберите основную цель (★) и дополнительные</p>
               </div>
-              <div v-if="loadingStates.goals" class="py-4 gray56">Загрузка целей...</div>
-              <div v-else-if="goals.length === 0" class="py-4 gray56">Нет доступных целей.</div>
-              <div v-else class="row g-4">
-                <div
-                  v-for="goal in goals"
-                  :key="goal.id"
-                  class="col-12 col-sm-6 col-md-auto"
+            </div>
+
+            <label class="switch-row">
+              <input v-model="isNewProject" type="checkbox" />
+              <span class="switch-row__control"></span>
+              <span>Создать новый проект</span>
+            </label>
+
+            <input
+              v-if="isNewProject"
+              v-model="form.client_name"
+              class="wizard-input"
+              type="text"
+              placeholder="Название нового проекта"
+            />
+
+            <button
+              type="button"
+              class="primary-btn mt-auto"
+              :class="{ 'primary-btn--vk': form.platform === 'VK_ADS' }"
+              :disabled="loadingAuth"
+              @click="handleConnectClick"
+            >
+              <span>{{ loadingAuth ? 'Перенаправление...' : connectButtonText }}</span>
+            </button>
+          </div>
+
+          <div class="channel-card">
+            <div class="channel-card__icon">
+              <img :src="platformIcon" :alt="platformName" />
+            </div>
+            <h4>{{ platformTitle }}</h4>
+            <p>Автоматический сбор кампаний, ключевых слов и статистики</p>
+            <div class="channel-card__status">
+              <span></span>
+              API: СОЕДИНЕНО
+            </div>
+          </div>
+          </div>
+          </div>
+        </Transition>
+      </section>
+
+      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
+        <button
+          type="button"
+          class="wizard-step"
+          :class="{ 'wizard-step--active': step === 2, 'wizard-step--done': step > 2 }"
+          @click="goToVisibleStep(2)"
+        >
+          <span class="wizard-step__number">2</span>
+          <span class="wizard-step__label">Профиль</span>
+        </button>
+
+        <Transition name="step-expand">
+          <div v-if="isStepVisible(2)" class="wizard-content">
+        <div class="wizard-panel">
+          <div class="panel-head">
+            <h4>Выберите рекламный кабинет для интеграции</h4>
+          </div>
+
+          <div v-if="loadingStates.profiles" class="empty-line">Загрузка профилей...</div>
+          <div v-else-if="profiles.length === 0" class="empty-line">Нет доступных профилей. Проверьте авторизацию.</div>
+
+          <div v-else class="cards-grid">
+            <label
+              v-for="cabinet in profiles"
+              :key="cabinet.login"
+              class="select-tile"
+              :class="{ 'select-tile--active': form.account_id === cabinet.login }"
+            >
+              <input
+                type="radio"
+                name="card-ads"
+                :value="cabinet.login"
+                :checked="form.account_id === cabinet.login"
+                @change="selectProfile(cabinet)"
+              />
+              <span class="select-tile__top">
+                <span class="select-tile__avatar">
+                  <img :src="platformIcon" :alt="platformName" />
+                </span>
+                <span class="select-tile__check">✓</span>
+              </span>
+              <span class="select-tile__title">{{ cabinet.name || cabinet.login }}</span>
+              <span class="select-tile__meta">{{ cabinet.login }}</span>
+              <span class="select-tile__caption">{{ cabinet.type || 'Рекламный кабинет' }}</span>
+            </label>
+          </div>
+
+          <div class="wizard-actions">
+            <button type="button" class="secondary-btn" @click="step = 1">Назад</button>
+            <div class="wizard-actions__right">
+              <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+              <button
+                type="button"
+                class="primary-btn"
+                :disabled="!form.account_id || loadingStates.profiles"
+                @click="goToStep3"
+              >
+                Далее
+              </button>
+            </div>
+          </div>
+          </div>
+          </div>
+        </Transition>
+      </section>
+
+      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 3, 'wizard-step-section--done': step > 3 }">
+        <button
+          type="button"
+          class="wizard-step"
+          :class="{ 'wizard-step--active': step === 3, 'wizard-step--done': step > 3 }"
+          @click="goToVisibleStep(3)"
+        >
+          <span class="wizard-step__number">3</span>
+          <span class="wizard-step__label">Счетчики и цели</span>
+        </button>
+
+        <Transition name="step-expand">
+          <div v-if="isStepVisible(3)" class="wizard-content">
+        <div class="wizard-panel soft-panel">
+          <div>
+            <h4>Рекламные кампании</h4>
+            <p>Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
+          </div>
+          <div class="status-pill">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
+          </div>
+
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px]">
+          <div class="panel-head">
+            <div>
+              <h4>Счетчики метрики</h4>
+              <p>Выберите счетчики для отслеживания целей</p>
+            </div>
+            <button
+              type="button"
+              class="small-btn"
+              :disabled="loadingStates.counters || counters.length === 0"
+              @click="toggleAllCounters"
+            >
+              {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
+            </button>
+          </div>
+
+          <div v-if="loadingStates.counters" class="empty-line">Загрузка счетчиков...</div>
+          <div v-else-if="counters.length === 0" class="empty-line">Нет доступных счетчиков.</div>
+
+          <div v-else class="cards-grid">
+            <label
+              v-for="counter in counters"
+              :key="counter.id"
+              class="select-tile"
+              :class="{ 'select-tile--active': selectedCounterIds.includes(counter.id) }"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedCounterIds.includes(counter.id)"
+                @change="toggleCounterSelection(counter.id)"
+              />
+              <span class="select-tile__top">
+                <span class="select-tile__avatar select-tile__avatar--text">{{ (counter.name || '?').slice(0, 2).toUpperCase() }}</span>
+                <span class="select-tile__check">✓</span>
+              </span>
+              <span class="select-tile__title">{{ counter.name }}</span>
+              <span class="select-tile__meta">ID: {{ counter.id }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px]">
+          <div class="panel-head">
+            <div>
+              <h4>Цели и конверсии</h4>
+              <p>Выберите основную цель и дополнительные цели</p>
+            </div>
+            <button
+              type="button"
+              class="small-btn"
+              :disabled="loadingStates.goals || goals.length === 0"
+              @click="toggleAllGoals"
+            >
+              {{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}
+            </button>
+          </div>
+
+          <div v-if="loadingStates.goals" class="empty-line">Загрузка целей...</div>
+          <div v-else-if="goals.length === 0" class="empty-line">Нет доступных целей.</div>
+
+          <div v-else class="cards-grid">
+            <label
+              v-for="goal in goals"
+              :key="goal.id"
+              class="select-tile"
+              :class="{ 'select-tile--active': selectedGoalIds.includes(goal.id) }"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedGoalIds.includes(goal.id)"
+                @change="toggleGoalSelection(goal.id)"
+              />
+              <span class="select-tile__top">
+                <span class="select-tile__avatar select-tile__avatar--text">{{ (goal.name || '?').slice(0, 2).toUpperCase() }}</span>
+                <span class="select-tile__check">✓</span>
+              </span>
+              <span class="select-tile__title">{{ goal.name }}</span>
+              <span class="select-tile__meta">ID: {{ goal.id }}</span>
+              <span class="select-tile__footer">
+                <span class="select-tile__caption">{{ goal.type || 'Цель' }}</span>
+                <button
+                  type="button"
+                  class="favorite-btn"
+                  :class="{ 'favorite-btn--active': form.primary_goal_id === goal.id }"
+                  :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной'"
+                  @click.stop.prevent="selectPrimaryGoal(goal.id)"
                 >
-                  <div class="select-card goal-select-card">
-                    <input
-                      class="select-card__input"
-                      type="checkbox"
-                      :checked="selectedGoalIds.includes(goal.id)"
-                      @change="toggleGoalSelection(goal.id)"
-                    />
-                    <div class="select-card__inner">
-                      <div class="select-card__header">
-                        <div class="avatar-30x30">
-                          <div class="avatar-text">{{ (goal.name || '?').slice(0,2).toUpperCase() }}</div>
-                        </div>
-                        <div class="select-card__check">
-                          <svg><use href="/admirra/img/svg/sprite.svg#check"></use></svg>
-                        </div>
-                      </div>
-                      <div class="select-card__content _width-normal">
-                        <div class="weight-500">
-                          <div class="gray500 text-15 mb-1">{{ goal.name }}</div>
-                          <div class="silver uppercase">ID: {{ goal.id }}</div>
-                        </div>
-                        <div class="row align-items-end mt-auto">
-                          <div class="col">
-                            <div class="caption">{{ goal.type || '' }}</div>
-                          </div>
-                          <div class="col-auto">
-                            <button
-                              type="button"
-                              class="select-card__favorites"
-                              :class="{ 'is-primary': form.primary_goal_id === goal.id }"
-                              @click.stop="selectPrimaryGoal(goal.id)"
-                              :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной (только одна)'"
-                            >
-                              <svg><use href="/admirra/img/svg/sprite.svg#star"></use></svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="row g-3">
-              <div class="col">
-                <button class="btn _white" @click="step = 2">
-                  <div class="btn__inner">
-                    <div class="btn__icon-info">
-                      <svg class="prev"><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                    </div>
-                    <span class="btn__text">Назад</span>
-                  </div>
+                  ★
                 </button>
-              </div>
-              <div class="col-auto">
-                <div class="row">
-                  <div class="col-auto">
-                    <button class="btn _outline-gray" @click="handleCancel">
-                      <div class="btn__inner"><span class="btn__text">Отмена</span></div>
-                    </button>
-                  </div>
-                  <div class="col-auto">
-                    <button class="btn _primary" @click="goToStep4">
-                      <div class="btn__inner">
-                        <span class="btn__text">Далее</span>
-                        <div class="btn__icon-info">
-                          <svg class="next"><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="wizard-actions mt-[20px]">
+          <button type="button" class="secondary-btn" @click="step = 2">Назад</button>
+          <div class="wizard-actions__right">
+            <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+            <button type="button" class="primary-btn" @click="goToStep4">Далее</button>
+          </div>
+        </div>
+          </div>
+        </Transition>
+      </section>
+
+      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 4 }">
+        <button
+          type="button"
+          class="wizard-step"
+          :class="{ 'wizard-step--active': step === 4 }"
+          @click="goToVisibleStep(4)"
+        >
+          <span class="wizard-step__number">4</span>
+          <span class="wizard-step__label">Сводка</span>
+        </button>
+
+        <Transition name="step-expand">
+          <div v-if="isStepVisible(4)" class="wizard-content">
+        <div class="wizard-panel">
+          <div class="panel-head">
+            <div>
+              <h4>Сводка интеграции</h4>
+              <p>Проверьте настройки перед подключением</p>
             </div>
           </div>
-        </section>
 
-        <!-- ===== ШАГ 4: СВОДКА ===== -->
-        <section :class="['steps-track__section', { '_active': step === 4 }]">
-          <div class="steps-track__header">
-            <div class="steps-track__marker" :style="markerStyle(4)">
-              <div class="steps-track__marker-text" :style="markerTextStyle(4)">4</div>
+          <div class="summary-grid">
+            <div class="summary-card summary-card--blue">
+              <span class="summary-card__icon"><img :src="platformIcon" :alt="platformName" /></span>
+              <span class="summary-card__label">Платформа</span>
+              <strong>{{ platformName }}</strong>
             </div>
-            <div class="steps-track__caption" :style="captionStyle(4)">Сводка</div>
-          </div>
-
-          <div v-if="step === 4" class="steps-track__content">
-            <div class="p-5 bg-white radius-base mb-5">
-              <div class="mb-5">
-                <h5 class="heading-5 weight-500">Сводка интеграции</h5>
-                <p class="pt-3 text-15 weight-500 gray56">Проверьте настройки перед подключением</p>
-              </div>
-              <div class="row g-4">
-                <div class="col-12 col-md-6">
-                  <div class="card-info _blue">
-                    <div class="card-info__header">
-                      <div class="iconbox _md _radius">
-                        <img
-                          width="24"
-                          :src="form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png'"
-                          alt="#"
-                        />
-                      </div>
-                      <div class="text-15 weight-500">
-                        <h6 class="card-info__title">Платформа</h6>
-                        <p class="gray500 pt-2">{{ form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads' }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-12 col-md-6">
-                  <div class="card-info _green">
-                    <div class="card-info__header">
-                      <div class="iconbox _md _radius">
-                        <svg><use href="/admirra/img/svg/sprite.svg#diagrama"></use></svg>
-                      </div>
-                      <div class="text-15 weight-500">
-                        <h6 class="card-info__title">Кампании</h6>
-                        <p class="gray500 pt-2">
-                          {{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="form.platform === 'YANDEX_DIRECT'" class="col-12 col-md-6">
-                  <div class="card-info _oldlace">
-                    <div class="card-info__header">
-                      <div class="iconbox _md _radius">
-                        <svg><use href="/admirra/img/svg/sprite.svg#wallet"></use></svg>
-                      </div>
-                      <div class="text-15 weight-500 flex-grow-1">
-                        <h6 class="card-info__title">Счетчики</h6>
-                        <p class="gray500 pt-2 mb-1">Выбрано: {{ selectedCounterIds.length }}</p>
-                        <ul v-if="summaryCounterLines.length" class="integration-summary-list gray500 text-13 mb-0 ps-3">
-                          <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
-                        </ul>
-                        <p v-else class="gray500 pt-1 mb-0 text-13">Нет выбранных счётчиков</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="form.platform === 'YANDEX_DIRECT' && form.primary_goal_id" class="col-12 col-md-6">
-                  <div class="card-info _aliceblue">
-                    <div class="card-info__header">
-                      <div class="iconbox _md _radius">
-                        <svg><use href="/admirra/img/svg/sprite.svg#star"></use></svg>
-                      </div>
-                      <div class="text-15 weight-500">
-                        <h6 class="card-info__title">Основная цель</h6>
-                        <p class="gray500 pt-2">
-                          {{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="form.platform === 'YANDEX_DIRECT'" class="col-12 col-md-6">
-                  <div class="card-info _lavender">
-                    <div class="card-info__header">
-                      <div class="iconbox _md _radius">
-                        <svg><use href="/admirra/img/svg/sprite.svg#group"></use></svg>
-                      </div>
-                      <div class="text-15 weight-500 flex-grow-1">
-                        <h6 class="card-info__title">Дополнительные цели</h6>
-                        <p class="gray500 pt-2 mb-1">Отмечено: {{ summaryAdditionalGoalLines.length }}</p>
-                        <ul v-if="summaryAdditionalGoalLines.length" class="integration-summary-list gray500 text-13 mb-0 ps-3">
-                          <li v-for="(name, i) in summaryAdditionalGoalLines" :key="i">{{ name }}</li>
-                        </ul>
-                        <p v-else class="gray500 pt-1 mb-0 text-13">Не выбраны (галочки на шаге 3)</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="summary-card summary-card--green">
+              <span class="summary-card__icon">↻</span>
+              <span class="summary-card__label">Кампании</span>
+              <strong>{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
             </div>
-
-            <!-- Дарк-блок финала -->
-            <div class="dark-bg mb-5">
-              <div class="dark-bg__inner p-5">
-                <div class="row g-4">
-                  <div class="col-12 col-lg">
-                    <div class="row mb-5">
-                      <div class="col-auto">
-                        <div class="iconbox _white _lg">
-                          <svg><use href="/admirra/img/svg/sprite.svg#refresh-line"></use></svg>
-                        </div>
-                      </div>
-                      <div class="col">
-                        <div class="silver weight-300 text-15 mb-3">Автосинхронизация</div>
-                        <h4 class="heading-4 weight-600">Данные будут обновляться каждые 24 часа</h4>
-                      </div>
-                    </div>
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <label class="switches _white _normal">
-                          <input class="switches__input" type="checkbox" checked />
-                          <span class="switches__indicator"></span>
-                        </label>
-                      </div>
-                      <div class="col">
-                        <label class="text-15 weight-500">Включить автосинхронизацию</label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-12 col-lg-auto align-self-end">
-                    <div class="py-3 mb-2">
-                      <div class="silver weight-300 text-15">Готово к подключению</div>
-                    </div>
-                    <div class="alert-dark _md w-100">
-                      <div class="alert-dark__inner">
-                        <div class="dotty _success"></div>
-                        <span class="weight-700 uppercase">Готовность 100%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="dark-bg__light _pos1"><div class="lightBlurBg _xl"></div></div>
+            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--yellow">
+              <span class="summary-card__icon">#</span>
+              <span class="summary-card__label">Счетчики</span>
+              <strong>Выбрано: {{ selectedCounterIds.length }}</strong>
+              <ul v-if="summaryCounterLines.length">
+                <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
+              </ul>
             </div>
-
-            <div class="row g-3">
-              <div class="col">
-                <button class="btn _white" @click="step = 3">
-                  <div class="btn__inner">
-                    <div class="btn__icon-info">
-                      <svg class="prev"><use href="/admirra/img/svg/sprite.svg#arrow"></use></svg>
-                    </div>
-                    <span class="btn__text">Назад</span>
-                  </div>
-                </button>
-              </div>
-              <div class="col-auto">
-                <div class="row">
-                  <div class="col-auto">
-                    <button class="btn _outline-gray" @click="handleCancel">
-                      <div class="btn__inner"><span class="btn__text">Отмена</span></div>
-                    </button>
-                  </div>
-                  <div class="col-auto">
-                    <button
-                      class="btn _primary"
-                      :disabled="loadingStates.finish"
-                      @click="doFinish"
-                    >
-                      <div class="btn__inner">
-                        <span class="btn__text">{{ loadingStates.finish ? 'Сохранение...' : 'Подключить' }}</span>
-                        <div class="btn__icon">
-                          <svg><use href="/admirra/img/svg/sprite.svg#refresh-line"></use></svg>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div v-if="form.platform === 'YANDEX_DIRECT' && form.primary_goal_id" class="summary-card summary-card--cyan">
+              <span class="summary-card__icon">★</span>
+              <span class="summary-card__label">Основная цель</span>
+              <strong>{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
+            </div>
+            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--violet">
+              <span class="summary-card__icon">+</span>
+              <span class="summary-card__label">Дополнительные цели</span>
+              <strong>Отмечено: {{ summaryAdditionalGoalLines.length }}</strong>
+              <ul v-if="summaryAdditionalGoalLines.length">
+                <li v-for="(name, i) in summaryAdditionalGoalLines" :key="i">{{ name }}</li>
+              </ul>
             </div>
           </div>
-        </section>
+          </div>
 
-      </div>
-    </section>
+        <div class="final-card mt-[20px]">
+          <div>
+            <div class="final-card__caption">Автосинхронизация</div>
+            <h4>Данные будут обновляться каждые 24 часа</h4>
+            <label class="final-switch">
+              <input type="checkbox" checked />
+              <span></span>
+              Включить автосинхронизацию
+            </label>
+          </div>
+          <div class="ready-badge">
+            <span></span>
+            ГОТОВНОСТЬ 100%
+          </div>
+        </div>
+
+        <div class="wizard-actions mt-[20px]">
+          <button type="button" class="secondary-btn" @click="step = 3">Назад</button>
+          <div class="wizard-actions__right">
+            <button type="button" class="ghost-btn" @click="handleCancel">Отмена</button>
+            <button
+              type="button"
+              class="primary-btn"
+              :disabled="loadingStates.finish"
+              @click="doFinish"
+            >
+              {{ loadingStates.finish ? 'Сохранение...' : 'Подключить' }}
+            </button>
+          </div>
+        </div>
+          </div>
+        </Transition>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -641,7 +445,6 @@ const {
   fetchGoals,
   fetchIntegration,
   resetStore,
-  toggleCampaignSelection,
   toggleCounterSelection,
   selectPrimaryGoal
 } = useIntegrationWizard()
@@ -649,6 +452,17 @@ const {
 const step = ref(1)
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
+const openSelect = ref(null)
+const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
+const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
+const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
+const connectButtonText = computed(() =>
+  form.platform === 'YANDEX_DIRECT' ? 'Подключить Яндекс Директ' : 'Подключить VK Ads'
+)
+const projectSelectLabel = computed(() => {
+  if (!form.client_id) return 'Выберите проект'
+  return projects.value.find((p) => String(p.id) === String(form.client_id))?.name || 'Выберите проект'
+})
 const allCountersSelected = computed(() =>
   counters.value.length > 0 && selectedCounterIds.value.length === counters.value.length
 )
@@ -684,6 +498,11 @@ watch(
 )
 
 onMounted(async () => {
+  const platformQuery = router.currentRoute.value.query.platform
+  if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS') {
+    form.platform = platformQuery
+  }
+
   await fetchProjects()
 
   // Проверяем, есть ли resumption после OAuth-редиректа
@@ -706,28 +525,30 @@ onMounted(async () => {
 watch(isNewProject, (val) => {
   if (val) {
     form.client_id = ''
+    openSelect.value = null
   } else {
     form.client_name = ''
   }
 })
 
-const markerStyle = (idx) => (
-  step.value === idx
-    ? 'background:#cfdef9 !important; border:0.4rem solid #e1eaf9 !important;'
-    : 'background:#edeff1 !important; border:0.4rem solid #f1f3f5 !important;'
-)
+const goToVisibleStep = (idx) => {
+  if (idx <= step.value) {
+    error.value = null
+    step.value = idx
+  }
+}
 
-const markerTextStyle = (idx) => (
-  step.value === idx
-    ? 'background:#2e6bff !important; color:#fff !important; opacity:1 !important;'
-    : 'background:#fff !important; color:rgba(105,105,105,.56) !important; opacity:1 !important;'
-)
+const toggleProjectSelect = () => {
+  if (isNewProject.value) return
+  openSelect.value = openSelect.value === 'project' ? null : 'project'
+}
 
-const captionStyle = (idx) => (
-  step.value === idx
-    ? 'color:#2e6bff !important;'
-    : 'color:rgba(105,105,105,.75) !important;'
-)
+const selectProject = (id) => {
+  form.client_id = id
+  openSelect.value = null
+}
+
+const isStepVisible = (idx) => step.value >= idx
 
 const selectProfile = (cabinet) => {
   form.account_id = cabinet.login
@@ -897,108 +718,690 @@ const toggleGoalSelection = (id) => {
 </script>
 
 <style scoped>
-.admirra-page-wrapper { }
-.btn._vk { background: linear-gradient(135deg, #0077ff, #005fcc); color: #fff; }
-
-
-/* Селект проекта в стиле интерфейса */
-.integration-select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  width: 100%;
-  height: 44px;
-  padding: 0 38px 0 14px;
+.wizard-alert {
+  padding: 14px 18px;
   border-radius: 12px;
-  border: 1px solid rgba(44, 44, 44, 0.12);
-  background-color: #ffffff;
-  color: #2c2c2c;
-  font-size: 14px;
+  background: #fff1f1;
+  color: #ef4444;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 1;
-  outline: none;
-  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #7c8597 50%),
-    linear-gradient(135deg, #7c8597 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) calc(50% - 2px),
-    calc(100% - 13px) calc(50% - 2px);
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
 }
-
-.integration-select:hover {
-  border-color: rgba(46, 107, 255, 0.35);
+.wizard-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
-
-.integration-select:focus {
-  border-color: #2e6bff;
-  box-shadow: 0 0 0 3px rgba(46, 107, 255, 0.15);
+.wizard-step-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
-
-.integration-select option {
-  color: #2c2c2c;
-  background: #ffffff;
+.wizard-step-section::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 46px;
+  bottom: -15px;
+  width: 1px;
+  background: rgba(105, 105, 105, 0.12);
 }
-
-/* В треке шагов подсвечиваем только активный шаг */
-:deep(.steps-track__section .steps-track__marker) {
-  background: rgba(167, 179, 198, 0.2) !important;
+.wizard-step-section:last-child::before {
+  display: none;
 }
-
-:deep(.steps-track__section .steps-track__marker-text) {
-  color: rgba(88, 102, 126, 0.95) !important;
-  opacity: 1 !important;
+.wizard-step-section--active::before {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.32), rgba(105, 105, 105, 0.12));
 }
-
-:deep(.steps-track__section .steps-track__caption) {
-  color: rgba(105, 105, 105, 0.75) !important;
+.wizard-step {
+  width: max-content;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 17px 8px 10px;
+  border: 0;
+  border-radius: 15px;
+  background: #fff;
+  color: rgba(105, 105, 105, 0.75);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.3s, transform 0.3s;
 }
-
-/* Даже если где-то остается _completed, делаем его визуально неактивным */
-:deep(.steps-track__section._completed .steps-track__marker) {
-  background: rgba(167, 179, 198, 0.2) !important;
+.wizard-step:hover {
+  transform: translateX(2px);
 }
-
-:deep(.steps-track__section._completed .steps-track__marker-text) {
-  color: rgba(88, 102, 126, 0.95) !important;
-  opacity: 1 !important;
+.wizard-step__number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #f5f7f9;
+  color: rgba(105, 105, 105, 0.56);
+  flex-shrink: 0;
 }
-
-:deep(.steps-track__section._completed .steps-track__caption) {
-  color: rgba(105, 105, 105, 0.75) !important;
+.wizard-step--active {
+  color: #2563eb;
 }
-
-:deep(.steps-track__section._active .steps-track__marker) {
-  background: linear-gradient(135deg, #2e6bff, #06b5d4);
-}
-
-:deep(.steps-track__section._active .steps-track__marker-text) {
+.wizard-step--active .wizard-step__number,
+.wizard-step--done .wizard-step__number {
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
 }
-
-:deep(.steps-track__section._active .steps-track__caption) {
-  color: #2e6bff;
+.wizard-content {
+  min-width: 0;
+  padding-left: 61px;
 }
-
-/* Глобальный стиль .select-card:has(input:checked) красит «избранное» в оранжевый — для целей это только звезда «основная» */
-:deep(.goal-select-card.select-card:has(.select-card__input:checked) .select-card__favorites:not(.is-primary)) {
-  background-color: var(--bgLayout, #f1f3f5) !important;
+.step-expand-enter-active,
+.step-expand-leave-active {
+  transition:
+    opacity 0.28s ease,
+    transform 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
 }
-:deep(.goal-select-card.select-card:has(.select-card__input:checked) .select-card__favorites:not(.is-primary) svg) {
-  fill: #e9e9e9 !important;
+.step-expand-enter-from,
+.step-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
 }
-:deep(.goal-select-card .select-card__favorites.is-primary) {
-  background-color: #fa812e !important;
+.step-expand-enter-to,
+.step-expand-leave-from {
+  max-height: 1800px;
+  opacity: 1;
+  transform: translateY(0);
 }
-:deep(.goal-select-card .select-card__favorites.is-primary svg) {
-  fill: #fff !important;
+.wizard-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 330px) minmax(320px, 430px);
+  align-items: stretch;
+  gap: 20px;
 }
-
-.integration-summary-list {
-  max-height: 7.5rem;
+.wizard-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 30px;
+  border-radius: 15px;
+  background: #fff;
+}
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field-label {
+  color: #696969;
+  font-size: 13px;
+  font-weight: 500;
+}
+.platform-grid {
+  display: grid;
+  gap: 10px;
+}
+.platform-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 17px;
+  border: 1px solid rgba(105, 105, 105, 0.12);
+  border-radius: 15px;
+  background: #fff;
+  color: #696969;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 0.4s, border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+.platform-choice img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.platform-choice--active {
+  border-color: transparent;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+}
+.platform-choice:hover {
+  transform: scale(1.01);
+}
+.custom-select {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+}
+.custom-select.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.cs-head {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 46px;
+  padding: 8px 17px;
+  border: 0;
+  border-radius: 15px;
+  background-color: #fff;
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px transparent;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.2s;
+}
+.custom-select.open .cs-head {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.cs-current {
+  min-width: 0;
+  margin-right: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #f5f7f9;
+  flex-shrink: 0;
+  transition: transform 0.3s;
+}
+.custom-select.open .cs-arrow {
+  transform: rotate(180deg);
+}
+.cs-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  max-height: 230px;
   overflow-y: auto;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: 50% 0;
+  transform: scale(0.75) translateY(-21px);
+  transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
+}
+.custom-select.open .cs-list {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1) translateY(0);
+}
+.cs-option {
+  display: block;
+  width: 100%;
+  padding: 12px 25px 12px 17px;
+  border: 0;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.68);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+.cs-option:hover {
+  background-color: #f5f7f9;
+}
+.cs-option.selected {
+  font-weight: 600;
+}
+.wizard-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 12px;
+  outline: none;
+  background: #f9fcff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: #2c2c2c;
+  font-size: 13px;
+  font-weight: 500;
+}
+.switch-row,
+.final-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #696969;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.switch-row input,
+.final-switch input,
+.select-tile input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.switch-row__control,
+.final-switch span {
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #e8eef9;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.3s;
+}
+.switch-row__control::after,
+.final-switch span::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.3s;
+}
+.switch-row input:checked + .switch-row__control,
+.final-switch input:checked + span {
+  background: #2563eb;
+}
+.switch-row input:checked + .switch-row__control::after,
+.final-switch input:checked + span::after {
+  transform: translateX(16px);
+}
+.primary-btn,
+.secondary-btn,
+.ghost-btn,
+.small-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 8px 22px;
+  border: 0;
+  border-radius: 15px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.4s, background-color 0.3s, color 0.3s, opacity 0.3s;
+}
+.primary-btn {
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+}
+.primary-btn--vk {
+  background: linear-gradient(135deg, #0077ff, #005fcc);
+}
+.secondary-btn,
+.small-btn {
+  background: #fff;
+  color: #696969;
+  box-shadow: inset 0 0 0 1px rgba(105, 105, 105, 0.14);
+}
+.ghost-btn {
+  background: #f5f7f9;
+  color: #696969;
+}
+.small-btn {
+  min-height: 36px;
+  padding: 6px 15px;
+  border-radius: 12px;
+}
+.primary-btn:hover,
+.secondary-btn:hover,
+.ghost-btn:hover,
+.small-btn:hover {
+  transform: scale(1.02);
+}
+.primary-btn:disabled,
+.small-btn:disabled {
+  opacity: 0.5;
+  transform: none;
+  cursor: not-allowed;
+}
+.channel-card {
+  width: min(100%, 430px);
+  min-height: 330px;
+  display: flex;
+  flex-direction: column;
+  padding: 30px;
+  border-radius: 15px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(6, 181, 212, 0.38), transparent 26%),
+    linear-gradient(135deg, #181f2f 0%, #26324a 100%);
+  overflow: hidden;
+}
+.channel-card__icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 24px;
+}
+.channel-card__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.channel-card h4,
+.final-card h4 {
+  max-width: 330px;
+  color: inherit;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+.channel-card p {
+  max-width: 330px;
+  margin-top: 13px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 15px;
   line-height: 1.35;
+}
+.channel-card__status,
+.ready-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  margin-top: auto;
+  min-height: 42px;
+  padding: 8px 18px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.channel-card__status span,
+.ready-badge span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5bff7c;
+}
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.panel-head h4,
+.soft-panel h4 {
+  color: #2c2c2c;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.panel-head p,
+.soft-panel p {
+  margin-top: 8px;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.empty-line {
+  padding: 20px 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 13px;
+}
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: 15px;
+}
+.select-tile {
+  min-height: 178px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #f9fcff;
+  border: 1px solid rgba(105, 105, 105, 0.08);
+  cursor: pointer;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+.select-tile:hover {
+  transform: translateY(-1px);
+}
+.select-tile--active {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+.select-tile__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.select-tile__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #e8eef9;
+  color: #4b6fa0;
+  font-size: 10px;
+  font-weight: 700;
+}
+.select-tile__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.select-tile__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e8eef9;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+.select-tile--active .select-tile__check {
+  background: #2563eb;
+  color: #fff;
+}
+.select-tile__title {
+  color: #515151;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.select-tile__meta {
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 11px;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.select-tile__caption {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #fff;
+  color: #c2c2c2;
+  font-size: 11px;
+}
+.select-tile__footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+}
+.favorite-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: #e8eef9;
+  color: #c2c2c2;
+  font-size: 16px;
+}
+.favorite-btn--active {
+  background: #fa812e;
+  color: #fff;
+}
+.soft-panel {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 15px;
+  border-radius: 12px;
+  background: #f9fcff;
+  color: rgba(105, 105, 105, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.wizard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wizard-actions__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 138px;
+  padding: 20px;
+  border-radius: 15px;
+  color: #515151;
+}
+.summary-card--blue { background: #f0f7ff; }
+.summary-card--green { background: #f0fff5; }
+.summary-card--yellow { background: #fff9f1; }
+.summary-card--cyan { background: #effbff; }
+.summary-card--violet { background: #f2f2ff; }
+.summary-card__icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #fff;
+  color: #2563eb;
+  font-weight: 700;
+}
+.summary-card__icon img {
+  width: 24px;
+  height: 24px;
+}
+.summary-card__label {
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 12px;
+  font-weight: 500;
+}
+.summary-card strong {
+  color: #515151;
+  font-size: 14px;
+  font-weight: 600;
+}
+.summary-card ul {
+  max-height: 108px;
+  margin: 2px 0 0;
+  padding-left: 16px;
+  overflow-y: auto;
+  color: rgba(81, 81, 81, 0.75);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.final-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 34px;
+  border-radius: 15px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(6, 181, 212, 0.34), transparent 28%),
+    linear-gradient(135deg, #181f2f 0%, #26324a 100%);
+}
+.final-card__caption {
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 15px;
+}
+.final-switch {
+  margin-top: 28px;
+  color: #fff;
+}
+@media (max-width: 1023px) {
+  .wizard-grid,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .soft-panel,
+  .final-card,
+  .wizard-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .wizard-actions__right {
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 640px) {
+  .wizard-step {
+    width: 100%;
+    min-width: 0;
+  }
+  .wizard-content {
+    padding-left: 0;
+  }
+  .wizard-step-section::before {
+    display: none;
+  }
+  .wizard-panel,
+  .channel-card,
+  .final-card {
+    padding: 22px;
+  }
+  .wizard-actions__right {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

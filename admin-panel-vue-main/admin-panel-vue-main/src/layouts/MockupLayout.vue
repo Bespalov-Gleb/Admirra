@@ -1,89 +1,29 @@
 <template>
-  <div class="main-layout">
-    <MockupSidebar
-      :is-collapsed="sidebarCollapsed"
-      @toggle-sidebar-size="sidebarCollapsed = !sidebarCollapsed"
-    />
-
-    <div class="content-wrapper">
-      <MockupHeader
-        @toggle-mobile-menu="sidebarPanelOpen = !sidebarPanelOpen"
-      />
-
-      <main class="main-content">
+  <div class="flex min-h-screen bg-[#F4F6F8] dark:bg-[#1A1C2C] font-[Inter]">
+    <SidebarV2 />
+    <div :class="[
+      'flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-300 ml-0',
+      mainMargin
+    ]">
+      <header class="flex-shrink-0">
+        <Header />
+      </header>
+      <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637]">
         <slot />
       </main>
-
-      <div class="main__lightBg _pos1"><div class="lightBlurBg"></div></div>
-      <div class="main__lightBg _pos2"><div class="lightBlurBg"></div></div>
-      <div class="main__lightBg _pos3"><div class="lightBlurBg"></div></div>
     </div>
-
-    <MockupSidebarPanel v-if="sidebarPanelOpen" @close="sidebarPanelOpen = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
-import MockupHeader from '../components/mockup/MockupHeader.vue'
-import MockupSidebar from '../components/mockup/MockupSidebar.vue'
-import MockupSidebarPanel from '../components/mockup/MockupSidebarPanel.vue'
-import { useTheme } from '../composables/useTheme'
+import { computed } from 'vue'
+import SidebarV2 from '../components/SidebarV2.vue'
+import Header from '../components/Header.vue'
+import { useSidebar } from '../composables/useSidebar'
 
-const sidebarCollapsed = ref(false)
-const sidebarPanelOpen = ref(false)
-const { isDarkMode } = useTheme()
+const { isCollapsed } = useSidebar()
 
-onMounted(() => {
-  document.documentElement.classList.add('mockup-page')
-  // Переприменяем тему после добавления mockup-page, чтобы darkmode-класс не слетал
-  if (isDarkMode.value) {
-    document.documentElement.classList.add('darkmode')
-    document.documentElement.classList.add('dark')
-  }
-})
-
-// При переключении темы внутри mockup-страниц — сразу применяем/снимаем класс
-watch(isDarkMode, (dark) => {
-  if (dark) {
-    document.documentElement.classList.add('darkmode')
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('darkmode')
-    document.documentElement.classList.remove('dark')
-  }
-})
-
-onUnmounted(() => {
-  document.documentElement.classList.remove('mockup-page')
+const mainMargin = computed(() => {
+  return isCollapsed.value ? 'min-[1920px]:ml-[72px]' : 'min-[1920px]:ml-[270px]'
 })
 </script>
-
-<style scoped>
-.main-layout {
-  display: flex;
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-}
-
-.content-wrapper {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  position: relative;
-}
-
-.main-content {
-  flex: 1;
-  /* Небольшой общий зазор от сайдбара и правого края */
-  padding: 0 12px;
-}
-
-.main__lightBg {
-  position: absolute;
-  z-index: -1;
-  pointer-events: none;
-}
-</style>
