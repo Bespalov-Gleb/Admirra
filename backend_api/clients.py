@@ -8,6 +8,8 @@ from typing import List
 
 from backend_api.stats_service import StatsService
 from backend_api.services.subscription import SubscriptionService
+from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
+from backend_api.services.history import log_history_event
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
@@ -25,7 +27,8 @@ def get_clients_with_stats(
     # Default to 7 days if no start_date provided
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
     
-    user_clients = db.query(models.Client).filter(models.Client.owner_id == current_user.id).all()
+    accessible_ids = get_accessible_client_ids(db, current_user)
+    user_clients = db.query(models.Client).filter(models.Client.id.in_(accessible_ids)).all() if accessible_ids else []
     
     results = []
     for client in user_clients:
@@ -44,7 +47,10 @@ def get_clients(
     """
     Get all clients owned by the current user.
     """
-    return db.query(models.Client).filter(models.Client.owner_id == current_user.id).all()
+    accessible_ids = get_accessible_client_ids(db, current_user)
+    if not accessible_ids:
+        return []
+    return db.query(models.Client).filter(models.Client.id.in_(accessible_ids)).all()
 
 @router.post("/", response_model=schemas.ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(
@@ -55,12 +61,25 @@ def create_client(
     """
     Create a new client.
     """
+    ctx = get_team_context(db, current_user)
+    if not ctx.is_owner and ctx.team_role == models.TeamMemberRole.CLIENT.value:
+        raise HTTPException(status_code=403, detail="Клиент не может создавать проекты")
     SubscriptionService.ensure_can_create_project(db, current_user)
     new_client = models.Client(
         owner_id=current_user.id,
         **client_in.dict()
     )
     db.add(new_client)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_created",
+        description=f"Создан проект {new_client.name}",
+        client_id=new_client.id,
+        target_type="client",
+        target_id=str(new_client.id),
+    )
     db.commit()
     db.refresh(new_client)
     return new_client
@@ -74,12 +93,8 @@ def get_client(
     """
     Get specific client details.
     """
-    client = db.query(models.Client).filter(
-        models.Client.id == client_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+    assert_project_access(db, current_user, client_id, write=False)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
     return client
 
 @router.put("/{client_id}", response_model=schemas.ClientResponse)
@@ -92,17 +107,35 @@ def update_client(
     """
     Update client information.
     """
-    client = db.query(models.Client).filter(
-        models.Client.id == client_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
     
     update_data = client_in.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(client, key, value)
-    
+    if update_data:
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="project",
+            action="project_updated",
+            description=f"Обновлен проект {client.name}",
+            client_id=client.id,
+            target_type="client",
+            target_id=str(client.id),
+            meta={"fields": sorted(update_data.keys())},
+        )
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="project",
+            action="project_settings_changed",
+            description=f"Изменены настройки проекта {client.name}",
+            client_id=client.id,
+            target_type="client",
+            target_id=str(client.id),
+            meta={"fields": sorted(update_data.keys())},
+        )
     db.commit()
     db.refresh(client)
     return client
@@ -116,13 +149,19 @@ def delete_client(
     """
     Delete a client. All related integrations and stats will be affected (based on DB constraints).
     """
-    client = db.query(models.Client).filter(
-        models.Client.id == client_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
     
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_deleted",
+        description=f"Удален проект {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+    )
     db.delete(client)
     db.commit()
     return None

@@ -11,7 +11,7 @@
 
     <nav class="navigation">
       <div
-        v-for="item in navItems"
+        v-for="item in visibleNavItems"
         :key="item.id"
         :class="['navigation-item', { subMenu: item.children, 'is-open': openItems.includes(item.id) }]"
       >
@@ -75,8 +75,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import api from '../../api/axios'
 
 const route = useRoute()
 
@@ -108,6 +109,17 @@ const props = defineProps({
 })
 
 defineEmits(['nav-click', 'toggle-sidebar-size'])
+const teamContext = ref({ is_owner: true, team_role: null })
+
+const visibleNavItems = computed(() => {
+  const isOwner = teamContext.value?.is_owner ?? teamContext.value?.isOwner ?? true
+  const role = teamContext.value?.team_role ?? teamContext.value?.teamRole ?? null
+  if (isOwner || !role) return props.navItems
+  const hiddenForMember = new Set(['team', 'tariffs'])
+  const hiddenForClient = new Set(['team', 'tariffs', 'integrations', 'history'])
+  const hidden = role === 'client' ? hiddenForClient : hiddenForMember
+  return props.navItems.filter((item) => !hidden.has(item.id))
+})
 
 // Раскрытые группы
 const openItems = ref([])
@@ -133,6 +145,15 @@ const toggleItem = (id) => {
     openItems.value.push(id)
   }
 }
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('team/me-context')
+    teamContext.value = data || { is_owner: true, team_role: null }
+  } catch {
+    teamContext.value = { is_owner: true, team_role: null }
+  }
+})
 </script>
 
 <style scoped>

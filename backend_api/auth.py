@@ -30,6 +30,7 @@ from .services.auth_mail import (
     smtp_enabled,
 )
 from .services.subscription import SubscriptionService
+from .services.history import log_history_event
 from core.config import get_config
 
 logger = logging.getLogger("api")
@@ -39,6 +40,25 @@ FRONTEND_URL = resolve_frontend_url()
 cfg = get_config()
 RESEND_COOLDOWN_SEC = cfg.auth.resend_cooldown_sec
 AUTH_LOGIN_OTP_ENABLED = cfg.auth.auth_login_otp_enabled
+
+
+def _activate_pending_team_invites(db: Session, user: models.User) -> None:
+    pending = (
+        db.query(models.TeamMember)
+        .filter(
+            models.TeamMember.email == user.email,
+            models.TeamMember.status == models.TeamMemberStatus.PENDING,
+        )
+        .all()
+    )
+    if not pending:
+        return
+    now = utcnow()
+    for inv in pending:
+        inv.user_id = user.id
+        inv.status = models.TeamMemberStatus.ACTIVE
+        inv.accepted_at = now
+        db.add(inv)
 
 
 def _frontend_verify_url(raw_token: str) -> str:
@@ -82,6 +102,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    _activate_pending_team_invites(db, new_user)
     SubscriptionService.ensure_default_subscription(db, new_user)
     db.commit()
 
@@ -192,12 +213,25 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    _activate_pending_team_invites(db, user)
+    db.commit()
+
     if security.AUTH_REQUIRE_EMAIL_VERIFIED and not user.email_verified:
         return schemas.LoginPasswordStepResponse(step="email_not_verified", email=user.email)
 
     if not AUTH_LOGIN_OTP_ENABLED:
         logger.info("AUTH_LOGIN_OTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
         access_token = security.create_access_token(data={"sub": user.email})
+        log_history_event(
+            db,
+            actor=user,
+            event_type="auth",
+            action="login_succeeded",
+            description="Успешный вход (без OTP)",
+            target_type="user",
+            target_id=str(user.id),
+        )
+        db.commit()
         return {"access_token": access_token, "token_type": "bearer"}
 
     if not smtp_delivery_active():
@@ -209,6 +243,16 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
             )
         logger.warning("SMTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
         access_token = security.create_access_token(data={"sub": user.email})
+        log_history_event(
+            db,
+            actor=user,
+            event_type="auth",
+            action="login_succeeded",
+            description="Успешный вход (fallback без OTP)",
+            target_type="user",
+            target_id=str(user.id),
+        )
+        db.commit()
         return {"access_token": access_token, "token_type": "bearer"}
 
     # Удаляем старые неиспользованные challenge этого пользователя
@@ -279,8 +323,16 @@ def login_verify_otp(body: schemas.LoginVerifyRequest, db: Session = Depends(get
         db.commit()
         raise HTTPException(status_code=401, detail="User not found")
 
+    log_history_event(
+        db,
+        actor=user,
+        event_type="auth",
+        action="login_succeeded",
+        description="Успешный вход (OTP)",
+        target_type="user",
+        target_id=str(user.id),
+    )
     db.commit()
-
     access_token = security.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 

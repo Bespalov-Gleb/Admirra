@@ -75,6 +75,12 @@ class BillingConfig:
     plan_start_ai_limit: int
     plan_basic_ai_limit: int
     plan_standard_ai_limit: int
+    plan_start_max_staff: int
+    plan_basic_max_staff: int
+    plan_standard_max_staff: int
+    plan_start_max_clients: int
+    plan_basic_max_clients: int
+    plan_standard_max_clients: int
     ai_period_days: int
 
 
@@ -210,6 +216,12 @@ def get_config() -> Config:
             plan_start_ai_limit=int(_env("BILLING_PLAN_START_AI_LIMIT", "30")),
             plan_basic_ai_limit=int(_env("BILLING_PLAN_BASIC_AI_LIMIT", "100")),
             plan_standard_ai_limit=int(_env("BILLING_PLAN_STANDARD_AI_LIMIT", "300")),
+            plan_start_max_staff=int(_env("BILLING_PLAN_START_MAX_STAFF", "1")),
+            plan_basic_max_staff=int(_env("BILLING_PLAN_BASIC_MAX_STAFF", "5")),
+            plan_standard_max_staff=int(_env("BILLING_PLAN_STANDARD_MAX_STAFF", "10")),
+            plan_start_max_clients=int(_env("BILLING_PLAN_START_MAX_CLIENTS", "0")),
+            plan_basic_max_clients=int(_env("BILLING_PLAN_BASIC_MAX_CLIENTS", "10")),
+            plan_standard_max_clients=int(_env("BILLING_PLAN_STANDARD_MAX_CLIENTS", "-1")),
             ai_period_days=int(_env("BILLING_AI_PERIOD_DAYS", "30")),
         ),
         cloudpayments=CloudPaymentsConfig(

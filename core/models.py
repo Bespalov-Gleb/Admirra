@@ -10,6 +10,14 @@ class UserRole(enum.Enum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
 
+class TeamMemberRole(enum.Enum):
+    MEMBER = "member"
+    CLIENT = "client"
+
+class TeamMemberStatus(enum.Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+
 class User(Base):
     __tablename__ = "users"
     
@@ -48,6 +56,18 @@ class User(Base):
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     oauth_identities = relationship(
         "UserOAuthIdentity", back_populates="user", cascade="all, delete-orphan"
+    )
+    team_memberships = relationship(
+        "TeamMember",
+        foreign_keys="TeamMember.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    owned_team_members = relationship(
+        "TeamMember",
+        foreign_keys="TeamMember.account_id",
+        back_populates="account",
+        cascade="all, delete-orphan",
     )
 
 
@@ -122,6 +142,45 @@ class Client(Base):
     vk_stats = relationship("VKStats", back_populates="client")
     weekly_reports = relationship("WeeklyReport", back_populates="client")
     monthly_reports = relationship("MonthlyReport", back_populates="client")
+    team_accesses = relationship("TeamMemberProject", back_populates="project", cascade="all, delete-orphan")
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    role = Column(Enum(TeamMemberRole), nullable=False, default=TeamMemberRole.MEMBER)
+    status = Column(Enum(TeamMemberStatus), nullable=False, default=TeamMemberStatus.PENDING)
+    invited_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+
+    account = relationship("User", foreign_keys=[account_id], back_populates="owned_team_members")
+    user = relationship("User", foreign_keys=[user_id], back_populates="team_memberships")
+    projects = relationship("TeamMemberProject", back_populates="team_member", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("account_id", "email", name="uq_team_member_account_email"),
+    )
+
+
+class TeamMemberProject(Base):
+    __tablename__ = "team_member_projects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    team_member_id = Column(UUID(as_uuid=True), ForeignKey("team_members.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    team_member = relationship("TeamMember", back_populates="projects")
+    project = relationship("Client", back_populates="team_accesses")
+
+    __table_args__ = (
+        UniqueConstraint("team_member_id", "project_id", name="uq_team_member_project"),
+    )
 
 class IntegrationPlatform(enum.Enum):
     YANDEX_DIRECT = "YANDEX_DIRECT"
@@ -446,6 +505,25 @@ class Notification(Base):
     meta = Column(JSON, nullable=True)          # доп. данные: integration_id, plan_code и т.д.
 
     user = relationship("User", backref="notifications")
+
+
+class HistoryEvent(Base):
+    """Аудит действий внутри рабочего пространства команды."""
+    __tablename__ = "history_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    actor_email = Column(String(255), nullable=True)
+    actor_role = Column(String(32), nullable=True)
+    event_type = Column(String(64), nullable=False, index=True)  # team | project | integration | ai | billing
+    action = Column(String(128), nullable=False)
+    description = Column(String(1000), nullable=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    target_type = Column(String(64), nullable=True)
+    target_id = Column(String(128), nullable=True)
+    meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
 class LeadStatus(enum.Enum):

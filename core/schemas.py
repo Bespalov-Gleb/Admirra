@@ -136,6 +136,57 @@ class UserUpdateSettings(BaseModel):
     report_email_recipients: Optional[List[str]] = None
     report_schedule: Optional[str] = None
 
+
+class TeamProjectRef(BaseModel):
+    id: UUID
+    name: str
+
+
+class TeamMemberResponse(BaseModel):
+    id: UUID
+    user_id: Optional[UUID] = None
+    email: EmailStr
+    role: str
+    status: str
+    invited_at: datetime
+    accepted_at: Optional[datetime] = None
+    full_name: Optional[str] = None
+    projects: List[TeamProjectRef] = []
+
+
+class TeamInviteRequest(BaseModel):
+    email: EmailStr
+    role: Optional[str] = None
+
+
+class TeamGrantProjectRequest(BaseModel):
+    project_id: UUID
+
+
+class TeamContextResponse(BaseModel):
+    is_owner: bool
+    team_role: Optional[str] = None
+    account_id: Optional[UUID] = None
+
+
+class HistoryEventResponse(BaseModel):
+    id: UUID
+    account_id: UUID
+    actor_user_id: Optional[UUID] = None
+    actor_email: Optional[str] = None
+    actor_role: Optional[str] = None
+    event_type: str
+    action: str
+    description: Optional[str] = None
+    client_id: Optional[UUID] = None
+    target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    meta: Optional[Any] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 from core import models
 
 # Integration Schemas

@@ -10,10 +10,73 @@ from typing import List, Optional
 class StatsService:
     @staticmethod
     def get_effective_client_ids(db: Session, user_id: uuid.UUID, client_id: Optional[uuid.UUID] = None) -> List[uuid.UUID]:
+        member = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.user_id == user_id,
+                models.TeamMember.status == models.TeamMemberStatus.ACTIVE,
+            )
+            .first()
+        )
+        if member:
+            # Member: own projects + shared team projects. Client: only shared.
+            own_ids = []
+            if member.role == models.TeamMemberRole.MEMBER:
+                own_ids = [r[0] for r in db.query(models.Client.id).filter(models.Client.owner_id == user_id).all()]
+            shared_ids = [
+                r[0]
+                for r in (
+                    db.query(models.TeamMemberProject.project_id)
+                    .join(models.Client, models.Client.id == models.TeamMemberProject.project_id)
+                    .filter(models.TeamMemberProject.team_member_id == member.id)
+                    .all()
+                )
+            ]
+            all_ids = list(dict.fromkeys(own_ids + shared_ids))
+            if client_id:
+                return [client_id] if client_id in all_ids else []
+            return all_ids
+
         if client_id:
             client = db.query(models.Client).filter_by(id=client_id, owner_id=user_id).first()
-            return [client_id] if client else []
-        return [c.id for c in db.query(models.Client).filter_by(owner_id=user_id).all()]
+            if client:
+                return [client_id]
+            # Owner sees all projects of team members too.
+            member_user_ids = [
+                r[0]
+                for r in (
+                    db.query(models.TeamMember.user_id)
+                    .filter(
+                        models.TeamMember.account_id == user_id,
+                        models.TeamMember.role == models.TeamMemberRole.MEMBER,
+                        models.TeamMember.status == models.TeamMemberStatus.ACTIVE,
+                        models.TeamMember.user_id.isnot(None),
+                    )
+                    .all()
+                )
+            ]
+            team_client = None
+            if member_user_ids:
+                team_client = db.query(models.Client).filter(models.Client.id == client_id, models.Client.owner_id.in_(member_user_ids)).first()
+            return [client_id] if team_client else []
+        own = [c.id for c in db.query(models.Client).filter_by(owner_id=user_id).all()]
+        member_user_ids = [
+            r[0]
+            for r in (
+                db.query(models.TeamMember.user_id)
+                .filter(
+                    models.TeamMember.account_id == user_id,
+                    models.TeamMember.role == models.TeamMemberRole.MEMBER,
+                    models.TeamMember.status == models.TeamMemberStatus.ACTIVE,
+                    models.TeamMember.user_id.isnot(None),
+                )
+                .all()
+            )
+        ]
+        team = []
+        if member_user_ids:
+            team = [c.id for c in db.query(models.Client).filter(models.Client.owner_id.in_(member_user_ids)).all()]
+        return list(dict.fromkeys(own + team))
 
     @staticmethod
     def aggregate_summary(

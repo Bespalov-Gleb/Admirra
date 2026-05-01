@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, security
 from backend_api.services.subscription import SubscriptionService
+from backend_api.services.history import log_history_event
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,16 @@ async def chat(
             history=body.history or [],
         )
         SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="ai",
+            action="ai_chat_requested",
+            description="Запрос в AI-чат",
+            client_id=client_id,
+            target_type="ai_chat",
+            meta={"message_length": len(body.message.strip())},
+        )
         db.commit()
         return ChatResponse(text=text)
     except ValueError as e:
@@ -130,6 +141,16 @@ async def generate_report(
             report_type=body.report_type or "full",
         )
         SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="ai",
+            action="ai_report_requested",
+            description="Сгенерирован AI-отчет",
+            client_id=client_id,
+            target_type="ai_report",
+            meta={"report_type": body.report_type or "full"},
+        )
         db.commit()
         return GenerateReportResponse(text=text)
     except ValueError as e:
