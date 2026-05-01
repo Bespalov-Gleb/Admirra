@@ -22,13 +22,17 @@
       </div>
 
       <!-- Add member -->
-      <button class="add-btn">
+      <button class="add-btn" @click="inviteMember">
         <span>Добавить сотрудника</span>
         <span class="icon-plus">+</span>
       </button>
     </div>
 
-    <div v-if="members.length" class="flex flex-col gap-[15px]">
+    <div v-if="isLoading" class="team-empty">
+      <p class="text-[15px] font-medium leading-none text-[#696969]">Загрузка команды...</p>
+    </div>
+
+    <div v-else-if="members.length" class="flex flex-col gap-[15px]">
       <div
         v-for="(member, idx) in members"
         :key="member.id"
@@ -58,7 +62,7 @@
           </button>
 
           <div class="flex items-center gap-[10px]">
-            <button class="access-btn">
+            <button class="access-btn" @click="grantAccess(member)">
               <span>Добавить доступ к&nbsp;проекту</span>
               <span class="icon-plus">+</span>
             </button>
@@ -106,7 +110,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import api from '../../api/axios'
 
 const tabs = [
   { id: 'staff',   label: 'Сотрудники' },
@@ -115,10 +120,138 @@ const tabs = [
 const currentTab = ref('staff')
 const openIndex = ref(null)
 const members = ref([])
+const teamProjects = ref([])
+const isLoading = ref(false)
 
 function toggleMember(idx) {
   openIndex.value = openIndex.value === idx ? null : idx
 }
+
+function roleByTab(tabId) {
+  return tabId === 'clients' ? 'client' : 'member'
+}
+
+function colorForProject(name = '') {
+  const palette = ['#fff2f2', '#fff9f2', '#f2f8ff', '#f2f2ff']
+  const hash = [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+  return palette[hash % palette.length]
+}
+
+function normalizeMember(raw) {
+  const displayName = raw.full_name || raw.email || 'Без имени'
+  const projects = (raw.projects || []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    color: colorForProject(p.name),
+  }))
+  return {
+    id: raw.id,
+    email: raw.email,
+    role: raw.role,
+    status: raw.status,
+    userId: raw.user_id,
+    name: displayName,
+    projects,
+  }
+}
+
+async function fetchTeamProjects() {
+  try {
+    const { data } = await api.get('/team/projects')
+    teamProjects.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    teamProjects.value = []
+    console.warn('Не удалось загрузить список проектов команды', e?.response?.status)
+  }
+}
+
+async function fetchMembers() {
+  isLoading.value = true
+  openIndex.value = null
+  try {
+    const { data } = await api.get('/team/members', {
+      params: { role: roleByTab(currentTab.value) },
+    })
+    members.value = Array.isArray(data) ? data.map(normalizeMember) : []
+  } catch (e) {
+    members.value = []
+    console.warn('Не удалось загрузить участников команды', e?.response?.status)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function inviteMember() {
+  const email = window.prompt('Введите email участника')
+  if (!email) return
+
+  try {
+    await api.post('/team/members/invite', {
+      email: email.trim().toLowerCase(),
+      role: roleByTab(currentTab.value),
+    })
+    await fetchMembers()
+  } catch (e) {
+    window.alert(e?.response?.data?.detail || 'Не удалось пригласить участника')
+  }
+}
+
+async function removeMember(member) {
+  if (!window.confirm(`Удалить участника ${member.email}?`)) return
+
+  try {
+    const endpoint = member.role === 'client' ? `/team/clients/${member.id}` : `/team/members/${member.id}`
+    await api.delete(endpoint)
+    await fetchMembers()
+  } catch (e) {
+    window.alert(e?.response?.data?.detail || 'Не удалось удалить участника')
+  }
+}
+
+async function grantAccess(member) {
+  if (!teamProjects.value.length) {
+    await fetchTeamProjects()
+  }
+  if (!teamProjects.value.length) {
+    window.alert('Нет доступных проектов для выдачи доступа')
+    return
+  }
+
+  const options = teamProjects.value.map((p, idx) => `${idx + 1}. ${p.name}`).join('\n')
+  const selected = window.prompt(`Выберите номер проекта:\n${options}`)
+  const index = Number(selected) - 1
+  const project = teamProjects.value[index]
+  if (!project) return
+
+  try {
+    const endpoint = member.role === 'client' ? `/team/clients/${member.id}/projects` : `/team/members/${member.id}/projects`
+    await api.post(endpoint, { project_id: project.id })
+    await fetchMembers()
+  } catch (e) {
+    window.alert(e?.response?.data?.detail || 'Не удалось выдать доступ к проекту')
+  }
+}
+
+async function revokeAccess(member, project) {
+  if (!window.confirm(`Отозвать доступ "${project.name}" у ${member.email}?`)) return
+  try {
+    const endpoint = member.role === 'client'
+      ? `/team/clients/${member.id}/projects/${project.id}`
+      : `/team/members/${member.id}/projects/${project.id}`
+    await api.delete(endpoint)
+    await fetchMembers()
+  } catch (e) {
+    window.alert(e?.response?.data?.detail || 'Не удалось отозвать доступ')
+  }
+}
+
+watch(currentTab, async () => {
+  await fetchMembers()
+})
+
+onMounted(async () => {
+  await Promise.all([fetchMembers(), fetchTeamProjects()])
+})
 </script>
 
 <style scoped>

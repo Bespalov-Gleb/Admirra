@@ -21,6 +21,7 @@ import json
 from core.logging_utils import log_event
 from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from core.config import get_config
+from backend_api.services.history import log_history_event
 
 cfg = get_config()
 
@@ -1064,6 +1065,17 @@ async def create_integration(
         db_integration.platform_client_secret = encrypted_platform_client_secret
         db_integration.account_id = final_account_id # ENSURE UPDATED
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="integration",
+            action="integration_updated",
+            description=f"Обновлена интеграция {integration.platform.value}",
+            client_id=client.id,
+            target_type="integration",
+            target_id=str(db_integration.id),
+            meta={"platform": integration.platform.value},
+        )
         db.commit()
         db.refresh(db_integration)
         return db_integration
@@ -1079,6 +1091,16 @@ async def create_integration(
         sync_status=models.IntegrationSyncStatus.NEVER
     )
     db.add(new_integration)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="integration_created",
+        description=f"Создана интеграция {integration.platform.value}",
+        client_id=client.id,
+        target_type="integration",
+        meta={"platform": integration.platform.value},
+    )
     db.commit()
     db.refresh(new_integration)
     return new_integration
@@ -1113,6 +1135,17 @@ async def trigger_sync(
     
     # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
     integration.sync_status = models.IntegrationSyncStatus.PENDING
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="sync_started",
+        description=f"Запущена синхронизация интеграции {integration.platform.value}",
+        client_id=integration.client_id,
+        target_type="integration",
+        target_id=str(integration.id),
+        meta={"days": days, "job_id": str(job_id)},
+    )
     db.commit()
     
     return {
@@ -1146,6 +1179,17 @@ async def create_sync_job(
 
     job_id = enqueue_sync_job(iid, days)
     integration.sync_status = models.IntegrationSyncStatus.PENDING
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="sync_started",
+        description=f"Запущена синхронизация интеграции {integration.platform.value}",
+        client_id=integration.client_id,
+        target_type="integration",
+        target_id=str(integration.id),
+        meta={"days": days, "job_id": str(job_id)},
+    )
     db.commit()
     return {"status": "queued", "job_id": str(job_id)}
 
@@ -2458,6 +2502,17 @@ async def update_integration(
     logger.info(f"After update (before commit): agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
     log_event("backend", f"updated integration {integration_id}", integration_in)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="integration_settings_changed",
+        description=f"Изменены настройки интеграции {integration.platform.value}",
+        client_id=integration.client_id,
+        target_type="integration",
+        target_id=str(integration.id),
+        meta={"fields": sorted([str(k) for k in integration_in.keys()])},
+    )
     db.commit()
     db.refresh(integration)
     
@@ -3091,9 +3146,30 @@ async def test_integration_connection(
         if status_info["status"] == "failed":
             integration.sync_status = models.IntegrationSyncStatus.FAILED
             integration.error_message = "; ".join(status_info["details"])
+            log_history_event(
+                db,
+                actor=current_user,
+                event_type="integration",
+                action="sync_failed",
+                description=f"Синхронизация интеграции {integration.platform.value} завершилась с ошибкой",
+                client_id=integration.client_id,
+                target_type="integration",
+                target_id=str(integration.id),
+                meta={"details": status_info["details"]},
+            )
         else:
             integration.sync_status = models.IntegrationSyncStatus.SUCCESS
             integration.error_message = None
+            log_history_event(
+                db,
+                actor=current_user,
+                event_type="integration",
+                action="sync_finished",
+                description=f"Синхронизация интеграции {integration.platform.value} завершена успешно",
+                client_id=integration.client_id,
+                target_type="integration",
+                target_id=str(integration.id),
+            )
             
         db.commit()
         return status_info
@@ -3248,6 +3324,17 @@ async def delete_integration(
     # MetrikaGoals — CASCADE при удалении integration. Campaigns — CASCADE при удалении integration.
     
     # Delete the integration (this will cascade delete campaigns and metrika_goals)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="integration_deleted",
+        description=f"Удалена интеграция {integration.platform.value}",
+        client_id=integration.client_id,
+        target_type="integration",
+        target_id=str(integration.id),
+        meta={"platform": integration.platform.value},
+    )
     db.delete(integration)
     db.commit()
     

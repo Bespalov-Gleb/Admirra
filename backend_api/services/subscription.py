@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from core import models
 from core.config import get_config
+from backend_api.services.history import log_history_event
 
 
 @dataclass
@@ -19,6 +20,8 @@ class EffectivePlan:
     max_ai_requests_per_period: int
     period_days: int
     trial_days: int
+    max_staff: int
+    max_clients: int
     is_default: bool = False
     is_active: bool = True
 
@@ -67,6 +70,8 @@ class SubscriptionService:
                 max_ai_requests_per_period=cfg.plan_basic_ai_limit,
                 period_days=cfg.ai_period_days,
                 trial_days=cfg.trial_days,
+                max_staff=cfg.plan_basic_max_staff,
+                max_clients=cfg.plan_basic_max_clients,
             )
         if code == "standard":
             return EffectivePlan(
@@ -77,6 +82,8 @@ class SubscriptionService:
                 max_ai_requests_per_period=cfg.plan_standard_ai_limit,
                 period_days=cfg.ai_period_days,
                 trial_days=cfg.trial_days,
+                max_staff=cfg.plan_standard_max_staff,
+                max_clients=cfg.plan_standard_max_clients,
             )
         return EffectivePlan(
             code="start",
@@ -86,6 +93,8 @@ class SubscriptionService:
             max_ai_requests_per_period=cfg.plan_start_ai_limit,
             period_days=cfg.ai_period_days,
             trial_days=cfg.trial_days,
+            max_staff=cfg.plan_start_max_staff,
+            max_clients=cfg.plan_start_max_clients,
             is_default=True,
         )
 
@@ -139,6 +148,8 @@ class SubscriptionService:
                 max_ai_requests_per_period=plan_row.max_ai_requests_per_period,
                 period_days=plan_row.period_days,
                 trial_days=plan_row.trial_days,
+                max_staff=getattr(plan_row, "max_staff", get_config().billing.plan_start_max_staff),
+                max_clients=getattr(plan_row, "max_clients", get_config().billing.plan_start_max_clients),
                 is_default=plan_row.is_default,
                 is_active=plan_row.is_active,
             )
@@ -175,6 +186,15 @@ class SubscriptionService:
             return
         if not SubscriptionService.billing_enforced():
             return
+        log_history_event(
+            db,
+            actor=user,
+            event_type="limit",
+            action="project_limit_reached",
+            description=f"Достигнут лимит проектов ({plan.max_projects})",
+            target_type="subscription",
+            meta={"plan_code": plan.code, "limit": plan.max_projects, "current_total": total},
+        )
         raise HTTPException(
             status_code=403,
             detail=f"Достигнут лимит проектов для тарифа '{plan.name}' ({plan.max_projects})",
@@ -196,12 +216,13 @@ class SubscriptionService:
 
     @staticmethod
     def ensure_can_use_ai(db: Session, user: models.User, requested: int = 1) -> None:
-        if SubscriptionService.is_admin_bypass(user):
+        quota_user = SubscriptionService._resolve_ai_quota_user(db, user)
+        if SubscriptionService.is_admin_bypass(quota_user):
             return
-        SubscriptionService.require_active_subscription(db, user)
-        plan = SubscriptionService.get_user_plan(db, user)
-        SubscriptionService._ensure_ai_period(user, plan)
-        used = int(user.ai_requests_used or 0)
+        SubscriptionService.require_active_subscription(db, quota_user)
+        plan = SubscriptionService.get_user_plan(db, quota_user)
+        SubscriptionService._ensure_ai_period(quota_user, plan)
+        used = int(quota_user.ai_requests_used or 0)
         limit = int(plan.max_ai_requests_per_period or 0)
         if used + max(requested, 1) <= limit:
             return
@@ -212,7 +233,7 @@ class SubscriptionService:
             from backend_api.services.notifications import create_notification
             create_notification(
                 db,
-                user_id=user.id,
+                user_id=quota_user.id,
                 type="limit_warn",
                 title="Лимит AI-запросов исчерпан",
                 body=f"Вы использовали все {limit} AI-запросов за текущий период. Перейдите на более высокий тариф.",
@@ -221,6 +242,15 @@ class SubscriptionService:
             db.flush()
         except Exception:
             pass
+        log_history_event(
+            db,
+            actor=user,
+            event_type="limit",
+            action="ai_limit_reached",
+            description=f"Достигнут лимит AI-запросов ({limit})",
+            target_type="subscription",
+            meta={"plan_code": plan.code, "limit": limit, "used": used},
+        )
         raise HTTPException(
             status_code=429,
             detail=f"Превышен лимит AI-запросов для тарифа '{plan.name}' ({limit} за период)",
@@ -228,10 +258,27 @@ class SubscriptionService:
 
     @staticmethod
     def increment_ai_usage(db: Session, user: models.User, requested: int = 1) -> None:
-        if SubscriptionService.is_admin_bypass(user):
+        quota_user = SubscriptionService._resolve_ai_quota_user(db, user)
+        if SubscriptionService.is_admin_bypass(quota_user):
             return
-        plan = SubscriptionService.get_user_plan(db, user)
-        SubscriptionService._ensure_ai_period(user, plan)
-        user.ai_requests_used = int(user.ai_requests_used or 0) + max(requested, 1)
+        plan = SubscriptionService.get_user_plan(db, quota_user)
+        SubscriptionService._ensure_ai_period(quota_user, plan)
+        quota_user.ai_requests_used = int(quota_user.ai_requests_used or 0) + max(requested, 1)
         db.flush()
+
+    @staticmethod
+    def _resolve_ai_quota_user(db: Session, user: models.User) -> models.User:
+        membership = (
+            db.query(models.TeamMember)
+            .filter(
+                models.TeamMember.user_id == user.id,
+                models.TeamMember.status == models.TeamMemberStatus.ACTIVE,
+            )
+            .first()
+        )
+        if membership and membership.account_id:
+            owner = db.query(models.User).filter(models.User.id == membership.account_id).first()
+            if owner:
+                return owner
+        return user
 

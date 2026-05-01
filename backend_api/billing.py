@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend_api.services.cloudpayments import CloudPaymentsService
 from backend_api.services.notifications import create_notification
+from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from core import models, schemas, security
 from core.config import get_config
@@ -285,6 +286,16 @@ async def cloudpayments_webhook(
             body=f"Ваша подписка активна до {sub.current_period_end.strftime('%d.%m.%Y')}.",
             meta={"plan_code": plan.code, "billing_period": billing_period},
         )
+        log_history_event(
+            db,
+            actor=user,
+            event_type="billing",
+            action="payment_succeeded",
+            description=f"Оплата подтверждена, тариф {plan.code}",
+            target_type="subscription",
+            target_id=str(sub.id),
+            meta={"plan_code": plan.code, "billing_period": billing_period},
+        )
     elif "cancel" in event_name:
         sub.status = models.SubscriptionStatus.CANCELED
         user.is_subscribed = False
@@ -295,6 +306,16 @@ async def cloudpayments_webhook(
             title="Подписка отменена",
             body="Ваша подписка была отменена. Вы можете оформить её заново в разделе «Тарифы».",
         )
+        log_history_event(
+            db,
+            actor=user,
+            event_type="billing",
+            action="subscription_canceled",
+            description="Подписка отменена",
+            target_type="subscription",
+            target_id=str(sub.id),
+            meta={"plan_code": plan.code},
+        )
     else:
         sub.status = models.SubscriptionStatus.PAST_DUE
         user.is_subscribed = False
@@ -304,6 +325,16 @@ async def cloudpayments_webhook(
             type="payment_failed",
             title="Ошибка оплаты",
             body="Не удалось провести платёж. Проверьте данные карты или выберите другой способ оплаты.",
+            meta={"plan_code": plan.code},
+        )
+        log_history_event(
+            db,
+            actor=user,
+            event_type="billing",
+            action="payment_failed",
+            description="Ошибка оплаты подписки",
+            target_type="subscription",
+            target_id=str(sub.id),
             meta={"plan_code": plan.code},
         )
 

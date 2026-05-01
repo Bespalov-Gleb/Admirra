@@ -326,6 +326,31 @@ router.beforeEach(async (to, from, next) => {
     console.log('Router: Already authenticated, redirecting to dashboard...')
     next(DEFAULT_DASHBOARD_PATH)
   }
+  else if (isAuth) {
+    const restrictedForMember = new Set(['/team', '/tariffs'])
+    const restrictedForClient = new Set(['/team', '/tariffs', '/integrations', '/integrations/wizard', '/history'])
+    const token = getToken()
+    if (token && (restrictedForMember.has(normalizedPath) || restrictedForClient.has(normalizedPath))) {
+      try {
+        const resp = await fetch('/api/team/me-context', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (resp.ok) {
+          const ctx = await resp.json()
+          const role = ctx.team_role || ctx.teamRole
+          const isOwner = ctx.is_owner ?? ctx.isOwner
+          if (!isOwner && role) {
+            if ((role === 'client' && restrictedForClient.has(normalizedPath)) || (role === 'member' && restrictedForMember.has(normalizedPath))) {
+              return next(DEFAULT_DASHBOARD_PATH)
+            }
+          }
+        }
+      } catch {
+        // ignore and continue
+      }
+    }
+    next()
+  }
   // Иначе разрешаем переход
   else {
     next()

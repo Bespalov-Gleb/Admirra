@@ -13,6 +13,7 @@ import uuid
 from core.database import get_db
 from core import models, security
 from backend_api.services.subscription import SubscriptionService
+from backend_api.services.history import log_history_event
 from backend_api.reports.pdf_service import generate_report_pdf
 from backend_api.reports.export_service import (
     generate_report_png,
@@ -28,6 +29,26 @@ from backend_api.reports.report_html import render_report_html
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+
+def _log_report_export(
+    db: Session,
+    current_user: models.User,
+    fmt: str,
+    client_id: Optional[uuid.UUID],
+    start_date: str,
+    end_date: str,
+) -> None:
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="report",
+        action="report_exported",
+        description=f"Экспорт отчета в формате {fmt}",
+        client_id=client_id,
+        target_type="report_export",
+        meta={"format": fmt, "start_date": start_date, "end_date": end_date},
+    )
 
 
 class SendReportRequest(BaseModel):
@@ -94,6 +115,8 @@ async def get_report_pdf(
             comment=use_comment,
         )
         filename = f"report_{start_date}_{end_date}.pdf"
+        _log_report_export(db, current_user, "pdf", u_client_id, start_date, end_date)
+        db.commit()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -142,6 +165,8 @@ async def get_report_png(
             start_date=start_date, end_date=end_date, comment=use_comment,
         )
         filename = f"report_{start_date}_{end_date}.png"
+        _log_report_export(db, current_user, "png", u_client_id, start_date, end_date)
+        db.commit()
         return Response(
             content=png_bytes,
             media_type="image/png",
@@ -190,6 +215,8 @@ async def get_report_docx(
             start_date=start_date, end_date=end_date, comment=use_comment,
         )
         filename = f"report_{start_date}_{end_date}.docx"
+        _log_report_export(db, current_user, "docx", u_client_id, start_date, end_date)
+        db.commit()
         return Response(
             content=docx_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -267,6 +294,8 @@ async def post_report_docx(
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
         )
         filename = f"report_{req.start_date}_{req.end_date}.docx"
+        _log_report_export(db, current_user, "docx", u_client_id, req.start_date, req.end_date)
+        db.commit()
         return Response(
             content=docx_bytes,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -302,6 +331,8 @@ async def post_report_pdf(
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
         )
         filename = f"report_{req.start_date}_{req.end_date}.pdf"
+        _log_report_export(db, current_user, "pdf", u_client_id, req.start_date, req.end_date)
+        db.commit()
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -335,6 +366,8 @@ async def post_report_png(
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
         )
         filename = f"report_{req.start_date}_{req.end_date}.png"
+        _log_report_export(db, current_user, "png", u_client_id, req.start_date, req.end_date)
+        db.commit()
         return Response(
             content=png_bytes,
             media_type="image/png",
@@ -546,4 +579,27 @@ async def send_report(
         else:
             raise HTTPException(status_code=400, detail="Нет данных для отправки в Telegram")
 
+    if "email" in req.channels and req.email_recipients:
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="report",
+            action="report_sent_email",
+            description="Отправка отчета по Email",
+            client_id=u_client_id,
+            target_type="report_delivery",
+            meta={"ok": bool(results.get("email")), "recipients": req.email_recipients},
+        )
+    if "telegram" in req.channels and req.telegram_chat_id:
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="report",
+            action="report_sent_telegram",
+            description="Отправка отчета в Telegram",
+            client_id=u_client_id,
+            target_type="report_delivery",
+            meta={"ok": bool(results.get("telegram")), "chat_id": req.telegram_chat_id},
+        )
+    db.commit()
     return {"ok": True, "results": results}
