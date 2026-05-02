@@ -24,6 +24,11 @@
 @import "media-app.css";
 
 /* landing header fixes after app imports */
+.btn,
+.btn::after {
+	border-radius: 1.2rem;
+}
+
 .hero .header {
 	display: flex;
 	position: relative;
@@ -84,6 +89,14 @@
 	white-space: nowrap;
 }
 
+.hero .hero-title-line {
+	display: block;
+}
+
+.hero .heading-1 strong {
+	display: block;
+}
+
 .hero .header .btn__inner {
 	display: flex;
 	align-items: center;
@@ -124,6 +137,18 @@
 	.hero .header .btn {
 		padding-left: 1.4rem;
 		padding-right: 1.4rem;
+	}
+
+	.hero .hero-title-line {
+		display: inline;
+	}
+
+	.hero .hero-title-line::after {
+		content: " ";
+	}
+
+	.hero .heading-1 strong {
+		display: inline;
 	}
 }
 
