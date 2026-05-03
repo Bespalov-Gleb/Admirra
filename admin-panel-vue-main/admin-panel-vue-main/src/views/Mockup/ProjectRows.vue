@@ -194,7 +194,7 @@
                 <button
                   type="button"
                   class="relative h-[25px] w-[32px] rounded-[3px] bg-[#f5f7f9]/60 transition hover:bg-[#ecf3fe] dark:bg-white/10"
-                  @click.stop="toggleActionMenu(project.id)"
+                  @click.stop="toggleActionMenu(project, $event)"
                   aria-label="Действия"
                 >
                   <svg class="absolute left-1/2 top-1/2 h-[5px] w-[19px] -translate-x-1/2 -translate-y-1/2 fill-[#d9d9d9]" viewBox="0 0 19 5">
@@ -203,30 +203,6 @@
                     <circle cx="16.5" cy="2.5" r="2.5" />
                   </svg>
                 </button>
-                <div
-                  v-if="activeActionProjectId === project.id"
-                  class="absolute right-3 top-[52px] z-20 w-[220px] rounded-[12px] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D]"
-                  @click.stop
-                >
-                  <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="openProject(project)">
-                    <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
-                      <svg class="h-[14px] w-[18px] fill-none stroke-current" viewBox="0 0 24 18" stroke-width="1.7"><path d="M1.5 9s3.8-7 10.5-7 10.5 7 10.5 7-3.8 7-10.5 7S1.5 9 1.5 9Z"/><circle cx="12" cy="9" r="3"/></svg>
-                    </span>
-                    Просмотр
-                  </button>
-                  <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="router.push('/project-card')">
-                    <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
-                      <svg class="h-[18px] w-[18px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
-                    </span>
-                    Редактировать
-                  </button>
-                  <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#ec3434] transition hover:bg-[#fff0f1] dark:hover:bg-white/10" @click="deleteTarget = project; activeActionProjectId = null">
-                    <span class="mr-3 flex w-[30px] justify-center">
-                      <svg class="h-[17px] w-[17px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
-                    </span>
-                    Удалить
-                  </button>
-                </div>
               </td>
             </tr>
           </tbody>
@@ -292,6 +268,32 @@
       </div>
     </div>
 
+    <div
+      v-if="activeActionProject"
+      class="fixed z-[1200] w-[220px] rounded-[12px] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D]"
+      :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
+      @click.stop
+    >
+      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="openProject(activeActionProject)">
+        <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
+          <svg class="h-[14px] w-[18px] fill-none stroke-current" viewBox="0 0 24 18" stroke-width="1.7"><path d="M1.5 9s3.8-7 10.5-7 10.5 7 10.5 7-3.8 7-10.5 7S1.5 9 1.5 9Z"/><circle cx="12" cy="9" r="3"/></svg>
+        </span>
+        Просмотр
+      </button>
+      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="editProject(activeActionProject)">
+        <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
+          <svg class="h-[18px] w-[18px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
+        </span>
+        Редактировать
+      </button>
+      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#ec3434] transition hover:bg-[#fff0f1] dark:hover:bg-white/10" @click="requestDeleteProject(activeActionProject)">
+        <span class="mr-3 flex w-[30px] justify-center">
+          <svg class="h-[17px] w-[17px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
+        </span>
+        Удалить
+      </button>
+    </div>
+
     <!-- MODAL: Mass edit -->
     <div
       v-if="massEditOpen"
@@ -353,7 +355,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
@@ -377,6 +379,8 @@ const massEditOpen = ref(false)
 const massEditDescription = ref('')
 const massSaving = ref(false)
 const activeActionProjectId = ref(null)
+const activeActionProject = ref(null)
+const actionMenuPosition = ref({ top: 0, left: 0 })
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -646,8 +650,45 @@ const formatDate = (value) => {
   return new Intl.DateTimeFormat('ru-RU').format(date)
 }
 
-const toggleActionMenu = (projectId) => {
-  activeActionProjectId.value = activeActionProjectId.value === projectId ? null : projectId
+const closeActionMenu = () => {
+  activeActionProjectId.value = null
+  activeActionProject.value = null
+}
+
+const toggleActionMenu = (project, event) => {
+  if (activeActionProjectId.value === project.id) {
+    closeActionMenu()
+    return
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect()
+  const menuWidth = 220
+  const menuHeight = 153
+  const gap = 8
+  const viewportPadding = 12
+  const left = Math.min(
+    window.innerWidth - menuWidth - viewportPadding,
+    Math.max(viewportPadding, rect.right - menuWidth)
+  )
+  let top = rect.bottom + gap
+
+  if (top + menuHeight > window.innerHeight - viewportPadding) {
+    top = Math.max(viewportPadding, rect.top - menuHeight - gap)
+  }
+
+  activeActionProjectId.value = project.id
+  activeActionProject.value = project
+  actionMenuPosition.value = { top, left }
+}
+
+const editProject = () => {
+  closeActionMenu()
+  router.push('/project-card')
+}
+
+const requestDeleteProject = (project) => {
+  deleteTarget.value = project
+  closeActionMenu()
 }
 
 const loadProjectMetrics = async () => {
@@ -683,7 +724,7 @@ const reloadMetrics = async () => {
 }
 
 const openProject = (project) => {
-  activeActionProjectId.value = null
+  closeActionMenu()
   setCurrentProject(project.id)
   router.push('/dashboard/general-3')
 }
@@ -708,8 +749,13 @@ watch([filteredProjects, itemsPerPage], () => {
 })
 
 onMounted(async () => {
+  document.addEventListener('click', closeActionMenu)
   await fetchProjects()
   await loadProjectMetrics()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeActionMenu)
 })
 </script>
 

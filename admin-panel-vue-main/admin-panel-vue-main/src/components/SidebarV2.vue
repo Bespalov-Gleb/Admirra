@@ -259,8 +259,8 @@ const menuItems = computed(() => {
         { name: 'AI отчет по проекту', path: '/ai-analysis' },
       ]
     },
-    { name: 'Проекты', path: '/project-rows', icon: RectangleStackIcon },
-    { name: 'Интеграции', path: '/integrations/wizard', icon: RectangleStackIcon },
+    { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon },
+    { name: 'Интеграции', path: '/integrations', icon: RectangleStackIcon },
   ]
 
   items.push(
