@@ -145,14 +145,29 @@
         <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <h4 class="dark:!text-white/90">Выберите рекламный кабинет для интеграции</h4>
+            <div class="search-wrap">
+              <input
+                v-model="profileSearch"
+                type="text"
+                class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
+                placeholder="Поиск по кабинетам"
+              />
+              <div class="search-icon-circle dark:!bg-white/10">
+                <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
+                  <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
+                  <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
           </div>
 
           <div v-if="loadingStates.profiles" class="empty-line dark:!text-white/55">Загрузка профилей...</div>
           <div v-else-if="profiles.length === 0" class="empty-line dark:!text-white/55">Нет доступных профилей. Проверьте авторизацию.</div>
+          <div v-else-if="filteredProfiles.length === 0" class="empty-line dark:!text-white/55">Кабинеты не найдены</div>
 
           <div v-else class="cards-grid">
             <label
-              v-for="cabinet in profiles"
+              v-for="cabinet in filteredProfiles"
               :key="cabinet.login"
               class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': form.account_id === cabinet.login }"
@@ -453,6 +468,7 @@ const step = ref(1)
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const openSelect = ref(null)
+const profileSearch = ref('')
 const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
 const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
 const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
@@ -469,6 +485,16 @@ const allCountersSelected = computed(() =>
 const allGoalsSelected = computed(() =>
   goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length
 )
+
+const filteredProfiles = computed(() => {
+  const q = profileSearch.value.trim().toLowerCase()
+  if (!q) return profiles.value
+  return profiles.value.filter((cabinet) =>
+    String(cabinet.name || '').toLowerCase().includes(q) ||
+    String(cabinet.login || '').toLowerCase().includes(q) ||
+    String(cabinet.type || '').toLowerCase().includes(q)
+  )
+})
 
 const summaryCounterLines = computed(() =>
   selectedCounterIds.value
@@ -1137,7 +1163,7 @@ const toggleGoalSelection = (id) => {
 }
 .panel-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
 }
@@ -1155,6 +1181,43 @@ const toggleGoalSelection = (id) => {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.35;
+}
+.search-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.search-input {
+  width: 354px;
+  height: 46px;
+  padding: 0 45px 0 17px;
+  border: none;
+  border-radius: 12px;
+  outline: none;
+  background-color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  color: #2c2c2c;
+  font-size: 13px;
+  transition: box-shadow 0.5s;
+}
+.search-input:focus {
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 10px rgba(37, 99, 235, 0.15);
+}
+.search-input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+.search-icon-circle {
+  position: absolute;
+  right: 17px;
+  top: 50%;
+  display: flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #f5f7f9;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 .empty-line {
   padding: 20px 0;
@@ -1454,6 +1517,20 @@ const toggleGoalSelection = (id) => {
 :global(.darkmode) .wizard-input::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
+:global(.dark) .search-icon-circle,
+:global(.darkmode) .search-icon-circle {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .search-input,
+:global(.darkmode) .search-input {
+  background-color: #2C2F3D;
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+:global(.dark) .search-input::placeholder,
+:global(.darkmode) .search-input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
 :global(.dark) .ghost-btn,
 :global(.darkmode) .ghost-btn,
 :global(.dark) .status-pill,
@@ -1539,6 +1616,14 @@ const toggleGoalSelection = (id) => {
   .wizard-grid,
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+  .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .search-wrap,
+  .search-input {
+    width: 100%;
   }
   .soft-panel,
   .final-card,

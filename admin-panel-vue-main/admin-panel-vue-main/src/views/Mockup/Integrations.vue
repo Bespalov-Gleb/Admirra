@@ -13,7 +13,10 @@
           <img :src="p.icon" :alt="p.name" />
         </div>
         <span class="platform-btn__label" :style="{ color: p.color }">{{ p.name }}</span>
-        <span class="platform-btn__plus">+</span>
+        <span class="platform-btn__plus" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </span>
       </button>
     </div>
 
@@ -26,7 +29,10 @@
     <div class="flex flex-wrap items-center gap-[10px] mb-[30px]">
       <button class="add-btn" @click="$router.push('/integrations/wizard')">
         <span>Добавить подключение</span>
-        <span class="icon-plus">+</span>
+        <span class="icon-plus" aria-hidden="true">
+          <span></span>
+          <span></span>
+        </span>
       </button>
       <div class="search-wrap">
         <input
@@ -274,19 +280,38 @@ const formatDate = (dateStr) => {
 }
 
 .platform-btn__plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  display: inline-flex;
   width: 15px;
   height: 15px;
   border-radius: 50%;
   background-color: rgba(0,0,0,0.12);
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(0,0,0,0.45);
   flex-shrink: 0;
-  line-height: 1;
   margin-left: 4px;
+}
+.platform-btn__plus span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.45);
+  transform: translate(-50%, -50%);
+}
+.platform-btn__plus span:first-child {
+  width: 5.5px;
+  height: 1px;
+}
+.platform-btn__plus span:last-child {
+  width: 1px;
+  height: 5.5px;
+}
+:global(.dark) .platform-btn__plus,
+:global(.darkmode) .platform-btn__plus {
+  background-color: rgba(255,255,255,0.16);
+}
+:global(.dark) .platform-btn__plus span,
+:global(.darkmode) .platform-btn__plus span {
+  background: rgba(255,255,255,0.7);
 }
 
 /* ── Add button (стиль как bulk-btn в ProjectCard) ── */
@@ -310,17 +335,29 @@ const formatDate = (dateStr) => {
 .add-btn:active { transform: scale(0.97); transition: transform 0s; }
 
 .icon-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  display: inline-flex;
   width: 22px;
   height: 22px;
   border-radius: 6px;
   background: rgba(255,255,255,0.2);
-  font-size: 14px;
-  font-weight: 400;
   flex-shrink: 0;
-  line-height: 1;
+}
+.icon-plus span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 999px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+.icon-plus span:first-child {
+  width: 7px;
+  height: 1px;
+}
+.icon-plus span:last-child {
+  width: 1px;
+  height: 7px;
 }
 
 /* ── Search (стиль как в ProjectCard) ── */

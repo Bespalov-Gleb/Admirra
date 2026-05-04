@@ -1,19 +1,19 @@
 <template>
   <header class="h-[76px] flex items-stretch bg-white dark:bg-[#2C2F3D] border-b border-black/5 dark:border-white/10 flex-shrink-0">
-    <div class="flex-1 flex items-center px-[25px] py-[5px] gap-4 min-w-0">
+    <div class="flex-1 flex items-center px-[8px] py-[5px] gap-1.5 min-w-0 2xl:px-[25px] 2xl:gap-4">
 
       <!-- Left: Project selector -->
       <div class="relative flex-shrink-0" ref="projectMenuRef">
         <button
           @click="toggleProjectMenu"
-          class="flex min-h-[46px] items-center gap-5 rounded-[12px] bg-[#f5f7f9] px-[15px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15"
+          class="flex min-h-[46px] items-center gap-2 rounded-[12px] bg-[#f5f7f9] px-[10px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[15px]"
         >
-          <div class="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+          <div class="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 2xl:h-9 2xl:w-9">
             <img class="w-full h-full object-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
           </div>
-          <div class="hidden min-w-[90px] flex-col gap-[3px] text-left xl:flex">
-            <div class="text-[14px] font-medium leading-none text-[#515151] dark:text-gray-100">{{ headerProjectName }}</div>
-            <div class="pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-gray-400">Отчеты агентства в одном месте</div>
+          <div class="hidden min-w-[66px] max-w-[104px] flex-col gap-[3px] text-left min-[960px]:flex 2xl:min-w-[90px] 2xl:max-w-none">
+            <div class="truncate text-[12px] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[14px]">{{ headerProjectName }}</div>
+            <div class="hidden pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-gray-400 2xl:block">Отчеты агентства в одном месте</div>
           </div>
           <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
             <svg class="w-[9px] h-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
@@ -61,18 +61,18 @@
       </div>
 
       <!-- Subscription info (xxl+) -->
-      <div class="hidden 2xl:flex items-center gap-4 pl-4 border-l border-black/5 dark:border-white/10">
+      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 min-[960px]:flex 2xl:gap-4 2xl:pl-4">
         <div>
-          <div class="text-[13px] font-medium text-gray-500 dark:text-gray-400">
+          <div class="whitespace-nowrap text-[10px] font-medium text-gray-500 dark:text-gray-400 2xl:text-[13px]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
           </div>
-          <div v-if="subscription.expiresAtLabel" class="text-[11px] text-gray-400">
+          <div v-if="subscription.expiresAtLabel" class="hidden text-[11px] text-gray-400 2xl:block">
             Действует до {{ subscription.expiresAtLabel }}
           </div>
         </div>
         <button
           @click="router.push('/tariffs')"
-          class="flex min-h-[46px] flex-shrink-0 items-center justify-center rounded-[12px] border border-[#e1e1e1] px-[17px] py-2 text-[13px] font-medium leading-none transition-all duration-500 hover:border-[#2563eb]"
+          class="flex min-h-[46px] flex-shrink-0 items-center justify-center rounded-[12px] border border-[#e1e1e1] px-[9px] py-2 text-[10px] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[17px] 2xl:text-[13px]"
         >
           <span class="bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">
             Продлить
@@ -81,19 +81,33 @@
       </div>
 
       <!-- Spacer -->
-      <div class="flex-1" />
+      <div class="min-w-1 flex-1" />
 
       <!-- Right actions -->
-      <div class="flex items-center gap-2">
+      <div class="flex flex-shrink-0 items-center gap-1.5 2xl:gap-2">
+
+        <!-- Add project -->
+        <button
+          @click="router.push('/projects/create')"
+          class="group relative hidden min-h-[46px] items-center justify-center overflow-hidden rounded-[12px] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[9px] py-2 text-center text-[10px] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[12px] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[960px]:inline-flex 2xl:px-[17px] 2xl:text-[13px]"
+        >
+          <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
+            Добавить новый проект
+            <span class="relative inline-flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[15px] 2xl:w-[15px]">
+              <span class="absolute left-1/2 top-1/2 h-px w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+              <span class="absolute left-1/2 top-1/2 h-[5px] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+            </span>
+          </span>
+        </button>
 
         <!-- "Предложить идею" (lg+) -->
         <button
           @click="router.push('/contact')"
-          class="group relative hidden min-h-[46px] items-center justify-center overflow-hidden rounded-[12px] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[17px] py-2 text-center text-[13px] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[12px] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] xl:inline-flex"
+          class="group relative hidden min-h-[46px] items-center justify-center overflow-hidden rounded-[12px] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[9px] py-2 text-center text-[10px] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[12px] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[960px]:inline-flex 2xl:px-[17px] 2xl:text-[13px]"
         >
-          <span class="relative z-[1] flex items-center gap-2.5">
+          <span class="relative z-[1] flex items-center gap-1.5 2xl:gap-2.5">
             Предложить идею
-            <svg class="h-4 w-4 fill-white" viewBox="0 0 24 24">
+            <svg class="h-3.5 w-3.5 fill-white 2xl:h-4 2xl:w-4" viewBox="0 0 24 24">
               <use href="/admirra/img/svg/sprite.svg#idea"></use>
             </svg>
           </span>
@@ -101,13 +115,14 @@
 
         <!-- Upgrade button (xxxl only = 2xl+) -->
         <button
-          @click="router.push('/projects/create')"
-          class="hidden min-h-[46px] items-center justify-center rounded-[12px] bg-[#2563eb] px-[17px] py-2 text-[13px] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] 2xl:flex"
+          @click="router.push('/tariffs')"
+          class="hidden min-h-[46px] items-center justify-center rounded-[12px] bg-[#2563eb] px-[9px] py-2 text-[10px] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] min-[960px]:flex 2xl:px-[17px] 2xl:text-[13px]"
         >
-          <span class="flex items-center gap-2.5">
+          <span class="flex items-center gap-1.5 2xl:gap-2.5">
             Перейти на тариф Старт
-            <span class="inline-flex h-[15px] w-[15px] items-center justify-center rounded-full bg-black/20 text-[10px] font-medium leading-[15px]">
-              <span class="block leading-none">+</span>
+            <span class="relative inline-flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded-full bg-black/20">
+              <span class="absolute left-1/2 top-1/2 h-px w-[5.5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+              <span class="absolute left-1/2 top-1/2 h-[5.5px] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
             </span>
           </span>
         </button>
@@ -176,12 +191,12 @@
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="flex min-h-[46px] items-center gap-5 rounded-[12px] bg-[#f5f7f9] px-[15px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15"
+            class="flex min-h-[46px] items-center gap-2 rounded-[12px] bg-[#f5f7f9] px-[10px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[15px]"
           >
             <div class="h-[30px] w-[30px] flex-shrink-0 overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
               <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-30x30.png" alt="#" />
             </div>
-            <span class="hidden max-w-[150px] truncate text-[14px] font-medium text-[#515151] dark:text-gray-100 md:block">{{ displayName }}</span>
+            <span class="hidden max-w-[68px] truncate text-[10px] font-medium text-[#515151] dark:text-gray-100 min-[960px]:block 2xl:max-w-[150px] 2xl:text-[14px]">{{ displayName }}</span>
             <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
               <svg class="h-[9px] w-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
                 <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>

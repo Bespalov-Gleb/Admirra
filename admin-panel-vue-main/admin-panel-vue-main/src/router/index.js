@@ -109,7 +109,7 @@ const routes = [
   },
   {
     path: '/projects',
-    redirect: '/project-rows'
+    redirect: '/project-card'
   },
   {
     path: '/phone-api',
@@ -369,4 +369,3 @@ router.onError((error, to) => {
 })
 
 export default router
-
