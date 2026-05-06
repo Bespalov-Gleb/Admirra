@@ -1,20 +1,20 @@
 <template>
-  <div class="bg-white w-full rounded-2xl px-6 sm:px-10 py-8 shadow-md border border-gray-100">
+  <div class="bg-white dark:bg-[#2A2D3C] w-full rounded-2xl px-4 sm:px-10 py-6 sm:py-8 shadow-md border border-gray-100 dark:border-white/10">
     <div class="flex items-center justify-between mb-8">
       <h3 class="text-xl font-bold text-gray-900 dark:text-white">Эффективность продвижения</h3>
     </div>
     
     <!-- Labels Row -->
-    <div class="flex justify-between px-4 sm:px-12 mb-2 text-center">
-      <div v-for="label in funnelLabels" :key="label.text" class="flex flex-col items-center flex-1">
-        <span class="text-sm font-black text-gray-900">{{ label.value }}</span>
-        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{{ label.text }}</span>
+    <div class="grid grid-cols-2 gap-3 px-0 sm:grid-cols-3 lg:grid-cols-6 sm:px-12 mb-4 text-center">
+      <div v-for="label in funnelLabels" :key="label.text" class="flex min-w-0 flex-col items-center rounded-lg bg-gray-50 px-2 py-2 dark:bg-white/5 lg:bg-transparent lg:p-0 lg:dark:bg-transparent">
+        <span class="max-w-full truncate text-sm font-black text-gray-900 dark:text-gray-100">{{ label.value }}</span>
+        <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter">{{ label.text }}</span>
       </div>
     </div>
 
     <!-- Funnel Chart Area -->
-    <div class="relative h-32 mb-10 px-4 sm:px-12">
-      <svg viewBox="0 0 1080 120" preserveAspectRatio="none" class="w-full h-full">
+    <div class="relative h-28 sm:h-32 mb-8 sm:mb-10 px-0 sm:px-12 overflow-x-auto overflow-y-hidden">
+      <svg viewBox="0 0 1080 120" preserveAspectRatio="none" class="h-full min-w-[720px] w-full">
         <defs>
           <filter id="shadow">
             <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
@@ -75,7 +75,7 @@
     <!-- Auto-Goals Table Section -->
     <div class="mt-8">
       <div v-if="loadingAutoGoals" class="text-center py-12">
-        <div class="inline-flex items-center gap-3 text-sm text-gray-500">
+        <div class="inline-flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
           <div class="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
           <span class="font-medium">Загрузка автоцелей...</span>
         </div>
@@ -87,15 +87,15 @@
           <div 
             v-for="goal in autoGoals" 
             :key="goal.id"
-            class="bg-white rounded-xl p-5 border-2 transition-all hover:shadow-lg"
-            :class="goal.is_primary ? 'border-blue-300 shadow-md' : 'border-gray-200 hover:border-blue-200'"
+            class="bg-white dark:bg-white/5 rounded-xl p-5 border-2 transition-all hover:shadow-lg"
+            :class="goal.is_primary ? 'border-blue-300 dark:border-[#4A7AFF]/60 shadow-md' : 'border-gray-200 dark:border-white/10 hover:border-blue-200 dark:hover:border-[#4A7AFF]/45'"
           >
-            <div class="flex items-start justify-between mb-4">
-              <div class="flex-1">
-                <h5 class="text-sm font-black text-gray-900 mb-1">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div class="min-w-0 flex-1">
+                <h5 class="text-sm font-black text-gray-900 dark:text-gray-100 mb-1 break-words">
                   {{ formatGoalName(goal.name) }}
                 </h5>
-                <p class="text-xs text-gray-500">ID: {{ goal.id }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">ID: {{ goal.id }}</p>
               </div>
               <button
                 v-if="goal.is_primary"
@@ -107,18 +107,18 @@
                 ОСНОВНАЯ
               </button>
             </div>
-            <div class="grid grid-cols-3 gap-4">
-              <div>
-                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Конверсия</span>
-                <span class="text-xl font-black text-gray-900">{{ (goal.count || 0).toLocaleString() }}</span>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div class="min-w-0">
+                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Конверсия</span>
+                <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ (goal.count || 0).toLocaleString() }}</span>
               </div>
-              <div>
-                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Стоимость</span>
-                <span class="text-xl font-black text-gray-900">{{ formatMoney(goal.cost || 0) }}</span>
+              <div class="min-w-0">
+                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость</span>
+                <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ formatMoney(goal.cost || 0) }}</span>
               </div>
-              <div>
-                <span class="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-1">Стоимость одной</span>
-                <span class="text-xl font-black text-gray-900">{{ formatMoney(calculateCPA(goal)) }}</span>
+              <div class="min-w-0">
+                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость одной</span>
+                <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ formatMoney(calculateCPA(goal)) }}</span>
               </div>
             </div>
           </div>
@@ -126,8 +126,8 @@
         
         <!-- Right: Donut Chart -->
         <div class="lg:col-span-1">
-          <div class="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-md">
-            <h4 class="text-sm font-black text-gray-900 uppercase tracking-wider mb-4">Разбивка по целям</h4>
+          <div class="bg-white dark:bg-white/5 rounded-xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md">
+            <h4 class="text-sm font-black text-gray-900 dark:text-gray-100 uppercase tracking-wider mb-4">Разбивка по целям</h4>
             <div class="relative w-full aspect-square max-w-[280px] mx-auto mb-4">
               <svg viewBox="0 0 200 200" class="w-full h-full">
                 <!-- Donut Chart -->
@@ -137,7 +137,7 @@
                     :key="index"
                     :d="segment.path"
                     :fill="segment.color"
-                    stroke="white"
+                    :stroke="isDark ? '#2A2D3C' : 'white'"
                     stroke-width="2"
                   />
                   <!-- Center Text: используем summary.leads как каноничное значение (синхронизация с KPI) -->
@@ -148,7 +148,7 @@
                     dominant-baseline="middle" 
                     font-size="24"
                     font-weight="900"
-                    fill="#111827"
+                    :fill="isDark ? '#F9FAFB' : '#111827'"
                   >
                     {{ (props.summary?.leads ?? totalConversions) }} шт
                   </text>
@@ -162,12 +162,12 @@
                 :key="goal.id"
                 class="flex items-center justify-between text-xs"
               >
-                <div class="flex items-center gap-2.5">
+                <div class="flex min-w-0 items-center gap-2.5">
                   <div 
-                    class="w-3.5 h-3.5 rounded-full shadow-sm border border-white"
+                    class="w-3.5 h-3.5 rounded-full shadow-sm border border-white dark:border-[#2A2D3C]"
                     :style="{ backgroundColor: donutColors[index % donutColors.length] }"
                   ></div>
-                  <span class="text-gray-800 font-semibold text-xs">{{ formatGoalName(goal.name) }}</span>
+                  <span class="min-w-0 truncate text-gray-800 dark:text-gray-200 font-semibold text-xs">{{ formatGoalName(goal.name) }}</span>
                 </div>
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -179,8 +179,8 @@
       </div>
       
       <div v-else class="text-center py-12">
-        <p class="text-sm text-gray-500 font-medium">Нет данных по автоцелям</p>
-        <p class="text-xs text-gray-400 mt-2">Настройте интеграции с Яндекс.Метрикой для отображения целевых визитов</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Нет данных по автоцелям</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Настройте интеграции с Яндекс.Метрикой для отображения целевых визитов</p>
       </div>
     </div>
   </div>
@@ -189,6 +189,10 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../../../api/axios'
+import { useTheme } from '../../../composables/useTheme'
+
+const { isDarkMode } = useTheme()
+const isDark = computed(() => isDarkMode.value)
 
 const props = defineProps({
   summary: {

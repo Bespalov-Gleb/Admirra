@@ -1,51 +1,51 @@
 <template>
   <div class="flex flex-wrap items-center gap-3 lg:gap-4">
     <!-- Main Selections Group -->
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex w-full flex-wrap items-center gap-3 lg:w-auto">
       <!-- Project Select -->
-      <div class="flex flex-col gap-1 min-w-[140px] sm:min-w-[180px]">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Проект</label>
+      <div class="filter-field flex flex-col gap-1 min-w-[140px] sm:min-w-[180px]">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Проект</label>
         <div class="relative group">
           <select 
             v-model="filters.client_id"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white dark:bg-[#232637] border border-gray-100 dark:border-white/10 rounded-[14px] text-xs font-normal text-gray-500 dark:text-gray-300 outline-none appearance-none transition-all focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 dark:group-hover:border-white/20"
           >
             <option value="">Все проекты</option>
             <option v-for="client in clients" :key="client.id" :value="client.id">
               {{ client.name }}
             </option>
           </select>
-          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
+          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
         </div>
       </div>
 
-      <div class="w-[1px] h-8 bg-gray-200/50 hidden sm:block"></div>
+      <div class="w-[1px] h-8 bg-gray-200/50 dark:bg-white/10 hidden sm:block"></div>
 
       <!-- Channel Select -->
-      <div class="flex flex-col gap-1 min-w-[110px] sm:min-w-[140px]">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Канал</label>
+      <div class="filter-field flex flex-col gap-1 min-w-[110px] sm:min-w-[140px]">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Канал</label>
         <div class="relative group">
           <select 
             v-model="filters.channel"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white dark:bg-[#232637] border border-gray-100 dark:border-white/10 rounded-[14px] text-xs font-normal text-gray-500 dark:text-gray-300 outline-none appearance-none transition-all focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 dark:group-hover:border-white/20"
           >
             <option value="all">Все каналы</option>
             <option value="yandex">Yandex Direct</option>
             <option value="vk">VK Ads</option>
           </select>
-          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
+          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
         </div>
       </div>
 
-      <div class="w-[1px] h-8 bg-gray-200/50 hidden lg:block"></div>
+      <div class="w-[1px] h-8 bg-gray-200/50 dark:bg-white/10 hidden lg:block"></div>
 
       <!-- Campaign Select -->
-      <div class="flex flex-col gap-1 min-w-[140px] sm:min-w-[180px]">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Кампания</label>
+      <div class="filter-field flex flex-col gap-1 min-w-[140px] sm:min-w-[180px]">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Кампания</label>
         <div class="relative group">
           <select 
             v-model="selectedCampaignId"
-            class="w-full h-9 pl-3 pr-8 bg-white border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full h-9 pl-3 pr-8 bg-white dark:bg-[#232637] border border-gray-100 dark:border-white/10 rounded-[14px] text-xs font-normal text-gray-500 dark:text-gray-300 outline-none appearance-none transition-all focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 dark:group-hover:border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="loadingCampaigns || !filters.client_id"
           >
             <template v-if="!filters.client_id">
@@ -67,17 +67,17 @@
           <div v-if="loadingCampaigns" class="absolute right-8 top-1/2 -translate-y-1/2">
             <div class="w-3 h-3 border-2 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
-          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
+          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
         </div>
       </div>
 
-      <div v-if="filters.channel === 'vk'" ref="vkGoalsContainer" class="flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Целевое действие</label>
+      <div v-if="filters.channel === 'vk'" ref="vkGoalsContainer" class="filter-field flex flex-col gap-1 min-w-[180px] sm:min-w-[220px]">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Целевое действие</label>
         <div class="relative">
           <button
             ref="goalsButton"
             type="button"
-            class="w-full h-9 px-3 bg-white border border-gray-100 rounded-[14px] text-xs font-bold text-gray-700 flex items-center justify-between transition-all hover:border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full h-9 px-3 bg-white dark:bg-[#232637] border border-gray-100 dark:border-white/10 rounded-[14px] text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center justify-between transition-all hover:border-gray-200 dark:hover:border-white/20 focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-4 focus:ring-blue-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="loadingVkGoalActions"
             @click.stop="toggleGoals"
           >
@@ -87,7 +87,7 @@
               <template v-else-if="allGoalsSelected">Все действия ({{ vkGoalActions.length }})</template>
               <template v-else>Выбрано: {{ selectedGoalIds.length }}</template>
             </span>
-            <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{'rotate-180': showGoals}" />
+            <ChevronDownIcon class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform" :class="{'rotate-180': showGoals}" />
           </button>
         </div>
       </div>
@@ -96,7 +96,7 @@
       <Teleport to="body">
         <div
           v-if="showGoals && vkGoalActions.length && dropdownPosition"
-          class="fixed bg-white border border-gray-200 rounded-[14px] shadow-2xl p-3 max-h-80 overflow-y-auto"
+          class="fixed bg-white dark:bg-[#2C2F3D] border border-gray-200 dark:border-white/10 rounded-[14px] shadow-2xl p-3 max-h-80 overflow-y-auto"
           :style="{
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`,
@@ -105,7 +105,7 @@
           }"
           @click.stop
         >
-          <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer">
+          <label class="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer">
             <input
               type="checkbox"
               class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
@@ -114,17 +114,17 @@
             />
             <span>Выбрать все</span>
           </label>
-          <div class="h-px bg-gray-100 my-1"></div>
+          <div class="h-px bg-gray-100 dark:bg-white/10 my-1"></div>
 
           <!-- Группированный список типов ЦД -->
           <div v-for="group in groupedVkGoals" :key="group.key" class="mb-1 last:mb-0">
-            <div class="px-2 py-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+            <div class="px-2 py-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
               {{ group.name }}
             </div>
             <label
               v-for="goal in group.items"
               :key="goal.id"
-              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+              class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer transition-colors"
             >
               <input
                 type="checkbox"
@@ -140,15 +140,15 @@
     </div>
 
     <!-- Time & Action Group -->
-    <div class="flex items-center gap-3 ml-auto">
+    <div class="flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:w-auto">
       <!-- Period Select -->
-      <div class="flex flex-col gap-1 w-[110px]">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Период</label>
+      <div class="filter-field flex flex-col gap-1 w-[110px]">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Период</label>
         <div class="relative group">
           <select 
             v-model="filters.period"
             @change="$emit('period-change')"
-            class="w-full h-9 pl-3 pr-8 bg-white/50 border border-gray-100 rounded-[14px] text-xs font-normal text-gray-400 outline-none appearance-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200"
+            class="w-full h-9 pl-3 pr-8 bg-white/50 dark:bg-[#232637] border border-gray-100 dark:border-white/10 rounded-[14px] text-xs font-normal text-gray-500 dark:text-gray-300 outline-none appearance-none transition-all focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-4 focus:ring-blue-500/5 group-hover:border-gray-200 dark:group-hover:border-white/20"
           >
             <option value="7">Последняя неделя</option>
             <option value="14">2 недели</option>
@@ -158,13 +158,13 @@
             <option value="365">Год</option>
             <option value="custom">Свой период</option>
           </select>
-          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
+          <ChevronDownIcon class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
         </div>
       </div>
 
       <!-- Custom Date Range Picker -->
-      <div v-if="filters.period === 'custom'" class="flex flex-col gap-1">
-        <label class="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Даты</label>
+      <div v-if="filters.period === 'custom'" class="filter-field flex flex-col gap-1">
+        <label class="text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-2">Даты</label>
         <DateRangePicker
           :model-value="{ start: filters.start_date, end: filters.end_date }"
           @change="handleCustomDateChange"
@@ -365,3 +365,12 @@ const handleCustomDateChange = (dates) => {
   emit('period-change')
 }
 </script>
+
+<style scoped>
+@media (max-width: 639px) {
+  .filter-field {
+    min-width: 100%;
+    width: 100%;
+  }
+}
+</style>

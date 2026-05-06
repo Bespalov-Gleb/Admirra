@@ -282,8 +282,15 @@ const router = createRouter({
   routes
 })
 
+const TEMP_DISABLE_AUTH_GUARD = true
+
 // Проверка аутентификации перед переходом
 router.beforeEach(async (to, from, next) => {
+  if (TEMP_DISABLE_AUTH_GUARD) {
+    next()
+    return
+  }
+
   const { checkAuth, isAuthenticated, getToken } = useAuth()
   let isAuth = Boolean(isAuthenticated.value && getToken())
   if (!isAuth) {

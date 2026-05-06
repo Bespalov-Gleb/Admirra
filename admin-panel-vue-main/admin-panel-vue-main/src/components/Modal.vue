@@ -7,7 +7,7 @@
         @click.self="handleBackdropClick"
       >
         <div :class="[
-          'bg-white rounded-lg shadow-xl w-full max-h-[95vh] overflow-hidden flex flex-col mx-2 sm:mx-4',
+          'bg-white dark:bg-[#2C2F3D] rounded-lg shadow-xl w-full max-h-[95vh] overflow-hidden flex flex-col mx-2 sm:mx-4 border border-transparent dark:border-white/10',
           {
             'max-w-sm': props.size === 'sm',
             'max-w-md': props.size === 'md',
@@ -17,12 +17,12 @@
           }
         ]">
           <!-- Заголовок -->
-          <div class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0 sticky top-0 bg-white z-10">
-            <h3 class="text-lg font-semibold text-gray-900">{{ title }}</h3>
+          <div class="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-white/10 flex-shrink-0 sticky top-0 bg-white dark:bg-[#2C2F3D] z-10">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ title }}</h3>
             <button
               v-if="showCloseButton"
               @click="handleClose"
-              class="text-gray-400 hover:text-gray-600 transition-colors"
+              class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-200 transition-colors"
             >
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -31,12 +31,12 @@
           </div>
 
           <!-- Контент -->
-          <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6 dark:text-gray-200">
             <slot></slot>
           </div>
 
           <!-- Футер -->
-          <div v-if="$slots.footer" class="border-t border-gray-200 p-4 sm:p-6 flex-shrink-0 sticky bottom-0 bg-white z-10">
+          <div v-if="$slots.footer" class="border-t border-gray-200 dark:border-white/10 p-4 sm:p-6 flex-shrink-0 sticky bottom-0 bg-white dark:bg-[#2C2F3D] z-10">
             <slot name="footer"></slot>
           </div>
         </div>
@@ -108,4 +108,3 @@ const handleBackdropClick = () => {
   opacity: 0;
 }
 </style>
-

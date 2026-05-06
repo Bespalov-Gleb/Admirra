@@ -122,7 +122,7 @@
           </div>
 
           <!-- Stats grid -->
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-[15px]">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[15px]">
             <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
               <div class="flex items-start pb-[5px] mb-[15px]">
                 <div class="iconbox flex-shrink-0">
@@ -130,14 +130,14 @@
                     <use :href="stat.icon" />
                   </svg>
                 </div>
-                <div class="pl-[10px] self-center">
-                  <h4 class="text-[13px] text-[#696969] font-medium mb-[2px] leading-[1.1]">{{ stat.label }}</h4>
-                  <p class="text-[12px] text-[rgba(105,105,105,0.56)] leading-[1.1]">{{ stat.subtitle }}</p>
+                <div class="pl-[10px] self-center min-w-0">
+                  <h4 class="text-[13px] text-[#696969] font-medium mb-[2px] leading-[1.1] truncate">{{ stat.label }}</h4>
+                  <p class="text-[12px] text-[rgba(105,105,105,0.56)] leading-[1.1] truncate">{{ stat.subtitle }}</p>
                 </div>
               </div>
-              <div class="flex items-center mt-auto">
-                <b class="text-[20px] font-semibold mr-[10px] leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
-                <span class="badge-success">
+              <div class="stat-value-row flex items-center mt-auto">
+                <b class="min-w-0 truncate text-[20px] font-semibold leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
+                <span class="badge-success shrink-0">
                   <svg width="8" height="7" viewBox="0 0 12 9" fill="none">
                     <path d="M1 8L6 2L11 8" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -161,10 +161,10 @@
               :style="{ backgroundColor: balance.bg }"
               class="balance-tile rounded-[12px] p-[10px]"
             >
-              <div class="flex items-center justify-center">
+              <div class="flex min-w-0 items-center justify-center gap-[8px]">
                 <img :src="balance.icon" :alt="balance.name" width="18" class="flex-shrink-0" />
-                <span class="px-[10px] text-[13px] font-medium" :style="{ color: balance.color }">{{ balance.name }}</span>
-                <span class="badge-white" :style="{ color: balance.color }">{{ balance.value }}</span>
+                <span class="min-w-0 truncate text-[13px] font-medium" :style="{ color: balance.color }">{{ balance.name }}</span>
+                <span class="badge-white shrink-0" :style="{ color: balance.color }">{{ balance.value }}</span>
               </div>
             </div>
           </div>
@@ -602,6 +602,12 @@ onMounted(async () => {
   border-radius: 100px;
   white-space: nowrap;
 }
+
+.stat-value-row {
+  min-width: 0;
+  gap: 8px;
+}
+
 .badge-white {
   display: inline-flex;
   align-items: center;
@@ -612,6 +618,26 @@ onMounted(async () => {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
+  max-width: 100%;
+}
+
+.balance-tile {
+  min-width: 0;
+}
+
+@media (max-width: 430px) {
+  .stat-value-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .badge-success {
+    max-width: 100%;
+  }
+
+  .balance-tile > div {
+    justify-content: flex-start;
+  }
 }
 
 :global(.dark) .cs-head,

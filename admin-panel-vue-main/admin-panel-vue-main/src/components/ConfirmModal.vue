@@ -6,17 +6,17 @@
         class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black bg-opacity-50"
         @click.self="handleBackdropClick"
       >
-        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative z-[60]">
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">
+        <div class="bg-white dark:bg-[#2C2F3D] rounded-lg shadow-xl max-w-md w-full p-6 relative z-[60] border border-transparent dark:border-white/10">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             {{ title }}
           </h3>
-          <p class="text-gray-600 mb-6">
+          <p class="text-gray-600 dark:text-gray-300 mb-6">
             {{ message }}
           </p>
-          <div class="flex gap-3 justify-end">
+          <div class="flex flex-col-reverse gap-3 justify-end sm:flex-row">
             <button
               @click="handleCancel"
-              class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              class="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
             >
               Отмена
             </button>
@@ -111,4 +111,3 @@ watch(() => props.isOpen, (isOpen, old, onCleanup) => {
   opacity: 0;
 }
 </style>
-

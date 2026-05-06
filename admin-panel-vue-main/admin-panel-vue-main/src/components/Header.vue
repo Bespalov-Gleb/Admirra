@@ -35,19 +35,19 @@
                   <li>
                     <button
                       @click="handleProjectSelect(null)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
                     >Все проекты</button>
                   </li>
                   <li v-for="project in projects" :key="project.id">
                     <button
                       @click="handleProjectSelect(project.id)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
                     >{{ project.name }}</button>
                   </li>
                 </ul>
                 <button
                   @click="router.push('/projects/create'); isProjectMenuOpen = false"
-                  class="flex w-full items-center gap-2 rounded-[12px] px-4 py-3 text-[13px] font-medium text-[#2563eb] transition-colors hover:bg-[#ecf3fe]"
+                  class="flex w-full items-center gap-2 rounded-[12px] px-4 py-3 text-[13px] font-medium text-[#2563eb] transition-colors hover:bg-[#ecf3fe] dark:text-[#4A7AFF] dark:hover:bg-white/5"
                 >
                   <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -508,6 +508,23 @@ onUnmounted(() => {
 :global(.dark) [data-notifications-button] svg,
 :global(.darkmode) [data-notifications-button] svg {
   fill: rgba(255, 255, 255, 0.68);
+}
+
+:global(.dark) [data-profile-button] + .dropdown-enter-active svg,
+:global(.darkmode) [data-profile-button] + .dropdown-enter-active svg,
+:global(.dark) [data-profile-button] + .dropdown-leave-active svg,
+:global(.darkmode) [data-profile-button] + .dropdown-leave-active svg {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+:global(.dark) header svg.fill-\[\#afafaf\],
+:global(.darkmode) header svg.fill-\[\#afafaf\] {
+  fill: rgba(255, 255, 255, 0.68);
+}
+
+:global(.dark) header svg.stroke-\[\#afafaf\],
+:global(.darkmode) header svg.stroke-\[\#afafaf\] {
+  stroke: rgba(255, 255, 255, 0.68);
 }
 
 :global(.dark) .burger-line,

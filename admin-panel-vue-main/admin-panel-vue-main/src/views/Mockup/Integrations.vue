@@ -83,7 +83,7 @@
 
         <!-- Card body -->
         <div class="int-card__body">
-          <div class="flex items-start gap-[15px]">
+          <div class="integration-body-row flex items-start gap-[15px]">
             <!-- Left: platform info + ID -->
             <div class="flex-1 min-w-0 flex flex-col gap-[16px]">
               <div class="flex items-center gap-[12px] min-w-0">
@@ -111,7 +111,7 @@
               <div class="id-badge self-start">ID: {{ item.external_account_id || item.id }}</div>
             </div>
             <!-- Right column: 24ч + Настроить — правые края совпадают -->
-            <div class="flex flex-col items-stretch gap-[12px] flex-shrink-0">
+            <div class="integration-actions flex flex-col items-stretch gap-[12px] flex-shrink-0">
               <div class="sync-badge">
                 <span class="font-medium">24 часа</span>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -361,9 +361,12 @@ const formatDate = (dateStr) => {
 }
 
 /* ── Search (стиль как в ProjectCard) ── */
-.search-wrap { position: relative; }
+.search-wrap {
+  position: relative;
+  max-width: 100%;
+}
 .search-input {
-  width: 354px;
+  width: min(354px, 100%);
   height: 46px;
   padding: 0 45px 0 17px;
   font-size: 13px;
@@ -437,6 +440,10 @@ const formatDate = (dateStr) => {
   align-items: center;
   justify-content: space-between;
   gap: 15px;
+}
+
+.integration-body-row {
+  min-width: 0;
 }
 
 /* ── Project avatar ── */
@@ -554,5 +561,35 @@ const formatDate = (dateStr) => {
   background-color: rgba(255,255,255,0.06);
   border-color: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.75);
+}
+
+@media (max-width: 639px) {
+  .platform-btn,
+  .add-btn,
+  .search-wrap,
+  .search-input {
+    width: 100%;
+  }
+
+  .int-card {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .int-card__header,
+  .integration-body-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .integration-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .integration-actions > * {
+    flex: 1 1 140px;
+  }
 }
 </style>
