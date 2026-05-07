@@ -11,7 +11,7 @@
             :class="{ active: selectedChannel === channel.name }"
             :style="{ backgroundColor: getChipBackground(channel) }"
             type="button"
-            @click="selectedChannel = channel.name"
+            @click="selectConnectedChannel(channel)"
           >
             <span class="chip-dot" :style="{ background: channel.color }">
               <img
@@ -96,19 +96,19 @@
           </div>
         </div>
 
-        <button class="primary-report" type="button">
-          Отправить отчет
+        <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail" @click="handleSendSelectedReport">
+          {{ sendingTg || sendingEmail ? 'Отправка...' : 'Отправить отчет' }}
           <ArrowPathRoundedSquareIcon />
         </button>
       </div>
     </section>
 
     <section class="heading-section">
-      <h1>Отчет по проекту: ВЕЗДЕХОДЫ</h1>
+      <h1>{{ dashboardTitle }}</h1>
       <div class="filters-row">
         <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'channels' }" v-click-outside="() => closeMenu('channels')">
           <button class="filter-btn cs-head" type="button" @click="toggleMenu('channels')">
-            <span class="cs-current">{{ selectedFilterChannel }}</span>
+            <span class="cs-current">{{ selectedFilterChannelLabel }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
             </span>
@@ -119,11 +119,17 @@
               :key="channel.name"
               type="button"
               class="cs-option"
-              :class="{ selected: selectedFilterChannel === channel.name }"
-              @click="selectFilterChannel(channel.name)"
+              :class="{ selected: filters.channel === channel.value }"
+              @click="selectFilterChannel(channel)"
             >
               <span class="chip-dot" :style="{ background: channel.color }">
-                <component :is="channel.icon" class="chip-icon" />
+                <img
+                  v-if="channel.asset"
+                  :src="channel.asset"
+                  alt=""
+                  :class="['chip-img', channel.imageClass]"
+                />
+                <component v-else :is="channel.icon" class="chip-icon" />
               </span>
               {{ channel.name }}
             </button>
@@ -144,26 +150,26 @@
             </label>
             <button
               v-for="campaign in filteredCampaigns"
-              :key="campaign"
+              :key="campaign.id || campaign.name"
               type="button"
               class="cs-option"
-              :class="{ selected: selectedCampaignLabel === campaign }"
+              :class="{ selected: isCampaignSelected(campaign) }"
               @click="selectCampaign(campaign)"
             >
-              {{ campaign }}
+              {{ campaign.name }}
             </button>
           </div>
         </div>
 
-        <button class="filter-btn date-btn" type="button">
-          <CalendarDaysIcon />
-          01.02.2026 - 03.05.2026
-          <ChevronDownIcon />
-        </button>
+        <DateRangePicker
+          class="dashboard-date-picker"
+          :model-value="{ start: filters.start_date, end: filters.end_date }"
+          @change="handleDateRangeChange"
+        />
 
-        <button class="sync-btn" type="button">
-          <ArrowPathIcon />
-          Синхронизация: сегодня, 10:30
+        <button class="sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
+          <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
+          {{ syncingIntegrations ? 'Синхронизация...' : syncLabel }}
         </button>
 
         <div class="filter-wrap custom-select dashboard-select ml-auto export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
@@ -174,9 +180,9 @@
             </span>
           </button>
           <div class="cs-list dropdown-panel export">
-            <button type="button" class="cs-option" @click="closeMenu('export')"><DocumentArrowDownIcon /> Скачать в PDF</button>
-            <button type="button" class="cs-option" @click="closeMenu('export')"><PhotoIcon /> Скачать PNG</button>
-            <button type="button" class="cs-option" @click="closeMenu('export')"><LinkIcon /> Получить ссылку</button>
+            <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
+            <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+            <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Получить ссылку</button>
           </div>
         </div>
       </div>
@@ -198,11 +204,12 @@
         </div>
         <strong>{{ metric.value }}</strong>
         <div class="metric-foot">
-          <span class="trend">
-            <ArrowTrendingUpIcon />
-            +15.6%
+          <span class="trend" :class="{ negative: metric.negative }">
+            <ArrowTrendingDownIcon v-if="metric.negative" />
+            <ArrowTrendingUpIcon v-else />
+            {{ metric.trend }}
           </span>
-          <span>+1.4k за эту неделю</span>
+          <span>{{ metric.delta }}</span>
         </div>
       </article>
     </section>
@@ -247,16 +254,16 @@
               <circle v-for="point in chartPoints" :key="`${point.x}-${point.y}`" :cx="point.x" :cy="point.y" r="3.5" />
             </g>
             <g class="axis-labels">
-              <text x="8" y="38">20k</text>
-              <text x="8" y="86">15k</text>
-              <text x="8" y="134">10k</text>
-              <text x="16" y="182">5k</text>
-              <text x="28" y="230">0</text>
+              <text text-anchor="end" x="42" y="38">{{ chartYLabels[0] }}</text>
+              <text text-anchor="end" x="42" y="86">{{ chartYLabels[1] }}</text>
+              <text text-anchor="end" x="42" y="134">{{ chartYLabels[2] }}</text>
+              <text text-anchor="end" x="42" y="182">{{ chartYLabels[3] }}</text>
+              <text text-anchor="end" x="42" y="230">{{ chartYLabels[4] }}</text>
               <text v-for="(label, index) in dateLabels" :key="label" :x="62 + index * 61" y="252">{{ label }}</text>
             </g>
             <g class="tooltip-pin">
               <rect x="415" y="6" width="58" height="27" rx="5" />
-              <text x="444" y="23">API</text>
+              <text x="444" y="23">{{ chartTooltipLabel }}</text>
             </g>
           </svg>
         </div>
@@ -266,8 +273,8 @@
         <h2>Разбивка по целям</h2>
         <div class="goals-content">
           <div class="donut-wrap">
-            <div class="donut"></div>
-            <span>250 шт.</span>
+            <div class="donut" :style="{ background: donutGradient }"></div>
+            <span>{{ goalsTotalLabel }}</span>
           </div>
           <div class="goals-list">
             <div v-for="goal in goals" :key="goal.name" class="goal-item">
@@ -299,12 +306,12 @@
         </div>
         <div v-for="(campaign, index) in campaignRows" :key="index" class="campaign-row" :class="campaign.tint">
           <span>{{ campaign.name }}</span>
-          <span>90,190.55 ₽ <b>+15.6%</b></span>
-          <span>120,302 <b>+15.6%</b></span>
-          <span>967 <b>+15.6%</b></span>
-          <span>9,63 ₽ <b>+15.6%</b></span>
-          <span>130 шт. <b>+15.6%</b></span>
-          <span>963 ₽ <b>+15.6%</b></span>
+          <span>{{ campaign.cost }} <b>{{ campaign.trendCost }}</b></span>
+          <span>{{ campaign.impressions }} <b>{{ campaign.trendImpressions }}</b></span>
+          <span>{{ campaign.clicks }} <b>{{ campaign.trendClicks }}</b></span>
+          <span>{{ campaign.cpc }} <b>{{ campaign.trendCpc }}</b></span>
+          <span>{{ campaign.leads }} <b>{{ campaign.trendLeads }}</b></span>
+          <span>{{ campaign.cpa }} <b>{{ campaign.trendCpa }}</b></span>
         </div>
       </div>
     </section>
@@ -313,15 +320,15 @@
       <article class="panel creatives-panel">
         <h2>Топ креативы за месяц</h2>
         <div class="creatives-row">
-          <div v-for="creative in creatives" :key="creative.title" class="creative-card">
-            <div class="creative-image" :class="creative.class">
+          <div v-for="creative in creatives" :key="creative.id || creative.title" class="creative-card">
+            <div class="creative-image" :class="creative.class" :style="creative.imageUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.55)), url(${creative.imageUrl})` } : null">
               <span>{{ creative.badge }}</span>
               <strong>{{ creative.title }}</strong>
             </div>
             <p>Заголовок:</p>
-            <em>Предложения декабря</em>
+            <em>{{ creative.heading }}</em>
             <p>Текст:</p>
-            <em>Скидка до 4 000 000 рублей более 10 вариантов</em>
+            <em>{{ creative.text }}</em>
           </div>
         </div>
       </article>
@@ -334,7 +341,7 @@
         <ul>
           <li v-for="comment in aiComments" :key="comment">{{ comment }}</li>
         </ul>
-        <p>Комментарий сгенерирован AI на основе данных за период 01.04.2026 - 27.04.2026</p>
+        <p>Комментарий сгенерирован AI на основе данных за период {{ dateRangeLabel }}</p>
       </article>
 
       <div class="side-stat-stack">
@@ -357,14 +364,49 @@
         </article>
       </div>
     </section>
+
+    <!-- Telegram link modal -->
+    <div
+      v-if="showTgLinkModal"
+      class="fixed inset-0 z-[99999] flex items-center justify-center"
+      style="background: rgba(0,0,0,0.5)"
+      @click.self="closeTgLinkModal"
+    >
+      <div
+        class="w-full mx-4"
+        style="max-width:448px; border-radius:24px; padding:24px; box-shadow:0 25px 50px rgba(0,0,0,0.35)"
+        :style="{ background: isDarkMode ? '#2a2d3c' : '#fff' }"
+      >
+        <h3 :style="{ fontSize:'18px', fontWeight:600, color: isDarkMode ? '#f3f4f6' : '#111827', marginBottom:'8px' }">
+          Подключите Telegram
+        </h3>
+        <p :style="{ fontSize:'14px', color: isDarkMode ? 'rgba(255,255,255,0.5)' : '#6b7280', marginBottom:'16px' }">
+          В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
+        </p>
+        <div style="display:flex; gap:12px">
+          <button
+            type="button"
+            :style="{ flex:1, padding:'10px', borderRadius:'12px', border:'none', cursor:'pointer', fontSize:'14px', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f3f4f6', color: isDarkMode ? '#f3f4f6' : '#374151' }"
+            @click="closeTgLinkModal"
+          >Отмена</button>
+          <button
+            type="button"
+            style="flex:1; padding:10px; border-radius:12px; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:14px"
+            :disabled="tgLinkChecking"
+            @click="confirmTgLinked"
+          >{{ tgLinkChecking ? 'Проверка...' : 'Готово' }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
+  ArrowTrendingDownIcon,
   ArrowTrendingUpIcon,
   ArrowUpRightIcon,
   CalendarDaysIcon,
@@ -377,7 +419,6 @@ import {
   EnvelopeIcon,
   LinkIcon,
   MagnifyingGlassIcon,
-  PaperAirplaneIcon,
   PhotoIcon,
   PlayCircleIcon,
   SparklesIcon,
@@ -387,18 +428,53 @@ import { BuildingOfficeIcon, ComputerDesktopIcon, CursorArrowRippleIcon, EyeIcon
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
 import { useTheme } from '@/composables/useTheme'
+import { useDashboardStats } from '@/composables/useDashboardStats'
+import { useProjects } from '@/composables/useProjects'
+import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
+import { useToaster } from '@/composables/useToaster'
+import api from '@/api/axios'
+import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { dashboardMockData } from './data/dashboardMockData'
 
 const { isDarkMode } = useTheme()
+const toaster = useToaster()
+const { currentProjectId, setCurrentProject } = useProjects()
+const { openTelegramBotForLinking } = useTelegramReportLink()
+const {
+  summary,
+  dynamics,
+  campaigns,
+  clients,
+  allCampaigns,
+  loading,
+  filters,
+  handlePeriodChange,
+  fetchStats,
+  fetchAllCampaignsForGoalsTab,
+  loadingCampaigns,
+  deviceStats: deviceStatsRaw,
+  placements: placementsRaw
+} = useDashboardStats()
+
 const openMenu = ref('')
 const campaignQuery = ref('')
-const selectedChannel = ref('Yandex Direct')
 const selectedReportChannel = ref('Telegram')
 const selectedReportTemplate = ref('Шаблон: Яндекс')
 const selectedSchedule = ref('Ежедневно в 10:00')
-const selectedFilterChannel = ref('Все каналы')
-const selectedCampaignLabel = ref('Кампании')
 const selectedChartPeriod = ref('Месяц')
+const includeVat = ref(true)
+const syncingIntegrations = ref(false)
+const sendingExport = ref(false)
+const sendingTg = ref(false)
+const sendingEmail = ref(false)
+const showTgLinkModal = ref(false)
+const pendingTgSendAfterLink = ref(false)
+const tgLinkChecking = ref(false)
+const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [], report_schedule: '' })
+const reportComment = ref('')
+const reportGoals = ref([])
+const integrations = ref([])
+const topAds = ref([])
 
 const toggleMenu = (name) => {
   openMenu.value = openMenu.value === name ? '' : name
@@ -416,21 +492,37 @@ const selectReportTemplate = (option) => {
 const selectSchedule = (option) => {
   selectedSchedule.value = option
   closeMenu('report-schedule')
+  handleReportSave(option)
 }
 
-const selectFilterChannel = (name) => {
-  selectedFilterChannel.value = name
+const selectFilterChannel = (channel) => {
+  filters.channel = channel.value
+  filters.campaign_ids = []
   closeMenu('channels')
 }
 
-const selectCampaign = (name) => {
-  selectedCampaignLabel.value = name
+const selectCampaign = (campaign) => {
+  filters.campaign_ids = campaign?.id ? [campaign.id] : []
   closeMenu('campaigns')
 }
 
 const selectChartPeriod = (option) => {
   selectedChartPeriod.value = option
+  const periodMap = { Неделя: '7', Месяц: '30', Квартал: '90', Год: '365' }
+  filters.period = periodMap[option] || filters.period
+  handlePeriodChange()
   closeMenu('chart-period')
+}
+
+const handleDateRangeChange = (range) => {
+  if (range?.start) filters.start_date = range.start
+  if (range?.end) filters.end_date = range.end
+  filters.period = 'custom'
+  fetchStats()
+}
+
+const selectConnectedChannel = (channel) => {
+  selectFilterChannel(channel)
 }
 
 const vClickOutside = {
@@ -448,19 +540,18 @@ const vClickOutside = {
 }
 
 const channels = [
-  { name: 'Yandex Direct', color: '#ffd426', bg: '#fff8e7', darkBg: 'rgba(255, 212, 38, 0.14)', asset: yandexDirectIcon, icon: CursorArrowRippleIcon },
-  { name: 'VK Ads Manager', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon },
-  { name: 'MyTarget', color: '#f43f5e', bg: '#fff1f2', darkBg: 'rgba(244, 63, 94, 0.14)', letter: 'M', icon: BuildingOfficeIcon }
+  { name: 'Yandex Direct', value: 'yandex', color: '#ffd426', bg: '#fff8e7', darkBg: 'rgba(255, 212, 38, 0.14)', asset: yandexDirectIcon, icon: CursorArrowRippleIcon },
+  { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon }
 ]
 
 const reportChannels = [
-  { name: 'Telegram', color: '#ffd426', bg: '#f5f7f9', darkBg: 'rgba(255, 255, 255, 0.08)', icon: PaperAirplaneIcon },
+  { name: 'Telegram', color: '#eef8ff', bg: '#f3f8ff', darkBg: 'rgba(42, 171, 238, 0.14)', asset: '/admirra/img/icons/telegram.png', imageClass: 'telegram' },
   { name: 'E-mail', color: '#2563eb', bg: '#fff', darkBg: 'transparent', icon: EnvelopeIcon },
-  { name: 'Max', color: '#f43f5e', bg: '#fff', darkBg: 'transparent', letter: 'M', icon: SparklesIcon }
+  { name: 'Max', color: '#f4f7fb', bg: '#fff', darkBg: 'rgba(255, 255, 255, 0.06)', asset: '/admirra/img/icons/max.png', imageClass: 'max' }
 ]
 
 const filterChannels = [
-  { name: 'Все каналы', color: '#b3b3b3', icon: ChartBarIcon },
+  { name: 'Все каналы', value: 'all', color: '#b3b3b3', icon: ChartBarIcon },
   ...channels
 ]
 
@@ -469,14 +560,14 @@ const filterChannels = [
 const reportTemplateOptions = dashboardMockData.reportTemplateOptions
 const scheduleOptions = dashboardMockData.scheduleOptions
 const chartPeriodOptions = dashboardMockData.chartPeriodOptions
-const campaigns = dashboardMockData.campaigns
 
 const getChipBackground = (item) => (isDarkMode.value ? (item.darkBg ?? item.bg) : item.bg)
 
 const filteredCampaigns = computed(() => {
   const query = campaignQuery.value.trim().toLowerCase()
-  if (!query) return campaigns
-  return campaigns.filter((item) => item.toLowerCase().includes(query))
+  const items = allCampaigns.value.length ? allCampaigns.value : dashboardMockData.campaigns.map((name, id) => ({ id: `mock-${id}`, name }))
+  if (!query) return items
+  return items.filter((item) => item.name.toLowerCase().includes(query))
 })
 
 const metricIcons = {
@@ -493,24 +584,541 @@ const statIcons = {
   desktop: ComputerDesktopIcon
 }
 
-const metrics = dashboardMockData.metrics.map((metric) => ({
-  ...metric,
-  icon: metricIcons[metric.icon] || ChartBarIcon
-}))
+const formatNumber = (value, digits = 0) => new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: digits,
+  maximumFractionDigits: digits
+}).format(Number(value) || 0)
 
-const chartPoints = dashboardMockData.chart.previewPoints
-const chartPath = `M ${chartPoints.map((point) => `${point.x} ${point.y}`).join(' L ')}`
-const chartFillPath = `${chartPath} L 846 226 L 56 226 Z`
-const dateLabels = dashboardMockData.chart.labels
-const goals = dashboardMockData.goals
-const campaignRows = dashboardMockData.campaignRows
-const creatives = dashboardMockData.creatives
-const aiComments = dashboardMockData.aiComments
-const deviceStats = dashboardMockData.deviceStats.map((item) => ({
-  ...item,
-  icon: statIcons[item.icon] || ComputerDesktopIcon
-}))
-const placements = dashboardMockData.placements
+const formatMoney = (value) => `${formatNumber(value, 2)} ₽`
+
+const withVat = (value) => {
+  const num = Number(value) || 0
+  return includeVat.value ? num * 1.2 : num
+}
+
+const formatTrend = (value) => {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '+0%'
+  return `${num > 0 ? '+' : ''}${formatNumber(num, 1)}%`
+}
+
+const selectedChannel = computed(() => filterChannels.find((item) => item.value === filters.channel)?.name || 'Все каналы')
+const selectedFilterChannelLabel = computed(() => selectedChannel.value)
+
+const selectedCampaignLabel = computed(() => {
+  if (!filters.client_id) return 'Сначала проект'
+  if (loadingCampaigns.value) return 'Загрузка...'
+  if (!filters.campaign_ids?.length) return 'Кампании'
+  if (filters.campaign_ids.length > 1) return `Кампании (${filters.campaign_ids.length})`
+  const found = allCampaigns.value.find((campaign) => campaign.id === filters.campaign_ids[0])
+  return found?.name || 'Кампания'
+})
+
+const isCampaignSelected = (campaign) => filters.campaign_ids?.includes(campaign.id)
+
+const dateRangeLabel = computed(() => {
+  const format = (date) => {
+    if (!date) return ''
+    const [year, month, day] = String(date).split('-')
+    return day && month && year ? `${day}.${month}.${year}` : date
+  }
+  return `${format(filters.start_date)} - ${format(filters.end_date)}`
+})
+
+const dashboardTitle = computed(() => {
+  if (filters.campaign_ids?.length) {
+    const campaign = allCampaigns.value.find((item) => item.id === filters.campaign_ids[0])
+    return campaign ? `Отчет по кампании: ${campaign.name}` : `Отчет по кампаниям (${filters.campaign_ids.length})`
+  }
+  if (filters.client_id) {
+    const client = clients.value.find((item) => item.id === filters.client_id)
+    return client ? `Отчет по проекту: ${client.name}` : 'Отчет по проекту'
+  }
+  if (filters.channel !== 'all') return `Отчет: ${selectedFilterChannelLabel.value}`
+  return 'Отчет по всем проектам'
+})
+
+const metrics = computed(() => {
+  const data = summary.value || {}
+  const trends = data.trends || {}
+  const values = {
+    expenses: formatMoney(withVat(data.expenses)),
+    impressions: formatNumber(data.impressions),
+    clicks: formatNumber(data.clicks),
+    cpc: formatMoney(withVat(data.cpc)),
+    leads: `${formatNumber(data.leads)} шт.`,
+    cpa: formatMoney(withVat(data.cpa))
+  }
+  return dashboardMockData.metrics.map((metric) => {
+    const trendRaw = Number(trends[metric.key] ?? metric.trend ?? 0)
+    return {
+    ...metric,
+    value: values[metric.key] || metric.value,
+    trend: formatTrend(trendRaw),
+    negative: trendRaw < 0,
+    delta: 'за выбранный период',
+    icon: metricIcons[metric.icon] || ChartBarIcon
+  }
+  })
+})
+
+const chartSourceValues = computed(() => {
+  const values = dynamics.value?.costs || []
+  return values.length ? values.map((value) => withVat(value)) : dashboardMockData.chart.previewPoints.map((point) => 226 - point.y)
+})
+
+const chartPoints = computed(() => {
+  const values = chartSourceValues.value
+  const max = Math.max(...values, 1)
+  const min = Math.min(...values, 0)
+  const span = Math.max(max - min, 1)
+  const left = 56
+  const right = 846
+  const top = 35
+  const bottom = 224
+  return values.map((value, index) => ({
+    x: values.length === 1 ? left : left + ((right - left) / (values.length - 1)) * index,
+    y: bottom - ((value - min) / span) * (bottom - top),
+    value
+  }))
+})
+
+const chartPath = computed(() => `M ${chartPoints.value.map((point) => `${point.x} ${point.y}`).join(' L ')}`)
+const chartFillPath = computed(() => {
+  const points = chartPoints.value
+  const first = points[0] || { x: 56 }
+  const last = points[points.length - 1] || { x: 846 }
+  return `${chartPath.value} L ${last.x} 226 L ${first.x} 226 Z`
+})
+const dateLabels = computed(() => dynamics.value?.labels?.length ? dynamics.value.labels : dashboardMockData.chart.labels)
+
+const chartYLabels = computed(() => {
+  const values = chartSourceValues.value
+  const rawMax = Math.max(...values, 0)
+  if (rawMax === 0) return ['0', '0', '0', '0', '0']
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)))
+  const niceMax = Math.ceil(rawMax / magnitude) * magnitude
+  const fmt = (v) => {
+    if (v === 0) return '0'
+    if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
+    if (v >= 1_000) return `${+(v / 1_000).toFixed(1)}k`
+    return String(Math.round(v))
+  }
+  return [
+    fmt(niceMax),
+    fmt(niceMax * 0.75),
+    fmt(niceMax * 0.5),
+    fmt(niceMax * 0.25),
+    '0'
+  ]
+})
+const chartTooltipLabel = computed(() => {
+  const last = chartSourceValues.value[chartSourceValues.value.length - 1]
+  return last ? formatNumber(last, 0) : 'API'
+})
+
+const goals = computed(() => {
+  const colors = ['#3f63f6', '#f39a72', '#dff9e7', '#8ada70', '#d38cff']
+  if (!reportGoals.value.length) {
+    return dashboardMockData.goals.map((g) => {
+      const pct = parseFloat(g.value.match(/\(([0-9.]+)%\)/)?.[1] ?? 0)
+      return { ...g, pct }
+    })
+  }
+  const total = reportGoals.value.reduce((sum, item) => sum + Number(item.count ?? item.conversions ?? item.value ?? 0), 0) || 1
+  return reportGoals.value.slice(0, 5).map((goal, index) => {
+    const count = Number(goal.count ?? goal.conversions ?? goal.value ?? 0)
+    const pct = (count / total) * 100
+    return {
+      name: goal.name || goal.goal_name || `Цель ${index + 1}`,
+      value: `${formatNumber(count)} шт. (${formatNumber(pct, 1)}%)`,
+      color: goal.color || colors[index % colors.length],
+      pct
+    }
+  })
+})
+
+const donutGradient = computed(() => {
+  const items = goals.value
+  if (!items.length) return 'conic-gradient(#e5e7eb 0 100%)'
+  let offset = 0
+  const segments = items.map((goal) => {
+    const start = offset.toFixed(2)
+    offset += goal.pct ?? 0
+    return `${goal.color} ${start}% ${offset.toFixed(2)}%`
+  })
+  if (offset < 99.9) segments.push(`#e5e7eb ${offset.toFixed(2)}% 100%`)
+  return `conic-gradient(${segments.join(', ')})`
+})
+
+const goalsTotalLabel = computed(() => {
+  const total = reportGoals.value.reduce((sum, item) => sum + Number(item.count ?? item.conversions ?? item.value ?? 0), 0)
+  return `${formatNumber(total || summary.value?.leads || 0)} шт.`
+})
+
+const campaignRows = computed(() => {
+  const rows = campaigns.value?.length ? campaigns.value : []
+  if (!rows.length) return dashboardMockData.campaignRows
+  return rows.slice(0, 5).map((campaign, index) => ({
+    name: campaign.name || `Кампания ${index + 1}`,
+    tint: index % 3 === 2 ? 'blue' : 'green',
+    cost: formatMoney(withVat(campaign.cost)),
+    impressions: formatNumber(campaign.impressions),
+    clicks: formatNumber(campaign.clicks),
+    cpc: formatMoney(withVat(campaign.cpc)),
+    leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
+    cpa: formatMoney(withVat(campaign.cpa)),
+    trendCost: formatTrend(campaign.trend_cost ?? 0),
+    trendImpressions: formatTrend(campaign.trend_impressions ?? 0),
+    trendClicks: formatTrend(campaign.trend_clicks ?? 0),
+    trendCpc: formatTrend(campaign.trend_cpc ?? 0),
+    trendLeads: formatTrend(campaign.trend_conversions ?? 0),
+    trendCpa: formatTrend(campaign.trend_cpa ?? 0)
+  }))
+})
+
+const creatives = computed(() => {
+  if (!topAds.value.length) return dashboardMockData.creatives
+  const classes = ['city', 'blue', 'house']
+  return topAds.value.slice(0, 3).map((post, index) => ({
+    id: post.id || `${post.title}-${index}`,
+    badge: post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads'),
+    title: post.title || 'Креатив',
+    heading: post.heading || post.title || '—',
+    text: post.text || post.description || `${formatNumber(post.impressions)} показов, ${formatNumber(post.clicks)} кликов, CTR ${post.ctr ?? '—'}%`,
+    imageUrl: post.image_url || post.imageUrl || '',
+    class: classes[index % classes.length]
+  }))
+})
+const aiComments = computed(() => {
+  if (!reportComment.value) return dashboardMockData.aiComments
+  return reportComment.value
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+})
+const deviceStats = computed(() =>
+  deviceStatsRaw.value.map((item) => ({
+    ...item,
+    icon: statIcons[item.icon] || ComputerDesktopIcon
+  }))
+)
+const placements = computed(() => placementsRaw.value)
+
+const syncLabel = computed(() => integrations.value.length ? 'Синхронизировать данные' : 'Нет подключенных каналов')
+
+const getStatsParams = () => ({
+  start_date: filters.start_date,
+  end_date: filters.end_date,
+  platform: filters.channel,
+  client_id: filters.client_id || undefined,
+  campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids : undefined,
+  goal_action_ids: filters.channel === 'vk' && filters.vk_goal_action_ids?.length ? filters.vk_goal_action_ids : undefined
+})
+
+const fetchReportGoals = async () => {
+  if (!filters.start_date || !filters.end_date) return
+  try {
+    const params = {
+      client_id: filters.client_id || undefined,
+      date_from: filters.start_date,
+      date_to: filters.end_date,
+      platform: filters.channel !== 'all' ? filters.channel : undefined,
+      campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids.join(',') : undefined
+    }
+    const { data } = await api.get('dashboard/goals', { params })
+    reportGoals.value = Array.isArray(data) ? data : (data?.goals || [])
+  } catch {
+    reportGoals.value = []
+  }
+}
+
+const fetchTopAds = async () => {
+  if (!filters.start_date || !filters.end_date) return
+  try {
+    const params = getStatsParams()
+    const { data } = await api.get('dashboard/top-ads', { params })
+    topAds.value = Array.isArray(data) ? data : []
+  } catch {
+    topAds.value = []
+  }
+}
+
+const fetchIntegrations = async () => {
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data } = await api.get('dashboard/integrations', { params })
+    integrations.value = data || []
+  } catch {
+    integrations.value = []
+  }
+}
+
+const handleSyncIntegrations = async () => {
+  if (syncingIntegrations.value) return
+  syncingIntegrations.value = true
+  try {
+    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const { data: list } = await api.get('integrations/', { params })
+    if (!list?.length) {
+      toaster.info('Нет подключенных интеграций для синхронизации')
+      return
+    }
+    for (const integration of list) {
+      await api.post(`integrations/${integration.id}/sync`, { days: 90 })
+    }
+    toaster.info(`Синхронизация запущена для ${list.length} каналов`)
+    fetchIntegrations()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию')
+  } finally {
+    syncingIntegrations.value = false
+  }
+}
+
+const refreshUserReportSettings = async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    userReportSettings.value.telegram_chat_id = data.report_telegram_chat_id || ''
+    userReportSettings.value.email_recipients = data.report_email_recipients || []
+    userReportSettings.value.report_schedule = data.report_schedule || 'mon_10'
+  } catch {
+    /* ignore */
+  }
+}
+
+const handleReportSave = async (schedule) => {
+  try {
+    await api.patch('/auth/me', { report_schedule: schedule })
+    userReportSettings.value.report_schedule = schedule
+    toaster.success('Расписание сохранено')
+  } catch {
+    toaster.error('Не удалось сохранить расписание')
+  }
+}
+
+const handleGenerateReport = async () => {
+  try {
+    const { data } = await api.post('ai/generate-report', {
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      report_type: 'full'
+    })
+    reportComment.value = data?.text || ''
+    return reportComment.value
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
+    return ''
+  }
+}
+
+const getOrGenerateComment = async () => reportComment.value || await handleGenerateReport()
+
+const downloadBlob = (blob, filename) => {
+  const url = window.URL.createObjectURL(new Blob([blob]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+const getReportPayload = () => ({
+  start_date: filters.start_date,
+  end_date: filters.end_date,
+  client_id: filters.client_id || undefined,
+  ai: true,
+  ...(reportComment.value?.trim() ? { comment: reportComment.value.trim() } : {})
+})
+
+const handleDownloadPdf = async () => {
+  sendingExport.value = true
+  try {
+    const payload = getReportPayload()
+    const response = reportComment.value?.trim()
+      ? await api.post('reports/pdf', payload, { responseType: 'blob' })
+      : await api.get('reports/pdf', { params: payload, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.pdf`)
+    toaster.success('Отчет скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать PDF')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleDownloadPng = async () => {
+  sendingExport.value = true
+  try {
+    const payload = getReportPayload()
+    const response = reportComment.value?.trim()
+      ? await api.post('reports/png', payload, { responseType: 'blob' })
+      : await api.get('reports/png', { params: payload, responseType: 'blob' })
+    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
+    toaster.success('PNG скачан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось скачать PNG')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleGetLink = async () => {
+  sendingExport.value = true
+  try {
+    const { data } = await api.post('reports/link', {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || null,
+      comment: reportComment.value?.trim() || null
+    })
+    const base = window.location.origin
+    const fullUrl = `${base}${data.url.startsWith('/') ? '' : '/'}${data.url}`
+    await navigator.clipboard.writeText(fullUrl)
+    window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    toaster.success('Ссылка скопирована')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось создать ссылку')
+  } finally {
+    sendingExport.value = false
+  }
+}
+
+const handleExportAction = async (type) => {
+  closeMenu('export')
+  if (type === 'pdf') return handleDownloadPdf()
+  if (type === 'png') return handleDownloadPng()
+  return handleGetLink()
+}
+
+const executeTelegramReportSend = async (chatId) => {
+  sendingTg.value = true
+  try {
+    const text = await getOrGenerateComment()
+    await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['telegram'],
+      telegram_chat_id: chatId,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
+    })
+    toaster.success('Отчет отправлен в Telegram')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingTg.value = false
+  }
+}
+
+const handleSendTelegram = async () => {
+  const existing = (userReportSettings.value.telegram_chat_id || '').trim()
+  if (existing) return executeTelegramReportSend(existing)
+  try {
+    await openTelegramBotForLinking()
+    pendingTgSendAfterLink.value = true
+    showTgLinkModal.value = true
+    toaster.info('Откройте бота и нажмите Start')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось открыть Telegram')
+  }
+}
+
+const handleSendEmail = async () => {
+  const emails = userReportSettings.value.email_recipients || []
+  if (!emails.length) {
+    toaster.error('Email получатели не настроены')
+    return
+  }
+  sendingEmail.value = true
+  try {
+    const text = await getOrGenerateComment()
+    await api.post('reports/send', {
+      report_type: 'ai',
+      channels: ['email'],
+      email_recipients: emails,
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      ...(text ? { comment: text } : {})
+    })
+    toaster.success('Отчет отправлен на email')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+  } finally {
+    sendingEmail.value = false
+  }
+}
+
+const handleSendSelectedReport = () => {
+  if (selectedReportChannel.value === 'E-mail') return handleSendEmail()
+  return handleSendTelegram()
+}
+
+const refreshTelegramChatFromServer = async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    userReportSettings.value.telegram_chat_id = data?.report_telegram_chat_id || ''
+  } catch { /* ignore */ }
+}
+
+function closeTgLinkModal() {
+  showTgLinkModal.value = false
+  pendingTgSendAfterLink.value = false
+}
+
+async function confirmTgLinked() {
+  tgLinkChecking.value = true
+  try {
+    await refreshTelegramChatFromServer()
+    const chatId = (userReportSettings.value.telegram_chat_id || '').trim()
+    if (!chatId) {
+      toaster.error('Сначала нажмите Start в чате с ботом в Telegram')
+      return
+    }
+    showTgLinkModal.value = false
+    const sendNow = pendingTgSendAfterLink.value
+    pendingTgSendAfterLink.value = false
+    if (sendNow) await executeTelegramReportSend(chatId)
+  } finally {
+    tgLinkChecking.value = false
+  }
+}
+
+watch(currentProjectId, (newId) => {
+  if (filters.client_id !== newId) filters.client_id = newId
+}, { immediate: true })
+
+watch(() => filters.client_id, (newId) => {
+  if (currentProjectId.value !== newId) setCurrentProject(newId)
+  fetchIntegrations()
+}, { immediate: true })
+
+watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
+  fetchReportGoals()
+  fetchTopAds()
+}, { deep: true })
+
+watch(() => filters.period, (period) => {
+  const labelMap = { 7: 'Неделя', 14: 'Неделя', 30: 'Месяц', 90: 'Квартал', 365: 'Год' }
+  selectedChartPeriod.value = labelMap[period] || selectedChartPeriod.value
+}, { immediate: true })
+
+watch(() => filters.channel, (channel) => {
+  if (channel === 'vk') fetchAllCampaignsForGoalsTab()
+})
+
+onMounted(() => {
+  refreshUserReportSettings()
+  fetchIntegrations()
+  fetchReportGoals()
+  fetchTopAds()
+})
 </script>
 
 <style scoped>
@@ -681,6 +1289,362 @@ const placements = dashboardMockData.placements
   min-width: 25.7rem;
 }
 
+.dashboard-date-picker {
+  flex: 0 0 auto;
+}
+
+.dashboard-date-picker :deep(.date-range-picker-container) {
+  width: 100%;
+}
+
+:global(.calendar-popup) {
+  width: min(560px, calc(100vw - 24px)) !important;
+  max-height: min(520px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 16px !important;
+  border: 1px solid #ebebeb !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12) !important;
+}
+
+:global(.calendar-popup .drp-quick-row) {
+  gap: 6px !important;
+  margin: 0 0 14px !important;
+  padding: 0 0 12px !important;
+  border-bottom: 1px solid #eef0f3 !important;
+  align-items: center !important;
+}
+
+:global(.calendar-popup .drp-quick) {
+  height: 28px !important;
+  min-height: 0 !important;
+  padding: 0 10px !important;
+  border: 1px solid #eef0f3 !important;
+  border-radius: 9px !important;
+  background: #f7f8fa !important;
+  color: #4b5563 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-quick:hover),
+:global(.calendar-popup .drp-quick.text-blue-600) {
+  color: #2563eb !important;
+  border-color: #dbeafe !important;
+  background: #eff6ff !important;
+}
+
+:global(.calendar-popup .drp-month-grid) {
+  gap: 22px !important;
+}
+
+:global(.calendar-popup .drp-month-head) {
+  margin-bottom: 10px !important;
+}
+
+:global(.calendar-popup .drp-month-head h3) {
+  color: #111827 !important;
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-nav) {
+  width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  color: #4b5563 !important;
+  background: transparent !important;
+}
+
+:global(.calendar-popup .drp-nav:hover) {
+  background: #f3f6fb !important;
+}
+
+:global(.calendar-popup .drp-nav svg) {
+  width: 14px !important;
+  height: 14px !important;
+  color: currentColor !important;
+}
+
+:global(.calendar-popup .drp-weekdays) {
+  gap: 4px !important;
+  margin-bottom: 4px !important;
+}
+
+:global(.calendar-popup .drp-weekday) {
+  padding: 0 !important;
+  color: #6b7280 !important;
+  font-size: 10px !important;
+  line-height: 20px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: lowercase !important;
+}
+
+:global(.calendar-popup .drp-weekday.text-red-500) {
+  color: #ef4444 !important;
+}
+
+:global(.calendar-popup .drp-days) {
+  gap: 4px !important;
+}
+
+:global(.calendar-popup .drp-day) {
+  width: 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  border: 0 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-day:hover:not(:disabled)) {
+  background: #edf4ff !important;
+  color: #2563eb !important;
+}
+
+:global(.calendar-popup .drp-day.bg-blue-600),
+:global(.calendar-popup .drp-day.bg-red-500) {
+  color: #fff !important;
+  background: #2563eb !important;
+  border-radius: 8px !important;
+}
+
+:global(.calendar-popup .drp-day.bg-red-500) {
+  background: #ef4444 !important;
+}
+
+:global(.calendar-popup .drp-day.bg-blue-100) {
+  background: #dbeafe !important;
+  color: #2563eb !important;
+}
+
+:global(.calendar-popup .drp-day.text-gray-300) {
+  color: #c9cfd8 !important;
+}
+
+:global(.calendar-popup .drp-fields) {
+  gap: 10px !important;
+  margin-top: 16px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid #eef0f3 !important;
+  align-items: end !important;
+}
+
+:global(.calendar-popup .drp-label) {
+  margin: 0 0 6px !important;
+  color: #6b7280 !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+:global(.calendar-popup .drp-input) {
+  height: 38px !important;
+  padding: 0 12px !important;
+  border: 1px solid #d9dee6 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  color: #374151 !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+:global(.calendar-popup .drp-input:focus) {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+}
+
+:global(.calendar-popup .drp-fields > .text-gray-400) {
+  padding-bottom: 10px !important;
+  color: #9ca3af !important;
+  font-size: 16px !important;
+}
+
+:global(.calendar-popup .drp-apply) {
+  height: 38px !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 0 18px !important;
+  border-radius: 9px !important;
+  background: #2563eb !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+:global(.calendar-popup .drp-apply:hover) {
+  background: #1d4ed8 !important;
+}
+
+:global(html.dark .calendar-popup),
+:global(html.darkmode .calendar-popup) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: #2c2f3d !important;
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.34) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick-row),
+:global(html.darkmode .calendar-popup .drp-quick-row),
+:global(html.dark .calendar-popup .drp-fields),
+:global(html.darkmode .calendar-popup .drp-fields) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick),
+:global(html.darkmode .calendar-popup .drp-quick) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick:hover),
+:global(html.darkmode .calendar-popup .drp-quick:hover),
+:global(html.dark .calendar-popup .drp-quick.text-blue-600),
+:global(html.darkmode .calendar-popup .drp-quick.text-blue-600) {
+  border-color: rgba(74, 122, 255, 0.28) !important;
+  background: rgba(74, 122, 255, 0.14) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-month-head h3),
+:global(html.darkmode .calendar-popup .drp-month-head h3) {
+  color: #f8fafc !important;
+}
+
+:global(html.dark .calendar-popup .drp-nav),
+:global(html.darkmode .calendar-popup .drp-nav),
+:global(html.dark .calendar-popup .drp-weekday),
+:global(html.darkmode .calendar-popup .drp-weekday),
+:global(html.dark .calendar-popup .drp-label),
+:global(html.darkmode .calendar-popup .drp-label),
+:global(html.dark .calendar-popup .drp-fields > .text-gray-400),
+:global(html.darkmode .calendar-popup .drp-fields > .text-gray-400) {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+:global(html.dark .calendar-popup .drp-nav:hover),
+:global(html.darkmode .calendar-popup .drp-nav:hover),
+:global(html.dark .calendar-popup .drp-day:hover:not(:disabled)),
+:global(html.darkmode .calendar-popup .drp-day:hover:not(:disabled)) {
+  background: rgba(74, 122, 255, 0.14) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-day),
+:global(html.darkmode .calendar-popup .drp-day) {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+:global(html.dark .calendar-popup .drp-day.text-gray-300),
+:global(html.darkmode .calendar-popup .drp-day.text-gray-300) {
+  color: rgba(255, 255, 255, 0.24) !important;
+}
+
+:global(html.dark .calendar-popup .drp-day.bg-blue-100),
+:global(html.darkmode .calendar-popup .drp-day.bg-blue-100) {
+  background: rgba(74, 122, 255, 0.18) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-input),
+:global(html.darkmode .calendar-popup .drp-input) {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: #232637 !important;
+  color: rgba(255, 255, 255, 0.84) !important;
+}
+
+@media (max-width: 640px) {
+  :global(.calendar-popup) {
+    width: min(320px, calc(100vw - 16px)) !important;
+    max-height: calc(100vh - 16px);
+    padding: 14px !important;
+  }
+
+  :global(.calendar-popup .drp-quick-row) {
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+    padding-bottom: 10px !important;
+  }
+
+  :global(.calendar-popup .drp-quick) {
+    height: 28px !important;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+  }
+
+  :global(.calendar-popup .drp-month-grid) {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  :global(.calendar-popup .drp-month-head h3) {
+    font-size: 15px !important;
+  }
+
+  :global(.calendar-popup .drp-weekdays),
+  :global(.calendar-popup .drp-days) {
+    gap: 4px !important;
+  }
+
+  :global(.calendar-popup .drp-day) {
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+  }
+
+  :global(.calendar-popup .drp-weekday) {
+    font-size: 10px !important;
+    line-height: 20px !important;
+  }
+
+  :global(.calendar-popup .drp-fields) {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+    padding-top: 12px !important;
+  }
+
+  :global(.calendar-popup .drp-fields > .text-gray-400) {
+    display: none !important;
+  }
+
+  :global(.calendar-popup .drp-label) {
+    font-size: 11px !important;
+  }
+
+  :global(.calendar-popup .drp-input) {
+    height: 38px !important;
+    font-size: 12px !important;
+  }
+
+  :global(.calendar-popup .drp-apply) {
+    width: 100% !important;
+    height: 38px !important;
+    margin-top: 4px !important;
+    font-size: 12px !important;
+  }
+}
+
 .sync-btn {
   display: inline-flex;
   align-items: center;
@@ -692,6 +1656,16 @@ const placements = dashboardMockData.placements
   color: #b3b3b3;
   font-size: 1.3rem;
   font-weight: 500;
+}
+
+.sync-btn svg.spinning {
+  animation: dashboard-spin 1s linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ml-auto {
@@ -864,6 +1838,11 @@ const placements = dashboardMockData.placements
   background: #e5fbea;
   color: #18b44d;
   font-weight: 700;
+}
+
+.trend.negative {
+  background: #fef2f2;
+  color: #ef4444;
 }
 
 .trend svg {
@@ -1141,6 +2120,8 @@ const placements = dashboardMockData.placements
   overflow: hidden;
   color: #fff;
   background: linear-gradient(135deg, #38bdf8, #2563eb);
+  background-position: center;
+  background-size: cover;
 }
 
 .creative-image.city {
@@ -1319,7 +2300,10 @@ const placements = dashboardMockData.placements
   .filters-row > *,
   .filters-row .filter-btn,
   .export-btn,
-  .date-btn {
+  .date-btn,
+  .dashboard-date-picker {
+    flex-basis: auto;
+    max-width: none;
     width: 100%;
   }
 
@@ -1409,6 +2393,10 @@ const placements = dashboardMockData.placements
   padding: 0 15px;
   border-radius: 12px;
   font-size: 13px;
+}
+
+.dashboard-date-picker {
+  flex-basis: auto;
 }
 
 .select-like svg,
@@ -1819,7 +2807,10 @@ const placements = dashboardMockData.placements
   .filters-row > *,
   .filters-row .filter-btn,
   .export-btn,
-  .date-btn {
+  .date-btn,
+  .dashboard-date-picker {
+    flex-basis: auto;
+    max-width: none;
     width: 100%;
   }
 
@@ -1935,6 +2926,12 @@ const placements = dashboardMockData.placements
 
 .chip-img.vk {
   transform: scale(1.35);
+}
+
+.chip-img.telegram,
+.chip-img.max {
+  width: 18px;
+  height: 18px;
 }
 
 .chip-letter {
@@ -2494,6 +3491,7 @@ const placements = dashboardMockData.placements
 
 .figma-dashboard.is-dark .select-like,
 .figma-dashboard.is-dark .filter-btn,
+.figma-dashboard.is-dark .dashboard-date-picker :deep(.date-range-picker-container > button),
 .figma-dashboard.is-dark .month-select,
 .figma-dashboard.is-dark .see-all,
 .figma-dashboard.is-dark .round-action {
@@ -2504,6 +3502,7 @@ const placements = dashboardMockData.placements
 
 .figma-dashboard.is-dark .select-like:hover,
 .figma-dashboard.is-dark .filter-btn:hover,
+.figma-dashboard.is-dark .dashboard-date-picker :deep(.date-range-picker-container > button:hover),
 .figma-dashboard.is-dark .month-select:hover,
 .figma-dashboard.is-dark .see-all:hover {
   border-color: rgba(255, 255, 255, 0.18);
@@ -2582,6 +3581,11 @@ const placements = dashboardMockData.placements
 .figma-dashboard.is-dark .campaign-row b {
   background: rgba(34, 197, 94, 0.16);
   color: #66bb6a;
+}
+
+.figma-dashboard.is-dark .trend.negative {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
 }
 
 .figma-dashboard.is-dark .grid-lines line {

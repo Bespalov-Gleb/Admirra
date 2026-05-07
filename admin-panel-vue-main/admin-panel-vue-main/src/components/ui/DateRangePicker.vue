@@ -4,13 +4,21 @@
     <button
       ref="buttonRef"
       @click.stop="toggleCalendar"
-      class="flex w-full items-center gap-2 px-3 py-2 bg-white dark:bg-[#232637] border border-gray-200 dark:border-white/10 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 hover:border-blue-500 dark:hover:border-[#4A7AFF] hover:bg-blue-50/50 dark:hover:bg-white/5 transition-all min-w-[200px] justify-between"
+      class="drp-trigger flex w-full items-center justify-between gap-3 px-[15px] h-[46px] bg-white border border-[#ebebeb] rounded-xl text-[13px] font-medium hover:border-[#d9dee6] hover:shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition-all"
     >
-      <div class="flex items-center gap-2">
-        <CalendarIcon class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-        <span class="truncate">{{ displayText }}</span>
+      <div class="flex items-center gap-[10px] min-w-0">
+        <CalendarIcon class="w-4 h-4 text-[#6b7280] flex-shrink-0" />
+        <span
+          class="truncate font-semibold"
+          :class="selectedStart ? 'text-[#374151]' : 'text-[#b3b3b3]'"
+        >{{ displayText }}</span>
       </div>
-      <ChevronDownIcon class="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" :class="{ 'rotate-180': isOpen }" />
+      <span
+        class="flex items-center justify-center w-6 h-6 rounded-full bg-[#f5f7f9] text-[#b3b3b3] flex-shrink-0 transition-transform duration-300"
+        :class="{ 'rotate-180': isOpen }"
+      >
+        <ChevronDownIcon class="w-[14px] h-[14px]" />
+      </span>
     </button>
 
     <!-- Calendar Popup -->
@@ -18,17 +26,17 @@
       <Transition name="fade-scale">
         <div
           v-if="isOpen"
-          class="calendar-popup fixed bg-white dark:bg-[#2C2F3D] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-4 z-[99999] w-[min(640px,calc(100vw-24px))]"
+          class="calendar-popup drp-popup fixed bg-white dark:bg-[#2C2F3D] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-4 z-[99999] w-[min(640px,calc(100vw-24px))]"
           :style="calendarPosition"
           @click.stop
         >
         <!-- Quick Period Buttons -->
-        <div class="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-gray-100 dark:border-white/10">
+        <div class="drp-quick-row flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-gray-100 dark:border-white/10">
           <button
             v-for="period in quickPeriods"
             :key="period.value"
             @click="selectQuickPeriod(period.value)"
-            class="px-3 py-1.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
+            class="drp-quick px-3 py-1.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
             :class="{ 'text-blue-600 dark:text-[#4A7AFF] bg-blue-50 dark:bg-white/10': selectedQuickPeriod === period.value }"
           >
             {{ period.label }}
@@ -36,35 +44,35 @@
         </div>
 
         <!-- Calendar Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div class="drp-month-grid grid grid-cols-1 sm:grid-cols-2 gap-6">
           <!-- Left Calendar -->
           <div>
-            <div class="flex items-center justify-between mb-3">
+            <div class="drp-month-head flex items-center justify-between mb-3">
               <button
                 @click="previousMonth"
-                class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                class="drp-nav p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
               >
                 <ChevronLeftIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
               <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ leftMonthLabel }}</h3>
               <div class="w-6"></div>
             </div>
-            <div class="grid grid-cols-7 gap-1 mb-2">
+            <div class="drp-weekdays grid grid-cols-7 gap-1 mb-2">
               <div
                 v-for="day in weekDays"
                 :key="day"
-                class="text-[10px] font-bold text-center py-1"
+                class="drp-weekday text-[10px] font-bold text-center py-1"
                 :class="day === 'СБ' || day === 'ВС' ? 'text-red-500' : 'text-gray-500'"
               >
                 {{ day }}
               </div>
             </div>
-            <div class="grid grid-cols-7 gap-1">
+            <div class="drp-days grid grid-cols-7 gap-1">
               <button
                 v-for="(day, index) in leftCalendarDays"
                 :key="`left-${index}`"
                 @click="selectDate(day.date)"
-                class="relative h-8 w-8 rounded-lg text-xs font-bold transition-all"
+                class="drp-day relative h-8 w-8 rounded-lg text-xs font-bold transition-all"
                 :class="getDayClasses(day)"
                 :disabled="!day.inMonth"
               >
@@ -75,32 +83,32 @@
 
           <!-- Right Calendar -->
           <div>
-            <div class="flex items-center justify-between mb-3">
+            <div class="drp-month-head flex items-center justify-between mb-3">
               <div class="w-6"></div>
               <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ rightMonthLabel }}</h3>
               <button
                 @click="nextMonth"
-                class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                class="drp-nav p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
               >
                 <ChevronRightIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
-            <div class="grid grid-cols-7 gap-1 mb-2">
+            <div class="drp-weekdays grid grid-cols-7 gap-1 mb-2">
               <div
                 v-for="day in weekDays"
                 :key="day"
-                class="text-[10px] font-bold text-center py-1"
+                class="drp-weekday text-[10px] font-bold text-center py-1"
                 :class="day === 'СБ' || day === 'ВС' ? 'text-red-500' : 'text-gray-500'"
               >
                 {{ day }}
               </div>
             </div>
-            <div class="grid grid-cols-7 gap-1">
+            <div class="drp-days grid grid-cols-7 gap-1">
               <button
                 v-for="(day, index) in rightCalendarDays"
                 :key="`right-${index}`"
                 @click="selectDate(day.date)"
-                class="relative h-8 w-8 rounded-lg text-xs font-bold transition-all"
+                class="drp-day relative h-8 w-8 rounded-lg text-xs font-bold transition-all"
                 :class="getDayClasses(day)"
                 :disabled="!day.inMonth"
               >
@@ -111,33 +119,33 @@
         </div>
 
         <!-- Date Input Fields -->
-        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/10 flex flex-wrap items-center gap-3">
+        <div class="drp-fields mt-4 pt-4 border-t border-gray-100 dark:border-white/10 flex flex-wrap items-center gap-3">
           <div class="flex-1">
-            <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">От</label>
+            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider mb-1 block">От</label>
             <input
               type="text"
               v-model="startDateInput"
               @blur="parseStartDate"
               @keyup.enter="parseStartDate"
               placeholder="ДД.ММ.ГГГГ"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232637] rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-blue-500/20 outline-none"
+              class="drp-input w-full px-3 py-2 border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232637] rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-blue-500/20 outline-none"
             />
           </div>
           <div class="pt-5 text-gray-400 dark:text-gray-500">—</div>
           <div class="flex-1">
-            <label class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">До</label>
+            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider mb-1 block">До</label>
             <input
               type="text"
               v-model="endDateInput"
               @blur="parseEndDate"
               @keyup.enter="parseEndDate"
               placeholder="ДД.ММ.ГГГГ"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232637] rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-blue-500/20 outline-none"
+              class="drp-input w-full px-3 py-2 border border-gray-200 dark:border-white/10 bg-white dark:bg-[#232637] rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 focus:border-blue-500 dark:focus:border-[#4A7AFF] focus:ring-2 focus:ring-blue-500/20 outline-none"
             />
           </div>
           <button
             @click="applyDates"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors mt-5"
+            class="drp-apply px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors mt-5"
           >
             Применить
           </button>
@@ -497,11 +505,10 @@ function updateCalendarPosition() {
   
   nextTick(() => {
     const rect = buttonRef.value.getBoundingClientRect()
-    const calendarWidth = Math.min(640, window.innerWidth - 24)
+    const calendarWidth = Math.min(window.innerWidth < 700 ? 320 : 560, window.innerWidth - 24)
     const padding = 16
     
-    // Calculate left position: shift left by 200px, but ensure it doesn't go off-screen
-    let left = rect.left - 200
+    let left = rect.left + rect.width - calendarWidth
     
     // Ensure calendar doesn't go off the left edge
     if (left < padding) {

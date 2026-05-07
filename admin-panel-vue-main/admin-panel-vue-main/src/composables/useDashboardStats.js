@@ -1,9 +1,17 @@
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import api from '../api/axios'
 
-/**
- * Composable for managing dashboard statistics and filters.
- */
+const DEVICE_STATS_MOCK = [
+  { name: 'Мобильные', value: '—', width: '60%', icon: 'mobile' },
+  { name: 'Десктоп',   value: '—', width: '30%', icon: 'desktop' },
+  { name: 'Планшеты',  value: '—', width: '10%', icon: 'desktop' }
+]
+
+const PLACEMENTS_MOCK = [
+  { name: 'Поиск', value: '—', width: '60%' },
+  { name: 'РСЯ',   value: '—', width: '40%' }
+]
+
 export function useDashboardStats() {
   const summary = ref({
     expenses: 0,
@@ -29,9 +37,11 @@ export function useDashboardStats() {
 
   const topClients = ref([])
   const campaigns = ref([])
-  const allCampaigns = ref([]) // For dropdown pool
-  const allCampaignsForGoalsTab = ref([]) // Все VK кампании без фильтра по целям (для вкладки «По целям»)
+  const allCampaigns = ref([])
+  const allCampaignsForGoalsTab = ref([])
   const clients = ref([])
+  const deviceStats = ref([...DEVICE_STATS_MOCK])
+  const placements = ref([...PLACEMENTS_MOCK])
   const loading = ref(true)
   const loadingClients = ref(false)
   const loadingCampaigns = ref(false)
@@ -182,18 +192,19 @@ export function useDashboardStats() {
           : undefined
       }
 
-      const [summaryRes, dynamicsRes, topClientsRes, campaignsRes] = await Promise.allSettled([
+      const [summaryRes, dynamicsRes, topClientsRes, campaignsRes, deviceStatsRes, placementsRes] = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
         api.get('dashboard/top-clients'),
-        api.get('dashboard/campaigns', { params })
+        api.get('dashboard/campaigns', { params }),
+        api.get('dashboard/devices', { params }),
+        api.get('dashboard/placements', { params })
       ])
 
       if (summaryRes.status === 'fulfilled') {
         const summaryData = summaryRes.value.data
         console.log('[DashboardStats] Summary data received:', summaryData)
         console.log('[DashboardStats] Balance:', summaryData.balance, 'Currency:', summaryData.currency)
-        // CRITICAL: Ensure balance and currency are always set, even if backend returns undefined
         summary.value = {
           ...summaryData,
           balance: summaryData.balance ?? 0,
@@ -202,10 +213,16 @@ export function useDashboardStats() {
       } else {
         console.error('[DashboardStats] Failed to fetch summary:', summaryRes.reason)
       }
-      
+
       if (dynamicsRes.status === 'fulfilled') dynamics.value = dynamicsRes.value.data
       if (topClientsRes.status === 'fulfilled') topClients.value = topClientsRes.value.data
       if (campaignsRes.status === 'fulfilled') campaigns.value = campaignsRes.value.data
+
+      const devData = deviceStatsRes.status === 'fulfilled' ? deviceStatsRes.value.data : null
+      deviceStats.value = Array.isArray(devData) && devData.length ? devData : [...DEVICE_STATS_MOCK]
+
+      const plData = placementsRes.status === 'fulfilled' ? placementsRes.value.data : null
+      placements.value = Array.isArray(plData) && plData.length ? plData : [...PLACEMENTS_MOCK]
 
       if (summaryRes.status === 'rejected' && dynamicsRes.status === 'rejected') {
         // Проверяем, не 401 ли это (неавторизованный пользователь)
@@ -417,6 +434,8 @@ export function useDashboardStats() {
     allCampaignsForGoalsTab,
     campaigns,
     clients,
+    deviceStats,
+    placements,
     loading: computed(() => loading.value || loadingClients.value),
     loadingCampaigns,
     loadingVkGoalActions,
