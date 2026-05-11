@@ -208,7 +208,7 @@
           </tbody>
         </table>
       </div>
-      <div class="relative flex min-h-[70px] items-end px-[30px] pt-[30px]">
+      <div class="relative flex min-h-[70px] flex-col gap-3 px-[20px] pt-[24px] sm:flex-row sm:items-end sm:px-[30px] sm:pt-[30px]">
         <div class="min-w-0 pb-[15px]">
           <div class="mb-[10px] text-[13px] font-medium leading-[130%] text-[#696969] dark:text-white/70">Элементов на&nbsp;странице:</div>
           <div class="relative inline-block">
@@ -238,11 +238,11 @@
           </div>
         </div>
 
-        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 py-[15px] text-center text-[13px] font-medium leading-[130%] text-[#696969] dark:text-white/70">
+        <div class="order-3 py-[5px] text-center text-[13px] font-medium leading-[130%] text-[#696969] dark:text-white/70 sm:absolute sm:bottom-0 sm:left-1/2 sm:order-none sm:-translate-x-1/2 sm:py-[15px]">
           {{ paginationStart }}-{{ paginationEnd }} из {{ filteredProjects.length }}
         </div>
 
-        <div class="ml-auto flex pb-[15px]">
+        <div class="flex pb-[15px] sm:ml-auto">
           <button
             type="button"
             class="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[6px] border border-[rgba(168,169,170,0.32)] text-[rgba(105,105,105,0.56)] transition duration-300 hover:border-[#1f9de4] hover:text-[#1f9de4]"

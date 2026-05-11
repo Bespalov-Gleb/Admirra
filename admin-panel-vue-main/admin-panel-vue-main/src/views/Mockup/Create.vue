@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-[calc(100vh-76px)] items-center justify-center p-8">
+  <div class="flex min-h-[calc(100vh-76px)] items-center justify-center p-4 sm:p-8">
     <div class="w-full max-w-[1036px]">
 
       <!-- Тёмная карточка -->
@@ -23,15 +23,15 @@
         </div>
 
         <!-- Контент поверх орбов -->
-        <div class="relative z-10 flex items-end">
+        <div class="relative z-10 flex flex-col items-stretch lg:flex-row lg:items-end">
 
           <!-- Форма -->
           <form
-            class="flex flex-col flex-1 min-w-0 p-[40px]"
+            class="flex flex-col flex-1 min-w-0 p-6 sm:p-[40px]"
             style="row-gap:17px"
             @submit.prevent="handleSubmit"
           >
-            <h3 class="text-[30px] leading-[1.2] font-semibold text-white">
+            <h3 class="text-[24px] leading-[1.2] font-semibold text-white sm:text-[30px]">
               <span class="font-light">Для начала работы,</span><br />
               необходимо создать проект
             </h3>
@@ -67,7 +67,7 @@
           </form>
 
           <!-- Иллюстрация (лиса) -->
-          <div class="w-[407px] flex-shrink-0">
+          <div class="mx-auto w-full max-w-[320px] flex-shrink-0 sm:max-w-[407px] lg:mx-0">
             <img
               src="/admirra/img/fox/welcome-create.png"
               alt="Создание проекта"

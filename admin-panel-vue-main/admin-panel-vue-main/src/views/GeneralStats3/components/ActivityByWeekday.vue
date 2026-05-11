@@ -23,14 +23,14 @@
     <div v-if="loading" class="flex-1 min-h-[200px] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else class="flex-1 min-h-[200px] overflow-visible">
-      <canvas ref="chartRef" />
+    <div ref="chartShellRef" v-else class="relative h-[260px] min-h-[240px] w-full min-w-0 overflow-visible sm:h-[300px]">
+      <canvas ref="chartRef" class="h-full w-full" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useTheme } from '../../../composables/useTheme'
 import { Chart, registerables } from 'chart.js'
 import DataLabelsPlugin from 'chartjs-plugin-datalabels'
@@ -49,7 +49,9 @@ const props = defineProps({
 
 const { isDarkMode } = useTheme()
 const chartRef = ref(null)
+const chartShellRef = ref(null)
 let chartInstance = null
+let resizeObserver = null
 const loading = ref(false)
 const metric = ref('clicks') // 'clicks' | 'leads'
 const chartData = ref({ clicks: {}, leads: {} })
@@ -58,6 +60,12 @@ const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const WEEKDAY_INDICES = [1, 2, 3, 4, 5, 6, 0]
 
 const isDark = () => document.documentElement.classList.contains('dark')
+
+const observeChartShell = () => {
+  if (!resizeObserver || !chartShellRef.value) return
+  resizeObserver.disconnect()
+  resizeObserver.observe(chartShellRef.value)
+}
 
 const updateChart = () => {
   if (!chartRef.value) return
@@ -95,6 +103,7 @@ const updateChart = () => {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      resizeDelay: 80,
       layout: { padding: { top: 32 } },
       plugins: {
         legend: { display: false },
@@ -146,12 +155,13 @@ const fetchData = async () => {
     } else {
       chartData.value = { clicks: {}, leads: {} }
     }
-    updateChart()
   } catch {
     chartData.value = { clicks: {}, leads: {} }
-    updateChart()
   } finally {
     loading.value = false
+    await nextTick()
+    observeChartShell()
+    updateChart()
   }
 }
 
@@ -164,8 +174,14 @@ watch(
 watch(metric, () => updateChart())
 watch(isDarkMode, () => updateChart())
 
-onMounted(fetchData)
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    if (chartInstance) chartInstance.resize()
+  })
+  if (chartShellRef.value) resizeObserver.observe(chartShellRef.value)
+})
 onUnmounted(() => {
   if (chartInstance) chartInstance.destroy()
+  if (resizeObserver) resizeObserver.disconnect()
 })
 </script>

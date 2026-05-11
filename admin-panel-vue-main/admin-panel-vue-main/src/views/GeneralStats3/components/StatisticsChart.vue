@@ -16,7 +16,7 @@
       </div>
     </div>
 
-    <div class="flex-1 min-h-[480px] relative w-full overflow-hidden">
+    <div data-statistics-chart-shell class="relative h-[320px] w-full min-w-0 overflow-hidden sm:h-[420px] xl:h-[480px]">
       <Line
         :data="chartData"
         :options="chartOptions"
@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -105,6 +105,7 @@ const METRIC_KEYS = ['expenses', 'impressions', 'clicks', 'cpc', 'leads', 'cpa']
 const Y_AXIS_IDS = ['y', 'y1', 'y2', 'y3', 'y4', 'y5']
 
 const chartKey = ref(0)
+let resizeObserver = null
 
 const getDataByMetric = (key) => {
   const d = props.dynamics
@@ -182,6 +183,7 @@ const chartOptions = computed(() => {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    resizeDelay: 80,
     interaction: { mode: 'index', intersect: false },
     animation: { duration: 0 },
     plugins: {
@@ -225,5 +227,14 @@ watch(
 
 onMounted(() => {
   chartKey.value++
+  resizeObserver = new ResizeObserver(() => {
+    chartKey.value++
+  })
+  const el = document.querySelector('[data-statistics-chart-shell]')
+  if (el) resizeObserver.observe(el)
+})
+
+onUnmounted(() => {
+  if (resizeObserver) resizeObserver.disconnect()
 })
 </script>
