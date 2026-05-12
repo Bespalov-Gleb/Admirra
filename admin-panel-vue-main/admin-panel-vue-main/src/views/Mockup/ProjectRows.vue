@@ -98,7 +98,7 @@
       {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
     </div>
 
-    <div v-else class="mb-[30px] overflow-visible rounded-[15px] bg-white py-[30px] dark:bg-[#2C2F3D]">
+    <div v-else class="mb-[30px] overflow-visible rounded-[15px] bg-white py-[30px] dark:bg-[#2C2F3D] dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]">
       <div class="overflow-x-auto">
         <table class="project-rows-table w-full table-auto border-collapse">
           <thead>
@@ -270,7 +270,7 @@
 
     <div
       v-if="activeActionProject"
-      class="fixed z-[1200] w-[220px] rounded-[12px] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D]"
+      class="fixed z-[1200] w-[220px] rounded-[12px] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D] dark:shadow-[0_8px_32px_rgba(0,0,0,0.40),inset_0_1px_0_rgba(255,255,255,0.08)]"
       :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
       @click.stop
     >

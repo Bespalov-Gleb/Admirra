@@ -31,19 +31,19 @@
       <div class="panel panel-reports">
         <div class="report-col report-main">
           <h2>Отчеты и уведомления</h2>
-          <div class="chips-row">
+          <div class="chips-row report-icons-row">
             <button
               v-for="item in reportChannels"
               :key="item.name"
-              class="chip"
+              class="report-icon-btn"
               :class="{ active: selectedReportChannel === item.name }"
-              :style="{ backgroundColor: getChipBackground(item) }"
               type="button"
               @click="selectedReportChannel = item.name"
             >
-              <span class="chip-dot" :style="{ background: item.color }">
+              <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
+                <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
                 <img
-                  v-if="item.asset"
+                  v-else-if="item.asset"
                   :src="item.asset"
                   alt=""
                   :class="['chip-img', item.imageClass]"
@@ -51,7 +51,6 @@
                 <span v-else-if="item.letter" class="chip-letter">{{ item.letter }}</span>
                 <component v-else :is="item.icon" class="chip-icon" />
               </span>
-              {{ item.name }}
             </button>
           </div>
         </div>
@@ -97,8 +96,8 @@
         </div>
 
         <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail" @click="handleSendSelectedReport">
-          {{ sendingTg || sendingEmail ? 'Отправка...' : 'Отправить отчет' }}
-          <ArrowPathRoundedSquareIcon />
+          {{ sendingTg || sendingEmail ? 'Отправка...' : 'Отправить отчет сейчас' }}
+          <CheckCircleIcon />
         </button>
       </div>
     </section>
@@ -167,75 +166,90 @@
           @change="handleDateRangeChange"
         />
 
-        <button class="sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
+        <span class="sync-status-label">
           <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
-          {{ syncingIntegrations ? 'Синхронизация...' : syncLabel }}
-        </button>
+          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизация: сегодня, 10:30' }}
+        </span>
 
-        <div class="filter-wrap custom-select dashboard-select ml-auto export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
-          <button class="export-btn cs-head" type="button" @click="toggleMenu('export')">
-            <span class="cs-current">Экспорт отчета</span>
-            <span class="cs-arrow">
-              <ChevronDownIcon />
-            </span>
+        <div class="filter-right-group">
+          <label class="nds-check-wrap">
+            <input type="checkbox" v-model="includeVat" class="nds-checkbox" />
+            <span class="nds-label">НДС 22%</span>
+          </label>
+
+          <button class="sync-btn sync-btn-blue" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
+            <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
+            {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизация' }}
           </button>
-          <div class="cs-list dropdown-panel export">
-            <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
-            <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-            <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Получить ссылку</button>
+
+          <div class="filter-wrap custom-select dashboard-select export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
+            <button class="export-btn cs-head" type="button" @click="toggleMenu('export')">
+              <span class="cs-current">Экспорт отчета</span>
+              <span class="cs-arrow">
+                <ChevronDownIcon />
+              </span>
+            </button>
+            <div class="cs-list dropdown-panel export">
+              <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
+              <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+              <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Получить ссылку</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="kpi-grid">
-      <article v-for="metric in metrics" :key="metric.title" class="metric-card">
+    <VueDraggable
+      v-model="visibleSlots"
+      tag="section"
+      class="kpi-grid"
+      :animation="150"
+      handle=".drag-handle"
+      draggable=".metric-card-item"
+      @end="saveKpiConfig"
+    >
+      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item">
         <div class="metric-head">
-          <span class="metric-icon">
-            <component :is="metric.icon" />
+          <span class="metric-icon drag-handle" title="Перетащить">
+            <component :is="metricsMap[key]?.icon" />
           </span>
-          <div>
-            <h3>{{ metric.title }}</h3>
-            <p>{{ metric.subtitle }}</p>
+          <div class="metric-text">
+            <h3>{{ metricsMap[key]?.title }}</h3>
+            <strong>{{ metricsMap[key]?.value }}</strong>
           </div>
-          <button class="round-action" type="button">
-            <ArrowUpRightIcon />
+          <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+            <ArrowTrendingDownIcon v-if="metricsMap[key]?.negative" class="trend-icon" />
+            <ArrowTrendingUpIcon v-else class="trend-icon" />
+            {{ metricsMap[key]?.trend }}
+          </span>
+          <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
+            <XMarkIcon />
           </button>
         </div>
-        <strong>{{ metric.value }}</strong>
-        <div class="metric-foot">
-          <span class="trend" :class="{ negative: metric.negative }">
-            <ArrowTrendingDownIcon v-if="metric.negative" />
-            <ArrowTrendingUpIcon v-else />
-            {{ metric.trend }}
-          </span>
-          <span>{{ metric.delta }}</span>
-        </div>
       </article>
-    </section>
+      <div
+        v-if="hiddenCardKeys.length"
+        class="metric-card metric-card--add"
+        v-click-outside="() => showAddMenu = false"
+        @click.stop="showAddMenu = !showAddMenu"
+      >
+        <div class="add-card-inner">
+          <PlusCircleIcon class="placeholder-plus" />
+          <span>Добавить карточку</span>
+        </div>
+        <div v-if="showAddMenu" class="add-card-dropdown" @click.stop>
+          <button v-for="k in hiddenCardKeys" :key="k" class="add-card-item" @click="restoreCard(k)">
+            <component :is="metricsMap[k]?.icon" class="add-card-icon" />
+            <span>{{ metricsMap[k]?.title }}</span>
+          </button>
+        </div>
+      </div>
+    </VueDraggable>
 
     <section class="chart-goals-grid">
       <article class="panel chart-panel">
         <div class="panel-title-row">
           <h2>Эффективность кампаний</h2>
-          <div class="custom-select chart-period-select" :class="{ open: openMenu === 'chart-period' }" v-click-outside="() => closeMenu('chart-period')">
-            <button class="month-select cs-head" type="button" @click="toggleMenu('chart-period')">
-              <span class="cs-current">{{ selectedChartPeriod }}</span>
-              <span class="cs-arrow">
-                <ChevronDownIcon />
-              </span>
-            </button>
-            <div class="cs-list">
-              <button
-                v-for="option in chartPeriodOptions"
-                :key="option"
-                type="button"
-                class="cs-option"
-                :class="{ selected: selectedChartPeriod === option }"
-                @click="selectChartPeriod(option)"
-              >{{ option }}</button>
-            </div>
-          </div>
         </div>
         <div class="chart-area">
           <svg viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
@@ -273,13 +287,21 @@
         <h2>Разбивка по целям</h2>
         <div class="goals-content">
           <div class="donut-wrap">
-            <div class="donut" :style="{ background: donutGradient }"></div>
+            <div
+              class="donut"
+              :style="{ '--donut-outer': donutGradient, '--donut-inner': innerDonutGradient }"
+            ></div>
             <span>{{ goalsTotalLabel }}</span>
           </div>
           <div class="goals-list">
-            <div v-for="goal in goals" :key="goal.name" class="goal-item">
+            <div
+              v-for="goal in goals"
+              :key="goal.name"
+              class="goal-item"
+              :style="{ '--goal-color': goal.color, '--goal-bg': goal.legendBg || goal.color + '24', '--goal-border': goal.color + '24' }"
+            >
               <div>
-                <span :style="{ background: goal.color }"></span>
+                <span :style="{ background: goal.dotColor || goal.color }"></span>
                 {{ goal.name }}
               </div>
               <p>{{ goal.value }}</p>
@@ -292,7 +314,6 @@
     <section class="panel campaigns-panel">
       <div class="panel-title-row">
         <h2>Лучшие рекламные компании</h2>
-        <button class="see-all" type="button">Смотреть все <ChevronDownIcon /></button>
       </div>
       <div class="campaign-table">
         <div class="campaign-row header">
@@ -302,28 +323,27 @@
           <span>Клики</span>
           <span>CPC</span>
           <span>Лиды</span>
-          <span>CPA</span>
+          <span>CPL</span>
         </div>
         <div v-for="(campaign, index) in campaignRows" :key="index" class="campaign-row" :class="campaign.tint">
           <span>{{ campaign.name }}</span>
           <span>{{ campaign.cost }} <b>{{ campaign.trendCost }}</b></span>
           <span>{{ campaign.impressions }} <b>{{ campaign.trendImpressions }}</b></span>
           <span>{{ campaign.clicks }} <b>{{ campaign.trendClicks }}</b></span>
-          <span>{{ campaign.cpc }} <b>{{ campaign.trendCpc }}</b></span>
+          <span>{{ campaign.cpc }} <b class="negative">{{ campaign.trendCpc }}</b></span>
           <span>{{ campaign.leads }} <b>{{ campaign.trendLeads }}</b></span>
-          <span>{{ campaign.cpa }} <b>{{ campaign.trendCpa }}</b></span>
+          <span>{{ campaign.cpa }} <b class="negative">{{ campaign.trendCpa }}</b></span>
         </div>
       </div>
     </section>
 
     <section class="bottom-grid">
-      <article class="panel creatives-panel">
-        <h2>Топ креативы за месяц</h2>
+      <article v-if="creatives.length" class="panel creatives-panel">
+        <h2>Топ креативы</h2>
         <div class="creatives-row">
           <div v-for="creative in creatives" :key="creative.id || creative.title" class="creative-card">
-            <div class="creative-image" :class="creative.class" :style="creative.imageUrl ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.55)), url(${creative.imageUrl})` } : null">
-              <span>{{ creative.badge }}</span>
-              <strong>{{ creative.title }}</strong>
+            <div class="creative-image" :class="creative.class" :style="creative.imageUrl ? { backgroundImage: `url(${creative.imageUrl})` } : null">
+              <span v-if="creative.badge">{{ creative.badge }}</span>
             </div>
             <p>Заголовок:</p>
             <em>{{ creative.heading }}</em>
@@ -333,7 +353,7 @@
         </div>
       </article>
 
-      <article class="panel ai-panel">
+      <article v-if="aiComments.length" class="panel ai-panel">
         <div class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
@@ -356,8 +376,14 @@
 
         <article class="panel mini-stat-panel">
           <h2>Плейсменты</h2>
-          <div v-for="item in placements" :key="item.name" class="progress-line">
-            <span><span class="place-dot"></span>{{ item.name }}</span>
+          <div v-for="item in placements" :key="item.name" class="progress-line placement-line">
+            <span>
+              <span class="placement-icon" :class="item.name === 'РСЯ' ? 'placement-icon--rsya' : 'placement-icon--search'">
+                <img v-if="item.name === 'РСЯ'" :src="yandexDirectIcon" alt="РСЯ" class="placement-icon-img" />
+                <MagnifyingGlassIcon v-else />
+              </span>
+              {{ item.name }}
+            </span>
             <div><i :style="{ width: item.width }"></i></div>
             <b>{{ item.value }}</b>
           </div>
@@ -408,6 +434,7 @@ import {
   ArrowPathRoundedSquareIcon,
   ArrowTrendingDownIcon,
   ArrowTrendingUpIcon,
+  CheckCircleIcon,
   ArrowUpRightIcon,
   CalendarDaysIcon,
   ChartBarIcon,
@@ -416,13 +443,14 @@ import {
   CursorArrowRaysIcon,
   DevicePhoneMobileIcon,
   DocumentArrowDownIcon,
-  EnvelopeIcon,
   LinkIcon,
   MagnifyingGlassIcon,
   PhotoIcon,
   PlayCircleIcon,
+  PlusCircleIcon,
   SparklesIcon,
-  WalletIcon
+  WalletIcon,
+  XMarkIcon
 } from '@heroicons/vue/24/outline'
 import { BuildingOfficeIcon, ComputerDesktopIcon, CursorArrowRippleIcon, EyeIcon } from '@heroicons/vue/24/solid'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
@@ -434,7 +462,7 @@ import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
-import { dashboardMockData } from './data/dashboardMockData'
+import { VueDraggable } from 'vue-draggable-plus'
 
 const { isDarkMode } = useTheme()
 const toaster = useToaster()
@@ -457,10 +485,52 @@ const {
 } = useDashboardStats()
 
 const openMenu = ref('')
+
+const METRIC_CONFIG = [
+  { key: 'expenses',    title: 'Расходы',       subtitle: 'За период',       icon: 'wallet',   costMetric: false },
+  { key: 'impressions', title: 'Показы',         subtitle: 'По всем каналам', icon: 'chart',    costMetric: false },
+  { key: 'clicks',      title: 'Клики',          subtitle: 'Все переходы',    icon: 'cursor',   costMetric: false },
+  { key: 'cpc',         title: 'СРС',            subtitle: 'Стоимость клика', icon: 'play',     costMetric: true  },
+  { key: 'leads',       title: 'Лиды',           subtitle: 'По всем каналам', icon: 'calendar', costMetric: false },
+  { key: 'cpa',         title: 'CPL',            subtitle: 'Стоимость лида',  icon: 'badge',    costMetric: true  },
+]
+
+// KPI cards drag & hide
+const KPI_CONFIG_KEY = 'dashboard_kpi_config'
+const _loadKpiConfig = () => { try { const s = localStorage.getItem(KPI_CONFIG_KEY); return s ? JSON.parse(s) : null } catch { return null } }
+const _savedKpi = _loadKpiConfig()
+const _defaultOrder = METRIC_CONFIG.map(m => m.key)
+const kpiOrder = ref(_savedKpi?.order || [..._defaultOrder])
+const kpiHiddenSet = ref(new Set(_savedKpi?.hidden || []))
+
+const visibleSlots = computed({
+  get: () => kpiOrder.value.filter(k => !kpiHiddenSet.value.has(k)),
+  set: (newOrder) => {
+    const hidden = kpiOrder.value.filter(k => kpiHiddenSet.value.has(k))
+    kpiOrder.value = [...newOrder, ...hidden]
+    saveKpiConfig()
+  }
+})
+const hiddenCardKeys = computed(() => kpiOrder.value.filter(k => kpiHiddenSet.value.has(k)))
+
+const saveKpiConfig = () => {
+  localStorage.setItem(KPI_CONFIG_KEY, JSON.stringify({ order: kpiOrder.value, hidden: [...kpiHiddenSet.value] }))
+}
+const hideCard = (key) => {
+  kpiHiddenSet.value = new Set([...kpiHiddenSet.value, key])
+  saveKpiConfig()
+}
+const restoreCard = (key) => {
+  const s = new Set(kpiHiddenSet.value); s.delete(key); kpiHiddenSet.value = s
+  saveKpiConfig()
+  showAddMenu.value = false
+}
+const showAddMenu = ref(false)
+const metricsMap = computed(() => { const m = {}; metrics.value.forEach(x => { m[x.key] = x }); return m })
 const campaignQuery = ref('')
 const selectedReportChannel = ref('Telegram')
 const selectedReportTemplate = ref('Шаблон: Яндекс')
-const selectedSchedule = ref('Ежедневно в 10:00')
+const selectedSchedule = ref('Ежедневно в 10:00 по МСК')
 const selectedChartPeriod = ref('Месяц')
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
@@ -545,9 +615,9 @@ const channels = [
 ]
 
 const reportChannels = [
-  { name: 'Telegram', color: '#eef8ff', bg: '#f3f8ff', darkBg: 'rgba(42, 171, 238, 0.14)', asset: '/admirra/img/icons/telegram.png', imageClass: 'telegram' },
-  { name: 'E-mail', color: '#2563eb', bg: '#fff', darkBg: 'transparent', icon: EnvelopeIcon },
-  { name: 'Max', color: '#f4f7fb', bg: '#fff', darkBg: 'rgba(255, 255, 255, 0.06)', asset: '/admirra/img/icons/max.png', imageClass: 'max' }
+  { name: 'Telegram', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'telegram-icon' },
+  { name: 'E-mail', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon' },
+  { name: 'Max', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'max-icon' }
 ]
 
 const filterChannels = [
@@ -555,17 +625,15 @@ const filterChannels = [
   ...channels
 ]
 
-// Integration point: replace dashboardMockData with an API-backed state object
-// that keeps the same field names used below.
-const reportTemplateOptions = dashboardMockData.reportTemplateOptions
-const scheduleOptions = dashboardMockData.scheduleOptions
-const chartPeriodOptions = dashboardMockData.chartPeriodOptions
+const reportTemplateOptions = ['Шаблон: Яндекс', 'Шаблон: VK Ads']
+const scheduleOptions = ['Ежедневно в 10:00 по МСК', 'Каждый ПН в 10:00 по МСК', 'Каждую ПТ в 18:00 по МСК']
+const chartPeriodOptions = ['Неделя', 'Месяц', 'Квартал', 'Год']
 
 const getChipBackground = (item) => (isDarkMode.value ? (item.darkBg ?? item.bg) : item.bg)
 
 const filteredCampaigns = computed(() => {
   const query = campaignQuery.value.trim().toLowerCase()
-  const items = allCampaigns.value.length ? allCampaigns.value : dashboardMockData.campaigns.map((name, id) => ({ id: `mock-${id}`, name }))
+  const items = allCampaigns.value
   if (!query) return items
   return items.filter((item) => item.name.toLowerCase().includes(query))
 })
@@ -641,30 +709,30 @@ const dashboardTitle = computed(() => {
 const metrics = computed(() => {
   const data = summary.value || {}
   const trends = data.trends || {}
+  const hasData = !!summary.value
   const values = {
-    expenses: formatMoney(withVat(data.expenses)),
-    impressions: formatNumber(data.impressions),
-    clicks: formatNumber(data.clicks),
-    cpc: formatMoney(withVat(data.cpc)),
-    leads: `${formatNumber(data.leads)} шт.`,
-    cpa: formatMoney(withVat(data.cpa))
+    expenses:    hasData ? formatMoney(withVat(data.expenses))                    : '—',
+    impressions: hasData ? formatNumber(data.impressions)                         : '—',
+    clicks:      hasData ? formatNumber(data.clicks)                              : '—',
+    cpc:         hasData ? formatMoney(withVat(data.cpc))                        : '—',
+    leads:       hasData ? `${formatNumber(data.leads)} шт.`                     : '—',
+    cpa:         hasData ? formatMoney(withVat(data.cpa))                        : '—',
   }
-  return dashboardMockData.metrics.map((metric) => {
-    const trendRaw = Number(trends[metric.key] ?? metric.trend ?? 0)
+  return METRIC_CONFIG.map((metric) => {
+    const trendRaw = Number(trends[metric.key] ?? 0)
     return {
-    ...metric,
-    value: values[metric.key] || metric.value,
-    trend: formatTrend(trendRaw),
-    negative: trendRaw < 0,
-    delta: 'за выбранный период',
-    icon: metricIcons[metric.icon] || ChartBarIcon
-  }
+      ...metric,
+      value: values[metric.key],
+      trend: hasData ? formatTrend(trendRaw) : null,
+      negative: metric.costMetric ? trendRaw > 0 : trendRaw < 0,
+      icon: metricIcons[metric.icon] || ChartBarIcon
+    }
   })
 })
 
 const chartSourceValues = computed(() => {
   const values = dynamics.value?.costs || []
-  return values.length ? values.map((value) => withVat(value)) : dashboardMockData.chart.previewPoints.map((point) => 226 - point.y)
+  return values.map((value) => withVat(value))
 })
 
 const chartPoints = computed(() => {
@@ -690,7 +758,8 @@ const chartFillPath = computed(() => {
   const last = points[points.length - 1] || { x: 846 }
   return `${chartPath.value} L ${last.x} 226 L ${first.x} 226 Z`
 })
-const dateLabels = computed(() => dynamics.value?.labels?.length ? dynamics.value.labels : dashboardMockData.chart.labels)
+
+const dateLabels = computed(() => dynamics.value?.labels || [])
 
 const chartYLabels = computed(() => {
   const values = chartSourceValues.value
@@ -718,13 +787,8 @@ const chartTooltipLabel = computed(() => {
 })
 
 const goals = computed(() => {
-  const colors = ['#3f63f6', '#f39a72', '#dff9e7', '#8ada70', '#d38cff']
-  if (!reportGoals.value.length) {
-    return dashboardMockData.goals.map((g) => {
-      const pct = parseFloat(g.value.match(/\(([0-9.]+)%\)/)?.[1] ?? 0)
-      return { ...g, pct }
-    })
-  }
+  const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff']
+  if (!reportGoals.value.length) return []
   const total = reportGoals.value.reduce((sum, item) => sum + Number(item.count ?? item.conversions ?? item.value ?? 0), 0) || 1
   return reportGoals.value.slice(0, 5).map((goal, index) => {
     const count = Number(goal.count ?? goal.conversions ?? goal.value ?? 0)
@@ -740,15 +804,20 @@ const goals = computed(() => {
 
 const donutGradient = computed(() => {
   const items = goals.value
-  if (!items.length) return 'conic-gradient(#e5e7eb 0 100%)'
-  let offset = 0
-  const segments = items.map((goal) => {
-    const start = offset.toFixed(2)
-    offset += goal.pct ?? 0
-    return `${goal.color} ${start}% ${offset.toFixed(2)}%`
-  })
-  if (offset < 99.9) segments.push(`#e5e7eb ${offset.toFixed(2)}% 100%`)
-  return `conic-gradient(${segments.join(', ')})`
+  if (!items.length) return 'conic-gradient(from -90deg, #e5e7eb 0 100%)'
+  const blue = items[0]?.color || '#5677f6'
+  const orange = items[1]?.color || '#f2a988'
+  const green = items[2]?.color || '#e8fdec'
+  return `conic-gradient(from -90deg, ${blue} 0 50%, ${orange} 50% 75%, ${green} 75% 100%)`
+})
+
+const innerDonutGradient = computed(() => {
+  const items = goals.value
+  if (!items.length) return 'conic-gradient(from -90deg, #d1d5db 0 100%)'
+  const blue = items[0]?.innerColor || items[0]?.color || '#3d5fdf'
+  const orange = items[1]?.innerColor || items[1]?.color || '#e39674'
+  const green = items[2]?.innerColor || items[2]?.color || '#cbedd1'
+  return `conic-gradient(from -90deg, ${blue} 0 50%, ${orange} 50% 75%, ${green} 75% 100%)`
 })
 
 const goalsTotalLabel = computed(() => {
@@ -758,10 +827,11 @@ const goalsTotalLabel = computed(() => {
 
 const campaignRows = computed(() => {
   const rows = campaigns.value?.length ? campaigns.value : []
-  if (!rows.length) return dashboardMockData.campaignRows
+  if (!rows.length) return []
+  const tints = ['orange', 'green', 'blue']
   return rows.slice(0, 5).map((campaign, index) => ({
     name: campaign.name || `Кампания ${index + 1}`,
-    tint: index % 3 === 2 ? 'blue' : 'green',
+    tint: tints[index % tints.length],
     cost: formatMoney(withVat(campaign.cost)),
     impressions: formatNumber(campaign.impressions),
     clicks: formatNumber(campaign.clicks),
@@ -778,7 +848,7 @@ const campaignRows = computed(() => {
 })
 
 const creatives = computed(() => {
-  if (!topAds.value.length) return dashboardMockData.creatives
+  if (!topAds.value.length) return []
   const classes = ['city', 'blue', 'house']
   return topAds.value.slice(0, 3).map((post, index) => ({
     id: post.id || `${post.title}-${index}`,
@@ -791,7 +861,7 @@ const creatives = computed(() => {
   }))
 })
 const aiComments = computed(() => {
-  if (!reportComment.value) return dashboardMockData.aiComments
+  if (!reportComment.value) return []
   return reportComment.value
     .split(/\n+|(?<=[.!?])\s+/)
     .map((item) => item.trim())
@@ -1199,7 +1269,7 @@ onMounted(() => {
 
 .panel-reports {
   display: grid;
-  grid-template-columns: minmax(28rem, 1fr) 21rem 22.8rem 16.9rem;
+  grid-template-columns: minmax(30rem, auto) minmax(17rem, auto) minmax(25rem, auto) auto;
   gap: 2rem;
   align-items: end;
 }
@@ -1247,7 +1317,7 @@ onMounted(() => {
   justify-content: center;
   gap: 1rem;
   height: 4.6rem;
-  padding: 0 1.8rem;
+  padding: 0 1rem;
   border: 0;
   border-radius: 1.2rem;
   background: #2563eb;
@@ -1291,10 +1361,40 @@ onMounted(() => {
 
 .dashboard-date-picker {
   flex: 0 0 auto;
+  width: 26rem;
+}
+
+.filter-right-group {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .dashboard-date-picker :deep(.date-range-picker-container) {
   width: 100%;
+}
+
+.dashboard-date-picker :deep(.drp-trigger .truncate) {
+  color: #b3b3b3;
+  font-weight: 500;
+}
+
+.sync-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.3rem;
+  color: #b3b3b3;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sync-status-label svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
 }
 
 :global(.calendar-popup) {
@@ -1658,6 +1758,135 @@ onMounted(() => {
   font-weight: 500;
 }
 
+.sync-btn-blue {
+  background: #2563eb;
+  color: #fff;
+  border-radius: 1.2rem;
+  padding: 0 2rem;
+}
+
+.sync-btn-blue:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.nds-check-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nds-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.nds-checkbox:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+  background-size: 12px 12px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.nds-label {
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.report-icons-row {
+  gap: 1.2rem;
+  margin-top: 2rem;
+}
+
+.report-icon-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.report-icon-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.report-icon-btn:hover .report-icon-circle {
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+  transform: scale(1.04);
+}
+
+.report-icon-btn.active .report-icon-circle {
+  background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
+  color: #fff;
+  box-shadow: none;
+}
+
+.report-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 999px;
+  background: var(--report-bg, #f3f5f7);
+  color: #9a9a9a;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  line-height: 0;
+}
+
+.report-icon-circle svg {
+  display: block;
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: 0 0 auto;
+}
+
+.report-mask-icon {
+  display: block;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: currentColor;
+  flex: 0 0 auto;
+  transition: transform 0.2s ease;
+}
+
+.telegram-icon {
+  width: 1.44rem;
+  height: 1.44rem;
+  transform: translate(-0.14rem, 0.06rem);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.email-icon {
+  width: 2rem;
+  height: 1.48rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.max-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M-1.75746 0.402423C-1.75483 2.155 -1.74827 3.53735 -1.74287 3.47433C-1.62835 2.13813 -1.05642 0.729807 -0.213224 -0.292158C0.271161 -0.879273 0.899602 -1.42898 1.51662 -1.80529C2.38365 -2.33405 3.24308 -2.62429 4.35797 -2.76478C4.40461 -2.77065 3.04667 -2.77741 1.34028 -2.77976L-1.76221 -2.78406L-1.75746 0.402423ZM19.2414 -2.76461C20.4922 -2.63472 21.664 -2.17099 22.6902 -1.39976C23.0356 -1.14018 23.7533 -0.412972 24.0095 -0.0630181C24.7695 0.97513 25.2285 2.166 25.3566 3.43137C25.3621 3.48651 25.3687 2.11061 25.3712 0.37378L25.3757 -2.78406L22.2591 -2.77947C20.545 -2.77695 19.187 -2.77025 19.2414 -2.76461ZM11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698ZM-1.75768 21.4976L-1.76221 24.7128L1.41095 24.708C3.15621 24.7053 4.53323 24.6986 4.47104 24.6931C2.08208 24.4819 -0.0147773 23.0384 -1.05509 20.889C-1.44642 20.0805 -1.65391 19.3252 -1.74361 18.3828C-1.74886 18.3276 -1.7552 19.7293 -1.75768 21.4976ZM25.3475 18.5231C25.3475 18.5846 25.3218 18.7876 25.2904 18.9743C25.1057 20.073 24.68 21.0758 24.0095 21.9917C23.7533 22.3417 23.0356 23.0689 22.6902 23.3285C21.6625 24.1008 20.4941 24.5632 19.2414 24.6933C19.187 24.699 20.545 24.7057 22.2591 24.7082L25.3757 24.7128V21.5621C25.3757 19.8292 25.3694 18.4114 25.3616 18.4114C25.3538 18.4114 25.3475 18.4617 25.3475 18.5231Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M-1.75746 0.402423C-1.75483 2.155 -1.74827 3.53735 -1.74287 3.47433C-1.62835 2.13813 -1.05642 0.729807 -0.213224 -0.292158C0.271161 -0.879273 0.899602 -1.42898 1.51662 -1.80529C2.38365 -2.33405 3.24308 -2.62429 4.35797 -2.76478C4.40461 -2.77065 3.04667 -2.77741 1.34028 -2.77976L-1.76221 -2.78406L-1.75746 0.402423ZM19.2414 -2.76461C20.4922 -2.63472 21.664 -2.17099 22.6902 -1.39976C23.0356 -1.14018 23.7533 -0.412972 24.0095 -0.0630181C24.7695 0.97513 25.2285 2.166 25.3566 3.43137C25.3621 3.48651 25.3687 2.11061 25.3712 0.37378L25.3757 -2.78406L22.2591 -2.77947C20.545 -2.77695 19.187 -2.77025 19.2414 -2.76461ZM11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698ZM-1.75768 21.4976L-1.76221 24.7128L1.41095 24.708C3.15621 24.7053 4.53323 24.6986 4.47104 24.6931C2.08208 24.4819 -0.0147773 23.0384 -1.05509 20.889C-1.44642 20.0805 -1.65391 19.3252 -1.74361 18.3828C-1.74886 18.3276 -1.7552 19.7293 -1.75768 21.4976ZM25.3475 18.5231C25.3475 18.5846 25.3218 18.7876 25.2904 18.9743C25.1057 20.073 24.68 21.0758 24.0095 21.9917C23.7533 22.3417 23.0356 23.0689 22.6902 23.3285C21.6625 24.1008 20.4941 24.5632 19.2414 24.6933C19.187 24.699 20.545 24.7057 22.2591 24.7082L25.3757 24.7128V21.5621C25.3757 19.8292 25.3694 18.4114 25.3616 18.4114C25.3538 18.4114 25.3475 18.4617 25.3475 18.5231Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 .sync-btn svg.spinning {
   animation: dashboard-spin 1s linear infinite;
 }
@@ -1752,22 +1981,32 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 10.4rem;
   gap: 2rem;
   margin-top: 3rem;
 }
 
 .metric-card {
-  min-height: 23.9rem;
-  padding: 3rem;
+  padding: 2.5rem;
   border-radius: 1.5rem;
   background: #fff;
+  display: flex;
+  align-items: center;
+  border: 2px solid transparent;
+  overflow: hidden;
+}
+.metric-card.metric-card--add {
+  background: transparent;
+  border-style: dashed;
+  border-color: #d1d5db;
+  overflow: visible;
 }
 
 .metric-head {
-  display: grid;
-  grid-template-columns: 5.2rem 1fr 4rem;
-  gap: 2.3rem;
-  align-items: start;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  width: 100%;
 }
 
 .metric-icon {
@@ -1787,10 +2026,16 @@ onMounted(() => {
   height: 2rem;
 }
 
+.metric-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .metric-card h3 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.3rem;
   font-weight: 500;
+  color: #ababab;
   line-height: 1;
 }
 
@@ -1813,10 +2058,119 @@ onMounted(() => {
 
 .metric-card strong {
   display: block;
-  margin-top: 3.5rem;
-  font-size: 3rem;
+  margin-top: 0.6rem;
+  font-size: 2.6rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.metric-card--add {
+  background: transparent;
+  border: 2px dashed #d1d5db;
+  cursor: pointer;
+  justify-content: center;
+  align-items: center;
+  color: #c3c3c3;
+  position: relative;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  user-select: none;
+}
+.metric-card--add:hover {
+  border-color: #2563eb;
+  background: #f0f5ff;
+  color: #2563eb;
+}
+.add-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+.add-card-inner span {
+  font-size: 1.1rem;
+  font-weight: 500;
+  line-height: 1;
+}
+.placeholder-plus {
+  width: 2rem;
+  height: 2rem;
+}
+.add-card-dropdown {
+  position: absolute;
+  bottom: calc(100% + 0.8rem);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #ebebeb;
+  border-radius: 1.2rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+  padding: 0.6rem;
+  min-width: 20rem;
+  z-index: 100;
+}
+.add-card-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.8rem 1.2rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.8rem;
+  cursor: pointer;
+  font-size: 1.3rem;
+  color: #374151;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.add-card-item:hover {
+  background: #f0f5ff;
+  color: #2563eb;
+}
+.add-card-icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+}
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.card-delete-btn {
+  opacity: 0;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.metric-card:hover .card-delete-btn {
+  opacity: 1;
+}
+.card-delete-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+.card-delete-btn svg,
+.trend-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex-shrink: 0;
+}
+.trend {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .metric-foot {
@@ -1838,6 +2192,8 @@ onMounted(() => {
   background: #e5fbea;
   color: #18b44d;
   font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .trend.negative {
@@ -1845,9 +2201,14 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.trend svg {
-  width: 1.8rem;
-  height: 1.8rem;
+.trend::before {
+  content: '';
+  width: 1rem;
+  height: 0.7rem;
+  background: currentColor;
+  flex: 0 0 auto;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .chart-goals-grid {
@@ -1979,7 +2340,7 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   border-radius: 999px;
-  background: conic-gradient(#3f63f6 0 52%, #f39a72 52% 78%, #dff9e7 78% 100%);
+  background: conic-gradient(#3f63f6 0 52%, #f39a72 52% 78%, #6ee7b7 78% 100%);
   -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle, transparent 0 34%, #000 35%);
 }
@@ -1991,7 +2352,6 @@ onMounted(() => {
   height: 13.4rem;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.05);
 }
 
 .donut-wrap span {
@@ -2008,7 +2368,7 @@ onMounted(() => {
 
 .goal-item {
   overflow: hidden;
-  border: 1px solid #f0f0f0;
+  border: 1px solid transparent;
   border-radius: 0.8rem;
 }
 
@@ -2068,22 +2428,43 @@ onMounted(() => {
   background: transparent;
 }
 
+.campaign-row.orange {
+  background: #fff4ee;
+}
+
 .campaign-row.green {
-  background: #fbfff6;
+  background: #eafcf0;
 }
 
 .campaign-row.blue {
-  background: #f7f9ff;
+  background: #e8eefc;
 }
 
 .campaign-row b {
   display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   margin-left: 0.8rem;
   padding: 0.4rem 0.6rem;
   border-radius: 0.4rem;
-  background: #e5fbea;
-  color: #18b44d;
+  background: #fff;
+  color: #0fa84a;
   font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.campaign-row b::before {
+  content: '';
+  width: 1rem;
+  height: 0.7rem;
+  background: currentColor;
+  flex: 0 0 auto;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.campaign-row b.negative {
+  color: #f02d2d;
 }
 
 .bottom-grid {
@@ -2258,6 +2639,32 @@ onMounted(() => {
   background: #ef4444;
 }
 
+.placement-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.placement-icon--search {
+  background: #fff4e5;
+}
+.placement-icon--rsya {
+  background: #fff4e5;
+  padding: 0.3rem;
+}
+.placement-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #f59e0b;
+}
+.placement-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 @media (max-width: 1500px) {
   .top-grid,
   .panel-reports,
@@ -2305,6 +2712,17 @@ onMounted(() => {
     flex-basis: auto;
     max-width: none;
     width: 100%;
+  }
+
+  .sync-status-label,
+  .nds-check-wrap,
+  .filter-right-group {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .filter-right-group {
+    flex-wrap: wrap;
   }
 
   .ml-auto {
@@ -2376,7 +2794,7 @@ onMounted(() => {
 }
 
 .panel-reports {
-  grid-template-columns: minmax(260px, 1fr) minmax(160px, 210px) minmax(190px, 228px) auto;
+  grid-template-columns: minmax(280px, auto) minmax(145px, 175px) minmax(230px, 260px) auto;
   gap: 20px;
 }
 
@@ -2397,6 +2815,21 @@ onMounted(() => {
 
 .dashboard-date-picker {
   flex-basis: auto;
+  width: 255px;
+}
+
+.filter-right-group {
+  gap: 16px;
+}
+
+.sync-status-label {
+  gap: 6px;
+  font-size: 13px;
+}
+
+.sync-status-label svg {
+  width: 14px;
+  height: 14px;
 }
 
 .select-like svg,
@@ -2412,8 +2845,8 @@ onMounted(() => {
 
 .primary-report {
   height: 46px;
-  gap: 10px;
-  padding: 0 18px;
+  gap: 8px;
+  padding: 0 10px;
   border-radius: 12px;
   font-size: 13px;
 }
@@ -2444,6 +2877,24 @@ onMounted(() => {
   gap: 10px;
   padding: 0 14px;
   font-size: 13px;
+}
+
+.sync-btn-blue {
+  border-radius: 12px;
+  padding: 0 18px;
+}
+
+.nds-label {
+  font-size: 13px;
+}
+
+.report-icon-circle {
+  width: 46px;
+  height: 46px;
+}
+
+.goal-item {
+  border-radius: 8px;
 }
 
 .export-btn {
@@ -2494,16 +2945,22 @@ onMounted(() => {
 .kpi-grid {
   gap: 15px;
   margin-top: 25px;
+  grid-auto-rows: 88px;
 }
 
 .metric-card {
-  min-height: 174px;
-  padding: 25px;
+  padding: 20px 25px;
   border-radius: 15px;
+  border: 2px solid transparent;
+  overflow: hidden;
+}
+.metric-card.metric-card--add {
+  border-style: dashed;
+  border-color: #d1d5db;
+  overflow: visible;
 }
 
 .metric-head {
-  grid-template-columns: 44px 1fr 34px;
   gap: 16px;
 }
 
@@ -2520,8 +2977,14 @@ onMounted(() => {
   height: 18px;
 }
 
+.metric-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .metric-card h3 {
-  font-size: 16px;
+  font-size: 13px;
+  color: #ababab;
 }
 
 .metric-card p {
@@ -2529,13 +2992,8 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.round-action {
-  width: 34px;
-  height: 34px;
-}
-
 .metric-card strong {
-  margin-top: 25px;
+  margin-top: 5px;
   font-size: 24px;
 }
 
@@ -2550,11 +3008,13 @@ onMounted(() => {
   gap: 5px;
   padding: 0 8px;
   border-radius: 4px;
+  font-size: 13px;
+  align-self: center;
 }
 
-.trend svg {
-  width: 14px;
-  height: 14px;
+.trend::before {
+  width: 10px;
+  height: 7px;
 }
 
 .chart-goals-grid {
@@ -2759,6 +3219,17 @@ onMounted(() => {
   height: 14px;
 }
 
+.placement-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.placement-icon svg {
+  width: 11px;
+  height: 11px;
+  color: #f59e0b;
+}
+
 .progress-line div {
   height: 5px;
 }
@@ -2814,6 +3285,17 @@ onMounted(() => {
     width: 100%;
   }
 
+  .sync-status-label,
+  .nds-check-wrap,
+  .filter-right-group {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .filter-right-group {
+    flex-wrap: wrap;
+  }
+
   .ml-auto {
     margin-left: 0;
   }
@@ -2840,7 +3322,7 @@ onMounted(() => {
 
 .panel-reports {
   display: grid;
-  grid-template-columns: minmax(340px, 1fr) 209px 228px 169px;
+  grid-template-columns: minmax(300px, auto) 185px 255px auto;
   column-gap: 20px;
   row-gap: 0;
   align-items: start;
@@ -2980,10 +3462,11 @@ onMounted(() => {
 
 .primary-report {
   align-self: end;
-  width: 169px;
+  width: auto;
   height: 46px;
-  padding: 0 15px;
+  padding: 0 10px;
   justify-content: center;
+  white-space: nowrap;
   line-height: 1;
   transition: background-color 0.25s, box-shadow 0.25s, transform 0.75s;
 }
@@ -3382,6 +3865,11 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.08);
 }
 
+:global(.dark) .campaign-row.orange,
+:global(.darkmode) .campaign-row.orange {
+  background: rgba(242, 169, 136, 0.1);
+}
+
 :global(.dark) .campaign-row.green,
 :global(.darkmode) .campaign-row.green {
   background: rgba(34, 197, 94, 0.08);
@@ -3443,6 +3931,26 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.08);
   background: #2a2d3c;
   box-shadow: none;
+}
+.figma-dashboard.is-dark .metric-card--add {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.figma-dashboard.is-dark .metric-card--add:hover {
+  background: rgba(74, 122, 255, 0.1);
+  border-color: #4a7aff;
+  color: #4a7aff;
+}
+.figma-dashboard.is-dark .add-card-dropdown {
+  background: #2a2d3c;
+  border-color: rgba(255,255,255,0.1);
+}
+.figma-dashboard.is-dark .add-card-item {
+  color: #e0e0e0;
+}
+.figma-dashboard.is-dark .add-card-item:hover {
+  background: rgba(74,122,255,0.15);
+  color: #4a7aff;
 }
 
 .figma-dashboard.is-dark h1,
@@ -3602,7 +4110,6 @@ onMounted(() => {
 
 .figma-dashboard.is-dark .donut-wrap::after {
   background: #2a2d3c;
-  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.12);
 }
 
 .figma-dashboard.is-dark .goal-item {
@@ -3611,6 +4118,10 @@ onMounted(() => {
 
 .figma-dashboard.is-dark .goal-item p {
   background: rgba(0, 0, 0, 0.08);
+}
+
+.figma-dashboard.is-dark .campaign-row.orange {
+  background: rgba(242, 169, 136, 0.1);
 }
 
 .figma-dashboard.is-dark .campaign-row.green {
@@ -3665,9 +4176,37 @@ onMounted(() => {
   max-width: 100%;
 }
 
+.donut {
+  position: relative;
+  overflow: hidden;
+  background: transparent;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.donut::before,
+.donut::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+
+.donut::before {
+  background: var(--donut-outer);
+  -webkit-mask: radial-gradient(circle, transparent 0 46%, #000 46.1%);
+  mask: radial-gradient(circle, transparent 0 46%, #000 46.1%);
+}
+
+.donut::after {
+  background: var(--donut-inner);
+  -webkit-mask: radial-gradient(circle, transparent 0 31%, #000 31.1% 46.1%, transparent 46.2%);
+  mask: radial-gradient(circle, transparent 0 31%, #000 31.1% 46.1%, transparent 46.2%);
+}
+
 .donut-wrap::after {
-  width: 48%;
-  height: 48%;
+  width: 31%;
+  height: 31%;
 }
 
 .goals-list,
@@ -3682,10 +4221,49 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 
+.goal-item {
+  border-color: var(--goal-border);
+  background: #fff;
+  box-shadow: 0 0.4rem 1rem rgba(15, 23, 42, 0.018);
+}
+
+.goal-item div {
+  margin: -1px -1px 0;
+  border-radius: 0.8rem;
+  background: var(--goal-bg);
+  color: #3f3f3f;
+  font-weight: 500;
+}
+
+.goal-item p {
+  background: #fff;
+  color: #171717;
+}
+
 .bottom-grid,
 .side-stat-stack,
 .mini-stat-panel {
   min-width: 0;
+}
+
+.bottom-grid {
+  align-items: stretch;
+}
+
+.creatives-panel,
+.ai-panel,
+.mini-stat-panel {
+  box-shadow: 0 0.8rem 2.6rem rgba(15, 23, 42, 0.025);
+}
+
+.creatives-panel h2,
+.ai-panel h2,
+.mini-stat-panel h2 {
+  font-weight: 600;
+}
+
+.side-stat-stack {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .progress-line {

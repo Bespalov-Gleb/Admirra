@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
-      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-[32px] border border-white/80 dark:border-white/10 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[9px] font-black text-gray-400 dark:text-white/50 uppercase tracking-widest ml-1 opacity-70">
         Статистика
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -10,12 +10,12 @@
           <ChartBarIcon class="w-4 h-4 text-white" />
         </div>
         <div class="flex flex-col min-w-0 flex-1">
-          <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight truncate">
+          <h1 class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight truncate">
             Статистика телефонии
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+            <p class="text-[9px] font-bold text-gray-400 dark:text-white/50 uppercase tracking-wider truncate">
               Аналитика по проектам валидации лидов
             </p>
           </div>
@@ -23,7 +23,7 @@
         <div class="flex items-center gap-3">
           <select
             v-model="selectedPeriod"
-            class="px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm bg-white"
+            class="px-4 py-2.5 border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition text-sm bg-white dark:bg-[#2C2F3D] dark:text-white"
           >
             <option value="7">7 дней</option>
             <option value="14">14 дней</option>

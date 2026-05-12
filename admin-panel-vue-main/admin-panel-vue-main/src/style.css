@@ -160,6 +160,17 @@ html.dark .auth-shell textarea::placeholder {
   animation: bounce-slow 3s infinite;
 }
 
+/* Admirra darkmode.css forces all inputs to be transparent with a white border in dark mode.
+   This resets that override so Tailwind dark: classes on individual inputs take effect cleanly. */
+html.dark input,
+html.dark textarea,
+html.darkmode input,
+html.darkmode textarea {
+  background-color: unset;
+  box-shadow: unset;
+  color: unset;
+}
+
 /* Принудительный фикс тёмного хедера — var(--bgLayout) может не срабатывать из-за специфичности */
 html.darkmode .header,
 body.darkmode .header {

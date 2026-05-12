@@ -337,6 +337,7 @@ onMounted(async () => {
 :global(.darkmode) .team-empty {
   background-color: #2C2F3D;
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 :global(.dark) .team-empty p,
 :global(.darkmode) .team-empty p {
@@ -525,6 +526,7 @@ onMounted(async () => {
 :global(.darkmode) .project-card {
   background-color: rgba(255,255,255,0.04) !important;
   border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 :global(.dark) .project-card__icon,
 :global(.darkmode) .project-card__icon {

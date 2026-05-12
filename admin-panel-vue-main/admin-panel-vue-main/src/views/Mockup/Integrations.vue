@@ -422,6 +422,7 @@ const formatDate = (dateStr) => {
 :global(.darkmode) .int-card {
   background-color: #2C2F3D;
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 :global(.dark) .int-card .text-\[\#696969\],
 :global(.darkmode) .int-card .text-\[\#696969\] {

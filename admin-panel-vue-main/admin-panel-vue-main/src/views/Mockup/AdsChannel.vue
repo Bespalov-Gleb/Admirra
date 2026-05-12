@@ -4,7 +4,7 @@
       <div class="w-full grid grid-cols-1 lg:grid-cols-[7fr_4fr_4fr] gap-[15px] text-[15px]">
 
         <!-- Info card -->
-        <div class="bg-white dark:bg-[#2C2F3D] rounded-[15px] p-[30px] border border-transparent dark:border-white/10">
+        <div class="bg-white dark:bg-[#2C2F3D] rounded-[15px] p-[30px] border border-transparent dark:border-white/10 dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]">
           <h3 class="text-[30px] font-semibold leading-[1.25] text-[#171717] dark:text-white mb-[15px]">
             Выберите рекламный канал<br />
             <span class="gradient-text">для сбора всей статистики</span>
@@ -91,11 +91,13 @@ function goToWizard(platform) {
 :global(.darkmode) .channel-card--yandex {
   background-color: rgba(113, 102, 62, 0.22);
   border: 1px solid rgba(240, 217, 154, 0.18);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 :global(.dark) .channel-card--vk,
 :global(.darkmode) .channel-card--vk {
   background-color: rgba(37, 75, 120, 0.28);
   border: 1px solid rgba(178, 197, 219, 0.18);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .channel-card__title {

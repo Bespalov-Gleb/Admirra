@@ -367,6 +367,7 @@ onMounted(async () => {
 :global(.darkmode) .history-list {
   background-color: #2C2F3D;
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 .history-row {
   display: grid;
@@ -458,8 +459,9 @@ onMounted(async () => {
 }
 :global(.dark) .action-menu,
 :global(.darkmode) .action-menu {
-  background-color: #3a3c49;
-  box-shadow: 0 0 15px rgba(0,0,0,0.25);
+  background-color: #2C2F3D;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .action-menu__arrow {
   position: absolute;

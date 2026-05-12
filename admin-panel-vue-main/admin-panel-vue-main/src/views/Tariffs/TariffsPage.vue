@@ -403,6 +403,7 @@ function onContactWl() {
 :global(.darkmode) .wl-card {
   background-color: #2C2F3D;
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 :global(.dark) .plan-card:not(.plan-card--primary) :not(.gradient-text),
 :global(.darkmode) .plan-card:not(.plan-card--primary) :not(.gradient-text),

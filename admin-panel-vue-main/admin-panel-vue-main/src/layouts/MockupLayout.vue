@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-screen bg-[#F4F6F8] dark:bg-[#1A1C2C] font-[Inter]">
+  <div class="flex min-h-screen bg-[#F4F6F8] dark:bg-[#1A1C2C] dark:text-white font-[Inter]">
     <SidebarV2 />
     <div :class="[
       'flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-300 ml-0',

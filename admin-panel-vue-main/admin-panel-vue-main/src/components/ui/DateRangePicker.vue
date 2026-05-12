@@ -4,17 +4,17 @@
     <button
       ref="buttonRef"
       @click.stop="toggleCalendar"
-      class="drp-trigger flex w-full items-center justify-between gap-3 px-[15px] h-[46px] bg-white border border-[#ebebeb] rounded-xl text-[13px] font-medium hover:border-[#d9dee6] hover:shadow-[0_8px_18px_rgba(15,23,42,0.04)] transition-all"
+      class="drp-trigger flex w-full items-center justify-between gap-3 px-[15px] h-[46px] bg-white dark:bg-[#2C2F3D] border border-[#ebebeb] dark:border-white/10 rounded-xl text-[13px] font-medium hover:border-[#d9dee6] dark:hover:border-white/20 hover:shadow-[0_8px_18px_rgba(15,23,42,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition-all"
     >
       <div class="flex items-center gap-[10px] min-w-0">
-        <CalendarIcon class="w-4 h-4 text-[#6b7280] flex-shrink-0" />
+        <CalendarIcon class="w-4 h-4 text-[#6b7280] dark:text-white/55 flex-shrink-0" />
         <span
           class="truncate font-semibold"
-          :class="selectedStart ? 'text-[#374151]' : 'text-[#b3b3b3]'"
+          :class="selectedStart ? 'text-[#374151] dark:text-white/90' : 'text-[#b3b3b3] dark:text-white/35'"
         >{{ displayText }}</span>
       </div>
       <span
-        class="flex items-center justify-center w-6 h-6 rounded-full bg-[#f5f7f9] text-[#b3b3b3] flex-shrink-0 transition-transform duration-300"
+        class="flex items-center justify-center w-6 h-6 rounded-full bg-[#f5f7f9] dark:bg-white/8 text-[#b3b3b3] dark:text-white/55 flex-shrink-0 transition-transform duration-300"
         :class="{ 'rotate-180': isOpen }"
       >
         <ChevronDownIcon class="w-[14px] h-[14px]" />
@@ -36,7 +36,7 @@
             v-for="period in quickPeriods"
             :key="period.value"
             @click="selectQuickPeriod(period.value)"
-            class="drp-quick px-3 py-1.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
+            class="drp-quick px-3 py-1.5 text-[11px] font-bold text-gray-600 dark:text-white/75 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
             :class="{ 'text-blue-600 dark:text-[#4A7AFF] bg-blue-50 dark:bg-white/10': selectedQuickPeriod === period.value }"
           >
             {{ period.label }}
@@ -52,7 +52,7 @@
                 @click="previousMonth"
                 class="drp-nav p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
               >
-                <ChevronLeftIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                <ChevronLeftIcon class="w-4 h-4 text-gray-600 dark:text-white/75" />
               </button>
               <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">{{ leftMonthLabel }}</h3>
               <div class="w-6"></div>
@@ -90,7 +90,7 @@
                 @click="nextMonth"
                 class="drp-nav p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
               >
-                <ChevronRightIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                <ChevronRightIcon class="w-4 h-4 text-gray-600 dark:text-white/75" />
               </button>
             </div>
             <div class="drp-weekdays grid grid-cols-7 gap-1 mb-2">
@@ -121,7 +121,7 @@
         <!-- Date Input Fields -->
         <div class="drp-fields mt-4 pt-4 border-t border-gray-100 dark:border-white/10 flex flex-wrap items-center gap-3">
           <div class="flex-1">
-            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider mb-1 block">От</label>
+            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">От</label>
             <input
               type="text"
               v-model="startDateInput"
@@ -133,7 +133,7 @@
           </div>
           <div class="pt-5 text-gray-400 dark:text-gray-500">—</div>
           <div class="flex-1">
-            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider mb-1 block">До</label>
+            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">До</label>
             <input
               type="text"
               v-model="endDateInput"

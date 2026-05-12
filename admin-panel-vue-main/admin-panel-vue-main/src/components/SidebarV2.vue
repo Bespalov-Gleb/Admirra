@@ -9,8 +9,8 @@
   <aside
     :class="[
       'fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300',
-      'bg-white dark:bg-[#2C2F3D]',
-      'border-r border-black/5 dark:border-white/10',
+      'bg-white dark:bg-[#1C1F2E]',
+      'border-r border-black/5 dark:border-white/[0.07] dark:shadow-[2px_0_20px_rgba(0,0,0,0.32)]',
       isCollapsed ? 'w-[72px]' : 'w-[270px]',
       isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full min-[1920px]:translate-x-0',
     ]"
@@ -34,11 +34,11 @@
 
     <button
       @click="handleToggleCollapse"
-      class="absolute left-full top-[38px] z-10 -ml-3 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5f7f9] transition-colors active:bg-[#5187ff] dark:bg-[#2C2F3D] min-[1920px]:flex"
+      class="absolute left-full top-[38px] z-10 -ml-3 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5f7f9] transition-colors active:bg-[#5187ff] dark:bg-[#252840] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10)] min-[1920px]:flex"
     >
       <ChevronDownIcon
         :class="[
-          'h-3 w-3 text-[#696969]/75 transition-transform duration-500 active:text-white dark:text-gray-400 dark:active:text-white',
+          'h-3 w-3 text-[#696969]/75 transition-transform duration-500 active:text-white dark:text-white/72 dark:active:text-white',
           isCollapsed ? 'rotate-90' : '-rotate-90',
         ]"
       />
@@ -71,13 +71,13 @@
                   <component
                     :is="item.icon"
                     class="w-5 h-5 transition-colors duration-500"
-                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                   />
                 </span>
                 <template v-if="!isCollapsed">
                   <span
                     class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
-                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                    :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                   >{{ item.name }}</span>
                   <!-- Arrow -->
                   <span
@@ -89,7 +89,7 @@
                     <ChevronDownIcon
                       class="w-3 h-3 transition-transform duration-500"
                       :class="[
-                        isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 dark:text-gray-400',
+                        isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 dark:text-white/72',
                         isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : '',
                       ]"
                     />
@@ -117,7 +117,7 @@
                       'inline-flex items-center min-h-[33px] px-[12px] py-[7px] rounded-xl text-left transition-all duration-500',
                       isActive(child.path)
                         ? 'bg-[#ecf3fe] text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]'
-                        : 'text-[#696969]/75 hover:bg-[#ecf3fe] hover:text-[#2563eb] dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-[#4A7AFF]',
+                        : 'text-[#696969]/75 hover:bg-[#ecf3fe] hover:text-[#2563eb] dark:text-white/72 dark:hover:bg-white/5 dark:hover:text-[#4A7AFF]',
                     ]"
                   >
                     <span class="text-[12px] font-medium leading-none">{{ child.name }}</span>
@@ -147,13 +147,13 @@
                   <component
                     :is="item.icon"
                     class="w-5 h-5 transition-colors duration-500"
-                    :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                    :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                   />
                 </span>
                 <span
                   v-if="!isCollapsed"
                   class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
-                  :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                 >{{ item.name }}</span>
               </button>
             </div>
@@ -192,13 +192,13 @@
                 <component
                   :is="link.icon"
                 class="w-5 h-5 transition-colors duration-500"
-                  :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                 />
               </span>
               <span
                 v-if="!isCollapsed"
                 class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
-                :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
               >{{ link.name }}</span>
             </button>
           </div>

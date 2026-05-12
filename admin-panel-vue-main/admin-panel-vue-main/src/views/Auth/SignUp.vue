@@ -146,7 +146,7 @@
 
         <section class="auth-hero-side">
           <div class="auth-hero-card">
-            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" />
+            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" fetchpriority="high" />
           </div>
         </section>
       </main>
@@ -207,7 +207,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
-import authHero from '@/assets/imgs/auth/auth.png'
+import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
 const router = useRouter()

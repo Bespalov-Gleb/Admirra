@@ -691,6 +691,7 @@ onMounted(async () => {
 :global(.dark) .project-card,
 :global(.darkmode) .project-card {
   background-color: #2c2f3d;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 :global(.dark) .view-btn:not(._active),
 :global(.darkmode) .view-btn:not(._active) {
@@ -724,6 +725,7 @@ onMounted(async () => {
 :global(.dark) .stat-box,
 :global(.darkmode) .stat-box {
   background-color: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 :global(.dark) .iconbox,
 :global(.darkmode) .iconbox,

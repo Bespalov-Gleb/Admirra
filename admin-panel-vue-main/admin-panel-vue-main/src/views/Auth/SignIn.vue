@@ -120,7 +120,7 @@
 
         <section class="auth-hero-side">
           <div class="auth-hero-card">
-            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" />
+            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" fetchpriority="high" />
           </div>
         </section>
       </main>
@@ -182,7 +182,7 @@ import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
-import authHero from '@/assets/imgs/auth/auth.png'
+import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
 const router = useRouter()

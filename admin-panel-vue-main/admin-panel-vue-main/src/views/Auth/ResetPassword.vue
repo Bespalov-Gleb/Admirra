@@ -106,7 +106,7 @@
 
         <section class="auth-hero-side">
           <div class="auth-hero-card">
-            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" />
+            <img :src="authHero" alt="" class="h-full w-full object-cover object-center" fetchpriority="high" />
           </div>
         </section>
       </main>
@@ -165,7 +165,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
-import authHero from '@/assets/imgs/auth/auth.png'
+import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'

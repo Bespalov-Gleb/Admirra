@@ -1,5 +1,5 @@
 <template>
-  <header class="h-[76px] flex items-stretch bg-white dark:bg-[#2C2F3D] border-b border-black/5 dark:border-white/10 flex-shrink-0">
+  <header class="h-[76px] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]">
     <div class="flex-1 flex items-center px-[8px] py-[5px] gap-1.5 min-w-0 2xl:px-[25px] 2xl:gap-4">
 
       <!-- Left: Project selector -->
@@ -13,7 +13,7 @@
           </div>
           <div class="hidden min-w-[66px] max-w-[104px] flex-col gap-[3px] text-left min-[960px]:flex 2xl:min-w-[90px] 2xl:max-w-none">
             <div class="truncate text-[12px] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[14px]">{{ headerProjectName }}</div>
-            <div class="hidden pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-gray-400 2xl:block">Отчеты агентства в одном месте</div>
+            <div class="hidden pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-white/55 2xl:block">Отчеты агентства в одном месте</div>
           </div>
           <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
             <svg class="w-[9px] h-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
@@ -28,20 +28,20 @@
             v-if="isProjectMenuOpen"
             class="absolute left-1/2 top-full z-50 mt-2 min-w-[360px] -translate-x-1/2 px-[30px] pb-[30px] pt-[10px]"
           >
-            <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] after:absolute after:left-1/2 after:top-0 after:h-[14px] after:w-[14px] after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-white dark:bg-[#2C2F3D] dark:after:bg-[#2C2F3D]">
+            <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:left-1/2 after:top-0 after:h-[14px] after:w-[14px] after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-white dark:bg-[#2C2F3D] dark:after:bg-[#2C2F3D]">
               <div class="px-4 pb-2 pt-4 font-medium">
-                <div class="px-4 py-2 text-[12px] font-medium uppercase text-[rgba(105,105,105,0.56)] dark:text-gray-400">Мои проекты</div>
+                <div class="px-4 py-2 text-[12px] font-medium uppercase text-[rgba(105,105,105,0.56)] dark:text-white/55">Мои проекты</div>
                 <ul class="mb-2 text-[14px]">
                   <li>
                     <button
                       @click="handleProjectSelect(null)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
                     >Все проекты</button>
                   </li>
                   <li v-for="project in projects" :key="project.id">
                     <button
                       @click="handleProjectSelect(project.id)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-gray-300 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
                     >{{ project.name }}</button>
                   </li>
                 </ul>
@@ -63,7 +63,7 @@
       <!-- Subscription info (xxl+) -->
       <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 min-[960px]:flex 2xl:gap-4 2xl:pl-4">
         <div>
-          <div class="whitespace-nowrap text-[10px] font-medium text-gray-500 dark:text-gray-400 2xl:text-[13px]">
+          <div class="whitespace-nowrap text-[10px] font-medium text-gray-500 dark:text-white/55 2xl:text-[13px]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
           </div>
           <div v-if="subscription.expiresAtLabel" class="hidden text-[11px] text-gray-400 2xl:block">
@@ -72,7 +72,7 @@
         </div>
         <button
           @click="router.push('/tariffs')"
-          class="flex min-h-[46px] flex-shrink-0 items-center justify-center rounded-[12px] border border-[#e1e1e1] px-[9px] py-2 text-[10px] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[17px] 2xl:text-[13px]"
+          class="flex min-h-[46px] flex-shrink-0 items-center justify-center rounded-[12px] border border-[#e1e1e1] dark:border-white/20 dark:hover:border-white/40 px-[9px] py-2 text-[10px] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[17px] 2xl:text-[13px]"
         >
           <span class="bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">
             Продлить
@@ -148,17 +148,17 @@
               v-if="showNotifications"
               class="absolute top-full z-50 min-w-[360px] w-[calc(100%+80px)] right-[-30px] px-[30px] pb-[30px] pt-[10px]"
             >
-              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
+              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
                 <div class="p-4 text-[16px] font-semibold text-gray-800 dark:text-gray-100">Уведомления</div>
                 <hr class="border-black/5 dark:border-white/10" />
-                <div v-if="notifications.length === 0" class="p-5 text-center text-[12px] text-[#696969] dark:text-gray-400">Нет уведомлений</div>
+                <div v-if="notifications.length === 0" class="p-5 text-center text-[12px] text-[#696969] dark:text-white/55">Нет уведомлений</div>
                 <div v-else class="max-h-80 overflow-y-auto py-2">
                   <a
                     v-for="notification in notifications"
                     :key="notification.id"
                     @click.prevent="markAsRead(notification.id)"
                     href="#"
-                    :class="['flex w-full items-center px-0 py-1 text-[14px] transition-colors hover:text-[#2563eb]', !notification.is_read ? 'text-[#2563eb]' : 'text-[#696969] dark:text-gray-300']"
+                    :class="['flex w-full items-center px-0 py-1 text-[14px] transition-colors hover:text-[#2563eb]', !notification.is_read ? 'text-[#2563eb]' : 'text-[#696969] dark:text-white/75']"
                   >
                     <div class="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
@@ -209,16 +209,16 @@
               v-if="isProfileMenuOpen"
               class="absolute top-full z-50 min-w-[360px] w-[calc(100%+80px)] right-[-30px] px-[30px] pb-[30px] pt-[10px]"
             >
-              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
+              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
                 <div class="p-4">
                   <div class="mb-1 text-[15px] font-semibold text-gray-800 dark:text-gray-100">{{ displayName }}</div>
-                  <div class="text-[12px] text-[rgba(105,105,105,0.75)] dark:text-gray-400">{{ user?.email }}</div>
+                  <div class="text-[12px] text-[rgba(105,105,105,0.75)] dark:text-white/55">{{ user?.email }}</div>
                 </div>
                 <hr class="border-black/5 dark:border-white/10" />
                 <div class="py-3">
                   <button
                     @click.prevent="toggleTheme"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-gray-300 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
                     <span class="flex h-[44px] w-[44px] items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
@@ -232,7 +232,7 @@
                   </button>
                   <button
                     @click="router.push('/profile'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-gray-300 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
                     <span class="flex h-[44px] w-[44px] items-center justify-center">
                       <svg class="h-5 w-5 fill-none stroke-[#afafaf]">
@@ -243,7 +243,7 @@
                   </button>
                   <button
                     @click="router.push('/settings'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-gray-300 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
                     <span class="flex h-[44px] w-[44px] items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
@@ -507,28 +507,28 @@ onUnmounted(() => {
 
 :global(.dark) [data-notifications-button] svg,
 :global(.darkmode) [data-notifications-button] svg {
-  fill: rgba(255, 255, 255, 0.68);
+  fill: rgba(255, 255, 255, 0.88);
 }
 
 :global(.dark) [data-profile-button] + .dropdown-enter-active svg,
 :global(.darkmode) [data-profile-button] + .dropdown-enter-active svg,
 :global(.dark) [data-profile-button] + .dropdown-leave-active svg,
 :global(.darkmode) [data-profile-button] + .dropdown-leave-active svg {
-  color: rgba(255, 255, 255, 0.68);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 :global(.dark) header svg.fill-\[\#afafaf\],
 :global(.darkmode) header svg.fill-\[\#afafaf\] {
-  fill: rgba(255, 255, 255, 0.68);
+  fill: rgba(255, 255, 255, 0.88);
 }
 
 :global(.dark) header svg.stroke-\[\#afafaf\],
 :global(.darkmode) header svg.stroke-\[\#afafaf\] {
-  stroke: rgba(255, 255, 255, 0.68);
+  stroke: rgba(255, 255, 255, 0.88);
 }
 
 :global(.dark) .burger-line,
 :global(.darkmode) .burger-line {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.88);
 }
 </style>
