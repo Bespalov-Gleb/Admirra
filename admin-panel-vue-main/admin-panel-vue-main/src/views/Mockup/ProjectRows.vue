@@ -128,7 +128,7 @@
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Расходы</th>
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Лиды</th>
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">CPC</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">CPA</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">CPL</th>
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Актуальный баланс&nbsp;в&nbsp;ЛК:</th>
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Статус</th>
               <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Дата&nbsp;создания</th>
@@ -176,6 +176,9 @@
               >
                 <div :class="['mb-[0.3472rem] text-[1.0417rem] leading-[130%]', cell.bold ? 'font-bold' : 'font-normal']">{{ cell.value }}</div>
                 <div :class="trendBadgeClass(getProjectMetric(project.id), cell.key)">
+                  <svg :class="trendArrowClass(getProjectMetric(project.id), cell.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
+                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
                   <span class="font-semibold">{{ trendText(getProjectMetric(project.id), cell.key) }}</span>
                 </div>
               </td>
@@ -192,7 +195,7 @@
               </td>
               <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <span :class="statusBadgeClass(project)">
-                  {{ project.integrations?.some(i => i.is_active) ? 'Активен' : 'Неактивен' }}
+                  {{ hasActiveProjectIntegration(project) ? 'Активен' : 'Неактивен' }}
                 </span>
               </td>
               <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
@@ -368,6 +371,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
+import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 
 const router = useRouter()
@@ -571,12 +575,7 @@ const emptyMetric = () => ({
 
 const getProjectMetric = (projectId) => metricsByProjectId.value[projectId] || emptyMetric()
 
-const integrationPlatforms = (project) => {
-  const list = (project.integrations || []).map(i => i.platform?.toUpperCase()).filter(Boolean)
-  return Array.from(new Set(list))
-}
-
-const hasPlatform = (project, platform) => integrationPlatforms(project).includes(platform)
+const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
 
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
@@ -606,22 +605,38 @@ const shortId = (id) => {
 
 const trendBadgeClass = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
+  const costTrendKeys = new Set(['cpc', 'cpa'])
+  const negative = costTrendKeys.has(key) ? trend > 0 : trend < 0
   return [
     'inline-flex items-center gap-1 rounded-[0.2083rem] px-[0.4167rem] py-0 text-[0.7639rem] font-bold leading-[130%]',
-    trend < 0
+    negative
       ? 'bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-300'
       : 'bg-[#00ff4e]/10 text-[#16a34a] dark:bg-[#00ff4e]/15 dark:text-[#5ee886]'
   ]
 }
 
+const trendArrowClass = (metric, key) => [
+  'h-[0.4861rem] w-[0.5556rem] shrink-0 transition-transform',
+  Number(metric?.trends?.[key] || 0) < 0 ? 'rotate-180' : ''
+]
+
 const statusBadgeClass = (project) => [
   'inline-flex min-h-[1.3889rem] items-center rounded-[0.2083rem] px-[0.4167rem] py-[0.4167rem] text-[0.7639rem] font-bold leading-[130%]',
-  project.integrations?.some(i => i.is_active)
+  hasActiveProjectIntegration(project)
     ? 'bg-[#00ff4e]/10 text-[#16a34a] dark:bg-[#00ff4e]/15 dark:text-[#5ee886]'
     : 'bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-300'
 ]
 
 const balancePlatform = (project) => {
+  if (hasPlatform(project, 'YANDEX')) {
+    return {
+      label: 'Yandex Direct',
+      icon: '/admirra/img/icons/yandex-direct.png',
+      cardClass: 'bg-[#fff2e4]',
+      darkCardClass: 'dark:bg-[#3a3128]',
+      textClass: 'text-[#71663e] dark:text-[#f0d99a]'
+    }
+  }
   if (hasPlatform(project, 'VK')) {
     return {
       label: 'VK Ads',

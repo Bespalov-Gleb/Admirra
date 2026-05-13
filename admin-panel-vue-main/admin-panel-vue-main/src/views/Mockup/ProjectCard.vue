@@ -146,9 +146,9 @@
               </div>
               <div class="stat-value-row flex items-center mt-auto">
                 <b class="min-w-0 truncate text-[1.3889rem] font-semibold leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
-                <span class="badge-success shrink-0">
-                  <svg width="8" height="7" viewBox="0 0 12 9" fill="none">
-                    <path d="M1 8L6 2L11 8" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                  <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none">
+                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                   {{ stat.change }}
                 </span>
@@ -191,6 +191,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
+import { hasProjectPlatform } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 
 const router = useRouter()
@@ -286,17 +287,33 @@ const trendText = (metric, key) => {
   return `${sign}${trend.toFixed(1)}%`
 }
 
+const costTrendKeys = new Set(['cpc', 'cpa'])
+
+const isNegativeTrend = (metric, key) => {
+  const trend = Number(metric?.trends?.[key] || 0)
+  return costTrendKeys.has(key) ? trend > 0 : trend < 0
+}
+
+const isTrendDown = (metric, key) => Number(metric?.trends?.[key] || 0) < 0
+
+const trendBadgeClass = (metric, key) => [
+  'trend-badge shrink-0',
+  isNegativeTrend(metric, key)
+    ? 'trend-badge--negative'
+    : 'trend-badge--positive'
+]
+
+const trendArrowClass = (metric, key) => [
+  'trend-arrow',
+  isTrendDown(metric, key) ? 'trend-arrow--down' : ''
+]
+
 const shortId = (id) => {
   const value = String(id || '')
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value || '-'
 }
 
-const integrationPlatforms = (project) => {
-  const list = (project.integrations || []).map((i) => i.platform?.toUpperCase()).filter(Boolean)
-  return Array.from(new Set(list))
-}
-
-const hasPlatform = (project, platform) => integrationPlatforms(project).includes(platform)
+const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
 
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
@@ -306,7 +323,7 @@ const projectStats = (project) => {
     { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(metric.cpc), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
     { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(metric.expenses), icon: '/admirra/img/svg/sprite.svg#wallet' },
     { key: 'leads', label: 'Лиды', subtitle: 'По всем каналам', value: `${formatNumber(metric.leads)} шт.`, icon: '/admirra/img/svg/sprite.svg#calendar' },
-    { key: 'cpa', label: 'CPA', subtitle: 'Стоимость лида', value: formatMoney(metric.cpa), icon: '/admirra/img/svg/sprite.svg#ok' },
+    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(metric.cpa), icon: '/admirra/img/svg/sprite.svg#ok' },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
 }
 
@@ -647,6 +664,35 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2083rem;
+  padding: 0.2083rem 0.4861rem;
+  font-size: 0.7639rem;
+  font-weight: 500;
+  border-radius: 6.9444rem;
+  white-space: nowrap;
+}
+
+.trend-badge--positive {
+  background-color: rgba(0, 255, 78, 0.1);
+  color: #16a34a;
+}
+
+.trend-badge--negative {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.trend-arrow {
+  transition: transform 0.2s;
+}
+
+.trend-arrow--down {
+  transform: rotate(180deg);
+}
+
 .stat-value-row {
   min-width: 0;
   gap: 0.5556rem;
@@ -675,7 +721,8 @@ onMounted(async () => {
     flex-direction: column;
   }
 
-  .badge-success {
+  .badge-success,
+  .trend-badge {
     max-width: 100%;
   }
 
