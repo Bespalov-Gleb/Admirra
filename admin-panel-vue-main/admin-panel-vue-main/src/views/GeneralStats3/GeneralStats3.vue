@@ -771,7 +771,7 @@ const formatTrend = (value) => {
   return `${num > 0 ? '+' : ''}${formatNumber(num, 1)}%`
 }
 
-const costTrendMetrics = new Set(['cost', 'cpc', 'cpa'])
+const costTrendMetrics = new Set(['cpc', 'cpa'])
 
 const campaignTrend = (value, metric) => {
   const num = Number(value)
