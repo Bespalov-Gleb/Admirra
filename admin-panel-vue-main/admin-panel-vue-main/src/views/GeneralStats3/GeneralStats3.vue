@@ -1074,13 +1074,45 @@ const aiComments = computed(() => {
     .filter(Boolean)
     .slice(0, 4)
 })
+
+const parseProgressPercent = (item) => {
+  const source = item.percent ?? item.percentage ?? item.share ?? item.rate ?? item.width ?? item.value
+  if (source === null || source === undefined || source === '' || source === '—') return 0
+  const normalized = String(source).replace(',', '.').replace('%', '').trim()
+  const num = Number(normalized)
+  if (!Number.isFinite(num)) return 0
+  const percent = num > 0 && num <= 1 ? num * 100 : num
+  return Math.max(0, Math.min(100, percent))
+}
+
+const progressValueLabel = (item, percent) => {
+  if (item.value !== null && item.value !== undefined && item.value !== '') {
+    const raw = String(item.value).trim()
+    if (raw.includes('%') || raw === '—') return item.value
+    const num = Number(raw.replace(',', '.'))
+    if (Number.isFinite(num) && num >= 0 && num <= 100) return `${formatNumber(num, 1)}%`
+    return item.value
+  }
+  return percent > 0 ? `${formatNumber(percent, 1)}%` : '—'
+}
+
+const normalizeProgressItems = (items) =>
+  items.map((item) => {
+    const percent = parseProgressPercent(item)
+    return {
+      ...item,
+      value: progressValueLabel(item, percent),
+      width: `${percent}%`
+    }
+  })
+
 const deviceStats = computed(() =>
-  deviceStatsRaw.value.map((item) => ({
+  normalizeProgressItems(deviceStatsRaw.value).map((item) => ({
     ...item,
     icon: statIcons[item.icon] || ComputerDesktopIcon
   }))
 )
-const placements = computed(() => placementsRaw.value)
+const placements = computed(() => normalizeProgressItems(placementsRaw.value))
 
 const syncLabel = computed(() => integrations.value.length ? 'Синхронизировать данные' : 'Нет подключенных каналов')
 

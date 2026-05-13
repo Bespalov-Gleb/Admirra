@@ -32,15 +32,23 @@
               <svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
           </button>
-          <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-            <button
-              v-for="option in periodOptions"
-              :key="option.value"
-              type="button"
-              class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
-              :class="{ selected: periodDays === option.value }"
-              @click="selectPeriod(option.value)"
-            >{{ option.label }}</button>
+          <div class="cs-list period-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+            <template v-for="(option, index) in periodOptions" :key="option.value || `${option.type}-${index}`">
+              <div v-if="option.type === 'label'" class="period-list__title">{{ option.label }}</div>
+              <div v-else-if="option.type === 'divider'" class="period-list__divider"></div>
+              <button
+                v-else
+                type="button"
+                class="cs-option period-option dark:!text-white/70 dark:hover:!bg-white/5"
+                :class="{ selected: periodKey === option.value }"
+                @click="selectPeriod(option.value)"
+              >
+                <span>{{ option.label }}</span>
+                <svg v-if="periodKey === option.value" class="period-option__check" viewBox="0 0 18 14" fill="none" aria-hidden="true">
+                  <path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </template>
           </div>
         </div>
 
@@ -360,12 +368,13 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
+import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const toaster = useToaster()
 
-const periodDays = ref(14)
+const periodKey = ref('last_7_days')
 const search = ref('')
 const projectFilter = ref('all')
 const openSelect = ref(null)
@@ -388,13 +397,6 @@ const projectFilterOptions = [
   { value: 'inactive', label: 'Неактивные' }
 ]
 
-const periodOptions = [
-  { value: 14, label: '2 недели' },
-  { value: 21, label: '3 недели' },
-  { value: 28, label: '4 недели' },
-  { value: 35, label: '5 недель' }
-]
-
 const itemsPerPageOptions = [10, 20, 30]
 
 const projectFilterLabel = computed(() => {
@@ -402,7 +404,7 @@ const projectFilterLabel = computed(() => {
 })
 
 const periodLabel = computed(() => {
-  return periodOptions.find((option) => option.value === periodDays.value)?.label || '2 недели'
+  return getProjectPeriodLabel(periodKey.value)
 })
 
 const toggleSelect = (name) => {
@@ -455,7 +457,7 @@ const selectProjectFilter = (value) => {
 }
 
 const selectPeriod = async (value) => {
-  periodDays.value = value
+  periodKey.value = value
   openSelect.value = null
   await reloadMetrics()
 }
@@ -692,11 +694,7 @@ const requestDeleteProject = (project) => {
 }
 
 const loadProjectMetrics = async () => {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(end.getDate() - Number(periodDays.value || 14))
-  const startDate = start.toISOString().slice(0, 10)
-  const endDate = end.toISOString().slice(0, 10)
+  const { startDate, endDate } = getProjectPeriodRange(periodKey.value)
 
   const entries = await Promise.all(
     projects.value.map(async (project) => {
@@ -853,6 +851,45 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.period-list {
+  min-width: 21rem;
+  border-radius: 1.0417rem;
+}
+
+.period-list__title {
+  padding: 1.1806rem 1.5278rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  color: #171717;
+  font-size: 1.1111rem;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.period-list__divider {
+  height: 1px;
+  margin: 0.3472rem 0;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.period-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.25rem;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  min-height: 3.4722rem;
+  border: 0;
+  background: transparent;
+  font-size: 1.0417rem;
+}
+
+.period-option__check {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #171717;
+}
+
 .search-wrap {
   position: relative;
 }
@@ -998,6 +1035,22 @@ onUnmounted(() => {
 :global(.dark) .cs-option.selected,
 :global(.darkmode) .cs-option.selected {
   background-color: rgba(255, 255, 255, 0.06);
+}
+
+:global(.dark) .period-list__title,
+:global(.darkmode) .period-list__title {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:global(.dark) .period-list__divider,
+:global(.darkmode) .period-list__divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .period-option__check,
+:global(.darkmode) .period-option__check {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 :global(.dark) .search-input,
