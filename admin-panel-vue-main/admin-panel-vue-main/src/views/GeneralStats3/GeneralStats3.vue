@@ -313,7 +313,7 @@
 
       <article class="panel goals-panel">
         <h2>Разбивка по целям</h2>
-        <div class="goals-content">
+        <div class="goals-content" :style="{ '--goals-count': goals.length }">
           <div class="donut-wrap">
             <div
               class="donut"
@@ -324,7 +324,7 @@
           <div class="goals-list">
             <div
               v-for="goal in goals"
-              :key="goal.name"
+              :key="goal.id || goal.name"
               class="goal-item"
               :style="{ '--goal-color': goal.color, '--goal-bg': goal.legendBg || goal.color + '24', '--goal-border': goal.color + '24' }"
             >
@@ -366,30 +366,59 @@
     </section>
 
     <section class="bottom-grid">
-      <article v-if="creatives.length" class="panel creatives-panel">
+      <article class="panel creatives-panel">
         <h2>Топ креативы</h2>
-        <div class="creatives-row">
-          <div v-for="creative in creatives" :key="creative.id || creative.title" class="creative-card">
-            <div class="creative-image" :class="creative.class" :style="creative.imageUrl ? { backgroundImage: `url(${creative.imageUrl})` } : null">
-              <span v-if="creative.badge">{{ creative.badge }}</span>
+        <div v-if="topAdsLoading" class="creatives-row" aria-label="Загрузка креативов">
+          <div v-for="item in 3" :key="item" class="creative-card creative-card--skeleton">
+            <div class="creative-image creative-skeleton"></div>
+            <div class="creative-skeleton-line creative-skeleton-line--short"></div>
+            <div class="creative-skeleton-line"></div>
+            <div class="creative-skeleton-metrics">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
+          </div>
+        </div>
+        <div v-else-if="creatives.length" class="creatives-row">
+          <div v-for="creative in creatives" :key="creative.id || creative.title" class="creative-card">
+            <button
+              v-if="creative.imageUrl"
+              type="button"
+              class="creative-image creative-image-button"
+              :style="{ backgroundImage: `url(${creative.imageUrl})` }"
+              @click="openCreativeImage(creative)"
+            ></button>
+            <div v-else class="creative-image" :class="creative.class"></div>
+            <span class="creative-platform" :class="creative.platformClass">
+              <img v-if="creative.platformIcon" :src="creative.platformIcon" alt="" />
+              {{ creative.badge }}
+            </span>
             <p>Заголовок:</p>
             <em>{{ creative.heading }}</em>
             <p>Текст:</p>
             <em>{{ creative.text }}</em>
+            <div class="creative-metrics">
+              <span v-for="metric in creative.metrics" :key="metric.label">
+                <b>{{ metric.label }}</b>
+                <strong>{{ metric.value }}</strong>
+              </span>
+            </div>
           </div>
         </div>
+        <div v-else class="creative-empty"></div>
       </article>
 
-      <article v-if="aiComments.length" class="panel ai-panel">
+      <article class="panel ai-panel">
         <div class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
         </div>
-        <ul>
+        <ul v-if="aiComments.length">
           <li v-for="comment in aiComments" :key="comment">{{ comment }}</li>
         </ul>
-        <p>Комментарий сгенерирован AI на основе данных за период {{ dateRangeLabel }}</p>
+        <div v-else class="ai-empty"></div>
+        <p v-if="aiComments.length">Комментарий сгенерирован AI на основе данных за период {{ dateRangeLabel }}</p>
       </article>
 
       <div class="side-stat-stack">
@@ -418,6 +447,21 @@
         </article>
       </div>
     </section>
+
+    <div
+      v-if="selectedCreativeImage"
+      class="creative-modal"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeCreativeImage"
+    >
+      <div class="creative-modal__content">
+        <button type="button" class="creative-modal__close" aria-label="Закрыть" @click="closeCreativeImage">
+          <XMarkIcon />
+        </button>
+        <img :src="selectedCreativeImage.imageUrl" :alt="selectedCreativeImage.heading || 'Креатив'" />
+      </div>
+    </div>
 
     <!-- Telegram link modal -->
     <div
@@ -575,6 +619,8 @@ const reportComment = ref('')
 const reportGoals = ref([])
 const integrations = ref([])
 const topAds = ref([])
+const topAdsLoading = ref(false)
+const selectedCreativeImage = ref(null)
 
 const toggleMenu = (name) => {
   openMenu.value = openMenu.value === name ? '' : name
@@ -902,42 +948,71 @@ const chartTooltipLabel = computed(() => {
   return last ? formatNumber(last, 0) : 'API'
 })
 
+const toRgba = (color, alpha = 0.48) => {
+  const hex = String(color || '').replace('#', '')
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return color
+  const value = Number.parseInt(hex, 16)
+  const r = (value >> 16) & 255
+  const g = (value >> 8) & 255
+  const b = value & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const parseOptionalNumber = (value) => {
+  if (value === null || value === undefined || value === '') return NaN
+  const num = Number(value)
+  return Number.isFinite(num) ? num : NaN
+}
+
 const goals = computed(() => {
-  const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff']
+  const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
   if (!reportGoals.value.length) return []
-  const total = reportGoals.value.reduce((sum, item) => sum + Number(item.count ?? item.conversions ?? item.value ?? 0), 0) || 1
-  return reportGoals.value.slice(0, 5).map((goal, index) => {
-    const count = Number(goal.count ?? goal.conversions ?? goal.value ?? 0)
-    const pct = (count / total) * 100
+  const total = reportGoals.value.reduce((sum, item) => {
+    const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
+    return sum + (Number.isFinite(count) ? count : 0)
+  }, 0)
+  return reportGoals.value.map((goal, index) => {
+    const count = parseOptionalNumber(goal.count ?? goal.conversions ?? goal.value)
+    const safeCount = Number.isFinite(count) ? count : 0
+    const pct = total > 0 ? (safeCount / total) * 100 : (100 / reportGoals.value.length)
+    const color = goal.color || colors[index % colors.length]
     return {
+      id: goal.id || goal.goal_id || goal.external_id || `${goal.name || goal.goal_name || 'goal'}-${index}`,
       name: goal.name || goal.goal_name || `Цель ${index + 1}`,
-      value: `${formatNumber(count)} шт. (${formatNumber(pct, 1)}%)`,
-      color: goal.color || colors[index % colors.length],
+      value: `${formatNumber(safeCount)} шт. (${formatNumber(pct, 1)}%)`,
+      color,
+      innerColor: goal.innerColor || goal.inner_color || toRgba(color, 0.48),
       pct
     }
   })
 })
 
-const donutGradient = computed(() => {
-  const items = goals.value
+const buildDonutGradient = (items, colorGetter) => {
   if (!items.length) return 'conic-gradient(from -90deg, #e5e7eb 0 100%)'
-  const blue = items[0]?.color || '#5677f6'
-  const orange = items[1]?.color || '#f2a988'
-  const green = items[2]?.color || '#e8fdec'
-  return `conic-gradient(from -90deg, ${blue} 0 50%, ${orange} 50% 75%, ${green} 75% 100%)`
+  let cursor = 0
+  const cssPercent = (value) => Number(value || 0).toFixed(3).replace(/\.?0+$/, '') || '0'
+  const segments = items.map((item, index) => {
+    const start = cursor
+    const end = index === items.length - 1 ? 100 : Math.min(100, cursor + item.pct)
+    cursor = end
+    return `${colorGetter(item)} ${cssPercent(start)}% ${cssPercent(end)}%`
+  })
+  return `conic-gradient(from -90deg, ${segments.join(', ')})`
+}
+
+const donutGradient = computed(() => {
+  return buildDonutGradient(goals.value, (item) => item.color)
 })
 
 const innerDonutGradient = computed(() => {
-  const items = goals.value
-  if (!items.length) return 'conic-gradient(from -90deg, #d1d5db 0 100%)'
-  const blue = items[0]?.innerColor || items[0]?.color || '#3d5fdf'
-  const orange = items[1]?.innerColor || items[1]?.color || '#e39674'
-  const green = items[2]?.innerColor || items[2]?.color || '#cbedd1'
-  return `conic-gradient(from -90deg, ${blue} 0 50%, ${orange} 50% 75%, ${green} 75% 100%)`
+  return buildDonutGradient(goals.value, (item) => item.innerColor || item.color)
 })
 
 const goalsTotalLabel = computed(() => {
-  const total = reportGoals.value.reduce((sum, item) => sum + Number(item.count ?? item.conversions ?? item.value ?? 0), 0)
+  const total = reportGoals.value.reduce((sum, item) => {
+    const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
+    return sum + (Number.isFinite(count) ? count : 0)
+  }, 0)
   return `${formatNumber(total || summary.value?.leads || 0)} шт.`
 })
 
@@ -966,15 +1041,30 @@ const campaignRows = computed(() => {
 const creatives = computed(() => {
   if (!topAds.value.length) return []
   const classes = ['city', 'blue', 'house']
-  return topAds.value.slice(0, 3).map((post, index) => ({
-    id: post.id || `${post.title}-${index}`,
-    badge: post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads'),
-    title: post.title || 'Креатив',
-    heading: post.heading || post.title || '—',
-    text: post.text || post.description || `${formatNumber(post.impressions)} показов, ${formatNumber(post.clicks)} кликов, CTR ${post.ctr ?? '—'}%`,
-    imageUrl: post.image_url || post.imageUrl || '',
-    class: classes[index % classes.length]
-  }))
+  return topAds.value.slice(0, 3).map((post, index) => {
+    const platform = String(post.platform || post.source || '').toLowerCase()
+    const cost = parseOptionalNumber(post.cost ?? post.spend ?? post.expenses)
+    const leads = parseOptionalNumber(post.conversions ?? post.leads ?? post.goal_count ?? post.goals)
+    const cplSource = parseOptionalNumber(post.cpl ?? post.cpa ?? post.cost_per_lead)
+    const cpl = Number.isFinite(cplSource) ? cplSource : (Number.isFinite(cost) && Number.isFinite(leads) && leads > 0 ? cost / leads : NaN)
+    const platformLabel = post.subtitle || post.platform_label || (platform.includes('vk') ? 'VK Ads' : 'Яндекс.Директ')
+    return {
+      id: post.id || `${post.title}-${index}`,
+      badge: platformLabel,
+      title: post.title || 'Креатив',
+      heading: post.heading || post.title || '—',
+      text: post.text || post.description || '—',
+      imageUrl: post.image_url || post.imageUrl || post.preview_url || '',
+      platformIcon: platform.includes('vk') ? vkAdsIcon : yandexDirectIcon,
+      platformClass: platform.includes('vk') ? 'creative-platform--vk' : 'creative-platform--yandex',
+      class: classes[index % classes.length],
+      metrics: [
+        { label: 'Затраты', value: Number.isFinite(cost) ? formatMoney(withVat(cost)) : '—' },
+        { label: 'Лиды', value: Number.isFinite(leads) ? `${formatNumber(leads)} шт.` : '—' },
+        { label: 'CPL', value: Number.isFinite(cpl) ? formatMoney(withVat(cpl)) : '—' },
+      ]
+    }
+  })
 })
 const aiComments = computed(() => {
   if (!reportComment.value) return []
@@ -993,6 +1083,14 @@ const deviceStats = computed(() =>
 const placements = computed(() => placementsRaw.value)
 
 const syncLabel = computed(() => integrations.value.length ? 'Синхронизировать данные' : 'Нет подключенных каналов')
+
+const openCreativeImage = (creative) => {
+  selectedCreativeImage.value = creative
+}
+
+const closeCreativeImage = () => {
+  selectedCreativeImage.value = null
+}
 
 const getStatsParams = () => ({
   start_date: filters.start_date,
@@ -1022,12 +1120,15 @@ const fetchReportGoals = async () => {
 
 const fetchTopAds = async () => {
   if (!filters.start_date || !filters.end_date) return
+  topAdsLoading.value = true
   try {
     const params = getStatsParams()
     const { data } = await api.get('dashboard/top-ads', { params })
-    topAds.value = Array.isArray(data) ? data : []
+    topAds.value = Array.isArray(data) ? data : (data?.ads || data?.results || data?.items || [])
   } catch {
     topAds.value = []
+  } finally {
+    topAdsLoading.value = false
   }
 }
 
@@ -2313,12 +2414,18 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) 63.2rem;
   gap: 2rem;
   margin-top: 2rem;
+  align-items: stretch;
 }
 
 .chart-panel,
 .goals-panel {
   min-height: 38.2rem;
   padding: 3rem;
+}
+
+.chart-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-title-row {
@@ -2370,6 +2477,8 @@ onMounted(() => {
 .chart-area {
   height: 29rem;
   margin-top: 2.8rem;
+  flex: 1;
+  min-height: 29rem;
 }
 
 .chart-area svg {
@@ -2429,8 +2538,9 @@ onMounted(() => {
   position: relative;
   display: grid;
   place-items: center;
-  width: 27.5rem;
-  height: 27.5rem;
+  width: clamp(15.2778rem, calc(10rem + var(--goals-count, 3) * 1.9rem), 27.5rem);
+  height: clamp(15.2778rem, calc(10rem + var(--goals-count, 3) * 1.9rem), 27.5rem);
+  justify-self: center;
 }
 
 .donut {
@@ -2599,6 +2709,12 @@ onMounted(() => {
   background-size: cover;
 }
 
+.creative-image-button {
+  width: 100%;
+  border: 0;
+  cursor: zoom-in;
+}
+
 .creative-image.city {
   background: linear-gradient(rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.42)), linear-gradient(135deg, #dbeafe, #60a5fa 52%, #2563eb);
 }
@@ -2635,6 +2751,173 @@ onMounted(() => {
   font-size: 1.3rem;
   font-style: normal;
   line-height: 1.35;
+}
+
+.creative-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: max-content;
+  max-width: 100%;
+  min-height: 2.8rem;
+  margin-top: 1.2rem;
+  padding: 0 1rem;
+  border-radius: 69.375rem;
+  color: #3f3f3f;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.creative-platform img {
+  width: 1.4rem;
+  height: 1.4rem;
+  object-fit: contain;
+}
+
+.creative-platform--yandex {
+  background: #fff7d8;
+}
+
+.creative-platform--vk {
+  background: #e8f0ff;
+}
+
+.creative-metrics {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.4rem;
+}
+
+.creative-metrics span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.2rem;
+  padding: 0 1rem;
+  border-radius: 0.8rem;
+  background: #f8fafc;
+}
+
+.creative-metrics b,
+.creative-metrics strong {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.creative-metrics b {
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.creative-metrics strong {
+  color: #171717;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.creative-empty,
+.ai-empty {
+  min-height: 18rem;
+  margin-top: 2.4rem;
+  border-radius: 1.2rem;
+  background: #f8fafc;
+}
+
+.creative-card--skeleton {
+  pointer-events: none;
+}
+
+.creative-skeleton,
+.creative-skeleton-line,
+.creative-skeleton-metrics span {
+  position: relative;
+  overflow: hidden;
+  background: #eef2f7;
+}
+
+.creative-skeleton::after,
+.creative-skeleton-line::after,
+.creative-skeleton-metrics span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  animation: skeleton-shimmer 1.25s infinite;
+}
+
+.creative-skeleton-line {
+  height: 1rem;
+  margin-top: 1.4rem;
+  border-radius: 69.375rem;
+}
+
+.creative-skeleton-line--short {
+  width: 64%;
+}
+
+.creative-skeleton-metrics {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.4rem;
+}
+
+.creative-skeleton-metrics span {
+  height: 3.2rem;
+  border-radius: 0.8rem;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.creative-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background: rgba(8, 13, 24, 0.72);
+}
+
+.creative-modal__content {
+  position: relative;
+  max-width: min(92vw, 96rem);
+  max-height: 88vh;
+}
+
+.creative-modal__content img {
+  display: block;
+  max-width: 100%;
+  max-height: 88vh;
+  border-radius: 1.2rem;
+  object-fit: contain;
+  background: #fff;
+}
+
+.creative-modal__close {
+  position: absolute;
+  top: -1.4rem;
+  right: -1.4rem;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border: 0;
+  border-radius: 69.375rem;
+  background: #fff;
+  color: #171717;
+  cursor: pointer;
+}
+
+.creative-modal__close svg {
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .ai-title {
@@ -3115,12 +3398,19 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1.5fr) minmax(25rem, 0.9fr);
   gap: 1.3889rem;
   margin-top: 1.3889rem;
+  align-items: stretch;
 }
 
 .chart-panel,
 .goals-panel {
   min-height: 25rem;
   padding: 1.7361rem;
+}
+
+.chart-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
 }
 
 .panel-title-row {
@@ -3139,6 +3429,8 @@ onMounted(() => {
 .chart-area {
   height: 18.4028rem;
   margin-top: 1.6667rem;
+  flex: 1;
+  min-height: 18.4028rem;
 }
 
 .axis-labels text,
@@ -3147,14 +3439,15 @@ onMounted(() => {
 }
 
 .goals-content {
-  grid-template-columns: minmax(12.5rem, 16.6667rem) minmax(0, 1fr);
+  grid-template-columns: minmax(12.5rem, min(22rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem))) minmax(0, 1fr);
   gap: 1.6667rem;
+  align-items: center;
   margin-top: 1.6667rem;
 }
 
 .donut-wrap {
-  width: 15.2778rem;
-  height: 15.2778rem;
+  width: clamp(12.5rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem), 22rem);
+  height: clamp(12.5rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem), 22rem);
 }
 
 .donut-wrap::after {
@@ -4406,7 +4699,13 @@ onMounted(() => {
 }
 
 /* Chart responsiveness pass: keep plots readable instead of squeezing them. */
+.chart-goals-grid {
+  align-items: stretch;
+}
+
 .chart-panel {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -4415,6 +4714,7 @@ onMounted(() => {
   align-items: center;
   width: 100%;
   min-height: 18.0556rem;
+  flex: 1;
   aspect-ratio: 880 / 300;
   overflow-x: auto;
   overflow-y: visible;
@@ -4431,13 +4731,14 @@ onMounted(() => {
 }
 
 .goals-content {
-  grid-template-columns: minmax(12.5rem, 16.6667rem) minmax(0, 1fr);
+  grid-template-columns: minmax(12.5rem, min(22rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem))) minmax(0, 1fr);
+  align-items: center;
   min-width: 0;
 }
 
 .donut-wrap {
-  width: clamp(12.5rem, 18vw, 16.6667rem);
-  height: clamp(12.5rem, 18vw, 16.6667rem);
+  width: clamp(12.5rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem), 22rem);
+  height: clamp(12.5rem, calc(8.5rem + var(--goals-count, 3) * 1.65rem), 22rem);
   max-width: 100%;
 }
 
@@ -4527,6 +4828,84 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.creative-image-button {
+  appearance: none;
+  min-height: 10.4167rem;
+  padding: 0;
+  outline: none;
+}
+
+.creative-image-button:focus-visible {
+  box-shadow: 0 0 0 0.2083rem rgba(37, 99, 235, 0.22);
+}
+
+.creative-platform {
+  min-height: 1.9444rem;
+  margin-top: 0.8333rem;
+  padding: 0 0.6944rem;
+  font-size: 0.7639rem;
+}
+
+.creative-platform img {
+  width: 0.9722rem;
+  height: 0.9722rem;
+}
+
+.creative-metrics {
+  gap: 0.5556rem;
+  margin-top: 0.9722rem;
+}
+
+.creative-metrics span {
+  min-height: 2.2222rem;
+  padding: 0 0.6944rem;
+  border-radius: 0.5556rem;
+}
+
+.creative-metrics b,
+.creative-metrics strong {
+  font-size: 0.7639rem;
+}
+
+.creative-empty,
+.ai-empty {
+  min-height: 12.5rem;
+  margin-top: 1.6667rem;
+  border-radius: 0.8333rem;
+}
+
+.creative-skeleton-line {
+  height: 0.6944rem;
+  margin-top: 0.9722rem;
+}
+
+.creative-skeleton-metrics {
+  gap: 0.5556rem;
+  margin-top: 0.9722rem;
+}
+
+.creative-skeleton-metrics span {
+  height: 2.2222rem;
+  border-radius: 0.5556rem;
+}
+
+.figma-dashboard.is-dark .creative-metrics span,
+.figma-dashboard.is-dark .creative-empty,
+.figma-dashboard.is-dark .ai-empty,
+.figma-dashboard.is-dark .creative-skeleton,
+.figma-dashboard.is-dark .creative-skeleton-line,
+.figma-dashboard.is-dark .creative-skeleton-metrics span {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.figma-dashboard.is-dark .creative-metrics strong {
+  color: #f3f4f6;
+}
+
+.figma-dashboard.is-dark .creative-metrics b {
+  color: rgba(255, 255, 255, 0.48);
+}
+
 .side-stat-stack {
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
 }
@@ -4576,6 +4955,7 @@ onMounted(() => {
   }
 
   .goals-content {
+    grid-template-columns: 1fr;
     justify-items: center;
   }
 
@@ -4584,8 +4964,17 @@ onMounted(() => {
   }
 
   .donut-wrap {
-    width: min(15.2778rem, 72vw);
-    height: min(15.2778rem, 72vw);
+    width: min(16.6667rem, 72vw);
+    height: min(16.6667rem, 72vw);
+  }
+
+  .creative-modal {
+    padding: 1.3889rem;
+  }
+
+  .creative-modal__close {
+    top: 0.6944rem;
+    right: 0.6944rem;
   }
 }
 </style>
