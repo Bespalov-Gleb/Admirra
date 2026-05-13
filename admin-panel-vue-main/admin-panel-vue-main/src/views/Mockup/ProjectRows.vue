@@ -403,6 +403,7 @@ const activeActionProject = ref(null)
 const actionMenuPosition = ref({ top: 0, left: 0 })
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
+const periodOptions = projectPeriodOptions
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },

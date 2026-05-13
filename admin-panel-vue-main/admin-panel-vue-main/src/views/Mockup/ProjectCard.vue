@@ -212,6 +212,7 @@ const openSelect = ref(null)
 const metricsByProjectId = ref({})
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
+const periodOptions = projectPeriodOptions
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
