@@ -11,7 +11,7 @@
           <div class="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 2xl:h-9 2xl:w-9">
             <img class="w-full h-full object-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
           </div>
-          <div class="hidden min-w-[4.5833rem] max-w-[7.2222rem] flex-col gap-[0.2083rem] text-left min-[720px]:flex 2xl:min-w-[6.25rem] 2xl:max-w-none">
+          <div class="hidden min-w-[4.5833rem] max-w-[7.2222rem] flex-col gap-[0.2083rem] text-left min-[1180px]:flex 2xl:min-w-[6.25rem] 2xl:max-w-none">
             <div class="truncate text-[0.8333rem] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[0.9722rem]">{{ headerProjectName }}</div>
             <div class="hidden pt-px text-[0.6944rem] leading-none text-[rgba(105,105,105,0.6)] dark:text-white/55 2xl:block">Отчеты агентства в одном месте</div>
           </div>
@@ -61,7 +61,7 @@
       </div>
 
       <!-- Subscription info (xxl+) -->
-      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 min-[720px]:flex 2xl:gap-4 2xl:pl-4">
+      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 2xl:flex 2xl:gap-4 2xl:pl-4">
         <div>
           <div class="whitespace-nowrap text-[0.6944rem] font-medium text-gray-500 dark:text-white/55 2xl:text-[0.9028rem]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
@@ -89,7 +89,7 @@
         <!-- Add project -->
         <button
           @click="router.push('/projects/create')"
-          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[720px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[1360px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
             Добавить новый проект
@@ -103,7 +103,7 @@
         <!-- "Предложить идею" (lg+) -->
         <button
           @click="router.push('/contact')"
-          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[720px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] 2xl:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 2xl:gap-2.5">
             Предложить идею
@@ -116,7 +116,7 @@
         <!-- Upgrade button (xxxl only = 2xl+) -->
         <button
           @click="router.push('/tariffs')"
-          class="hidden min-h-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#2563eb] px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] min-[720px]:flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+          class="hidden min-h-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#2563eb] px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] 2xl:flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="flex items-center gap-1.5 2xl:gap-2.5">
             Перейти на тариф Старт
@@ -196,7 +196,7 @@
             <div class="h-[2.0833rem] w-[2.0833rem] flex-shrink-0 overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
               <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-30x30.png" alt="#" />
             </div>
-            <span class="hidden max-w-[4.7222rem] truncate text-[0.6944rem] font-medium text-[#515151] dark:text-gray-100 min-[720px]:block 2xl:max-w-[10.4167rem] 2xl:text-[0.9722rem]">{{ displayName }}</span>
+            <span class="hidden max-w-[4.7222rem] truncate text-[0.6944rem] font-medium text-[#515151] dark:text-gray-100 min-[1280px]:block 2xl:max-w-[10.4167rem] 2xl:text-[0.9722rem]">{{ displayName }}</span>
             <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
               <svg class="h-[0.625rem] w-[0.625rem] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
                 <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
