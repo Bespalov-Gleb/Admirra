@@ -73,9 +73,9 @@
       <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white mb-4" style="font-family: Inter, sans-serif; letter-spacing: 0px;">Разбивка по целям</h3>
 
       <!-- Диаграмма слева + легенда справа -->
-      <div class="flex-1 flex items-center gap-3 lg:gap-4 min-w-0">
+      <div class="flex-1 flex flex-col items-center gap-4 min-w-0 sm:flex-row sm:items-center lg:gap-4">
         <!-- Donut chart — уменьшается на узких экранах -->
-        <div class="relative flex-shrink-0 w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] lg:w-[200px] lg:h-[200px]">
+        <div ref="chartShellRef" class="relative flex-shrink-0 w-[180px] h-[180px] sm:w-[160px] sm:h-[160px] lg:w-[200px] lg:h-[200px]">
           <canvas ref="chartCanvas" class="w-full h-full" />
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="text-center">
@@ -126,7 +126,9 @@ const props = defineProps({
 })
 
 const chartCanvas = ref(null)
+const chartShellRef = ref(null)
 let chartInstance = null
+let resizeObserver = null
 
 const formatGoalName = (name) => name || 'Цель'
 
@@ -184,7 +186,8 @@ const updateChart = () => {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
+      resizeDelay: 80,
       cutout: '60%',
       spacing: 0,
       plugins: {
@@ -241,10 +244,15 @@ watch(
 )
 
 onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    if (chartInstance) chartInstance.resize()
+  })
+  if (chartShellRef.value) resizeObserver.observe(chartShellRef.value)
   if (topGoals.value.length > 0) setTimeout(updateChart, 100)
 })
 
 onUnmounted(() => {
   if (chartInstance) chartInstance.destroy()
+  if (resizeObserver) resizeObserver.disconnect()
 })
 </script>

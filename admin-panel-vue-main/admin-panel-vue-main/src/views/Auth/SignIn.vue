@@ -93,7 +93,7 @@
               <div class="auth-row">
                 <label for="keepLoggedIn" class="auth-checkbox">
                   <input v-model="keepLoggedIn" type="checkbox" id="keepLoggedIn" class="sr-only" />
-                  <span :class="keepLoggedIn ? 'border-[#2874ff] bg-[#2874ff]' : 'border-[#d8dce4] bg-white'">
+                  <span :class="keepLoggedIn ? 'border-[#2874ff] bg-[#2874ff]' : 'border-[#aeb7c7] bg-[#f8fafc]'">
                     <svg v-if="keepLoggedIn" width="12" height="12" viewBox="0 0 14 14" fill="none">
                       <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
@@ -333,14 +333,14 @@ const handleLogin = async () => {
 
 .auth-form-box {
   width: 100%;
-  max-width: 482px;
-  margin-top: clamp(78px, 12vh, 132px);
+  max-width: 386px;
+  margin-top: clamp(66px, 10vh, 112px);
 }
 
 .auth-title {
-  margin: 0 0 34px;
+  margin: 0 0 27px;
   color: #102a55;
-  font-size: clamp(36px, 2.7vw, 50px);
+  font-size: clamp(29px, 2.16vw, 40px);
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: 0;
@@ -363,24 +363,29 @@ const handleLogin = async () => {
 .auth-social-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 28px;
+  gap: 6px;
+  margin-bottom: 22px;
 }
 
 .auth-social-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  height: 43px;
+  gap: 8px;
+  height: 34px;
   border: 0;
-  border-radius: 14px;
-  padding: 0 16px;
+  border-radius: 11px;
+  padding: 0 13px;
   color: rgba(16, 42, 85, 0.68);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 400;
   white-space: nowrap;
   transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.auth-social-btn img {
+  width: 13px;
+  height: 13px;
 }
 
 .auth-social-btn:hover {
@@ -409,8 +414,8 @@ const handleLogin = async () => {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 17px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .auth-divider span {
@@ -420,21 +425,21 @@ const handleLogin = async () => {
 
 .auth-divider strong {
   color: #c4c7ce;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 400;
 }
 
 .auth-fields {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .auth-label {
   display: block;
-  margin-bottom: 9px;
+  margin-bottom: 7px;
   color: #102a55;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 400;
 }
 
@@ -443,14 +448,14 @@ const handleLogin = async () => {
 }
 
 .auth-input {
-  height: 58px;
+  height: 46px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid #d9dce2;
   background: #ffffff;
-  padding: 0 17px;
+  padding: 0 14px;
   color: #102a55;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 400;
   outline: none;
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
@@ -466,34 +471,51 @@ const handleLogin = async () => {
   box-shadow: 0 0 0 4px rgba(37, 116, 255, 0.08);
 }
 
+.auth-fields .relative > button {
+  right: 12px;
+  width: 26px;
+  height: 26px;
+}
+
+.auth-fields .relative > button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .auth-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   margin-top: 2px;
 }
 
 .auth-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
   color: #102a55;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 400;
   user-select: none;
 }
 
 .auth-checkbox span {
   display: flex;
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  border-width: 1.5px;
-  transition: border-color 0.18s ease, background-color 0.18s ease;
+  border-width: 1.7px;
+  box-shadow: inset 0 0 0 1px rgba(16, 42, 85, 0.04);
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.auth-checkbox:hover span {
+  border-color: #7f8da3;
+  box-shadow: 0 0 0 3px rgba(40, 116, 255, 0.08), inset 0 0 0 1px rgba(16, 42, 85, 0.05);
 }
 
 .auth-forgot,
@@ -509,20 +531,20 @@ const handleLogin = async () => {
 }
 
 .auth-forgot {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .auth-submit {
   margin-top: 1px;
   display: flex;
-  height: 58px;
+  height: 46px;
   width: 100%;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
+  border-radius: 9px;
   background: linear-gradient(90deg, #2c66f6 0%, #12bdd0 100%);
   color: #ffffff;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   transition: filter 0.18s ease, transform 0.18s ease;
@@ -539,9 +561,9 @@ const handleLogin = async () => {
 }
 
 .auth-alt {
-  margin-top: 18px;
+  margin-top: 14px;
   color: #102a55;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
 }
 

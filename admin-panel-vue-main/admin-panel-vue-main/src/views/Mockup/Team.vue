@@ -9,7 +9,7 @@
     <!-- Toolbar -->
     <div class="flex flex-wrap items-center justify-between gap-[10px] mb-[30px]">
       <!-- Tabs -->
-      <div class="flex gap-[10px]">
+      <div class="flex min-w-0 flex-wrap gap-[10px]">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -61,7 +61,7 @@
             </span>
           </button>
 
-          <div class="flex items-center gap-[10px]">
+          <div class="team-actions flex items-center gap-[10px]">
             <button class="access-btn" @click="grantAccess(member)">
               <span>Добавить доступ к&nbsp;проекту</span>
               <span class="icon-plus">+</span>
@@ -550,6 +550,30 @@ onMounted(async () => {
   padding: 20px 22px;
   border-bottom: 1px solid transparent;
   transition: border-color 0.3s ease;
+}
+
+.team-actions {
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .tab-btn,
+  .add-btn,
+  .access-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .team-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .toggle-btn {
+    justify-content: space-between;
+    width: 100%;
+  }
 }
 @media (min-width: 1024px) {
   .team-header {

@@ -1,11 +1,11 @@
 <template>
   <div
-    class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]"
+    class="relative z-[2] flex min-h-full flex-col overflow-hidden px-4 py-6 sm:px-[25px] sm:py-[30px]"
     @click="closeAllMenus"
   >
     <!-- Heading -->
     <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">История</h3>
+      <h3 class="text-[26px] font-semibold leading-none text-[#171717] dark:text-white sm:text-[30px]">История</h3>
     </div>
 
     <!-- Filters -->
@@ -345,6 +345,24 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 30px;
 }
+
+@media (max-width: 639px) {
+  .custom-select,
+  .cs-head {
+    width: 100%;
+  }
+
+  .cs-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .history-list {
+    gap: 14px;
+    padding: 18px;
+  }
+}
 :global(.dark) .history-list,
 :global(.darkmode) .history-list {
   background-color: #2C2F3D;
@@ -358,6 +376,12 @@ onMounted(async () => {
   padding: 20px 22px;
   border-radius: 15px;
   font-size: 15px;
+}
+
+@media (max-width: 639px) {
+  .history-row {
+    padding: 16px;
+  }
 }
 :global(.dark) .history-row,
 :global(.darkmode) .history-row {

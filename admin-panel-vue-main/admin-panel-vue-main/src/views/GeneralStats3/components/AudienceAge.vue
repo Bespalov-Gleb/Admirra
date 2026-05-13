@@ -7,11 +7,11 @@
     <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
-    <div v-else class="flex flex-row items-stretch gap-8 flex-1 min-h-0">
-      <div ref="chartWrapRef" class="relative flex-shrink-0 cursor-pointer self-stretch flex items-center" style="width: 224px;">
-        <canvas ref="chartRef" style="width:224px;height:224px;" />
+    <div v-else class="flex flex-col items-stretch gap-6 flex-1 min-h-0 lg:flex-row lg:gap-8">
+      <div ref="chartWrapRef" class="relative mx-auto flex h-[220px] w-[220px] flex-shrink-0 cursor-pointer items-center justify-center sm:h-[240px] sm:w-[240px] lg:mx-0">
+        <canvas ref="chartRef" class="h-full w-full" />
       </div>
-      <div ref="legendRef" class="grid grid-cols-2 flex-1 min-w-0 self-stretch" style="gap: 13px; align-content: space-between;">
+      <div ref="legendRef" class="grid grid-cols-1 sm:grid-cols-2 flex-1 min-w-0 self-stretch" style="gap: 13px; align-content: space-between;">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { nextTick, ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useTheme } from '../../../composables/useTheme'
 import { Chart, registerables } from 'chart.js'
 import DataLabelsPlugin from 'chartjs-plugin-datalabels'
@@ -132,7 +132,9 @@ const props = defineProps({
 
 const { isDarkMode } = useTheme()
 const chartRef = ref(null)
+const chartWrapRef = ref(null)
 let chartInstance = null
+let resizeObserver = null
 const loading = ref(false)
 const data = ref([])
 
@@ -171,7 +173,8 @@ const updateChart = () => {
     },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
+      resizeDelay: 80,
       layout: { padding: 8 },
       plugins: {
         legend: { display: false },
@@ -206,11 +209,13 @@ const fetchData = async () => {
     if (props.clientId) params.client_id = props.clientId
     const { data: res } = await api.get('dashboard/audience-age', { params })
     data.value = res || []
-    updateChart()
   } catch {
     data.value = []
   } finally {
     loading.value = false
+    await nextTick()
+    observeChartWrap()
+    updateChart()
   }
 }
 
@@ -221,10 +226,25 @@ watch(
 )
 watch(isDarkMode, () => updateChart())
 
+const observeChartWrap = () => {
+  if (!resizeObserver || !chartWrapRef.value) return
+  resizeObserver.disconnect()
+  resizeObserver.observe(chartWrapRef.value)
+}
+
 onMounted(() => {
-  if (data.value.length) updateChart()
+  resizeObserver = new ResizeObserver(() => {
+    if (chartInstance) chartInstance.resize()
+  })
+  if (data.value.length) {
+    nextTick(() => {
+      observeChartWrap()
+      updateChart()
+    })
+  }
 })
 onUnmounted(() => {
   if (chartInstance) chartInstance.destroy()
+  if (resizeObserver) resizeObserver.disconnect()
 })
 </script>

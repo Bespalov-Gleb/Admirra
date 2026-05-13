@@ -38,7 +38,7 @@
     >
       <ChevronDownIcon
         :class="[
-          'h-3 w-3 text-[#696969]/75 transition-transform duration-500 active:text-white',
+          'h-3 w-3 text-[#696969]/75 transition-transform duration-500 active:text-white dark:text-gray-400 dark:active:text-white',
           isCollapsed ? 'rotate-90' : '-rotate-90',
         ]"
       />
@@ -89,7 +89,7 @@
                     <ChevronDownIcon
                       class="w-3 h-3 transition-transform duration-500"
                       :class="[
-                        isSubmenuActive(item) ? 'text-[#2563eb]' : 'text-[#696969]/75',
+                        isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 dark:text-gray-400',
                         isSubmenuOpenForKey(item.submenuKey) ? 'rotate-180' : '',
                       ]"
                     />
@@ -177,7 +177,7 @@
           <div class="relative">
             <div
               v-if="link.path && isActive(link.path)"
-              class="absolute left-0 top-[7px] bottom-[7px] w-[3px] rounded-full bg-[#2563eb]"
+              class="absolute left-0 top-[7px] bottom-[7px] w-[3px] rounded-full bg-[#2563eb] dark:bg-[#4A7AFF]"
             />
             <button
               @click="link.action ? link.action() : handleLinkClick(link.path)"
@@ -192,13 +192,13 @@
                 <component
                   :is="link.icon"
                 class="w-5 h-5 transition-colors duration-500"
-                  :class="link.path && isActive(link.path) ? 'text-[#2563eb]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                  :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
                 />
               </span>
               <span
                 v-if="!isCollapsed"
                 class="flex-1 text-[14px] font-semibold leading-none transition-colors duration-500"
-                :class="link.path && isActive(link.path) ? 'text-[#2563eb]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
+                :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-gray-400 dark:group-hover:text-[#4A7AFF]'"
               >{{ link.name }}</span>
             </button>
           </div>
@@ -259,8 +259,8 @@ const menuItems = computed(() => {
         { name: 'AI отчет по проекту', path: '/ai-analysis' },
       ]
     },
-    { name: 'Проекты', path: '/project-rows', icon: RectangleStackIcon },
-    { name: 'Интеграции', path: '/integrations/wizard', icon: RectangleStackIcon },
+    { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon },
+    { name: 'Интеграции', path: '/integrations', icon: RectangleStackIcon },
   ]
 
   items.push(
