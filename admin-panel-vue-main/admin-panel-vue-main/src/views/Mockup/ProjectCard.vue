@@ -28,29 +28,36 @@
         </div>
 
         <!-- Dropdown: Период -->
-        <div class="custom-select" :class="{ open: openSelect === 'period' }" v-click-outside="() => closeSelect('period')">
-          <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('period')">
+        <div class="custom-select" :class="{ open: openSelect === 'period' }" v-click-outside="closePeriodSelect">
+          <button ref="periodTriggerRef" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('period')">
             <span class="cs-current">{{ periodLabel }}</span>
             <span class="cs-arrow dark:!bg-white/10"><svg width="5" height="4" viewBox="0 0 9 6" fill="none"><path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </button>
-          <div class="cs-list period-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-            <template v-for="(opt, index) in periodOptions" :key="opt.value || `${opt.type}-${index}`">
-              <div v-if="opt.type === 'label'" class="period-list__title">{{ opt.label }}</div>
-              <div v-else-if="opt.type === 'divider'" class="period-list__divider"></div>
-              <button
-                v-else
-                type="button"
-                class="cs-option period-option dark:!text-white/70 dark:hover:!bg-white/5"
-                :class="{ selected: periodKey === opt.value }"
-                @click="selectPeriod(opt.value)"
-              >
-                <span>{{ opt.label }}</span>
-                <svg v-if="periodKey === opt.value" class="period-option__check" viewBox="0 0 18 14" fill="none" aria-hidden="true">
-                  <path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </template>
-          </div>
+          <Teleport to="body">
+            <div
+              v-if="openSelect === 'period'"
+              ref="periodPopoverRef"
+              class="period-popover period-list"
+              :style="periodPopoverStyle"
+            >
+              <template v-for="(opt, index) in periodOptions" :key="opt.value || `${opt.type}-${index}`">
+                <div v-if="opt.type === 'label'" class="period-list__title">{{ opt.label }}</div>
+                <div v-else-if="opt.type === 'divider'" class="period-list__divider"></div>
+                <button
+                  v-else
+                  type="button"
+                  class="period-option"
+                  :class="{ selected: periodKey === opt.value }"
+                  @click="selectPeriod(opt.value)"
+                >
+                  <span>{{ opt.label }}</span>
+                  <svg v-if="periodKey === opt.value" class="period-option__check" viewBox="0 0 18 14" fill="none" aria-hidden="true">
+                    <path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </template>
+            </div>
+          </Teleport>
         </div>
 
         <div class="search-wrap">
@@ -203,6 +210,8 @@ const periodKey = ref('last_7_days')
 const search = ref('')
 const openSelect = ref(null)
 const metricsByProjectId = ref({})
+const periodTriggerRef = ref(null)
+const periodPopoverRef = ref(null)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -234,12 +243,33 @@ const periodLabel = computed(() => {
   return getProjectPeriodLabel(periodKey.value)
 })
 
+const periodPopoverStyle = computed(() => {
+  if (openSelect.value !== 'period' || !periodTriggerRef.value || typeof window === 'undefined') return {}
+  const rect = periodTriggerRef.value.getBoundingClientRect()
+  const width = Math.max(rect.width, 302)
+  const viewportPadding = 12
+  const left = Math.min(
+    Math.max(viewportPadding, rect.left),
+    Math.max(viewportPadding, window.innerWidth - width - viewportPadding)
+  )
+  return {
+    top: `${rect.bottom + 4}px`,
+    left: `${left}px`,
+    minWidth: `${width}px`
+  }
+})
+
 function toggleSelect(name) {
   openSelect.value = openSelect.value === name ? null : name
 }
 
 function closeSelect(name) {
   if (openSelect.value === name) openSelect.value = null
+}
+
+function closePeriodSelect(event) {
+  if (periodPopoverRef.value?.contains(event.target)) return
+  closeSelect('period')
 }
 
 function selectProjectFilter(value) {
@@ -479,8 +509,16 @@ onMounted(async () => {
 .cs-option.selected { font-weight: 600; }
 
 .period-list {
+  position: fixed;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background-color: #fff;
   min-width: 21rem;
   border-radius: 1.0417rem;
+  box-shadow: 0 1.3889rem 3.4722rem rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(68, 68, 68, 0.08);
 }
 
 .period-list__title {
@@ -506,9 +544,21 @@ onMounted(async () => {
   gap: 1.25rem;
   width: 100%;
   min-height: 3.4722rem;
+  padding: 0.8333rem 1.5278rem;
   border: 0;
   background: transparent;
+  color: rgba(0, 0, 0, 0.78);
+  cursor: pointer;
   font-size: 1.0417rem;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.period-option:hover,
+.period-option.selected {
+  background-color: #f5f7f9;
 }
 
 .period-option__check {
@@ -768,9 +818,24 @@ onMounted(async () => {
   border-bottom-color: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.9);
 }
+:global(.dark) .period-popover,
+:global(.darkmode) .period-popover {
+  background-color: #2c2f3d;
+  box-shadow: 0 1.3889rem 3.4722rem rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
 :global(.dark) .period-list__divider,
 :global(.darkmode) .period-list__divider {
   background: rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .period-option,
+:global(.darkmode) .period-option {
+  color: rgba(255, 255, 255, 0.72);
+}
+:global(.dark) .period-option:hover,
+:global(.darkmode) .period-option:hover,
+:global(.dark) .period-option.selected,
+:global(.darkmode) .period-option.selected {
+  background: rgba(255, 255, 255, 0.06);
 }
 :global(.dark) .period-option__check,
 :global(.darkmode) .period-option__check {
