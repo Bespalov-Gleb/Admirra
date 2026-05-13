@@ -66,7 +66,7 @@
               <span>Добавить доступ к&nbsp;проекту</span>
               <span class="icon-plus">+</span>
             </button>
-            <button class="delete-btn dark:!bg-white/10" title="Удалить">
+            <button class="delete-btn dark:!bg-white/10" title="Удалить" type="button" @click="openRemoveConfirm(member)">
               <svg width="16" height="16" viewBox="0 0 20 22" fill="none">
                 <path d="M1 5H19M8 9V17M12 9V17M3 5L4 19C4 20.1 4.9 21 6 21H14C15.1 21 16 20.1 16 19L17 5M7 5V3C7 1.9 7.9 1 9 1H11C12.1 1 13 1.9 13 3V5" stroke="#afafaf" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -91,7 +91,11 @@
                       <span>{{ project.name.slice(0, 2).toUpperCase() }}</span>
                     </div>
                     <div class="text-[14px] font-medium text-[#515151] leading-[1.3] flex-1 dark:!text-white/85">{{ project.name }}</div>
-                    <button class="revoke-btn dark:!border-white/15 dark:!bg-white/10 dark:!text-white/70">Отозвать доступ</button>
+                    <button
+                      type="button"
+                      class="revoke-btn dark:!border-white/15 dark:!bg-white/10 dark:!text-white/70"
+                      @click="openRevokeConfirm(member, project)"
+                    >Отозвать доступ</button>
                   </div>
                 </div>
               </div>
@@ -106,12 +110,113 @@
       <p class="mt-[8px] text-[13px] leading-[1.4] text-[rgba(105,105,105,0.56)] dark:!text-white/55">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
     </div>
 
+    <!-- Приглашение по email -->
+    <Modal
+      v-model:isOpen="showInviteModal"
+      title="Добавить участника"
+      size="md"
+      @close="resetInviteModal"
+    >
+      <div class="space-y-3">
+        <p class="text-sm text-gray-600 dark:text-white/65">
+          Укажите email — человек получит приглашение в роли «{{ currentTab === 'clients' ? 'клиент' : 'сотрудник' }}».
+        </p>
+        <div>
+          <label for="team-invite-email" class="mb-1 block text-sm font-medium text-gray-800 dark:text-white/85">Email</label>
+          <input
+            id="team-invite-email"
+            v-model="inviteEmail"
+            type="email"
+            autocomplete="email"
+            placeholder="name@company.com"
+            class="team-modal-input"
+            @keyup.enter="submitInvite"
+          >
+        </div>
+        <p v-if="inviteError" class="text-sm text-red-600 dark:text-red-400">{{ inviteError }}</p>
+      </div>
+      <template #footer>
+        <div class="flex flex-wrap justify-end gap-3">
+          <button type="button" class="team-modal-btn team-modal-btn--ghost" @click="showInviteModal = false">Отмена</button>
+          <button
+            type="button"
+            class="team-modal-btn team-modal-btn--primary"
+            :disabled="inviteSubmitting"
+            @click="submitInvite"
+          >
+            {{ inviteSubmitting ? 'Отправка…' : 'Отправить приглашение' }}
+          </button>
+        </div>
+      </template>
+    </Modal>
+
+    <!-- Выбор проекта для доступа -->
+    <Modal
+      v-model:isOpen="showGrantModal"
+      title="Доступ к проекту"
+      size="md"
+      @close="resetGrantModal"
+    >
+      <div v-if="grantMember" class="space-y-3">
+        <p class="text-sm text-gray-600 dark:text-white/65">
+          Участник: <span class="font-medium text-gray-900 dark:text-white">{{ grantMember.email }}</span>
+        </p>
+        <p v-if="!availableGrantProjects.length" class="text-sm text-amber-700 dark:text-amber-400">
+          Нет проектов без доступа — все доступные проекты уже подключены.
+        </p>
+        <ul v-else class="max-h-[min(50vh,320px)] space-y-2 overflow-y-auto pr-1">
+          <li v-for="p in availableGrantProjects" :key="p.id">
+            <button
+              type="button"
+              class="team-project-pick"
+              :disabled="grantSubmitting"
+              @click="submitGrantAccess(p)"
+            >
+              <span class="font-medium text-gray-900 dark:text-white/90">{{ p.name }}</span>
+              <span class="text-xs text-gray-500 dark:text-white/50">Выдать доступ</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <button type="button" class="team-modal-btn team-modal-btn--ghost" @click="closeGrantModal">Закрыть</button>
+        </div>
+      </template>
+    </Modal>
+
+    <ConfirmModal
+      v-model:isOpen="showRemoveConfirm"
+      title="Удалить участника?"
+      :message="removeConfirmMessage"
+      @confirm="performRemoveMember"
+    />
+    <ConfirmModal
+      v-model:isOpen="showRevokeConfirm"
+      title="Отозвать доступ?"
+      :message="revokeConfirmMessage"
+      @confirm="performRevokeAccess"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import api from '../../api/axios'
+import Modal from '../../components/Modal.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
+import { useToaster } from '../../composables/useToaster'
+
+const toaster = useToaster()
+
+const showInviteModal = ref(false)
+const inviteEmail = ref('')
+const inviteSubmitting = ref(false)
+const inviteError = ref('')
+
+const showGrantModal = ref(false)
+const grantMember = ref(null)
+const grantSubmitting = ref(false)
 
 const tabs = [
   { id: 'staff',   label: 'Сотрудники' },
@@ -122,6 +227,28 @@ const openIndex = ref(null)
 const members = ref([])
 const teamProjects = ref([])
 const isLoading = ref(false)
+
+const showRemoveConfirm = ref(false)
+const pendingRemoveMember = ref(null)
+const removeConfirmMessage = computed(() => {
+  const m = pendingRemoveMember.value
+  return m ? `Удалить ${m.email} из списка? Доступы к проектам будут отозваны.` : ''
+})
+
+const showRevokeConfirm = ref(false)
+const pendingRevoke = ref({ member: null, project: null })
+const revokeConfirmMessage = computed(() => {
+  const { member, project } = pendingRevoke.value
+  if (!member || !project) return ''
+  return `Отозвать доступ к проекту «${project.name}» у ${member.email}?`
+})
+
+const availableGrantProjects = computed(() => {
+  const m = grantMember.value
+  if (!m) return []
+  const ids = new Set((m.projects || []).map((p) => p.id))
+  return teamProjects.value.filter((p) => !ids.has(p.id))
+})
 
 function toggleMember(idx) {
   openIndex.value = openIndex.value === idx ? null : idx
@@ -181,31 +308,75 @@ async function fetchMembers() {
   }
 }
 
-async function inviteMember() {
-  const email = window.prompt('Введите email участника')
-  if (!email) return
+function resetInviteModal() {
+  inviteEmail.value = ''
+  inviteError.value = ''
+  inviteSubmitting.value = false
+}
 
+function inviteMember() {
+  resetInviteModal()
+  showInviteModal.value = true
+}
+
+const emailLooksValid = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+
+async function submitInvite() {
+  inviteError.value = ''
+  const raw = inviteEmail.value.trim().toLowerCase()
+  if (!raw) {
+    inviteError.value = 'Введите email'
+    return
+  }
+  if (!emailLooksValid(raw)) {
+    inviteError.value = 'Похоже на некорректный email'
+    return
+  }
+  inviteSubmitting.value = true
   try {
     await api.post('/team/members/invite', {
-      email: email.trim().toLowerCase(),
+      email: raw,
       role: roleByTab(currentTab.value),
     })
+    showInviteModal.value = false
+    resetInviteModal()
+    toaster.success('Приглашение отправлено')
     await fetchMembers()
   } catch (e) {
-    window.alert(e?.response?.data?.detail || 'Не удалось пригласить участника')
+    inviteError.value = e?.response?.data?.detail || 'Не удалось пригласить участника'
+  } finally {
+    inviteSubmitting.value = false
   }
 }
 
-async function removeMember(member) {
-  if (!window.confirm(`Удалить участника ${member.email}?`)) return
+function openRemoveConfirm(member) {
+  pendingRemoveMember.value = member
+  showRemoveConfirm.value = true
+}
 
+async function performRemoveMember() {
+  const member = pendingRemoveMember.value
+  if (!member) return
   try {
     const endpoint = member.role === 'client' ? `/team/clients/${member.id}` : `/team/members/${member.id}`
     await api.delete(endpoint)
+    toaster.success('Участник удалён')
     await fetchMembers()
   } catch (e) {
-    window.alert(e?.response?.data?.detail || 'Не удалось удалить участника')
+    toaster.error(e?.response?.data?.detail || 'Не удалось удалить участника')
+  } finally {
+    pendingRemoveMember.value = null
   }
+}
+
+function resetGrantModal() {
+  grantMember.value = null
+  grantSubmitting.value = false
+}
+
+function closeGrantModal() {
+  showGrantModal.value = false
+  resetGrantModal()
 }
 
 async function grantAccess(member) {
@@ -213,35 +384,52 @@ async function grantAccess(member) {
     await fetchTeamProjects()
   }
   if (!teamProjects.value.length) {
-    window.alert('Нет доступных проектов для выдачи доступа')
+    toaster.warning('Нет доступных проектов для выдачи доступа')
     return
   }
-
-  const options = teamProjects.value.map((p, idx) => `${idx + 1}. ${p.name}`).join('\n')
-  const selected = window.prompt(`Выберите номер проекта:\n${options}`)
-  const index = Number(selected) - 1
-  const project = teamProjects.value[index]
-  if (!project) return
-
-  try {
-    const endpoint = member.role === 'client' ? `/team/clients/${member.id}/projects` : `/team/members/${member.id}/projects`
-    await api.post(endpoint, { project_id: project.id })
-    await fetchMembers()
-  } catch (e) {
-    window.alert(e?.response?.data?.detail || 'Не удалось выдать доступ к проекту')
+  grantMember.value = member
+  showGrantModal.value = true
+  if (!availableGrantProjects.value.length) {
+    toaster.info('У участника уже есть доступ ко всем проектам из списка')
   }
 }
 
-async function revokeAccess(member, project) {
-  if (!window.confirm(`Отозвать доступ "${project.name}" у ${member.email}?`)) return
+async function submitGrantAccess(project) {
+  const member = grantMember.value
+  if (!member || !project) return
+  grantSubmitting.value = true
+  try {
+    const endpoint = member.role === 'client' ? `/team/clients/${member.id}/projects` : `/team/members/${member.id}/projects`
+    await api.post(endpoint, { project_id: project.id })
+    toaster.success(`Доступ к «${project.name}» выдан`)
+    closeGrantModal()
+    await fetchMembers()
+  } catch (e) {
+    toaster.error(e?.response?.data?.detail || 'Не удалось выдать доступ к проекту')
+  } finally {
+    grantSubmitting.value = false
+  }
+}
+
+function openRevokeConfirm(member, project) {
+  pendingRevoke.value = { member, project }
+  showRevokeConfirm.value = true
+}
+
+async function performRevokeAccess() {
+  const { member, project } = pendingRevoke.value
+  if (!member || !project) return
   try {
     const endpoint = member.role === 'client'
       ? `/team/clients/${member.id}/projects/${project.id}`
       : `/team/members/${member.id}/projects/${project.id}`
     await api.delete(endpoint)
+    toaster.success('Доступ отозван')
     await fetchMembers()
   } catch (e) {
-    window.alert(e?.response?.data?.detail || 'Не удалось отозвать доступ')
+    toaster.error(e?.response?.data?.detail || 'Не удалось отозвать доступ')
+  } finally {
+    pendingRevoke.value = { member: null, project: null }
   }
 }
 
@@ -566,5 +754,98 @@ onMounted(async () => {
   font-weight: 700;
   color: #4b6fa0;
   line-height: 1;
+}
+
+/* ── Modals (контент внутри общего Modal.vue) ── */
+.team-modal-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(105, 105, 105, 0.2);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.team-modal-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+:global(.dark) .team-modal-input,
+:global(.darkmode) .team-modal-input {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+}
+.team-modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+.team-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.team-modal-btn--ghost {
+  background: #f3f4f6;
+  color: #374151;
+}
+.team-modal-btn--ghost:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+.team-modal-btn--primary {
+  background: #2563eb;
+  color: #fff;
+}
+.team-modal-btn--primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+:global(.dark) .team-modal-btn--ghost,
+:global(.darkmode) .team-modal-btn--ghost {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+:global(.dark) .team-modal-btn--ghost:hover:not(:disabled),
+:global(.darkmode) .team-modal-btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+.team-project-pick {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(105, 105, 105, 0.12);
+  background: #f9fafb;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+.team-project-pick:hover:not(:disabled) {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.team-project-pick:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+:global(.dark) .team-project-pick,
+:global(.darkmode) .team-project-pick {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .team-project-pick:hover:not(:disabled),
+:global(.darkmode) .team-project-pick:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(96, 165, 250, 0.45);
 }
 </style>
