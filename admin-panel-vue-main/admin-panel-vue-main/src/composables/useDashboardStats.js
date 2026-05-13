@@ -2,14 +2,14 @@ import { ref, reactive, watch, onMounted, computed } from 'vue'
 import api from '../api/axios'
 
 const DEVICE_STATS_MOCK = [
-  { name: 'Мобильные', value: '—', width: '60%', icon: 'mobile' },
-  { name: 'Десктоп',   value: '—', width: '30%', icon: 'desktop' },
-  { name: 'Планшеты',  value: '—', width: '10%', icon: 'desktop' }
+  { name: 'Мобильные', value: '—', width: '0%', icon: 'mobile' },
+  { name: 'Десктоп',   value: '—', width: '0%', icon: 'desktop' },
+  { name: 'Планшеты',  value: '—', width: '0%', icon: 'desktop' }
 ]
 
 const PLACEMENTS_MOCK = [
-  { name: 'Поиск', value: '—', width: '60%' },
-  { name: 'РСЯ',   value: '—', width: '40%' }
+  { name: 'Поиск', value: '—', width: '0%' },
+  { name: 'РСЯ',   value: '—', width: '0%' }
 ]
 
 export function useDashboardStats() {

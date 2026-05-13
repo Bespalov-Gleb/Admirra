@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-visible px-[1.7361rem] py-[2.0833rem]">
     <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
     </div>
