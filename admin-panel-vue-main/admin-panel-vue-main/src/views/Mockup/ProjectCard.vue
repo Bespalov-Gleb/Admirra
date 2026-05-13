@@ -126,7 +126,13 @@
                 <img src="/admirra/img/avatars/avatar-40x40.png" :alt="project.name" class="w-full h-full object-cover" />
               </div>
               <div class="pl-[1.0417rem]">
-                <h4 class="text-[1.0417rem] text-[#696969] font-medium mb-[0.2083rem] leading-none">{{ project.name }}</h4>
+                <button
+                  type="button"
+                  class="project-title-link text-[1.0417rem] text-[#696969] font-medium mb-[0.2083rem] leading-none"
+                  @click="openProject(project)"
+                >
+                  {{ project.name }}
+                </button>
                 <p class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description || `ID: ${shortId(project.id)}` }}</p>
               </div>
             </div>
@@ -198,7 +204,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
-import { hasProjectPlatform } from '../../utils/projectIntegrations'
+import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 
 const router = useRouter()
@@ -223,9 +229,9 @@ const projectFilterOptions = [
 const filteredProjects = computed(() => {
   let list = projects.value
   if (projectFilter.value === 'active') {
-    list = list.filter((p) => p.integrations?.some((i) => i.is_active))
+    list = list.filter(hasActiveProjectIntegration)
   } else if (projectFilter.value === 'inactive') {
-    list = list.filter((p) => !p.integrations?.some((i) => i.is_active))
+    list = list.filter((p) => !hasActiveProjectIntegration(p))
   }
   const q = search.value.trim().toLowerCase()
   if (!q) return list
@@ -345,6 +351,7 @@ const shortId = (id) => {
 }
 
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
+const hasAnyPlatform = (project) => projectPlatforms(project).length > 0
 
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
@@ -361,7 +368,7 @@ const projectStats = (project) => {
 const projectBalances = (project) => {
   const metric = getProjectMetric(project.id)
   const balances = []
-  if (hasPlatform(project, 'YANDEX') || !project.integrations?.length) {
+  if (hasPlatform(project, 'YANDEX') || !hasAnyPlatform(project)) {
     balances.push({
       name: 'Yandex Direct',
       value: formatMoney(metric.balance),
@@ -655,6 +662,21 @@ onMounted(async () => {
   color: #5187ff;
 }
 .view-btn:not(._active):hover { color: #5187ff; }
+
+.project-title-link {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.project-title-link:hover {
+  color: #2563eb;
+}
 
 /* ---- Project avatar ---- */
 .project-avatar {

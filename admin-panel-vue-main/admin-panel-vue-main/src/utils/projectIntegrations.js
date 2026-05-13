@@ -6,13 +6,50 @@ const normalizePlatformCode = (value) => {
   return raw
 }
 
+const normalizeIntegrationItem = (item) => {
+  if (!item) return null
+  if (typeof item === 'string') return { platform: item, connected: true }
+  if (typeof item === 'object') return item
+  return null
+}
+
+const normalizeIntegrationList = (value) => {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map(normalizeIntegrationItem).filter(Boolean)
+  if (typeof value === 'string') {
+    return value
+      .split(/[,\s]+/)
+      .map(normalizeIntegrationItem)
+      .filter(Boolean)
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value).map(([platform, state]) => {
+      if (state && typeof state === 'object') return { platform, ...state }
+      return { platform, connected: Boolean(state) }
+    })
+  }
+  return []
+}
+
 const projectIntegrations = (project) => {
-  return Array.isArray(project?.integrations) ? project.integrations : []
+  return [
+    ...normalizeIntegrationList(project?.integrations),
+    ...normalizeIntegrationList(project?.channels),
+    ...normalizeIntegrationList(project?.connected_channels),
+    ...normalizeIntegrationList(project?.connectedChannels),
+    ...normalizeIntegrationList(project?.platforms),
+    ...normalizeIntegrationList(project?.ad_platforms),
+  ]
 }
 
 export const projectPlatforms = (project) => {
-  const platforms = projectIntegrations(project)
-    .map((integration) => normalizePlatformCode(integration.platform || integration.type || integration.name || integration.provider))
+  const platforms = [
+    ...projectIntegrations(project)
+      .map((integration) => normalizePlatformCode(integration.platform || integration.type || integration.name || integration.provider || integration.channel)),
+    normalizePlatformCode(project?.platform),
+    normalizePlatformCode(project?.provider),
+    normalizePlatformCode(project?.channel),
+  ]
     .filter(Boolean)
   return Array.from(new Set(platforms))
 }

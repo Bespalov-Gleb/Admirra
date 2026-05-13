@@ -269,11 +269,11 @@
           </Transition>
         </div>
 
-        <!-- Burger (mobile, hidden on lg+) -->
+        <!-- Burger (tablet/mobile only) -->
         <button
           @click="toggleMobileMenu"
           :class="[
-            'flex h-[3.1944rem] w-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 min-[1440px]:hidden',
+            'flex h-[3.1944rem] w-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 min-[1024px]:hidden',
             isMobileMenuOpen ? 'is-active' : '',
           ]"
         >

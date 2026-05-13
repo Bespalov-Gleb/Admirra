@@ -164,16 +164,27 @@
                     <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="" />
                   </div>
                   <div class="pl-[1.0417rem]">
-                    <h4 class="mb-[0.3472rem] text-[0.9028rem] font-normal leading-[130%] text-[#696969] dark:text-white">{{ project.name }}</h4>
+                    <button
+                      type="button"
+                      class="project-title-link mb-[0.3472rem] text-[0.9028rem] font-normal leading-[130%] text-[#696969] dark:text-white"
+                      @click="openProject(project)"
+                    >
+                      {{ project.name }}
+                    </button>
                     <p class="text-[0.7639rem] leading-none text-[rgba(105,105,105,0.56)] dark:text-white/45">ID:&nbsp;{{ shortId(project.id) }}</p>
                   </div>
                 </div>
               </td>
               <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <div class="flex items-center gap-2">
-                  <img v-if="hasPlatform(project, 'YANDEX')" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
-                  <img v-if="hasPlatform(project, 'VK')" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" />
-                  <span v-if="!project.integrations?.length" class="text-[0.9028rem] text-gray-400">—</span>
+                  <img
+                    v-for="platform in visibleProjectPlatforms(project)"
+                    :key="platform"
+                    width="22"
+                    :src="platformIcon(platform)"
+                    :alt="platformLabel(platform)"
+                  />
+                  <span v-if="!visibleProjectPlatforms(project).length" class="text-[0.9028rem] text-gray-400">—</span>
                 </div>
               </td>
               <td
@@ -378,7 +389,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
-import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
+import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 
 const router = useRouter()
@@ -506,9 +517,9 @@ const setItemsPerPage = (value) => {
 const filteredProjects = computed(() => {
   let list = projects.value
   if (projectFilter.value === 'active') {
-    list = list.filter((p) => p.integrations?.some((i) => i.is_active))
+    list = list.filter(hasActiveProjectIntegration)
   } else if (projectFilter.value === 'inactive') {
-    list = list.filter((p) => !p.integrations?.some((i) => i.is_active))
+    list = list.filter((p) => !hasActiveProjectIntegration(p))
   }
   if (!search.value.trim()) return list
   const q = search.value.toLowerCase()
@@ -607,6 +618,9 @@ const emptyMetric = () => ({
 const getProjectMetric = (projectId) => metricsByProjectId.value[projectId] || emptyMetric()
 
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
+const visibleProjectPlatforms = (project) => projectPlatforms(project).filter((platform) => ['YANDEX', 'VK'].includes(platform))
+const platformIcon = (platform) => platform === 'VK' ? '/admirra/img/icons/vk-ads.png' : '/admirra/img/icons/yandex-direct.png'
+const platformLabel = (platform) => platform === 'VK' ? 'VK Ads' : 'Yandex Direct'
 
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
@@ -1062,6 +1076,21 @@ onUnmounted(() => {
 
 .view-btn:not(._active):hover {
   color: #5187ff;
+}
+
+.project-title-link {
+  display: block;
+  max-width: 12rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.project-title-link:hover {
+  color: #2563eb;
 }
 
 :global(.dark) .cs-head,

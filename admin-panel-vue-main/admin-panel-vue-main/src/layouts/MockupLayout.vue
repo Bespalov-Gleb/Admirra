@@ -24,6 +24,6 @@ import { useSidebar } from '../composables/useSidebar'
 const { isCollapsed } = useSidebar()
 
 const mainMargin = computed(() => {
-  return isCollapsed.value ? 'min-[1440px]:ml-[5rem]' : 'min-[1440px]:ml-[18.75rem]'
+  return isCollapsed.value ? 'min-[1024px]:ml-[5rem]' : 'min-[1024px]:ml-[18.75rem]'
 })
 </script>

@@ -3,7 +3,7 @@
   <div
     v-if="isMobileMenuOpen"
     @click="closeMobileMenu"
-    class="fixed inset-0 bg-black/50 z-40 min-[1440px]:hidden"
+    class="fixed inset-0 bg-black/50 z-40 min-[1024px]:hidden"
   />
 
   <aside
@@ -12,7 +12,7 @@
       'bg-white dark:bg-[#1C1F2E]',
       'border-r border-black/5 dark:border-white/[0.07] dark:shadow-[2px_0_20px_rgba(0,0,0,0.32)]',
       isCollapsed ? 'w-[5rem]' : 'w-[18.75rem]',
-      isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full min-[1440px]:translate-x-0',
+      isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full min-[1024px]:translate-x-0',
     ]"
   >
     <!-- Logo header — matches header__aside height (5.2778rem) -->
@@ -34,7 +34,7 @@
 
     <button
       @click="handleToggleCollapse"
-      class="absolute left-full top-[2.6389rem] z-10 -ml-3 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5f7f9] transition-colors active:bg-[#5187ff] dark:bg-[#252840] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10)] min-[1440px]:flex"
+      class="absolute left-full top-[2.6389rem] z-10 -ml-3 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#f5f7f9] transition-colors active:bg-[#5187ff] dark:bg-[#252840] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10)] min-[1024px]:flex"
     >
       <ChevronDownIcon
         :class="[
