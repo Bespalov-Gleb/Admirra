@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-[32px] border border-white/80 dark:border-white/10 shadow-sm transition-all hover:shadow-md">
-      <label class="text-[9px] font-black text-gray-400 dark:text-white/50 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 dark:border-white/10 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[0.625rem] font-black text-gray-400 dark:text-white/50 uppercase tracking-widest ml-1 opacity-70">
         Статистика
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -15,7 +15,7 @@
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 dark:text-white/50 uppercase tracking-wider truncate">
+            <p class="text-[0.625rem] font-bold text-gray-400 dark:text-white/50 uppercase tracking-wider truncate">
               Аналитика по проектам валидации лидов
             </p>
           </div>
@@ -39,7 +39,7 @@
       <div
         v-for="stat in statsCards"
         :key="stat.label"
-        class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all"
+        class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all"
       >
         <div class="flex items-center justify-between mb-4">
           <div class="w-12 h-12 rounded-xl flex items-center justify-center" :class="stat.bgColor">
@@ -61,7 +61,7 @@
     </div>
 
     <!-- График статистики -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-gray-900 mb-6">Динамика заявок</h2>
       <div v-if="loading" class="h-64 flex items-center justify-center">
         <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -72,7 +72,7 @@
     </div>
 
     <!-- Статистика по проектам -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm overflow-hidden">
       <div class="p-6 border-b border-gray-200">
         <h2 class="text-lg font-bold text-gray-900">Статистика по проектам</h2>
       </div>

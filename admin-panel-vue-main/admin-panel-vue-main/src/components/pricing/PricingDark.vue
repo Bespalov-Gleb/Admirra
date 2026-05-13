@@ -1,15 +1,15 @@
 <template>
-  <div class="max-w-[1215px] py-4 px-0 font-sans text-white">
+  <div class="max-w-[84.375rem] py-4 px-0 font-sans text-white">
     <div class="mb-10">
       <h1 class="text-3xl md:text-4xl font-bold mb-3">Тарифы</h1>
-      <p class="text-[#94A3B8] text-[15px]">
+      <p class="text-[#94A3B8] text-[1.0417rem]">
         Выберите подходящий тариф в зависимости от количества проектов и задач аналитики
       </p>
-      <div class="mt-8 flex flex-wrap items-center gap-[10px]">
+      <div class="mt-8 flex flex-wrap items-center gap-[0.6944rem]">
         <button
           type="button"
           :class="[
-            'box-border flex h-[46px] w-[77px] shrink-0 items-center justify-center rounded-[12px] px-[17px] font-sans text-[13px] font-medium leading-[100%] tracking-normal shadow-sm transition-colors',
+            'box-border flex h-[3.1944rem] w-[5.3472rem] shrink-0 items-center justify-center rounded-[0.8333rem] px-[1.1806rem] font-sans text-[0.9028rem] font-medium leading-[100%] tracking-normal shadow-sm transition-colors',
             billingPeriod === 'month' ? 'bg-[#2563EB] text-white' : 'bg-[#2E3545] text-white hover:bg-[#394154]',
           ]"
           @click="billingPeriod = 'month'"
@@ -19,16 +19,16 @@
         <button
           type="button"
           :class="[
-            'box-border flex h-[46px] min-w-[152px] w-max shrink-0 flex-row items-center gap-[10px] rounded-[12px] px-[17px] py-[15px] shadow-sm transition-colors',
+            'box-border flex h-[3.1944rem] min-w-[10.5556rem] w-max shrink-0 flex-row items-center gap-[0.6944rem] rounded-[0.8333rem] px-[1.1806rem] py-[1.0417rem] shadow-sm transition-colors',
             billingPeriod === 'year' ? 'bg-[#2563EB]' : 'bg-[#2E3545] hover:bg-[#394154]',
           ]"
           @click="billingPeriod = 'year'"
         >
           <span
-            class="shrink-0 font-sans text-[13px] font-medium leading-[100%] tracking-normal text-white"
+            class="shrink-0 font-sans text-[0.9028rem] font-medium leading-[100%] tracking-normal text-white"
           >Год</span>
           <span
-            class="inline-flex h-[18px] min-w-[82px] w-max max-w-none shrink-0 items-center justify-center whitespace-nowrap rounded-[30px] bg-btn-gradient px-[7px] font-sans text-[10px] font-semibold leading-[100%] tracking-normal text-white"
+            class="inline-flex h-[1.25rem] min-w-[5.6944rem] w-max max-w-none shrink-0 items-center justify-center whitespace-nowrap rounded-[2.0833rem] bg-btn-gradient px-[0.4861rem] font-sans text-[0.6944rem] font-semibold leading-[100%] tracking-normal text-white"
           >
             Экономия 30%
           </span>
@@ -36,9 +36,9 @@
       </div>
     </div>
 
-    <div class="flex flex-col lg:flex-row gap-[30px] justify-between relative z-10">
+    <div class="flex flex-col lg:flex-row gap-[2.0833rem] justify-between relative z-10">
       <div
-        class="w-full lg:w-[385px] min-h-[626px] bg-[#292E3C] rounded-[24px] p-8 flex flex-col justify-between relative"
+        class="w-full lg:w-[26.7361rem] min-h-[43.4722rem] bg-[#292E3C] rounded-[1.6667rem] p-8 flex flex-col justify-between relative"
       >
         <div>
           <div class="flex items-start gap-2 mb-6">
@@ -46,20 +46,20 @@
               <img :src="iconEll96" class="h-3 w-3" alt="" />
               <img :src="iconEll97" class="relative z-10 -ml-1.5 h-3 w-3" alt="" />
             </div>
-            <h3 class="text-[18px] font-bold">{{ plans.start.name }}</h3>
+            <h3 class="text-[1.25rem] font-bold">{{ plans.start.name }}</h3>
           </div>
           <div class="mb-8">
-            <div class="text-[40px] font-bold leading-none mb-1">{{ priceStart }}</div>
+            <div class="text-[2.7778rem] font-bold leading-none mb-1">{{ priceStart }}</div>
             <div class="text-white/90 text-sm">{{ perStart }}</div>
           </div>
           <ul class="space-y-4">
             <li
               v-for="(line, i) in linesStart"
               :key="'s' + i"
-              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-16px] after:right-[-16px] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
+              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-1.1111rem] after:right-[-1.1111rem] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
             >
               <img :src="iconCheck" class="w-4 h-4 mt-0.5 shrink-0" alt="" />
-              <span class="text-white text-[15px]" v-html="line"></span>
+              <span class="text-white text-[1.0417rem]" v-html="line"></span>
             </li>
           </ul>
         </div>
@@ -67,14 +67,14 @@
           <button
             type="button"
             :disabled="!!paying"
-            class="w-full bg-btn-gradient text-white py-4 rounded-t-[16px] rounded-b-[4px] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
+            class="w-full bg-btn-gradient text-white py-4 rounded-t-[1.1111rem] rounded-b-[0.2778rem] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
             @click="$emit('subscribe', 'start', billingPeriod)"
           >
             Перейти на тариф {{ plans.start.name }}
-            <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
+            <img :src="iconHeart" alt="" class="w-[1.1111rem] h-[1.1111rem]" />
           </button>
-          <div class="w-full bg-[#3F4659] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
-            <p class="text-center text-white text-[13px] font-medium">
+          <div class="w-full bg-[#3F4659] py-3 rounded-b-[1.1111rem] rounded-t-[0.2778rem] mt-1">
+            <p class="text-center text-white text-[0.9028rem] font-medium">
               {{ trialStart }} — подключение за 5 минут
             </p>
           </div>
@@ -82,14 +82,14 @@
       </div>
 
       <div
-        class="w-full lg:w-[385px] min-h-[626px] text-white rounded-[24px] p-8 flex flex-col justify-between shadow-card relative overflow-hidden bg-[#2563EB]"
+        class="w-full lg:w-[26.7361rem] min-h-[43.4722rem] text-white rounded-[1.6667rem] p-8 flex flex-col justify-between shadow-card relative overflow-hidden bg-[#2563EB]"
       >
         <img :src="imgBasicBg" alt="" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
         <img
           :src="iconFox"
           alt=""
           class="absolute pointer-events-none mix-blend-soft-light opacity-90 z-0"
-          style="width: 380px; height: auto; top: -50px; right: -180px"
+          style="width: 26.3889rem; height: auto; top: -3.4722rem; right: -12.5rem"
         />
         <div class="relative z-10">
           <div class="flex items-center gap-2 mb-6">
@@ -97,20 +97,20 @@
               <img :src="iconEll96Alt" class="w-3 h-3" alt="" />
               <img :src="iconEll97Alt" class="w-3 h-3 -ml-1.5 relative z-10" alt="" />
             </div>
-            <h3 class="text-[18px] font-bold">{{ plans.basic.name }}</h3>
+            <h3 class="text-[1.25rem] font-bold">{{ plans.basic.name }}</h3>
           </div>
           <div class="mb-8">
-            <div class="text-[40px] font-bold leading-none mb-1">{{ priceBasic }}</div>
+            <div class="text-[2.7778rem] font-bold leading-none mb-1">{{ priceBasic }}</div>
             <div class="text-white/90 text-sm">{{ perBasic }}</div>
           </div>
           <ul class="space-y-4">
             <li
               v-for="(line, i) in linesBasic"
               :key="'b' + i"
-              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-16px] after:right-[-16px] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
+              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-1.1111rem] after:right-[-1.1111rem] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
             >
               <img :src="iconCheck" class="w-4 h-4 mt-0.5 shrink-0" alt="" />
-              <span class="text-white text-[15px]" v-html="line"></span>
+              <span class="text-white text-[1.0417rem]" v-html="line"></span>
             </li>
           </ul>
         </div>
@@ -118,14 +118,14 @@
           <button
             type="button"
             :disabled="!!paying"
-            class="w-full bg-white text-[#2563EB] py-4 rounded-[16px] font-medium flex justify-center items-center gap-2 hover:bg-gray-50 transition-colors z-10 disabled:opacity-50"
+            class="w-full bg-white text-[#2563EB] py-4 rounded-[1.1111rem] font-medium flex justify-center items-center gap-2 hover:bg-gray-50 transition-colors z-10 disabled:opacity-50"
             @click="$emit('subscribe', 'basic', billingPeriod)"
           >
             Перейти на тариф {{ plans.basic.name }}
-            <img :src="iconHeartOnBlue" alt="" class="w-[16px] h-[16px]" />
+            <img :src="iconHeartOnBlue" alt="" class="w-[1.1111rem] h-[1.1111rem]" />
           </button>
           <div class="w-full py-3 mt-1">
-            <p class="text-center text-blue-100 text-[13px] font-medium">
+            <p class="text-center text-blue-100 text-[0.9028rem] font-medium">
               {{ trialBasic }} — подключение за 5 минут
             </p>
           </div>
@@ -133,7 +133,7 @@
       </div>
 
       <div
-        class="w-full lg:w-[385px] min-h-[626px] bg-[#292E3C] rounded-[24px] p-8 flex flex-col justify-between relative"
+        class="w-full lg:w-[26.7361rem] min-h-[43.4722rem] bg-[#292E3C] rounded-[1.6667rem] p-8 flex flex-col justify-between relative"
       >
         <div>
           <div class="flex items-start gap-2 mb-6">
@@ -141,20 +141,20 @@
               <img :src="iconEll96" class="h-3 w-3" alt="" />
               <img :src="iconEll97" class="relative z-10 -ml-1.5 h-3 w-3" alt="" />
             </div>
-            <h3 class="text-[18px] font-bold">{{ plans.standard.name }}</h3>
+            <h3 class="text-[1.25rem] font-bold">{{ plans.standard.name }}</h3>
           </div>
           <div class="mb-8">
-            <div class="text-[40px] font-bold leading-none mb-1">{{ priceStandard }}</div>
+            <div class="text-[2.7778rem] font-bold leading-none mb-1">{{ priceStandard }}</div>
             <div class="text-white/90 text-sm">{{ perStandard }}</div>
           </div>
           <ul class="space-y-4">
             <li
               v-for="(line, i) in linesStandard"
               :key="'st' + i"
-              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-16px] after:right-[-16px] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
+              class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-[-1.1111rem] after:right-[-1.1111rem] after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
             >
               <img :src="iconCheck" class="w-4 h-4 mt-0.5 shrink-0" alt="" />
-              <span class="text-white text-[15px]" v-html="line"></span>
+              <span class="text-white text-[1.0417rem]" v-html="line"></span>
             </li>
           </ul>
         </div>
@@ -162,14 +162,14 @@
           <button
             type="button"
             :disabled="!!paying"
-            class="w-full bg-btn-gradient text-white py-4 rounded-t-[16px] rounded-b-[4px] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
+            class="w-full bg-btn-gradient text-white py-4 rounded-t-[1.1111rem] rounded-b-[0.2778rem] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity z-10 disabled:opacity-50"
             @click="$emit('subscribe', 'standard', billingPeriod)"
           >
             Перейти на тариф {{ plans.standard.name }}
-            <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
+            <img :src="iconHeart" alt="" class="w-[1.1111rem] h-[1.1111rem]" />
           </button>
-          <div class="w-full bg-[#3F4659] py-3 rounded-b-[16px] rounded-t-[4px] mt-1">
-            <p class="text-center text-white text-[13px] font-medium">
+          <div class="w-full bg-[#3F4659] py-3 rounded-b-[1.1111rem] rounded-t-[0.2778rem] mt-1">
+            <p class="text-center text-white text-[0.9028rem] font-medium">
               {{ trialStandard }} — подключение за 5 минут
             </p>
           </div>
@@ -178,15 +178,15 @@
     </div>
 
     <div
-      class="w-full h-auto lg:h-[368px] mt-[30px] rounded-[30px] bg-[#292E3C] p-8 lg:p-12 shadow-card flex flex-col lg:flex-row justify-between relative overflow-hidden"
+      class="w-full h-auto lg:h-[25.5556rem] mt-[2.0833rem] rounded-[2.0833rem] bg-[#292E3C] p-8 lg:p-12 shadow-card flex flex-col lg:flex-row justify-between relative overflow-hidden"
     >
-      <div class="w-full lg:w-[360px] shrink-0 z-10 mb-8 lg:mb-0">
+      <div class="w-full lg:w-[25rem] shrink-0 z-10 mb-8 lg:mb-0">
         <div class="flex items-start gap-2 mb-6">
           <div class="flex items-center mt-1">
             <img :src="iconEll96" class="h-3 w-3" alt="" />
             <img :src="iconEll97" class="relative z-10 -ml-1.5 h-3 w-3" alt="" />
           </div>
-          <h3 class="text-[18px] font-bold leading-tight">
+          <h3 class="text-[1.25rem] font-bold leading-tight">
             White Label -<br />персонализация<br />кабинета и отчетности
           </h3>
         </div>
@@ -197,33 +197,33 @@
             class="flex items-start gap-3 relative pb-4 after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[1px] after:bg-white/10 last:after:hidden last:pb-0"
           >
             <img :src="iconCheck" class="w-4 h-4 mt-0.5 shrink-0" alt="" />
-            <span class="text-white text-[15px]" v-html="t"></span>
+            <span class="text-white text-[1.0417rem]" v-html="t"></span>
           </li>
         </ul>
       </div>
       <div
         class="pointer-events-none absolute z-20 hidden lg:block isolate"
-        style="left: 380px; top: 42px; width: 396px; height: 326px"
+        style="left: 26.3889rem; top: 2.9167rem; width: 27.5rem; height: 22.6389rem"
       >
         <img
           :src="imgWlBg"
           alt=""
-          class="absolute left-0 top-0 z-0 h-[188.24px] w-[345.75px] max-w-none object-cover"
+          class="absolute left-0 top-0 z-0 h-[13.0722rem] w-[24.0104rem] max-w-none object-cover"
         />
-        <div class="absolute left-[21px] top-[52px] z-[1] h-[274px] w-[375px] overflow-visible">
+        <div class="absolute left-[1.4583rem] top-[3.6111rem] z-[1] h-[19.0278rem] w-[26.0417rem] overflow-visible">
           <div
             aria-hidden="true"
             class="absolute overflow-hidden"
             style="
-              left: 53.707px;
-              top: 39.5718px;
-              width: 273.556px;
-              height: 200.554px;
-              border-radius: 10.66px;
+              left: 3.7297rem;
+              top: 2.748rem;
+              width: 18.9969rem;
+              height: 13.9274rem;
+              border-radius: 0.7403rem;
               transform: matrix(1, 0, -0.0742825, 0.997237, 0, 0);
               transform-origin: 0 0;
-              -webkit-backdrop-filter: blur(22px);
-              backdrop-filter: blur(22px);
+              -webkit-backdrop-filter: blur(1.5278rem);
+              backdrop-filter: blur(1.5278rem);
               background: rgba(36, 37, 46, 0.82);
             "
           />
@@ -231,15 +231,15 @@
         <img
           :src="imgWlFgDark"
           alt=""
-          class="absolute left-[21px] top-[52px] z-[2] h-[274px] w-[375px] max-w-none object-contain object-left-top"
+          class="absolute left-[1.4583rem] top-[3.6111rem] z-[2] h-[19.0278rem] w-[26.0417rem] max-w-none object-contain object-left-top"
         />
       </div>
-      <div class="w-full lg:w-[280px] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
+      <div class="w-full lg:w-[19.4444rem] shrink-0 z-10 flex flex-col justify-center h-full ml-auto relative">
         <div class="mb-6">
-          <div class="text-[40px] font-bold leading-none mb-1">25 900 ₽</div>
+          <div class="text-[2.7778rem] font-bold leading-none mb-1">25 900 ₽</div>
           <div class="text-[#94A3B8] text-sm">259 руб/проект</div>
         </div>
-        <p class="text-[#94A3B8] text-[14px] leading-relaxed mb-8">
+        <p class="text-[#94A3B8] text-[0.9722rem] leading-relaxed mb-8">
           При покупке на год -<br />
           возможны персональные<br />
           скидки. Оставьте заявку,<br />
@@ -249,11 +249,11 @@
         <button
           type="button"
           :disabled="!!paying"
-          class="w-full bg-btn-gradient text-white py-4 rounded-[12px] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity disabled:opacity-50"
+          class="w-full bg-btn-gradient text-white py-4 rounded-[0.8333rem] font-medium flex justify-center items-center gap-2 hover:opacity-95 transition-opacity disabled:opacity-50"
           @click="$emit('contact-wl')"
         >
           Перейти на тариф WL
-          <img :src="iconHeart" alt="" class="w-[16px] h-[16px]" />
+          <img :src="iconHeart" alt="" class="w-[1.1111rem] h-[1.1111rem]" />
         </button>
       </div>
     </div>

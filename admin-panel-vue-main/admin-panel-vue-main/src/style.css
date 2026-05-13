@@ -26,12 +26,12 @@
 }
 
 /* 
-  Global font size adjustment.
-  Setting root font-size scales all rem-based sizes down.
-  16px * 0.9 = 14.4px approximately.
+  Global UI scale.
+  The previous root was 90%; 90% * 0.75 = 67.5%.
+  This makes rem-based UI match the old visual size at 75% browser zoom.
 */
 html {
-    font-size: 90%; 
+    font-size: 67.5%;
 }
 
 /* Страницы входа/регистрации: поля с белым фоном — текст и маска пароля должны быть тёмными.
@@ -126,21 +126,21 @@ html.dark .auth-shell textarea::placeholder {
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 0.5556rem !important;
 }
 
 .chartjs-tooltip-body {
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
-  gap: 12px !important;
+  gap: 0.8333rem !important;
   align-items: center !important;
 }
 
 .chartjs-tooltip-body-item {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 0.2778rem !important;
   white-space: nowrap !important;
 }
 

@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white dark:bg-[#2A2D3C] rounded-2xl p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-md">
-    <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white mb-1" style="font-family: Inter, sans-serif;">Лучшие посты</h3>
-    <p class="text-[15px] font-normal text-[#ABABAB] dark:text-gray-500 mb-6" style="font-family: 'Open Sans', sans-serif;">По эффективности за период</p>
+    <h3 class="text-[1.3889rem] font-medium text-[#5F5F5F] dark:text-white mb-1" style="font-family: Inter, sans-serif;">Лучшие посты</h3>
+    <p class="text-[1.0417rem] font-normal text-[#ABABAB] dark:text-gray-500 mb-6" style="font-family: 'Open Sans', sans-serif;">По эффективности за период</p>
     <div v-if="loading" class="flex gap-5 overflow-x-auto pb-2">
       <div v-for="i in 4" :key="i" class="flex-shrink-0 w-[min(20rem,82vw)] h-56 rounded-2xl bg-gray-100 dark:bg-white/10 animate-pulse" />
     </div>
@@ -80,10 +80,10 @@ watch(
 
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar {
-  height: 4px;
+  height: 0.2778rem;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #d1d5db;
-  border-radius: 4px;
+  border-radius: 0.2778rem;
 }
 </style>

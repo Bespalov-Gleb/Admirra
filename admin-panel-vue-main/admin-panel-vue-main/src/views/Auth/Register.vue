@@ -199,10 +199,10 @@
     </div>
 
     <!-- Правая секция - Промо-контент -->
-    <div class="hidden lg:flex lg:w-7/12 bg-gradient-to-br from-blue-50 to-blue-100 relative overflow-hidden mt-[60px] mr-[60px] rounded-tl-[40px] rounded-tr-[40px]">
+    <div class="hidden lg:flex lg:w-7/12 bg-gradient-to-br from-blue-50 to-blue-100 relative overflow-hidden mt-[4.1667rem] mr-[4.1667rem] rounded-tl-[2.7778rem] rounded-tr-[2.7778rem]">
       <!-- Изображение как фон (уменьшено и позиционировано) -->
       <div class="absolute bottom-0 right-0 z-0 flex items-end justify-end">
-        <img :src="loginImage" alt="Illustration" class="h-[600px] w-auto max-w-full object-contain scale-110 object-right-bottom" />
+        <img :src="loginImage" alt="Illustration" class="h-[41.6667rem] w-auto max-w-full object-contain scale-110 object-right-bottom" />
       </div>
       
       <!-- Текст поверх изображения -->
@@ -303,11 +303,11 @@ const handleRegister = async () => {
 }
 
 @keyframes shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d(2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d(4px, 0, 0); }
-  50% { transform: translate3d(-4px, 0, 0); }
+  10%, 90% { transform: translate3d(-0.0694rem, 0, 0); }
+  20%, 80% { transform: translate3d(0.1389rem, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-0.2778rem, 0, 0); }
+  40%, 60% { transform: translate3d(0.2778rem, 0, 0); }
+  50% { transform: translate3d(-0.2778rem, 0, 0); }
 }
 
 .fade-slide-enter-active,
@@ -317,11 +317,11 @@ const handleRegister = async () => {
 
 .fade-slide-enter-from {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-0.6944rem);
 }
 
 .fade-slide-leave-to {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-0.6944rem);
 }
 </style>

@@ -6,7 +6,7 @@
         <ClipboardDocumentCheckIcon class="w-8 h-8 text-blue-600" />
       </div>
       <h2 class="text-xl font-black text-gray-900 uppercase tracking-tight">Просмотр настроек</h2>
-      <p class="text-[13px] text-gray-500 font-bold max-w-sm mx-auto">
+      <p class="text-[0.9028rem] text-gray-500 font-bold max-w-sm mx-auto">
         Пожалуйста, проверьте выбранные параметры перед окончательным подключением интеграции.
       </p>
     </div>
@@ -21,13 +21,13 @@
               <BuildingOfficeIcon class="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Проект и платформа</p>
-              <h3 class="text-[14px] font-black text-gray-900">{{ projectName || 'Не выбран' }}</h3>
+              <p class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest">Проект и платформа</p>
+              <h3 class="text-[0.9722rem] font-black text-gray-900">{{ projectName || 'Не выбран' }}</h3>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-orange-100">{{ platformLabel }}</span>
-            <span class="text-[11px] font-bold text-gray-400 italic">Активный проект</span>
+            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-[0.6944rem] font-black uppercase tracking-wider border border-orange-100">{{ platformLabel }}</span>
+            <span class="text-[0.7639rem] font-bold text-gray-400 italic">Активный проект</span>
           </div>
         </div>
 
@@ -38,8 +38,8 @@
               <MegaphoneIcon class="w-5 h-5 text-indigo-600" />
             </div>
             <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Кампании</p>
-              <h3 class="text-[14px] font-black text-gray-900">Выбрано: {{ selectedCampaigns.length }}</h3>
+              <p class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest">Кампании</p>
+              <h3 class="text-[0.9722rem] font-black text-gray-900">Выбрано: {{ selectedCampaigns.length }}</h3>
             </div>
           </div>
           <div class="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
@@ -49,7 +49,7 @@
               class="flex items-center gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100/50"
             >
               <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-              <span class="text-[11px] font-bold text-gray-700 truncate">{{ campaign.name }}</span>
+              <span class="text-[0.7639rem] font-bold text-gray-700 truncate">{{ campaign.name }}</span>
             </div>
           </div>
         </div>
@@ -61,8 +61,8 @@
               <ChartBarIcon class="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Счетчики Метрики</p>
-              <h3 class="text-[14px] font-black text-gray-900">Выбрано: {{ selectedCounters.length }}</h3>
+              <p class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest">Счетчики Метрики</p>
+              <h3 class="text-[0.9722rem] font-black text-gray-900">Выбрано: {{ selectedCounters.length }}</h3>
             </div>
           </div>
           <div class="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
@@ -72,7 +72,7 @@
               class="flex items-center gap-2 p-2 bg-gray-50 rounded-xl border border-gray-100/50"
             >
               <div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-              <span class="text-[11px] font-bold text-gray-700 truncate">{{ counter.name }}</span>
+              <span class="text-[0.7639rem] font-bold text-gray-700 truncate">{{ counter.name }}</span>
             </div>
           </div>
         </div>
@@ -87,16 +87,16 @@
               <PresentationChartLineIcon class="w-5 h-5 text-orange-600" />
             </div>
             <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
-              <h3 class="text-[14px] font-black text-gray-900">Основная: {{ primaryGoalName || 'Не выбрана' }}</h3>
+              <p class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
+              <h3 class="text-[0.9722rem] font-black text-gray-900">Основная: {{ primaryGoalName || 'Не выбрана' }}</h3>
             </div>
           </div>
           <div class="space-y-3">
              <div v-if="primaryGoalName" class="flex items-center gap-2 p-2.5 bg-orange-50/50 rounded-xl border border-orange-100">
               <StarIcon class="w-4 h-4 text-orange-400 fill-orange-400" />
-              <span class="text-[11px] font-black text-orange-900 truncate">{{ primaryGoalName }}</span>
+              <span class="text-[0.7639rem] font-black text-orange-900 truncate">{{ primaryGoalName }}</span>
             </div>
-            <p v-if="secondaryGoals.length > 0" class="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1 mt-4">Дополнительные цели ({{ secondaryGoals.length }}):</p>
+            <p v-if="secondaryGoals.length > 0" class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest pl-1 mt-4">Дополнительные цели ({{ secondaryGoals.length }}):</p>
             <div class="max-h-24 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
               <div 
                 v-for="goal in secondaryGoals" 
@@ -104,7 +104,7 @@
                 class="flex items-center gap-2 p-2 bg-blue-50/30 rounded-xl border border-blue-50"
               >
                 <CheckIcon class="w-3 h-3 text-blue-500" stroke-width="3" />
-                <span class="text-[11px] font-bold text-gray-600 truncate">{{ goal.name }}</span>
+                <span class="text-[0.7639rem] font-bold text-gray-600 truncate">{{ goal.name }}</span>
               </div>
             </div>
           </div>
@@ -117,8 +117,8 @@
               <PresentationChartLineIcon class="w-5 h-5 text-gray-400" />
             </div>
             <div>
-              <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
-              <h3 class="text-[14px] font-black text-gray-500">Не требуется для VK Ads</h3>
+              <p class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest">Настройка целей</p>
+              <h3 class="text-[0.9722rem] font-black text-gray-500">Не требуется для VK Ads</h3>
             </div>
           </div>
         </div>
@@ -138,8 +138,8 @@
                 <ArrowPathRoundedSquareIcon class="w-6 h-6 text-white" />
              </div>
              <div>
-               <p class="text-[10px] font-black text-blue-100 uppercase tracking-widest leading-none mb-1">Глубина и Автосинхрон</p>
-               <h3 class="text-[17px] font-black">Синхронизация за 30 дней</h3>
+               <p class="text-[0.6944rem] font-black text-blue-100 uppercase tracking-widest leading-none mb-1">Глубина и Автосинхрон</p>
+               <h3 class="text-[1.1806rem] font-black">Синхронизация за 30 дней</h3>
              </div>
           </div>
           <div class="flex items-center gap-3">
@@ -148,12 +148,12 @@
             >
               <div class="w-3 h-3 bg-white rounded-full shadow-md ml-auto"></div>
             </div>
-            <span class="text-[12px] font-black uppercase tracking-wider text-blue-50">Автоматическая синхронизация включена</span>
+            <span class="text-[0.8333rem] font-black uppercase tracking-wider text-blue-50">Автоматическая синхронизация включена</span>
           </div>
         </div>
         
         <div class="text-center md:text-right">
-          <p class="text-[10px] font-black text-blue-100 uppercase tracking-widest mb-2">Нажмите кнопку ниже для старта</p>
+          <p class="text-[0.6944rem] font-black text-blue-100 uppercase tracking-widest mb-2">Нажмите кнопку ниже для старта</p>
           <div class="flex items-center gap-2 justify-center md:justify-end">
             <SparklesIcon class="w-5 h-5 text-yellow-300 animate-pulse" />
             <span class="text-lg font-black italic">Готовность 100%</span>
@@ -219,14 +219,14 @@ const secondaryGoals = computed(() => {
 
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 0.2778rem;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #e5e7eb;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #d1d5db;

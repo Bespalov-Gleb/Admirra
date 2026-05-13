@@ -19,10 +19,10 @@
               :class="{ 'bg-blue-50 border-blue-100': selectedKey === key }"
             >
               <div class="flex items-center gap-4">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-[11px] font-black shadow-sm border" :class="config.className">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-[0.7639rem] font-black shadow-sm border" :class="config.className">
                   {{ config.initials }}
                 </div>
-                <span class="text-[14px] font-black" :class="selectedKey === key ? 'text-blue-600' : 'text-gray-700 group-hover:text-black'">
+                <span class="text-[0.9722rem] font-black" :class="selectedKey === key ? 'text-blue-600' : 'text-gray-700 group-hover:text-black'">
                   {{ config.label }}
                 </span>
               </div>
@@ -62,10 +62,10 @@ const selectPlatform = (key) => {
 }
 @keyframes fadeIn {
   from { opacity: 0; backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(4px); }
+  to { opacity: 1; backdrop-filter: blur(0.2778rem); }
 }
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  from { opacity: 0; transform: scale(0.95) translateY(1.3889rem); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>

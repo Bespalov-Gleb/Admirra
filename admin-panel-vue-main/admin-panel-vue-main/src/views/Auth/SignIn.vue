@@ -20,7 +20,7 @@
               class="auth-social-btn auth-social-btn--yandex"
               @click="handleYandexLogin"
             >
-              <img src="/admirra/img/icons/yandex.png" alt="" class="h-[16px] w-[16px] object-contain" />
+              <img src="/admirra/img/icons/yandex.png" alt="" class="h-[1.1111rem] w-[1.1111rem] object-contain" />
               Войти с Яндекс ID
             </button>
             <button
@@ -29,11 +29,11 @@
               class="auth-social-btn auth-social-btn--vk"
               @click="handleVkLogin"
             >
-              <img src="/admirra/img/icons/vk.png" alt="" class="h-[16px] w-[16px] object-contain" />
+              <img src="/admirra/img/icons/vk.png" alt="" class="h-[1.1111rem] w-[1.1111rem] object-contain" />
               Войти через ВК
             </button>
             <button type="button" class="auth-social-btn auth-social-btn--max">
-              <img src="/admirra/img/icons/max.png" alt="" class="h-[16px] w-[16px] object-contain" />
+              <img src="/admirra/img/icons/max.png" alt="" class="h-[1.1111rem] w-[1.1111rem] object-contain" />
               Войти через Max
             </button>
           </div>
@@ -44,7 +44,7 @@
               <span></span>
             </div>
 
-            <div v-if="errorMessage" class="mb-4 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
+            <div v-if="errorMessage" class="mb-4 rounded-[0.8333rem] border border-red-200 bg-red-50 px-4 py-3 text-[0.9028rem] font-medium text-red-600">
               {{ errorMessage }}
             </div>
 
@@ -77,7 +77,7 @@
                   />
                   <button
                     type="button"
-                    class="absolute right-[17px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#a6a9ad] transition hover:text-[#102a55]"
+                    class="absolute right-[1.1806rem] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#a6a9ad] transition hover:text-[#102a55]"
                     @click="togglePasswordVisibility"
                   >
                     <svg v-if="!showPassword" width="22" height="22" viewBox="0 0 20 20" fill="none">
@@ -308,39 +308,39 @@ const handleLogin = async () => {
 
 .auth-main {
   display: grid;
-  grid-template-columns: minmax(500px, 0.96fr) minmax(610px, 1.04fr);
-  gap: 22px;
-  min-height: min(100vh, 782px);
-  padding: 20px 0 18px 0;
+  grid-template-columns: minmax(34.7222rem, 0.96fr) minmax(42.3611rem, 1.04fr);
+  gap: 1.5278rem;
+  min-height: min(100vh, 54.3056rem);
+  padding: 1.3889rem 0 1.25rem 0;
 }
 
 .auth-form-side {
   position: relative;
-  padding-left: clamp(68px, 9vw, 144px);
-  padding-right: 30px;
+  padding-left: clamp(4.7222rem, 9vw, 10rem);
+  padding-right: 2.0833rem;
 }
 
 .auth-logo-link {
   display: inline-flex;
-  margin-top: 35px;
+  margin-top: 2.4306rem;
 }
 
 .auth-logo-link img {
-  width: 136px;
+  width: 9.4444rem;
   height: auto;
   opacity: 1;
 }
 
 .auth-form-box {
   width: 100%;
-  max-width: 386px;
-  margin-top: clamp(66px, 10vh, 112px);
+  max-width: 26.8056rem;
+  margin-top: clamp(4.5833rem, 10vh, 7.7778rem);
 }
 
 .auth-title {
-  margin: 0 0 27px;
+  margin: 0 0 1.875rem;
   color: #102a55;
-  font-size: clamp(29px, 2.16vw, 40px);
+  font-size: clamp(2.0139rem, 2.16vw, 2.7778rem);
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: 0;
@@ -363,33 +363,33 @@ const handleLogin = async () => {
 .auth-social-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-bottom: 22px;
+  gap: 0.4167rem;
+  margin-bottom: 1.5278rem;
 }
 
 .auth-social-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 34px;
+  gap: 0.5556rem;
+  height: 2.3611rem;
   border: 0;
-  border-radius: 11px;
-  padding: 0 13px;
+  border-radius: 0.7639rem;
+  padding: 0 0.9028rem;
   color: rgba(16, 42, 85, 0.68);
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 400;
   white-space: nowrap;
   transition: transform 0.18s ease, filter 0.18s ease;
 }
 
 .auth-social-btn img {
-  width: 13px;
-  height: 13px;
+  width: 0.9028rem;
+  height: 0.9028rem;
 }
 
 .auth-social-btn:hover {
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
   filter: saturate(1.05);
 }
 
@@ -414,8 +414,8 @@ const handleLogin = async () => {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: 0.9722rem;
+  margin-bottom: 0.9722rem;
 }
 
 .auth-divider span {
@@ -425,21 +425,21 @@ const handleLogin = async () => {
 
 .auth-divider strong {
   color: #c4c7ce;
-  font-size: 10px;
+  font-size: 0.6944rem;
   font-weight: 400;
 }
 
 .auth-fields {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0.9722rem;
 }
 
 .auth-label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 0.4861rem;
   color: #102a55;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 400;
 }
 
@@ -448,14 +448,14 @@ const handleLogin = async () => {
 }
 
 .auth-input {
-  height: 46px;
+  height: 3.1944rem;
   width: 100%;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
   border: 1px solid #d9dce2;
   background: #ffffff;
-  padding: 0 14px;
+  padding: 0 0.9722rem;
   color: #102a55;
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 400;
   outline: none;
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
@@ -472,42 +472,42 @@ const handleLogin = async () => {
 }
 
 .auth-fields .relative > button {
-  right: 12px;
-  width: 26px;
-  height: 26px;
+  right: 0.8333rem;
+  width: 1.8056rem;
+  height: 1.8056rem;
 }
 
 .auth-fields .relative > button svg {
-  width: 18px;
-  height: 18px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .auth-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 2px;
+  gap: 0.9722rem;
+  margin-top: 0.1389rem;
 }
 
 .auth-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5556rem;
   cursor: pointer;
   color: #102a55;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 400;
   user-select: none;
 }
 
 .auth-checkbox span {
   display: flex;
-  width: 13px;
-  height: 13px;
+  width: 0.9028rem;
+  height: 0.9028rem;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
+  border-radius: 0.2083rem;
   border-width: 1.7px;
   box-shadow: inset 0 0 0 1px rgba(16, 42, 85, 0.04);
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
@@ -531,20 +531,20 @@ const handleLogin = async () => {
 }
 
 .auth-forgot {
-  font-size: 11px;
+  font-size: 0.7639rem;
 }
 
 .auth-submit {
   margin-top: 1px;
   display: flex;
-  height: 46px;
+  height: 3.1944rem;
   width: 100%;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
+  border-radius: 0.625rem;
   background: linear-gradient(90deg, #2c66f6 0%, #12bdd0 100%);
   color: #ffffff;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   transition: filter 0.18s ease, transform 0.18s ease;
@@ -552,7 +552,7 @@ const handleLogin = async () => {
 
 .auth-submit:hover {
   filter: brightness(1.03);
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
 }
 
 .auth-submit:disabled {
@@ -561,9 +561,9 @@ const handleLogin = async () => {
 }
 
 .auth-alt {
-  margin-top: 14px;
+  margin-top: 0.9722rem;
   color: #102a55;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 600;
 }
 
@@ -572,11 +572,11 @@ const handleLogin = async () => {
 }
 
 .auth-hero-card {
-  height: calc(100vh - 38px);
-  min-height: 690px;
-  max-height: 848px;
+  height: calc(100vh - 2.6389rem);
+  min-height: 47.9167rem;
+  max-height: 58.8889rem;
   overflow: hidden;
-  border-radius: 16px 0 0 16px;
+  border-radius: 1.1111rem 0 0 1.1111rem;
   background: #dfe7fb;
 }
 
@@ -587,14 +587,14 @@ const handleLogin = async () => {
 
 .auth-subscribe {
   display: flex;
-  min-height: 96px;
+  min-height: 6.6667rem;
   align-items: center;
   justify-content: center;
-  gap: clamp(120px, 18vw, 330px);
+  gap: clamp(8.3333rem, 18vw, 22.9167rem);
   border-top: 1px solid #edf1f7;
   border-bottom: 1px solid #e4e8ef;
   background: #eef3f9;
-  padding: 24px 40px;
+  padding: 1.6667rem 2.7778rem;
 }
 
 .auth-footer-brand,
@@ -606,51 +606,51 @@ const handleLogin = async () => {
 }
 
 .auth-footer-brand {
-  gap: 26px;
+  gap: 1.8056rem;
 }
 
 .auth-footer-brand > img {
-  width: 136px;
+  width: 9.4444rem;
   height: auto;
   opacity: 1;
 }
 
 .auth-footer-socials {
-  gap: 5px;
+  gap: 0.3472rem;
 }
 
 .auth-footer-socials span {
   display: flex;
-  width: 23px;
-  height: 23px;
+  width: 1.5972rem;
+  height: 1.5972rem;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #1689f8;
 }
 
 .auth-footer-socials img {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
   object-fit: contain;
 }
 
 .auth-subscribe-form {
-  gap: 24px;
+  gap: 1.6667rem;
 }
 
 .auth-subscribe-form label {
-  font-size: 14px;
+  font-size: 0.9722rem;
   font-weight: 500;
 }
 
 .auth-subscribe-form div {
   position: relative;
-  width: 306px;
-  height: 47px;
+  width: 21.25rem;
+  height: 3.2639rem;
   overflow: hidden;
   border: 1px solid #d4d9e3;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #ffffff;
   box-shadow: none;
 }
@@ -659,10 +659,10 @@ const handleLogin = async () => {
   min-width: 0;
   flex: 1;
   height: 100%;
-  padding: 0 17px;
+  padding: 0 1.1806rem;
   border: 0;
   color: #102a55;
-  font-size: 12px;
+  font-size: 0.8333rem;
   outline: none;
 }
 
@@ -671,30 +671,30 @@ const handleLogin = async () => {
 }
 
 .auth-subscribe-form button {
-  height: calc(100% + 2px);
-  min-width: 162px;
-  margin: -1px -1px -1px 0;
-  border-radius: 999px;
+  height: calc(100% + 0.1389rem);
+  min-width: 11.25rem;
+  margin: -0.0694rem -0.0694rem -0.0694rem 0;
+  border-radius: 69.375rem;
   background: linear-gradient(90deg, #2c66f6 0%, #12bdd0 100%);
   color: #ffffff;
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0.07em;
 }
 
 .auth-footer-bottom {
   display: grid;
-  grid-template-columns: 160px 150px minmax(330px, 1fr) minmax(260px, 350px);
-  gap: 44px;
-  max-width: 1066px;
+  grid-template-columns: 11.1111rem 10.4167rem minmax(22.9167rem, 1fr) minmax(18.0556rem, 24.3056rem);
+  gap: 3.0556rem;
+  max-width: 74.0278rem;
   margin: 0 auto;
-  padding: 22px 0 26px;
+  padding: 1.5278rem 0 1.8056rem;
 }
 
 .auth-footer-bottom h3 {
-  margin: 0 0 18px;
+  margin: 0 0 1.25rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 700;
 }
 
@@ -702,9 +702,9 @@ const handleLogin = async () => {
 .auth-footer-bottom p,
 .auth-footer-bottom small {
   display: block;
-  margin: 0 0 15px;
+  margin: 0 0 1.0417rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 400;
 }
 
@@ -713,22 +713,22 @@ const handleLogin = async () => {
 }
 
 .auth-footer-center img {
-  width: 65px;
+  width: 4.5139rem;
   height: auto;
-  margin: 12px auto 18px;
+  margin: 0.8333rem auto 1.25rem;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 960px) {
   .auth-main {
-    grid-template-columns: minmax(500px, 0.9fr) minmax(520px, 1.1fr);
+    grid-template-columns: minmax(34.7222rem, 0.9fr) minmax(36.1111rem, 1.1fr);
   }
 
   .auth-form-side {
-    padding-left: 56px;
+    padding-left: 3.8889rem;
   }
 
   .auth-form-box {
-    margin-top: 120px;
+    margin-top: 8.3333rem;
   }
 
   .auth-social-row {
@@ -736,11 +736,11 @@ const handleLogin = async () => {
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 767.25px) {
   .auth-main {
     display: block;
     min-height: auto;
-    padding: 24px;
+    padding: 1.6667rem;
   }
 
   .auth-form-side {
@@ -748,12 +748,12 @@ const handleLogin = async () => {
   }
 
   .auth-logo-link {
-    margin-top: 24px;
+    margin-top: 1.6667rem;
   }
 
   .auth-form-box {
-    max-width: 560px;
-    margin: 80px auto 60px;
+    max-width: 38.8889rem;
+    margin: 5.5556rem auto 4.1667rem;
   }
 
   .auth-hero-side {
@@ -763,26 +763,26 @@ const handleLogin = async () => {
   .auth-subscribe,
   .auth-subscribe-form {
     flex-direction: column;
-    gap: 18px;
+    gap: 1.25rem;
   }
 
   .auth-footer-bottom {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 28px 24px;
+    padding: 1.9444rem 1.6667rem;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .auth-main {
-    padding: 18px;
+    padding: 1.25rem;
   }
 
   .auth-title {
-    font-size: 36px;
+    font-size: 2.5rem;
   }
 
   .auth-form-box {
-    margin-top: 58px;
+    margin-top: 4.0278rem;
   }
 
   .auth-social-row {
@@ -792,11 +792,11 @@ const handleLogin = async () => {
   .auth-row {
     align-items: flex-start;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.8333rem;
   }
 
   .auth-subscribe-form div {
-    width: min(100%, 306px);
+    width: min(100%, 21.25rem);
   }
 
   .auth-footer-bottom {

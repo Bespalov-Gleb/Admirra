@@ -1,18 +1,18 @@
 <template>
-  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 border border-gray-100 dark:border-white/10 shadow-sm flex flex-col min-h-0 font-[Inter]">
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[0.6944rem] p-6 border border-gray-100 dark:border-white/10 shadow-sm flex flex-col min-h-0 font-[Inter]">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-[18px] font-normal text-[#09183F] dark:text-white">Подключенные каналы</h3>
+      <h3 class="text-[1.25rem] font-normal text-[#09183F] dark:text-white">Подключенные каналы</h3>
       <button
         type="button"
         @click="$emit('connect')"
-        class="text-[15px] font-normal text-[#2563EB] dark:text-[#4A7AFF] hover:text-[#1d4ed8] dark:hover:text-[#5A8BFF]"
+        class="text-[1.0417rem] font-normal text-[#2563EB] dark:text-[#4A7AFF] hover:text-[#1d4ed8] dark:hover:text-[#5A8BFF]"
       >
         Добавить +
       </button>
     </div>
 
     <!-- Заголовки колонок -->
-    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[13px] font-normal text-gray-400 dark:text-gray-500">
+    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 mb-2 text-[0.9028rem] font-normal text-gray-400 dark:text-gray-500">
       <span>Название</span>
       <span>Баланс</span>
       <span>Статус</span>
@@ -41,23 +41,23 @@
             />
             <div
               v-else
-              class="w-full h-full flex items-center justify-center font-normal text-[12px] bg-gray-200 text-gray-600"
+              class="w-full h-full flex items-center justify-center font-normal text-[0.8333rem] bg-gray-200 text-gray-600"
             >
               ?
             </div>
           </div>
-          <span class="text-[16px] font-normal text-[#2563EB] dark:text-[#4A7AFF] truncate">{{ platform.name }}</span>
+          <span class="text-[1.1111rem] font-normal text-[#2563EB] dark:text-[#4A7AFF] truncate">{{ platform.name }}</span>
         </div>
         <div class="flex items-center justify-end">
           <span
             v-if="platform.connected && platform.balance != null"
-            class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[15px] font-normal"
+            class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[1.0417rem] font-normal"
             :class="platform.id === 'yandex_direct' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'"
           >
-            {{ formatBalance(platform.balance) }}<span class="text-[12px] font-normal">₽</span>
+            {{ formatBalance(platform.balance) }}<span class="text-[0.8333rem] font-normal">₽</span>
           </span>
-          <span v-else-if="platform.connected" class="text-[15px] text-gray-400">—</span>
-          <span v-else class="text-[15px] text-gray-400">—</span>
+          <span v-else-if="platform.connected" class="text-[1.0417rem] text-gray-400">—</span>
+          <span v-else class="text-[1.0417rem] text-gray-400">—</span>
         </div>
         <div class="flex justify-end">
           <button

@@ -261,6 +261,10 @@
 	box-shadow: 0 2rem 5.6rem rgba(37, 99, 235, 0.24);
 }
 
+#tariff .tariff-card .to-action .btn__icon {
+	display: none;
+}
+
 @media only screen and (max-width: 768px) {
 	#tariff .tariff-tabs__item a {
 		min-width: auto;

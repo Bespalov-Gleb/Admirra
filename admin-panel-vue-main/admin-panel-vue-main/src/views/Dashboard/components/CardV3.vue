@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="min-w-[250px] rounded-2xl p-5 sm:p-6 shadow-sm transition-all cursor-pointer"
+    class="min-w-[17.3611rem] rounded-2xl p-5 sm:p-6 shadow-sm transition-all cursor-pointer"
     :class="[
       !isSelected ? 'bg-white hover:shadow-md' : '',
       iconColor === 'blue' && isSelected ? 'bg-blue-50' : '',
@@ -61,7 +61,7 @@
           <div class="relative group">
             <InformationCircleIcon class="w-4 h-4 text-gray-500 hover:text-gray-700 flex-shrink-0 cursor-help transition-colors" />
             <!-- Tooltip -->
-            <div class="absolute left-0 top-full mt-1.5 px-2 py-1.5 bg-gray-800 text-white text-[11px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[9999] shadow-lg">
+            <div class="absolute left-0 top-full mt-1.5 px-2 py-1.5 bg-gray-800 text-white text-[0.7639rem] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[9999] shadow-lg">
               {{ tooltipText || 'Дополнительная информация' }}
             </div>
           </div>

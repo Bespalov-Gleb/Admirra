@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
-      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
         Отчёты
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -15,7 +15,7 @@
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+            <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
               Анализ качества трафика для подрядчиков
             </p>
           </div>
@@ -43,22 +43,22 @@
 
     <!-- Общая статистика -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
+      <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Всего заявок</p>
         <p class="text-3xl font-black text-gray-900">{{ report?.overall?.total_leads || 0 }}</p>
       </div>
-      <div class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
+      <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Отклонено</p>
         <p class="text-3xl font-black text-red-600">{{ report?.overall?.total_rejected || 0 }}</p>
       </div>
-      <div class="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm">
+      <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">% отклонения</p>
         <p class="text-3xl font-black text-gray-900">{{ report?.overall?.rejection_rate || 0 }}%</p>
       </div>
     </div>
 
     <!-- Топ худших площадок -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm overflow-hidden">
       <div class="p-6 border-b border-gray-200">
         <h2 class="text-lg font-bold text-gray-900">Топ-10 худших площадок</h2>
         <p class="text-sm text-gray-500 mt-1">Площадки с наивысшим процентом отклонения</p>
@@ -121,7 +121,7 @@
     </div>
 
     <!-- Причины отклонения -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm p-8">
       <h2 class="text-lg font-bold text-gray-900 mb-6">Топ причин отклонения</h2>
       <div v-if="loading" class="h-64 flex items-center justify-center">
         <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -142,7 +142,7 @@
     </div>
 
     <!-- Чёрный список -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm overflow-hidden">
       <div class="p-6 border-b border-gray-200">
         <h2 class="text-lg font-bold text-gray-900">Чёрный список площадок</h2>
         <p class="text-sm text-gray-500 mt-1">Площадки с высоким процентом мусора</p>

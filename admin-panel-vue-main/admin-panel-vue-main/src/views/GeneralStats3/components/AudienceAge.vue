@@ -1,28 +1,28 @@
 <template>
-  <div class="bg-white dark:bg-[#2A2D3C] rounded-[10px] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[360px] flex flex-col font-[Inter]">
-    <h3 class="text-[20px] font-medium text-[#5F5F5F] dark:text-white mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
-    <div v-if="loading" class="flex-1 min-h-[240px] flex items-center justify-center">
+  <div class="bg-white dark:bg-[#2A2D3C] rounded-[0.6944rem] p-6 sm:p-8 border border-gray-100 dark:border-white/10 shadow-sm h-full min-h-[25rem] flex flex-col font-[Inter]">
+    <h3 class="text-[1.3889rem] font-medium text-[#5F5F5F] dark:text-white mb-5" style="font-family: Inter, sans-serif;">Возраст аудитории</h3>
+    <div v-if="loading" class="flex-1 min-h-[16.6667rem] flex items-center justify-center">
       <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
     </div>
-    <div v-else-if="data.length === 0" class="flex-1 min-h-[240px] flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+    <div v-else-if="data.length === 0" class="flex-1 min-h-[16.6667rem] flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
       Нет данных (требуется Яндекс.Метрика)
     </div>
     <div v-else class="flex flex-col items-stretch gap-6 flex-1 min-h-0 lg:flex-row lg:gap-8">
-      <div ref="chartWrapRef" class="relative mx-auto flex h-[220px] w-[220px] flex-shrink-0 cursor-pointer items-center justify-center sm:h-[240px] sm:w-[240px] lg:mx-0">
+      <div ref="chartWrapRef" class="relative mx-auto flex h-[15.2778rem] w-[15.2778rem] flex-shrink-0 cursor-pointer items-center justify-center sm:h-[16.6667rem] sm:w-[16.6667rem] lg:mx-0">
         <canvas ref="chartRef" class="h-full w-full" />
       </div>
-      <div ref="legendRef" class="grid grid-cols-1 sm:grid-cols-2 flex-1 min-w-0 self-stretch" style="gap: 13px; align-content: space-between;">
+      <div ref="legendRef" class="grid grid-cols-1 sm:grid-cols-2 flex-1 min-w-0 self-stretch" style="gap: 0.9028rem; align-content: space-between;">
         <div
           v-for="(item, i) in data"
           :key="item.age_interval"
-          class="flex items-center rounded-[10px] bg-[#F5F7F9] dark:bg-white/5"
-          style="padding: 18px 16px; gap: 13px; min-height: 72px;"
+          class="flex items-center rounded-[0.6944rem] bg-[#F5F7F9] dark:bg-white/5"
+          style="padding: 1.25rem 1.1111rem; gap: 0.9028rem; min-height: 5rem;"
         >
           <span
             class="w-3 h-3 rounded-full flex-shrink-0"
             :style="{ backgroundColor: colors[i % colors.length] }"
           />
-          <span class="text-[14px] font-medium text-[#2C2C2C] dark:text-gray-200" style="font-family: Inter, sans-serif;">{{ ageLabelRu(item.age_interval) }}</span>
+          <span class="text-[0.9722rem] font-medium text-[#2C2C2C] dark:text-gray-200" style="font-family: Inter, sans-serif;">{{ ageLabelRu(item.age_interval) }}</span>
         </div>
       </div>
     </div>

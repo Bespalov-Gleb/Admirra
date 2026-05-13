@@ -65,7 +65,7 @@ onUnmounted(() => {
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
     <!-- Левая панель - Статистика по ключевым целям -->
-    <div class="lg:col-span-8 bg-gray-900 rounded-[40px] p-6 sm:p-8 text-white">
+    <div class="lg:col-span-8 bg-gray-900 rounded-[2.7778rem] p-6 sm:p-8 text-white">
       <div class="flex items-center gap-3 mb-6">
         <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
           <ShoppingBagIcon class="w-6 h-6 sm:w-7 sm:h-7 text-gray-300" />
@@ -93,7 +93,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Правая панель - Разбивка по целям -->
-    <div class="lg:col-span-4 bg-white rounded-[40px] p-6 sm:p-8">
+    <div class="lg:col-span-4 bg-white rounded-[2.7778rem] p-6 sm:p-8">
       <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-6">Разбивка по целям</h3>
       
       <!-- Донат-чарт -->

@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Header -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
-      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
         Квалификатор
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -15,7 +15,7 @@
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+            <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
               Тестирование валидации лидов и настройка webhook интеграций
             </p>
           </div>
@@ -27,7 +27,7 @@
       <!-- Left Column: Test Form -->
       <div class="space-y-6">
         <!-- Test Lead Form Card -->
-        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-[2.2222rem] p-8 shadow-sm border border-gray-100">
             <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
               <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                 <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -114,7 +114,7 @@
               <div class="pt-2 flex items-center gap-3">
                 <label class="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" v-model="testMode" class="sr-only peer" />
-                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[0.1389rem] after:left-[0.1389rem] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                 </label>
                 <span class="text-sm font-medium" :class="testMode ? 'text-green-600' : 'text-gray-500'">
                   {{ testMode ? '✓ Тестовый режим (без CAPTCHA)' : 'Продакшен режим (с CAPTCHA)' }}
@@ -137,7 +137,7 @@
           </div>
 
         <!-- Result Card -->
-        <div v-if="result" :class="['rounded-[32px] p-6 shadow-sm border transition-all', result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']">
+        <div v-if="result" :class="['rounded-[2.2222rem] p-6 shadow-sm border transition-all', result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']">
             <div class="flex items-start gap-4">
               <div :class="['w-12 h-12 rounded-xl flex items-center justify-center', result.success ? 'bg-green-100' : 'bg-red-100']">
                 <svg v-if="result.success" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,7 +180,7 @@
       <!-- Right Column: Webhook Info & History -->
       <div class="space-y-6">
         <!-- Webhook URLs Card -->
-        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-[2.2222rem] p-8 shadow-sm border border-gray-100">
             <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
               <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                 <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -226,7 +226,7 @@
           </div>
 
         <!-- History Card -->
-        <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-[2.2222rem] p-8 shadow-sm border border-gray-100">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-bold text-gray-900 flex items-center gap-3">
                 <div class="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">

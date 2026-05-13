@@ -1,15 +1,15 @@
 <template>
   <div
-    class="relative z-[2] flex min-h-full flex-col overflow-hidden px-4 py-6 sm:px-[25px] sm:py-[30px]"
+    class="relative z-[2] flex min-h-full flex-col overflow-hidden px-4 py-6 sm:px-[1.7361rem] sm:py-[2.0833rem]"
     @click="closeAllMenus"
   >
     <!-- Heading -->
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[26px] font-semibold leading-none text-[#171717] dark:text-white sm:text-[30px]">История</h3>
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[1.8056rem] font-semibold leading-none text-[#171717] dark:text-white sm:text-[2.0833rem]">История</h3>
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-[10px] mb-[30px]" @click.stop>
+    <div class="flex flex-wrap items-center gap-[0.6944rem] mb-[2.0833rem]" @click.stop>
       <!-- Проект -->
       <div
         class="custom-select"
@@ -63,12 +63,12 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
+    <div v-if="isLoading" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       Загрузка…
     </div>
 
     <!-- Empty -->
-    <div v-else-if="historyItems.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
+    <div v-else-if="historyItems.length === 0" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       История действий пуста
     </div>
 
@@ -81,27 +81,27 @@
         :style="{ backgroundColor: rowColors[index % rowColors.length] }"
       >
         <!-- Пользователь -->
-        <div class="flex items-center gap-[15px] min-w-0">
+        <div class="flex items-center gap-[1.0417rem] min-w-0">
           <div class="user-avatar flex-shrink-0">
             <span>{{ (item.user_email || '?').slice(0, 2).toUpperCase() }}</span>
           </div>
           <div class="min-w-0">
-            <div class="text-[15px] text-[#696969] font-medium leading-none mb-[4px] truncate">
+            <div class="text-[1.0417rem] text-[#696969] font-medium leading-none mb-[0.2778rem] truncate">
               {{ item.user_email || '—' }}
             </div>
-            <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none">
+            <div class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">
               {{ item.user_role || 'Пользователь' }}
             </div>
           </div>
         </div>
 
         <!-- Описание -->
-        <div class="text-[15px] text-[#2c2c2c] leading-[1.3] min-w-0">
+        <div class="text-[1.0417rem] text-[#2c2c2c] leading-[1.3] min-w-0">
           {{ formatDescription(item) }}
         </div>
 
         <!-- Время -->
-        <div class="text-[13px] text-[#696969] text-center whitespace-nowrap">
+        <div class="text-[0.9028rem] text-[#696969] text-center whitespace-nowrap">
           <time>{{ formatDate(item.created_at) }}</time>
         </div>
 
@@ -249,10 +249,10 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   background-color: #fff;
-  border-radius: 15px;
-  min-height: 46px;
-  padding: 8px 17px;
-  font-size: 13px;
+  border-radius: 1.0417rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.4);
   border: 1px solid transparent;
@@ -272,13 +272,13 @@ onMounted(async () => {
 :global(.darkmode) .custom-select.open .cs-head {
   border-color: rgba(255,255,255,0.14);
 }
-.cs-current { margin-right: 25px; }
+.cs-current { margin-right: 1.7361rem; }
 .cs-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background-color: #f5f7f9;
   border-radius: 50%;
   flex-shrink: 0;
@@ -291,18 +291,18 @@ onMounted(async () => {
 }
 .cs-list {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.2778rem);
   left: 0;
   min-width: 100%;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
   z-index: 99;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
   transform-origin: 50% 0;
-  transform: scale(0.75) translateY(-21px);
+  transform: scale(0.75) translateY(-1.4583rem);
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
 :global(.dark) .cs-list,
@@ -316,8 +316,8 @@ onMounted(async () => {
   transform: scale(1) translateY(0);
 }
 .cs-option {
-  padding: 12px 25px 12px 17px;
-  font-size: 13px;
+  padding: 0.8333rem 1.7361rem 0.8333rem 1.1806rem;
+  font-size: 0.9028rem;
   color: rgba(0, 0, 0, 0.7);
   cursor: pointer;
   transition: background-color 0.2s;
@@ -340,13 +340,13 @@ onMounted(async () => {
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 1.3889rem;
   background-color: #fff;
-  border-radius: 12px;
-  padding: 30px;
+  border-radius: 0.8333rem;
+  padding: 2.0833rem;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 479.25px) {
   .custom-select,
   .cs-head {
     width: 100%;
@@ -359,8 +359,8 @@ onMounted(async () => {
   }
 
   .history-list {
-    gap: 14px;
-    padding: 18px;
+    gap: 0.9722rem;
+    padding: 1.25rem;
   }
 }
 :global(.dark) .history-list,
@@ -372,16 +372,16 @@ onMounted(async () => {
 .history-row {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 15px;
+  gap: 1.0417rem;
   align-items: center;
-  padding: 20px 22px;
-  border-radius: 15px;
-  font-size: 15px;
+  padding: 1.3889rem 1.5278rem;
+  border-radius: 1.0417rem;
+  font-size: 1.0417rem;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 479.25px) {
   .history-row {
-    padding: 16px;
+    padding: 1.1111rem;
   }
 }
 :global(.dark) .history-row,
@@ -399,7 +399,7 @@ onMounted(async () => {
 :global(.darkmode) .history-row .text-\[rgba\(105\,105\,105\,0\.56\)\] {
   color: rgba(255,255,255,0.55) !important;
 }
-@media (min-width: 1280px) {
+@media (min-width: 960px) {
   .history-row {
     grid-template-columns: 3fr 5fr 3fr auto;
   }
@@ -407,8 +407,8 @@ onMounted(async () => {
 
 /* ── User avatar ── */
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: #e8eef9;
   display: flex;
@@ -416,7 +416,7 @@ onMounted(async () => {
   justify-content: center;
 }
 .user-avatar span {
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   color: #4b6fa0;
   line-height: 1;
@@ -427,9 +427,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 25px;
-  border-radius: 3px;
+  width: 2.2222rem;
+  height: 1.7361rem;
+  border-radius: 0.2083rem;
   background-color: #fff;
   border: none;
   cursor: pointer;
@@ -448,14 +448,14 @@ onMounted(async () => {
 /* ── Action dropdown menu ── */
 .action-menu {
   position: absolute;
-  top: calc(100% + 8px);
-  right: -10px;
-  min-width: 180px;
+  top: calc(100% + 0.5556rem);
+  right: -0.6944rem;
+  min-width: 12.5rem;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
   z-index: 100;
-  padding: 8px 0;
+  padding: 0.5556rem 0;
 }
 :global(.dark) .action-menu,
 :global(.darkmode) .action-menu {
@@ -466,13 +466,13 @@ onMounted(async () => {
 .action-menu__arrow {
   position: absolute;
   bottom: 100%;
-  right: 18px;
+  right: 1.25rem;
   width: 0;
   height: 0;
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
   border-bottom: 7px solid #fff;
-  filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.06));
+  filter: drop-shadow(0 -0.1389rem 0.1389rem rgba(0,0,0,0.06));
 }
 :global(.dark) .action-menu__arrow,
 :global(.darkmode) .action-menu__arrow {
@@ -482,8 +482,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 8px 0;
-  font-size: 13px;
+  padding: 0.5556rem 0;
+  font-size: 0.9028rem;
   color: #696969;
   background: transparent;
   border: none;
@@ -500,7 +500,7 @@ onMounted(async () => {
   color: #4A7AFF;
 }
 .action-menu-item__icon {
-  width: 45px;
+  width: 3.125rem;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -512,6 +512,6 @@ onMounted(async () => {
 .menu-drop-leave-active { transition: opacity 0.1s ease-in, transform 0.1s ease-in; }
 .menu-drop-enter-from, .menu-drop-leave-to {
   opacity: 0;
-  transform: scale(0.9) translateY(-6px);
+  transform: scale(0.9) translateY(-0.4167rem);
 }
 </style>

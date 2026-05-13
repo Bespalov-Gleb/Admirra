@@ -18,18 +18,18 @@
     <!-- Skeleton Loaders -->
     <div v-else-if="loading" class="space-y-6">
       <div class="flex justify-between items-center">
-        <Skeleton width="200px" height="40px" />
+        <Skeleton width="13.8889rem" height="2.7778rem" />
         <div class="flex gap-2">
-          <Skeleton width="150px" height="40px" />
-          <Skeleton width="150px" height="40px" />
+          <Skeleton width="10.4167rem" height="2.7778rem" />
+          <Skeleton width="10.4167rem" height="2.7778rem" />
         </div>
       </div>
       <div class="grid grid-cols-5 gap-4">
-        <Skeleton customClass="col-span-4" height="300px" />
-        <Skeleton customClass="col-span-1" height="300px" />
+        <Skeleton customClass="col-span-4" height="20.8333rem" />
+        <Skeleton customClass="col-span-1" height="20.8333rem" />
       </div>
       <div class="grid grid-cols-3 gap-6">
-        <Skeleton v-for="i in 6" :key="i" height="150px" />
+        <Skeleton v-for="i in 6" :key="i" height="10.4167rem" />
       </div>
     </div>
     

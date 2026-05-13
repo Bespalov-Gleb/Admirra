@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[40px] p-8 ">
+  <div class="bg-white rounded-[2.7778rem] p-8 ">
     <!-- Заголовок -->
     <div class="flex items-start gap-3 mb-4">
       <div class="w-6 h-6 text-gray-600 flex-shrink-0 mt-1">
@@ -51,13 +51,13 @@
     </div>
   </div>
   <div class="flex flex-wrap justify-end gap-2">
-    <button class="flex items-center gap-2 px-5 sm:px-6 md:px-8 py-4 sm:py-4 md:py-6 border border-slate-200 rounded-[40px] bg-white text-xs sm:text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+    <button class="flex items-center gap-2 px-5 sm:px-6 md:px-8 py-4 sm:py-4 md:py-6 border border-slate-200 rounded-[2.7778rem] bg-white text-xs sm:text-sm text-gray-700 hover:bg-gray-50 transition-colors">
       <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
         <ArrowDownTrayIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
       </div>
       <span>Скачать отчет в PDF</span>
     </button>
-    <button class="flex items-center gap-2 px-5 sm:px-6 md:px-8 py-4 sm:py-4 md:py-6 border border-slate-200 rounded-[40px] bg-white text-xs sm:text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+    <button class="flex items-center gap-2 px-5 sm:px-6 md:px-8 py-4 sm:py-4 md:py-6 border border-slate-200 rounded-[2.7778rem] bg-white text-xs sm:text-sm text-gray-700 hover:bg-gray-50 transition-colors">
       <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
         <PaperAirplaneIcon class="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
       </div>

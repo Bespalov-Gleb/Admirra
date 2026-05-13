@@ -12,8 +12,8 @@
     <!-- Header & Search -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
       <div>
-        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ЦЕЛИ И КОНВЕРСИИ</label>
-        <p class="text-[11px] text-gray-500 font-bold">Выберите основную цель (звездочка) и дополнительные цели для отслеживания</p>
+        <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ЦЕЛИ И КОНВЕРСИИ</label>
+        <p class="text-[0.7639rem] text-gray-500 font-bold">Выберите основную цель (звездочка) и дополнительные цели для отслеживания</p>
       </div>
       
       <div class="relative group w-full md:w-64">
@@ -24,7 +24,7 @@
           type="text" 
           v-model="searchQuery"
           placeholder="Поиск цели..."
-          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[0.8333rem] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
         >
       </div>
     </div>
@@ -47,8 +47,8 @@
                 <div v-else-if="isAnyFilteredSelected" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
               </div>
             </th>
-            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Тип цели</th>
-            <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название цели</th>
+            <th class="px-4 py-4 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Тип цели</th>
+            <th class="px-4 py-4 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Название цели</th>
           </tr>
         </thead>
         <tbody>
@@ -74,7 +74,7 @@
               <button class="transition-all hover:scale-125 focus:outline-none">
                 <StarIcon 
                    class="w-6 h-6 transition-colors duration-300" 
-                  :class="primaryGoalId === goal.id ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]' : 'text-gray-200 group-hover:text-gray-300'"
+                  :class="primaryGoalId === goal.id ? 'text-yellow-400 fill-yellow-400 drop-shadow-[0_0_0.5556rem_rgba(250,204,21,0.4)]' : 'text-gray-200 group-hover:text-gray-300'"
                 />
               </button>
             </td>
@@ -91,7 +91,7 @@
 
             <td class="px-4 py-4">
               <span 
-                class="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border"
+                class="px-2.5 py-1 rounded-full text-[0.5556rem] font-black uppercase tracking-widest border"
                 :class="getGoalTypeClass(goal.type)"
               >
                 {{ formatGoalType(goal.type) }}
@@ -101,20 +101,20 @@
             <td class="px-4 py-4">
               <div class="flex flex-col">
                 <div class="flex items-center gap-2 mb-0.5">
-                  <span class="text-[13px] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+                  <span class="text-[0.9028rem] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
                     {{ goal.name }}
                   </span>
                   
                   <!-- IMPROVED: Recommendation Badge with Icon -->
                   <span 
                     v-if="goal.id === recommendedGoalId" 
-                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-yellow-50 to-orange-50 text-orange-600 text-[8px] font-black uppercase rounded-md border border-orange-200 shadow-sm animate-pulse"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-yellow-50 to-orange-50 text-orange-600 text-[0.5556rem] font-black uppercase rounded-md border border-orange-200 shadow-sm animate-pulse"
                   >
                     <StarIcon class="w-2.5 h-2.5 fill-orange-500" />
                     РЕКОМЕНДУЕМАЯ
                   </span>
                 </div>
-                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
+                <span class="text-[0.625rem] text-gray-400 font-bold uppercase tracking-wider">ID: {{ goal.id }}</span>
               </div>
             </td>
           </tr>
@@ -147,7 +147,7 @@
     <!-- Error Hint -->
     <div v-if="showValidationError && !primaryGoalId && platform !== 'VK_ADS'" class="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-shake">
       <ExclamationTriangleIcon class="w-5 h-5 text-red-500" />
-      <span class="text-[12px] font-bold text-red-600">Пожалуйста, выберите основную цель (нажмите на звездочку)</span>
+      <span class="text-[0.8333rem] font-bold text-red-600">Пожалуйста, выберите основную цель (нажмите на звездочку)</span>
     </div>
   </div>
 </template>
@@ -247,8 +247,8 @@ const getGoalTypeClass = (type) => {
 <style scoped>
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
+  25% { transform: translateX(-0.2778rem); }
+  75% { transform: translateX(0.2778rem); }
 }
 .animate-shake {
   animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;

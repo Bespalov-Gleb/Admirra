@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Header -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm">
-      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm">
+      <label class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
         Интеграция
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -15,7 +15,7 @@
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+            <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
               Подключите проверку лидов на ваш сайт
             </p>
           </div>
@@ -28,7 +28,7 @@
       <!-- Left Column: Project Selection & Settings -->
       <div class="xl:col-span-1 space-y-6">
         <!-- Project Selection -->
-        <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-[2.2222rem] p-6 shadow-sm border border-gray-100">
           <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <FolderIcon class="w-5 h-5 text-gray-600" />
             Выберите проект
@@ -51,7 +51,7 @@
         </div>
 
         <!-- Project Settings -->
-        <div v-if="selectedProject" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+        <div v-if="selectedProject" class="bg-white rounded-[2.2222rem] p-6 shadow-sm border border-gray-100">
           <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
             <Cog6ToothIcon class="w-5 h-5 text-gray-600" />
             Настройки проекта
@@ -189,7 +189,7 @@
 
       <!-- Right Column: Integration Code & Instructions -->
       <div class="xl:col-span-2 space-y-6">
-        <div v-if="!selectedProject" class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[32px] p-12 text-center border border-purple-100">
+        <div v-if="!selectedProject" class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-[2.2222rem] p-12 text-center border border-purple-100">
           <div class="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <ArrowLeftIcon class="w-8 h-8 text-purple-600" />
           </div>
@@ -201,7 +201,7 @@
 
         <template v-else>
           <!-- Platform Selection Tabs -->
-          <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+          <div class="bg-white rounded-[2.2222rem] p-6 shadow-sm border border-gray-100">
             <h2 class="text-lg font-bold text-gray-900 mb-4">Выберите платформу</h2>
             
             <div class="flex flex-wrap gap-2">
@@ -222,7 +222,7 @@
           </div>
 
           <!-- Integration Code -->
-          <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+          <div class="bg-white rounded-[2.2222rem] p-6 shadow-sm border border-gray-100">
             <div class="flex items-center justify-between mb-4">
               <h2 class="text-lg font-bold text-gray-900">Код интеграции</h2>
               <button
@@ -240,7 +240,7 @@
           </div>
 
           <!-- Instructions -->
-          <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100">
+          <div class="bg-white rounded-[2.2222rem] p-6 shadow-sm border border-gray-100">
             <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <DocumentTextIcon class="w-5 h-5 text-gray-600" />
               Инструкция по установке

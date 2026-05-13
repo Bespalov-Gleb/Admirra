@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <!-- Header & Search -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] px-1">ВЫБЕРИТЕ ПРОФИЛЬ ДЛЯ ИНТЕГРАЦИИ</label>
+      <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] px-1">ВЫБЕРИТЕ ПРОФИЛЬ ДЛЯ ИНТЕГРАЦИИ</label>
       
       <div v-if="profiles.length > 5 || searchQuery" class="relative group w-full md:w-64">
         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -12,7 +12,7 @@
           type="text" 
           v-model="searchQuery"
           placeholder="Поиск аккаунта..."
-          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[0.8333rem] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
         >
       </div>
     </div>
@@ -50,7 +50,7 @@
         <div class="flex items-start gap-4 mb-4">
           <!-- Avatar/Icon -->
           <div 
-            class="w-14 h-14 rounded-2xl flex items-center justify-center text-[16px] font-black transition-all group-hover:scale-110 shadow-inner"
+            class="w-14 h-14 rounded-2xl flex items-center justify-center text-[1.1111rem] font-black transition-all group-hover:scale-110 shadow-inner"
             :class="[
               profile.type === 'personal' ? 'bg-orange-50 text-orange-600' : 
               profile.type === 'agency_client' ? 'bg-blue-50 text-blue-600' :
@@ -61,17 +61,17 @@
           </div>
           
           <div class="flex-grow pt-1">
-            <h3 class="text-[14px] font-black text-gray-900 group-hover:text-blue-600 transition-colors leading-tight mb-1">
+            <h3 class="text-[0.9722rem] font-black text-gray-900 group-hover:text-blue-600 transition-colors leading-tight mb-1">
               {{ profile.name || profile.login }}
             </h3>
-            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+            <p class="text-[0.7639rem] font-bold text-gray-400 uppercase tracking-wider mb-2">
               {{ profile.login }}
             </p>
             
             <!-- Type Tag & Balance -->
             <div class="flex items-center flex-wrap gap-2">
               <span 
-                class="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border"
+                class="px-2.5 py-1 rounded-full text-[0.5556rem] font-black uppercase tracking-widest border"
                 :class="[
                   profile.type === 'personal' ? 'bg-orange-50/50 text-orange-600 border-orange-100' : 
                   profile.type === 'agency_client' ? 'bg-blue-50/50 text-blue-600 border-blue-100' :
@@ -86,13 +86,13 @@
               </span>
               
               <div v-if="profile.currency" class="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 rounded-full border border-green-100/50">
-                <span class="text-[9px] font-black text-green-600 uppercase tracking-wider">{{ profile.currency }}</span>
-                <span v-if="profile.balance !== undefined" class="text-[10px] font-black text-green-700">
+                <span class="text-[0.625rem] font-black text-green-600 uppercase tracking-wider">{{ profile.currency }}</span>
+                <span v-if="profile.balance !== undefined" class="text-[0.6944rem] font-black text-green-700">
                   {{ formatMoney(profile.balance, profile.currency) }}
                 </span>
               </div>
 
-              <span v-if="profile.description" class="text-[10px] text-gray-400 font-medium italic overflow-hidden text-ellipsis whitespace-nowrap max-w-[150px]">
+              <span v-if="profile.description" class="text-[0.6944rem] text-gray-400 font-medium italic overflow-hidden text-ellipsis whitespace-nowrap max-w-[10.4167rem]">
                 {{ profile.description }}
               </span>
             </div>
@@ -103,15 +103,15 @@
         <div v-if="profile.campaigns_count !== undefined" class="grid grid-cols-3 gap-3 pt-4 border-t border-gray-100">
           <div class="text-center">
             <p class="text-lg font-black text-blue-600">{{ profile.campaigns_count || 0 }}</p>
-            <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Кампаний</p>
+            <p class="text-[0.625rem] text-gray-400 uppercase tracking-wider font-bold">Кампаний</p>
           </div>
           <div class="text-center">
             <p class="text-lg font-black text-green-600">{{ profile.active_campaigns || 0 }}</p>
-            <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Активных</p>
+            <p class="text-[0.625rem] text-gray-400 uppercase tracking-wider font-bold">Активных</p>
           </div>
           <div class="text-center">
             <p class="text-sm font-black text-gray-700">{{ formatMoney(profile.monthly_spend || 0, profile.currency) }}</p>
-            <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Расход/мес</p>
+            <p class="text-[0.625rem] text-gray-400 uppercase tracking-wider font-bold">Расход/мес</p>
           </div>
         </div>
       </div>
@@ -121,8 +121,8 @@
         <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
           <MagnifyingGlassIcon class="w-8 h-8 text-gray-300" />
         </div>
-        <p class="text-[13px] font-black text-gray-400 uppercase tracking-widest">Профили не найдены</p>
-        <p class="text-[10px] text-gray-400 mt-2">Попробуйте изменить запрос поиска</p>
+        <p class="text-[0.9028rem] font-black text-gray-400 uppercase tracking-widest">Профили не найдены</p>
+        <p class="text-[0.6944rem] text-gray-400 mt-2">Попробуйте изменить запрос поиска</p>
       </div>
     </div>
   </div>

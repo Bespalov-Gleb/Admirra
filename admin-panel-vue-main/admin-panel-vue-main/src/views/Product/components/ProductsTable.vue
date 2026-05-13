@@ -32,12 +32,12 @@
     </div>
 
     <!-- Таблица -->
-    <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col overflow-hidden" style="max-height: calc(100vh - 200px)">
+    <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col overflow-hidden" style="max-height: calc(100vh - 13.8889rem)">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
         <div></div>
       </div>
-      <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0" style="max-height: calc(100vh - 350px); -webkit-overflow-scrolling: touch">
-        <table class="w-full" style="min-width: 640px">
+      <div class="overflow-x-auto overflow-y-auto flex-1 min-h-0" style="max-height: calc(100vh - 24.3056rem); -webkit-overflow-scrolling: touch">
+        <table class="w-full" style="min-width: 44.4444rem">
           <thead class="bg-white divide-y divide-gray-200 border-b border-gray-200 sticky top-0 z-10">
             <tr>
               <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -159,7 +159,7 @@
               v-if="page !== 'ellipsis'"
               @click="currentPage = page"
               :class="[
-                'flex items-center justify-center min-w-[32px] sm:min-w-[36px] h-8 sm:h-9 px-2 sm:px-3 rounded-lg text-xs sm:text-sm font-medium transition-all flex-shrink-0',
+                'flex items-center justify-center min-w-[2.2222rem] sm:min-w-[2.5rem] h-8 sm:h-9 px-2 sm:px-3 rounded-lg text-xs sm:text-sm font-medium transition-all flex-shrink-0',
                 currentPage === page
                   ? 'bg-gray-800 text-white shadow-sm'
                   : 'text-gray-700 hover:bg-white hover:border-gray-300 border border-gray-200 bg-white hover:shadow-sm'

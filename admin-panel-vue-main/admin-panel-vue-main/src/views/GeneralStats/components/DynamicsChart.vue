@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[20px] sm:rounded-[40px] px-3 sm:px-6 py-4 sm:py-6 h-full">
+  <div class="bg-white rounded-[1.3889rem] sm:rounded-[2.7778rem] px-3 sm:px-6 py-4 sm:py-6 h-full">
     <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Динамика</h3>
     <div class="h-48 sm:h-64 relative pl-6 sm:pl-10 pb-6">
       <Line
@@ -10,7 +10,7 @@
       
       
       <!-- Шкала Y -->
-      <div class="absolute left-0 top-0 bottom-8 sm:bottom-6 flex flex-col justify-between text-[10px] sm:text-xs text-gray-500 pointer-events-none">
+      <div class="absolute left-0 top-0 bottom-8 sm:bottom-6 flex flex-col justify-between text-[0.6944rem] sm:text-xs text-gray-500 pointer-events-none">
         <span>60</span>
         <span class="hidden sm:inline">50</span>
         <span>40</span>

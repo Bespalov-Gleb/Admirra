@@ -1,5 +1,5 @@
 <template>
-  <div class="contact-page px-8 pt-8 pb-10" style="max-width: 900px">
+  <div class="contact-page px-8 pt-8 pb-10" style="max-width: 62.5rem">
     <div class="mb-8">
       <h1 class="text-28 weight-700 mb-1">Предложить идею</h1>
       <p class="text-14 gray75">Расскажите нам, что можно улучшить в сервисе — мы читаем каждое сообщение</p>
@@ -101,24 +101,24 @@ const errorMsg = ref('')
 const { isDarkMode } = useTheme()
 
 const cardStyle = computed(() => isDarkMode.value
-  ? 'background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:16px; box-shadow:none'
-  : 'background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,.06)')
+  ? 'background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:1.1111rem; box-shadow:none'
+  : 'background:#fff; border-radius:1.1111rem; box-shadow:0 2px 12px rgba(0,0,0,.06)')
 
 const inputStyle = computed(() => isDarkMode.value
-  ? 'border-radius:10px; font-size:14px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); color:#fff'
-  : 'border-radius:10px; font-size:14px')
+  ? 'border-radius:0.6944rem; font-size:0.9722rem; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.15); color:#fff'
+  : 'border-radius:0.6944rem; font-size:0.9722rem')
 
 const labelStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.85)' : 'color:#515151')
 const metaStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.55)' : 'color:rgba(105,105,105,0.56)')
 const textStyle = computed(() => isDarkMode.value ? 'color:rgba(255,255,255,0.85)' : 'color:#515151')
 
 const successAlertStyle = computed(() => isDarkMode.value
-  ? 'background:rgba(34,197,94,0.18); border-radius:10px; color:#86efac; border:1px solid rgba(34,197,94,0.35)'
-  : 'background:#f0fdf4; border-radius:10px; color:#16a34a')
+  ? 'background:rgba(34,197,94,0.18); border-radius:0.6944rem; color:#86efac; border:1px solid rgba(34,197,94,0.35)'
+  : 'background:#f0fdf4; border-radius:0.6944rem; color:#16a34a')
 
 const errorAlertStyle = computed(() => isDarkMode.value
-  ? 'background:rgba(248,113,113,0.15); border-radius:10px; color:#fca5a5; border:1px solid rgba(248,113,113,0.35)'
-  : 'background:#fef2f2; border-radius:10px; color:#dc2626')
+  ? 'background:rgba(248,113,113,0.15); border-radius:0.6944rem; color:#fca5a5; border:1px solid rgba(248,113,113,0.35)'
+  : 'background:#fef2f2; border-radius:0.6944rem; color:#dc2626')
 
 const formatApiError = (err) => {
   const d = err.response?.data?.detail

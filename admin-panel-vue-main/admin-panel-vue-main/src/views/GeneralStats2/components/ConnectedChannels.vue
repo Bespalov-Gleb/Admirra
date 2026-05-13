@@ -15,7 +15,7 @@ const getStatus = (platform) => {
 </script>
 
 <template>
-  <div class="bg-white rounded-[40px] p-8 ">
+  <div class="bg-white rounded-[2.7778rem] p-8 ">
     <h3 class="text-lg font-semibold text-gray-900 mb-1">Подключенные каналы</h3>
     <p class="text-sm text-gray-500 mb-4">рекламные источники</p>
     

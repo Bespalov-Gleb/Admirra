@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-200px)]">
+  <div class="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-13.8889rem)]">
     <!-- Левая боковая панель -->
     <aside class="lg:w-64 flex-shrink-0">
       <div class="bg-white rounded-lg  p-4 lg:p-6 shadow-sm border border-gray-100">

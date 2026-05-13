@@ -8,13 +8,13 @@
     <div class="grid grid-cols-2 gap-3 px-0 sm:grid-cols-3 lg:grid-cols-6 sm:px-12 mb-4 text-center">
       <div v-for="label in funnelLabels" :key="label.text" class="flex min-w-0 flex-col items-center rounded-lg bg-gray-50 px-2 py-2 dark:bg-white/5 lg:bg-transparent lg:p-0 lg:dark:bg-transparent">
         <span class="max-w-full truncate text-sm font-black text-gray-900 dark:text-gray-100">{{ label.value }}</span>
-        <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter">{{ label.text }}</span>
+        <span class="text-[0.6944rem] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter">{{ label.text }}</span>
       </div>
     </div>
 
     <!-- Funnel Chart Area -->
     <div class="relative h-28 sm:h-32 mb-8 sm:mb-10 px-0 sm:px-12 overflow-x-auto overflow-y-hidden">
-      <svg viewBox="0 0 1080 120" preserveAspectRatio="none" class="h-full min-w-[720px] w-full">
+      <svg viewBox="0 0 1080 120" preserveAspectRatio="none" class="h-full min-w-[50rem] w-full">
         <defs>
           <filter id="shadow">
             <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
@@ -99,7 +99,7 @@
               </div>
               <button
                 v-if="goal.is_primary"
-                class="flex-shrink-0 px-3 py-1.5 bg-blue-100 text-blue-700 text-[10px] font-black uppercase rounded-md border border-blue-300 flex items-center gap-1.5"
+                class="flex-shrink-0 px-3 py-1.5 bg-blue-100 text-blue-700 text-[0.6944rem] font-black uppercase rounded-md border border-blue-300 flex items-center gap-1.5"
               >
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -109,15 +109,15 @@
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div class="min-w-0">
-                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Конверсия</span>
+                <span class="text-[0.6944rem] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Конверсия</span>
                 <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ (goal.count || 0).toLocaleString() }}</span>
               </div>
               <div class="min-w-0">
-                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость</span>
+                <span class="text-[0.6944rem] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость</span>
                 <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ formatMoney(goal.cost || 0) }}</span>
               </div>
               <div class="min-w-0">
-                <span class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость одной</span>
+                <span class="text-[0.6944rem] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Стоимость одной</span>
                 <span class="block max-w-full truncate text-xl font-black text-gray-900 dark:text-gray-100">{{ formatMoney(calculateCPA(goal)) }}</span>
               </div>
             </div>
@@ -128,7 +128,7 @@
         <div class="lg:col-span-1">
           <div class="bg-white dark:bg-white/5 rounded-xl p-6 border-2 border-gray-200 dark:border-white/10 shadow-md">
             <h4 class="text-sm font-black text-gray-900 dark:text-gray-100 uppercase tracking-wider mb-4">Разбивка по целям</h4>
-            <div class="relative w-full aspect-square max-w-[280px] mx-auto mb-4">
+            <div class="relative w-full aspect-square max-w-[19.4444rem] mx-auto mb-4">
               <svg viewBox="0 0 200 200" class="w-full h-full">
                 <!-- Donut Chart -->
                 <g transform="translate(100, 100)">

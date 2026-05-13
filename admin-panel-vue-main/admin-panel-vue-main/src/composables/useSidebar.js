@@ -15,7 +15,7 @@ const handleViewportChange = (event) => {
 
 const initSidebarViewport = () => {
   if (isMediaQueryInitialized || typeof window === 'undefined') return
-  mediaQuery = window.matchMedia('(max-width: 1919px)')
+  mediaQuery = window.matchMedia('(max-width: 1439.25px)')
   isMobileViewport.value = mediaQuery.matches
   mediaQuery.addEventListener?.('change', handleViewportChange)
   isMediaQueryInitialized = true

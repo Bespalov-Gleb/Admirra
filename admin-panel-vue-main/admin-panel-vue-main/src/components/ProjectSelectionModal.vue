@@ -17,7 +17,7 @@
             type="text" 
             v-model="searchQuery"
             placeholder="Поиск проекта..."
-            class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+            class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[0.9028rem] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
           >
         </div>
 
@@ -100,10 +100,10 @@ const handleCreateNew = () => {
 }
 @keyframes fadeIn {
   from { opacity: 0; backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(4px); }
+  to { opacity: 1; backdrop-filter: blur(0.2778rem); }
 }
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  from { opacity: 0; transform: scale(0.95) translateY(1.3889rem); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>

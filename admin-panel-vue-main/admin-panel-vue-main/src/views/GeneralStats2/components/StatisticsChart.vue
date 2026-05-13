@@ -97,7 +97,7 @@ const chartOptions = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white rounded-[40px] px-10 py-20 h-full">
+  <div class="bg-white rounded-[2.7778rem] px-10 py-20 h-full">
     <h3 class="text-lg font-semibold text-gray-900 mb-6">Статистика за период</h3>
     <div class="h-64 relative pl-10 pb-6">
       <Line

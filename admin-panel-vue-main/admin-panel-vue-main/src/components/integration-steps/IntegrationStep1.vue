@@ -1,6 +1,6 @@
 <template>
   <div class="pr-1 space-y-6">
-    <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[12px] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
+    <div v-if="error" class="p-4 bg-red-50 border border-red-100 text-red-600 text-[0.8333rem] rounded-xl flex items-start gap-3 animate-shake shadow-sm">
       <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
       <span class="font-bold">{{ error }}</span>
     </div>
@@ -15,7 +15,7 @@
           </div>
           <div class="flex-grow">
             <h2 class="text-xl font-black mb-1 tracking-tight">Интеграция с {{ PLATFORMS[modelValue.platform]?.label }}</h2>
-            <p class="text-blue-100 text-[11px] font-bold max-w-lg leading-relaxed">
+            <p class="text-blue-100 text-[0.7639rem] font-bold max-w-lg leading-relaxed">
               Автоматический сбор кампаний, ключевых слов и статистики.
               <a href="#" class="text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-all ml-1">Как это работает?</a>
             </p>
@@ -23,7 +23,7 @@
           <div class="hidden md:flex flex-col items-center gap-2">
             <div class="flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
               <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_#4ade80]"></div>
-              <span class="text-[9px] font-black uppercase tracking-widest text-white/90">API: СОЕДИНЕНО</span>
+              <span class="text-[0.625rem] font-black uppercase tracking-widest text-white/90">API: СОЕДИНЕНО</span>
             </div>
           </div>
         </div>
@@ -31,7 +31,7 @@
 
       <!-- Platform Selection Grid -->
       <div class="space-y-4">
-        <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ РЕКЛАМНЫЙ КАНАЛ</label>
+        <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ РЕКЛАМНЫЙ КАНАЛ</label>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div 
             v-for="(config, key) in PLATFORMS" 
@@ -54,7 +54,7 @@
             <div class="flex flex-col h-full">
               <div class="mb-4">
                 <div 
-                  class="w-12 h-12 rounded-2xl flex items-center justify-center text-[14px] font-black transition-all group-hover:scale-110 shadow-inner"
+                  class="w-12 h-12 rounded-2xl flex items-center justify-center text-[0.9722rem] font-black transition-all group-hover:scale-110 shadow-inner"
                   :class="config.className"
                 >
                   {{ config.initials }}
@@ -62,8 +62,8 @@
               </div>
               
               <div class="space-y-1">
-                <h3 class="text-[13px] font-black text-black uppercase tracking-tight">{{ config.label }}</h3>
-                <p class="text-[10px] font-bold text-gray-400 leading-tight pr-4">
+                <h3 class="text-[0.9028rem] font-black text-black uppercase tracking-tight">{{ config.label }}</h3>
+                <p class="text-[0.6944rem] font-bold text-gray-400 leading-tight pr-4">
                   {{ config.comingSoon ? 'СКОРО БУДЕТ' : config.description }}
                 </p>
               </div>
@@ -75,7 +75,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
         <!-- Project Selection & Creation -->
         <div class="space-y-4">
-          <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ ПРОЕКТ (КЛИЕНТА)</label>
+          <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ВЫБЕРИТЕ ПРОЕКТ (КЛИЕНТА)</label>
           
           <div class="relative" ref="projectSelectorRef">
             <div class="relative group">
@@ -87,7 +87,7 @@
                 v-model="projectSearchQuery"
                 @focus="isDropdownOpen = true"
                 placeholder="Поиск проекта..."
-                class="w-full pl-11 pr-12 py-4 bg-white border border-gray-100 rounded-[1.25rem] focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-[14px] text-gray-900 shadow-sm"
+                class="w-full pl-11 pr-12 py-4 bg-white border border-gray-100 rounded-[1.25rem] focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-[0.9722rem] text-gray-900 shadow-sm"
               >
               <div class="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <button 
@@ -105,7 +105,7 @@
                 v-if="isDropdownOpen" 
                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden animate-modal-in"
               >
-                <div class="max-h-[320px] overflow-y-auto custom-scrollbar">
+                <div class="max-h-[22.2222rem] overflow-y-auto custom-scrollbar">
                   <div class="pt-2 pb-4">
                     <!-- Create New Project Button -->
                     <div 
@@ -116,7 +116,7 @@
                         <PlusIcon class="w-4 h-4 text-blue-600 group-hover:text-white" />
                       </div>
                       <div>
-                        <span class="block text-[12px] font-black text-blue-600 uppercase tracking-tighter">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+                        <span class="block text-[0.8333rem] font-black text-blue-600 uppercase tracking-tighter">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
                       </div>
                     </div>
                     
@@ -131,10 +131,10 @@
                         :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
                       >
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                          <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
+                          <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[0.6944rem] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
                             {{ project.name.substring(0, 2).toUpperCase() }}
                           </div>
-                          <span class="text-[13px] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
+                          <span class="text-[0.9028rem] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
                         </div>
                         <CheckIcon v-if="modelValue.client_id === project.id" class="w-4 h-4 text-blue-600 flex-shrink-0 ml-2" />
                       </div>
@@ -147,11 +147,11 @@
                         <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                           <MagnifyingGlassIcon class="w-8 h-8 text-gray-300" />
                         </div>
-                        <p class="text-[13px] font-black text-gray-700 mb-1">НИЧЕГО НЕ НАЙДЕНО</p>
-                        <p class="text-[11px] text-gray-400 mb-6">Проект "{{ projectSearchQuery }}" не существует.</p>
+                        <p class="text-[0.9028rem] font-black text-gray-700 mb-1">НИЧЕГО НЕ НАЙДЕНО</p>
+                        <p class="text-[0.7639rem] text-gray-400 mb-6">Проект "{{ projectSearchQuery }}" не существует.</p>
                         <button 
                           @click="handleCreateNewAction"
-                          class="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-tight hover:bg-blue-700 transition-colors shadow-sm"
+                          class="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[0.7639rem] font-black uppercase tracking-tight hover:bg-blue-700 transition-colors shadow-sm"
                         >
                           СОЗДАТЬ ЭТОТ ПРОЕКТ?
                         </button>
@@ -168,7 +168,7 @@
               :modelValue="modelValue.client_name"
               @update:modelValue="updateForm({ client_name: $event })"
               label="НАЗВАНИЕ НОВОГО ПРОЕКТА"
-              labelClass="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1"
+              labelClass="text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1"
               inputClass="rounded-2xl py-4 font-black text-black shadow-sm border-gray-100 focus:border-blue-500"
               placeholder="Например: Мой Магазин"
               required
@@ -178,17 +178,17 @@
 
         <!-- Sync Settings -->
         <div class="space-y-4">
-          <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ПАРАМЕТРЫ СИНХРОНИЗАЦИИ</label>
+          <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 px-1">ПАРАМЕТРЫ СИНХРОНИЗАЦИИ</label>
           <div class="bg-gray-50/50 border border-gray-100 rounded-[2rem] p-6 space-y-5">
             <div class="flex items-center justify-between">
               <div class="flex flex-col">
-                <span class="text-[12px] font-black text-gray-800 tracking-tight leading-none mb-1">Глубина истории</span>
-                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Начальный импорт</span>
+                <span class="text-[0.8333rem] font-black text-gray-800 tracking-tight leading-none mb-1">Глубина истории</span>
+                <span class="text-[0.625rem] text-gray-400 font-bold uppercase tracking-wider">Начальный импорт</span>
               </div>
               <select 
                 :value="modelValue.sync_depth || 90"
                 @change="updateForm({ sync_depth: parseInt($event.target.value) })"
-                class="bg-white border border-gray-100 rounded-xl px-3 py-2 text-[11px] font-black text-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none shadow-sm cursor-pointer"
+                class="bg-white border border-gray-100 rounded-xl px-3 py-2 text-[0.7639rem] font-black text-blue-600 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none shadow-sm cursor-pointer"
               >
                 <option :value="30">30 дней</option>
                 <option :value="90">3 месяца</option>
@@ -199,8 +199,8 @@
 
             <div class="flex items-center justify-between pt-4 border-t border-gray-200/50">
               <div class="flex flex-col">
-                <span class="text-[12px] font-black text-gray-800 tracking-tight leading-none mb-1">Авто-синхронизация</span>
-                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Ежедневное обновление</span>
+                <span class="text-[0.8333rem] font-black text-gray-800 tracking-tight leading-none mb-1">Авто-синхронизация</span>
+                <span class="text-[0.625rem] text-gray-400 font-bold uppercase tracking-wider">Ежедневное обновление</span>
               </div>
               <button 
                 type="button"
@@ -301,17 +301,17 @@ const handlePlatformClick = (key, config) => {
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
+  width: 0.5556rem;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
   background: #f9fafb;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #e5e7eb;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
   transition: background 0.2s;
 }
 

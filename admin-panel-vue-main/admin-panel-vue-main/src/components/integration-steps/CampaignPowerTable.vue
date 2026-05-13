@@ -19,7 +19,7 @@
           type="text" 
           v-model="searchQuery"
           placeholder="Поиск по названию или ID..."
-          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+          class="block w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[0.9028rem] font-bold text-gray-900 placeholder-gray-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
         >
       </div>
 
@@ -28,7 +28,7 @@
         <div class="relative flex-grow md:w-48">
           <select 
             v-model="statusFilter"
-            class="block w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-black text-gray-700 appearance-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer shadow-sm uppercase tracking-tight"
+            class="block w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[0.8333rem] font-black text-gray-700 appearance-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer shadow-sm uppercase tracking-tight"
           >
             <option value="ALL">Все статусы</option>
             <option value="ON">Активные</option>
@@ -45,7 +45,7 @@
         <div class="relative flex-grow md:w-48">
           <select 
             v-model="typeFilter"
-            class="block w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[12px] font-black text-gray-700 appearance-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer shadow-sm uppercase tracking-tight"
+            class="block w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[0.8333rem] font-black text-gray-700 appearance-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all cursor-pointer shadow-sm uppercase tracking-tight"
           >
             <option value="ALL">Все типы</option>
             <option value="TEXT_CAMPAIGN">Текстовые</option>
@@ -65,7 +65,7 @@
     <div class="flex flex-wrap gap-2">
       <button 
         @click="selectActive"
-        class="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-green-700 hover:from-green-100 hover:to-emerald-100 transition-all shadow-sm"
+        class="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl text-[0.6944rem] font-black uppercase tracking-wider text-green-700 hover:from-green-100 hover:to-emerald-100 transition-all shadow-sm"
       >
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
@@ -89,8 +89,8 @@
                 <div v-else-if="isAnyFilteredSelected" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
               </div>
             </th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest leading-tight">Статус</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest leading-tight">Название / ID</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest leading-tight">Статус</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest leading-tight">Название / ID</th>
           </tr>
         </thead>
         <tbody>
@@ -124,7 +124,7 @@
                   <div v-if="campaign.state === 'ON'" class="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-25"></div>
                 </div>
                 <span 
-                  class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter shadow-sm whitespace-nowrap"
+                  class="px-1.5 py-0.5 rounded-md text-[0.5556rem] font-black uppercase tracking-tighter shadow-sm whitespace-nowrap"
                   :class="stateBadgeClass(campaign.state)"
                 >
                   {{ stateLabel(campaign.state) }}
@@ -134,10 +134,10 @@
             <td class="px-3 py-3">
               <div class="flex flex-col">
                 <div class="flex items-start gap-2 mb-0.5">
-                  <span class="text-[11px] font-black text-gray-800 line-clamp-1 leading-tight group-hover:text-blue-600 transition-colors flex-grow">{{ campaign.name }}</span>
+                  <span class="text-[0.7639rem] font-black text-gray-800 line-clamp-1 leading-tight group-hover:text-blue-600 transition-colors flex-grow">{{ campaign.name }}</span>
                   
                 </div>
-                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id || campaign.id }}</span>
+                <span class="text-[0.625rem] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id || campaign.id }}</span>
               </div>
             </td>
           </tr>

@@ -11,7 +11,7 @@
           <div class="flex items-center gap-4">
             <div>
               <h3 class="text-xl font-black text-black tracking-tight leading-none uppercase">Добавить интеграцию</h3>
-              <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Шаг {{ currentStep }} из 5</p>
+              <p class="text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest mt-1">Шаг {{ currentStep }} из 5</p>
             </div>
 
             <!-- Global Date Selector for Preview (Steps 3-4) -->
@@ -20,7 +20,7 @@
                 v-for="opt in dateRangeOptions" 
                 :key="opt.value"
                 @click="statsDateRange = opt.value"
-                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all"
+                class="px-3 py-1.5 rounded-lg text-[0.6944rem] font-black uppercase tracking-tight transition-all"
                 :class="statsDateRange === opt.value ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-gray-400 hover:text-gray-600'"
               >
                 {{ opt.label }}
@@ -50,7 +50,7 @@
 
         <!-- Current Step Subtitle -->
         <div class="mb-4 flex-shrink-0 text-center">
-           <p class="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] px-1">{{ stepLabels[currentStep] }}</p>
+           <p class="text-[0.6944rem] font-black text-blue-600 uppercase tracking-[0.2em] px-1">{{ stepLabels[currentStep] }}</p>
         </div>
 
         <!-- Step 1: Configuration (Platform & Project) -->
@@ -131,10 +131,10 @@
 
         <!-- Footer: Fixed -->
         <div class="flex gap-3 pt-6 mt-4 border-t border-gray-50 flex-shrink-0 bg-white">
-          <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
+          <button v-if="currentStep === 1" type="button" @click="close" class="flex-1 py-3.5 text-[0.6944rem] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
             Отмена
           </button>
-          <button v-if="currentStep > 1" type="button" @click="prevStep" class="flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
+          <button v-if="currentStep > 1" type="button" @click="prevStep" class="flex-1 py-3.5 text-[0.6944rem] font-black uppercase tracking-widest border border-gray-200 rounded-2xl text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all">
             Назад
           </button>
           
@@ -143,7 +143,7 @@
             v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
             @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
             :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
-            class="flex-[1.5] py-4 rounded-[1.25rem] text-white font-black text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+            class="flex-[1.5] py-4 rounded-[1.25rem] text-white font-black text-[0.7639rem] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5 active:translate-y-0"
             :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20'"
           >
             <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -157,7 +157,7 @@
             v-else-if="currentStep >= 2 && currentStep <= 4" 
             @click="nextStep" 
             :disabled="isNextDisabled"
-            class="flex-[1.5] py-3.5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-2xl hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all shadow-lg"
+            class="flex-[1.5] py-3.5 bg-[#FF4B21] hover:bg-[#ff3d0d] text-white rounded-2xl hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 transition-all shadow-lg"
           >
             ДАЛЕЕ
           </button>
@@ -167,7 +167,7 @@
             v-else-if="currentStep === 5" 
             @click="finishConnection" 
             :disabled="loadingFinish" 
-            class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
+            class="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg"
           >
             <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ПОДКЛЮЧИТЬ' }}</span>
@@ -847,24 +847,24 @@ const initVKAuth = async () => {
 
 @keyframes fadeIn {
   from { opacity: 0; backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(4px); }
+  to { opacity: 1; backdrop-filter: blur(0.2778rem); }
 }
 
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  from { opacity: 0; transform: scale(0.95) translateY(1.3889rem); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
+  from { opacity: 0; transform: translateY(-0.6944rem); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d(2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d(4px, 0, 0); }
+  10%, 90% { transform: translate3d(-0.0694rem, 0, 0); }
+  20%, 80% { transform: translate3d(0.1389rem, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-0.2778rem, 0, 0); }
+  40%, 60% { transform: translate3d(0.2778rem, 0, 0); }
 }
 
 @keyframes spin {

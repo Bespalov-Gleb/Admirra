@@ -11,7 +11,7 @@
 
         <div v-if="loading" class="py-12 flex flex-col items-center justify-center gap-4">
           <div class="w-10 h-10 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
-          <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Загрузка кампаний...</span>
+          <span class="text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Загрузка кампаний...</span>
         </div>
 
         <template v-else>
@@ -23,7 +23,7 @@
               type="text" 
               v-model="searchQuery"
               placeholder="Поиск кампании..."
-              class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[13px] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
+              class="block w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-[0.9028rem] font-bold text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 transition-all"
             >
           </div>
 
@@ -41,14 +41,14 @@
                   <CheckIcon v-if="selectedIds.includes(campaign.id)" class="w-4 h-4 text-white" stroke-width="4" />
                 </div>
                 <div class="text-left">
-                  <span class="block text-[14px] font-black group-hover:text-black" :class="{ 'text-blue-600': selectedIds.includes(campaign.id) }">
+                  <span class="block text-[0.9722rem] font-black group-hover:text-black" :class="{ 'text-blue-600': selectedIds.includes(campaign.id) }">
                     {{ campaign.name }}
                   </span>
                   <div class="flex items-center gap-2">
-                    <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id }}</span>
+                    <span class="text-[0.6944rem] text-gray-400 font-bold uppercase tracking-wider">ID: {{ campaign.external_id }}</span>
                     <span 
                       v-if="campaign.status" 
-                      class="px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tighter shadow-sm"
+                      class="px-1.5 py-0.5 rounded-md text-[0.5556rem] font-black uppercase tracking-tighter shadow-sm"
                       :class="campaign.status === 'ACCEPTED' || campaign.status === 'ON' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'"
                     >
                       {{ campaign.status === 'ACCEPTED' || campaign.status === 'ON' ? 'Активна' : 'Пауза' }}
@@ -59,7 +59,7 @@
             </button>
 
               <div v-if="filteredCampaigns.length === 0" class="py-12 text-center">
-                <p class="text-[11px] font-black text-gray-400 uppercase tracking-widest">Кампании не найдены</p>
+                <p class="text-[0.7639rem] font-black text-gray-400 uppercase tracking-widest">Кампании не найдены</p>
               </div>
             </div>
           </CustomScroll>
@@ -68,7 +68,7 @@
         <div class="mt-6">
           <button 
             @click="$emit('close')"
-            class="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5"
+            class="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-[0.8333rem] uppercase tracking-widest transition-all shadow-lg hover:-translate-y-0.5"
           >
             Готово
           </button>
@@ -117,10 +117,10 @@ const filteredCampaigns = computed(() => {
 }
 @keyframes fadeIn {
   from { opacity: 0; backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(4px); }
+  to { opacity: 1; backdrop-filter: blur(0.2778rem); }
 }
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95) translateY(20px); }
+  from { opacity: 0; transform: scale(0.95) translateY(1.3889rem); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 </style>

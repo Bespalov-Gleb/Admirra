@@ -33,8 +33,8 @@
       </button>
       <slot></slot>
     </div>
-    <p v-if="error" class="text-[11px] text-red-600 font-bold ml-1 animate-shake">{{ error }}</p>
-    <p v-if="hint && !error" class="text-[10px] text-gray-400 font-medium ml-1">{{ hint }}</p>
+    <p v-if="error" class="text-[0.7639rem] text-red-600 font-bold ml-1 animate-shake">{{ error }}</p>
+    <p v-if="hint && !error" class="text-[0.6944rem] text-gray-400 font-medium ml-1">{{ hint }}</p>
   </div>
 </template>
 
@@ -116,10 +116,10 @@ const handleInput = (event) => {
 }
 
 @keyframes shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d(2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d(4px, 0, 0); }
+  10%, 90% { transform: translate3d(-0.0694rem, 0, 0); }
+  20%, 80% { transform: translate3d(0.1389rem, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-0.2778rem, 0, 0); }
+  40%, 60% { transform: translate3d(0.2778rem, 0, 0); }
 }
 </style>
 

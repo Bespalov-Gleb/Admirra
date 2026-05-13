@@ -4,9 +4,9 @@
     <button
       ref="buttonRef"
       @click.stop="toggleCalendar"
-      class="drp-trigger flex w-full items-center justify-between gap-3 px-[15px] h-[46px] bg-white dark:bg-[#2C2F3D] border border-[#ebebeb] dark:border-white/10 rounded-xl text-[13px] font-medium hover:border-[#d9dee6] dark:hover:border-white/20 hover:shadow-[0_8px_18px_rgba(15,23,42,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition-all"
+      class="drp-trigger flex w-full items-center justify-between gap-3 px-[1.0417rem] h-[3.1944rem] bg-white dark:bg-[#2C2F3D] border border-[#ebebeb] dark:border-white/10 rounded-xl text-[0.9028rem] font-medium hover:border-[#d9dee6] dark:hover:border-white/20 hover:shadow-[0_8px_18px_rgba(15,23,42,0.04)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] transition-all"
     >
-      <div class="flex items-center gap-[10px] min-w-0">
+      <div class="flex items-center gap-[0.6944rem] min-w-0">
         <CalendarIcon class="w-4 h-4 text-[#6b7280] dark:text-white/55 flex-shrink-0" />
         <span
           class="truncate font-semibold"
@@ -17,7 +17,7 @@
         class="flex items-center justify-center w-6 h-6 rounded-full bg-[#f5f7f9] dark:bg-white/8 text-[#b3b3b3] dark:text-white/55 flex-shrink-0 transition-transform duration-300"
         :class="{ 'rotate-180': isOpen }"
       >
-        <ChevronDownIcon class="w-[14px] h-[14px]" />
+        <ChevronDownIcon class="w-[0.9722rem] h-[0.9722rem]" />
       </span>
     </button>
 
@@ -26,7 +26,7 @@
       <Transition name="fade-scale">
         <div
           v-if="isOpen"
-          class="calendar-popup drp-popup fixed bg-white dark:bg-[#2C2F3D] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-4 z-[99999] w-[min(640px,calc(100vw-24px))]"
+          class="calendar-popup drp-popup fixed bg-white dark:bg-[#2C2F3D] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 p-4 z-[99999] w-[min(44.4444rem,calc(100vw-1.6667rem))]"
           :style="calendarPosition"
           @click.stop
         >
@@ -36,7 +36,7 @@
             v-for="period in quickPeriods"
             :key="period.value"
             @click="selectQuickPeriod(period.value)"
-            class="drp-quick px-3 py-1.5 text-[11px] font-bold text-gray-600 dark:text-white/75 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
+            class="drp-quick px-3 py-1.5 text-[0.7639rem] font-bold text-gray-600 dark:text-white/75 hover:text-blue-600 dark:hover:text-[#4A7AFF] hover:bg-blue-50 dark:hover:bg-white/5 rounded-lg transition-all"
             :class="{ 'text-blue-600 dark:text-[#4A7AFF] bg-blue-50 dark:bg-white/10': selectedQuickPeriod === period.value }"
           >
             {{ period.label }}
@@ -61,7 +61,7 @@
               <div
                 v-for="day in weekDays"
                 :key="day"
-                class="drp-weekday text-[10px] font-bold text-center py-1"
+                class="drp-weekday text-[0.6944rem] font-bold text-center py-1"
                 :class="day === 'СБ' || day === 'ВС' ? 'text-red-500' : 'text-gray-500'"
               >
                 {{ day }}
@@ -97,7 +97,7 @@
               <div
                 v-for="day in weekDays"
                 :key="day"
-                class="drp-weekday text-[10px] font-bold text-center py-1"
+                class="drp-weekday text-[0.6944rem] font-bold text-center py-1"
                 :class="day === 'СБ' || day === 'ВС' ? 'text-red-500' : 'text-gray-500'"
               >
                 {{ day }}
@@ -121,7 +121,7 @@
         <!-- Date Input Fields -->
         <div class="drp-fields mt-4 pt-4 border-t border-gray-100 dark:border-white/10 flex flex-wrap items-center gap-3">
           <div class="flex-1">
-            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">От</label>
+            <label class="drp-label text-[0.6944rem] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">От</label>
             <input
               type="text"
               v-model="startDateInput"
@@ -133,7 +133,7 @@
           </div>
           <div class="pt-5 text-gray-400 dark:text-gray-500">—</div>
           <div class="flex-1">
-            <label class="drp-label text-[10px] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">До</label>
+            <label class="drp-label text-[0.6944rem] font-bold text-gray-500 dark:text-white/55 tracking-wider mb-1 block">До</label>
             <input
               type="text"
               v-model="endDateInput"
@@ -505,10 +505,12 @@ function updateCalendarPosition() {
   
   nextTick(() => {
     const rect = buttonRef.value.getBoundingClientRect()
-    const calendarWidth = Math.min(window.innerWidth < 700 ? 320 : 560, window.innerWidth - 24)
+    const popup = document.querySelector('.calendar-popup.drp-popup')
+    const calendarWidth = popup?.getBoundingClientRect().width
+      || Math.min(window.innerWidth < 700 ? 320 : 420, window.innerWidth - 24)
     const padding = 16
     
-    let left = rect.left + rect.width - calendarWidth
+    let left = rect.left
     
     // Ensure calendar doesn't go off the left edge
     if (left < padding) {
@@ -612,6 +614,6 @@ onMounted(() => {
 .fade-scale-enter-from,
 .fade-scale-leave-to {
   opacity: 0;
-  transform: scale(0.95) translateY(-10px);
+  transform: scale(0.95) translateY(-0.6944rem);
 }
 </style>

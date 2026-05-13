@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center justify-center min-h-[calc(100vh-160px)] px-4">
+  <div class="flex items-center justify-center min-h-[calc(100vh-11.1111rem)] px-4">
     <CreateProjectBanner 
       :loading="loading"
       @create="handleCreate"

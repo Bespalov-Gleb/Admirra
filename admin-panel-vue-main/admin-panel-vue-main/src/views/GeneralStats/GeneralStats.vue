@@ -57,11 +57,11 @@
       <template v-if="loading">
         <div v-for="i in 6" :key="i" class="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-4">
           <div class="flex items-center justify-between">
-            <Skeleton width="40%" height="12px" />
-            <Skeleton width="32px" height="32px" rounded="full" />
+            <Skeleton width="40%" height="0.8333rem" />
+            <Skeleton width="2.2222rem" height="2.2222rem" rounded="full" />
           </div>
-          <Skeleton width="60%" height="32px" />
-          <Skeleton width="100%" height="10px" />
+          <Skeleton width="60%" height="2.2222rem" />
+          <Skeleton width="100%" height="0.6944rem" />
         </div>
       </template>
       <template v-else>
@@ -125,12 +125,12 @@
     <!-- Графики -->
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div class="lg:col-span-3">
-            <div v-if="loading" class="bg-white p-6 rounded-[2rem] border border-gray-100 h-[400px] flex flex-col justify-between">
+            <div v-if="loading" class="bg-white p-6 rounded-[2rem] border border-gray-100 h-[27.7778rem] flex flex-col justify-between">
                <div class="flex justify-between items-center mb-4">
-                  <Skeleton width="30%" height="20px" />
-                  <Skeleton width="100px" height="32px" rounded="xl" />
+                  <Skeleton width="30%" height="1.3889rem" />
+                  <Skeleton width="6.9444rem" height="2.2222rem" rounded="xl" />
                </div>
-               <Skeleton width="100%" height="300px" rounded="2xl" />
+               <Skeleton width="100%" height="20.8333rem" rounded="2xl" />
             </div>
             <DynamicsChart 
               v-else
@@ -140,12 +140,12 @@
             />
         </div>
         <div class="lg:col-span-2">
-            <div v-if="loading" class="bg-white p-6 rounded-[2rem] border border-gray-100 h-[400px] flex flex-col items-center justify-center space-y-6">
-               <Skeleton width="60%" height="20px" />
-               <Skeleton width="200px" height="200px" rounded="full" />
+            <div v-if="loading" class="bg-white p-6 rounded-[2rem] border border-gray-100 h-[27.7778rem] flex flex-col items-center justify-center space-y-6">
+               <Skeleton width="60%" height="1.3889rem" />
+               <Skeleton width="13.8889rem" height="13.8889rem" rounded="full" />
                <div class="w-full space-y-2">
-                 <Skeleton width="100%" height="20px" />
-                 <Skeleton width="100%" height="20px" />
+                 <Skeleton width="100%" height="1.3889rem" />
+                 <Skeleton width="100%" height="1.3889rem" />
                </div>
             </div>
             <TopProjectsChart v-else :items="topClients" />
@@ -193,10 +193,10 @@ const {
 }
 
 @keyframes shake {
-  10%, 90% { transform: translate3d(-1px, 0, 0); }
-  20%, 80% { transform: translate3d(2px, 0, 0); }
-  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-  40%, 60% { transform: translate3d(4px, 0, 0); }
+  10%, 90% { transform: translate3d(-0.0694rem, 0, 0); }
+  20%, 80% { transform: translate3d(0.1389rem, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-0.2778rem, 0, 0); }
+  40%, 60% { transform: translate3d(0.2778rem, 0, 0); }
 }
 </style>
 

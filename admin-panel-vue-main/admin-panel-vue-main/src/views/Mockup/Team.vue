@@ -1,15 +1,15 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
 
     <!-- Heading -->
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Команда</h3>
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Команда</h3>
     </div>
 
     <!-- Toolbar -->
-    <div class="flex flex-wrap items-center justify-between gap-[10px] mb-[30px]">
+    <div class="flex flex-wrap items-center justify-between gap-[0.6944rem] mb-[2.0833rem]">
       <!-- Tabs -->
-      <div class="flex min-w-0 flex-wrap gap-[10px]">
+      <div class="flex min-w-0 flex-wrap gap-[0.6944rem]">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -29,10 +29,10 @@
     </div>
 
     <div v-if="isLoading" class="team-empty">
-      <p class="text-[15px] font-medium leading-none text-[#696969]">Загрузка команды...</p>
+      <p class="text-[1.0417rem] font-medium leading-none text-[#696969]">Загрузка команды...</p>
     </div>
 
-    <div v-else-if="members.length" class="flex flex-col gap-[15px]">
+    <div v-else-if="members.length" class="flex flex-col gap-[1.0417rem]">
       <div
         v-for="(member, idx) in members"
         :key="member.id"
@@ -42,18 +42,18 @@
           class="team-header"
           :class="{ 'team-header--open': openIndex === idx }"
         >
-          <div class="flex items-center gap-[15px] min-w-0">
+          <div class="flex items-center gap-[1.0417rem] min-w-0">
             <div class="member-avatar flex-shrink-0">
               <span>{{ (member.name || '?').slice(0, 2).toUpperCase() }}</span>
             </div>
             <div class="min-w-0">
-              <div class="text-[15px] font-medium text-[#696969] leading-none mb-[4px] truncate dark:!text-white/85">{{ member.name }}</div>
-              <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none truncate dark:!text-white/55">{{ member.email }}</div>
+              <div class="text-[1.0417rem] font-medium text-[#696969] leading-none mb-[0.2778rem] truncate dark:!text-white/85">{{ member.name }}</div>
+              <div class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none truncate dark:!text-white/55">{{ member.email }}</div>
             </div>
           </div>
 
           <button class="toggle-btn dark:!text-white/75" @click="toggleMember(idx)">
-            <span class="text-[15px] text-[#696969] font-medium dark:!text-white/75">Доступ к проектам</span>
+            <span class="text-[1.0417rem] text-[#696969] font-medium dark:!text-white/75">Доступ к проектам</span>
             <span class="toggle-arrow dark:!bg-white/10" :class="{ 'toggle-arrow--open': openIndex === idx }">
               <svg width="7" height="5" viewBox="0 0 9 6" fill="none">
                 <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -61,7 +61,7 @@
             </span>
           </button>
 
-          <div class="team-actions flex items-center gap-[10px]">
+          <div class="team-actions flex items-center gap-[0.6944rem]">
             <button class="access-btn" @click="grantAccess(member)">
               <span>Добавить доступ к&nbsp;проекту</span>
               <span class="icon-plus">+</span>
@@ -80,7 +80,7 @@
           <div v-if="openIndex === idx" class="projects-content">
             <div class="projects-content__inner">
               <div class="projects-content__body">
-                <div class="flex flex-wrap gap-[15px]">
+                <div class="flex flex-wrap gap-[1.0417rem]">
                   <div
                     v-for="(project, pIdx) in member.projects"
                     :key="pIdx"
@@ -90,7 +90,7 @@
                     <div class="project-card__icon dark:!bg-white/10">
                       <span>{{ project.name.slice(0, 2).toUpperCase() }}</span>
                     </div>
-                    <div class="text-[14px] font-medium text-[#515151] leading-[1.3] flex-1 dark:!text-white/85">{{ project.name }}</div>
+                    <div class="text-[0.9722rem] font-medium text-[#515151] leading-[1.3] flex-1 dark:!text-white/85">{{ project.name }}</div>
                     <button class="revoke-btn dark:!border-white/15 dark:!bg-white/10 dark:!text-white/70">Отозвать доступ</button>
                   </div>
                 </div>
@@ -102,8 +102,8 @@
     </div>
 
     <div v-else class="team-empty dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-      <p class="text-[15px] font-medium leading-none text-[#696969] dark:!text-white/80">Сотрудники пока не добавлены</p>
-      <p class="mt-[8px] text-[13px] leading-[1.4] text-[rgba(105,105,105,0.56)] dark:!text-white/55">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
+      <p class="text-[1.0417rem] font-medium leading-none text-[#696969] dark:!text-white/80">Сотрудники пока не добавлены</p>
+      <p class="mt-[0.5556rem] text-[0.9028rem] leading-[1.4] text-[rgba(105,105,105,0.56)] dark:!text-white/55">Добавьте первого сотрудника, чтобы настроить доступы к проектам.</p>
     </div>
 
   </div>
@@ -259,10 +259,10 @@ onMounted(async () => {
 .tab-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 46px;
-  padding: 8px 20px;
-  border-radius: 23px;
-  font-size: 13px;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.3889rem;
+  border-radius: 1.5972rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -290,13 +290,13 @@ onMounted(async () => {
 .add-btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 20px;
-  border-radius: 23px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.3889rem;
+  border-radius: 1.5972rem;
   background-color: #2563eb;
   color: #fff;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -308,11 +308,11 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 15px;
-  height: 15px;
+  width: 1.0417rem;
+  height: 1.0417rem;
   border-radius: 50%;
   background-color: rgba(0, 0, 0, 0.2);
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 600;
   flex-shrink: 0;
   line-height: 1;
@@ -321,13 +321,13 @@ onMounted(async () => {
 /* ── Team item ── */
 .team-item {
   background-color: #fff;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   overflow: hidden;
 }
 .team-empty {
-  min-height: 150px;
-  padding: 32px 22px;
-  border-radius: 15px;
+  min-height: 10.4167rem;
+  padding: 2.2222rem 1.5278rem;
+  border-radius: 1.0417rem;
   background-color: #fff;
   text-align: center;
 }
@@ -358,9 +358,9 @@ onMounted(async () => {
 .team-header {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 15px;
+  gap: 1.0417rem;
   align-items: center;
-  padding: 20px 22px;
+  padding: 1.3889rem 1.5278rem;
   border-bottom: 1px solid transparent;
   transition: border-color 0.3s ease;
 }
@@ -369,7 +369,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 479.25px) {
   .tab-btn,
   .add-btn,
   .access-btn {
@@ -388,7 +388,7 @@ onMounted(async () => {
     width: 100%;
   }
 }
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .team-header {
     grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
   }
@@ -405,7 +405,7 @@ onMounted(async () => {
 .toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 20px;
+  gap: 1.3889rem;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -423,8 +423,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 1.3889rem;
+  height: 1.3889rem;
   border-radius: 50%;
   background-color: #f5f7f9;
   flex-shrink: 0;
@@ -440,13 +440,13 @@ onMounted(async () => {
 .access-btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 20px;
-  border-radius: 23px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.3889rem;
+  border-radius: 1.5972rem;
   background-color: #2563eb;
   color: #fff;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -460,9 +460,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 4px;
+  width: 3.1944rem;
+  height: 3.1944rem;
+  border-radius: 0.2778rem;
   background-color: #f5f7f9;
   border: none;
   cursor: pointer;
@@ -493,7 +493,7 @@ onMounted(async () => {
   overflow: hidden;
 }
 .projects-content__body {
-  padding: 21px 22px 20px;
+  padding: 1.4583rem 1.5278rem 1.3889rem;
 }
 .team-projects-enter-active,
 .team-projects-leave-active {
@@ -516,10 +516,10 @@ onMounted(async () => {
 .project-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 160px;
-  padding: 15px;
-  border-radius: 12px;
+  gap: 0.8333rem;
+  min-width: 11.1111rem;
+  padding: 1.0417rem;
+  border-radius: 0.8333rem;
   border: 1px solid rgba(105, 105, 105, 0.08);
 }
 :global(.dark) .project-card,
@@ -533,8 +533,8 @@ onMounted(async () => {
   background-color: rgba(255,255,255,0.08);
 }
 .project-card__icon {
-  width: 30px;
-  height: 30px;
+  width: 2.0833rem;
+  height: 2.0833rem;
   border-radius: 50%;
   background-color: #e8eef9;
   display: flex;
@@ -543,7 +543,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 .project-card__icon span {
-  font-size: 10px;
+  font-size: 0.6944rem;
   font-weight: 700;
   color: #4b6fa0;
   line-height: 1;
@@ -554,12 +554,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 6px 16px;
-  border-radius: 18px;
+  min-height: 2.5rem;
+  padding: 0.4167rem 1.1111rem;
+  border-radius: 1.25rem;
   background-color: #fff;
   color: rgba(105, 105, 105, 0.7);
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 500;
   border: 1px solid rgba(105, 105, 105, 0.15);
   cursor: pointer;
@@ -578,8 +578,8 @@ onMounted(async () => {
 
 /* ── Member avatar ── */
 .member-avatar {
-  width: 36px;
-  height: 36px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: #e8eef9;
   display: flex;
@@ -588,7 +588,7 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 .member-avatar span {
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   color: #4b6fa0;
   line-height: 1;

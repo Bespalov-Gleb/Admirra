@@ -49,7 +49,7 @@ const layout = computed(() => {
     <div v-if="isLoading" class="fixed inset-0 flex items-center justify-center bg-gray-50 dark:bg-[#1A1C2C] z-[1000]">
       <div class="flex flex-col items-center gap-4">
         <div class="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
-        <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Загрузка сессии...</p>
+        <p class="text-[0.6944rem] font-black uppercase tracking-widest text-gray-400">Загрузка сессии...</p>
       </div>
     </div>
 

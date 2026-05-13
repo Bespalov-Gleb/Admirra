@@ -1,22 +1,22 @@
 <template>
-  <header class="h-[76px] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]">
-    <div class="flex-1 flex items-center px-[8px] py-[5px] gap-1.5 min-w-0 2xl:px-[25px] 2xl:gap-4">
+  <header class="h-[5.2778rem] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+    <div class="flex-1 flex items-center px-[0.5556rem] py-[0.3472rem] gap-1.5 min-w-0 2xl:px-[1.7361rem] 2xl:gap-4">
 
       <!-- Left: Project selector -->
       <div class="relative flex-shrink-0" ref="projectMenuRef">
         <button
           @click="toggleProjectMenu"
-          class="flex min-h-[46px] items-center gap-2 rounded-[12px] bg-[#f5f7f9] px-[10px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[15px]"
+          class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
         >
           <div class="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 2xl:h-9 2xl:w-9">
             <img class="w-full h-full object-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
           </div>
-          <div class="hidden min-w-[66px] max-w-[104px] flex-col gap-[3px] text-left min-[960px]:flex 2xl:min-w-[90px] 2xl:max-w-none">
-            <div class="truncate text-[12px] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[14px]">{{ headerProjectName }}</div>
-            <div class="hidden pt-px text-[10px] leading-none text-[rgba(105,105,105,0.6)] dark:text-white/55 2xl:block">Отчеты агентства в одном месте</div>
+          <div class="hidden min-w-[4.5833rem] max-w-[7.2222rem] flex-col gap-[0.2083rem] text-left min-[720px]:flex 2xl:min-w-[6.25rem] 2xl:max-w-none">
+            <div class="truncate text-[0.8333rem] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[0.9722rem]">{{ headerProjectName }}</div>
+            <div class="hidden pt-px text-[0.6944rem] leading-none text-[rgba(105,105,105,0.6)] dark:text-white/55 2xl:block">Отчеты агентства в одном месте</div>
           </div>
           <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
-            <svg class="w-[9px] h-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
+            <svg class="w-[0.625rem] h-[0.625rem] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProjectMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
               <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
@@ -26,28 +26,28 @@
         <Transition name="dropdown">
           <div
             v-if="isProjectMenuOpen"
-            class="absolute left-1/2 top-full z-50 mt-2 min-w-[360px] -translate-x-1/2 px-[30px] pb-[30px] pt-[10px]"
+            class="absolute left-1/2 top-full z-50 mt-2 min-w-[25rem] -translate-x-1/2 px-[2.0833rem] pb-[2.0833rem] pt-[0.6944rem]"
           >
-            <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:left-1/2 after:top-0 after:h-[14px] after:w-[14px] after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-white dark:bg-[#2C2F3D] dark:after:bg-[#2C2F3D]">
+            <div class="relative rounded-[0.8333rem] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:left-1/2 after:top-0 after:h-[0.9722rem] after:w-[0.9722rem] after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-white dark:bg-[#2C2F3D] dark:after:bg-[#2C2F3D]">
               <div class="px-4 pb-2 pt-4 font-medium">
-                <div class="px-4 py-2 text-[12px] font-medium uppercase text-[rgba(105,105,105,0.56)] dark:text-white/55">Мои проекты</div>
-                <ul class="mb-2 text-[14px]">
+                <div class="px-4 py-2 text-[0.8333rem] font-medium uppercase text-[rgba(105,105,105,0.56)] dark:text-white/55">Мои проекты</div>
+                <ul class="mb-2 text-[0.9722rem]">
                   <li>
                     <button
                       @click="handleProjectSelect(null)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
                     >Все проекты</button>
                   </li>
                   <li v-for="project in projects" :key="project.id">
                     <button
                       @click="handleProjectSelect(project.id)"
-                      :class="['w-full rounded-[12px] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
+                      :class="['w-full rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
                     >{{ project.name }}</button>
                   </li>
                 </ul>
                 <button
                   @click="router.push('/projects/create'); isProjectMenuOpen = false"
-                  class="flex w-full items-center gap-2 rounded-[12px] px-4 py-3 text-[13px] font-medium text-[#2563eb] transition-colors hover:bg-[#ecf3fe] dark:text-[#4A7AFF] dark:hover:bg-white/5"
+                  class="flex w-full items-center gap-2 rounded-[0.8333rem] px-4 py-3 text-[0.9028rem] font-medium text-[#2563eb] transition-colors hover:bg-[#ecf3fe] dark:text-[#4A7AFF] dark:hover:bg-white/5"
                 >
                   <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -61,18 +61,18 @@
       </div>
 
       <!-- Subscription info (xxl+) -->
-      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 min-[960px]:flex 2xl:gap-4 2xl:pl-4">
+      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 min-[720px]:flex 2xl:gap-4 2xl:pl-4">
         <div>
-          <div class="whitespace-nowrap text-[10px] font-medium text-gray-500 dark:text-white/55 2xl:text-[13px]">
+          <div class="whitespace-nowrap text-[0.6944rem] font-medium text-gray-500 dark:text-white/55 2xl:text-[0.9028rem]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
           </div>
-          <div v-if="subscription.expiresAtLabel" class="hidden text-[11px] text-gray-400 2xl:block">
+          <div v-if="subscription.expiresAtLabel" class="hidden text-[0.7639rem] text-gray-400 2xl:block">
             Действует до {{ subscription.expiresAtLabel }}
           </div>
         </div>
         <button
           @click="router.push('/tariffs')"
-          class="flex min-h-[46px] flex-shrink-0 items-center justify-center rounded-[12px] border border-[#e1e1e1] dark:border-white/20 dark:hover:border-white/40 px-[9px] py-2 text-[10px] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[17px] 2xl:text-[13px]"
+          class="flex min-h-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] border border-[#e1e1e1] dark:border-white/20 dark:hover:border-white/40 px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">
             Продлить
@@ -89,13 +89,13 @@
         <!-- Add project -->
         <button
           @click="router.push('/projects/create')"
-          class="group relative hidden min-h-[46px] items-center justify-center overflow-hidden rounded-[12px] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[9px] py-2 text-center text-[10px] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[12px] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[960px]:inline-flex 2xl:px-[17px] 2xl:text-[13px]"
+          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[720px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
             Добавить новый проект
-            <span class="relative inline-flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[15px] 2xl:w-[15px]">
-              <span class="absolute left-1/2 top-1/2 h-px w-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
-              <span class="absolute left-1/2 top-1/2 h-[5px] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+            <span class="relative inline-flex h-[0.9722rem] w-[0.9722rem] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[1.0417rem] 2xl:w-[1.0417rem]">
+              <span class="absolute left-1/2 top-1/2 h-px w-[0.3472rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+              <span class="absolute left-1/2 top-1/2 h-[0.3472rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
             </span>
           </span>
         </button>
@@ -103,7 +103,7 @@
         <!-- "Предложить идею" (lg+) -->
         <button
           @click="router.push('/contact')"
-          class="group relative hidden min-h-[46px] items-center justify-center overflow-hidden rounded-[12px] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[9px] py-2 text-center text-[10px] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[12px] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[960px]:inline-flex 2xl:px-[17px] 2xl:text-[13px]"
+          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[720px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 2xl:gap-2.5">
             Предложить идею
@@ -116,13 +116,13 @@
         <!-- Upgrade button (xxxl only = 2xl+) -->
         <button
           @click="router.push('/tariffs')"
-          class="hidden min-h-[46px] items-center justify-center rounded-[12px] bg-[#2563eb] px-[9px] py-2 text-[10px] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] min-[960px]:flex 2xl:px-[17px] 2xl:text-[13px]"
+          class="hidden min-h-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#2563eb] px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] min-[720px]:flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="flex items-center gap-1.5 2xl:gap-2.5">
             Перейти на тариф Старт
-            <span class="relative inline-flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded-full bg-black/20">
-              <span class="absolute left-1/2 top-1/2 h-px w-[5.5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
-              <span class="absolute left-1/2 top-1/2 h-[5.5px] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+            <span class="relative inline-flex h-[1.0417rem] w-[1.0417rem] flex-shrink-0 items-center justify-center rounded-full bg-black/20">
+              <span class="absolute left-1/2 top-1/2 h-px w-[0.3819rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+              <span class="absolute left-1/2 top-1/2 h-[0.3819rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
             </span>
           </span>
         </button>
@@ -132,43 +132,43 @@
           <button
             data-notifications-button
             @click="toggleNotifications"
-            class="relative flex min-h-[46px] min-w-[46px] items-center justify-center rounded-[12px] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15"
+            class="relative flex min-h-[3.1944rem] min-w-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15"
           >
-            <svg class="h-[17px] w-[17px] fill-[#afafaf]">
+            <svg class="h-[1.1806rem] w-[1.1806rem] fill-[#afafaf]">
               <use href="/admirra/img/svg/sprite.svg#bell"></use>
             </svg>
             <span
               v-if="unreadCount > 0"
-              class="absolute left-1/2 top-1/2 flex min-h-[13px] min-w-[13px] items-center justify-center rounded-[2px] bg-[#82d944] px-[3px] text-[8px] leading-[13px] text-white"
+              class="absolute left-1/2 top-1/2 flex min-h-[0.9028rem] min-w-[0.9028rem] items-center justify-center rounded-[0.1389rem] bg-[#82d944] px-[0.2083rem] text-[0.5556rem] leading-[0.9028rem] text-white"
             >{{ unreadCount }}</span>
           </button>
 
           <Transition name="dropdown">
             <div
               v-if="showNotifications"
-              class="absolute top-full z-50 min-w-[360px] w-[calc(100%+80px)] right-[-30px] px-[30px] pb-[30px] pt-[10px]"
+              class="absolute top-full z-50 min-w-[25rem] w-[calc(100%+5.5556rem)] right-[-2.0833rem] px-[2.0833rem] pb-[2.0833rem] pt-[0.6944rem]"
             >
-              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
-                <div class="p-4 text-[16px] font-semibold text-gray-800 dark:text-gray-100">Уведомления</div>
+              <div class="relative rounded-[0.8333rem] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[0.4861rem] after:border-b-[0.4861rem] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
+                <div class="p-4 text-[1.1111rem] font-semibold text-gray-800 dark:text-gray-100">Уведомления</div>
                 <hr class="border-black/5 dark:border-white/10" />
-                <div v-if="notifications.length === 0" class="p-5 text-center text-[12px] text-[#696969] dark:text-white/55">Нет уведомлений</div>
+                <div v-if="notifications.length === 0" class="p-5 text-center text-[0.8333rem] text-[#696969] dark:text-white/55">Нет уведомлений</div>
                 <div v-else class="max-h-80 overflow-y-auto py-2">
                   <a
                     v-for="notification in notifications"
                     :key="notification.id"
                     @click.prevent="markAsRead(notification.id)"
                     href="#"
-                    :class="['flex w-full items-center px-0 py-1 text-[14px] transition-colors hover:text-[#2563eb]', !notification.is_read ? 'text-[#2563eb]' : 'text-[#696969] dark:text-white/75']"
+                    :class="['flex w-full items-center px-0 py-1 text-[0.9722rem] transition-colors hover:text-[#2563eb]', !notification.is_read ? 'text-[#2563eb]' : 'text-[#696969] dark:text-white/75']"
                   >
-                    <div class="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center">
+                    <div class="flex h-[3.0556rem] w-[3.0556rem] flex-shrink-0 items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
                         <use href="/admirra/img/svg/sprite.svg#bell"></use>
                       </svg>
                     </div>
                     <div class="min-w-0 flex-1 pr-3">
                       <div class="font-medium leading-snug">{{ notification.title }}</div>
-                      <div v-if="notification.body" class="mt-1 text-[11px] leading-snug text-[#696969]/75">{{ notification.body }}</div>
-                      <div class="mt-1 text-[11px] text-[#696969]/75">{{ formatTime(notification.created_at) }}</div>
+                      <div v-if="notification.body" class="mt-1 text-[0.7639rem] leading-snug text-[#696969]/75">{{ notification.body }}</div>
+                      <div class="mt-1 text-[0.7639rem] text-[#696969]/75">{{ formatTime(notification.created_at) }}</div>
                     </div>
                     <div v-if="!notification.is_read" class="mr-4 h-2 w-2 flex-shrink-0 rounded-full bg-[#2563eb]" />
                   </a>
@@ -176,7 +176,7 @@
                 <template v-if="notifications.length > 0 && unreadCount > 0">
                   <hr class="border-black/5 dark:border-white/10" />
                   <div class="p-3 text-center">
-                    <button @click.prevent="markAllAsRead" class="text-[12px] font-medium text-[#2563eb] hover:underline">
+                    <button @click.prevent="markAllAsRead" class="text-[0.8333rem] font-medium text-[#2563eb] hover:underline">
                       Отметить все как прочитанные
                     </button>
                   </div>
@@ -191,14 +191,14 @@
           <button
             data-profile-button
             @click="toggleProfileMenu"
-            class="flex min-h-[46px] items-center gap-2 rounded-[12px] bg-[#f5f7f9] px-[10px] py-[10px] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[15px]"
+            class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
           >
-            <div class="h-[30px] w-[30px] flex-shrink-0 overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
+            <div class="h-[2.0833rem] w-[2.0833rem] flex-shrink-0 overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
               <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-30x30.png" alt="#" />
             </div>
-            <span class="hidden max-w-[68px] truncate text-[10px] font-medium text-[#515151] dark:text-gray-100 min-[960px]:block 2xl:max-w-[150px] 2xl:text-[14px]">{{ displayName }}</span>
+            <span class="hidden max-w-[4.7222rem] truncate text-[0.6944rem] font-medium text-[#515151] dark:text-gray-100 min-[720px]:block 2xl:max-w-[10.4167rem] 2xl:text-[0.9722rem]">{{ displayName }}</span>
             <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
-              <svg class="h-[9px] w-[9px] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
+              <svg class="h-[0.625rem] w-[0.625rem] text-gray-500 transition-transform duration-500 dark:text-white/75" :class="isProfileMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 10 6">
                 <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </span>
@@ -207,20 +207,20 @@
           <Transition name="dropdown">
             <div
               v-if="isProfileMenuOpen"
-              class="absolute top-full z-50 min-w-[360px] w-[calc(100%+80px)] right-[-30px] px-[30px] pb-[30px] pt-[10px]"
+              class="absolute top-full z-50 min-w-[25rem] w-[calc(100%+5.5556rem)] right-[-2.0833rem] px-[2.0833rem] pb-[2.0833rem] pt-[0.6944rem]"
             >
-              <div class="relative rounded-[12px] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[7px] after:border-b-[7px] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
+              <div class="relative rounded-[0.8333rem] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[0.4861rem] after:border-b-[0.4861rem] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
                 <div class="p-4">
-                  <div class="mb-1 text-[15px] font-semibold text-gray-800 dark:text-gray-100">{{ displayName }}</div>
-                  <div class="text-[12px] text-[rgba(105,105,105,0.75)] dark:text-white/55">{{ user?.email }}</div>
+                  <div class="mb-1 text-[1.0417rem] font-semibold text-gray-800 dark:text-gray-100">{{ displayName }}</div>
+                  <div class="text-[0.8333rem] text-[rgba(105,105,105,0.75)] dark:text-white/55">{{ user?.email }}</div>
                 </div>
                 <hr class="border-black/5 dark:border-white/10" />
                 <div class="py-3">
                   <button
                     @click.prevent="toggleTheme"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
-                    <span class="flex h-[44px] w-[44px] items-center justify-center">
+                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
                         <use href="/admirra/img/svg/sprite.svg#moon"></use>
                       </svg>
@@ -232,9 +232,9 @@
                   </button>
                   <button
                     @click="router.push('/profile'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
-                    <span class="flex h-[44px] w-[44px] items-center justify-center">
+                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
                       <svg class="h-5 w-5 fill-none stroke-[#afafaf]">
                         <use href="/admirra/img/svg/sprite.svg#user"></use>
                       </svg>
@@ -243,9 +243,9 @@
                   </button>
                   <button
                     @click="router.push('/settings'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[14px] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
+                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
                   >
-                    <span class="flex h-[44px] w-[44px] items-center justify-center">
+                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
                       <svg class="h-5 w-5 fill-[#afafaf]">
                         <use href="/admirra/img/svg/sprite.svg#setting"></use>
                       </svg>
@@ -254,9 +254,9 @@
                   </button>
                   <button
                     @click="handleLogoutClick"
-                    class="flex w-full items-center py-1 text-[14px] text-[#dc3545] transition-colors hover:text-[#2563eb]"
+                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#dc3545] transition-colors hover:text-[#2563eb]"
                   >
-                    <span class="flex h-[44px] w-[44px] items-center justify-center">
+                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
                       <svg class="h-5 w-5 fill-[#dc3545]">
                         <use href="/admirra/img/svg/sprite.svg#exit"></use>
                       </svg>
@@ -273,11 +273,11 @@
         <button
           @click="toggleMobileMenu"
           :class="[
-            'flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-[12px] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 min-[1920px]:hidden',
+            'flex h-[3.1944rem] w-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 min-[1440px]:hidden',
             isMobileMenuOpen ? 'is-active' : '',
           ]"
         >
-          <span class="burger-lines relative block h-[15px] w-6">
+          <span class="burger-lines relative block h-[1.0417rem] w-6">
             <span class="burger-line burger-line-top" />
             <span class="burger-line burger-line-center" />
             <span class="burger-line burger-line-bottom" />
@@ -456,14 +456,14 @@ onUnmounted(() => {
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-0.2778rem);
 }
 
 .burger-line {
   position: absolute;
   left: 0;
   height: 1px;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #afafaf;
   transition: 0.3s ease-in-out;
 }
@@ -485,13 +485,13 @@ onUnmounted(() => {
 }
 
 .is-active .burger-line-top {
-  top: 7px;
+  top: 0.4861rem;
   transform: rotate(-45deg);
 }
 
 .is-active .burger-line-center {
   left: 0;
-  top: 7px;
+  top: 0.4861rem;
   width: 100%;
   transform: rotate(45deg);
 }

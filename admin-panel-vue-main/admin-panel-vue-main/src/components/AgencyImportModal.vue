@@ -43,7 +43,7 @@
             >
             <button 
               @click="toggleSelectAll" 
-              class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-colors whitespace-nowrap"
+              class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-[0.6944rem] font-bold uppercase text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-colors whitespace-nowrap"
             >
               {{ selectedClients.length === filteredClients.length ? 'Снять всё' : 'Выбрать все' }}
             </button>
@@ -76,7 +76,7 @@
               <div class="flex-grow min-w-0">
                 <div class="flex items-center gap-2">
                     <span class="font-bold text-sm text-gray-800 truncate">{{ client.name }}</span>
-                    <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">{{ client.login }}</span>
+                    <span class="text-[0.6944rem] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">{{ client.login }}</span>
                 </div>
                 <p class="text-xs text-gray-400 mt-0.5 truncate">{{ client.fio }}</p>
               </div>
@@ -229,5 +229,5 @@ defineExpose({ handleToken })
 .animate-modal-in { animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.98) translateY(0.6944rem); } to { opacity: 1; transform: scale(1) translateY(0); } }
 </style>

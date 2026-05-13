@@ -25,7 +25,7 @@
 
     <!-- Table -->
     <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse min-w-[1400px]">
+      <table class="w-full text-left border-collapse min-w-[97.2222rem]">
         <thead>
           <tr class="bg-gray-50/50 border-b border-gray-100">
             <th class="w-10 px-4 py-3">
@@ -38,18 +38,18 @@
                 <div v-else-if="selected.length > 0" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
               </div>
             </th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Проект</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Интеграции</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Показы</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Клики</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Расходы</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Лиды</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">CPC</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">CPA</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Дни получения сделок</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Статус</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Дата создания</th>
-            <th class="px-3 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Действия</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest">Проект</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest">Интеграции</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">Показы</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">Клики</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">Расходы</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">Лиды</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">CPC</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">CPA</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest">Дни получения сделок</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest">Статус</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest">Дата создания</th>
+            <th class="px-3 py-3 text-[0.6944rem] font-black text-gray-500 uppercase tracking-widest text-right">Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -153,12 +153,12 @@
                   <button 
                     v-for="day in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']" 
                     :key="day"
-                    class="w-7 h-7 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all"
+                    class="w-7 h-7 rounded-lg text-[0.6944rem] font-bold flex items-center justify-center transition-all"
                     :class="isActiveDayForProject(project, day) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'"
                   >
                     {{ day }}
                   </button>
-                  <button class="w-7 h-7 rounded-lg text-[10px] font-bold flex items-center justify-center bg-red-100 text-red-600 hover:bg-red-200 transition-all">
+                  <button class="w-7 h-7 rounded-lg text-[0.6944rem] font-bold flex items-center justify-center bg-red-100 text-red-600 hover:bg-red-200 transition-all">
                     Вс
                   </button>
                 </div>
@@ -172,7 +172,7 @@
                     :class="project.status === 'active' ? 'bg-green-500' : 'bg-red-500'"
                   ></div>
                   <span 
-                    class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
+                    class="px-2.5 py-1 rounded-full text-[0.6944rem] font-black uppercase tracking-wider"
                     :class="project.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'"
                   >
                     {{ project.status === 'active' ? 'Активен' : 'Неактивен' }}
@@ -222,7 +222,7 @@
         <div 
           v-if="openActionMenuId"
           :style="menuPosition"
-          class="fixed bg-white border border-gray-100 rounded-xl shadow-xl z-[9999] py-1 min-w-[180px]"
+          class="fixed bg-white border border-gray-100 rounded-xl shadow-xl z-[9999] py-1 min-w-[12.5rem]"
           @click.stop
         >
           <button 

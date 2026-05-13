@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'rounded-[40px] p-10 cursor-pointer transition-all ',
+      'rounded-[2.7778rem] p-10 cursor-pointer transition-all ',
       isDark ? 'main-bg-color' : 'bg-white'
     ]"
   >

@@ -15,7 +15,7 @@
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
-          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+          <tr class="bg-gray-50 text-[0.7639rem] font-bold text-gray-500 uppercase tracking-wider">
             <th class="px-6 py-3 border-b border-gray-100">Название кампании</th>
             <th class="px-4 py-3 border-b border-gray-100 text-right">Показы</th>
             <th class="px-4 py-3 border-b border-gray-100 text-right">Клики</th>

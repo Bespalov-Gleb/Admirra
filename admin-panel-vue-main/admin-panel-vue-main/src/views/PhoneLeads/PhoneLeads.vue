@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок -->
-    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
-      <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+    <div class="py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm transition-all hover:shadow-md">
+      <label class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
         Лиды
       </label>
       <div class="flex items-center gap-3 mt-0.5">
@@ -15,7 +15,7 @@
           </h1>
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+            <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
               Все заявки, прошедшие валидацию
             </p>
           </div>
@@ -34,7 +34,7 @@
     </div>
 
     <!-- Фильтры -->
-    <div class="bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm p-6">
+    <div class="bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm p-6">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Таблица лидов -->
-    <div class="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm overflow-hidden">
       <div v-if="loading" class="p-12 text-center">
         <div class="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
         <p class="mt-4 text-gray-600 text-sm">Загрузка лидов...</p>

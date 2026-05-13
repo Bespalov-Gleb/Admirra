@@ -17,7 +17,7 @@
 
 /* For Chrome, Edge, and Safari */
 .custom-scroll-container::-webkit-scrollbar {
-  width: 6px;
+  width: 0.4167rem;
 }
 
 .custom-scroll-container::-webkit-scrollbar-track {
@@ -26,7 +26,7 @@
 
 .custom-scroll-container::-webkit-scrollbar-thumb {
   background-color: #E2E8F0;
-  border-radius: 20px;
+  border-radius: 1.3889rem;
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -39,14 +39,14 @@
 .custom-scroll-container {
   mask-image: linear-gradient(to bottom, 
     transparent, 
-    black 20px, 
-    black calc(100% - 20px), 
+    black 1.3889rem, 
+    black calc(100% - 1.3889rem), 
     transparent
   );
   -webkit-mask-image: linear-gradient(to bottom, 
     transparent, 
-    black 20px, 
-    black calc(100% - 20px), 
+    black 1.3889rem, 
+    black calc(100% - 1.3889rem), 
     transparent
   );
 }

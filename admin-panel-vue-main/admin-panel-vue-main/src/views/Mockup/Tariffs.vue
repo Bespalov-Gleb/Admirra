@@ -162,7 +162,7 @@ defineEmits(['change-period', 'select-plan', 'select-wl'])
   background: none;
   border: none;
   cursor: pointer;
-  padding: 10px 20px;
+  padding: 0.6944rem 1.3889rem;
 }
 .tariff-tabs__item.active button {
   font-weight: bold;

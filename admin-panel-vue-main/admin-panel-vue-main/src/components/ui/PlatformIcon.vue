@@ -9,7 +9,7 @@
   <div v-else-if="platform === 'VK_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
     <img :src="vkAdsIcon" alt="VK Ads" class="w-full h-full object-contain" />
   </div>
-  <div v-else :class="sizeClass" class="bg-gray-100 rounded-xl flex items-center justify-center text-[10px] font-black text-gray-400 uppercase border border-gray-200">
+  <div v-else :class="sizeClass" class="bg-gray-100 rounded-xl flex items-center justify-center text-[0.6944rem] font-black text-gray-400 uppercase border border-gray-200">
     ?
   </div>
 </template>

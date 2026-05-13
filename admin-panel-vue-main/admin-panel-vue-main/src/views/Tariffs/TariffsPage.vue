@@ -1,21 +1,21 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
     <div v-if="loading" class="flex justify-center py-24 text-[rgba(105,105,105,0.56)] text-sm font-medium dark:text-white/55">
       Загрузка тарифов…
     </div>
 
     <template v-else>
       <!-- Section header -->
-      <div class="pt-[15px] pb-[15px] mb-[10px]">
-        <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Тарифы</h3>
+      <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+        <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Тарифы</h3>
       </div>
-      <p class="text-[15px] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mb-[25px]">
+      <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mb-[1.7361rem]">
         Выберите подходящий тариф в зависимости от количества проектов и задач аналитики
       </p>
 
       <!-- Billing period tabs -->
-      <div class="flex pb-[30px]">
-        <div class="flex gap-[20px]">
+      <div class="flex pb-[2.0833rem]">
+        <div class="flex gap-[1.3889rem]">
           <button
             class="tab-btn"
             :class="billingPeriod === 'month'
@@ -42,26 +42,26 @@
 
       <!-- Tariff cards -->
       <Transition name="tab-fade" mode="out-in">
-      <div :key="billingPeriod" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-[30px]">
+      <div :key="billingPeriod" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-[2.0833rem]">
         <!-- Старт -->
         <div class="plan-card dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-          <div class="flex flex-col h-full" style="row-gap:25px">
-            <h4 class="flex items-center gap-[15px] text-[20px] font-semibold leading-none text-[#171717] dark:!text-white/90">
+          <div class="flex flex-col h-full" style="row-gap:1.7361rem">
+            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-[#171717] dark:!text-white/90">
               <span class="two-circles"></span>
               Старт
             </h4>
             <div>
-              <div class="text-[50px] font-semibold leading-none text-[#171717] mb-[10px] dark:!text-white/90">
+              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">
                 {{ currentPrice(resolvedPlans.start) }}
               </div>
-              <div class="text-[15px] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
+              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
                 {{ currentPerProject(resolvedPlans.start) }}
               </div>
             </div>
             <ul class="flex-1">
               <li v-for="item in planBullets(resolvedPlans.start)" :key="item" class="feature-row">
                 <span class="feature-dot"></span>
-                <span class="text-[15px] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
+                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
               </li>
             </ul>
             <div>
@@ -74,7 +74,7 @@
                   {{ paying === resolvedPlans.start.code ? 'Подождите…' : 'Перейти на тариф Старт' }}
                 </span>
               </button>
-              <p class="text-[12px] text-center" style="padding:15px 0 12px">
+              <p class="text-[0.8333rem] text-center" style="padding:1.0417rem 0 0.8333rem">
                 <span class="gradient-text font-semibold">{{ trialPhrase(resolvedPlans.start.trial_days) }}</span>
                 &nbsp;— подключение за&nbsp;5&nbsp;минут
               </p>
@@ -86,25 +86,25 @@
         <div class="plan-card plan-card--primary">
           <div
             class="absolute inset-0 pointer-events-none z-0 opacity-25"
-            style="background:url('/admirra/img/pattern.png') center/77px"
+            style="background:url('/admirra/img/pattern.png') center/5.3472rem"
           ></div>
-          <div class="relative z-10 flex flex-col h-full" style="row-gap:25px">
-            <h4 class="flex items-center gap-[15px] text-[20px] font-semibold leading-none text-white">
+          <div class="relative z-10 flex flex-col h-full" style="row-gap:1.7361rem">
+            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-white">
               <span class="two-circles two-circles--light"></span>
               Базовый
             </h4>
             <div>
-              <div class="text-[50px] font-semibold leading-none text-white mb-[10px]">
+              <div class="text-[3.4722rem] font-semibold leading-none text-white mb-[0.6944rem]">
                 {{ currentPrice(resolvedPlans.basic) }}
               </div>
-              <div class="text-[15px] font-light text-[#fbfbfb]">
+              <div class="text-[1.0417rem] font-light text-[#fbfbfb]">
                 {{ currentPerProject(resolvedPlans.basic) }}
               </div>
             </div>
             <ul class="flex-1">
               <li v-for="item in planBullets(resolvedPlans.basic)" :key="item" class="feature-row feature-row--white">
                 <span class="feature-dot feature-dot--white"></span>
-                <span class="text-[15px] text-white leading-[1.12]">{{ item }}</span>
+                <span class="text-[1.0417rem] text-white leading-[1.12]">{{ item }}</span>
               </li>
             </ul>
             <div>
@@ -117,7 +117,7 @@
                   {{ paying === resolvedPlans.basic.code ? 'Подождите…' : 'Перейти на тариф Базовый' }}
                 </span>
               </button>
-              <p class="text-[12px] text-center text-white font-semibold" style="padding:15px 0 12px">
+              <p class="text-[0.8333rem] text-center text-white font-semibold" style="padding:1.0417rem 0 0.8333rem">
                 14 дней бесплатно — подключение за&nbsp;5&nbsp;минут
               </p>
             </div>
@@ -126,23 +126,23 @@
 
         <!-- Стандартный -->
         <div class="plan-card dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-          <div class="flex flex-col h-full" style="row-gap:25px">
-            <h4 class="flex items-center gap-[15px] text-[20px] font-semibold leading-none text-[#171717] dark:!text-white/90">
+          <div class="flex flex-col h-full" style="row-gap:1.7361rem">
+            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-[#171717] dark:!text-white/90">
               <span class="two-circles"></span>
               Стандартный
             </h4>
             <div>
-              <div class="text-[50px] font-semibold leading-none text-[#171717] mb-[10px] dark:!text-white/90">
+              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">
                 {{ currentPrice(resolvedPlans.standard) }}
               </div>
-              <div class="text-[15px] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
+              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
                 {{ currentPerProject(resolvedPlans.standard) }}
               </div>
             </div>
             <ul class="flex-1">
               <li v-for="item in planBullets(resolvedPlans.standard)" :key="item" class="feature-row">
                 <span class="feature-dot"></span>
-                <span class="text-[15px] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
+                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
               </li>
             </ul>
             <div>
@@ -155,7 +155,7 @@
                   {{ paying === resolvedPlans.standard.code ? 'Подождите…' : 'Перейти на тариф Стандарт' }}
                 </span>
               </button>
-              <p class="text-[12px] text-center" style="padding:15px 0 12px">
+              <p class="text-[0.8333rem] text-center" style="padding:1.0417rem 0 0.8333rem">
                 <span class="gradient-text font-semibold">{{ trialPhrase(resolvedPlans.standard.trial_days) }}</span>
                 &nbsp;— подключение за&nbsp;5&nbsp;минут
               </p>
@@ -166,13 +166,13 @@
       </Transition>
 
       <!-- White Label -->
-      <div class="wl-card bg-white rounded-[30px] p-[30px] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+      <div class="wl-card bg-white rounded-[2.0833rem] p-[2.0833rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           <!-- About -->
-          <div class="pr-[30px] flex flex-col gap-[20px]">
-            <div class="flex items-start gap-[17px]">
-              <span class="two-circles" style="margin-top:4px"></span>
-              <h4 class="text-[20px] font-semibold leading-[1.3] text-[#171717] dark:!text-white/90">
+          <div class="pr-[2.0833rem] flex flex-col gap-[1.3889rem]">
+            <div class="flex items-start gap-[1.1806rem]">
+              <span class="two-circles" style="margin-top:0.2778rem"></span>
+              <h4 class="text-[1.3889rem] font-semibold leading-[1.3] text-[#171717] dark:!text-white/90">
                 White Label —<br />
                 персонализация<br />
                 кабинета и&nbsp;отчетности
@@ -181,28 +181,28 @@
             <ul class="font-medium">
               <li v-for="item in wlFeatures" :key="item" class="feature-row">
                 <span class="feature-dot"></span>
-                <span class="text-[15px] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
+                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
               </li>
             </ul>
           </div>
 
           <!-- UI preview -->
-          <div class="flex items-center justify-center" style="margin:-10px 0 0 -20px">
+          <div class="flex items-center justify-center" style="margin:-0.6944rem 0 0 -1.3889rem">
             <img
               src="/admirra/img/white-label/ui.png"
               alt="White Label UI"
               class="block"
-              style="width:400px;height:350px;object-fit:contain"
+              style="width:27.7778rem;height:24.3056rem;object-fit:contain"
             />
           </div>
 
           <!-- Action -->
-          <div class="flex flex-col" style="padding:8px 0 0 40px">
-            <div class="mb-[16px]">
-              <div class="text-[50px] font-semibold leading-none text-[#171717] mb-[10px] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
-              <div class="text-[15px] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
+          <div class="flex flex-col" style="padding:0.5556rem 0 0 2.7778rem">
+            <div class="mb-[1.1111rem]">
+              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
+              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
             </div>
-            <p class="text-[15px] text-[rgba(105,105,105,0.56)] max-w-[200px] pt-[10px] mb-[45px] dark:!text-white/55">
+            <p class="text-[1.0417rem] text-[rgba(105,105,105,0.56)] max-w-[13.8889rem] pt-[0.6944rem] mb-[3.125rem] dark:!text-white/55">
               При покупке на год — возможны&nbsp;персональные скидки.
               Оставьте заявку, чтобы обсудить детали использования WL.
             </p>
@@ -248,7 +248,27 @@ const billingPeriod = ref('month')
 
 const resolvedPlans = computed(() => plans.value)
 
+const landingTariffDisplay = {
+  month: {
+    start: { price: '1\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
+    basic: { price: '3\u00A0990\u00A0₽', perProject: '798 руб/проект', projects: '5 проектов', ai: '120 запросов AI' },
+    standard: { price: '9\u00A0990\u00A0₽', perProject: '660 руб/проект', projects: '15 проектов', ai: '450 запросов AI' },
+  },
+  year: {
+    start: { price: '11\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
+    basic: { price: '31\u00A0990\u00A0₽', perProject: '498 руб/проект', projects: 'До 8 проектов', ai: '120 запросов AI' },
+    standard: { price: '69\u00A0990\u00A0₽', perProject: '333 руб/проект', projects: 'До 30 проектов', ai: '450 запросов AI' },
+  },
+}
+
+function landingDisplay(plan) {
+  const code = String(plan?.code || '').toLowerCase()
+  return landingTariffDisplay[billingPeriod.value]?.[code] || null
+}
+
 function currentPrice(plan) {
+  const display = landingDisplay(plan)
+  if (display?.price) return display.price
   const p = billingPeriod.value === 'year'
     ? yearlyPriceFromMonthly(plan.price_rub)
     : plan.price_rub
@@ -256,6 +276,8 @@ function currentPrice(plan) {
 }
 
 function currentPerProject(plan) {
+  const display = landingDisplay(plan)
+  if (display?.perProject) return display.perProject
   const p = billingPeriod.value === 'year'
     ? yearlyPriceFromMonthly(plan.price_rub)
     : plan.price_rub
@@ -263,11 +285,12 @@ function currentPerProject(plan) {
 }
 
 function planBullets(plan) {
+  const display = landingDisplay(plan)
   return [
-    projectBullet(plan),
+    display?.projects || projectBullet(plan),
     channelsBullet(plan.code),
     usersBullet(plan.code),
-    aiBullet(plan),
+    display?.ai || aiBullet(plan),
     'Экспорт отчетов, отправка по расписанию',
   ]
 }
@@ -344,13 +367,13 @@ function onContactWl() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  column-gap: 10px;
-  min-height: 46px;
-  padding: 10px 18px;
-  font-size: 13px;
+  column-gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.6944rem 1.25rem;
+  font-size: 0.9028rem;
   font-weight: 600;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   background-color: #fff;
   color: #5f5f5f;
   cursor: pointer;
@@ -375,11 +398,11 @@ function onContactWl() {
 }
 
 .tab-badge {
-  font-size: 10px;
+  font-size: 0.6944rem;
   line-height: 1.1;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  padding: 5px 10px;
-  border-radius: 40px;
+  padding: 0.3472rem 0.6944rem;
+  border-radius: 2.7778rem;
   color: #fff;
   transition: background 0.3s, color 0.3s;
 }
@@ -392,8 +415,8 @@ function onContactWl() {
 .plan-card {
   height: 100%;
   background-color: #fff;
-  padding: 32px 30px;
-  border-radius: 30px;
+  padding: 2.2222rem 2.0833rem;
+  border-radius: 2.0833rem;
   position: relative;
   overflow: hidden;
 }
@@ -424,16 +447,16 @@ function onContactWl() {
 /* ── Two-circles icon ── */
 .two-circles {
   display: inline-block;
-  width: 18px;
-  height: 12px;
+  width: 1.25rem;
+  height: 0.8333rem;
   position: relative;
   flex-shrink: 0;
 }
 .two-circles::before,
 .two-circles::after {
   content: '';
-  width: 12px;
-  height: 12px;
+  width: 0.8333rem;
+  height: 0.8333rem;
   border-radius: 50%;
   position: absolute;
   top: 0;
@@ -447,8 +470,8 @@ function onContactWl() {
 .feature-row {
   display: flex;
   align-items: flex-start;
-  column-gap: 10px;
-  padding: 17px 0 18px;
+  column-gap: 0.6944rem;
+  padding: 1.1806rem 0 1.25rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   list-style: none;
 }
@@ -466,13 +489,13 @@ function onContactWl() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 10px;
-  height: 10px;
+  width: 0.6944rem;
+  height: 0.6944rem;
   border-radius: 50%;
   background-color: #2563eb;
   box-shadow: 0 0 0 3px #f5f7f9;
   flex-shrink: 0;
-  margin: 4px;
+  margin: 0.2778rem;
   position: relative;
 }
 :global(.dark) .plan-card:not(.plan-card--primary) .feature-dot,
@@ -485,11 +508,14 @@ function onContactWl() {
 .feature-dot::after {
   content: '';
   position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   background: #fff;
   border-radius: 1px;
 }
-.feature-dot::before { width: 4px; height: 1px; }
-.feature-dot::after  { width: 1px; height: 4px; }
+.feature-dot::before { width: 0.2778rem; height: 1px; }
+.feature-dot::after  { width: 1px; height: 0.2778rem; }
 .feature-dot--white  { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25); }
 
 /* ── Gradient text ── */
@@ -505,14 +531,14 @@ function onContactWl() {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 17px;
-  font-size: 13px;
+  min-height: 3.1944rem;
+  padding: 0 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1.1;
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -523,7 +549,7 @@ function onContactWl() {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   background: linear-gradient(270deg, #38e1ff 0.35%, #4abeff 32.08%, #5187ff 96.51%);
   opacity: 0;
   transition: opacity 1s;
@@ -538,13 +564,13 @@ function onContactWl() {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 17px;
-  font-size: 13px;
+  min-height: 3.1944rem;
+  padding: 0 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1.1;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   cursor: pointer;
   background: #fff;
   transition: background-color 0.5s, transform 0.75s;

@@ -1,12 +1,12 @@
 <template>
   <div
-    class="rounded-[10px] p-6 sm:p-8 border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[240px] bg-white dark:bg-[#2A2D3C] dark:border-white/10"
+    class="rounded-[0.6944rem] p-6 sm:p-8 border shadow-sm transition-all cursor-pointer hover:shadow-md relative font-[Inter] flex flex-col justify-between min-h-[16.6667rem] bg-white dark:bg-[#2A2D3C] dark:border-white/10"
     :class="[
       isSelected ? 'border-l-4' : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
     ]"
     :style="isSelected && chartColor ? {
       borderLeftColor: chartColor,
-      borderLeftWidth: '4px',
+      borderLeftWidth: '0.2778rem',
       backgroundColor: hexToRgba(chartColor, 0.04)
     } : {}"
     @click="$emit('click')"
@@ -17,22 +17,22 @@
         <component :is="icon" class="w-7 h-7 text-[#2563EB] dark:text-[#4A7AFF]" />
       </div>
       <div class="min-w-0">
-        <h3 class="text-[20px] font-normal text-[#09183F] dark:text-white leading-snug">{{ title }}</h3>
-        <p v-if="subtitle" class="text-[15px] font-normal text-gray-400 dark:text-gray-500 leading-snug">{{ subtitle }}</p>
+        <h3 class="text-[1.3889rem] font-normal text-[#09183F] dark:text-white leading-snug">{{ title }}</h3>
+        <p v-if="subtitle" class="text-[1.0417rem] font-normal text-gray-400 dark:text-gray-500 leading-snug">{{ subtitle }}</p>
       </div>
     </div>
 
     <!-- Главное число и тренд в одну строку -->
     <div class="flex items-baseline gap-2 flex-nowrap min-w-0">
-      <p class="text-[32px] font-bold text-[#09183F] dark:text-white leading-none shrink-0">{{ value }}</p>
+      <p class="text-[2.2222rem] font-bold text-[#09183F] dark:text-white leading-none shrink-0">{{ value }}</p>
       <span
-        class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[6px] text-[9px] font-medium flex-shrink-0"
+        class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[0.4167rem] text-[0.625rem] font-medium flex-shrink-0"
         :class="changePositive ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-[#66BB6A]' : 'bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-[#EF5350]'"
       >
         <component :is="changePositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon" class="w-2.5 h-2.5 flex-shrink-0" />
         {{ trendDisplay }}
       </span>
-      <span v-if="trendAbsolute" class="text-[9px] font-medium text-gray-500 dark:text-gray-400 min-w-0 truncate">{{ trendAbsolute }}</span>
+      <span v-if="trendAbsolute" class="text-[0.625rem] font-medium text-gray-500 dark:text-gray-400 min-w-0 truncate">{{ trendAbsolute }}</span>
     </div>
   </div>
 </template>

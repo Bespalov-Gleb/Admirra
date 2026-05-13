@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full min-h-[calc(100vh-160px)]">
+  <div class="flex flex-col h-full min-h-[calc(100vh-11.1111rem)]">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 md:px-8 py-6 bg-white border-b border-gray-100 flex-shrink-0">
       <div class="flex items-center gap-4">
@@ -12,10 +12,10 @@
         <div>
           <h1 class="text-2xl font-black text-black tracking-tight uppercase leading-none">НОВАЯ ИНТЕГРАЦИЯ</h1>
           <div class="flex items-center gap-2 mt-2">
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">ДОБАВЛЕНИЕ РЕКЛАМНОГО КАНАЛА</p>
+            <p class="text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest leading-none">ДОБАВЛЕНИЕ РЕКЛАМНОГО КАНАЛА</p>
             <template v-if="currentStep > 1 && form.client_name">
-              <span class="text-[8px] text-gray-300">•</span>
-              <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100/50">
+              <span class="text-[0.5556rem] text-gray-300">•</span>
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[0.625rem] font-black uppercase tracking-wider border border-blue-100/50">
                 {{ form.client_name }}
               </span>
             </template>
@@ -26,7 +26,7 @@
       <!-- Quick Status -->
       <div v-if="currentStep > 1" class="flex items-center gap-3 px-4 py-2 bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
         <PlatformIcon :platform="form.platform" size="sm" />
-        <span class="text-[11px] font-black text-black uppercase tracking-wider">{{ form.platform }}</span>
+        <span class="text-[0.7639rem] font-black text-black uppercase tracking-wider">{{ form.platform }}</span>
       </div>
     </div>
 
@@ -50,7 +50,7 @@
             class="relative z-10 flex flex-col items-center gap-3"
           >
             <div 
-              class="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-black transition-all duration-500 border-4"
+              class="w-10 h-10 rounded-full flex items-center justify-center text-[0.8333rem] font-black transition-all duration-500 border-4"
               :class="[
                 currentStep >= step ? 'bg-blue-600 text-white border-blue-100 shadow-lg scale-110' : 'bg-white text-gray-400 border-gray-50',
                 currentStep === step ? 'ring-4 ring-blue-50' : ''
@@ -59,7 +59,7 @@
               {{ getVisualStepNumber(step) }}
             </div>
             <span 
-              class="absolute -bottom-7 whitespace-nowrap text-[9px] font-black uppercase tracking-widest transition-all duration-300"
+              class="absolute -bottom-7 whitespace-nowrap text-[0.625rem] font-black uppercase tracking-widest transition-all duration-300"
               :class="currentStep >= step ? 'text-blue-600' : 'text-gray-300'"
             >
               {{ stepLabels[step] }}
@@ -153,7 +153,7 @@
         <button 
           @click="prevStep"
           :disabled="currentStep === 1"
-          class="px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 group border border-gray-100 hover:border-gray-200 disabled:opacity-0"
+          class="px-8 py-3.5 rounded-2xl text-[0.6944rem] font-black uppercase tracking-widest transition-all flex items-center gap-2 group border border-gray-100 hover:border-gray-200 disabled:opacity-0"
         >
           <ArrowLeftIcon class="w-4 h-4 text-gray-400 group-hover:-translate-x-1 transition-transform" />
           Назад
@@ -162,7 +162,7 @@
         <div class="flex items-center gap-4">
           <button 
             @click="handleCancel"
-            class="px-6 py-3.5 text-gray-400 hover:text-black text-[10px] font-black uppercase tracking-widest transition-colors"
+            class="px-6 py-3.5 text-gray-400 hover:text-black text-[0.6944rem] font-black uppercase tracking-widest transition-colors"
           >
             Отмена
           </button>
@@ -172,7 +172,7 @@
             v-if="currentStep === 1 && (form.platform === 'YANDEX_DIRECT' || form.platform === 'VK_ADS')"
             @click="form.platform === 'YANDEX_DIRECT' ? initYandexAuth() : initVKAuth()"
             :disabled="loadingAuth || (isCreatingNewProject && !form.client_name)"
-            class="px-10 py-3.5 rounded-2xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+            class="px-10 py-3.5 rounded-2xl text-white font-black text-[0.6944rem] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl hover:-translate-y-0.5 active:translate-y-0"
             :class="form.platform === 'YANDEX_DIRECT' ? 'bg-[#FF4B21] hover:bg-[#ff3d0d] shadow-[#FF4B21]/20' : 'bg-[#0077FF] hover:bg-[#0066EE] shadow-[#0077FF]/20'"
           >
             <div v-if="loadingAuth" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -184,7 +184,7 @@
             v-else-if="currentStep === 2"
             @click="nextStep"
             :disabled="isNextDisabled"
-            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
           >
             Далее
             <ArrowRightIcon class="w-4 h-4" />
@@ -195,7 +195,7 @@
             v-else-if="currentStep === 3"
             @click="nextStep"
             :disabled="isNextDisabled"
-            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
           >
             Далее
             <ArrowRightIcon class="w-4 h-4" />
@@ -206,7 +206,7 @@
             v-else-if="currentStep === 4 && form.platform !== 'VK_ADS'"
             @click="nextStep"
             :disabled="isNextDisabled"
-            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
           >
             Далее
             <ArrowRightIcon class="w-4 h-4" />
@@ -217,7 +217,7 @@
             v-else-if="currentStep === 5 && form.platform !== 'VK_ADS'"
             @click="nextStep"
             :disabled="isNextDisabled"
-            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
+            class="px-10 py-3.5 bg-black text-white rounded-2xl hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-gray-200 hover:shadow-blue-200"
           >
             Далее
             <ArrowRightIcon class="w-4 h-4" />
@@ -228,7 +228,7 @@
             v-else-if="currentStep === 6"
             @click="finishConnection"
             :disabled="isNextDisabled || loadingFinish"
-            class="px-10 py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[10px] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-blue-200"
+            class="px-10 py-3.5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 font-black text-[0.6944rem] uppercase tracking-widest disabled:opacity-50 disabled:translate-y-0 transition-all flex items-center gap-2 shadow-xl shadow-blue-200"
           >
             <div v-if="loadingFinish" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             <span>{{ loadingFinish ? 'СОХРАНЕНИЕ...' : 'ПОДКЛЮЧИТЬ' }}</span>
@@ -636,17 +636,17 @@ onMounted(() => {
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 0.4167rem;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
   background: #f9fafb;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #e5e7eb;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
   transition: background 0.2s;
 }
 
@@ -660,12 +660,12 @@ onMounted(() => {
 
 .fade-slide-enter-from {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(1.3889rem);
 }
 
 .fade-slide-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateX(-1.3889rem);
 }
 
 .animate-fade-in {
@@ -673,7 +673,7 @@ onMounted(() => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
+  from { opacity: 0; transform: translateY(-0.3472rem); }
   to { opacity: 1; transform: translateY(0); }
 }
 </style>

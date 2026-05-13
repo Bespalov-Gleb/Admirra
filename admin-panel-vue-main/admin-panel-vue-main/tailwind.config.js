@@ -6,6 +6,13 @@ export default {
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
+    screens: {
+      sm: '480px',
+      md: '576px',
+      lg: '768px',
+      xl: '960px',
+      '2xl': '1152px',
+    },
     extend: {
       fontFamily: {
         sans: ['Inter', 'Play', 'sans-serif'],

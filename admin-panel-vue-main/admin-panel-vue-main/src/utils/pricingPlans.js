@@ -12,15 +12,15 @@ export const FALLBACK_PLANS = {
     name: 'Базовый',
     price_rub: 3990,
     max_projects: 5,
-    max_ai_requests_per_period: 100,
+    max_ai_requests_per_period: 120,
     trial_days: 14,
   },
   standard: {
     code: 'standard',
     name: 'Стандартный',
-    price_rub: 9900,
+    price_rub: 9990,
     max_projects: 15,
-    max_ai_requests_per_period: 300,
+    max_ai_requests_per_period: 450,
     trial_days: 14,
   },
 }

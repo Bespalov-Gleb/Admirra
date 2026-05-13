@@ -59,7 +59,7 @@
               <button type="button" @click="selectAll" class="text-xs font-medium text-blue-600 hover:text-blue-700">Выбрать все</button>
               <button type="button" @click="deselectAll" class="text-xs font-medium text-gray-500 hover:text-gray-700">Снять всё</button>
             </div>
-            <div class="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto overscroll-contain px-6 py-2">
+            <div class="flex-1 min-h-[13.8889rem] max-h-[50vh] overflow-y-auto overscroll-contain px-6 py-2">
               <div v-if="loading" class="py-16 flex flex-col items-center gap-3">
                 <div class="w-10 h-10 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
                 <span class="text-sm text-gray-500">Загрузка кампаний...</span>
@@ -91,11 +91,11 @@
 
           <!-- Контент вкладки «По целям» -->
           <template v-else-if="activeTab === 'goals'">
-            <div class="flex-1 min-h-[200px] max-h-[50vh] overflow-y-auto px-6 py-4">
+            <div class="flex-1 min-h-[13.8889rem] max-h-[50vh] overflow-y-auto px-6 py-4">
               <!-- Яндекс: сообщение -->
               <div v-if="channel !== 'vk'" class="py-12 text-center">
-                <p class="text-[15px] font-medium text-gray-700 mb-2">Фильтрация по целям доступна только для VK Ads</p>
-                <p class="text-[13px] text-gray-500">Выберите канал VK Ads в фильтрах, чтобы отфильтровать кампании по типу целевого действия (лид-формы, мини-приложения и др.)</p>
+                <p class="text-[1.0417rem] font-medium text-gray-700 mb-2">Фильтрация по целям доступна только для VK Ads</p>
+                <p class="text-[0.9028rem] text-gray-500">Выберите канал VK Ads в фильтрах, чтобы отфильтровать кампании по типу целевого действия (лид-формы, мини-приложения и др.)</p>
               </div>
               <!-- VK: цели + кампании -->
               <div v-else class="space-y-4">
@@ -107,7 +107,7 @@
                       :key="group.key"
                       class="border border-gray-200 rounded-xl bg-white"
                     >
-                      <div class="px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                      <div class="px-3 py-1.5 text-[0.7639rem] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100">
                         {{ group.name }}
                       </div>
                       <div class="flex flex-wrap gap-2 px-3 py-2">
@@ -383,7 +383,7 @@ const apply = () => {
 @keyframes modalIn {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(8px);
+    transform: scale(0.97) translateY(0.5556rem);
   }
   to {
     opacity: 1;

@@ -1,11 +1,11 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
     </div>
 
-    <div class="mb-[30px] flex flex-wrap items-center justify-between gap-[10px]">
-      <div class="flex flex-wrap items-center gap-[10px]">
+    <div class="mb-[2.0833rem] flex flex-wrap items-center justify-between gap-[0.6944rem]">
+      <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <div class="custom-select" :class="{ open: openSelect === 'project' }" v-click-outside="() => closeSelect('project')">
           <button type="button" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('project')">
             <span class="cs-current">{{ projectFilterLabel }}</span>
@@ -60,13 +60,13 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-[10px]">
+      <div class="flex items-center gap-[0.6944rem]">
         <button type="button" class="bulk-btn" @click="openMassEdit">
           <span>Массовое редактирование</span>
           <span class="bulk-btn__icon">
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <path d="M1 13L5.5 8.5M13 1L8.5 5.5M5.5 8.5L8.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L1 13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2.8 13.2h3.4" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
             </svg>
           </span>
         </button>
@@ -91,40 +91,40 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="py-16 text-center text-[14px] text-gray-400">Загрузка проектов...</div>
+    <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
 
     <!-- Empty -->
-    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center text-[14px] text-gray-400">
+    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center text-[0.9722rem] text-gray-400">
       {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
     </div>
 
-    <div v-else class="mb-[30px] overflow-visible rounded-[15px] bg-white py-[30px] dark:bg-[#2C2F3D] dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]">
+    <div v-else class="mb-[2.0833rem] overflow-visible rounded-[1.0417rem] bg-white py-[2.0833rem] dark:bg-[#2C2F3D] dark:shadow-[0_4px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)]">
       <div class="overflow-x-auto">
         <table class="project-rows-table w-full table-auto border-collapse">
           <thead>
-            <tr class="text-[13px] font-normal text-[rgba(105,105,105,0.56)] dark:text-white/45">
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">
-                <label class="ml-[15px] flex h-5 w-5 cursor-pointer items-center justify-center">
+            <tr class="text-[0.9028rem] font-normal text-[rgba(105,105,105,0.56)] dark:text-white/45">
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">
+                <label class="ml-[1.0417rem] flex h-5 w-5 cursor-pointer items-center justify-center">
                   <input type="checkbox" class="peer sr-only" :checked="allRowsSelected" @change="toggleSelectAllRows" />
-                  <span class="relative inline-block h-5 w-5 rounded-[3px] border border-[#f5f7f9] bg-[#f5f7f9] transition duration-300 peer-focus:shadow-[0_0_0_1px_rgba(0,123,255,1)] peer-checked:border-[#2563eb] peer-checked:[&>svg]:opacity-100 dark:border-white/15 dark:bg-white/10">
-                    <svg class="absolute left-1/2 top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 fill-[#2563eb] opacity-0 transition duration-300" viewBox="0 0 12 10">
+                  <span class="relative inline-block h-5 w-5 rounded-[0.2083rem] border border-[#f5f7f9] bg-[#f5f7f9] transition duration-300 peer-focus:shadow-[0_0_0_1px_rgba(0,123,255,1)] peer-checked:border-[#2563eb] peer-checked:[&>svg]:opacity-100 dark:border-white/15 dark:bg-white/10">
+                    <svg class="absolute left-1/2 top-1/2 h-[0.625rem] w-[0.625rem] -translate-x-1/2 -translate-y-1/2 fill-[#2563eb] opacity-0 transition duration-300" viewBox="0 0 12 10">
                       <path d="M4.2 9.2.4 5.4l1.4-1.4 2.4 2.4L10.2.3l1.4 1.4-7.4 7.5Z" />
                     </svg>
                   </span>
                 </label>
               </th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Проект</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Интеграции</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Показы</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Клики</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Расходы</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Лиды</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">CPC</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">CPA</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Актуальный баланс&nbsp;в&nbsp;ЛК:</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Статус</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Дата&nbsp;создания</th>
-              <th class="border-b border-[rgba(0,0,0,0.05)] px-[10px] pb-[10px] text-left align-middle font-normal dark:border-white/10">Действия</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Проект</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Интеграции</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Показы</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Клики</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Расходы</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Лиды</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">CPC</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">CPA</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Актуальный баланс&nbsp;в&nbsp;ЛК:</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Статус</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Дата&nbsp;создания</th>
+              <th class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] pb-[0.6944rem] text-left align-middle font-normal dark:border-white/10">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -133,71 +133,71 @@
               :key="project.id"
               class="text-[#444] transition hover:bg-[#f8fafc] dark:text-white dark:hover:bg-white/5"
             >
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
-                <label class="ml-[15px] flex h-5 w-5 cursor-pointer items-center justify-center">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
+                <label class="ml-[1.0417rem] flex h-5 w-5 cursor-pointer items-center justify-center">
                   <input type="checkbox" class="peer sr-only" :checked="selectedProjectIds.includes(project.id)" @change="toggleProjectRow(project.id)" />
-                  <span class="relative inline-block h-5 w-5 rounded-[3px] border border-[#f5f7f9] bg-[#f5f7f9] transition duration-300 peer-focus:shadow-[0_0_0_1px_rgba(0,123,255,1)] peer-checked:border-[#2563eb] peer-checked:[&>svg]:opacity-100 dark:border-white/15 dark:bg-white/10">
-                    <svg class="absolute left-1/2 top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 fill-[#2563eb] opacity-0 transition duration-300" viewBox="0 0 12 10">
+                  <span class="relative inline-block h-5 w-5 rounded-[0.2083rem] border border-[#f5f7f9] bg-[#f5f7f9] transition duration-300 peer-focus:shadow-[0_0_0_1px_rgba(0,123,255,1)] peer-checked:border-[#2563eb] peer-checked:[&>svg]:opacity-100 dark:border-white/15 dark:bg-white/10">
+                    <svg class="absolute left-1/2 top-1/2 h-[0.625rem] w-[0.625rem] -translate-x-1/2 -translate-y-1/2 fill-[#2563eb] opacity-0 transition duration-300" viewBox="0 0 12 10">
                       <path d="M4.2 9.2.4 5.4l1.4-1.4 2.4 2.4L10.2.3l1.4 1.4-7.4 7.5Z" />
                     </svg>
                   </span>
                 </label>
               </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <div class="flex items-center">
-                  <div class="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9]">
+                  <div class="flex h-[2.0833rem] w-[2.0833rem] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9]">
                     <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="" />
                   </div>
-                  <div class="pl-[15px]">
-                    <h4 class="mb-[5px] text-[13px] font-normal leading-[130%] text-[#696969] dark:text-white">{{ project.name }}</h4>
-                    <p class="text-[11px] leading-none text-[rgba(105,105,105,0.56)] dark:text-white/45">ID:&nbsp;{{ shortId(project.id) }}</p>
+                  <div class="pl-[1.0417rem]">
+                    <h4 class="mb-[0.3472rem] text-[0.9028rem] font-normal leading-[130%] text-[#696969] dark:text-white">{{ project.name }}</h4>
+                    <p class="text-[0.7639rem] leading-none text-[rgba(105,105,105,0.56)] dark:text-white/45">ID:&nbsp;{{ shortId(project.id) }}</p>
                   </div>
                 </div>
               </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <div class="flex items-center gap-2">
                   <img v-if="hasPlatform(project, 'YANDEX')" width="22" src="/admirra/img/icons/yandex-direct.png" alt="Yandex" />
                   <img v-if="hasPlatform(project, 'VK')" width="22" src="/admirra/img/icons/vk-ads.png" alt="VK" />
-                  <span v-if="!project.integrations?.length" class="text-[13px] text-gray-400">—</span>
+                  <span v-if="!project.integrations?.length" class="text-[0.9028rem] text-gray-400">—</span>
                 </div>
               </td>
               <td
                 v-for="cell in metricCells(project)"
                 :key="cell.key"
-                class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10"
+                class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10"
               >
-                <div :class="['mb-[5px] text-[15px] leading-[130%]', cell.bold ? 'font-bold' : 'font-normal']">{{ cell.value }}</div>
+                <div :class="['mb-[0.3472rem] text-[1.0417rem] leading-[130%]', cell.bold ? 'font-bold' : 'font-normal']">{{ cell.value }}</div>
                 <div :class="trendBadgeClass(getProjectMetric(project.id), cell.key)">
                   <span class="font-semibold">{{ trendText(getProjectMetric(project.id), cell.key) }}</span>
                 </div>
               </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <div :class="balanceCardClass(project)">
                   <div class="flex h-full items-center justify-center">
                     <img width="18" :src="balancePlatform(project).icon" :alt="balancePlatform(project).label" />
-                    <div :class="['px-[10px] text-[13px]', balancePlatform(project).textClass]">{{ balancePlatform(project).label }}</div>
-                    <div :class="['inline-flex min-h-[22px] items-center rounded-full bg-white px-[8px] text-center text-[11px] dark:bg-white/10', balancePlatform(project).textClass]">
+                    <div :class="['px-[0.6944rem] text-[0.9028rem]', balancePlatform(project).textClass]">{{ balancePlatform(project).label }}</div>
+                    <div :class="['inline-flex min-h-[1.5278rem] items-center rounded-full bg-white px-[0.5556rem] text-center text-[0.7639rem] dark:bg-white/10', balancePlatform(project).textClass]">
                       {{ formatMoney(getProjectMetric(project.id).balance) }}
                     </div>
                   </div>
                 </div>
               </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <span :class="statusBadgeClass(project)">
                   {{ project.integrations?.some(i => i.is_active) ? 'Активен' : 'Неактивен' }}
                 </span>
               </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
-                <div class="text-[15px] leading-[130%]">{{ formatDate(project.created_at || project.createdAt) }}</div>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
+                <div class="text-[1.0417rem] leading-[130%]">{{ formatDate(project.created_at || project.createdAt) }}</div>
               </td>
-              <td class="relative border-b border-[rgba(0,0,0,0.05)] px-[10px] py-[30px] align-middle dark:border-white/10">
+              <td class="relative border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <button
                   type="button"
-                  class="relative h-[25px] w-[32px] rounded-[3px] bg-[#f5f7f9]/60 transition hover:bg-[#ecf3fe] dark:bg-white/10"
+                  class="relative h-[1.7361rem] w-[2.2222rem] rounded-[0.2083rem] bg-[#f5f7f9]/60 transition hover:bg-[#ecf3fe] dark:bg-white/10"
                   @click.stop="toggleActionMenu(project, $event)"
                   aria-label="Действия"
                 >
-                  <svg class="absolute left-1/2 top-1/2 h-[5px] w-[19px] -translate-x-1/2 -translate-y-1/2 fill-[#d9d9d9]" viewBox="0 0 19 5">
+                  <svg class="absolute left-1/2 top-1/2 h-[0.3472rem] w-[1.3194rem] -translate-x-1/2 -translate-y-1/2 fill-[#d9d9d9]" viewBox="0 0 19 5">
                     <circle cx="2.5" cy="2.5" r="2.5" />
                     <circle cx="9.5" cy="2.5" r="2.5" />
                     <circle cx="16.5" cy="2.5" r="2.5" />
@@ -208,18 +208,18 @@
           </tbody>
         </table>
       </div>
-      <div class="relative flex min-h-[70px] flex-col gap-3 px-[20px] pt-[24px] sm:flex-row sm:items-end sm:px-[30px] sm:pt-[30px]">
-        <div class="min-w-0 pb-[15px]">
-          <div class="mb-[10px] text-[13px] font-medium leading-[130%] text-[#696969] dark:text-white/70">Элементов на&nbsp;странице:</div>
+      <div class="relative flex min-h-[4.8611rem] flex-col gap-3 px-[1.3889rem] pt-[1.6667rem] sm:flex-row sm:items-end sm:px-[2.0833rem] sm:pt-[2.0833rem]">
+        <div class="min-w-0 pb-[1.0417rem]">
+          <div class="mb-[0.6944rem] text-[0.9028rem] font-medium leading-[130%] text-[#696969] dark:text-white/70">Элементов на&nbsp;странице:</div>
           <div class="relative inline-block">
             <button
               type="button"
-              class="inline-flex min-h-[30px] items-center rounded-[6px] border border-[rgba(168,169,170,0.32)] bg-transparent px-[12px] py-[5px] text-[13px] font-medium leading-[130%] text-[rgba(105,105,105,0.6)] transition duration-200 focus:border-black/10 focus:outline-none dark:text-white/60"
+              class="inline-flex min-h-[2.0833rem] items-center rounded-[0.4167rem] border border-[rgba(168,169,170,0.32)] bg-transparent px-[0.8333rem] py-[0.3472rem] text-[0.9028rem] font-medium leading-[130%] text-[rgba(105,105,105,0.6)] transition duration-200 focus:border-black/10 focus:outline-none dark:text-white/60"
               @click="toggleSelect('pageSize')"
             >
               <span>{{ itemsPerPage }}</span>
-              <span :class="['ml-[12px] flex shrink-0 items-center justify-center transition-transform duration-300', openSelect === 'pageSize' ? 'rotate-180' : '']">
-                <svg class="h-[9px] w-[9px] fill-[rgba(105,105,105,0.6)] dark:fill-white/60" viewBox="0 0 10 6">
+              <span :class="['ml-[0.8333rem] flex shrink-0 items-center justify-center transition-transform duration-300', openSelect === 'pageSize' ? 'rotate-180' : '']">
+                <svg class="h-[0.625rem] w-[0.625rem] fill-[rgba(105,105,105,0.6)] dark:fill-white/60" viewBox="0 0 10 6">
                   <path d="M5 6 0 0h10L5 6Z" />
                 </svg>
               </span>
@@ -238,14 +238,14 @@
           </div>
         </div>
 
-        <div class="order-3 py-[5px] text-center text-[13px] font-medium leading-[130%] text-[#696969] dark:text-white/70 sm:absolute sm:bottom-0 sm:left-1/2 sm:order-none sm:-translate-x-1/2 sm:py-[15px]">
+        <div class="order-3 py-[0.3472rem] text-center text-[0.9028rem] font-medium leading-[130%] text-[#696969] dark:text-white/70 sm:absolute sm:bottom-0 sm:left-1/2 sm:order-none sm:-translate-x-1/2 sm:py-[1.0417rem]">
           {{ paginationStart }}-{{ paginationEnd }} из {{ filteredProjects.length }}
         </div>
 
-        <div class="flex pb-[15px] sm:ml-auto">
+        <div class="flex pb-[1.0417rem] sm:ml-auto">
           <button
             type="button"
-            class="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[6px] border border-[rgba(168,169,170,0.32)] text-[rgba(105,105,105,0.56)] transition duration-300 hover:border-[#1f9de4] hover:text-[#1f9de4]"
+            class="inline-flex h-[2.0833rem] w-[2.0833rem] items-center justify-center rounded-[0.4167rem] border border-[rgba(168,169,170,0.32)] text-[rgba(105,105,105,0.56)] transition duration-300 hover:border-[#1f9de4] hover:text-[#1f9de4]"
             aria-label="Предыдущая страница"
             @click="currentPage = Math.max(1, currentPage - 1)"
           >
@@ -253,10 +253,10 @@
               <path d="M5.7.7 2.4 4l3.3 3.3-1 1L.4 4 4.7-.3l1 1Z" />
             </svg>
           </button>
-          <span class="w-[4px]"></span>
+          <span class="w-[0.2778rem]"></span>
           <button
             type="button"
-            class="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[6px] border border-[rgba(168,169,170,0.32)] text-[rgba(105,105,105,0.56)] transition duration-300 hover:border-[#1f9de4] hover:text-[#1f9de4]"
+            class="inline-flex h-[2.0833rem] w-[2.0833rem] items-center justify-center rounded-[0.4167rem] border border-[rgba(168,169,170,0.32)] text-[rgba(105,105,105,0.56)] transition duration-300 hover:border-[#1f9de4] hover:text-[#1f9de4]"
             aria-label="Следующая страница"
             @click="currentPage = Math.min(totalPages, currentPage + 1)"
           >
@@ -270,25 +270,25 @@
 
     <div
       v-if="activeActionProject"
-      class="fixed z-[1200] w-[220px] rounded-[12px] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D] dark:shadow-[0_8px_32px_rgba(0,0,0,0.40),inset_0_1px_0_rgba(255,255,255,0.08)]"
+      class="fixed z-[1200] w-[15.2778rem] rounded-[0.8333rem] bg-white py-3 shadow-[0_0_15px_rgba(0,0,0,.1)] dark:bg-[#2C2F3D] dark:shadow-[0_8px_32px_rgba(0,0,0,0.40),inset_0_1px_0_rgba(255,255,255,0.08)]"
       :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
       @click.stop
     >
-      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="openProject(activeActionProject)">
-        <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
-          <svg class="h-[14px] w-[18px] fill-none stroke-current" viewBox="0 0 24 18" stroke-width="1.7"><path d="M1.5 9s3.8-7 10.5-7 10.5 7 10.5 7-3.8 7-10.5 7S1.5 9 1.5 9Z"/><circle cx="12" cy="9" r="3"/></svg>
+      <button class="flex min-h-[2.9861rem] w-full items-center px-[1.0417rem] text-left text-[0.9722rem] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="openProject(activeActionProject)">
+        <span class="mr-3 flex w-[2.0833rem] justify-center text-[#2563eb]">
+          <svg class="h-[0.9722rem] w-[1.25rem] fill-none stroke-current" viewBox="0 0 24 18" stroke-width="1.7"><path d="M1.5 9s3.8-7 10.5-7 10.5 7 10.5 7-3.8 7-10.5 7S1.5 9 1.5 9Z"/><circle cx="12" cy="9" r="3"/></svg>
         </span>
         Просмотр
       </button>
-      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="editProject(activeActionProject)">
-        <span class="mr-3 flex w-[30px] justify-center text-[#2563eb]">
-          <svg class="h-[18px] w-[18px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
+      <button class="flex min-h-[2.9861rem] w-full items-center px-[1.0417rem] text-left text-[0.9722rem] text-[#444] transition hover:bg-[#f5f7f9] dark:text-white dark:hover:bg-white/10" @click="editProject(activeActionProject)">
+        <span class="mr-3 flex w-[2.0833rem] justify-center text-[#2563eb]">
+          <svg class="h-[1.25rem] w-[1.25rem] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z"/></svg>
         </span>
         Редактировать
       </button>
-      <button class="flex min-h-[43px] w-full items-center px-[15px] text-left text-[14px] text-[#ec3434] transition hover:bg-[#fff0f1] dark:hover:bg-white/10" @click="requestDeleteProject(activeActionProject)">
-        <span class="mr-3 flex w-[30px] justify-center">
-          <svg class="h-[17px] w-[17px] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
+      <button class="flex min-h-[2.9861rem] w-full items-center px-[1.0417rem] text-left text-[0.9722rem] text-[#ec3434] transition hover:bg-[#fff0f1] dark:hover:bg-white/10" @click="requestDeleteProject(activeActionProject)">
+        <span class="mr-3 flex w-[2.0833rem] justify-center">
+          <svg class="h-[1.1806rem] w-[1.1806rem] fill-none stroke-current" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>
         </span>
         Удалить
       </button>
@@ -300,27 +300,27 @@
       class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center p-4"
       @click.self="massEditOpen = false"
     >
-      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[480px] border border-black/5 dark:border-white/10">
-        <h4 class="text-[18px] font-bold text-gray-800 dark:text-gray-100 mb-2">Массовое редактирование</h4>
-        <p class="text-[14px] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
-        <ul class="text-[13px] text-gray-400 mb-3 pl-4 list-disc">
+      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[33.3333rem] border border-black/5 dark:border-white/10">
+        <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-2">Массовое редактирование</h4>
+        <p class="text-[0.9722rem] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
+        <ul class="text-[0.9028rem] text-gray-400 mb-3 pl-4 list-disc">
           <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
         </ul>
         <textarea
           v-model="massEditDescription"
-          class="w-full min-h-[96px] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[14px] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
+          class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
           rows="4"
           placeholder="Описание проекта"
         />
         <div class="flex flex-wrap gap-3">
           <button
-            class="h-[44px] px-5 rounded-xl bg-[#2563eb] text-white text-[14px] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
+            class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
             type="button"
             :disabled="massSaving"
             @click="applyMassDescription"
           >{{ massSaving ? 'Сохранение...' : 'Применить описание' }}</button>
           <button
-            class="h-[44px] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[14px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
+            class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             type="button"
             :disabled="massSaving"
             @click="massEditOpen = false"
@@ -334,17 +334,17 @@
       v-if="deleteTarget"
       class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center p-4"
     >
-      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[400px] border border-black/5 dark:border-white/10">
-        <h4 class="text-[18px] font-bold text-gray-800 dark:text-gray-100 mb-3">Удалить проект?</h4>
-        <p class="text-[14px] text-gray-400 mb-5">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
+      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[27.7778rem] border border-black/5 dark:border-white/10">
+        <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-3">Удалить проект?</h4>
+        <p class="text-[0.9722rem] text-gray-400 mb-5">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
         <div class="flex gap-3">
           <button
-            class="h-[44px] px-5 rounded-xl bg-[#2563eb] text-white text-[14px] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
+            class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
             :disabled="deleting"
             @click="doDelete"
           >{{ deleting ? 'Удаление...' : 'Удалить' }}</button>
           <button
-            class="h-[44px] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[14px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+            class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
             @click="deleteTarget = null"
           >Отмена</button>
         </div>
@@ -414,26 +414,26 @@ const closeSelect = (name) => {
 }
 
 const selectDropdownClass = (name) => [
-  'absolute left-0 top-full z-30 mt-1 flex min-w-[230px] origin-top flex-col overflow-hidden rounded-[8px] bg-white p-0 shadow-[0_0_0_1px_rgba(68,68,68,.1)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(.5,0,0,1.25)] dark:bg-[#3a3c49]',
+  'absolute left-0 top-full z-30 mt-1 flex min-w-[15.9722rem] origin-top flex-col overflow-hidden rounded-[0.5556rem] bg-white p-0 shadow-[0_0_0_1px_rgba(68,68,68,.1)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(.5,0,0,1.25)] dark:bg-[#3a3c49]',
   openSelect.value === name
     ? 'pointer-events-auto scale-100 translate-y-0 opacity-100'
-    : 'pointer-events-none scale-75 -translate-y-[21px] opacity-0'
+    : 'pointer-events-none scale-75 -translate-y-[1.4583rem] opacity-0'
 ]
 
 const selectOptionClass = (selected) => [
-  'px-[17px] py-3 text-left text-[13px] text-[#696969] transition duration-200 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5',
+  'px-[1.1806rem] py-3 text-left text-[0.9028rem] text-[#696969] transition duration-200 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5',
   selected ? 'bg-[#f5f7f9] font-bold dark:bg-white/5' : 'bg-transparent font-medium'
 ]
 
 const pageSizeDropdownClass = computed(() => [
-  'absolute left-0 top-full z-30 mt-1 flex min-w-full origin-top flex-col overflow-hidden rounded-[8px] bg-white p-0 shadow-[0_0_0_1px_rgba(68,68,68,.1)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(.5,0,0,1.25)] dark:bg-[#3a3c49]',
+  'absolute left-0 top-full z-30 mt-1 flex min-w-full origin-top flex-col overflow-hidden rounded-[0.5556rem] bg-white p-0 shadow-[0_0_0_1px_rgba(68,68,68,.1)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(.5,0,0,1.25)] dark:bg-[#3a3c49]',
   openSelect.value === 'pageSize'
     ? 'pointer-events-auto scale-100 translate-y-0 opacity-100'
-    : 'pointer-events-none scale-75 -translate-y-[21px] opacity-0'
+    : 'pointer-events-none scale-75 -translate-y-[1.4583rem] opacity-0'
 ])
 
 const pageSizeOptionClass = (selected) => [
-  'px-[12px] py-2 text-left text-[13px] text-[rgba(105,105,105,0.6)] transition duration-200 hover:bg-[#f5f7f9] dark:text-white/60 dark:hover:bg-white/5',
+  'px-[0.8333rem] py-2 text-left text-[0.9028rem] text-[rgba(105,105,105,0.6)] transition duration-200 hover:bg-[#f5f7f9] dark:text-white/60 dark:hover:bg-white/5',
   selected ? 'bg-[#f5f7f9] font-bold dark:bg-white/5' : 'bg-transparent font-medium'
 ]
 
@@ -605,7 +605,7 @@ const shortId = (id) => {
 const trendBadgeClass = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
   return [
-    'inline-flex items-center gap-1 rounded-[3px] px-[6px] py-0 text-[11px] font-bold leading-[130%]',
+    'inline-flex items-center gap-1 rounded-[0.2083rem] px-[0.4167rem] py-0 text-[0.7639rem] font-bold leading-[130%]',
     trend < 0
       ? 'bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-300'
       : 'bg-[#00ff4e]/10 text-[#16a34a] dark:bg-[#00ff4e]/15 dark:text-[#5ee886]'
@@ -613,7 +613,7 @@ const trendBadgeClass = (metric, key) => {
 }
 
 const statusBadgeClass = (project) => [
-  'inline-flex min-h-[20px] items-center rounded-[3px] px-[6px] py-[6px] text-[11px] font-bold leading-[130%]',
+  'inline-flex min-h-[1.3889rem] items-center rounded-[0.2083rem] px-[0.4167rem] py-[0.4167rem] text-[0.7639rem] font-bold leading-[130%]',
   project.integrations?.some(i => i.is_active)
     ? 'bg-[#00ff4e]/10 text-[#16a34a] dark:bg-[#00ff4e]/15 dark:text-[#5ee886]'
     : 'bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-300'
@@ -640,7 +640,7 @@ const balancePlatform = (project) => {
 
 const balanceCardClass = (project) => {
   const platform = balancePlatform(project)
-  return ['h-full rounded-[12px] p-[10px]', platform.cardClass, platform.darkCardClass]
+  return ['h-full rounded-[0.8333rem] p-[0.6944rem]', platform.cardClass, platform.darkCardClass]
 }
 
 const formatDate = (value) => {
@@ -769,14 +769,14 @@ onUnmounted(() => {
 .cs-head {
   display: inline-flex;
   align-items: center;
-  min-height: 46px;
-  padding: 8px 17px;
-  font-size: 13px;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.4);
   background-color: #fff;
   border: 1px solid transparent;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   cursor: pointer;
   outline: none;
   transition: border-color 0.2s;
@@ -789,15 +789,15 @@ onUnmounted(() => {
 }
 
 .cs-current {
-  margin-right: 25px;
+  margin-right: 1.7361rem;
 }
 
 .cs-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background-color: #f5f7f9;
   border-radius: 50%;
   flex-shrink: 0;
@@ -810,7 +810,7 @@ onUnmounted(() => {
 
 .cs-list {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.2778rem);
   left: 0;
   z-index: 99;
   display: flex;
@@ -819,11 +819,11 @@ onUnmounted(() => {
   overflow: hidden;
   padding: 0;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.75) translateY(-21px);
+  transform: scale(0.75) translateY(-1.4583rem);
   transform-origin: 50% 0;
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
@@ -835,8 +835,8 @@ onUnmounted(() => {
 }
 
 .cs-option {
-  padding: 12px 25px 12px 17px;
-  font-size: 13px;
+  padding: 0.8333rem 1.7361rem 0.8333rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 400;
   color: rgba(0, 0, 0, 0.7);
   text-align: left;
@@ -858,21 +858,21 @@ onUnmounted(() => {
 }
 
 .search-input {
-  width: 354px;
-  height: 46px;
-  padding: 0 45px 0 17px;
-  font-size: 13px;
+  width: 24.5833rem;
+  height: 3.1944rem;
+  padding: 0 3.125rem 0 1.1806rem;
+  font-size: 0.9028rem;
   color: #2c2c2c;
   background-color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.5s;
 }
 
 .search-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 10px rgba(37, 99, 235, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 0.6944rem rgba(37, 99, 235, 0.15);
 }
 
 .search-input::placeholder {
@@ -881,11 +881,11 @@ onUnmounted(() => {
 
 .search-icon-circle {
   position: absolute;
-  right: 17px;
+  right: 1.1806rem;
   top: 50%;
   display: flex;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   align-items: center;
   justify-content: center;
   background-color: #f5f7f9;
@@ -896,16 +896,16 @@ onUnmounted(() => {
 
 .bulk-btn {
   display: inline-flex;
-  min-height: 46px;
+  min-height: 3.1944rem;
   align-items: center;
-  gap: 10px;
-  padding: 8px 17px;
-  font-size: 13px;
+  gap: 0.6944rem;
+  padding: 0.5556rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: #fff;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   border: none;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   cursor: pointer;
   transition: transform 0.75s;
   white-space: nowrap;
@@ -922,25 +922,32 @@ onUnmounted(() => {
 
 .bulk-btn__icon {
   display: flex;
-  width: 22px;
-  height: 22px;
+  width: 1.5278rem;
+  height: 1.5278rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border-radius: 0.4167rem;
+  color: #fff;
+}
+
+.bulk-btn__icon svg {
+  display: block;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 .view-btn {
   display: flex;
-  width: 46px;
-  height: 46px;
+  width: 3.1944rem;
+  height: 3.1944rem;
   align-items: center;
   justify-content: center;
   color: #c9c9c9;
   background-color: transparent;
   border: 0;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   cursor: pointer;
   transition: color 0.3s, background-color 0.3s;
 }
@@ -1008,7 +1015,7 @@ onUnmounted(() => {
 
 :global(.dark) .search-input:focus,
 :global(.darkmode) .search-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(74, 122, 255, 0.34), 0 0 10px rgba(37, 99, 235, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(74, 122, 255, 0.34), 0 0 0.6944rem rgba(37, 99, 235, 0.18);
 }
 
 :global(.dark) .view-btn,
@@ -1031,7 +1038,7 @@ onUnmounted(() => {
 .project-search::placeholder {
   color: #ababab !important;
   -webkit-text-fill-color: #ababab !important;
-  font: 400 13px/130% Inter, sans-serif;
+  font: 400 0.9028rem/130% Inter, sans-serif;
   opacity: 1;
   transition: color 0.5s;
 }

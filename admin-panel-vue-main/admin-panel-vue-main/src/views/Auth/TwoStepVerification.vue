@@ -87,7 +87,7 @@
               </p>
             </div>
             <div class="flex items-end justify-end mt-auto">
-              <img :src="loginImage" alt="Illustration" class="h-[500px] sm:h-[600px] w-auto max-w-full object-contain object-right-bottom" />
+              <img :src="loginImage" alt="Illustration" class="h-[34.7222rem] sm:h-[41.6667rem] w-auto max-w-full object-contain object-right-bottom" />
             </div>
           </div>
         </div>

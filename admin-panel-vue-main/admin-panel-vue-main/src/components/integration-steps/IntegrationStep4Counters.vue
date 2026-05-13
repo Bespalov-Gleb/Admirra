@@ -13,8 +13,8 @@
       <!-- Header -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
         <div>
-          <label class="block text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">СЧЕТЧИКИ МЕТРИКИ</label>
-          <p class="text-[11px] text-gray-500 font-bold">Выберите счетчики, для которых нужно отслеживать цели</p>
+          <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">СЧЕТЧИКИ МЕТРИКИ</label>
+          <p class="text-[0.7639rem] text-gray-500 font-bold">Выберите счетчики, для которых нужно отслеживать цели</p>
         </div>
       </div>
 
@@ -33,9 +33,9 @@
                   <div v-else-if="isAnySelected" class="w-2 h-0.5 bg-gray-400 rounded-full"></div>
                 </div>
               </th>
-              <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Название счетчика</th>
-              <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Сайт</th>
-              <th class="px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Источник</th>
+              <th class="px-4 py-4 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Название счетчика</th>
+              <th class="px-4 py-4 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Сайт</th>
+              <th class="px-4 py-4 text-[0.6944rem] font-black text-gray-400 uppercase tracking-widest">Источник</th>
             </tr>
           </thead>
           <tbody>
@@ -68,20 +68,20 @@
 
               <td class="px-4 py-4">
                 <div class="flex flex-col">
-                  <span class="text-[13px] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+                  <span class="text-[0.9028rem] font-black text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
                     {{ counter.name }}
                   </span>
-                  <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">ID: {{ counter.id }}</span>
+                  <span class="text-[0.625rem] text-gray-400 font-bold uppercase tracking-wider">ID: {{ counter.id }}</span>
                 </div>
               </td>
 
               <td class="px-4 py-4">
-                <span class="text-[11px] font-bold text-gray-600">{{ counter.site || '—' }}</span>
+                <span class="text-[0.7639rem] font-bold text-gray-600">{{ counter.site || '—' }}</span>
               </td>
 
               <td class="px-4 py-4">
                 <span 
-                  class="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border"
+                  class="px-2.5 py-1 rounded-full text-[0.5556rem] font-black uppercase tracking-widest border"
                   :class="getSourceClass(counter.source)"
                 >
                   {{ formatSource(counter.source) }}

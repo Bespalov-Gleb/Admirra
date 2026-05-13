@@ -1,25 +1,25 @@
 <template>
-  <div class="flex min-h-[calc(100vh-76px)] items-center justify-center p-4 sm:p-8">
-    <div class="w-full max-w-[1036px]">
+  <div class="flex min-h-[calc(100vh-5.2778rem)] items-center justify-center p-4 sm:p-8">
+    <div class="w-full max-w-[71.9444rem]">
 
       <!-- Тёмная карточка -->
-      <div class="relative rounded-[20px] overflow-hidden bg-[#323741] text-white">
+      <div class="relative rounded-[1.3889rem] overflow-hidden bg-[#323741] text-white">
 
         <!-- Паттерн-оверлей (заменяет ::before из CSS) -->
         <div
           class="absolute inset-0 pointer-events-none z-0 opacity-[0.15]"
-          style="background: url('/admirra/img/pattern.png') 30px 0 / 70px"
+          style="background: url('/admirra/img/pattern.png') 2.0833rem 0 / 4.8611rem"
         />
 
         <!-- Блюр-орбы -->
-        <div class="absolute z-0 pointer-events-none" style="left:-150px;top:-260px">
-          <div style="width:492px;height:492px;border-radius:50%;background:rgba(37,99,235,0.34);filter:blur(110px)" />
+        <div class="absolute z-0 pointer-events-none" style="left:-10.4167rem;top:-18.0556rem">
+          <div style="width:34.1667rem;height:34.1667rem;border-radius:50%;background:rgba(37,99,235,0.34);filter:blur(7.6389rem)" />
         </div>
-        <div class="absolute z-0 pointer-events-none" style="right:-100px;bottom:-290px">
-          <div style="width:492px;height:492px;border-radius:50%;background:rgba(37,99,235,0.34);filter:blur(110px)" />
+        <div class="absolute z-0 pointer-events-none" style="right:-6.9444rem;bottom:-20.1389rem">
+          <div style="width:34.1667rem;height:34.1667rem;border-radius:50%;background:rgba(37,99,235,0.34);filter:blur(7.6389rem)" />
         </div>
-        <div class="absolute z-0 pointer-events-none" style="left:calc(50% - 50px);top:-170px">
-          <div style="width:222px;height:222px;border-radius:50%;background:rgba(37,99,235,0.38);filter:blur(110px)" />
+        <div class="absolute z-0 pointer-events-none" style="left:calc(50% - 3.4722rem);top:-11.8056rem">
+          <div style="width:15.4167rem;height:15.4167rem;border-radius:50%;background:rgba(37,99,235,0.38);filter:blur(7.6389rem)" />
         </div>
 
         <!-- Контент поверх орбов -->
@@ -27,16 +27,16 @@
 
           <!-- Форма -->
           <form
-            class="flex flex-col flex-1 min-w-0 p-6 sm:p-[40px]"
-            style="row-gap:17px"
+            class="flex flex-col flex-1 min-w-0 p-6 sm:p-[2.7778rem]"
+            style="row-gap:1.1806rem"
             @submit.prevent="handleSubmit"
           >
-            <h3 class="text-[24px] leading-[1.2] font-semibold text-white sm:text-[30px]">
+            <h3 class="text-[1.6667rem] leading-[1.2] font-semibold text-white sm:text-[2.0833rem]">
               <span class="font-light">Для начала работы,</span><br />
               необходимо создать проект
             </h3>
 
-            <p class="text-[15px] leading-[1.35] text-white/90">
+            <p class="text-[1.0417rem] leading-[1.35] text-white/90">
               В рамках проекта доступна выгрузка статистики рекламных кампаний и&nbsp;детальный анализ показателей с&nbsp;использованием
               <strong class="font-medium bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">AI-ассистентов</strong>
             </p>
@@ -51,15 +51,15 @@
               />
             </div>
 
-            <p v-if="errorMsg" class="text-[13px] text-red-300">{{ errorMsg }}</p>
+            <p v-if="errorMsg" class="text-[0.9028rem] text-red-300">{{ errorMsg }}</p>
 
             <div>
               <button type="submit" :disabled="loading" class="create-btn">
-                <span class="relative z-[1] flex items-center gap-[10px]">
+                <span class="relative z-[1] flex items-center gap-[0.6944rem]">
                   {{ loading ? 'Создание...' : 'Создать проект' }}
                   <span
                     v-if="!loading"
-                    class="grid h-[15px] w-[15px] place-items-center rounded-full bg-black/20 text-[10px] font-medium leading-none"
+                    class="grid h-[1.0417rem] w-[1.0417rem] place-items-center rounded-full bg-black/20 text-[0.6944rem] font-medium leading-none"
                   ><span class="-translate-y-px">+</span></span>
                 </span>
               </button>
@@ -67,7 +67,7 @@
           </form>
 
           <!-- Иллюстрация (лиса) -->
-          <div class="mx-auto w-full max-w-[320px] flex-shrink-0 sm:max-w-[407px] lg:mx-0">
+          <div class="mx-auto w-full max-w-[22.2222rem] flex-shrink-0 sm:max-w-[28.2639rem] lg:mx-0">
             <img
               src="/admirra/img/fox/welcome-create.png"
               alt="Создание проекта"
@@ -117,13 +117,13 @@ const handleSubmit = async () => {
 .create-input {
   display: block;
   width: 100%;
-  height: 46px;
-  padding: 0 17px;
-  font-size: 13px;
+  height: 3.1944rem;
+  padding: 0 1.1806rem;
+  font-size: 0.9028rem;
   color: #fff;
   caret-color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   background: linear-gradient(to right, #3c465c, #3e3f44);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
@@ -134,7 +134,7 @@ const handleSubmit = async () => {
 }
 .create-input:focus {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35),
-              0 0 10px rgba(37, 99, 235, 0.5);
+              0 0 0.6944rem rgba(37, 99, 235, 0.5);
 }
 .create-input:focus::placeholder {
   color: rgba(255, 255, 255, 0.2);
@@ -146,14 +146,14 @@ const handleSubmit = async () => {
   width: 100%;
   align-items: center;
   justify-content: center;
-  height: 46px;
-  padding: 0 17px;
-  font-size: 13px;
+  height: 3.1944rem;
+  padding: 0 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1.1;
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -164,7 +164,7 @@ const handleSubmit = async () => {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   background: linear-gradient(270deg, #38e1ff 0.35%, #4abeff 32.08%, #5187ff 96.51%);
   opacity: 0;
   transition: opacity 1s;

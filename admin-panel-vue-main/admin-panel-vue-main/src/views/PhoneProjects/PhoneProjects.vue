@@ -1,9 +1,9 @@
 <template>
   <div class="space-y-6 overflow-x-hidden w-full">
     <!-- Заголовок с кнопкой создания -->
-    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm transition-all hover:shadow-md">
+    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 py-5 px-6 sm:px-8 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm transition-all hover:shadow-md">
       <div class="min-w-0 flex-shrink-0">
-        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
+        <label class="text-[0.625rem] font-black text-gray-400 uppercase tracking-widest ml-1 opacity-70">
           Телефония
         </label>
         <div class="flex items-center gap-3 mt-0.5">
@@ -16,7 +16,7 @@
             </h1>
             <div class="flex items-center gap-1.5 mt-0.5">
               <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
-              <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider truncate">
+              <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
                 Управление проектами для валидации телефонов
               </p>
             </div>
@@ -36,7 +36,7 @@
 
     <!-- Список проектов -->
     <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div v-for="i in 3" :key="i" class="bg-white rounded-[40px] p-8 animate-pulse">
+      <div v-for="i in 3" :key="i" class="bg-white rounded-[2.7778rem] p-8 animate-pulse">
         <div class="h-6 bg-gray-200 rounded-lg mb-4"></div>
         <div class="h-4 bg-gray-200 rounded-lg mb-6"></div>
         <div class="space-y-3">
@@ -46,7 +46,7 @@
       </div>
     </div>
 
-    <div v-else-if="projects.length === 0" class="text-center py-16 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/80 shadow-sm">
+    <div v-else-if="projects.length === 0" class="text-center py-16 bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm">
       <div class="w-20 h-20 mx-auto mb-6 bg-blue-100 rounded-full flex items-center justify-center">
         <PhoneIcon class="w-10 h-10 text-blue-600" />
       </div>
@@ -65,7 +65,7 @@
       <div
         v-for="project in projects"
         :key="project.id"
-        class="bg-white rounded-[40px] border border-gray-100 shadow-sm hover:shadow-md transition-all p-8"
+        class="bg-white rounded-[2.7778rem] border border-gray-100 shadow-sm hover:shadow-md transition-all p-8"
       >
         <div class="flex items-start justify-between mb-6">
           <div class="flex-1 min-w-0">
@@ -150,7 +150,7 @@
       class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       @click.self="closeModal"
     >
-      <div class="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-[2.2222rem] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-8">
           <div class="flex items-center justify-between mb-6">
             <div>
@@ -343,7 +343,7 @@
       class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       @click.self="viewingProject = null"
     >
-      <div class="bg-white rounded-[32px] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-[2.2222rem] shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-8">
           <div class="flex items-center justify-between mb-6">
             <div>
@@ -581,7 +581,7 @@
       class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
       @click.self="closeLeadDetails"
     >
-      <div class="bg-white rounded-[28px] shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-[1.9444rem] shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div class="p-6 sm:p-8">
           <div class="flex items-center justify-between mb-4">
             <div>

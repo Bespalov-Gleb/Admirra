@@ -83,15 +83,43 @@
               <ChevronDownIcon />
             </span>
           </button>
-          <div class="cs-list">
-            <button
-              v-for="option in scheduleOptions"
-              :key="option"
-              type="button"
-              class="cs-option"
-              :class="{ selected: selectedSchedule === option }"
-              @click="selectSchedule(option)"
-            >{{ option }}</button>
+          <div class="cs-list schedule-menu" @click.stop>
+            <div class="schedule-field-group">
+              <span>День отправки</span>
+              <div class="schedule-day-list" role="listbox" aria-label="День отправки">
+                <button
+                  v-for="option in scheduleDayOptions"
+                  :key="option.value"
+                  type="button"
+                  class="schedule-day-option"
+                  :class="{ selected: reportSchedule.day === option.value, 'schedule-day-option--wide': option.value === 'daily' }"
+                  role="option"
+                  :aria-selected="reportSchedule.day === option.value"
+                  @click="setScheduleDay(option.value)"
+                >
+                  <span>{{ option.label }}</span>
+                  <span class="schedule-day-check">
+                    <CheckCircleIcon v-if="reportSchedule.day === option.value" />
+                  </span>
+                </button>
+              </div>
+            </div>
+            <label class="schedule-field-group">
+              <span>Время по МСК</span>
+              <input
+                :value="reportSchedule.time"
+                class="schedule-field"
+                type="text"
+                inputmode="numeric"
+                maxlength="5"
+                placeholder="10:00"
+                @input="updateScheduleTime"
+              />
+            </label>
+            <div class="schedule-actions">
+              <button type="button" class="schedule-secondary" @click="resetReportSchedule">Сбросить</button>
+              <button type="button" class="schedule-primary" @click="saveReportSchedule">Сохранить</button>
+            </div>
           </div>
         </div>
 
@@ -218,8 +246,8 @@
             <strong>{{ metricsMap[key]?.value }}</strong>
           </div>
           <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
-            <ArrowTrendingDownIcon v-if="metricsMap[key]?.negative" class="trend-icon" />
-            <ArrowTrendingUpIcon v-else class="trend-icon" />
+            <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
+            <ArrowTrendingDownIcon v-else class="trend-icon" />
             {{ metricsMap[key]?.trend }}
           </span>
           <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
@@ -327,12 +355,12 @@
         </div>
         <div v-for="(campaign, index) in campaignRows" :key="index" class="campaign-row" :class="campaign.tint">
           <span>{{ campaign.name }}</span>
-          <span>{{ campaign.cost }} <b>{{ campaign.trendCost }}</b></span>
-          <span>{{ campaign.impressions }} <b>{{ campaign.trendImpressions }}</b></span>
-          <span>{{ campaign.clicks }} <b>{{ campaign.trendClicks }}</b></span>
-          <span>{{ campaign.cpc }} <b class="negative">{{ campaign.trendCpc }}</b></span>
-          <span>{{ campaign.leads }} <b>{{ campaign.trendLeads }}</b></span>
-          <span>{{ campaign.cpa }} <b class="negative">{{ campaign.trendCpa }}</b></span>
+          <span>{{ campaign.cost }} <b :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
+          <span>{{ campaign.impressions }} <b :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
+          <span>{{ campaign.clicks }} <b :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
+          <span>{{ campaign.cpc }} <b :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
+          <span>{{ campaign.leads }} <b :class="{ negative: campaign.trendLeads.negative }"><component :is="campaign.trendLeads.icon" />{{ campaign.trendLeads.text }}</b></span>
+          <span>{{ campaign.cpa }} <b :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b></span>
         </div>
       </div>
     </section>
@@ -400,24 +428,24 @@
     >
       <div
         class="w-full mx-4"
-        style="max-width:448px; border-radius:24px; padding:24px; box-shadow:0 25px 50px rgba(0,0,0,0.35)"
+        style="max-width:31.1111rem; border-radius:1.6667rem; padding:1.6667rem; box-shadow:0 25px 50px rgba(0,0,0,0.35)"
         :style="{ background: isDarkMode ? '#2a2d3c' : '#fff' }"
       >
-        <h3 :style="{ fontSize:'18px', fontWeight:600, color: isDarkMode ? '#f3f4f6' : '#111827', marginBottom:'8px' }">
+        <h3 :style="{ fontSize:'1.25rem', fontWeight:600, color: isDarkMode ? '#f3f4f6' : '#111827', marginBottom:'0.5556rem' }">
           Подключите Telegram
         </h3>
-        <p :style="{ fontSize:'14px', color: isDarkMode ? 'rgba(255,255,255,0.5)' : '#6b7280', marginBottom:'16px' }">
+        <p :style="{ fontSize:'0.9722rem', color: isDarkMode ? 'rgba(255,255,255,0.5)' : '#6b7280', marginBottom:'1.1111rem' }">
           В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
         </p>
-        <div style="display:flex; gap:12px">
+        <div style="display:flex; gap:0.8333rem">
           <button
             type="button"
-            :style="{ flex:1, padding:'10px', borderRadius:'12px', border:'none', cursor:'pointer', fontSize:'14px', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f3f4f6', color: isDarkMode ? '#f3f4f6' : '#374151' }"
+            :style="{ flex:1, padding:'0.6944rem', borderRadius:'0.8333rem', border:'none', cursor:'pointer', fontSize:'0.9722rem', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f3f4f6', color: isDarkMode ? '#f3f4f6' : '#374151' }"
             @click="closeTgLinkModal"
           >Отмена</button>
           <button
             type="button"
-            style="flex:1; padding:10px; border-radius:12px; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:14px"
+            style="flex:1; padding:0.6944rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
             :disabled="tgLinkChecking"
             @click="confirmTgLinked"
           >{{ tgLinkChecking ? 'Проверка...' : 'Готово' }}</button>
@@ -530,7 +558,9 @@ const metricsMap = computed(() => { const m = {}; metrics.value.forEach(x => { m
 const campaignQuery = ref('')
 const selectedReportChannel = ref('Telegram')
 const selectedReportTemplate = ref('Шаблон: Яндекс')
-const selectedSchedule = ref('Ежедневно в 10:00 по МСК')
+const REPORT_SCHEDULE_STORAGE_KEY = 'admirra:dashboard-report-schedule'
+const defaultReportSchedule = { day: 'daily', time: '10:00' }
+const reportSchedule = ref({ ...defaultReportSchedule })
 const selectedChartPeriod = ref('Месяц')
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
@@ -557,12 +587,6 @@ const closeMenu = (name) => {
 const selectReportTemplate = (option) => {
   selectedReportTemplate.value = option
   closeMenu('report-template')
-}
-
-const selectSchedule = (option) => {
-  selectedSchedule.value = option
-  closeMenu('report-schedule')
-  handleReportSave(option)
 }
 
 const selectFilterChannel = (channel) => {
@@ -626,8 +650,85 @@ const filterChannels = [
 ]
 
 const reportTemplateOptions = ['Шаблон: Яндекс', 'Шаблон: VK Ads']
-const scheduleOptions = ['Ежедневно в 10:00 по МСК', 'Каждый ПН в 10:00 по МСК', 'Каждую ПТ в 18:00 по МСК']
+const scheduleDayOptions = [
+  { value: 'daily', label: 'Ежедневно', short: 'ежедневно' },
+  { value: 'monday', label: 'Понедельник', short: 'ПН' },
+  { value: 'tuesday', label: 'Вторник', short: 'ВТ' },
+  { value: 'wednesday', label: 'Среда', short: 'СР' },
+  { value: 'thursday', label: 'Четверг', short: 'ЧТ' },
+  { value: 'friday', label: 'Пятница', short: 'ПТ' },
+  { value: 'saturday', label: 'Суббота', short: 'СБ' },
+  { value: 'sunday', label: 'Воскресенье', short: 'ВС' },
+]
 const chartPeriodOptions = ['Неделя', 'Месяц', 'Квартал', 'Год']
+
+const normalizeScheduleTime = (value) => {
+  const match = String(value || '').match(/^(\d{2}):(\d{2})$/)
+  if (!match) return defaultReportSchedule.time
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return defaultReportSchedule.time
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+const normalizeReportSchedule = (value = {}) => {
+  const validDays = new Set(scheduleDayOptions.map((option) => option.value))
+  const day = validDays.has(value.day) ? value.day : defaultReportSchedule.day
+  const time = normalizeScheduleTime(value.time)
+  return { day, time }
+}
+
+const formatReportSchedule = (value) => {
+  const schedule = normalizeReportSchedule(value)
+  if (schedule.day === 'daily') return `Ежедневно в ${schedule.time} по МСК`
+  const day = scheduleDayOptions.find((option) => option.value === schedule.day)?.short || 'ПН'
+  return `${day} в ${schedule.time} по МСК`
+}
+
+const selectedSchedule = computed(() => formatReportSchedule(reportSchedule.value))
+
+const readStoredReportSchedule = () => {
+  if (typeof window === 'undefined') return { ...defaultReportSchedule }
+  try {
+    const raw = window.localStorage.getItem(REPORT_SCHEDULE_STORAGE_KEY)
+    return raw ? normalizeReportSchedule(JSON.parse(raw)) : { ...defaultReportSchedule }
+  } catch {
+    return { ...defaultReportSchedule }
+  }
+}
+
+const persistReportSchedule = (value) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(REPORT_SCHEDULE_STORAGE_KEY, JSON.stringify(normalizeReportSchedule(value)))
+}
+
+const updateScheduleTime = (event) => {
+  const digits = String(event.target.value || '').replace(/\D/g, '').slice(0, 4)
+  const value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits
+  reportSchedule.value = { ...reportSchedule.value, time: value }
+}
+
+const setScheduleDay = (day) => {
+  reportSchedule.value = { ...reportSchedule.value, day }
+}
+
+const loadReportSchedule = () => {
+  reportSchedule.value = readStoredReportSchedule()
+}
+
+const saveReportSchedule = () => {
+  const normalized = normalizeReportSchedule(reportSchedule.value)
+  reportSchedule.value = normalized
+  persistReportSchedule(normalized)
+  userReportSettings.value.report_schedule = JSON.stringify(normalized)
+  closeMenu('report-schedule')
+  toaster.success('График отправки сохранен')
+}
+
+const resetReportSchedule = () => {
+  reportSchedule.value = { ...defaultReportSchedule }
+  saveReportSchedule()
+}
 
 const getChipBackground = (item) => (isDarkMode.value ? (item.darkBg ?? item.bg) : item.bg)
 
@@ -668,6 +769,19 @@ const formatTrend = (value) => {
   const num = Number(value)
   if (!Number.isFinite(num)) return '+0%'
   return `${num > 0 ? '+' : ''}${formatNumber(num, 1)}%`
+}
+
+const costTrendMetrics = new Set(['cost', 'cpc', 'cpa'])
+
+const campaignTrend = (value, metric) => {
+  const num = Number(value)
+  const safeNum = Number.isFinite(num) ? num : 0
+  const isCostMetric = costTrendMetrics.has(metric)
+  return {
+    text: formatTrend(safeNum),
+    icon: safeNum >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
+    negative: isCostMetric ? safeNum > 0 : safeNum < 0,
+  }
 }
 
 const selectedChannel = computed(() => filterChannels.find((item) => item.value === filters.channel)?.name || 'Все каналы')
@@ -719,11 +833,13 @@ const metrics = computed(() => {
     cpa:         hasData ? formatMoney(withVat(data.cpa))                        : '—',
   }
   return METRIC_CONFIG.map((metric) => {
-    const trendRaw = Number(trends[metric.key] ?? 0)
+    const rawTrend = Number(trends[metric.key] ?? 0)
+    const trendRaw = Number.isFinite(rawTrend) ? rawTrend : 0
     return {
       ...metric,
       value: values[metric.key],
       trend: hasData ? formatTrend(trendRaw) : null,
+      trendUp: trendRaw >= 0,
       negative: metric.costMetric ? trendRaw > 0 : trendRaw < 0,
       icon: metricIcons[metric.icon] || ChartBarIcon
     }
@@ -838,12 +954,12 @@ const campaignRows = computed(() => {
     cpc: formatMoney(withVat(campaign.cpc)),
     leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
     cpa: formatMoney(withVat(campaign.cpa)),
-    trendCost: formatTrend(campaign.trend_cost ?? 0),
-    trendImpressions: formatTrend(campaign.trend_impressions ?? 0),
-    trendClicks: formatTrend(campaign.trend_clicks ?? 0),
-    trendCpc: formatTrend(campaign.trend_cpc ?? 0),
-    trendLeads: formatTrend(campaign.trend_conversions ?? 0),
-    trendCpa: formatTrend(campaign.trend_cpa ?? 0)
+    trendCost: campaignTrend(campaign.trend_cost, 'cost'),
+    trendImpressions: campaignTrend(campaign.trend_impressions, 'impressions'),
+    trendClicks: campaignTrend(campaign.trend_clicks, 'clicks'),
+    trendCpc: campaignTrend(campaign.trend_cpc, 'cpc'),
+    trendLeads: campaignTrend(campaign.trend_conversions, 'leads'),
+    trendCpa: campaignTrend(campaign.trend_cpa, 'cpa')
   }))
 })
 
@@ -955,16 +1071,6 @@ const refreshUserReportSettings = async () => {
     userReportSettings.value.report_schedule = data.report_schedule || 'mon_10'
   } catch {
     /* ignore */
-  }
-}
-
-const handleReportSave = async (schedule) => {
-  try {
-    await api.patch('/auth/me', { report_schedule: schedule })
-    userReportSettings.value.report_schedule = schedule
-    toaster.success('Расписание сохранено')
-  } catch {
-    toaster.error('Не удалось сохранить расписание')
   }
 }
 
@@ -1184,6 +1290,7 @@ watch(() => filters.channel, (channel) => {
 })
 
 onMounted(() => {
+  loadReportSchedule()
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
@@ -1194,7 +1301,7 @@ onMounted(() => {
 <style scoped>
 .figma-dashboard {
   width: 100%;
-  max-width: 1590px;
+  max-width: 110.4167rem;
   margin: 0 auto;
   padding: 5rem 0 3rem;
   color: #171717;
@@ -1258,7 +1365,7 @@ onMounted(() => {
   justify-content: center;
   width: 1.4rem;
   height: 1.4rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   color: #fff;
 }
 
@@ -1398,33 +1505,33 @@ onMounted(() => {
 }
 
 :global(.calendar-popup) {
-  width: min(560px, calc(100vw - 24px)) !important;
-  max-height: min(520px, calc(100vh - 24px));
+  width: min(38.8889rem, calc(100vw - 1.6667rem)) !important;
+  max-height: min(36.1111rem, calc(100vh - 1.6667rem));
   overflow: auto;
-  padding: 16px !important;
+  padding: 1.1111rem !important;
   border: 1px solid #ebebeb !important;
-  border-radius: 14px !important;
+  border-radius: 0.9722rem !important;
   background: #fff !important;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12) !important;
 }
 
 :global(.calendar-popup .drp-quick-row) {
-  gap: 6px !important;
-  margin: 0 0 14px !important;
-  padding: 0 0 12px !important;
+  gap: 0.4167rem !important;
+  margin: 0 0 0.9722rem !important;
+  padding: 0 0 0.8333rem !important;
   border-bottom: 1px solid #eef0f3 !important;
   align-items: center !important;
 }
 
 :global(.calendar-popup .drp-quick) {
-  height: 28px !important;
+  height: 1.9444rem !important;
   min-height: 0 !important;
-  padding: 0 10px !important;
+  padding: 0 0.6944rem !important;
   border: 1px solid #eef0f3 !important;
-  border-radius: 9px !important;
+  border-radius: 0.625rem !important;
   background: #f7f8fa !important;
   color: #4b5563 !important;
-  font-size: 12px !important;
+  font-size: 0.8333rem !important;
   line-height: 1 !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
@@ -1438,27 +1545,27 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-month-grid) {
-  gap: 22px !important;
+  gap: 1.5278rem !important;
 }
 
 :global(.calendar-popup .drp-month-head) {
-  margin-bottom: 10px !important;
+  margin-bottom: 0.6944rem !important;
 }
 
 :global(.calendar-popup .drp-month-head h3) {
   color: #111827 !important;
-  font-size: 15px !important;
+  font-size: 1.0417rem !important;
   line-height: 1.2 !important;
   font-weight: 700 !important;
   letter-spacing: 0 !important;
 }
 
 :global(.calendar-popup .drp-nav) {
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
+  width: 1.6667rem !important;
+  height: 1.6667rem !important;
+  min-height: 1.6667rem !important;
   padding: 0 !important;
-  border-radius: 999px !important;
+  border-radius: 69.375rem !important;
   color: #4b5563 !important;
   background: transparent !important;
 }
@@ -1468,21 +1575,21 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-nav svg) {
-  width: 14px !important;
-  height: 14px !important;
+  width: 0.9722rem !important;
+  height: 0.9722rem !important;
   color: currentColor !important;
 }
 
 :global(.calendar-popup .drp-weekdays) {
-  gap: 4px !important;
-  margin-bottom: 4px !important;
+  gap: 0.2778rem !important;
+  margin-bottom: 0.2778rem !important;
 }
 
 :global(.calendar-popup .drp-weekday) {
   padding: 0 !important;
   color: #6b7280 !important;
-  font-size: 10px !important;
-  line-height: 20px !important;
+  font-size: 0.6944rem !important;
+  line-height: 1.3889rem !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
   text-transform: lowercase !important;
@@ -1493,17 +1600,17 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-days) {
-  gap: 4px !important;
+  gap: 0.2778rem !important;
 }
 
 :global(.calendar-popup .drp-day) {
-  width: 30px !important;
-  height: 30px !important;
-  min-height: 30px !important;
+  width: 2.0833rem !important;
+  height: 2.0833rem !important;
+  min-height: 2.0833rem !important;
   padding: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 0.5556rem !important;
   border: 0 !important;
-  font-size: 12px !important;
+  font-size: 0.8333rem !important;
   line-height: 1 !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
@@ -1518,7 +1625,7 @@ onMounted(() => {
 :global(.calendar-popup .drp-day.bg-red-500) {
   color: #fff !important;
   background: #2563eb !important;
-  border-radius: 8px !important;
+  border-radius: 0.5556rem !important;
 }
 
 :global(.calendar-popup .drp-day.bg-red-500) {
@@ -1535,17 +1642,17 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-fields) {
-  gap: 10px !important;
-  margin-top: 16px !important;
-  padding-top: 12px !important;
+  gap: 0.6944rem !important;
+  margin-top: 1.1111rem !important;
+  padding-top: 0.8333rem !important;
   border-top: 1px solid #eef0f3 !important;
   align-items: end !important;
 }
 
 :global(.calendar-popup .drp-label) {
-  margin: 0 0 6px !important;
+  margin: 0 0 0.4167rem !important;
   color: #6b7280 !important;
-  font-size: 11px !important;
+  font-size: 0.7639rem !important;
   line-height: 1 !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
@@ -1553,13 +1660,13 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-input) {
-  height: 38px !important;
-  padding: 0 12px !important;
+  height: 2.6389rem !important;
+  padding: 0 0.8333rem !important;
   border: 1px solid #d9dee6 !important;
-  border-radius: 10px !important;
+  border-radius: 0.6944rem !important;
   background: #fff !important;
   color: #374151 !important;
-  font-size: 12px !important;
+  font-size: 0.8333rem !important;
   line-height: 1 !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
@@ -1572,20 +1679,20 @@ onMounted(() => {
 }
 
 :global(.calendar-popup .drp-fields > .text-gray-400) {
-  padding-bottom: 10px !important;
+  padding-bottom: 0.6944rem !important;
   color: #9ca3af !important;
-  font-size: 16px !important;
+  font-size: 1.1111rem !important;
 }
 
 :global(.calendar-popup .drp-apply) {
-  height: 38px !important;
-  min-height: 38px !important;
+  height: 2.6389rem !important;
+  min-height: 2.6389rem !important;
   margin: 0 !important;
-  padding: 0 18px !important;
-  border-radius: 9px !important;
+  padding: 0 1.25rem !important;
+  border-radius: 0.625rem !important;
   background: #2563eb !important;
   color: #fff !important;
-  font-size: 12px !important;
+  font-size: 0.8333rem !important;
   line-height: 1 !important;
   font-weight: 600 !important;
 }
@@ -1670,58 +1777,58 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.84) !important;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   :global(.calendar-popup) {
-    width: min(320px, calc(100vw - 16px)) !important;
-    max-height: calc(100vh - 16px);
-    padding: 14px !important;
+    width: min(22.2222rem, calc(100vw - 1.1111rem)) !important;
+    max-height: calc(100vh - 1.1111rem);
+    padding: 0.9722rem !important;
   }
 
   :global(.calendar-popup .drp-quick-row) {
-    gap: 6px !important;
-    margin-bottom: 12px !important;
-    padding-bottom: 10px !important;
+    gap: 0.4167rem !important;
+    margin-bottom: 0.8333rem !important;
+    padding-bottom: 0.6944rem !important;
   }
 
   :global(.calendar-popup .drp-quick) {
-    height: 28px !important;
-    padding: 0 8px !important;
-    font-size: 11px !important;
+    height: 1.9444rem !important;
+    padding: 0 0.5556rem !important;
+    font-size: 0.7639rem !important;
   }
 
   :global(.calendar-popup .drp-month-grid) {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
+    gap: 1.1111rem !important;
   }
 
   :global(.calendar-popup .drp-month-head h3) {
-    font-size: 15px !important;
+    font-size: 1.0417rem !important;
   }
 
   :global(.calendar-popup .drp-weekdays),
   :global(.calendar-popup .drp-days) {
-    gap: 4px !important;
+    gap: 0.2778rem !important;
   }
 
   :global(.calendar-popup .drp-day) {
-    width: 34px !important;
-    height: 34px !important;
-    min-height: 34px !important;
-    font-size: 12px !important;
-    border-radius: 8px !important;
+    width: 2.3611rem !important;
+    height: 2.3611rem !important;
+    min-height: 2.3611rem !important;
+    font-size: 0.8333rem !important;
+    border-radius: 0.5556rem !important;
   }
 
   :global(.calendar-popup .drp-weekday) {
-    font-size: 10px !important;
-    line-height: 20px !important;
+    font-size: 0.6944rem !important;
+    line-height: 1.3889rem !important;
   }
 
   :global(.calendar-popup .drp-fields) {
     display: grid !important;
     grid-template-columns: 1fr !important;
-    gap: 8px !important;
-    margin-top: 14px !important;
-    padding-top: 12px !important;
+    gap: 0.5556rem !important;
+    margin-top: 0.9722rem !important;
+    padding-top: 0.8333rem !important;
   }
 
   :global(.calendar-popup .drp-fields > .text-gray-400) {
@@ -1729,19 +1836,19 @@ onMounted(() => {
   }
 
   :global(.calendar-popup .drp-label) {
-    font-size: 11px !important;
+    font-size: 0.7639rem !important;
   }
 
   :global(.calendar-popup .drp-input) {
-    height: 38px !important;
-    font-size: 12px !important;
+    height: 2.6389rem !important;
+    font-size: 0.8333rem !important;
   }
 
   :global(.calendar-popup .drp-apply) {
     width: 100% !important;
-    height: 38px !important;
-    margin-top: 4px !important;
-    font-size: 12px !important;
+    height: 2.6389rem !important;
+    margin-top: 0.2778rem !important;
+    font-size: 0.8333rem !important;
   }
 }
 
@@ -1780,10 +1887,10 @@ onMounted(() => {
 .nds-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 1.25rem;
+  height: 1.25rem;
   border: 2px solid #d1d5db;
-  border-radius: 4px;
+  border-radius: 0.2778rem;
   background: #fff;
   cursor: pointer;
   flex-shrink: 0;
@@ -1794,7 +1901,7 @@ onMounted(() => {
   background-color: #2563eb;
   border-color: #2563eb;
   background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
-  background-size: 12px 12px;
+  background-size: 0.8333rem 0.8333rem;
   background-repeat: no-repeat;
   background-position: center;
 }
@@ -1816,13 +1923,13 @@ onMounted(() => {
   border: none;
   padding: 0;
   cursor: pointer;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .report-icon-btn:hover {
   opacity: 0.92;
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
 }
 
 .report-icon-btn:hover .report-icon-circle {
@@ -1842,7 +1949,7 @@ onMounted(() => {
   justify-content: center;
   width: 4.6rem;
   height: 4.6rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: var(--report-bg, #f3f5f7);
   color: #9a9a9a;
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -2051,7 +2158,7 @@ onMounted(() => {
   width: 4rem;
   height: 4rem;
   border: 1px solid #ebebeb;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #fff;
   color: #b3b3b3;
 }
@@ -2201,16 +2308,6 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.trend::before {
-  content: '';
-  width: 1rem;
-  height: 0.7rem;
-  background: currentColor;
-  flex: 0 0 auto;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
 .chart-goals-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 63.2rem;
@@ -2339,7 +2436,7 @@ onMounted(() => {
 .donut {
   width: 100%;
   height: 100%;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: conic-gradient(#3f63f6 0 52%, #f39a72 52% 78%, #6ee7b7 78% 100%);
   -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle, transparent 0 34%, #000 35%);
@@ -2350,7 +2447,7 @@ onMounted(() => {
   position: absolute;
   width: 13.4rem;
   height: 13.4rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #fff;
 }
 
@@ -2384,7 +2481,7 @@ onMounted(() => {
 .goal-item div span {
   width: 0.9rem;
   height: 0.9rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
 }
 
 .goal-item p {
@@ -2453,18 +2550,15 @@ onMounted(() => {
   font-weight: 700;
 }
 
-.campaign-row b::before {
-  content: '';
-  width: 1rem;
-  height: 0.7rem;
-  background: currentColor;
-  flex: 0 0 auto;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg width='10' height='7' viewBox='0 0 10 7' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.46541 0H8.65182C8.88536 0 9.07786 0.167435 9.10414 0.383143L9.10723 0.433724V3.46979C9.10723 3.70934 8.9033 3.90351 8.65182 3.90351C8.41824 3.90351 8.22579 3.7361 8.19946 3.52036L8.19641 3.46979L8.19605 1.48073L4.87515 4.64392C4.71106 4.8002 4.45294 4.8123 4.27428 4.68023L4.23138 4.64419L3.18574 3.65009L0.777484 5.9444C0.599665 6.11381 0.311317 6.11386 0.133438 5.94449C-0.0307561 5.78818 -0.0434257 5.54217 0.0954564 5.37197L0.133333 5.33112L2.86333 2.73029C3.02739 2.57398 3.28556 2.56183 3.46424 2.69395L3.50715 2.72999L4.55281 3.72413L7.55164 0.867448H5.46541C5.23187 0.867448 5.03937 0.700013 5.01309 0.484305L5.00999 0.433724C5.00999 0.211293 5.18583 0.0279709 5.4123 0.002919L5.46541 0Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
 .campaign-row b.negative {
   color: #f02d2d;
+}
+
+.campaign-row b svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
 }
 
 .bottom-grid {
@@ -2615,7 +2709,7 @@ onMounted(() => {
 
 .progress-line div {
   height: 0.5rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #e9e9e9;
   overflow: hidden;
 }
@@ -2623,7 +2717,7 @@ onMounted(() => {
 .progress-line i {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #2563eb;
 }
 
@@ -2635,17 +2729,21 @@ onMounted(() => {
 .place-dot {
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #ef4444;
 }
 
-.placement-icon {
-  display: inline-grid;
-  place-items: center;
+.progress-line span.placement-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 2rem;
   width: 2rem;
   height: 2rem;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   flex: 0 0 auto;
+  line-height: 0;
 }
 .placement-icon--search {
   background: #fff4e5;
@@ -2654,7 +2752,8 @@ onMounted(() => {
   background: #fff4e5;
   padding: 0.3rem;
 }
-.placement-icon svg {
+.progress-line .placement-icon svg {
+  display: block;
   width: 1.1rem;
   height: 1.1rem;
   color: #f59e0b;
@@ -2665,7 +2764,7 @@ onMounted(() => {
   object-fit: contain;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1125px) {
   .top-grid,
   .panel-reports,
   .chart-goals-grid,
@@ -2682,7 +2781,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 820px) {
+@media (max-width: 615px) {
   .figma-dashboard {
     padding-top: 2rem;
   }
@@ -2744,92 +2843,92 @@ onMounted(() => {
   max-width: none;
   flex-direction: column;
   margin: 0;
-  padding: 30px 25px;
+  padding: 2.0833rem 1.7361rem;
   overflow: hidden;
 }
 
 .panel {
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   box-shadow: none;
 }
 
 .top-grid {
-  grid-template-columns: minmax(320px, 494px) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(22.2222rem, 34.3056rem) minmax(0, 1fr);
+  gap: 1.3889rem;
 }
 
 .panel-channels,
 .panel-reports {
-  min-height: 131px;
-  padding: 25px;
+  min-height: 9.0972rem;
+  padding: 1.7361rem;
 }
 
 .panel h2,
 .panel-channels h2,
 .panel-reports h2 {
-  font-size: 20px;
+  font-size: 1.3889rem;
 }
 
 .chips-row {
-  gap: 15px;
-  margin-top: 20px;
+  gap: 1.0417rem;
+  margin-top: 1.3889rem;
 }
 
 .chip {
-  height: 46px;
-  gap: 10px;
-  padding: 0 15px;
-  border-radius: 12px;
-  font-size: 13px;
+  height: 3.1944rem;
+  gap: 0.6944rem;
+  padding: 0 1.0417rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .chip-dot {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 .chip-icon {
-  width: 9px;
-  height: 9px;
+  width: 0.625rem;
+  height: 0.625rem;
 }
 
 .panel-reports {
-  grid-template-columns: minmax(280px, auto) minmax(145px, 175px) minmax(230px, 260px) auto;
-  gap: 20px;
+  grid-template-columns: minmax(19.4444rem, auto) minmax(10.0694rem, 12.1528rem) minmax(15.9722rem, 18.0556rem) auto;
+  gap: 1.3889rem;
 }
 
 .report-schedule p {
-  margin-bottom: 20px;
-  font-size: 13px;
+  margin-bottom: 1.3889rem;
+  font-size: 0.9028rem;
 }
 
 .select-like,
 .filter-btn,
 .export-btn {
-  height: 46px;
-  gap: 12px;
-  padding: 0 15px;
-  border-radius: 12px;
-  font-size: 13px;
+  height: 3.1944rem;
+  gap: 0.8333rem;
+  padding: 0 1.0417rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .dashboard-date-picker {
   flex-basis: auto;
-  width: 255px;
+  width: 17.7083rem;
 }
 
 .filter-right-group {
-  gap: 16px;
+  gap: 1.1111rem;
 }
 
 .sync-status-label {
-  gap: 6px;
-  font-size: 13px;
+  gap: 0.4167rem;
+  font-size: 0.9028rem;
 }
 
 .sync-status-label svg {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 .select-like svg,
@@ -2839,118 +2938,118 @@ onMounted(() => {
 .sync-btn svg,
 .see-all svg,
 .month-select svg {
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
 }
 
 .primary-report {
-  height: 46px;
-  gap: 8px;
-  padding: 0 10px;
-  border-radius: 12px;
-  font-size: 13px;
+  height: 3.1944rem;
+  gap: 0.5556rem;
+  padding: 0 0.6944rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .heading-section {
-  margin-top: 45px;
+  margin-top: 3.125rem;
 }
 
 .heading-section h1 {
-  margin-bottom: 24px;
-  font-size: 28px;
+  margin-bottom: 1.6667rem;
+  font-size: 1.9444rem;
 }
 
 .filters-row {
-  gap: 10px;
+  gap: 0.6944rem;
 }
 
 .filters-row .filter-btn {
-  min-width: 140px;
+  min-width: 9.7222rem;
 }
 
 .date-btn {
-  min-width: 257px;
+  min-width: 17.8472rem;
 }
 
 .sync-btn {
-  min-height: 46px;
-  gap: 10px;
-  padding: 0 14px;
-  font-size: 13px;
+  min-height: 3.1944rem;
+  gap: 0.6944rem;
+  padding: 0 0.9722rem;
+  font-size: 0.9028rem;
 }
 
 .sync-btn-blue {
-  border-radius: 12px;
-  padding: 0 18px;
+  border-radius: 0.8333rem;
+  padding: 0 1.25rem;
 }
 
 .nds-label {
-  font-size: 13px;
+  font-size: 0.9028rem;
 }
 
 .report-icon-circle {
-  width: 46px;
-  height: 46px;
+  width: 3.1944rem;
+  height: 3.1944rem;
 }
 
 .goal-item {
-  border-radius: 8px;
+  border-radius: 0.5556rem;
 }
 
 .export-btn {
-  min-width: 160px;
+  min-width: 11.1111rem;
 }
 
 .dropdown-panel {
-  top: calc(100% + 8px);
-  min-width: 220px;
-  padding: 10px;
-  border-radius: 12px;
+  top: calc(100% + 0.5556rem);
+  min-width: 15.2778rem;
+  padding: 0.6944rem;
+  border-radius: 0.8333rem;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
 }
 
 .dropdown-panel button {
-  gap: 10px;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 13px;
+  gap: 0.6944rem;
+  padding: 0.6944rem;
+  border-radius: 0.5556rem;
+  font-size: 0.9028rem;
 }
 
 .dropdown-panel button svg {
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
 }
 
 .campaigns {
-  min-width: 360px;
+  min-width: 25rem;
 }
 
 .search-box {
-  gap: 10px;
-  height: 44px;
-  margin-bottom: 8px;
-  padding: 0 12px;
-  border-radius: 10px;
+  gap: 0.6944rem;
+  height: 3.0556rem;
+  margin-bottom: 0.5556rem;
+  padding: 0 0.8333rem;
+  border-radius: 0.6944rem;
 }
 
 .search-box svg {
-  width: 18px;
-  height: 18px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .search-box input {
-  font-size: 13px;
+  font-size: 0.9028rem;
 }
 
 .kpi-grid {
-  gap: 15px;
-  margin-top: 25px;
-  grid-auto-rows: 88px;
+  gap: 1.0417rem;
+  margin-top: 1.7361rem;
+  grid-auto-rows: 6.1111rem;
 }
 
 .metric-card {
-  padding: 20px 25px;
-  border-radius: 15px;
+  padding: 1.3889rem 1.7361rem;
+  border-radius: 1.0417rem;
   border: 2px solid transparent;
   overflow: hidden;
 }
@@ -2961,20 +3060,20 @@ onMounted(() => {
 }
 
 .metric-head {
-  gap: 16px;
+  gap: 1.1111rem;
 }
 
 .metric-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+  width: 3.0556rem;
+  height: 3.0556rem;
+  border-radius: 0.6944rem;
 }
 
 .metric-icon svg,
 .round-action svg,
 .ai-title svg {
-  width: 18px;
-  height: 18px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .metric-text {
@@ -2983,258 +3082,259 @@ onMounted(() => {
 }
 
 .metric-card h3 {
-  font-size: 13px;
+  font-size: 0.9028rem;
   color: #ababab;
 }
 
 .metric-card p {
-  margin-top: 9px;
-  font-size: 12px;
+  margin-top: 0.625rem;
+  font-size: 0.8333rem;
 }
 
 .metric-card strong {
-  margin-top: 5px;
-  font-size: 24px;
+  margin-top: 0.3472rem;
+  font-size: 1.6667rem;
 }
 
 .metric-foot {
-  gap: 14px;
-  margin-top: 20px;
-  font-size: 13px;
+  gap: 0.9722rem;
+  margin-top: 1.3889rem;
+  font-size: 0.9028rem;
 }
 
 .trend {
-  height: 28px;
-  gap: 5px;
-  padding: 0 8px;
-  border-radius: 4px;
-  font-size: 13px;
+  height: 1.9444rem;
+  gap: 0.3472rem;
+  padding: 0 0.5556rem;
+  border-radius: 0.2778rem;
+  font-size: 0.9028rem;
   align-self: center;
 }
 
-.trend::before {
-  width: 10px;
-  height: 7px;
-}
-
 .chart-goals-grid {
-  grid-template-columns: minmax(0, 1.5fr) minmax(360px, 0.9fr);
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(25rem, 0.9fr);
+  gap: 1.3889rem;
+  margin-top: 1.3889rem;
 }
 
 .chart-panel,
 .goals-panel {
-  min-height: 360px;
-  padding: 25px;
+  min-height: 25rem;
+  padding: 1.7361rem;
 }
 
 .panel-title-row {
-  gap: 20px;
+  gap: 1.3889rem;
 }
 
 .month-select,
 .see-all {
-  height: 35px;
-  gap: 10px;
-  padding: 0 14px;
-  border-radius: 12px;
-  font-size: 13px;
+  height: 2.4306rem;
+  gap: 0.6944rem;
+  padding: 0 0.9722rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .chart-area {
-  height: 265px;
-  margin-top: 24px;
+  height: 18.4028rem;
+  margin-top: 1.6667rem;
 }
 
 .axis-labels text,
 .tooltip-pin text {
-  font-size: 11px;
+  font-size: 0.7639rem;
 }
 
 .goals-content {
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
-  gap: 24px;
-  margin-top: 24px;
+  grid-template-columns: minmax(12.5rem, 16.6667rem) minmax(0, 1fr);
+  gap: 1.6667rem;
+  margin-top: 1.6667rem;
 }
 
 .donut-wrap {
-  width: 220px;
-  height: 220px;
+  width: 15.2778rem;
+  height: 15.2778rem;
 }
 
 .donut-wrap::after {
-  width: 104px;
-  height: 104px;
+  width: 7.2222rem;
+  height: 7.2222rem;
 }
 
 .donut-wrap span {
-  font-size: 16px;
+  font-size: 1.1111rem;
 }
 
 .goals-list {
-  gap: 15px;
+  gap: 1.0417rem;
 }
 
 .goal-item {
-  border-radius: 8px;
+  border-radius: 0.5556rem;
 }
 
 .goal-item div {
-  gap: 12px;
-  min-height: 41px;
-  padding: 0 16px;
-  font-size: 13px;
+  gap: 0.8333rem;
+  min-height: 2.8472rem;
+  padding: 0 1.1111rem;
+  font-size: 0.9028rem;
 }
 
 .goal-item div span {
-  width: 9px;
-  height: 9px;
+  width: 0.625rem;
+  height: 0.625rem;
 }
 
 .goal-item p {
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: 0.8333rem 1.1111rem;
+  font-size: 0.9028rem;
 }
 
 .campaigns-panel {
-  margin-top: 20px;
-  padding: 25px;
+  margin-top: 1.3889rem;
+  padding: 1.7361rem;
 }
 
 .campaign-table {
-  gap: 12px;
-  margin-top: 20px;
+  gap: 0.8333rem;
+  margin-top: 1.3889rem;
 }
 
 .campaign-row {
-  grid-template-columns: minmax(260px, 2.1fr) repeat(6, minmax(105px, 1fr));
-  min-width: 1120px;
-  min-height: 50px;
-  padding: 0 20px;
-  border-radius: 10px;
-  font-size: 12px;
+  grid-template-columns: minmax(18.0556rem, 2.1fr) repeat(6, minmax(7.2917rem, 1fr));
+  min-width: 77.7778rem;
+  min-height: 3.4722rem;
+  padding: 0 1.3889rem;
+  border-radius: 0.6944rem;
+  font-size: 0.8333rem;
 }
 
 .campaign-row b {
-  margin-left: 6px;
-  padding: 3px 5px;
-  font-size: 9px;
+  margin-left: 0.4167rem;
+  padding: 0.2083rem 0.3472rem;
+  font-size: 0.625rem;
+}
+
+.campaign-row b svg {
+  width: 0.6944rem;
+  height: 0.6944rem;
 }
 
 .bottom-grid {
-  grid-template-columns: minmax(430px, 0.95fr) minmax(400px, 1fr) minmax(270px, 0.55fr);
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: minmax(29.8611rem, 0.95fr) minmax(27.7778rem, 1fr) minmax(18.75rem, 0.55fr);
+  gap: 1.3889rem;
+  margin-top: 1.3889rem;
 }
 
 .creatives-panel,
 .ai-panel {
-  min-height: 360px;
-  padding: 25px;
+  min-height: 25rem;
+  padding: 1.7361rem;
 }
 
 .creatives-row {
-  gap: 13px;
-  margin-top: 22px;
+  gap: 0.9028rem;
+  margin-top: 1.5278rem;
 }
 
 .creative-card {
-  flex-basis: 160px;
+  flex-basis: 11.1111rem;
 }
 
 .creative-image {
-  min-height: 150px;
-  padding: 14px;
-  border-radius: 16px;
+  min-height: 10.4167rem;
+  padding: 0.9722rem;
+  border-radius: 1.1111rem;
 }
 
 .creative-image span {
-  font-size: 9px;
+  font-size: 0.625rem;
 }
 
 .creative-image strong {
-  margin-top: 8px;
-  font-size: 14px;
+  margin-top: 0.5556rem;
+  font-size: 0.9722rem;
 }
 
 .creative-card p {
-  margin: 16px 0 7px;
-  font-size: 12px;
+  margin: 1.1111rem 0 0.4861rem;
+  font-size: 0.8333rem;
 }
 
 .creative-card em {
-  font-size: 12px;
+  font-size: 0.8333rem;
 }
 
 .ai-title {
-  gap: 16px;
+  gap: 1.1111rem;
 }
 
 .ai-title span {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5556rem;
 }
 
 .ai-panel ul {
-  gap: 14px;
-  margin-top: 20px;
-  padding-left: 20px;
-  font-size: 13px;
+  gap: 0.9722rem;
+  margin-top: 1.3889rem;
+  padding-left: 1.3889rem;
+  font-size: 0.9028rem;
 }
 
 .ai-panel > p {
-  margin-top: 22px;
-  font-size: 12px;
+  margin-top: 1.5278rem;
+  font-size: 0.8333rem;
 }
 
 .side-stat-stack {
-  gap: 20px;
+  gap: 1.3889rem;
 }
 
 .mini-stat-panel {
-  min-height: 170px;
-  padding: 25px;
+  min-height: 11.8056rem;
+  padding: 1.7361rem;
 }
 
 .mini-stat-panel h2 {
-  margin-bottom: 22px;
+  margin-bottom: 1.5278rem;
 }
 
 .progress-line {
-  grid-template-columns: minmax(82px, 1fr) 86px 42px;
-  gap: 10px;
-  margin-top: 15px;
-  font-size: 12px;
+  grid-template-columns: minmax(5.6944rem, 1fr) 5.9722rem 2.9167rem;
+  gap: 0.6944rem;
+  margin-top: 1.0417rem;
+  font-size: 0.8333rem;
 }
 
 .progress-line span {
-  gap: 8px;
+  gap: 0.5556rem;
 }
 
 .progress-line span svg,
 .place-dot {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
-.placement-icon {
-  width: 22px;
-  height: 22px;
+.progress-line span.placement-icon {
+  min-width: 1.5278rem;
+  width: 1.5278rem;
+  height: 1.5278rem;
 }
 
-.placement-icon svg {
-  width: 11px;
-  height: 11px;
+.progress-line .placement-icon svg {
+  width: 0.7639rem;
+  height: 0.7639rem;
   color: #f59e0b;
 }
 
 .progress-line div {
-  height: 5px;
+  height: 0.3472rem;
 }
 
-@media (max-width: 1600px) {
+@media (max-width: 1200px) {
   .top-grid,
   .panel-reports,
   .chart-goals-grid,
@@ -3247,15 +3347,15 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 885px) {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 570px) {
   .figma-dashboard {
-    padding: 20px 15px;
+    padding: 1.3889rem 1.0417rem;
   }
 
   .kpi-grid {
@@ -3263,7 +3363,7 @@ onMounted(() => {
   }
 
   .metric-card {
-    min-height: 160px;
+    min-height: 11.1111rem;
   }
 
   .goals-content {
@@ -3271,8 +3371,8 @@ onMounted(() => {
   }
 
   .donut-wrap {
-    width: 200px;
-    height: 200px;
+    width: 13.8889rem;
+    height: 13.8889rem;
   }
 
   .filters-row > *,
@@ -3301,29 +3401,29 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 1060px;
+    min-width: 73.6111rem;
   }
 }
 
 /* Figma top-panel alignment */
 .top-grid {
-  grid-template-columns: minmax(360px, 494px) minmax(760px, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(25rem, 34.3056rem) minmax(52.7778rem, 1fr);
+  gap: 1.3889rem;
   align-items: start;
 }
 
 .panel-channels,
 .panel-reports {
-  height: 131px;
-  min-height: 131px;
-  padding: 25px;
+  height: 9.0972rem;
+  min-height: 9.0972rem;
+  padding: 1.7361rem;
   overflow: visible;
 }
 
 .panel-reports {
   display: grid;
-  grid-template-columns: minmax(300px, auto) 185px 255px auto;
-  column-gap: 20px;
+  grid-template-columns: minmax(20.8333rem, auto) 12.8472rem 17.7083rem auto;
+  column-gap: 1.3889rem;
   row-gap: 0;
   align-items: start;
 }
@@ -3338,28 +3438,28 @@ onMounted(() => {
 .report-template h2 {
   display: flex;
   align-items: center;
-  height: 20px;
+  height: 1.3889rem;
   line-height: 1;
 }
 
 .panel-channels .chips-row,
 .panel-reports .chips-row {
   flex-wrap: nowrap;
-  gap: 15px;
-  margin-top: 20px;
+  gap: 1.0417rem;
+  margin-top: 1.3889rem;
 }
 
 .panel-channels .chip,
 .panel-reports .chip {
   flex: 0 0 auto;
-  height: 46px;
-  gap: 10px;
-  padding: 0 15px;
-  border-radius: 999px;
+  height: 3.1944rem;
+  gap: 0.6944rem;
+  padding: 0 1.0417rem;
+  border-radius: 69.375rem;
   box-shadow: none;
   color: #4b4b4b;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1;
   transition: background-color 0.5s, border-color 0.25s, box-shadow 0.25s, transform 0.75s;
@@ -3368,7 +3468,7 @@ onMounted(() => {
 .panel-channels .chip:hover,
 .panel-reports .chip:hover {
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
 }
 
 .panel-channels .chip:active,
@@ -3401,8 +3501,8 @@ onMounted(() => {
 
 .chip-img {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
   object-fit: contain;
 }
 
@@ -3412,13 +3512,13 @@ onMounted(() => {
 
 .chip-img.telegram,
 .chip-img.max {
-  width: 18px;
-  height: 18px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .chip-letter {
   color: #fff;
-  font-size: 9px;
+  font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -3426,18 +3526,18 @@ onMounted(() => {
 .report-schedule p {
   display: flex;
   align-items: center;
-  height: 20px;
-  margin: 0 0 20px;
+  height: 1.3889rem;
+  margin: 0 0 1.3889rem;
   color: #b3b3b3;
-  font-size: 13px;
+  font-size: 0.9028rem;
   line-height: 1;
 }
 
 .select-like {
   width: 100%;
-  height: 46px;
+  height: 3.1944rem;
   border-color: #ebebeb;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   background: #fff;
   color: #b3b3b3;
   cursor: pointer;
@@ -3446,7 +3546,7 @@ onMounted(() => {
 }
 
 .top-select .select-like {
-  margin-top: 20px;
+  margin-top: 1.3889rem;
 }
 
 .report-schedule .select-like {
@@ -3463,8 +3563,8 @@ onMounted(() => {
 .primary-report {
   align-self: end;
   width: auto;
-  height: 46px;
-  padding: 0 10px;
+  height: 3.1944rem;
+  padding: 0 0.6944rem;
   justify-content: center;
   white-space: nowrap;
   line-height: 1;
@@ -3501,10 +3601,10 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 1.6667rem;
+  height: 1.6667rem;
   margin-left: auto;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #f5f7f9;
   color: #b3b3b3;
   flex: 0 0 auto;
@@ -3512,8 +3612,8 @@ onMounted(() => {
 }
 
 .custom-select .cs-arrow svg {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 .custom-select.open .cs-arrow {
@@ -3522,7 +3622,7 @@ onMounted(() => {
 
 .custom-select .cs-list {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.2778rem);
   left: 0;
   z-index: 99;
   display: flex;
@@ -3530,12 +3630,12 @@ onMounted(() => {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   background-color: #fff;
   box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
   opacity: 0;
   pointer-events: none;
-  transform: scale(0.75) translateY(-21px);
+  transform: scale(0.75) translateY(-1.4583rem);
   transform-origin: 50% 0;
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
@@ -3550,14 +3650,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 43px;
-  gap: 10px;
-  padding: 12px 25px 12px 17px;
+  min-height: 2.9861rem;
+  gap: 0.6944rem;
+  padding: 0.8333rem 1.7361rem 0.8333rem 1.1806rem;
   border: 0;
   background: transparent;
   color: rgba(0, 0, 0, 0.7);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 400;
   line-height: 1.2;
   text-align: left;
@@ -3577,12 +3677,126 @@ onMounted(() => {
   min-width: 100%;
 }
 
+.top-select .schedule-menu {
+  width: 20.8333rem;
+  padding: 0.8333rem;
+  gap: 0.8333rem;
+  overflow: visible;
+}
+
+.schedule-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4167rem;
+  color: #6b7280;
+  font-size: 0.7639rem;
+  font-weight: 600;
+}
+
+.schedule-day-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2778rem;
+  padding: 0.2778rem;
+  border: 1px solid #ebebeb;
+  border-radius: 0.6944rem;
+  background: #fff;
+}
+
+.schedule-day-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.1111rem;
+  align-items: center;
+  gap: 0.4167rem;
+  min-height: 2.5rem;
+  padding: 0 0.5556rem 0 0.6944rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  background: transparent;
+  color: #171717;
+  cursor: pointer;
+  font-size: 0.8333rem;
+  font-weight: 650;
+  line-height: 1;
+  text-align: left;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.schedule-day-option--wide {
+  grid-column: 1 / -1;
+}
+
+.schedule-day-option:hover,
+.schedule-day-option.selected {
+  background: #f3f7ff;
+  color: #2563eb;
+}
+
+.schedule-day-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1111rem;
+  height: 1.1111rem;
+  color: #2563eb;
+}
+
+.schedule-day-check svg {
+  width: 1.1111rem;
+  height: 1.1111rem;
+  stroke-width: 2;
+}
+
+.schedule-field {
+  width: 100%;
+  height: 2.6389rem;
+  padding: 0 0.8333rem;
+  border: 1px solid #ebebeb;
+  border-radius: 0.6944rem;
+  background: #fff;
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  outline: none;
+}
+
+.schedule-field:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.schedule-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5556rem;
+}
+
+.schedule-secondary,
+.schedule-primary {
+  height: 2.6389rem;
+  border: 0;
+  border-radius: 0.6944rem;
+  cursor: pointer;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+
+.schedule-secondary {
+  background: #f5f7f9;
+  color: #6b7280;
+}
+
+.schedule-primary {
+  background: #2563eb;
+  color: #fff;
+}
+
 .dashboard-select .cs-list {
-  min-width: 230px;
+  min-width: 15.9722rem;
 }
 
 .campaigns.cs-list {
-  min-width: 360px;
+  min-width: 25rem;
 }
 
 .export-select .cs-list {
@@ -3595,36 +3809,36 @@ onMounted(() => {
 }
 
 .dashboard-select .cs-arrow {
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background: #f5f7f9;
 }
 
 .dashboard-select .cs-arrow svg {
-  width: 10px;
-  height: 10px;
+  width: 0.6944rem;
+  height: 0.6944rem;
 }
 
 .top-select .cs-arrow {
-  width: 24px;
-  height: 24px;
+  width: 1.6667rem;
+  height: 1.6667rem;
 }
 
 .top-select .cs-arrow svg {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 .export-select .cs-arrow {
-  width: 24px;
-  height: 24px;
+  width: 1.6667rem;
+  height: 1.6667rem;
   background: #1f55d9;
   color: #fff;
 }
 
 .export-select .cs-arrow svg {
-  width: 12px;
-  height: 12px;
+  width: 0.8333rem;
+  height: 0.8333rem;
 }
 
 .export-select.open .cs-arrow {
@@ -3632,9 +3846,9 @@ onMounted(() => {
 }
 
 .custom-select .cs-option svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
+  flex: 0 0 1.1111rem;
 }
 
 .filter-btn,
@@ -3779,6 +3993,48 @@ onMounted(() => {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
 }
 
+:global(.dark) .schedule-field-group,
+:global(.darkmode) .schedule-field-group {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+:global(.dark) .schedule-field,
+:global(.darkmode) .schedule-field {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.86);
+}
+
+:global(.dark) .schedule-day-list,
+:global(.darkmode) .schedule-day-list {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:global(.dark) .schedule-day-option,
+:global(.darkmode) .schedule-day-option {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+:global(.dark) .schedule-day-option:hover,
+:global(.darkmode) .schedule-day-option:hover,
+:global(.dark) .schedule-day-option.selected,
+:global(.darkmode) .schedule-day-option.selected {
+  background: rgba(74, 122, 255, 0.16);
+  color: #67a8ff;
+}
+
+:global(.dark) .schedule-day-check,
+:global(.darkmode) .schedule-day-check {
+  color: #67a8ff;
+}
+
+:global(.dark) .schedule-secondary,
+:global(.darkmode) .schedule-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
 :global(.dark) .custom-select .cs-option,
 :global(.darkmode) .custom-select .cs-option,
 :global(.dark) .dropdown-panel button,
@@ -3832,6 +4088,14 @@ onMounted(() => {
 :global(.darkmode) .campaign-row b {
   background: rgba(34, 197, 94, 0.16);
   color: #66bb6a;
+}
+
+:global(.dark) .trend.negative,
+:global(.darkmode) .trend.negative,
+:global(.dark) .campaign-row b.negative,
+:global(.darkmode) .campaign-row b.negative {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
 }
 
 :global(.dark) .grid-lines line,
@@ -3890,7 +4154,7 @@ onMounted(() => {
   color: #4a7aff;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1125px) {
   .top-grid {
     grid-template-columns: 1fr;
   }
@@ -3898,7 +4162,7 @@ onMounted(() => {
   .panel-reports {
     height: auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 20px;
+    row-gap: 1.3889rem;
   }
 
   .primary-report {
@@ -3906,7 +4170,7 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 570px) {
   .panel-channels,
   .panel-reports {
     height: auto;
@@ -4091,7 +4355,8 @@ onMounted(() => {
   color: #66bb6a;
 }
 
-.figma-dashboard.is-dark .trend.negative {
+.figma-dashboard.is-dark .trend.negative,
+.figma-dashboard.is-dark .campaign-row b.negative {
   background: rgba(239, 68, 68, 0.16);
   color: #f87171;
 }
@@ -4149,7 +4414,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 260px;
+  min-height: 18.0556rem;
   aspect-ratio: 880 / 300;
   overflow-x: auto;
   overflow-y: visible;
@@ -4159,20 +4424,20 @@ onMounted(() => {
 .chart-area svg {
   flex: 0 0 auto;
   display: block;
-  width: max(720px, 100%);
+  width: max(50rem, 100%);
   height: auto;
   aspect-ratio: 880 / 260;
   max-height: 100%;
 }
 
 .goals-content {
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(12.5rem, 16.6667rem) minmax(0, 1fr);
   min-width: 0;
 }
 
 .donut-wrap {
-  width: clamp(180px, 18vw, 240px);
-  height: clamp(180px, 18vw, 240px);
+  width: clamp(12.5rem, 18vw, 16.6667rem);
+  height: clamp(12.5rem, 18vw, 16.6667rem);
   max-width: 100%;
 }
 
@@ -4189,7 +4454,7 @@ onMounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  border-radius: 69.375rem;
 }
 
 .donut::before {
@@ -4228,7 +4493,7 @@ onMounted(() => {
 }
 
 .goal-item div {
-  margin: -1px -1px 0;
+  margin: -0.0694rem -0.0694rem 0;
   border-radius: 0.8rem;
   background: var(--goal-bg);
   color: #3f3f3f;
@@ -4267,7 +4532,7 @@ onMounted(() => {
 }
 
 .progress-line {
-  grid-template-columns: minmax(0, 1fr) minmax(72px, 120px) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(5rem, 8.3333rem) auto;
   min-width: 0;
 }
 
@@ -4275,9 +4540,9 @@ onMounted(() => {
   min-width: 0;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 885px) {
   .chart-area {
-    min-height: 260px;
+    min-height: 18.0556rem;
   }
 
   .bottom-grid {
@@ -4285,14 +4550,14 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 570px) {
   .chart-panel,
   .goals-panel,
   .campaigns-panel,
   .creatives-panel,
   .ai-panel,
   .mini-stat-panel {
-    padding: 20px;
+    padding: 1.3889rem;
   }
 
   .panel-title-row {
@@ -4301,13 +4566,13 @@ onMounted(() => {
   }
 
   .chart-area {
-    min-height: 260px;
+    min-height: 18.0556rem;
     aspect-ratio: auto;
-    margin-top: 18px;
+    margin-top: 1.25rem;
   }
 
   .chart-area svg {
-    width: 680px;
+    width: 47.2222rem;
   }
 
   .goals-content {
@@ -4319,8 +4584,8 @@ onMounted(() => {
   }
 
   .donut-wrap {
-    width: min(220px, 72vw);
-    height: min(220px, 72vw);
+    width: min(15.2778rem, 72vw);
+    height: min(15.2778rem, 72vw);
   }
 }
 </style>

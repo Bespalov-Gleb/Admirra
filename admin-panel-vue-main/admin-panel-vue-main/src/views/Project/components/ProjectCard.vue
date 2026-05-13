@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white rounded-[40px] p-10 sm:p-6 md:p-8 hover:shadow-sm transition-shadow cursor-pointer">
+  <div class="bg-white rounded-[2.7778rem] p-10 sm:p-6 md:p-8 hover:shadow-sm transition-shadow cursor-pointer">
     <!-- Заголовок карточки -->
     <div class="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 md:mb-8">
       <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">

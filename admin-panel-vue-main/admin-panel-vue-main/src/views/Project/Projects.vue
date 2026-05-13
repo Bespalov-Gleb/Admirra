@@ -11,7 +11,7 @@
         <div class="relative flex-shrink-0">
           <select
             v-model="selectedPeriod"
-            class="w-full sm:w-auto sm:min-w-[180px] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
+            class="w-full sm:w-auto sm:min-w-[12.5rem] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
           >
             <option value="14">Последние 14 дней</option>
             <option value="7">Последние 7 дней</option>
@@ -31,7 +31,7 @@
         <div class="relative flex-shrink-0">
           <select
             v-model="selectedFilter"
-            class="w-full sm:w-auto sm:min-w-[100px] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
+            class="w-full sm:w-auto sm:min-w-[6.9444rem] px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none cursor-pointer pr-8 sm:pr-10"
           >
             <option value="all">Все</option>
             <option value="active">Активные</option>

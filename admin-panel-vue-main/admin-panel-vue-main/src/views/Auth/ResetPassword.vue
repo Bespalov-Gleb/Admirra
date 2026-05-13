@@ -267,39 +267,39 @@ const handleConfirmPassword = async () => {
 
 .auth-main {
   display: grid;
-  grid-template-columns: minmax(500px, 0.96fr) minmax(610px, 1.04fr);
-  gap: 22px;
-  min-height: min(100vh, 782px);
-  padding: 20px 0 18px 0;
+  grid-template-columns: minmax(34.7222rem, 0.96fr) minmax(42.3611rem, 1.04fr);
+  gap: 1.5278rem;
+  min-height: min(100vh, 54.3056rem);
+  padding: 1.3889rem 0 1.25rem 0;
 }
 
 .auth-form-side {
   position: relative;
-  padding-left: clamp(68px, 9vw, 144px);
-  padding-right: 30px;
+  padding-left: clamp(4.7222rem, 9vw, 10rem);
+  padding-right: 2.0833rem;
 }
 
 .auth-logo-link {
   display: inline-flex;
-  margin-top: 35px;
+  margin-top: 2.4306rem;
 }
 
 .auth-logo-link img {
-  width: 136px;
+  width: 9.4444rem;
   height: auto;
   opacity: 1;
 }
 
 .auth-form-box {
   width: 100%;
-  max-width: 482px;
-  margin-top: clamp(102px, 15vh, 158px);
+  max-width: 33.4722rem;
+  margin-top: clamp(7.0833rem, 15vh, 10.9722rem);
 }
 
 .auth-title {
-  margin: 0 0 18px;
+  margin: 0 0 1.25rem;
   color: #102a55;
-  font-size: clamp(36px, 2.7vw, 50px);
+  font-size: clamp(2.5rem, 2.7vw, 3.4722rem);
   font-weight: 300;
   line-height: 1.08;
   letter-spacing: 0;
@@ -320,10 +320,10 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-lead {
-  max-width: 420px;
-  margin: 0 0 28px;
+  max-width: 29.1667rem;
+  margin: 0 0 1.9444rem;
   color: rgba(16, 42, 85, 0.62);
-  font-size: 15px;
+  font-size: 1.0417rem;
   font-weight: 400;
   line-height: 1.45;
 }
@@ -331,14 +331,14 @@ const handleConfirmPassword = async () => {
 .auth-fields {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 1.25rem;
 }
 
 .auth-label {
   display: block;
-  margin-bottom: 9px;
+  margin-bottom: 0.625rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 400;
 }
 
@@ -347,14 +347,14 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-input {
-  height: 58px;
+  height: 4.0278rem;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   border: 1px solid #d9dce2;
   background: #ffffff;
-  padding: 0 17px;
+  padding: 0 1.1806rem;
   color: #102a55;
-  font-size: 15px;
+  font-size: 1.0417rem;
   font-weight: 400;
   outline: none;
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
@@ -373,14 +373,14 @@ const handleConfirmPassword = async () => {
 .auth-submit {
   margin-top: 1px;
   display: flex;
-  height: 58px;
+  height: 4.0278rem;
   width: 100%;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
+  border-radius: 0.7639rem;
   background: linear-gradient(90deg, #2c66f6 0%, #12bdd0 100%);
   color: #ffffff;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   transition: filter 0.18s ease, transform 0.18s ease;
@@ -388,7 +388,7 @@ const handleConfirmPassword = async () => {
 
 .auth-submit:hover {
   filter: brightness(1.03);
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
 }
 
 .auth-submit:disabled {
@@ -397,9 +397,9 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-alt {
-  margin-top: 18px;
+  margin-top: 1.25rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 600;
 }
 
@@ -414,10 +414,10 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-alert {
-  margin-bottom: 18px;
-  border-radius: 12px;
-  padding: 13px 16px;
-  font-size: 13px;
+  margin-bottom: 1.25rem;
+  border-radius: 0.8333rem;
+  padding: 0.9028rem 1.1111rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1.35;
 }
@@ -429,7 +429,7 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-alert--success {
-  margin-top: 18px;
+  margin-top: 1.25rem;
   margin-bottom: 0;
   border: 1px solid #bbf7d0;
   background: #f0fdf4;
@@ -441,11 +441,11 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-hero-card {
-  height: calc(100vh - 38px);
-  min-height: 690px;
-  max-height: 848px;
+  height: calc(100vh - 2.6389rem);
+  min-height: 47.9167rem;
+  max-height: 58.8889rem;
   overflow: hidden;
-  border-radius: 16px 0 0 16px;
+  border-radius: 1.1111rem 0 0 1.1111rem;
   background: #dfe7fb;
 }
 
@@ -456,14 +456,14 @@ const handleConfirmPassword = async () => {
 
 .auth-subscribe {
   display: flex;
-  min-height: 96px;
+  min-height: 6.6667rem;
   align-items: center;
   justify-content: center;
-  gap: clamp(120px, 18vw, 330px);
+  gap: clamp(8.3333rem, 18vw, 22.9167rem);
   border-top: 1px solid #edf1f7;
   border-bottom: 1px solid #e4e8ef;
   background: #eef3f9;
-  padding: 24px 40px;
+  padding: 1.6667rem 2.7778rem;
 }
 
 .auth-footer-brand,
@@ -475,51 +475,51 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-footer-brand {
-  gap: 26px;
+  gap: 1.8056rem;
 }
 
 .auth-footer-brand > img {
-  width: 136px;
+  width: 9.4444rem;
   height: auto;
   opacity: 1;
 }
 
 .auth-footer-socials {
-  gap: 5px;
+  gap: 0.3472rem;
 }
 
 .auth-footer-socials span {
   display: flex;
-  width: 23px;
-  height: 23px;
+  width: 1.5972rem;
+  height: 1.5972rem;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #1689f8;
 }
 
 .auth-footer-socials img {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
   object-fit: contain;
 }
 
 .auth-subscribe-form {
-  gap: 24px;
+  gap: 1.6667rem;
 }
 
 .auth-subscribe-form label {
-  font-size: 14px;
+  font-size: 0.9722rem;
   font-weight: 500;
 }
 
 .auth-subscribe-form div {
   position: relative;
-  width: 306px;
-  height: 47px;
+  width: 21.25rem;
+  height: 3.2639rem;
   overflow: hidden;
   border: 1px solid #d4d9e3;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #ffffff;
   box-shadow: none;
 }
@@ -528,10 +528,10 @@ const handleConfirmPassword = async () => {
   min-width: 0;
   flex: 1;
   height: 100%;
-  padding: 0 17px;
+  padding: 0 1.1806rem;
   border: 0;
   color: #102a55;
-  font-size: 12px;
+  font-size: 0.8333rem;
   outline: none;
 }
 
@@ -540,30 +540,30 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-subscribe-form button {
-  height: calc(100% + 2px);
-  min-width: 162px;
-  margin: -1px -1px -1px 0;
-  border-radius: 999px;
+  height: calc(100% + 0.1389rem);
+  min-width: 11.25rem;
+  margin: -0.0694rem -0.0694rem -0.0694rem 0;
+  border-radius: 69.375rem;
   background: linear-gradient(90deg, #2c66f6 0%, #12bdd0 100%);
   color: #ffffff;
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0.07em;
 }
 
 .auth-footer-bottom {
   display: grid;
-  grid-template-columns: 160px 150px minmax(330px, 1fr) minmax(260px, 350px);
-  gap: 44px;
-  max-width: 1066px;
+  grid-template-columns: 11.1111rem 10.4167rem minmax(22.9167rem, 1fr) minmax(18.0556rem, 24.3056rem);
+  gap: 3.0556rem;
+  max-width: 74.0278rem;
   margin: 0 auto;
-  padding: 22px 0 26px;
+  padding: 1.5278rem 0 1.8056rem;
 }
 
 .auth-footer-bottom h3 {
-  margin: 0 0 18px;
+  margin: 0 0 1.25rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 700;
 }
 
@@ -571,9 +571,9 @@ const handleConfirmPassword = async () => {
 .auth-footer-bottom p,
 .auth-footer-bottom small {
   display: block;
-  margin: 0 0 15px;
+  margin: 0 0 1.0417rem;
   color: #102a55;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 400;
 }
 
@@ -582,30 +582,30 @@ const handleConfirmPassword = async () => {
 }
 
 .auth-footer-center img {
-  width: 65px;
+  width: 4.5139rem;
   height: auto;
-  margin: 12px auto 18px;
+  margin: 0.8333rem auto 1.25rem;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 960px) {
   .auth-main {
-    grid-template-columns: minmax(500px, 0.9fr) minmax(520px, 1.1fr);
+    grid-template-columns: minmax(34.7222rem, 0.9fr) minmax(36.1111rem, 1.1fr);
   }
 
   .auth-form-side {
-    padding-left: 56px;
+    padding-left: 3.8889rem;
   }
 
   .auth-form-box {
-    margin-top: 120px;
+    margin-top: 8.3333rem;
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 767.25px) {
   .auth-main {
     display: block;
     min-height: auto;
-    padding: 24px;
+    padding: 1.6667rem;
   }
 
   .auth-form-side {
@@ -613,12 +613,12 @@ const handleConfirmPassword = async () => {
   }
 
   .auth-logo-link {
-    margin-top: 24px;
+    margin-top: 1.6667rem;
   }
 
   .auth-form-box {
-    max-width: 560px;
-    margin: 80px auto 60px;
+    max-width: 38.8889rem;
+    margin: 5.5556rem auto 4.1667rem;
   }
 
   .auth-hero-side {
@@ -628,22 +628,22 @@ const handleConfirmPassword = async () => {
   .auth-subscribe,
   .auth-subscribe-form {
     flex-direction: column;
-    gap: 18px;
+    gap: 1.25rem;
   }
 
   .auth-footer-bottom {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding: 28px 24px;
+    padding: 1.9444rem 1.6667rem;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .auth-main {
-    padding: 18px;
+    padding: 1.25rem;
   }
 
   .auth-title {
-    font-size: 36px;
+    font-size: 2.5rem;
   }
 
   .auth-title span {
@@ -651,11 +651,11 @@ const handleConfirmPassword = async () => {
   }
 
   .auth-form-box {
-    margin-top: 58px;
+    margin-top: 4.0278rem;
   }
 
   .auth-subscribe-form div {
-    width: min(100%, 306px);
+    width: min(100%, 21.25rem);
   }
 
   .auth-footer-bottom {

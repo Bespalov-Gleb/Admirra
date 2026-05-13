@@ -1,5 +1,5 @@
 <template>
-  <div class="!bg-white w-full rounded-[40px] px-6 sm:px-10 py-6 sm:py-8 shadow-sm">
+  <div class="!bg-white w-full rounded-[2.7778rem] px-6 sm:px-10 py-6 sm:py-8 shadow-sm">
     <!-- Заголовок и селектор дат -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <h3 class="text-lg font-semibold text-gray-900">Эффективность кампаний</h3>
@@ -358,7 +358,7 @@ const chartOptions = computed(() => ({
 /* Custom Tooltip Styles */
 .chartjs-tooltip-key {
   border-radius: 50% !important;
-  width: 12px !important;
-  height: 12px !important;
+  width: 0.8333rem !important;
+  height: 0.8333rem !important;
 }
 </style>

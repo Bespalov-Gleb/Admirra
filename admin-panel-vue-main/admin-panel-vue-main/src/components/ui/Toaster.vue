@@ -25,7 +25,7 @@
 
         <!-- Content -->
         <div class="flex-1 pt-0.5">
-          <p class="text-[13px] font-black uppercase tracking-tight leading-snug" :class="textClasses(toast.type)">
+          <p class="text-[0.9028rem] font-black uppercase tracking-tight leading-snug" :class="textClasses(toast.type)">
             {{ toast.message }}
           </p>
         </div>

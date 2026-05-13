@@ -1,11 +1,11 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Новая интеграция</h3>
-      <p class="mt-[8px] text-[15px] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)] dark:text-white/55">Добавление рекламного канала</p>
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Новая интеграция</h3>
+      <p class="mt-[0.5556rem] text-[1.0417rem] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)] dark:text-white/55">Добавление рекламного канала</p>
     </div>
 
-    <div v-if="error" class="wizard-alert mb-[20px] dark:!bg-red-500/10 dark:!text-red-300">
+    <div v-if="error" class="wizard-alert mb-[1.3889rem] dark:!bg-red-500/10 dark:!text-red-300">
       {{ error }}
     </div>
 
@@ -231,7 +231,7 @@
           <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
           </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Счетчики метрики</h4>
@@ -272,7 +272,7 @@
           </div>
         </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[20px] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
@@ -325,7 +325,7 @@
           </div>
         </div>
 
-        <div class="wizard-actions mt-[20px]">
+        <div class="wizard-actions mt-[1.3889rem]">
           <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 2">Назад</button>
           <div class="wizard-actions__right">
             <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
@@ -392,7 +392,7 @@
           </div>
           </div>
 
-        <div class="final-card mt-[20px]">
+        <div class="final-card mt-[1.3889rem]">
           <div>
             <div class="final-card__caption">Автосинхронизация</div>
             <h4>Данные будут обновляться каждые 24 часа</h4>
@@ -408,7 +408,7 @@
           </div>
         </div>
 
-        <div class="wizard-actions mt-[20px]">
+        <div class="wizard-actions mt-[1.3889rem]">
           <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 3">Назад</button>
           <div class="wizard-actions__right">
             <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
@@ -745,30 +745,30 @@ const toggleGoalSelection = (id) => {
 
 <style scoped>
 .wizard-alert {
-  padding: 14px 18px;
-  border-radius: 12px;
+  padding: 0.9722rem 1.25rem;
+  border-radius: 0.8333rem;
   background: #fff1f1;
   color: #ef4444;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
 }
 .wizard-shell {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 1.0417rem;
 }
 .wizard-step-section {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 1.0417rem;
 }
 .wizard-step-section::before {
   content: "";
   position: absolute;
-  left: 22px;
-  top: 46px;
-  bottom: -15px;
+  left: 1.5278rem;
+  top: 3.1944rem;
+  bottom: -1.0417rem;
   width: 1px;
   background: rgba(105, 105, 105, 0.12);
 }
@@ -780,30 +780,30 @@ const toggleGoalSelection = (id) => {
 }
 .wizard-step {
   width: max-content;
-  min-width: 220px;
+  min-width: 15.2778rem;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 17px 8px 10px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem 0.5556rem 0.6944rem;
   border: 0;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   background: #fff;
   color: rgba(105, 105, 105, 0.75);
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   cursor: pointer;
   transition: color 0.3s, transform 0.3s;
 }
 .wizard-step:hover {
-  transform: translateX(2px);
+  transform: translateX(0.1389rem);
 }
 .wizard-step__number {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 25px;
-  height: 25px;
+  width: 1.7361rem;
+  height: 1.7361rem;
   border-radius: 50%;
   background: #f5f7f9;
   color: rgba(105, 105, 105, 0.56);
@@ -819,7 +819,7 @@ const toggleGoalSelection = (id) => {
 }
 .wizard-content {
   min-width: 0;
-  padding-left: 61px;
+  padding-left: 4.2361rem;
 }
 .step-expand-enter-active,
 .step-expand-leave-active {
@@ -833,59 +833,59 @@ const toggleGoalSelection = (id) => {
 .step-expand-leave-to {
   max-height: 0;
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-0.5556rem);
 }
 .step-expand-enter-to,
 .step-expand-leave-from {
-  max-height: 1800px;
+  max-height: 125rem;
   opacity: 1;
   transform: translateY(0);
 }
 .wizard-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 330px) minmax(320px, 430px);
+  grid-template-columns: minmax(19.4444rem, 22.9167rem) minmax(22.2222rem, 29.8611rem);
   align-items: stretch;
-  gap: 20px;
+  gap: 1.3889rem;
 }
 .wizard-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 30px;
-  border-radius: 15px;
+  gap: 1.3889rem;
+  padding: 2.0833rem;
+  border-radius: 1.0417rem;
   background: #fff;
 }
 .field-block {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.6944rem;
 }
 .field-label {
   color: #696969;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
 }
 .platform-grid {
   display: grid;
-  gap: 10px;
+  gap: 0.6944rem;
 }
 .platform-choice {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 17px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
   border: 1px solid rgba(105, 105, 105, 0.12);
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   background: #fff;
   color: #696969;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   transition: transform 0.4s, border-color 0.3s, background-color 0.3s, color 0.3s;
 }
 .platform-choice img {
-  width: 20px;
-  height: 20px;
+  width: 1.3889rem;
+  height: 1.3889rem;
   border-radius: 50%;
 }
 .platform-choice--active {
@@ -911,13 +911,13 @@ const toggleGoalSelection = (id) => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 46px;
-  padding: 8px 17px;
+  height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
   border: 0;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   background-color: #fff;
   color: rgba(0, 0, 0, 0.4);
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   box-shadow: inset 0 0 0 1px transparent;
   cursor: pointer;
@@ -929,7 +929,7 @@ const toggleGoalSelection = (id) => {
 }
 .cs-current {
   min-width: 0;
-  margin-right: 20px;
+  margin-right: 1.3889rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -938,8 +938,8 @@ const toggleGoalSelection = (id) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   border-radius: 50%;
   background-color: #f5f7f9;
   flex-shrink: 0;
@@ -950,19 +950,19 @@ const toggleGoalSelection = (id) => {
 }
 .cs-list {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.2778rem);
   left: 0;
   min-width: 100%;
-  max-height: 230px;
+  max-height: 15.9722rem;
   overflow-y: auto;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
   z-index: 30;
   opacity: 0;
   pointer-events: none;
   transform-origin: 50% 0;
-  transform: scale(0.75) translateY(-21px);
+  transform: scale(0.75) translateY(-1.4583rem);
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
 .custom-select.open .cs-list {
@@ -973,11 +973,11 @@ const toggleGoalSelection = (id) => {
 .cs-option {
   display: block;
   width: 100%;
-  padding: 12px 25px 12px 17px;
+  padding: 0.8333rem 1.7361rem 0.8333rem 1.1806rem;
   border: 0;
   background: transparent;
   color: rgba(0, 0, 0, 0.68);
-  font-size: 13px;
+  font-size: 0.9028rem;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -991,24 +991,24 @@ const toggleGoalSelection = (id) => {
 }
 .wizard-input {
   width: 100%;
-  height: 46px;
-  padding: 0 17px;
+  height: 3.1944rem;
+  padding: 0 1.1806rem;
   border: 0;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   background: #f9fcff;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   color: #2c2c2c;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
 }
 .switch-row,
 .final-switch {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.6944rem;
   color: #696969;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   cursor: pointer;
 }
@@ -1021,9 +1021,9 @@ const toggleGoalSelection = (id) => {
 }
 .switch-row__control,
 .final-switch span {
-  width: 38px;
-  height: 22px;
-  border-radius: 999px;
+  width: 2.6389rem;
+  height: 1.5278rem;
+  border-radius: 69.375rem;
   background: #e8eef9;
   position: relative;
   flex-shrink: 0;
@@ -1033,10 +1033,10 @@ const toggleGoalSelection = (id) => {
 .final-switch span::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
+  top: 0.2083rem;
+  left: 0.2083rem;
+  width: 1.1111rem;
+  height: 1.1111rem;
   border-radius: 50%;
   background: #fff;
   transition: transform 0.3s;
@@ -1047,7 +1047,7 @@ const toggleGoalSelection = (id) => {
 }
 .switch-row input:checked + .switch-row__control::after,
 .final-switch input:checked + span::after {
-  transform: translateX(16px);
+  transform: translateX(1.1111rem);
 }
 .primary-btn,
 .secondary-btn,
@@ -1056,11 +1056,11 @@ const toggleGoalSelection = (id) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 8px 22px;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.5278rem;
   border: 0;
-  border-radius: 15px;
-  font-size: 13px;
+  border-radius: 1.0417rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1084,9 +1084,9 @@ const toggleGoalSelection = (id) => {
   color: #696969;
 }
 .small-btn {
-  min-height: 36px;
-  padding: 6px 15px;
-  border-radius: 12px;
+  min-height: 2.5rem;
+  padding: 0.4167rem 1.0417rem;
+  border-radius: 0.8333rem;
 }
 .primary-btn:hover,
 .secondary-btn:hover,
@@ -1101,12 +1101,12 @@ const toggleGoalSelection = (id) => {
   cursor: not-allowed;
 }
 .channel-card {
-  width: min(100%, 430px);
-  min-height: 330px;
+  width: min(100%, 29.8611rem);
+  min-height: 22.9167rem;
   display: flex;
   flex-direction: column;
-  padding: 30px;
-  border-radius: 15px;
+  padding: 2.0833rem;
+  border-radius: 1.0417rem;
   color: #fff;
   background:
     radial-gradient(circle at 85% 18%, rgba(6, 181, 212, 0.38), transparent 26%),
@@ -1114,9 +1114,9 @@ const toggleGoalSelection = (id) => {
   overflow: hidden;
 }
 .channel-card__icon {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 24px;
+  width: 2.7778rem;
+  height: 2.7778rem;
+  margin-bottom: 1.6667rem;
 }
 .channel-card__icon img {
   width: 100%;
@@ -1125,39 +1125,39 @@ const toggleGoalSelection = (id) => {
 }
 .channel-card h4,
 .final-card h4 {
-  max-width: 330px;
+  max-width: 22.9167rem;
   color: inherit;
-  font-size: 24px;
+  font-size: 1.6667rem;
   line-height: 1.2;
   font-weight: 600;
 }
 .channel-card p {
-  max-width: 330px;
-  margin-top: 13px;
+  max-width: 22.9167rem;
+  margin-top: 0.9028rem;
   color: rgba(255, 255, 255, 0.58);
-  font-size: 15px;
+  font-size: 1.0417rem;
   line-height: 1.35;
 }
 .channel-card__status,
 .ready-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5556rem;
   align-self: flex-start;
   margin-top: auto;
-  min-height: 42px;
-  padding: 8px 18px;
-  border-radius: 15px;
+  min-height: 2.9167rem;
+  padding: 0.5556rem 1.25rem;
+  border-radius: 1.0417rem;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 .channel-card__status span,
 .ready-badge span {
-  width: 7px;
-  height: 7px;
+  width: 0.4861rem;
+  height: 0.4861rem;
   border-radius: 50%;
   background: #5bff7c;
 }
@@ -1165,20 +1165,20 @@ const toggleGoalSelection = (id) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 1.25rem;
 }
 .panel-head h4,
 .soft-panel h4 {
   color: #2c2c2c;
-  font-size: 18px;
+  font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.2;
 }
 .panel-head p,
 .soft-panel p {
-  margin-top: 8px;
+  margin-top: 0.5556rem;
   color: rgba(105, 105, 105, 0.56);
-  font-size: 14px;
+  font-size: 0.9722rem;
   font-weight: 500;
   line-height: 1.35;
 }
@@ -1187,31 +1187,31 @@ const toggleGoalSelection = (id) => {
   flex: 0 0 auto;
 }
 .search-input {
-  width: 354px;
-  height: 46px;
-  padding: 0 45px 0 17px;
+  width: 24.5833rem;
+  height: 3.1944rem;
+  padding: 0 3.125rem 0 1.1806rem;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   background-color: #fff;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   color: #2c2c2c;
-  font-size: 13px;
+  font-size: 0.9028rem;
   transition: box-shadow 0.5s;
 }
 .search-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 10px rgba(37, 99, 235, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 0.6944rem rgba(37, 99, 235, 0.15);
 }
 .search-input::placeholder {
   color: rgba(0, 0, 0, 0.3);
 }
 .search-icon-circle {
   position: absolute;
-  right: 17px;
+  right: 1.1806rem;
   top: 50%;
   display: flex;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -1220,29 +1220,29 @@ const toggleGoalSelection = (id) => {
   pointer-events: none;
 }
 .empty-line {
-  padding: 20px 0;
+  padding: 1.3889rem 0;
   color: rgba(105, 105, 105, 0.56);
-  font-size: 13px;
+  font-size: 0.9028rem;
 }
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(12.3611rem, 1fr));
+  gap: 1.0417rem;
 }
 .select-tile {
-  min-height: 178px;
+  min-height: 12.3611rem;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 15px;
-  border-radius: 12px;
+  gap: 0.6944rem;
+  padding: 1.0417rem;
+  border-radius: 0.8333rem;
   background: #f9fcff;
   border: 1px solid rgba(105, 105, 105, 0.08);
   cursor: pointer;
   transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
 }
 .select-tile:hover {
-  transform: translateY(-1px);
+  transform: translateY(-0.0694rem);
 }
 .select-tile--active {
   border-color: rgba(37, 99, 235, 0.35);
@@ -1254,8 +1254,8 @@ const toggleGoalSelection = (id) => {
   justify-content: space-between;
 }
 .select-tile__avatar {
-  width: 30px;
-  height: 30px;
+  width: 2.0833rem;
+  height: 2.0833rem;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1263,7 +1263,7 @@ const toggleGoalSelection = (id) => {
   overflow: hidden;
   background: #e8eef9;
   color: #4b6fa0;
-  font-size: 10px;
+  font-size: 0.6944rem;
   font-weight: 700;
 }
 .select-tile__avatar img {
@@ -1275,12 +1275,12 @@ const toggleGoalSelection = (id) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 1.5278rem;
+  height: 1.5278rem;
   border-radius: 50%;
   background: #e8eef9;
   color: transparent;
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
 }
 .select-tile--active .select-tile__check {
@@ -1289,40 +1289,40 @@ const toggleGoalSelection = (id) => {
 }
 .select-tile__title {
   color: #515151;
-  font-size: 14px;
+  font-size: 0.9722rem;
   font-weight: 600;
   line-height: 1.25;
 }
 .select-tile__meta {
   color: rgba(105, 105, 105, 0.56);
-  font-size: 11px;
+  font-size: 0.7639rem;
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
 .select-tile__caption {
   align-self: flex-start;
   margin-top: auto;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 0.5556rem 0.9722rem;
+  border-radius: 0.5556rem;
   background: #fff;
   color: #c2c2c2;
-  font-size: 11px;
+  font-size: 0.7639rem;
 }
 .select-tile__footer {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.8333rem;
   margin-top: auto;
 }
 .favorite-btn {
-  width: 32px;
-  height: 32px;
+  width: 2.2222rem;
+  height: 2.2222rem;
   border: 0;
   border-radius: 50%;
   background: #e8eef9;
   color: #c2c2c2;
-  font-size: 16px;
+  font-size: 1.1111rem;
 }
 .favorite-btn--active {
   background: #fa812e;
@@ -1332,17 +1332,17 @@ const toggleGoalSelection = (id) => {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 1.3889rem;
 }
 .status-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 8px 15px;
-  border-radius: 12px;
+  min-height: 2.6389rem;
+  padding: 0.5556rem 1.0417rem;
+  border-radius: 0.8333rem;
   background: #f9fcff;
   color: rgba(105, 105, 105, 0.7);
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1350,25 +1350,25 @@ const toggleGoalSelection = (id) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.8333rem;
 }
 .wizard-actions__right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.6944rem;
 }
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 15px;
+  gap: 1.0417rem;
 }
 .summary-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 138px;
-  padding: 20px;
-  border-radius: 15px;
+  gap: 0.5556rem;
+  min-height: 9.5833rem;
+  padding: 1.3889rem;
+  border-radius: 1.0417rem;
   color: #515151;
 }
 .summary-card--blue { background: #f0f7ff; }
@@ -1377,58 +1377,58 @@ const toggleGoalSelection = (id) => {
 .summary-card--cyan { background: #effbff; }
 .summary-card--violet { background: #f2f2ff; }
 .summary-card__icon {
-  width: 34px;
-  height: 34px;
+  width: 2.3611rem;
+  height: 2.3611rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 0.6944rem;
   background: #fff;
   color: #2563eb;
   font-weight: 700;
 }
 .summary-card__icon img {
-  width: 24px;
-  height: 24px;
+  width: 1.6667rem;
+  height: 1.6667rem;
 }
 .summary-card__label {
   color: rgba(105, 105, 105, 0.56);
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 500;
 }
 .summary-card strong {
   color: #515151;
-  font-size: 14px;
+  font-size: 0.9722rem;
   font-weight: 600;
 }
 .summary-card ul {
-  max-height: 108px;
-  margin: 2px 0 0;
-  padding-left: 16px;
+  max-height: 7.5rem;
+  margin: 0.1389rem 0 0;
+  padding-left: 1.1111rem;
   overflow-y: auto;
   color: rgba(81, 81, 81, 0.75);
-  font-size: 12px;
+  font-size: 0.8333rem;
   line-height: 1.35;
 }
 .final-card {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 28px;
-  padding: 34px;
-  border-radius: 15px;
+  gap: 1.9444rem;
+  padding: 2.3611rem;
+  border-radius: 1.0417rem;
   color: #fff;
   background:
     radial-gradient(circle at 90% 12%, rgba(6, 181, 212, 0.34), transparent 28%),
     linear-gradient(135deg, #181f2f 0%, #26324a 100%);
 }
 .final-card__caption {
-  margin-bottom: 12px;
+  margin-bottom: 0.8333rem;
   color: rgba(255, 255, 255, 0.58);
-  font-size: 15px;
+  font-size: 1.0417rem;
 }
 .final-switch {
-  margin-top: 28px;
+  margin-top: 1.9444rem;
   color: #fff;
 }
 :global(.dark) .wizard-alert,
@@ -1612,7 +1612,7 @@ const toggleGoalSelection = (id) => {
 :global(.darkmode) .summary-card ul {
   color: rgba(255, 255, 255, 0.58);
 }
-@media (max-width: 1023px) {
+@media (max-width: 767.25px) {
   .wizard-grid,
   .summary-grid {
     grid-template-columns: 1fr;
@@ -1635,7 +1635,7 @@ const toggleGoalSelection = (id) => {
     justify-content: flex-end;
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .wizard-step {
     width: 100%;
     min-width: 0;
@@ -1649,7 +1649,7 @@ const toggleGoalSelection = (id) => {
   .wizard-panel,
   .channel-card,
   .final-card {
-    padding: 22px;
+    padding: 1.5278rem;
   }
   .wizard-actions__right {
     flex-direction: column;

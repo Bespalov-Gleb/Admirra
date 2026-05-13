@@ -1,8 +1,8 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
 
     <!-- Platform quick-add buttons -->
-    <div class="flex flex-wrap gap-[10px] mb-[30px]">
+    <div class="flex flex-wrap gap-[0.6944rem] mb-[2.0833rem]">
       <button
         v-for="p in platforms"
         :key="p.id"
@@ -21,12 +21,12 @@
     </div>
 
     <!-- Heading -->
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Активные интеграции</h3>
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Активные интеграции</h3>
     </div>
 
     <!-- Toolbar -->
-    <div class="flex flex-wrap items-center gap-[10px] mb-[30px]">
+    <div class="flex flex-wrap items-center gap-[0.6944rem] mb-[2.0833rem]">
       <button class="add-btn" @click="$router.push('/integrations/wizard')">
         <span>Добавить подключение</span>
         <span class="icon-plus" aria-hidden="true">
@@ -51,17 +51,17 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
+    <div v-if="isLoading" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       Загрузка…
     </div>
 
     <!-- Empty -->
-    <div v-else-if="filteredIntegrations.length === 0" class="flex items-center justify-center py-[60px] text-[13px] text-[rgba(105,105,105,0.56)] dark:text-white/55">
+    <div v-else-if="filteredIntegrations.length === 0" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
       {{ search ? 'Ничего не найдено' : 'Нет активных интеграций. Добавьте первое подключение.' }}
     </div>
 
     <!-- Cards grid -->
-    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[15px]">
+    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[1.0417rem]">
       <div
         v-for="item in filteredIntegrations"
         :key="item.id"
@@ -69,13 +69,13 @@
       >
         <!-- Card header -->
         <div class="int-card__header">
-          <div class="flex items-center gap-[12px] min-w-0 flex-1">
+          <div class="flex items-center gap-[0.8333rem] min-w-0 flex-1">
             <div class="proj-avatar flex-shrink-0">
               <span>{{ projectName(item).slice(0, 2).toUpperCase() }}</span>
             </div>
             <div class="min-w-0">
-              <div class="text-[12px] text-[rgba(105,105,105,0.56)] font-medium leading-none mb-[5px]">Проект</div>
-              <div class="text-[15px] font-medium text-[#696969] leading-none truncate">{{ projectName(item) }}</div>
+              <div class="text-[0.8333rem] text-[rgba(105,105,105,0.56)] font-medium leading-none mb-[0.3472rem]">Проект</div>
+              <div class="text-[1.0417rem] font-medium text-[#696969] leading-none truncate">{{ projectName(item) }}</div>
             </div>
           </div>
           <div class="channel-badge flex-shrink-0">{{ channelCount(item) }}&nbsp;КАНАЛ</div>
@@ -83,10 +83,10 @@
 
         <!-- Card body -->
         <div class="int-card__body">
-          <div class="integration-body-row flex items-start gap-[15px]">
+          <div class="integration-body-row flex items-start gap-[1.0417rem]">
             <!-- Left: platform info + ID -->
-            <div class="flex-1 min-w-0 flex flex-col gap-[16px]">
-              <div class="flex items-center gap-[12px] min-w-0">
+            <div class="flex-1 min-w-0 flex flex-col gap-[1.1111rem]">
+              <div class="flex items-center gap-[0.8333rem] min-w-0">
                 <img
                   :src="platformIcon(item.platform)"
                   :alt="item.platform"
@@ -95,15 +95,15 @@
                   class="rounded-full flex-shrink-0 object-cover"
                 />
                 <div class="min-w-0">
-                  <div class="text-[15px] text-[#696969] leading-none mb-[6px]">{{ platformLabel(item.platform) }}</div>
-                  <div class="flex items-center flex-wrap gap-x-[6px] gap-y-[2px]">
+                  <div class="text-[1.0417rem] text-[#696969] leading-none mb-[0.4167rem]">{{ platformLabel(item.platform) }}</div>
+                  <div class="flex items-center flex-wrap gap-x-[0.4167rem] gap-y-[0.1389rem]">
                     <span class="sync-dot" :class="syncClass(item.sync_status)"></span>
-                    <span class="text-[11px] text-[rgba(105,105,105,0.56)] uppercase tracking-wide font-medium">
+                    <span class="text-[0.7639rem] text-[rgba(105,105,105,0.56)] uppercase tracking-wide font-medium">
                       {{ syncLabel(item.sync_status) }}
                     </span>
                     <template v-if="item.last_sync_at">
-                      <span class="text-[10px] text-[rgba(105,105,105,0.4)]">|</span>
-                      <time class="text-[11px] text-[rgba(44,44,44,0.4)]">Последняя: {{ formatDate(item.last_sync_at) }}</time>
+                      <span class="text-[0.6944rem] text-[rgba(105,105,105,0.4)]">|</span>
+                      <time class="text-[0.7639rem] text-[rgba(44,44,44,0.4)]">Последняя: {{ formatDate(item.last_sync_at) }}</time>
                     </template>
                   </div>
                 </div>
@@ -111,7 +111,7 @@
               <div class="id-badge self-start">ID: {{ item.external_account_id || item.id }}</div>
             </div>
             <!-- Right column: 24ч + Настроить — правые края совпадают -->
-            <div class="integration-actions flex flex-col items-stretch gap-[12px] flex-shrink-0">
+            <div class="integration-actions flex flex-col items-stretch gap-[0.8333rem] flex-shrink-0">
               <div class="sync-badge">
                 <span class="font-medium">24 часа</span>
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -140,7 +140,7 @@ const isLoading    = ref(false)
 const search       = ref('')
 
 // ── Platform definitions ──
-const platforms = [
+const platformCatalog = [
   { id: 'YANDEX_DIRECT', name: 'Yandex Direct', icon: '/admirra/img/icons/yandex-direct.png', color: '#71663e' },
   { id: 'VK_ADS',        name: 'ВК Ads',         icon: '/admirra/img/icons/vk-ads.png',        color: '#254b78' },
   { id: 'AVITO',         name: 'Avito',           icon: '/admirra/img/icons/avito.png',          color: '#579f75' },
@@ -148,6 +148,8 @@ const platforms = [
   { id: 'TELEGRAM',      name: 'Telegram',        icon: '/admirra/img/icons/telegram.png',        color: '#4d7c92' },
   { id: 'GOOGLE_SHEETS', name: 'Google Sheets',   icon: '/admirra/img/icons/google-sheets.png',  color: '#46725d' },
 ]
+const visiblePlatformIds = new Set(['YANDEX_DIRECT', 'VK_ADS'])
+const platforms = platformCatalog.filter((platform) => visiblePlatformIds.has(platform.id))
 
 // ── API ──
 const fetchIntegrations = async () => {
@@ -202,13 +204,13 @@ const channelCount = (integration) => {
 }
 
 const platformLabel = (platform) => {
-  const p = platforms.find(x => x.id === normalizePlatform(platform))
+  const p = platformCatalog.find(x => x.id === normalizePlatform(platform))
   if (normalizePlatform(platform) === 'MYTARGET') return 'MyTarget'
   return p?.name || platform || '—'
 }
 
 const platformIcon = (platform) => {
-  const p = platforms.find(x => x.id === normalizePlatform(platform))
+  const p = platformCatalog.find(x => x.id === normalizePlatform(platform))
   if (normalizePlatform(platform) === 'MYTARGET') return '/admirra/img/icons/target.png'
   return p?.icon || '/admirra/img/icons/yandex-direct.png'
 }
@@ -237,10 +239,10 @@ const formatDate = (dateStr) => {
 .platform-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 6px 13px 6px 8px;
-  border-radius: 40px;
+  gap: 0.5556rem;
+  min-height: 2.7778rem;
+  padding: 0.4167rem 0.9028rem 0.4167rem 0.5556rem;
+  border-radius: 2.7778rem;
   background-color: #fff;
   border: none;
   cursor: pointer;
@@ -265,8 +267,8 @@ const formatDate = (dateStr) => {
 }
 
 .platform-btn__icon {
-  width: 14px;
-  height: 14px;
+  width: 0.9722rem;
+  height: 0.9722rem;
   border-radius: 50%;
   overflow: hidden;
   background: #eee;
@@ -275,35 +277,35 @@ const formatDate = (dateStr) => {
 .platform-btn__icon img { width: 100%; height: 100%; object-fit: cover; }
 
 .platform-btn__label {
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 400;
 }
 
 .platform-btn__plus {
   position: relative;
   display: inline-flex;
-  width: 15px;
-  height: 15px;
+  width: 1.0417rem;
+  height: 1.0417rem;
   border-radius: 50%;
   background-color: rgba(0,0,0,0.12);
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: 0.2778rem;
 }
 .platform-btn__plus span {
   position: absolute;
   left: 50%;
   top: 50%;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: rgba(0,0,0,0.45);
   transform: translate(-50%, -50%);
 }
 .platform-btn__plus span:first-child {
-  width: 5.5px;
+  width: 0.3819rem;
   height: 1px;
 }
 .platform-btn__plus span:last-child {
   width: 1px;
-  height: 5.5px;
+  height: 0.3819rem;
 }
 :global(.dark) .platform-btn__plus,
 :global(.darkmode) .platform-btn__plus {
@@ -318,13 +320,13 @@ const formatDate = (dateStr) => {
 .add-btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 17px;
-  border-radius: 15px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
+  border-radius: 1.0417rem;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   border: none;
   cursor: pointer;
@@ -337,9 +339,9 @@ const formatDate = (dateStr) => {
 .icon-plus {
   position: relative;
   display: inline-flex;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 1.5278rem;
+  height: 1.5278rem;
+  border-radius: 0.4167rem;
   background: rgba(255,255,255,0.2);
   flex-shrink: 0;
 }
@@ -347,17 +349,17 @@ const formatDate = (dateStr) => {
   position: absolute;
   left: 50%;
   top: 50%;
-  border-radius: 999px;
+  border-radius: 69.375rem;
   background: #fff;
   transform: translate(-50%, -50%);
 }
 .icon-plus span:first-child {
-  width: 7px;
+  width: 0.4861rem;
   height: 1px;
 }
 .icon-plus span:last-child {
   width: 1px;
-  height: 7px;
+  height: 0.4861rem;
 }
 
 /* ── Search (стиль как в ProjectCard) ── */
@@ -366,19 +368,19 @@ const formatDate = (dateStr) => {
   max-width: 100%;
 }
 .search-input {
-  width: min(354px, 100%);
-  height: 46px;
-  padding: 0 45px 0 17px;
-  font-size: 13px;
+  width: min(24.5833rem, 100%);
+  height: 3.1944rem;
+  padding: 0 3.125rem 0 1.1806rem;
+  font-size: 0.9028rem;
   color: #2c2c2c;
   background-color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
   transition: box-shadow 0.5s;
 }
-.search-input:focus { box-shadow: inset 0 0 0 1px rgba(37,99,235,0.24), 0 0 10px rgba(37,99,235,0.15); }
+.search-input:focus { box-shadow: inset 0 0 0 1px rgba(37,99,235,0.24), 0 0 0.6944rem rgba(37,99,235,0.15); }
 .search-input::placeholder { color: rgba(0,0,0,0.3); }
 :global(.dark) .search-input,
 :global(.darkmode) .search-input {
@@ -394,12 +396,12 @@ const formatDate = (dateStr) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background-color: #f5f7f9;
   border-radius: 50%;
   position: absolute;
-  right: 17px;
+  right: 1.1806rem;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
@@ -413,10 +415,10 @@ const formatDate = (dateStr) => {
 .int-card {
   display: flex;
   flex-direction: column;
-  gap: 30px;
-  padding: 30px;
+  gap: 2.0833rem;
+  padding: 2.0833rem;
   background-color: #fff;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
 }
 :global(.dark) .int-card,
 :global(.darkmode) .int-card {
@@ -440,7 +442,7 @@ const formatDate = (dateStr) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
+  gap: 1.0417rem;
 }
 
 .integration-body-row {
@@ -449,8 +451,8 @@ const formatDate = (dateStr) => {
 
 /* ── Project avatar ── */
 .proj-avatar {
-  width: 36px;
-  height: 36px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: #e8eef9;
   display: flex;
@@ -458,7 +460,7 @@ const formatDate = (dateStr) => {
   justify-content: center;
 }
 .proj-avatar span {
-  font-size: 12px;
+  font-size: 0.8333rem;
   font-weight: 700;
   color: #4b6fa0;
   line-height: 1;
@@ -467,12 +469,12 @@ const formatDate = (dateStr) => {
 /* ── Channel badge (caption _light _md) ── */
 .channel-badge {
   display: inline-block;
-  padding: 9px 17px;
-  border-radius: 12px;
+  padding: 0.625rem 1.1806rem;
+  border-radius: 0.8333rem;
   background-color: rgba(0,110,255,0.03);
   border: 1px solid #adc7ff;
   color: #2563eb;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -481,9 +483,9 @@ const formatDate = (dateStr) => {
 
 /* ── Card body ── */
 .int-card__body {
-  padding: 20px;
+  padding: 1.3889rem;
   background-color: #f9fcff;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   border: 1px solid #e9e9e9;
 }
 :global(.dark) .int-card__body,
@@ -496,8 +498,8 @@ const formatDate = (dateStr) => {
 .sync-dot {
   flex-shrink: 0;
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 0.4167rem;
+  height: 0.4167rem;
   border-radius: 50%;
   background-color: #2563eb;
 }
@@ -510,24 +512,24 @@ const formatDate = (dateStr) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 9px 17px;
-  border-radius: 18px;
+  gap: 0.4861rem;
+  padding: 0.625rem 1.1806rem;
+  border-radius: 1.25rem;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
-  font-size: 13px;
+  font-size: 0.9028rem;
   white-space: nowrap;
 }
 
 /* ── ID badge (caption) ── */
 .id-badge {
   display: inline-block;
-  padding: 8px 15px;
+  padding: 0.5556rem 1.0417rem;
   background-color: #f9fcff;
   border: 1px solid #e9e9e9;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   color: #c2c2c2;
-  font-size: 11px;
+  font-size: 0.7639rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -543,13 +545,13 @@ const formatDate = (dateStr) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 8px 22px;
-  border-radius: 12px;
+  min-height: 2.7778rem;
+  padding: 0.5556rem 1.5278rem;
+  border-radius: 0.8333rem;
   background-color: #fff;
   border: 1px solid rgba(105,105,105,0.15);
   color: #71663e;
-  font-size: 13px;
+  font-size: 0.9028rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -564,7 +566,7 @@ const formatDate = (dateStr) => {
   color: rgba(255,255,255,0.75);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 479.25px) {
   .platform-btn,
   .add-btn,
   .search-wrap,
@@ -573,8 +575,8 @@ const formatDate = (dateStr) => {
   }
 
   .int-card {
-    padding: 20px;
-    gap: 20px;
+    padding: 1.3889rem;
+    gap: 1.3889rem;
   }
 
   .int-card__header,
@@ -590,7 +592,7 @@ const formatDate = (dateStr) => {
   }
 
   .integration-actions > * {
-    flex: 1 1 140px;
+    flex: 1 1 9.7222rem;
   }
 }
 </style>

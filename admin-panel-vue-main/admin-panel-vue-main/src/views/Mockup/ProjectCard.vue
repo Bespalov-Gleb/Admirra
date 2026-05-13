@@ -1,15 +1,15 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[25px] py-[30px]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
 
     <!-- Heading -->
-    <div class="pt-[15px] pb-[15px] mb-[10px]">
-      <h3 class="text-[30px] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
+    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
     </div>
 
     <!-- Filters bar -->
-    <div class="flex flex-wrap items-center justify-between gap-[10px] mb-[30px]">
+    <div class="flex flex-wrap items-center justify-between gap-[0.6944rem] mb-[2.0833rem]">
       <!-- Left: selects + search -->
-      <div class="flex flex-wrap items-center gap-[10px]">
+      <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <!-- Dropdown: Все -->
         <div class="custom-select" :class="{ open: openSelect === 'type' }" v-click-outside="() => closeSelect('type')">
           <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('type')">
@@ -61,13 +61,13 @@
       </div>
 
       <!-- Right: bulk edit + view toggle -->
-      <div class="flex items-center gap-[10px]">
+      <div class="flex items-center gap-[0.6944rem]">
         <button class="bulk-btn" @click="openMassEdit">
           <span>Массовое редактирование</span>
           <span class="bulk-btn__icon">
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-              <path d="M1 13L5.5 8.5M13 1L8.5 5.5M5.5 8.5L8.5 5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L1 13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2.8 13.2h3.4" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
             </svg>
           </span>
         </button>
@@ -91,27 +91,27 @@
       </div>
     </div>
 
-    <div v-if="isLoading" class="py-16 text-center text-[14px] text-gray-400">Загрузка проектов...</div>
+    <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
 
-    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center text-[14px] text-gray-400">
+    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center text-[0.9722rem] text-gray-400">
       {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
     </div>
 
     <!-- Projects grid -->
-    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[15px] mb-[30px]">
-      <div v-for="project in filteredProjects" :key="project.id" class="project-card bg-white rounded-[15px]">
+    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[1.0417rem] mb-[2.0833rem]">
+      <div v-for="project in filteredProjects" :key="project.id" class="project-card bg-white rounded-[1.0417rem]">
 
         <!-- Card body -->
-        <div class="p-[30px]">
+        <div class="p-[2.0833rem]">
           <!-- Project header row -->
-          <div class="flex items-center justify-between pb-[10px] mb-[15px]">
+          <div class="flex items-center justify-between pb-[0.6944rem] mb-[1.0417rem]">
             <div class="flex items-center">
               <div class="project-avatar">
                 <img src="/admirra/img/avatars/avatar-40x40.png" :alt="project.name" class="w-full h-full object-cover" />
               </div>
-              <div class="pl-[15px]">
-                <h4 class="text-[15px] text-[#696969] font-medium mb-[3px] leading-none">{{ project.name }}</h4>
-                <p class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description || `ID: ${shortId(project.id)}` }}</p>
+              <div class="pl-[1.0417rem]">
+                <h4 class="text-[1.0417rem] text-[#696969] font-medium mb-[0.2083rem] leading-none">{{ project.name }}</h4>
+                <p class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description || `ID: ${shortId(project.id)}` }}</p>
               </div>
             </div>
             <button class="circle-open-btn flex-shrink-0" @click="openProject(project)">
@@ -122,21 +122,21 @@
           </div>
 
           <!-- Stats grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[15px]">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[1.0417rem]">
             <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
-              <div class="flex items-start pb-[5px] mb-[15px]">
+              <div class="flex items-start pb-[0.3472rem] mb-[1.0417rem]">
                 <div class="iconbox flex-shrink-0">
                   <svg width="11" height="11" fill="#2563eb">
                     <use :href="stat.icon" />
                   </svg>
                 </div>
-                <div class="pl-[10px] self-center min-w-0">
-                  <h4 class="text-[13px] text-[#696969] font-medium mb-[2px] leading-[1.1] truncate">{{ stat.label }}</h4>
-                  <p class="text-[12px] text-[rgba(105,105,105,0.56)] leading-[1.1] truncate">{{ stat.subtitle }}</p>
+                <div class="pl-[0.6944rem] self-center min-w-0">
+                  <h4 class="text-[0.9028rem] text-[#696969] font-medium mb-[0.1389rem] leading-[1.1] truncate">{{ stat.label }}</h4>
+                  <p class="text-[0.8333rem] text-[rgba(105,105,105,0.56)] leading-[1.1] truncate">{{ stat.subtitle }}</p>
                 </div>
               </div>
               <div class="stat-value-row flex items-center mt-auto">
-                <b class="min-w-0 truncate text-[20px] font-semibold leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
+                <b class="min-w-0 truncate text-[1.3889rem] font-semibold leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
                 <span class="badge-success shrink-0">
                   <svg width="8" height="7" viewBox="0 0 12 9" fill="none">
                     <path d="M1 8L6 2L11 8" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -152,18 +152,18 @@
         <hr class="project-divider m-0 border-0 border-t border-[rgba(0,0,0,0.05)]" />
 
         <!-- Balance section -->
-        <div class="p-[30px]">
-          <p class="text-[13px] text-[#696969] mb-[10px]">Актуальный баланс в ЛК:</p>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-[15px]">
+        <div class="p-[2.0833rem]">
+          <p class="text-[0.9028rem] text-[#696969] mb-[0.6944rem]">Актуальный баланс в ЛК:</p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-[1.0417rem]">
             <div
               v-for="balance in projectBalances(project)"
               :key="balance.name"
               :style="{ backgroundColor: balance.bg }"
-              class="balance-tile rounded-[12px] p-[10px]"
+              class="balance-tile rounded-[0.8333rem] p-[0.6944rem]"
             >
-              <div class="flex min-w-0 items-center justify-center gap-[8px]">
+              <div class="flex min-w-0 items-center justify-center gap-[0.5556rem]">
                 <img :src="balance.icon" :alt="balance.name" width="18" class="flex-shrink-0" />
-                <span class="min-w-0 truncate text-[13px] font-medium" :style="{ color: balance.color }">{{ balance.name }}</span>
+                <span class="min-w-0 truncate text-[0.9028rem] font-medium" :style="{ color: balance.color }">{{ balance.name }}</span>
                 <span class="badge-white shrink-0" :style="{ color: balance.color }">{{ balance.value }}</span>
               </div>
             </div>
@@ -394,10 +394,10 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   background-color: #fff;
-  border-radius: 15px;
-  min-height: 46px;
-  padding: 8px 17px;
-  font-size: 13px;
+  border-radius: 1.0417rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.4);
   border: 1px solid transparent;
@@ -411,14 +411,14 @@ onMounted(async () => {
   border-color: rgba(0, 0, 0, 0.1);
 }
 .cs-current {
-  margin-right: 25px;
+  margin-right: 1.7361rem;
 }
 .cs-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background-color: #f5f7f9;
   border-radius: 50%;
   flex-shrink: 0;
@@ -429,11 +429,11 @@ onMounted(async () => {
 }
 .cs-list {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.2778rem);
   left: 0;
   min-width: 100%;
   background-color: #fff;
-  border-radius: 8px;
+  border-radius: 0.5556rem;
   box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.1);
   padding: 0;
   z-index: 99;
@@ -442,7 +442,7 @@ onMounted(async () => {
   opacity: 0;
   pointer-events: none;
   transform-origin: 50% 0;
-  transform: scale(0.75) translateY(-21px);
+  transform: scale(0.75) translateY(-1.4583rem);
   transition: transform 0.2s cubic-bezier(0.5, 0, 0, 1.25), opacity 0.15s ease-out;
 }
 .custom-select.open .cs-list {
@@ -451,8 +451,8 @@ onMounted(async () => {
   transform: scale(1) translateY(0);
 }
 .cs-option {
-  padding: 12px 25px 12px 17px;
-  font-size: 13px;
+  padding: 0.8333rem 1.7361rem 0.8333rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 400;
   color: rgba(0, 0, 0, 0.7);
   cursor: pointer;
@@ -465,30 +465,30 @@ onMounted(async () => {
 /* ---- Search ---- */
 .search-wrap { position: relative; }
 .search-input {
-  width: 354px;
-  height: 46px;
-  padding: 0 45px 0 17px;
-  font-size: 13px;
+  width: 24.5833rem;
+  height: 3.1944rem;
+  padding: 0 3.125rem 0 1.1806rem;
+  font-size: 0.9028rem;
   color: #2c2c2c;
   background-color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   outline: none;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.5s;
 }
-.search-input:focus { box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 10px rgba(37, 99, 235, 0.15); }
+.search-input:focus { box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.24), 0 0 0.6944rem rgba(37, 99, 235, 0.15); }
 .search-input::placeholder { color: rgba(0, 0, 0, 0.3); }
 .search-icon-circle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background-color: #f5f7f9;
   border-radius: 50%;
   position: absolute;
-  right: 17px;
+  right: 1.1806rem;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
@@ -498,15 +498,15 @@ onMounted(async () => {
 .bulk-btn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 46px;
-  padding: 8px 17px;
-  font-size: 13px;
+  gap: 0.6944rem;
+  min-height: 3.1944rem;
+  padding: 0.5556rem 1.1806rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: #fff;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   border: none;
-  border-radius: 15px;
+  border-radius: 1.0417rem;
   cursor: pointer;
   transition: transform 0.75s;
   white-space: nowrap;
@@ -517,11 +517,17 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 1.5278rem;
+  height: 1.5278rem;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border-radius: 0.4167rem;
   flex-shrink: 0;
+  color: #fff;
+}
+.bulk-btn__icon svg {
+  display: block;
+  width: 0.9722rem;
+  height: 0.9722rem;
 }
 
 /* ---- View toggle ---- */
@@ -529,9 +535,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
+  width: 3.1944rem;
+  height: 3.1944rem;
+  border-radius: 0.8333rem;
   background-color: transparent;
   border: 0;
   cursor: pointer;
@@ -546,8 +552,8 @@ onMounted(async () => {
 
 /* ---- Project avatar ---- */
 .project-avatar {
-  width: 40px;
-  height: 40px;
+  width: 2.7778rem;
+  height: 2.7778rem;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
@@ -558,8 +564,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 2.7778rem;
+  height: 2.7778rem;
   border-radius: 50%;
   border: 1px solid rgba(169, 169, 169, 0.35);
   background: transparent;
@@ -572,9 +578,9 @@ onMounted(async () => {
 .stat-box {
   display: flex;
   flex-direction: column;
-  padding: 15px;
+  padding: 1.0417rem;
   background-color: #f8fafb;
-  border-radius: 12px;
+  border-radius: 0.8333rem;
   line-height: 1.1;
 }
 
@@ -583,39 +589,39 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 2.2222rem;
+  height: 2.2222rem;
   background: #fff;
-  border-radius: 6px;
+  border-radius: 0.4167rem;
 }
 
 /* ---- Badges ---- */
 .badge-success {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 7px;
+  gap: 0.2083rem;
+  padding: 0.2083rem 0.4861rem;
   background-color: rgba(0, 255, 78, 0.1);
   color: #16a34a;
-  font-size: 11px;
+  font-size: 0.7639rem;
   font-weight: 500;
-  border-radius: 100px;
+  border-radius: 6.9444rem;
   white-space: nowrap;
 }
 
 .stat-value-row {
   min-width: 0;
-  gap: 8px;
+  gap: 0.5556rem;
 }
 
 .badge-white {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 1.5278rem;
+  padding: 0 0.5556rem;
   background: #fff;
-  border-radius: 100px;
-  font-size: 13px;
+  border-radius: 6.9444rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   white-space: nowrap;
   max-width: 100%;
@@ -625,7 +631,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
-@media (max-width: 430px) {
+@media (max-width: 322.5px) {
   .stat-value-row {
     align-items: flex-start;
     flex-direction: column;
