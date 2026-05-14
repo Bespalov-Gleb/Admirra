@@ -554,7 +554,7 @@ const handleClickOutside = (event) => {
   if (!isOpen.value || !containerRef.value) return
   
   const button = containerRef.value.querySelector('button')
-  const popup = containerRef.value.querySelector('.calendar-popup')
+  const popup = document.querySelector('.calendar-popup.drp-popup')
   if (popup && !popup.contains(event.target) && button && !button.contains(event.target)) {
     close()
   }
@@ -620,5 +620,353 @@ onMounted(() => {
 .fade-scale-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(-0.6944rem);
+}
+
+:global(.calendar-popup) {
+  width: min(38.8889rem, calc(100vw - 1.6667rem)) !important;
+  max-height: min(36.1111rem, calc(100vh - 1.6667rem));
+  overflow: auto;
+  padding: 1.1111rem !important;
+  border: 1px solid #ebebeb !important;
+  border-radius: 0.9722rem !important;
+  background: #fff !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12) !important;
+}
+
+:global(.calendar-popup .drp-quick-row) {
+  gap: 0.4167rem !important;
+  margin: 0 0 0.9722rem !important;
+  padding: 0 0 0.8333rem !important;
+  border-bottom: 1px solid #eef0f3 !important;
+  align-items: center !important;
+}
+
+:global(.calendar-popup .drp-quick) {
+  height: 1.9444rem !important;
+  min-height: 0 !important;
+  padding: 0 0.6944rem !important;
+  border: 1px solid #eef0f3 !important;
+  border-radius: 0.625rem !important;
+  background: #f7f8fa !important;
+  color: #4b5563 !important;
+  font-size: 0.8333rem !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-quick:hover),
+:global(.calendar-popup .drp-quick.text-blue-600) {
+  color: #2563eb !important;
+  border-color: #dbeafe !important;
+  background: #eff6ff !important;
+}
+
+:global(.calendar-popup .drp-month-grid) {
+  gap: 1.5278rem !important;
+}
+
+:global(.calendar-popup .drp-month-head) {
+  margin-bottom: 0.6944rem !important;
+}
+
+:global(.calendar-popup .drp-month-head h3) {
+  color: #111827 !important;
+  font-size: 1.0417rem !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-nav) {
+  width: 1.6667rem !important;
+  height: 1.6667rem !important;
+  min-height: 1.6667rem !important;
+  padding: 0 !important;
+  border-radius: 69.375rem !important;
+  color: #4b5563 !important;
+  background: transparent !important;
+}
+
+:global(.calendar-popup .drp-nav:hover) {
+  background: #f3f6fb !important;
+}
+
+:global(.calendar-popup .drp-nav svg) {
+  width: 0.9722rem !important;
+  height: 0.9722rem !important;
+  color: currentColor !important;
+}
+
+:global(.calendar-popup .drp-weekdays) {
+  gap: 0.2778rem !important;
+  margin-bottom: 0.2778rem !important;
+}
+
+:global(.calendar-popup .drp-weekday) {
+  padding: 0 !important;
+  color: #6b7280 !important;
+  font-size: 0.6944rem !important;
+  line-height: 1.3889rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: lowercase !important;
+}
+
+:global(.calendar-popup .drp-weekday.text-red-500) {
+  color: #ef4444 !important;
+}
+
+:global(.calendar-popup .drp-days) {
+  gap: 0.2778rem !important;
+}
+
+:global(.calendar-popup .drp-day) {
+  width: 2.0833rem !important;
+  height: 2.0833rem !important;
+  min-height: 2.0833rem !important;
+  padding: 0 !important;
+  border-radius: 0.5556rem !important;
+  border: 0 !important;
+  font-size: 0.8333rem !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+:global(.calendar-popup .drp-day:hover:not(:disabled)) {
+  background: #edf4ff !important;
+  color: #2563eb !important;
+}
+
+:global(.calendar-popup .drp-day.bg-blue-600),
+:global(.calendar-popup .drp-day.bg-red-500) {
+  color: #fff !important;
+  background: #2563eb !important;
+  border-radius: 0.5556rem !important;
+}
+
+:global(.calendar-popup .drp-day.bg-red-500) {
+  background: #ef4444 !important;
+}
+
+:global(.calendar-popup .drp-day.bg-blue-100) {
+  background: #dbeafe !important;
+  color: #2563eb !important;
+}
+
+:global(.calendar-popup .drp-day.text-gray-300) {
+  color: #c9cfd8 !important;
+}
+
+:global(.calendar-popup .drp-fields) {
+  gap: 0.6944rem !important;
+  margin-top: 1.1111rem !important;
+  padding-top: 0.8333rem !important;
+  border-top: 1px solid #eef0f3 !important;
+  align-items: end !important;
+}
+
+:global(.calendar-popup .drp-label) {
+  margin: 0 0 0.4167rem !important;
+  color: #6b7280 !important;
+  font-size: 0.7639rem !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+:global(.calendar-popup .drp-input) {
+  height: 2.6389rem !important;
+  padding: 0 0.8333rem !important;
+  border: 1px solid #d9dee6 !important;
+  border-radius: 0.6944rem !important;
+  background: #fff !important;
+  color: #374151 !important;
+  font-size: 0.8333rem !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+}
+
+:global(.calendar-popup .drp-input:focus) {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+}
+
+:global(.calendar-popup .drp-fields > .text-gray-400) {
+  padding-bottom: 0.6944rem !important;
+  color: #9ca3af !important;
+  font-size: 1.1111rem !important;
+}
+
+:global(.calendar-popup .drp-apply) {
+  height: 2.6389rem !important;
+  min-height: 2.6389rem !important;
+  margin: 0 !important;
+  padding: 0 1.25rem !important;
+  border-radius: 0.625rem !important;
+  background: #2563eb !important;
+  color: #fff !important;
+  font-size: 0.8333rem !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+:global(.calendar-popup .drp-apply:hover) {
+  background: #1d4ed8 !important;
+}
+
+:global(html.dark .calendar-popup),
+:global(html.darkmode .calendar-popup) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: #2c2f3d !important;
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.34) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick-row),
+:global(html.darkmode .calendar-popup .drp-quick-row),
+:global(html.dark .calendar-popup .drp-fields),
+:global(html.darkmode .calendar-popup .drp-fields) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick),
+:global(html.darkmode .calendar-popup .drp-quick) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+:global(html.dark .calendar-popup .drp-quick:hover),
+:global(html.darkmode .calendar-popup .drp-quick:hover),
+:global(html.dark .calendar-popup .drp-quick.text-blue-600),
+:global(html.darkmode .calendar-popup .drp-quick.text-blue-600) {
+  border-color: rgba(74, 122, 255, 0.28) !important;
+  background: rgba(74, 122, 255, 0.14) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-month-head h3),
+:global(html.darkmode .calendar-popup .drp-month-head h3) {
+  color: #f8fafc !important;
+}
+
+:global(html.dark .calendar-popup .drp-nav),
+:global(html.darkmode .calendar-popup .drp-nav),
+:global(html.dark .calendar-popup .drp-weekday),
+:global(html.darkmode .calendar-popup .drp-weekday),
+:global(html.dark .calendar-popup .drp-label),
+:global(html.darkmode .calendar-popup .drp-label),
+:global(html.dark .calendar-popup .drp-fields > .text-gray-400),
+:global(html.darkmode .calendar-popup .drp-fields > .text-gray-400) {
+  color: rgba(255, 255, 255, 0.58) !important;
+}
+
+:global(html.dark .calendar-popup .drp-nav:hover),
+:global(html.darkmode .calendar-popup .drp-nav:hover),
+:global(html.dark .calendar-popup .drp-day:hover:not(:disabled)),
+:global(html.darkmode .calendar-popup .drp-day:hover:not(:disabled)) {
+  background: rgba(74, 122, 255, 0.14) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-day),
+:global(html.darkmode .calendar-popup .drp-day) {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+:global(html.dark .calendar-popup .drp-day.text-gray-300),
+:global(html.darkmode .calendar-popup .drp-day.text-gray-300) {
+  color: rgba(255, 255, 255, 0.24) !important;
+}
+
+:global(html.dark .calendar-popup .drp-day.bg-blue-100),
+:global(html.darkmode .calendar-popup .drp-day.bg-blue-100) {
+  background: rgba(74, 122, 255, 0.18) !important;
+  color: #8fb0ff !important;
+}
+
+:global(html.dark .calendar-popup .drp-input),
+:global(html.darkmode .calendar-popup .drp-input) {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: #232637 !important;
+  color: rgba(255, 255, 255, 0.84) !important;
+}
+
+@media (max-width: 480px) {
+  :global(.calendar-popup) {
+    width: min(22.2222rem, calc(100vw - 1.1111rem)) !important;
+    max-height: calc(100vh - 1.1111rem);
+    padding: 0.9722rem !important;
+  }
+
+  :global(.calendar-popup .drp-quick-row) {
+    gap: 0.4167rem !important;
+    margin-bottom: 0.8333rem !important;
+    padding-bottom: 0.6944rem !important;
+  }
+
+  :global(.calendar-popup .drp-quick) {
+    height: 1.9444rem !important;
+    padding: 0 0.5556rem !important;
+    font-size: 0.7639rem !important;
+  }
+
+  :global(.calendar-popup .drp-month-grid) {
+    grid-template-columns: 1fr !important;
+    gap: 1.1111rem !important;
+  }
+
+  :global(.calendar-popup .drp-month-head h3) {
+    font-size: 1.0417rem !important;
+  }
+
+  :global(.calendar-popup .drp-weekdays),
+  :global(.calendar-popup .drp-days) {
+    gap: 0.2778rem !important;
+  }
+
+  :global(.calendar-popup .drp-day) {
+    width: 2.3611rem !important;
+    height: 2.3611rem !important;
+    min-height: 2.3611rem !important;
+    font-size: 0.8333rem !important;
+    border-radius: 0.5556rem !important;
+  }
+
+  :global(.calendar-popup .drp-weekday) {
+    font-size: 0.6944rem !important;
+    line-height: 1.3889rem !important;
+  }
+
+  :global(.calendar-popup .drp-fields) {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.5556rem !important;
+    margin-top: 0.9722rem !important;
+    padding-top: 0.8333rem !important;
+  }
+
+  :global(.calendar-popup .drp-fields > .text-gray-400) {
+    display: none !important;
+  }
+
+  :global(.calendar-popup .drp-label) {
+    font-size: 0.7639rem !important;
+  }
+
+  :global(.calendar-popup .drp-input) {
+    height: 2.6389rem !important;
+    font-size: 0.8333rem !important;
+  }
+
+  :global(.calendar-popup .drp-apply) {
+    width: 100% !important;
+    height: 2.6389rem !important;
+    margin-top: 0.2778rem !important;
+    font-size: 0.8333rem !important;
+  }
 }
 </style>

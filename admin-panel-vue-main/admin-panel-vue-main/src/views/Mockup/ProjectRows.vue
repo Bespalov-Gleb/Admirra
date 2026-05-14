@@ -469,6 +469,7 @@ const closeSelect = (name) => {
 
 const closePeriodSelect = (event) => {
   if (periodPopoverRef.value?.contains(event.target)) return
+  if (event.target?.closest?.('.calendar-popup')) return
   closeSelect('period')
 }
 
