@@ -84,6 +84,24 @@ class LoginOtpChallenge(Base):
     consumed = Column(Boolean, default=False, nullable=False)
 
 
+class AuthRefreshSession(Base):
+    """Long-lived browser session backed by an httpOnly refresh-token cookie."""
+    __tablename__ = "auth_refresh_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(128), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    remember_me = Column(Boolean, default=False, nullable=False)
+    user_agent = Column(String(512), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", backref="auth_refresh_sessions")
+
+
 class TelegramLinkToken(Base):
     """
     Одноразовый токен для deep link t.me/<bot>?start=<token>.

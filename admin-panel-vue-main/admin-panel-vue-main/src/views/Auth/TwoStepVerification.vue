@@ -124,6 +124,8 @@ const challengeId = computed(() => {
   return typeof id === 'string' ? id : ''
 })
 
+const rememberMe = computed(() => route.query.remember === '1' || route.query.remember === 'true')
+
 const handleCodeInput = (e) => {
   verificationCode.value = e.target.value.replace(/\D/g, '').slice(0, 6)
 }
@@ -145,7 +147,7 @@ const handleVerify = async () => {
   loading.value = true
   errorMessage.value = ''
 
-  const result = await completeLoginWithOtp(challengeId.value, verificationCode.value)
+  const result = await completeLoginWithOtp(challengeId.value, verificationCode.value, rememberMe.value)
 
   loading.value = false
 

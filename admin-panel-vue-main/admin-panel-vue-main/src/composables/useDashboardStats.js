@@ -1,5 +1,6 @@
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import api from '../api/axios'
+import { getAccessToken } from '@/utils/authToken'
 
 const DEVICE_STATS_MOCK = [
   { name: 'Мобильные', value: '—', width: '0%', icon: 'mobile' },
@@ -144,7 +145,7 @@ export function useDashboardStats() {
 
   const fetchClients = async () => {
     // Проверяем наличие токена перед запросом
-    const token = localStorage.getItem('auth_token')
+    const token = getAccessToken()
     if (!token) {
       console.log('[DashboardStats] No auth token, skipping clients fetch')
       return
@@ -168,7 +169,7 @@ export function useDashboardStats() {
 
   const fetchStats = async () => {
     // Проверяем наличие токена перед запросом
-    const token = localStorage.getItem('auth_token')
+    const token = getAccessToken()
     if (!token) {
       console.log('[DashboardStats] No auth token, skipping stats fetch')
       loading.value = false

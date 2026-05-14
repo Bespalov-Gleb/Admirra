@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import axios from '../api/axios'
+import { getAccessToken } from '@/utils/authToken'
 
 const projects = ref([])
 const currentProjectId = ref(localStorage.getItem('currentProjectId') || null)
@@ -9,7 +10,7 @@ export function useProjects() {
   
   const fetchProjects = async () => {
     // Проверяем наличие токена перед запросом
-    const token = localStorage.getItem('auth_token')
+    const token = getAccessToken()
     if (!token) {
       console.log('[useProjects] No auth token, skipping projects fetch')
       return

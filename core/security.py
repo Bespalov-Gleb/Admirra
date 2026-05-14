@@ -1,9 +1,12 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
+import secrets
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from core import models, schemas
@@ -16,6 +19,9 @@ SECRET_KEY = cfg.security.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 AUTH_REQUIRE_EMAIL_VERIFIED = cfg.auth.auth_require_email_verified
+REFRESH_COOKIE_NAME = "admirra_refresh_token"
+REFRESH_TOKEN_REMEMBER_DAYS = 30
+REFRESH_TOKEN_SESSION_DAYS = 1
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -34,6 +40,132 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _normalize_dt(value: Optional[datetime]) -> Optional[datetime]:
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def create_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _refresh_cookie_secure(request: Request) -> bool:
+    host = (request.headers.get("host") or request.url.hostname or "").split(":")[0].lower()
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return False
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        return True
+    deploy_env = (cfg.public_domain.admierra_deploy_env or "").lower()
+    return deploy_env in {"prod", "production"}
+
+
+def set_refresh_cookie(response: Response, request: Request, token: str, remember_me: bool) -> None:
+    max_age = REFRESH_TOKEN_REMEMBER_DAYS * 24 * 60 * 60 if remember_me else None
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        max_age=max_age,
+        httponly=True,
+        secure=_refresh_cookie_secure(request),
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def clear_refresh_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=_refresh_cookie_secure(request),
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def create_refresh_session(
+    db: Session,
+    user: models.User,
+    request: Request,
+    response: Response,
+    remember_me: bool,
+) -> None:
+    raw_token = create_refresh_token()
+    now = utcnow()
+    ttl_days = REFRESH_TOKEN_REMEMBER_DAYS if remember_me else REFRESH_TOKEN_SESSION_DAYS
+    session = models.AuthRefreshSession(
+        user_id=user.id,
+        token_hash=hash_refresh_token(raw_token),
+        expires_at=now + timedelta(days=ttl_days),
+        remember_me=remember_me,
+        user_agent=(request.headers.get("user-agent") or "")[:512] or None,
+        ip_address=(request.client.host if request.client else None),
+        created_at=now,
+        last_used_at=now,
+    )
+    db.add(session)
+    set_refresh_cookie(response, request, raw_token, remember_me)
+
+
+def revoke_refresh_session(db: Session, raw_token: Optional[str]) -> None:
+    if not raw_token:
+        return
+    session = (
+        db.query(models.AuthRefreshSession)
+        .filter(models.AuthRefreshSession.token_hash == hash_refresh_token(raw_token))
+        .first()
+    )
+    if session and session.revoked_at is None:
+        session.revoked_at = utcnow()
+        db.add(session)
+
+
+def consume_refresh_session(
+    db: Session,
+    raw_token: Optional[str],
+    request: Request,
+    response: Response,
+) -> Optional[models.User]:
+    if not raw_token:
+        return None
+    now = utcnow()
+    session = (
+        db.query(models.AuthRefreshSession)
+        .filter(models.AuthRefreshSession.token_hash == hash_refresh_token(raw_token))
+        .first()
+    )
+    if (
+        not session
+        or session.revoked_at is not None
+        or (_normalize_dt(session.expires_at) and _normalize_dt(session.expires_at) < now)
+    ):
+        return None
+
+    user = db.query(models.User).filter(models.User.id == session.user_id).first()
+    if not user or (AUTH_REQUIRE_EMAIL_VERIFIED and not getattr(user, "email_verified", True)):
+        session.revoked_at = now
+        db.add(session)
+        return None
+
+    remember_me = bool(session.remember_me)
+    session.revoked_at = now
+    db.add(session)
+    create_refresh_session(db, user, request, response, remember_me=remember_me)
+    return user
 
 # Encryption for sensitive tokens
 ENCRYPTION_KEY = cfg.security.encryption_key

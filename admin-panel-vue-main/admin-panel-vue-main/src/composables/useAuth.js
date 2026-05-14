@@ -1,10 +1,11 @@
 import { ref } from 'vue'
 import api from '../api/axios'
+import { refreshAccessToken } from '../api/axios'
+import { clearAccessToken, getAccessToken, setAccessToken } from '@/utils/authToken'
 
 const isAuthenticated = ref(false)
 const user = ref(null)
 const isLoading = ref(true)
-const tokenKey = 'auth_token'
 const isDevSkipAuth =
   import.meta.env.DEV &&
   String(import.meta.env.VITE_DEV_SKIP_AUTH || '').toLowerCase() === 'true'
@@ -88,7 +89,7 @@ export function useAuth() {
       return true
     }
 
-    const token = localStorage.getItem(tokenKey)
+    let token = getAccessToken()
 
     if (authPromise) {
       return authPromise
@@ -97,11 +98,15 @@ export function useAuth() {
     authPromise = (async () => {
       try {
         if (!token) {
-          isAuthenticated.value = false
-          user.value = null
-          isLoading.value = false
-          initialCheckDone = true
-          return false
+          try {
+            token = await refreshAccessToken()
+          } catch {
+            isAuthenticated.value = false
+            user.value = null
+            isLoading.value = false
+            initialCheckDone = true
+            return false
+          }
         }
 
         if (!initialCheckDone) {
@@ -123,11 +128,12 @@ export function useAuth() {
   /**
    * Шаг 1 входа: пароль. JWT приходит только после OTP или не выдаётся, если почта не подтверждена.
    */
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
       const response = await api.post('auth/login', {
         email,
-        password
+        password,
+        remember_me: Boolean(rememberMe)
       })
 
       const data = response.data
@@ -172,11 +178,12 @@ export function useAuth() {
     }
   }
 
-  const completeLoginWithOtp = async (challengeId, code) => {
+  const completeLoginWithOtp = async (challengeId, code, rememberMe = false) => {
     try {
       const response = await api.post('auth/login/verify', {
         challenge_id: challengeId,
-        code: String(code).trim()
+        code: String(code).trim(),
+        remember_me: Boolean(rememberMe)
       })
       const { access_token } = response.data
       setToken(access_token)
@@ -259,19 +266,29 @@ export function useAuth() {
   }
 
   const setToken = (token) => {
-    localStorage.setItem(tokenKey, token)
+    setAccessToken(token)
     isAuthenticated.value = true
   }
 
   const getToken = () => {
-    return localStorage.getItem(tokenKey)
+    return getAccessToken()
   }
 
   const forceLogout = () => {
-    localStorage.removeItem(tokenKey)
+    clearAccessToken()
     isAuthenticated.value = false
     user.value = null
     initialCheckDone = false
+  }
+
+  const logout = async () => {
+    try {
+      await api.post('auth/logout', null, { skipAuthRefresh: true })
+    } catch {
+      // The local session must be cleared even if the server cookie is already gone.
+    } finally {
+      forceLogout()
+    }
   }
 
   return {
@@ -288,6 +305,7 @@ export function useAuth() {
     setToken,
     getToken,
     forceLogout,
+    logout,
     getErrorMessage
   }
 }

@@ -3,7 +3,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -40,6 +41,18 @@ FRONTEND_URL = resolve_frontend_url()
 cfg = get_config()
 RESEND_COOLDOWN_SEC = cfg.auth.resend_cooldown_sec
 AUTH_LOGIN_OTP_ENABLED = cfg.auth.auth_login_otp_enabled
+
+
+def _issue_login_session(
+    db: Session,
+    user: models.User,
+    request: Request,
+    response: Response,
+    remember_me: bool,
+) -> dict:
+    access_token = security.create_access_token(data={"sub": user.email})
+    security.create_refresh_session(db, user, request, response, remember_me=remember_me)
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 def _activate_pending_team_invites(db: Session, user: models.User) -> None:
@@ -132,7 +145,12 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
 
 
 @router.post("/verify-email", response_model=schemas.Token)
-async def verify_email(body: schemas.VerifyEmailRequest, db: Session = Depends(get_db)):
+async def verify_email(
+    body: schemas.VerifyEmailRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Подтверждение почты по одноразовому токену из ссылки — выдача JWT."""
     raw = (body.token or "").strip()
     if not raw:
@@ -154,14 +172,14 @@ async def verify_email(body: schemas.VerifyEmailRequest, db: Session = Depends(g
     user.email_verification_token_hash = None
     user.email_verification_expires_at = None
     db.add(user)
-    db.commit()
 
     if smtp_delivery_active():
         username = user.first_name or user.username or "Пользователь"
         await send_welcome_email(user.email, username)
 
-    access_token = security.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    token = _issue_login_session(db, user, request, response, remember_me=False)
+    db.commit()
+    return token
 
 
 @router.post("/resend-verification")
@@ -198,7 +216,12 @@ async def resend_verification(body: schemas.ResendVerificationRequest, db: Sessi
 
 
 @router.post("/login", response_model=schemas.LoginResponse)
-async def login_password_step(login_data: schemas.UserLogin, db: Session = Depends(get_db)):
+async def login_password_step(
+    login_data: schemas.UserLogin,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Шаг 1 входа: проверка пароля.
     - Неподтверждённая почта → step=email_not_verified (без JWT), если AUTH_REQUIRE_EMAIL_VERIFIED.
@@ -221,7 +244,6 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
 
     if not AUTH_LOGIN_OTP_ENABLED:
         logger.info("AUTH_LOGIN_OTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
-        access_token = security.create_access_token(data={"sub": user.email})
         log_history_event(
             db,
             actor=user,
@@ -231,8 +253,9 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
             target_type="user",
             target_id=str(user.id),
         )
+        token = _issue_login_session(db, user, request, response, remember_me=login_data.remember_me)
         db.commit()
-        return {"access_token": access_token, "token_type": "bearer"}
+        return token
 
     if not smtp_delivery_active():
         if smtp_enabled() and not smtp_configured():
@@ -242,7 +265,6 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
                 detail="Email delivery is not configured on server",
             )
         logger.warning("SMTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
-        access_token = security.create_access_token(data={"sub": user.email})
         log_history_event(
             db,
             actor=user,
@@ -252,8 +274,9 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
             target_type="user",
             target_id=str(user.id),
         )
+        token = _issue_login_session(db, user, request, response, remember_me=login_data.remember_me)
         db.commit()
-        return {"access_token": access_token, "token_type": "bearer"}
+        return token
 
     # Удаляем старые неиспользованные challenge этого пользователя
     db.query(models.LoginOtpChallenge).filter(
@@ -287,7 +310,12 @@ async def login_password_step(login_data: schemas.UserLogin, db: Session = Depen
 
 
 @router.post("/login/verify", response_model=schemas.Token)
-def login_verify_otp(body: schemas.LoginVerifyRequest, db: Session = Depends(get_db)):
+def login_verify_otp(
+    body: schemas.LoginVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Шаг 2 входа: проверка OTP, выдача JWT."""
     code = (body.code or "").strip()
     if len(code) != 6 or not code.isdigit():
@@ -332,9 +360,36 @@ def login_verify_otp(body: schemas.LoginVerifyRequest, db: Session = Depends(get
         target_type="user",
         target_id=str(user.id),
     )
+    token = _issue_login_session(db, user, request, response, remember_me=body.remember_me)
+    db.commit()
+    return token
+
+
+@router.post("/refresh", response_model=schemas.Token)
+def refresh_access_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Silent refresh: validate httpOnly refresh cookie and rotate it."""
+    raw_token = request.cookies.get(security.REFRESH_COOKIE_NAME)
+    user = security.consume_refresh_session(db, raw_token, request, response)
+    if not user:
+        error_response = JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Refresh session expired"},
+        )
+        security.clear_refresh_cookie(error_response, request)
+        db.commit()
+        return error_response
     db.commit()
     access_token = security.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    raw_token = request.cookies.get(security.REFRESH_COOKIE_NAME)
+    security.revoke_refresh_session(db, raw_token)
+    security.clear_refresh_cookie(response, request)
+    db.commit()
+    return {"message": "Logged out"}
 
 
 @router.post("/reset-password/request", status_code=status.HTTP_200_OK)
@@ -358,7 +413,12 @@ async def reset_password_request(body: schemas.PasswordResetRequestBody, db: Ses
 
 
 @router.post("/reset-password/confirm", response_model=schemas.Token)
-def reset_password_confirm(body: schemas.PasswordResetConfirmBody, db: Session = Depends(get_db)):
+def reset_password_confirm(
+    body: schemas.PasswordResetConfirmBody,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Шаг 2 сброса пароля: проверяет токен и обновляет пароль."""
     raw = (body.token or "").strip()
     if not raw or len(body.new_password) < 8:
@@ -380,10 +440,9 @@ def reset_password_confirm(body: schemas.PasswordResetConfirmBody, db: Session =
     user.password_reset_token_hash = None
     user.password_reset_expires_at = None
     db.add(user)
+    token = _issue_login_session(db, user, request, response, remember_me=False)
     db.commit()
-
-    access_token = security.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return token
 
 
 @router.get("/me", response_model=schemas.UserResponse)

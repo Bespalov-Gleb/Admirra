@@ -236,7 +236,7 @@ import ConfirmModal from './ConfirmModal.vue'
 
 const { isCollapsed, toggleCollapse, isMobileViewport, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
-const { forceLogout } = useAuth()
+const { logout } = useAuth()
 
 const route = useRoute()
 const router = useRouter()
@@ -334,8 +334,8 @@ function handleLogoutClick() {
   showLogoutModal.value = true
 }
 
-const handleLogout = () => {
-  forceLogout()
+const handleLogout = async () => {
+  await logout()
   showLogoutModal.value = false
   router.push('/signin')
 }

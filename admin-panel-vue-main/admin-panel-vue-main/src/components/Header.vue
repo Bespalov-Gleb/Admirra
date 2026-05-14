@@ -308,7 +308,7 @@ import { useProjects } from '../composables/useProjects'
 
 const router = useRouter()
 const { isMobileMenuOpen, toggleMobileMenu } = useSidebar()
-const { user, forceLogout } = useAuth()
+const { user, logout } = useAuth()
 const { isDarkMode, toggleTheme } = useTheme()
 const { projects, currentProjectId, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
@@ -398,8 +398,8 @@ const handleLogoutClick = () => {
   showLogoutModal.value = true
 }
 
-const handleLogout = () => {
-  forceLogout()
+const handleLogout = async () => {
+  await logout()
   showLogoutModal.value = false
   router.push('/signin')
 }

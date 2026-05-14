@@ -92,9 +92,9 @@
 
               <div class="auth-row">
                 <label for="keepLoggedIn" class="auth-checkbox">
-                  <input v-model="keepLoggedIn" type="checkbox" id="keepLoggedIn" class="sr-only" />
-                  <span :class="keepLoggedIn ? 'border-[#2874ff] bg-[#2874ff]' : 'border-[#aeb7c7] bg-[#f8fafc]'">
-                    <svg v-if="keepLoggedIn" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <input v-model="loginForm.remember" type="checkbox" id="keepLoggedIn" class="sr-only" />
+                  <span :class="loginForm.remember ? 'border-[#2874ff] bg-[#2874ff]' : 'border-[#aeb7c7] bg-[#f8fafc]'">
+                    <svg v-if="loginForm.remember" width="12" height="12" viewBox="0 0 14 14" fill="none">
                       <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </span>
@@ -189,7 +189,6 @@ const router = useRouter()
 const { login, getErrorMessage } = useAuth()
 const { startYandexLogin, startVkLogin } = useOAuthLogin()
 const showPassword = ref(false)
-const keepLoggedIn = ref(false)
 const loading = ref(false)
 const oauthLoading = ref(false)
 const errorMessage = ref('')
@@ -238,7 +237,7 @@ const handleLogin = async () => {
   loading.value = true
   errorMessage.value = ''
 
-  const result = await login(loginForm.email, loginForm.password)
+  const result = await login(loginForm.email, loginForm.password, loginForm.remember)
 
   loading.value = false
 
@@ -260,7 +259,8 @@ const handleLogin = async () => {
       query: {
         mode: 'otp',
         challenge_id: result.challenge_id,
-        email_masked: result.email_masked || ''
+        email_masked: result.email_masked || '',
+        remember: loginForm.remember ? '1' : '0'
       }
     })
     return

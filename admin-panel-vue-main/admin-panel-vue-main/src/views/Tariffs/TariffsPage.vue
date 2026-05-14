@@ -225,6 +225,7 @@ import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { useToaster } from '@/composables/useToaster'
 import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
+import { getAccessToken } from '@/utils/authToken'
 import {
   normalizePlansFromApi,
   yearlyPriceFromMonthly,
@@ -303,7 +304,7 @@ const wlFeatures = [
 ]
 
 onMounted(async () => {
-  if (!localStorage.getItem('auth_token')) return
+  if (!getAccessToken()) return
   try {
     const { data } = await api.get('billing/plans')
     plans.value = normalizePlansFromApi(data)

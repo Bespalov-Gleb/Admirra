@@ -21,7 +21,7 @@ from typing import Optional
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from jose import JWTError, jwt
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -191,8 +191,15 @@ def _synthetic_email(prefix: str, provider_uid: str) -> str:
     return f"{prefix}_{safe_uid}@{domain}"
 
 
-def _issue_token_for_user(user: models.User) -> schemas.Token:
+def _issue_token_for_user(
+    db: Session,
+    user: models.User,
+    request: Request,
+    response: Response,
+    remember_me: bool = True,
+) -> schemas.Token:
     access_token = security.create_access_token(data={"sub": user.email})
+    security.create_refresh_session(db, user, request, response, remember_me=remember_me)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -313,7 +320,12 @@ def yandex_oauth_authorize_url(redirect_uri: str):
 
 
 @router.post("/yandex/callback", response_model=schemas.Token)
-async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session = Depends(get_db)):
+async def yandex_oauth_callback(
+    body: schemas.OAuthLoginCallbackRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     _verify_oauth_state(body.state, "yandex")
     access_token = await _yandex_exchange_code(body.code.strip(), body.redirect_uri.strip())
     info = await _yandex_login_info(access_token)
@@ -346,7 +358,9 @@ async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Ses
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
-        return _issue_token_for_user(user)
+        token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+        db.commit()
+        return token
 
     user = _find_user_by_email_ci(db, email)
     if user:
@@ -365,7 +379,9 @@ async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Ses
                 status_code=409,
                 detail="Не удалось привязать Яндекс к аккаунту",
             )
-        return _issue_token_for_user(user)
+        token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+        db.commit()
+        return token
 
     pwd = secrets.token_urlsafe(48)
     user = models.User(
@@ -398,7 +414,9 @@ async def yandex_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Ses
             detail="Не удалось создать аккаунт: конфликт данных (возможно, email уже занят)",
         )
     db.refresh(user)
-    return _issue_token_for_user(user)
+    token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+    db.commit()
+    return token
 
 
 @router.get("/vk/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)
@@ -436,7 +454,12 @@ def vk_oauth_authorize_url(redirect_uri: str, code_challenge: str):
 
 
 @router.post("/vk/callback", response_model=schemas.Token)
-async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session = Depends(get_db)):
+async def vk_oauth_callback(
+    body: schemas.OAuthLoginCallbackRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     if not VK_LOGIN_CLIENT_ID:
         raise HTTPException(status_code=503, detail="VK_LOGIN_CLIENT_ID (или VK_CLIENT_ID) не задан")
 
@@ -487,7 +510,9 @@ async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
-        return _issue_token_for_user(user)
+        token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+        db.commit()
+        return token
 
     if email:
         user = _find_user_by_email_ci(db, email)
@@ -507,7 +532,9 @@ async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session
                     status_code=409,
                     detail="Не удалось привязать VK к аккаунту",
                 )
-            return _issue_token_for_user(user)
+            token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+            db.commit()
+            return token
 
     if not email:
         email = _synthetic_email("vk", vk_uid_str)
@@ -542,4 +569,6 @@ async def vk_oauth_callback(body: schemas.OAuthLoginCallbackRequest, db: Session
             detail="Не удалось создать аккаунт: конфликт данных",
         )
     db.refresh(user)
-    return _issue_token_for_user(user)
+    token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+    db.commit()
+    return token

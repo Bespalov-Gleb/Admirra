@@ -62,6 +62,7 @@ class OAuthLoginCallbackRequest(BaseModel):
     code_verifier: Optional[str] = None
     # Legacy поле для старого VK Ads login flow. Оставлено для обратной совместимости.
     vk_redirect_user_id: Optional[str] = None
+    remember_me: bool = True
 
 
 class TelegramDeepLinkResponse(BaseModel):
@@ -114,10 +115,12 @@ class PasswordResetConfirmBody(BaseModel):
 class LoginVerifyRequest(BaseModel):
     challenge_id: UUID
     code: str
+    remember_me: bool = False
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    remember_me: bool = False
 
 class TokenData(BaseModel):
     email: Optional[str] = None
