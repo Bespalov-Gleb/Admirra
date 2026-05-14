@@ -176,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import { useAuth } from '@/composables/useAuth'
@@ -186,7 +186,7 @@ import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
 const router = useRouter()
-const { login, getErrorMessage } = useAuth()
+const { login, checkAuth, getErrorMessage } = useAuth()
 const { startYandexLogin, startVkLogin } = useOAuthLogin()
 const showPassword = ref(false)
 const loading = ref(false)
@@ -219,6 +219,13 @@ const loginForm = reactive({
   email: '',
   password: '',
   remember: false
+})
+
+onMounted(async () => {
+  const isAuth = await checkAuth()
+  if (isAuth) {
+    router.replace(DEFAULT_DASHBOARD_PATH)
+  }
 })
 
 const togglePasswordVisibility = () => {
