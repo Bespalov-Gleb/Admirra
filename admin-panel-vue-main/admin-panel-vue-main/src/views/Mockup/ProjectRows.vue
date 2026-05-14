@@ -40,7 +40,13 @@
               :style="periodPopoverStyle"
             >
               <template v-for="(option, index) in periodOptions" :key="option.value || `${option.type}-${index}`">
-                <div v-if="option.type === 'label'" class="period-list__title">{{ option.label }}</div>
+                <DateRangePicker
+                  v-if="option.type === 'label'"
+                  v-model="customPeriodRange"
+                  class="project-period-custom-picker"
+                  :trigger-text="option.label"
+                  @change="selectCustomPeriod"
+                />
                 <div v-else-if="option.type === 'divider'" class="period-list__divider"></div>
                 <button
                   v-else
@@ -391,12 +397,14 @@ import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
+import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const toaster = useToaster()
 
 const periodKey = ref('last_7_days')
+const customPeriodRange = ref({ start: null, end: null })
 const search = ref('')
 const projectFilter = ref('all')
 const openSelect = ref(null)
@@ -429,6 +437,9 @@ const projectFilterLabel = computed(() => {
 })
 
 const periodLabel = computed(() => {
+  if (periodKey.value === 'custom' && customPeriodRange.value.start && customPeriodRange.value.end) {
+    return `${formatPeriodDate(customPeriodRange.value.start)} — ${formatPeriodDate(customPeriodRange.value.end)}`
+  }
   return getProjectPeriodLabel(periodKey.value)
 })
 
@@ -506,6 +517,20 @@ const selectPeriod = async (value) => {
   periodKey.value = value
   openSelect.value = null
   await reloadMetrics()
+}
+
+const selectCustomPeriod = async (range) => {
+  if (!range?.start || !range?.end) return
+  customPeriodRange.value = { start: range.start, end: range.end }
+  periodKey.value = 'custom'
+  openSelect.value = null
+  await reloadMetrics()
+}
+
+const formatPeriodDate = (value) => {
+  const [year, month, day] = String(value).split('-')
+  if (!year || !month || !day) return value
+  return `${day}.${month}.${year}`
 }
 
 const setItemsPerPage = (value) => {
@@ -754,7 +779,7 @@ const requestDeleteProject = (project) => {
 }
 
 const loadProjectMetrics = async () => {
-  const { startDate, endDate } = getProjectPeriodRange(periodKey.value)
+  const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
 
   const entries = await Promise.all(
     projects.value.map(async (project) => {
@@ -932,6 +957,37 @@ onUnmounted(() => {
   font-weight: 600;
   line-height: 1.15;
   white-space: nowrap;
+}
+
+.project-period-custom-picker :deep(.drp-trigger) {
+  height: auto;
+  min-height: 3.8194rem;
+  justify-content: flex-start;
+  border: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 0;
+  padding: 1.1806rem 1.5278rem;
+  background: transparent;
+  box-shadow: none;
+  color: #171717;
+  font-size: 1.1111rem;
+  line-height: 1.15;
+}
+
+.project-period-custom-picker :deep(.drp-trigger:hover) {
+  background: #f5f7f9;
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: none;
+}
+
+.project-period-custom-picker :deep(.drp-trigger .truncate) {
+  color: #171717;
+  font-weight: 600;
+}
+
+.project-period-custom-picker :deep(.drp-trigger svg),
+.project-period-custom-picker :deep(.drp-trigger > span) {
+  display: none;
 }
 
 .period-list__divider {

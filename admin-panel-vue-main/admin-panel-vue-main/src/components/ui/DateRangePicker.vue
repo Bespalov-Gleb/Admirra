@@ -167,6 +167,10 @@ const props = defineProps({
     type: Object,
     required: true,
     default: () => ({ start: null, end: null })
+  },
+  triggerText: {
+    type: String,
+    default: ''
   }
 })
 
@@ -196,6 +200,7 @@ const quickPeriods = [
 ]
 
 const displayText = computed(() => {
+  if (props.triggerText) return props.triggerText
   if (selectedStart.value && selectedEnd.value) {
     return `${formatDateForDisplay(selectedStart.value)} — ${formatDateForDisplay(selectedEnd.value)}`
   }

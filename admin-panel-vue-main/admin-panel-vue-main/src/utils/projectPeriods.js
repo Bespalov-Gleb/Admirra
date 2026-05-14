@@ -32,10 +32,15 @@ export const projectPeriodOptions = [
 export const selectableProjectPeriodOptions = projectPeriodOptions.filter((option) => option.value)
 
 export const getProjectPeriodLabel = (value) => {
+  if (value === 'custom') return 'Указать период'
   return selectableProjectPeriodOptions.find((option) => option.value === value)?.label || 'Последние 7 дней'
 }
 
-export const getProjectPeriodRange = (value) => {
+export const getProjectPeriodRange = (value, customRange = null) => {
+  if (value === 'custom' && customRange?.start && customRange?.end) {
+    return { startDate: customRange.start, endDate: customRange.end }
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
