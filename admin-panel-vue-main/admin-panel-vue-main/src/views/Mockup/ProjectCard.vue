@@ -131,7 +131,7 @@
               <button type="button" class="project-avatar project-avatar--editable" :aria-label="`Загрузить аватарку проекта ${project.name}`" @click.stop="openAvatarModal(project)">
                 <img v-if="projectAvatarUrl(project)" :src="projectAvatarUrl(project)" :alt="project.name" class="w-full h-full object-cover" />
                 <span v-else class="project-avatar__initials">{{ projectInitials(project) }}</span>
-                <span class="project-avatar__edit" aria-hidden="true">
+                <span :class="['project-avatar__edit', projectAvatarUrl(project) ? 'project-avatar__edit--hover' : 'project-avatar__edit--default']" aria-hidden="true">
                   <svg viewBox="0 0 16 16" fill="none">
                     <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -789,28 +789,65 @@ onMounted(async () => {
   cursor: pointer;
 }
 
+.project-avatar--editable img {
+  transition: filter 0.2s;
+}
+
 .project-avatar__initials {
   line-height: 1;
 }
 
 .project-avatar__edit {
   position: absolute;
-  right: -0.0694rem;
-  bottom: -0.0694rem;
   display: flex;
-  width: 1.1111rem;
-  height: 1.1111rem;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  pointer-events: none;
+  transition: opacity 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+.project-avatar__edit--default {
+  right: -0.0694rem;
+  bottom: -0.0694rem;
+  width: 1.1111rem;
+  height: 1.1111rem;
   background: #2563eb;
   color: #fff;
   box-shadow: 0 0 0 0.1389rem #fff;
 }
 
+.project-avatar__edit--hover {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(107, 114, 128, 0.72);
+  background: rgba(243, 244, 246, 0.72);
+  color: #6b7280;
+  opacity: 0;
+  backdrop-filter: blur(1px);
+}
+
+.project-avatar--editable:hover .project-avatar__edit--hover {
+  opacity: 1;
+}
+
+.project-avatar--editable:hover img + .project-avatar__edit--hover {
+  opacity: 1;
+}
+
+.project-avatar--editable:hover img {
+  filter: grayscale(0.12) brightness(0.96);
+}
+
 .project-avatar__edit svg {
   width: 0.625rem;
   height: 0.625rem;
+}
+
+.project-avatar__edit--hover svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 /* ---- Circle open button ---- */

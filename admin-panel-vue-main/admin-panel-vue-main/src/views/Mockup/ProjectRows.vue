@@ -174,6 +174,11 @@
                   >
                     <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
                     <span v-else>{{ projectInitials(project) }}</span>
+                    <span :class="['project-avatar-row__edit', projectAvatarUrl(project) ? 'project-avatar-row__edit--hover' : 'project-avatar-row__edit--default']" aria-hidden="true">
+                      <svg viewBox="0 0 16 16" fill="none">
+                        <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
                   </button>
                   <div class="pl-[1.0417rem]">
                     <button
@@ -1183,6 +1188,7 @@ onUnmounted(() => {
 }
 
 .project-avatar-row {
+  position: relative;
   display: flex;
   width: 2.0833rem;
   height: 2.0833rem;
@@ -1201,9 +1207,62 @@ onUnmounted(() => {
   transition: box-shadow 0.2s, transform 0.2s;
 }
 
+.project-avatar-row img {
+  transition: filter 0.2s;
+}
+
 .project-avatar-row:hover {
   box-shadow: 0 0 0 0.2083rem rgba(37, 99, 235, 0.12);
   transform: translateY(-1px);
+}
+
+.project-avatar-row__edit {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: opacity 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+.project-avatar-row__edit--default {
+  right: -0.0694rem;
+  bottom: -0.0694rem;
+  width: 0.9028rem;
+  height: 0.9028rem;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 0 0.1042rem #fff;
+}
+
+.project-avatar-row__edit--hover {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(107, 114, 128, 0.72);
+  background: rgba(243, 244, 246, 0.72);
+  color: #6b7280;
+  opacity: 0;
+  backdrop-filter: blur(1px);
+}
+
+.project-avatar-row:hover .project-avatar-row__edit--hover {
+  opacity: 1;
+}
+
+.project-avatar-row:hover img {
+  filter: grayscale(0.12) brightness(0.96);
+}
+
+.project-avatar-row__edit svg {
+  width: 0.4861rem;
+  height: 0.4861rem;
+}
+
+.project-avatar-row__edit--hover svg {
+  width: 0.8333rem;
+  height: 0.8333rem;
 }
 
 :global(.dark) .cs-head,
