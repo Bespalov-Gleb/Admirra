@@ -215,6 +215,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_uploads_dir = Path(os.getenv("UPLOADS_DIR", "uploads")).resolve()
+_uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
+logger.info("Uploads static mounted at /uploads/ from %s", _uploads_dir)
+
 # The admin SPA (Vue) is served by Nginx in the frontend container.
 # Лендинг AdMirra: единственный источник — Vue `public/admirra`
 # (Landing.vue: iframe src="/admirra/index.html"). Vite копирует public в dist.

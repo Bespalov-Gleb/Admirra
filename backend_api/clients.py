@@ -1,10 +1,14 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from io import BytesIO
+from pathlib import Path
+from os import getenv
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, schemas, security
 from datetime import datetime, timedelta
 from typing import List
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from backend_api.stats_service import StatsService
 from backend_api.services.subscription import SubscriptionService
@@ -12,6 +16,28 @@ from backend_api.access_control import get_accessible_client_ids, assert_project
 from backend_api.services.history import log_history_event
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
+
+AVATAR_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+AVATAR_MAX_BYTES = 5 * 1024 * 1024
+AVATAR_SIZE = (256, 256)
+UPLOADS_DIR = Path(getenv("UPLOADS_DIR", "uploads"))
+AVATAR_DIR = UPLOADS_DIR / "project-avatars"
+
+
+def _avatar_public_url(filename: str) -> str:
+    return f"/uploads/project-avatars/{filename}"
+
+
+def _remove_old_avatar(avatar_url: str | None) -> None:
+    if not avatar_url or not avatar_url.startswith("/uploads/project-avatars/"):
+        return
+    filename = avatar_url.rsplit("/", 1)[-1]
+    if not filename:
+        return
+    try:
+        (AVATAR_DIR / filename).unlink(missing_ok=True)
+    except OSError:
+        pass
 
 @router.get("/stats", response_model=List[schemas.ClientResponse])
 def get_clients_with_stats(
@@ -138,6 +164,65 @@ def update_client(
         )
     db.commit()
     db.refresh(client)
+    return client
+
+
+@router.post("/{client_id}/avatar", response_model=schemas.ClientResponse)
+async def upload_client_avatar(
+    client_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a project avatar. Projects are stored as Client entities in the backend.
+    """
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    if file.content_type not in AVATAR_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="Поддерживаются только JPG, PNG и WebP")
+
+    content = await file.read(AVATAR_MAX_BYTES + 1)
+    if len(content) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Размер файла не должен превышать 5 МБ")
+    if not content:
+        raise HTTPException(status_code=400, detail="Файл пустой")
+
+    try:
+        image = Image.open(BytesIO(content))
+        image.verify()
+        image = Image.open(BytesIO(content))
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=400, detail="Не удалось прочитать изображение")
+
+    image = ImageOps.exif_transpose(image)
+    image = ImageOps.fit(image, AVATAR_SIZE, method=Image.Resampling.LANCZOS)
+    if image.mode not in ("RGB", "RGBA"):
+        image = image.convert("RGBA")
+
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{client_id}-{uuid.uuid4().hex[:12]}.webp"
+    avatar_path = AVATAR_DIR / filename
+    image.save(avatar_path, format="WEBP", quality=88, method=6)
+
+    old_avatar_url = client.avatar_url
+    client.avatar_url = _avatar_public_url(filename)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_avatar_updated",
+        description=f"Обновлена аватарка проекта {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+    )
+    db.commit()
+    db.refresh(client)
+    _remove_old_avatar(old_avatar_url)
     return client
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)

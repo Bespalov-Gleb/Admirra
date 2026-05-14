@@ -309,6 +309,7 @@ class ClientUpdate(BaseModel):
 class ClientResponse(ClientBase):
     id: UUID
     owner_id: UUID
+    avatar_url: Optional[str] = None
     created_at: datetime
     integrations: List[IntegrationResponse] = []
     summary: Optional[StatsSummary] = None

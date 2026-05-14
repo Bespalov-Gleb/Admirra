@@ -23,3 +23,7 @@ Thumbs.db
 admin-panel-vue-main.zip
 public_html (17).zip
 *.log
+uploads/*
+!uploads/.gitkeep
+!uploads/project-avatars/
+!uploads/project-avatars/.gitkeep

@@ -128,9 +128,15 @@
           <!-- Project header row -->
           <div class="flex items-center justify-between pb-[0.6944rem] mb-[1.0417rem]">
             <div class="flex items-center">
-              <div class="project-avatar">
-                <img src="/admirra/img/avatars/avatar-40x40.png" :alt="project.name" class="w-full h-full object-cover" />
-              </div>
+              <button type="button" class="project-avatar project-avatar--editable" :aria-label="`Загрузить аватарку проекта ${project.name}`" @click.stop="openAvatarModal(project)">
+                <img v-if="projectAvatarUrl(project)" :src="projectAvatarUrl(project)" :alt="project.name" class="w-full h-full object-cover" />
+                <span v-else class="project-avatar__initials">{{ projectInitials(project) }}</span>
+                <span class="project-avatar__edit" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none">
+                    <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </button>
               <div class="pl-[1.0417rem]">
                 <button
                   type="button"
@@ -201,6 +207,13 @@
       </div>
     </div>
 
+    <ProjectAvatarUploadModal
+      v-if="avatarProject"
+      :project="avatarProject"
+      @close="avatarProject = null"
+      @saved="handleAvatarSaved"
+    />
+
   </div>
 </template>
 
@@ -212,7 +225,9 @@ import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
+import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
+import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
 
 const router = useRouter()
 const toaster = useToaster()
@@ -227,6 +242,7 @@ const metricsByProjectId = ref({})
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
+const avatarProject = ref(null)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -450,6 +466,22 @@ const loadProjectMetrics = async () => {
 const openProject = (project) => {
   setCurrentProject(project.id)
   router.push('/dashboard/general-3')
+}
+
+function openAvatarModal(project) {
+  avatarProject.value = project
+}
+
+function updateProjectInList(updatedProject) {
+  const index = projects.value.findIndex((project) => project.id === updatedProject.id)
+  if (index !== -1) {
+    projects.value[index] = { ...projects.value[index], ...updatedProject }
+  }
+}
+
+function handleAvatarSaved(updatedProject) {
+  updateProjectInList(updatedProject)
+  toaster.success('Аватарка проекта обновлена.')
 }
 
 const openMassEdit = () => {
@@ -737,11 +769,48 @@ onMounted(async () => {
 
 /* ---- Project avatar ---- */
 .project-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 2.7778rem;
   height: 2.7778rem;
+  border: 0;
   border-radius: 50%;
+  background: #e8eef9;
+  color: #2563eb;
+  font-size: 0.9028rem;
+  font-weight: 700;
   overflow: hidden;
   flex-shrink: 0;
+}
+
+.project-avatar--editable {
+  cursor: pointer;
+}
+
+.project-avatar__initials {
+  line-height: 1;
+}
+
+.project-avatar__edit {
+  position: absolute;
+  right: -0.0694rem;
+  bottom: -0.0694rem;
+  display: flex;
+  width: 1.1111rem;
+  height: 1.1111rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 0 0.1389rem #fff;
+}
+
+.project-avatar__edit svg {
+  width: 0.625rem;
+  height: 0.625rem;
 }
 
 /* ---- Circle open button ---- */

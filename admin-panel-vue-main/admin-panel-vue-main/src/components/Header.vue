@@ -8,8 +8,9 @@
           @click="toggleProjectMenu"
           class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
         >
-          <div class="h-8 w-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 2xl:h-9 2xl:w-9">
-            <img class="w-full h-full object-cover" src="/admirra/img/avatars/avatar-36x36.png" alt="#" />
+          <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9] text-[0.7639rem] font-bold text-[#2563eb] 2xl:h-9 2xl:w-9">
+            <img v-if="headerProjectAvatar" class="h-full w-full object-cover" :src="headerProjectAvatar" :alt="headerProjectName" />
+            <span v-else>{{ headerProjectInitials }}</span>
           </div>
           <div class="hidden min-w-[4.5833rem] max-w-[7.2222rem] flex-col gap-[0.2083rem] text-left min-[1180px]:flex 2xl:min-w-[6.25rem] 2xl:max-w-none">
             <div class="truncate text-[0.8333rem] font-medium leading-none text-[#515151] dark:text-gray-100 2xl:text-[0.9722rem]">{{ headerProjectName }}</div>
@@ -41,8 +42,14 @@
                   <li v-for="project in projects" :key="project.id">
                     <button
                       @click="handleProjectSelect(project.id)"
-                      :class="['w-full rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
-                    >{{ project.name }}</button>
+                      :class="['flex w-full items-center gap-3 rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
+                    >
+                      <span class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9] text-[0.6944rem] font-bold text-[#2563eb]">
+                        <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
+                        <span v-else>{{ projectInitials(project) }}</span>
+                      </span>
+                      <span class="min-w-0 truncate">{{ project.name }}</span>
+                    </button>
                   </li>
                 </ul>
                 <button
@@ -305,12 +312,13 @@ import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import { useProjects } from '../composables/useProjects'
+import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
 
 const router = useRouter()
 const { isMobileMenuOpen, toggleMobileMenu } = useSidebar()
 const { user, logout } = useAuth()
 const { isDarkMode, toggleTheme } = useTheme()
-const { projects, currentProjectId, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
+const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
@@ -341,6 +349,9 @@ const displayName = computed(() => {
 const headerProjectName = computed(() => {
   return currentProjectId.value ? currentProjectName.value : 'Трафик агентство'
 })
+
+const headerProjectAvatar = computed(() => currentProjectId.value ? projectAvatarUrl(currentProject.value) : '')
+const headerProjectInitials = computed(() => currentProjectId.value ? projectInitials(currentProject.value) : 'TA')
 
 const notifications = ref([])
 const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)

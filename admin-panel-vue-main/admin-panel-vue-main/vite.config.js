@@ -55,6 +55,10 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_PROXY || 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
+      '/uploads': {
+        target: process.env.VITE_DEV_API_PROXY || 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      },
     },
   },
 })

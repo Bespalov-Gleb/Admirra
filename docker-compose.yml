@@ -41,6 +41,8 @@ services:
         condition: service_healthy
     ports:
       - "8001:8001"
+    volumes:
+      - ./uploads:/app/uploads
 
   frontend:
     build: ./admin-panel-vue-main/admin-panel-vue-main

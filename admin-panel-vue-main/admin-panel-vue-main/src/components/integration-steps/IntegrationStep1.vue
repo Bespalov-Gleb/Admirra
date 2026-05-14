@@ -131,8 +131,9 @@
                         :class="{ 'bg-blue-50/50': modelValue.client_id === project.id }"
                       >
                         <div class="flex items-center gap-3 flex-1 min-w-0">
-                          <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[0.6944rem] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
-                            {{ project.name.substring(0, 2).toUpperCase() }}
+                          <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden text-[0.6944rem] font-black text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors flex-shrink-0">
+                            <img v-if="projectAvatarUrl(project)" :src="projectAvatarUrl(project)" :alt="project.name" class="h-full w-full object-cover" />
+                            <span v-else>{{ projectInitials(project) }}</span>
                           </div>
                           <span class="text-[0.9028rem] font-bold text-gray-700 group-hover:text-blue-600 transition-colors truncate" :title="project.name">{{ project.name }}</span>
                         </div>
@@ -226,6 +227,7 @@ import { CheckIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { PLATFORMS } from '../../constants/platformConfig'
 import Input from '../../views/Settings/components/Input.vue'
 import PlatformIcon from '../ui/PlatformIcon.vue'
+import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 
 const props = defineProps({
   modelValue: Object,

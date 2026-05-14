@@ -166,9 +166,15 @@
               </td>
               <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10">
                 <div class="flex items-center">
-                  <div class="flex h-[2.0833rem] w-[2.0833rem] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9]">
-                    <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-40x40.png" alt="" />
-                  </div>
+                  <button
+                    type="button"
+                    class="project-avatar-row"
+                    :aria-label="`Загрузить аватарку проекта ${project.name}`"
+                    @click.stop="openAvatarModal(project)"
+                  >
+                    <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
+                    <span v-else>{{ projectInitials(project) }}</span>
+                  </button>
                   <div class="pl-[1.0417rem]">
                     <button
                       type="button"
@@ -386,6 +392,13 @@
       </div>
     </div>
 
+    <ProjectAvatarUploadModal
+      v-if="avatarProject"
+      :project="avatarProject"
+      @close="avatarProject = null"
+      @saved="handleAvatarSaved"
+    />
+
   </div>
 </template>
 
@@ -397,7 +410,9 @@ import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
+import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
+import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
@@ -423,6 +438,7 @@ const actionMenuPosition = ref({ top: 0, left: 0 })
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
+const avatarProject = ref(null)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -769,9 +785,9 @@ const toggleActionMenu = (project, event) => {
   actionMenuPosition.value = { top, left }
 }
 
-const editProject = () => {
+const editProject = (project) => {
   closeActionMenu()
-  router.push('/project-card')
+  openAvatarModal(project)
 }
 
 const requestDeleteProject = (project) => {
@@ -805,6 +821,22 @@ const loadProjectMetrics = async () => {
 
 const reloadMetrics = async () => {
   await loadProjectMetrics()
+}
+
+const openAvatarModal = (project) => {
+  avatarProject.value = project
+}
+
+const updateProjectInList = (updatedProject) => {
+  const index = projects.value.findIndex((project) => project.id === updatedProject.id)
+  if (index !== -1) {
+    projects.value[index] = { ...projects.value[index], ...updatedProject }
+  }
+}
+
+const handleAvatarSaved = (updatedProject) => {
+  updateProjectInList(updatedProject)
+  toaster.success('Аватарка проекта обновлена.')
 }
 
 const openProject = (project) => {
@@ -1148,6 +1180,30 @@ onUnmounted(() => {
 
 .project-title-link:hover {
   color: #2563eb;
+}
+
+.project-avatar-row {
+  display: flex;
+  width: 2.0833rem;
+  height: 2.0833rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: #e8eef9;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.7639rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.project-avatar-row:hover {
+  box-shadow: 0 0 0 0.2083rem rgba(37, 99, 235, 0.12);
+  transform: translateY(-1px);
 }
 
 :global(.dark) .cs-head,

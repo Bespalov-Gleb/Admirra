@@ -31,8 +31,14 @@
               class="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 rounded-xl transition-all border border-transparent hover:border-gray-100 group"
               :class="{ 'bg-blue-50 border-blue-100': selectedId === project.id }"
             >
-              <span class="text-sm font-bold text-gray-700 group-hover:text-black" :class="{ 'text-blue-600': selectedId === project.id }">
-                {{ project.name }}
+              <span class="flex min-w-0 items-center gap-3">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-50 text-[0.7639rem] font-bold text-blue-600">
+                  <img v-if="projectAvatarUrl(project)" :src="projectAvatarUrl(project)" :alt="project.name" class="h-full w-full object-cover" />
+                  <span v-else>{{ projectInitials(project) }}</span>
+                </span>
+                <span class="truncate text-sm font-bold text-gray-700 group-hover:text-black" :class="{ 'text-blue-600': selectedId === project.id }">
+                  {{ project.name }}
+                </span>
               </span>
               <CheckIcon v-if="selectedId === project.id" class="w-4 h-4 text-blue-600" />
             </button>
@@ -63,6 +69,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/vue/24/outline'
 import CustomScroll from './ui/CustomScroll.vue'
+import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
 
 const props = defineProps({
   isOpen: Boolean,
