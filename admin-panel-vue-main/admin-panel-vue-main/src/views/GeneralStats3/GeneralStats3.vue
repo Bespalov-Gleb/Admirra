@@ -319,10 +319,6 @@
               <text text-anchor="end" x="42" y="230">{{ chartYLabels[4] }}</text>
               <text v-for="(label, index) in dateLabels" :key="label" :x="62 + index * 61" y="252">{{ label }}</text>
             </g>
-            <g class="tooltip-pin">
-              <rect x="415" y="6" width="58" height="27" rx="5" />
-              <text x="444" y="23">{{ chartTooltipLabel }}</text>
-            </g>
           </svg>
         </div>
       </article>
@@ -1023,11 +1019,6 @@ const chartYLabels = computed(() => {
     '0'
   ]
 })
-const chartTooltipLabel = computed(() => {
-  const last = chartSourceValues.value[chartSourceValues.value.length - 1]
-  return last ? formatNumber(last, 0) : 'API'
-})
-
 const toRgba = (color, alpha = 0.48) => {
   const hex = String(color || '').replace('#', '')
   if (!/^[0-9a-f]{6}$/i.test(hex)) return color
@@ -2699,17 +2690,6 @@ onMounted(() => {
   font-size: 1.1rem;
 }
 
-.tooltip-pin rect {
-  fill: #2563eb;
-}
-
-.tooltip-pin text {
-  fill: #fff;
-  font-size: 1.1rem;
-  font-weight: 700;
-  text-anchor: middle;
-}
-
 .goals-content {
   display: grid;
   grid-template-columns: 27.5rem 1fr;
@@ -3617,8 +3597,7 @@ onMounted(() => {
   min-height: 18.4028rem;
 }
 
-.axis-labels text,
-.tooltip-pin text {
+.axis-labels text {
   font-size: 0.7639rem;
 }
 
