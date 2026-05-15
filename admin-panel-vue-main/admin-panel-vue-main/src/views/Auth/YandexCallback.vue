@@ -43,6 +43,7 @@ import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
 import { useAuth } from '../../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
+import { setAuthProvider } from '../../utils/authToken'
 import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
 
 const route = useRoute()
@@ -100,6 +101,7 @@ onMounted(async () => {
         redirect_uri: redirectUri
       })
       setToken(data.access_token)
+      setAuthProvider('yandex')
       const userResult = await fetchCurrentUser()
       if (!userResult.success) {
         throw new Error('Не удалось загрузить профиль')

@@ -184,12 +184,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
+import { getAuthProvider, setAuthProvider } from '@/utils/authToken'
 import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
@@ -202,10 +203,19 @@ const oauthLoading = ref(false)
 const errorMessage = ref('')
 const maxLoginMessage = ref('')
 
+const reuseProviderSession = async (provider) => {
+  if (getAuthProvider() !== provider) return false
+  const isAuth = await checkAuth()
+  if (!isAuth) return false
+  router.push(DEFAULT_DASHBOARD_PATH)
+  return true
+}
+
 const handleYandexLogin = async () => {
   errorMessage.value = ''
   oauthLoading.value = true
   try {
+    if (await reuseProviderSession('yandex')) return
     await startYandexLogin()
   } catch (e) {
     oauthLoading.value = false
@@ -217,6 +227,7 @@ const handleVkLogin = async () => {
   errorMessage.value = ''
   oauthLoading.value = true
   try {
+    if (await reuseProviderSession('vk')) return
     await startVkLogin()
   } catch (e) {
     oauthLoading.value = false
@@ -229,8 +240,10 @@ const handleMaxLogin = async () => {
   maxLoginMessage.value = 'Откройте чат MAX в новом окне и нажмите Start. Страница сама завершит вход.'
   oauthLoading.value = true
   try {
+    if (await reuseProviderSession('max')) return
     const data = await startMaxLogin()
     setToken(data.access_token)
+    setAuthProvider('max')
     const userResult = await fetchCurrentUser()
     if (!userResult.success) {
       throw new Error('Не удалось загрузить профиль')
@@ -248,13 +261,6 @@ const loginForm = reactive({
   email: '',
   password: '',
   remember: false
-})
-
-onMounted(async () => {
-  const isAuth = await checkAuth()
-  if (isAuth) {
-    router.replace(DEFAULT_DASHBOARD_PATH)
-  }
 })
 
 const togglePasswordVisibility = () => {

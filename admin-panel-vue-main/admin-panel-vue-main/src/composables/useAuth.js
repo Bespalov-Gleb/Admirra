@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import api from '../api/axios'
 import { refreshAccessToken } from '../api/axios'
-import { clearAccessToken, getAccessToken, setAccessToken } from '@/utils/authToken'
+import { clearAccessToken, clearAuthProvider, getAccessToken, setAccessToken, setAuthProvider } from '@/utils/authToken'
 
 const isAuthenticated = ref(false)
 const user = ref(null)
@@ -140,6 +140,7 @@ export function useAuth() {
 
       if (data.access_token) {
         setToken(data.access_token)
+        setAuthProvider('password')
         const userResult = await fetchCurrentUser()
         if (!userResult.success) {
           throw new Error('Could not fetch user data after login')
@@ -187,6 +188,7 @@ export function useAuth() {
       })
       const { access_token } = response.data
       setToken(access_token)
+      setAuthProvider('password')
       const userResult = await fetchCurrentUser()
       if (!userResult.success) {
         throw new Error('Could not fetch user data after OTP')
@@ -207,6 +209,7 @@ export function useAuth() {
       const response = await api.post('auth/verify-email', { token: String(token).trim() })
       const { access_token } = response.data
       setToken(access_token)
+      setAuthProvider('password')
       const userResult = await fetchCurrentUser()
       if (!userResult.success) {
         throw new Error('Could not fetch user after email verification')
@@ -276,6 +279,7 @@ export function useAuth() {
 
   const forceLogout = () => {
     clearAccessToken()
+    clearAuthProvider()
     isAuthenticated.value = false
     user.value = null
     initialCheckDone = false

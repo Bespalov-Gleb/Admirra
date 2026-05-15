@@ -321,12 +321,7 @@ router.beforeEach(async (to, from, next) => {
   if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
     next('/signin')
-  } else if (isAuth && (isLoginPage || isLandingPage) && !verifyEmailWithToken) {
-    // Уже вошли: с экранов входа/лендинга — на дашборд; OAuth callback не трогаем (интеграция под залогиненным)
-    console.log('Router: Already authenticated, redirecting to dashboard...')
-    next(DEFAULT_DASHBOARD_PATH)
-  }
-  else if (isAuth) {
+  } else if (isAuth) {
     const restrictedForMember = new Set(['/team', '/tariffs'])
     const restrictedForClient = new Set(['/team', '/tariffs', '/integrations', '/integrations/wizard', '/history'])
     const token = getToken()

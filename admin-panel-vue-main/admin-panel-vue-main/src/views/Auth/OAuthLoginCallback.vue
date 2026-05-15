@@ -32,6 +32,7 @@ import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { consumeVkPkceByState } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
+import { setAuthProvider } from '@/utils/authToken'
 
 const route = useRoute()
 const router = useRouter()
@@ -101,6 +102,7 @@ onMounted(async () => {
     }
     const { data } = await api.post(path, payload)
     setToken(data.access_token)
+    setAuthProvider(provider)
     const userResult = await fetchCurrentUser()
     if (!userResult.success) {
       throw new Error('Не удалось загрузить профиль')
