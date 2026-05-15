@@ -29,12 +29,16 @@ def log_history_event(
         actor_user_id: Optional[UUID] = None
         actor_email: Optional[str] = None
 
+        actor_name: Optional[str] = None
+
         if actor is not None:
             ctx = get_team_context(db, actor)
             account_id = ctx.account_id
             actor_role = "owner" if ctx.is_owner else (ctx.team_role or "unknown")
             actor_user_id = actor.id
             actor_email = actor.email
+            parts = [actor.first_name or "", actor.last_name or ""]
+            actor_name = " ".join(p for p in parts if p).strip() or actor.email
 
         if not account_id:
             return
@@ -43,6 +47,7 @@ def log_history_event(
             account_id=account_id,
             actor_user_id=actor_user_id,
             actor_email=actor_email,
+            actor_name=actor_name,
             actor_role=actor_role,
             event_type=event_type,
             action=action,

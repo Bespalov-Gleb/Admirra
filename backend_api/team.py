@@ -268,6 +268,33 @@ def delete_member(
     return _delete_member(member_id, models.TeamMemberRole.MEMBER, current_user, db)
 
 
+@router.patch("/members/{member_id}", response_model=schemas.TeamMemberResponse)
+def update_member(
+    member_id: UUID,
+    payload: schemas.TeamMemberUpdateRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    account_id = _ensure_owner(current_user, db)
+    member = db.query(models.TeamMember).filter(
+        models.TeamMember.id == member_id,
+        models.TeamMember.account_id == account_id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Участник не найден")
+    if payload.role not in {r.value for r in models.TeamMemberRole}:
+        raise HTTPException(status_code=422, detail=f"Допустимые роли: member, client")
+    old_role = member.role.value
+    member.role = models.TeamMemberRole(payload.role)
+    log_history_event(
+        db, actor=current_user, event_type="team", action="member_role_changed",
+        description=f"Роль {member.email} изменена: {old_role} → {payload.role}",
+    )
+    db.commit()
+    db.refresh(member)
+    return _member_to_response(member)
+
+
 @router.delete("/clients/{user_id}")
 def delete_client_member(
     user_id: UUID,

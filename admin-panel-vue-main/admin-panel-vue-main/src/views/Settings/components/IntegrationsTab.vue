@@ -205,10 +205,25 @@
     </div>
 
   </div>
+
+  <!-- Confirm delete modal -->
+  <Teleport to="body">
+    <div v-if="deleteConfirm.open" class="fixed inset-0 bg-black/45 flex items-center justify-center z-[9999] p-4" @click.self="deleteConfirm.open = false">
+      <div class="bg-white dark:bg-[#2C2F3D] rounded-[1.1111rem] p-8 w-full max-w-sm shadow-2xl flex flex-col gap-4">
+        <h4 class="text-[1.1111rem] font-semibold text-gray-900 dark:text-white">Удалить интеграцию?</h4>
+        <p class="text-[0.9028rem] text-gray-500 dark:text-white/55">Это действие нельзя отменить. Все данные синхронизации будут удалены.</p>
+        <div class="flex gap-3 justify-end mt-2">
+          <button class="px-5 py-2.5 rounded-[0.6944rem] bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-white/70 text-[0.9028rem] font-medium" @click="deleteConfirm.open = false">Отмена</button>
+          <button class="px-5 py-2.5 rounded-[0.6944rem] bg-red-500 hover:bg-red-600 text-white text-[0.9028rem] font-medium transition-colors" @click="confirmDelete">Удалить</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
@@ -363,13 +378,21 @@ const filteredGroupedClients = computed(() => {
     .filter(Boolean)
 })
 
-const deleteIntegration = async (id) => {
-  if (!confirm('Вы уверены, что хотите удалить эту интеграцию?')) return
+const deleteConfirm = ref({ open: false, id: null })
+
+const deleteIntegration = (id) => {
+  deleteConfirm.value = { open: true, id }
+}
+
+const confirmDelete = async () => {
+  const id = deleteConfirm.value.id
+  deleteConfirm.value.open = false
   try {
     await api.delete(`integrations/${id}`)
+    toaster.success('Интеграция удалена')
     fetchIntegrations()
   } catch (error) {
-    console.error('Error deleting integration:', error)
+    toaster.error('Не удалось удалить интеграцию')
   }
 }
 
@@ -442,6 +465,10 @@ const openEditWizard = (item) => {
     }
   })
 }
+
+watch(currentProjectId, () => {
+  fetchIntegrations()
+})
 
 onMounted(() => {
   fetchIntegrations()

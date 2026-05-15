@@ -83,14 +83,14 @@
         <!-- Пользователь -->
         <div class="flex items-center gap-[1.0417rem] min-w-0">
           <div class="user-avatar flex-shrink-0">
-            <span>{{ (item.user_email || '?').slice(0, 2).toUpperCase() }}</span>
+            <span>{{ (item.actor_name || item.actor_email || '?').slice(0, 2).toUpperCase() }}</span>
           </div>
           <div class="min-w-0">
             <div class="text-[1.0417rem] text-[#696969] font-medium leading-none mb-[0.2778rem] truncate">
-              {{ item.user_email || '—' }}
+              {{ item.actor_name || item.actor_email || '—' }}
             </div>
             <div class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">
-              {{ item.user_role || 'Пользователь' }}
+              {{ item.actor_role || 'Пользователь' }}
             </div>
           </div>
         </div>

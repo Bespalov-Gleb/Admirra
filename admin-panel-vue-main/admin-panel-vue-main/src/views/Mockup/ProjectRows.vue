@@ -188,7 +188,7 @@
                     >
                       {{ project.name }}
                     </button>
-                    <p class="text-[0.7639rem] leading-none text-[rgba(105,105,105,0.56)] dark:text-white/45">ID:&nbsp;{{ shortId(project.id) }}</p>
+                    <button type="button" class="project-id-link dark:text-white/45" @click.stop="copyProjectId(project)">ID:&nbsp;{{ projectSupportId(project) }}</button>
                   </div>
                 </div>
               </td>
@@ -572,6 +572,7 @@ const filteredProjects = computed(() => {
   const q = search.value.toLowerCase()
   return list.filter(p =>
     p.name?.toLowerCase().includes(q) ||
+    String(p.display_id || '').toLowerCase().includes(q) ||
     String(p.id || '').toLowerCase().includes(q)
   )
 })
@@ -693,6 +694,19 @@ const metricCells = (project) => {
 const shortId = (id) => {
   const v = String(id || '')
   return v.length > 12 ? `${v.slice(0, 8)}...${v.slice(-4)}` : v || '—'
+}
+
+const projectSupportId = (project) => project?.display_id || shortId(project?.id)
+
+const copyProjectId = async (project) => {
+  const value = String(project?.display_id || project?.id || '')
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    toaster.success('ID проекта скопирован')
+  } catch {
+    toaster.error('Не удалось скопировать ID')
+  }
 }
 
 const trendBadgeClass = (metric, key) => {
@@ -937,7 +951,7 @@ onUnmounted(() => {
   display: flex;
   min-width: 100%;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
   background-color: #fff;
   border-radius: 0.5556rem;
@@ -1187,6 +1201,24 @@ onUnmounted(() => {
   color: #2563eb;
 }
 
+.project-id-link {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.56);
+  cursor: pointer;
+  font-size: 0.7639rem;
+  line-height: 1;
+  text-align: left;
+  transition: color 0.2s;
+}
+
+.project-id-link:hover {
+  color: #2563eb;
+}
+
 .project-avatar-row {
   position: relative;
   display: flex;
@@ -1208,6 +1240,7 @@ onUnmounted(() => {
 }
 
 .project-avatar-row img {
+  border-radius: 50%;
   transition: filter 0.2s;
 }
 

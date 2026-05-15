@@ -103,12 +103,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../api/axios'
+import { useToaster } from '../composables/useToaster'
 
 const props = defineProps({
   isOpen: Boolean
 })
 
 const emit = defineEmits(['update:isOpen', 'success'])
+const toaster = useToaster()
 
 const step = ref('AUTH') // AUTH, SELECT
 const loading = ref(false)
@@ -187,7 +189,7 @@ const handleToken = async (token) => {
         clients.value = data
     } catch (e) {
         console.error("Failed to load clients", e)
-        alert("Не удалось загрузить список клиентов. Возможно, это не агентский аккаунт.")
+        toaster.error("Не удалось загрузить список клиентов. Возможно, это не агентский аккаунт.")
         close()
     } finally {
         loadingClients.value = false
@@ -214,7 +216,7 @@ const importSelected = async () => {
         window.location.reload() // Reload to show new projects
     } catch (e) {
         console.error(e)
-        alert("Ошибка импорта")
+        toaster.error("Ошибка импорта")
     } finally {
         importing.value = false
     }

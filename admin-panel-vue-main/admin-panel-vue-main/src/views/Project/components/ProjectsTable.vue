@@ -97,7 +97,9 @@
                   <GlobeAltIcon class="w-5 h-5 text-green-500 flex-shrink-0" />
                   <div>
                     <div class="font-medium text-sm text-gray-900">{{ project.title }}</div>
-                    <div class="text-xs text-gray-500">ID: {{ project.id.substring(0, 8).toUpperCase() }}</div>
+                    <button type="button" class="text-xs text-gray-500 hover:text-blue-600 transition-colors" @click.stop="copyProjectId(project)">
+                      ID: {{ projectSupportId(project) }}
+                    </button>
                   </div>
                 </div>
               </td>
@@ -301,6 +303,7 @@ import {
   FolderOpenIcon,
   EllipsisVerticalIcon
 } from '@heroicons/vue/24/outline'
+import { useToaster } from '../../../composables/useToaster'
 
 const props = defineProps({
   projects: {
@@ -318,6 +321,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['addProject', 'viewProject', 'editProject', 'deleteProject'])
+const toaster = useToaster()
 
 const selected = ref([])
 const localSearchQuery = ref(props.searchQuery)
@@ -398,6 +402,7 @@ const filteredProjects = computed(() => {
     const query = localSearchQuery.value.toLowerCase()
     result = result.filter(project =>
       project.title?.toLowerCase().includes(query) ||
+      String(project.display_id || '').includes(query) ||
       project.id?.toLowerCase().includes(query) ||
       project.description?.toLowerCase().includes(query)
     )
@@ -471,5 +476,17 @@ const formatExpenses = (num) => {
     maximumFractionDigits: 2 
   }).format(num) + ' ₽'
 }
-</script>
 
+const projectSupportId = (project) => project?.display_id || project.id.substring(0, 8).toUpperCase()
+
+const copyProjectId = async (project) => {
+  const value = String(project?.display_id || project?.id || '')
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    toaster.success('ID проекта скопирован')
+  } catch {
+    toaster.error('Не удалось скопировать ID')
+  }
+}
+</script>

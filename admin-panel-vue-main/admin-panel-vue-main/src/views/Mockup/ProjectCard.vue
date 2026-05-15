@@ -145,7 +145,8 @@
                 >
                   {{ project.name }}
                 </button>
-                <p class="text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description || `ID: ${shortId(project.id)}` }}</p>
+                <p v-if="project.description" class="mb-[0.2778rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description }}</p>
+                <button type="button" class="project-id-link" @click.stop="copyProjectId(project)">ID: {{ projectSupportId(project) }}</button>
               </div>
             </div>
             <button class="circle-open-btn flex-shrink-0" @click="openProject(project)">
@@ -261,6 +262,7 @@ const filteredProjects = computed(() => {
   if (!q) return list
   return list.filter((p) =>
     p.name?.toLowerCase().includes(q) ||
+    String(p.display_id || '').toLowerCase().includes(q) ||
     String(p.id || '').toLowerCase().includes(q) ||
     p.description?.toLowerCase().includes(q)
   )
@@ -390,6 +392,19 @@ const trendArrowClass = (metric, key) => [
 const shortId = (id) => {
   const value = String(id || '')
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value || '-'
+}
+
+const projectSupportId = (project) => project?.display_id || shortId(project?.id)
+
+async function copyProjectId(project) {
+  const value = String(project?.display_id || project?.id || '')
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    toaster.success('ID проекта скопирован')
+  } catch {
+    toaster.error('Не удалось скопировать ID')
+  }
 }
 
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
@@ -767,6 +782,24 @@ onMounted(async () => {
   color: #2563eb;
 }
 
+.project-id-link {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.56);
+  cursor: pointer;
+  font-size: 0.9028rem;
+  line-height: 1;
+  text-align: left;
+  transition: color 0.2s;
+}
+
+.project-id-link:hover {
+  color: #2563eb;
+}
+
 /* ---- Project avatar ---- */
 .project-avatar {
   position: relative;
@@ -781,7 +814,7 @@ onMounted(async () => {
   color: #2563eb;
   font-size: 0.9028rem;
   font-weight: 700;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
 }
 
@@ -790,6 +823,7 @@ onMounted(async () => {
 }
 
 .project-avatar--editable img {
+  border-radius: 50%;
   transition: filter 0.2s;
 }
 

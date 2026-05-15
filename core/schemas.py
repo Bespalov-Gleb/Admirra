@@ -166,6 +166,10 @@ class TeamGrantProjectRequest(BaseModel):
     project_id: UUID
 
 
+class TeamMemberUpdateRequest(BaseModel):
+    role: str
+
+
 class TeamContextResponse(BaseModel):
     is_owner: bool
     team_role: Optional[str] = None
@@ -177,6 +181,7 @@ class HistoryEventResponse(BaseModel):
     account_id: UUID
     actor_user_id: Optional[UUID] = None
     actor_email: Optional[str] = None
+    actor_name: Optional[str] = None
     actor_role: Optional[str] = None
     event_type: str
     action: str
@@ -308,6 +313,7 @@ class ClientUpdate(BaseModel):
 
 class ClientResponse(ClientBase):
     id: UUID
+    display_id: Optional[int] = None
     owner_id: UUID
     avatar_url: Optional[str] = None
     created_at: datetime

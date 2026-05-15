@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON
+from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -142,10 +142,20 @@ class UserOAuthIdentity(Base):
     )
 
 
+clients_display_id_seq = Sequence("clients_display_id_seq", start=100001)
+
+
 class Client(Base):
     __tablename__ = "clients"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    display_id = Column(
+        Integer,
+        clients_display_id_seq,
+        unique=True,
+        nullable=False,
+        server_default=clients_display_id_seq.next_value(),
+    )
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     name = Column(String, nullable=False)
     description = Column(String)
@@ -534,6 +544,7 @@ class HistoryEvent(Base):
     account_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     actor_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     actor_email = Column(String(255), nullable=True)
+    actor_name = Column(String(255), nullable=True)
     actor_role = Column(String(32), nullable=True)
     event_type = Column(String(64), nullable=False, index=True)  # team | project | integration | ai | billing
     action = Column(String(128), nullable=False)

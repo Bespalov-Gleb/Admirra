@@ -92,6 +92,13 @@
     <div v-if="viewMode === 'cards' && filteredProjects.length === 0" class="text-center py-12">
       <p class="text-gray-500">Проекты не найдены</p>
     </div>
+
+    <ConfirmModal
+      v-model:is-open="deleteConfirmOpen"
+      title="Удалить проект?"
+      :message="deleteConfirmMessage"
+      @confirm="confirmDeleteProject"
+    />
   </div>
 </template>
 
@@ -100,10 +107,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { MagnifyingGlassIcon, ViewColumnsIcon, Bars3Icon } from '@heroicons/vue/24/outline'
 import ProjectCard from './components/ProjectCard.vue'
 import ProjectsTable from './components/ProjectsTable.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
 import api from '../../api/axios'
 import { useRouter } from 'vue-router'
+import { useToaster } from '../../composables/useToaster'
 
 const router = useRouter()
+const toaster = useToaster()
 
 const searchQuery = ref('')
 const selectedPeriod = ref('14')
@@ -111,6 +121,19 @@ const selectedFilter = ref('all')
 const loading = ref(true)
 const projects = ref([])
 const viewMode = ref('table') // 'cards' or 'table'
+const deleteTarget = ref(null)
+
+const deleteConfirmOpen = computed({
+  get: () => Boolean(deleteTarget.value),
+  set: (value) => {
+    if (!value) deleteTarget.value = null
+  }
+})
+
+const deleteConfirmMessage = computed(() => {
+  const name = deleteTarget.value?.title || 'проект'
+  return `Проект «${name}» и связанные данные будут удалены безвозвратно.`
+})
 
 const fetchProjects = async () => {
   loading.value = true
@@ -131,6 +154,7 @@ const fetchProjects = async () => {
     
     projects.value = response.data.map(client => ({
       id: client.id,
+      display_id: client.display_id,
       title: client.name,
       description: client.description,
       impressions: client.summary?.impressions || 0,
@@ -174,7 +198,9 @@ const filteredProjects = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(project =>
-      project.title.toLowerCase().includes(query)
+      project.title.toLowerCase().includes(query) ||
+      String(project.display_id || '').includes(query) ||
+      String(project.id || '').toLowerCase().includes(query)
     )
   }
 
@@ -216,16 +242,21 @@ const handleEditProject = (projectId) => {
 }
 
 const handleDeleteProject = async (projectId) => {
-  if (confirm('Вы уверены, что хотите удалить этот проект? Все интеграции, кампании и статистика будут безвозвратно удалены.')) {
-    try {
-      await api.delete(`clients/${projectId}`)
-      // Remove from local state
-      projects.value = projects.value.filter(p => p.id !== projectId)
-      console.log('✅ Проект успешно удален:', projectId)
-    } catch (error) {
-      console.error('❌ Ошибка при удалении проекта:', error)
-      alert('Не удалось удалить проект. Проверьте консоль для деталей.')
-    }
+  deleteTarget.value = projects.value.find((project) => project.id === projectId) || { id: projectId, title: 'проект' }
+}
+
+const confirmDeleteProject = async () => {
+  const project = deleteTarget.value
+  if (!project?.id) return
+  try {
+    await api.delete(`clients/${project.id}`)
+    projects.value = projects.value.filter(p => p.id !== project.id)
+    toaster.success('Проект удален')
+  } catch (error) {
+    console.error('❌ Ошибка при удалении проекта:', error)
+    toaster.error('Не удалось удалить проект')
+  } finally {
+    deleteTarget.value = null
   }
 }
 </script>

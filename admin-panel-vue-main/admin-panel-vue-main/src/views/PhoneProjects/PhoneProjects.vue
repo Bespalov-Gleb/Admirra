@@ -719,6 +719,35 @@
         </div>
       </div>
     </div>
+
+    <div
+      v-if="deleteTarget"
+      class="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-[70] p-4"
+      @click.self="deleteTarget = null"
+    >
+      <div class="w-full max-w-md rounded-[1.5rem] bg-white border border-gray-100 shadow-2xl p-6">
+        <h3 class="text-xl font-black text-gray-900">Удалить проект?</h3>
+        <p class="text-sm text-gray-500 mt-2 leading-relaxed">
+          Проект «{{ deleteTarget.name }}» будет удален безвозвратно.
+        </p>
+        <div class="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            class="px-5 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+            @click="deleteTarget = null"
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            class="px-5 py-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors"
+            @click="confirmDeleteProject"
+          >
+            Удалить
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -744,6 +773,7 @@ const leadsLoading = ref(false)
 const leadsError = ref('')
 const selectedLead = ref(null)
 const leadDetailsLoading = ref(false)
+const deleteTarget = ref(null)
 
 const projectForm = reactive({
   name: '',
@@ -912,14 +942,16 @@ const closeLeadDetails = () => {
   leadDetailsLoading.value = false
 }
 
-const deleteProject = async (project) => {
-  if (!confirm(`Вы уверены, что хотите удалить проект "${project.name}"?`)) {
-    return
-  }
+const deleteProject = (project) => {
+  deleteTarget.value = project
+}
 
+const confirmDeleteProject = async () => {
+  if (!deleteTarget.value?.id) return
   try {
-    await api.delete(`phone-projects/${project.id}`)
+    await api.delete(`phone-projects/${deleteTarget.value.id}`)
     toaster.success('Проект удален')
+    deleteTarget.value = null
     await fetchProjects()
   } catch (error) {
     console.error('Error deleting project:', error)
@@ -1133,4 +1165,3 @@ watch(activeTab, async (tab) => {
   }
 })
 </script>
-
