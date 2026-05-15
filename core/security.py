@@ -139,6 +139,7 @@ def consume_refresh_session(
     raw_token: Optional[str],
     request: Request,
     response: Response,
+    rotate: bool = False,
 ) -> Optional[models.User]:
     if not raw_token:
         return None
@@ -161,10 +162,14 @@ def consume_refresh_session(
         db.add(session)
         return None
 
-    remember_me = bool(session.remember_me)
-    session.revoked_at = now
+    session.last_used_at = now
     db.add(session)
-    create_refresh_session(db, user, request, response, remember_me=remember_me)
+    remember_me = bool(session.remember_me)
+    if rotate:
+        session.revoked_at = now
+        create_refresh_session(db, user, request, response, remember_me=remember_me)
+    else:
+        set_refresh_cookie(response, request, raw_token, remember_me=remember_me)
     return user
 
 # Encryption for sensitive tokens
