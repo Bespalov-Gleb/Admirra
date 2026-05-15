@@ -1227,7 +1227,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
   border-radius: 50%;
   background: #e8eef9;
