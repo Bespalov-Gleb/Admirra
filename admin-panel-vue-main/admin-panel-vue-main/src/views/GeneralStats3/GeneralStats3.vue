@@ -3886,17 +3886,18 @@ onMounted(() => {
 .top-grid {
   grid-template-columns: minmax(25rem, 34.3056rem) minmax(52.7778rem, 1fr);
   gap: 1.3889rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .panel-channels {
-  height: auto;
+  height: 100%;
   min-height: 12.5rem;
   padding: 1.7361rem;
   overflow: visible;
 }
 
 .panel-reports {
+  height: 100%;
   min-height: 12.5rem;
   padding: 1.7361rem;
   overflow: visible;
@@ -4077,9 +4078,10 @@ onMounted(() => {
 }
 
 .primary-report {
-  align-self: end;
+  align-self: start;
   width: auto;
   height: 3.1944rem;
+  margin-top: 2.7778rem;
   padding: 0 0.6944rem;
   justify-content: center;
   white-space: nowrap;
@@ -4704,6 +4706,7 @@ onMounted(() => {
 
   .primary-report {
     width: 100%;
+    margin-top: 0;
   }
 }
 
