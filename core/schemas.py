@@ -48,9 +48,12 @@ class Token(BaseModel):
 
 
 class OAuthAuthorizeUrlResponse(BaseModel):
-    """URL для редиректа браузера на страницу авторизации провайдера (Яндекс / VK)."""
+    """URL для редиректа браузера на страницу авторизации провайдера (Яндекс / VK / MAX)."""
 
     url: str
+    state: Optional[str] = None
+    expires_in_seconds: Optional[int] = None
+    poll_interval_ms: Optional[int] = None
 
 
 class OAuthLoginCallbackRequest(BaseModel):
@@ -63,6 +66,13 @@ class OAuthLoginCallbackRequest(BaseModel):
     # Legacy поле для старого VK Ads login flow. Оставлено для обратной совместимости.
     vk_redirect_user_id: Optional[str] = None
     remember_me: bool = True
+
+
+class MaxOAuthStatusResponse(BaseModel):
+    status: str  # pending | completed | expired | used
+    access_token: Optional[str] = None
+    token_type: Optional[str] = None
+    expires_in_seconds: Optional[int] = None
 
 
 class TelegramDeepLinkResponse(BaseModel):

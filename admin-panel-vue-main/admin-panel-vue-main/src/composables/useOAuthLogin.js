@@ -62,6 +62,10 @@ export function consumeVkPkceByState(state) {
   return verifier
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /**
  * Вход/регистрация: Яндекс ID и VK ID OAuth 2.1.
  * Для VK ID используется PKCE, code_verifier сохраняется локально до callback.
@@ -77,6 +81,63 @@ export function useOAuthLogin() {
       params: { redirect_uri }
     })
     window.location.href = data.url
+  }
+
+  const startMaxLogin = async () => {
+    const popup = window.open('', '_blank')
+    try {
+      sessionStorage.setItem('oauth_site_login', 'max')
+      const { data } = await api.get('auth/oauth/max/authorize-url')
+      if (!data?.url || !data?.state) {
+        throw new Error('Сервер не вернул ссылку для входа через MAX')
+      }
+
+      if (popup) {
+        popup.location.href = data.url
+        try {
+          popup.focus()
+        } catch {
+          /* ignore */
+        }
+      } else {
+        window.open(data.url, '_blank')
+      }
+
+      const startedAt = Date.now()
+      const timeoutMs = Math.max(60000, Number(data.expires_in_seconds || 300) * 1000)
+      const intervalMs = Math.max(1000, Number(data.poll_interval_ms || 2000))
+
+      while (Date.now() - startedAt < timeoutMs) {
+        await delay(intervalMs)
+        const { data: statusData } = await api.get('auth/oauth/max/status', {
+          params: { state: data.state }
+        })
+
+        if (statusData?.status === 'completed' && statusData.access_token) {
+          try {
+            popup?.close()
+          } catch {
+            /* ignore */
+          }
+          return statusData
+        }
+        if (statusData?.status === 'expired') {
+          throw new Error('Ссылка для входа через MAX истекла. Попробуйте снова.')
+        }
+        if (statusData?.status === 'used') {
+          throw new Error('Ссылка для входа через MAX уже использована. Попробуйте снова.')
+        }
+      }
+
+      throw new Error('Не удалось подтвердить вход через MAX за отведённое время.')
+    } catch (error) {
+      try {
+        if (popup && !popup.closed && popup.location.href === 'about:blank') popup.close()
+      } catch {
+        /* ignore */
+      }
+      throw error
+    }
   }
 
   const startVkLogin = async () => {
@@ -99,5 +160,5 @@ export function useOAuthLogin() {
     window.location.href = data.url
   }
 
-  return { startYandexLogin, startVkLogin, yandexCallbackPath, vkCallbackPath }
+  return { startYandexLogin, startVkLogin, startMaxLogin, yandexCallbackPath, vkCallbackPath }
 }

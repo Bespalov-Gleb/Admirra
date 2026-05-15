@@ -29,6 +29,12 @@ class OAuthConfig:
     vk_login_client_secret: str
     vk_login_scope: str
     vk_id_oauth_base: str
+    max_bot_token: str
+    max_bot_name: str
+    max_webhook_secret: str
+    max_api_base: str
+    max_login_ttl_seconds: int
+    max_poll_interval_ms: int
     mytarget_client_id: str
     mytarget_client_secret: str
     mytarget_auth_url: str
@@ -175,6 +181,12 @@ def get_config() -> Config:
             vk_login_scope=getenv("VK_LOGIN_SCOPE", "email"),
             # Пустое значение в .env не должно обнулять базовый URL (getenv с ключом ="" даёт "" без дефолта).
             vk_id_oauth_base=(_env("VK_ID_OAUTH_BASE") or "https://id.vk.ru").rstrip("/"),
+            max_bot_token=_env("MAX_BOT_TOKEN"),
+            max_bot_name=_env("MAX_BOT_NAME"),
+            max_webhook_secret=_env("MAX_WEBHOOK_SECRET"),
+            max_api_base=(_env("MAX_API_BASE", "https://platform-api.max.ru") or "https://platform-api.max.ru").rstrip("/"),
+            max_login_ttl_seconds=int(_env("MAX_LOGIN_TTL_SECONDS", "300")),
+            max_poll_interval_ms=int(_env("MAX_POLL_INTERVAL_MS", "2000")),
             mytarget_client_id=_env("MYTARGET_CLIENT_ID"),
             mytarget_client_secret=_env("MYTARGET_CLIENT_SECRET"),
             mytarget_auth_url=getenv("MYTARGET_AUTH_URL", "https://target-sandbox.my.com/api/v2/oauth2/authorize"),

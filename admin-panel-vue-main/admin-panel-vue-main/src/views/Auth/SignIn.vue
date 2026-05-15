@@ -32,7 +32,12 @@
               <img src="/admirra/img/icons/vk.png" alt="" class="h-[16px] w-[16px] object-contain" />
               Войти через ВК
             </button>
-            <button type="button" class="auth-social-btn auth-social-btn--max">
+            <button
+              type="button"
+              :disabled="oauthLoading"
+              class="auth-social-btn auth-social-btn--max"
+              @click="handleMaxLogin"
+            >
               <img src="/admirra/img/icons/max.png" alt="" class="h-[16px] w-[16px] object-contain" />
               Войти через Max
             </button>
@@ -46,6 +51,9 @@
 
             <div v-if="errorMessage" class="mb-4 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
               {{ errorMessage }}
+            </div>
+            <div v-if="maxLoginMessage" class="mb-4 rounded-[12px] border border-blue-100 bg-blue-50 px-4 py-3 text-[13px] font-medium text-blue-700">
+              {{ maxLoginMessage }}
             </div>
 
             <form class="auth-fields" @submit.prevent="handleLogin">
@@ -186,12 +194,13 @@ import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
 const router = useRouter()
-const { login, checkAuth, getErrorMessage } = useAuth()
-const { startYandexLogin, startVkLogin } = useOAuthLogin()
+const { login, checkAuth, fetchCurrentUser, setToken, getErrorMessage } = useAuth()
+const { startYandexLogin, startVkLogin, startMaxLogin } = useOAuthLogin()
 const showPassword = ref(false)
 const loading = ref(false)
 const oauthLoading = ref(false)
 const errorMessage = ref('')
+const maxLoginMessage = ref('')
 
 const handleYandexLogin = async () => {
   errorMessage.value = ''
@@ -212,6 +221,26 @@ const handleVkLogin = async () => {
   } catch (e) {
     oauthLoading.value = false
     errorMessage.value = getErrorMessage(e, 'Не удалось начать вход через ВКонтакте')
+  }
+}
+
+const handleMaxLogin = async () => {
+  errorMessage.value = ''
+  maxLoginMessage.value = 'Откройте чат MAX в новом окне и нажмите Start. Страница сама завершит вход.'
+  oauthLoading.value = true
+  try {
+    const data = await startMaxLogin()
+    setToken(data.access_token)
+    const userResult = await fetchCurrentUser()
+    if (!userResult.success) {
+      throw new Error('Не удалось загрузить профиль')
+    }
+    router.push(DEFAULT_DASHBOARD_PATH)
+  } catch (e) {
+    errorMessage.value = getErrorMessage(e, e?.message || 'Не удалось войти через MAX')
+  } finally {
+    oauthLoading.value = false
+    maxLoginMessage.value = ''
   }
 }
 

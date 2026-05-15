@@ -1,8 +1,9 @@
 """
-Вход и регистрация через Яндекс ID и VK ID.
+Вход и регистрация через Яндекс ID, VK ID и MAX.
 
 - Яндекс: OAuth приложения Директа / login.
 - VK: OAuth 2.1 VK ID (id.vk.ru) с PKCE + обмен кода на токены на бэкенде.
+- MAX: deep link бота + одноразовый payload + webhook bot_started.
 
 Документация VK ID:
 - https://id.vk.com/about/business/go/docs/ru/vkid/latest/vk-id/connection/start-integration/auth-without-sdk/auth-without-sdk-web
@@ -16,7 +17,7 @@ import hashlib
 import hmac
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import quote
 
@@ -55,6 +56,14 @@ VK_ID_USER_INFO_URL = f"{VK_ID_OAUTH_BASE}/oauth2/user_info"
 
 # Только профиль для входа в приложение (отдельно от direct:api при подключении Директа)
 YANDEX_LOGIN_SCOPE = "login:email login:info"
+
+MAX_BOT_TOKEN = (cfg.oauth.max_bot_token or "").strip()
+MAX_BOT_NAME = (cfg.oauth.max_bot_name or "").strip().lstrip("@")
+MAX_WEBHOOK_SECRET = (cfg.oauth.max_webhook_secret or "").strip()
+MAX_API_BASE = (cfg.oauth.max_api_base or "https://platform-api.max.ru").rstrip("/")
+MAX_LOGIN_TTL_SECONDS = max(60, min(int(cfg.oauth.max_login_ttl_seconds or 300), 900))
+MAX_POLL_INTERVAL_MS = max(1000, min(int(cfg.oauth.max_poll_interval_ms or 2000), 10000))
+_cached_max_bot_name: str | None = None
 
 
 def _oauth_state_prefix(provider: str) -> str:
@@ -191,6 +200,149 @@ def _synthetic_email(prefix: str, provider_uid: str) -> str:
     return f"{prefix}_{safe_uid}@{domain}"
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _token_hash(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _frontend_url() -> str:
+    url = (cfg.public_domain.frontend_url or "").strip().rstrip("/")
+    if url:
+        return url
+    host = (cfg.public_domain.admierra_public_host or "").strip().strip("/")
+    if host:
+        if host.startswith("http://") or host.startswith("https://"):
+            return host.rstrip("/")
+        return f"https://{host}"
+    return ""
+
+
+async def _resolve_max_bot_name() -> str:
+    global _cached_max_bot_name
+    if MAX_BOT_NAME:
+        return MAX_BOT_NAME
+    if _cached_max_bot_name:
+        return _cached_max_bot_name
+    if not MAX_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="MAX Bot API не настроен на сервере")
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(f"{MAX_API_BASE}/me", headers={"Authorization": MAX_BOT_TOKEN})
+    try:
+        data = r.json()
+    except Exception:
+        logger.warning("MAX /me returned non-JSON: %s %s", r.status_code, r.text[:300])
+        raise HTTPException(status_code=503, detail="Не удалось получить имя MAX-бота")
+    if r.status_code != 200:
+        logger.warning("MAX /me failed: %s %s", r.status_code, data)
+        raise HTTPException(status_code=503, detail="MAX Bot API не вернул данные бота")
+    bot_name = str(data.get("username") or data.get("name") or "").strip().lstrip("@")
+    if not bot_name:
+        raise HTTPException(status_code=503, detail="У MAX-бота не найден username")
+    _cached_max_bot_name = bot_name
+    return bot_name
+
+
+async def _max_api_post(path: str, params: dict | None = None, json_body: dict | None = None) -> dict:
+    if not MAX_BOT_TOKEN:
+        return {"success": False, "message": "MAX_BOT_TOKEN is empty"}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post(
+            f"{MAX_API_BASE}{path}",
+            params=params or {},
+            json=json_body or {},
+            headers={"Authorization": MAX_BOT_TOKEN},
+        )
+    try:
+        return r.json()
+    except Exception:
+        return {"success": False, "message": r.text[:300], "status_code": r.status_code}
+
+
+async def _send_max_login_message(user_id: str, chat_id: str | None, text: str) -> None:
+    params: dict = {}
+    if chat_id:
+        params["chat_id"] = chat_id
+    else:
+        params["user_id"] = user_id
+
+    body: dict = {"text": text}
+    url = _frontend_url()
+    if url:
+        body["attachments"] = [
+            {
+                "type": "inline_keyboard",
+                "payload": {
+                    "buttons": [[{"type": "link", "text": "Вернуться на сайт", "url": url}]]
+                },
+            }
+        ]
+
+    try:
+        data = await _max_api_post("/messages", params=params, json_body=body)
+        if data.get("success") is False and data.get("message"):
+            logger.warning("MAX send message failed: %s", data)
+    except Exception:
+        logger.exception("MAX send message failed")
+
+
+def _split_name(full_name: str | None) -> tuple[Optional[str], Optional[str]]:
+    name = (full_name or "").strip()
+    if not name:
+        return None, None
+    parts = name.split(None, 1)
+    return parts[0], parts[1] if len(parts) > 1 else None
+
+
+def _get_or_create_max_user(db: Session, max_user: dict) -> models.User:
+    max_uid = str(max_user.get("user_id") or "").strip()
+    if not max_uid:
+        raise HTTPException(status_code=400, detail="MAX не вернул user_id пользователя")
+
+    identity = (
+        db.query(models.UserOAuthIdentity)
+        .filter(
+            models.UserOAuthIdentity.provider == "max",
+            models.UserOAuthIdentity.provider_user_id == max_uid,
+        )
+        .first()
+    )
+    if identity:
+        user = db.query(models.User).filter(models.User.id == identity.user_id).first()
+        if not user:
+            raise HTTPException(status_code=500, detail="Пользователь не найден")
+        return user
+
+    username = (max_user.get("username") or "").strip() or None
+    first_name, last_name = _split_name(max_user.get("name"))
+    email = _synthetic_email("max", max_uid)
+
+    user = models.User(
+        email=email,
+        username=_pick_username(db, username),
+        first_name=first_name,
+        last_name=last_name,
+        password_hash=security.get_password_hash(secrets.token_urlsafe(48)),
+        role=models.UserRole.MANAGER,
+        email_verified=True,
+        email_verification_token_hash=None,
+        email_verification_expires_at=None,
+    )
+    db.add(user)
+    db.flush()
+    db.add(
+        models.UserOAuthIdentity(
+            user_id=user.id,
+            provider="max",
+            provider_user_id=max_uid,
+        )
+    )
+    SubscriptionService.ensure_default_subscription(db, user)
+    return user
+
+
 def _issue_token_for_user(
     db: Session,
     user: models.User,
@@ -298,6 +450,148 @@ def _find_user_by_email_ci(db: Session, email: str) -> Optional[models.User]:
         .filter(func.lower(models.User.email) == e)
         .first()
     )
+
+
+@router.get("/max/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)
+async def max_oauth_authorize_url(db: Session = Depends(get_db)):
+    """
+    MAX login: создаёт одноразовый payload для deep link бота.
+    Браузер открывает https://max.ru/<botName>?start=<payload> и polling-ом ждёт webhook bot_started.
+    """
+    if not MAX_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="MAX Bot API не настроен на сервере")
+
+    bot_name = await _resolve_max_bot_name()
+    state = secrets.token_urlsafe(32)
+    payload = secrets.token_urlsafe(32)
+    expires_at = _now() + timedelta(seconds=MAX_LOGIN_TTL_SECONDS)
+
+    db.query(models.MaxOAuthLoginAttempt).filter(
+        models.MaxOAuthLoginAttempt.expires_at <= _now(),
+        models.MaxOAuthLoginAttempt.consumed_at.is_(None),
+    ).delete(synchronize_session=False)
+
+    attempt = models.MaxOAuthLoginAttempt(
+        state_hash=_token_hash(state),
+        payload_hash=_token_hash(payload),
+        expires_at=expires_at,
+    )
+    db.add(attempt)
+    db.commit()
+
+    return {
+        "url": f"https://max.ru/{quote(bot_name, safe='')}?start={quote(payload, safe='')}",
+        "state": state,
+        "expires_in_seconds": MAX_LOGIN_TTL_SECONDS,
+        "poll_interval_ms": MAX_POLL_INTERVAL_MS,
+    }
+
+
+@router.get("/max/status", response_model=schemas.MaxOAuthStatusResponse)
+def max_oauth_status(
+    state: str,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    state = (state or "").strip()
+    if len(state) < 32:
+        raise HTTPException(status_code=400, detail="Некорректный state MAX")
+
+    attempt = (
+        db.query(models.MaxOAuthLoginAttempt)
+        .filter(models.MaxOAuthLoginAttempt.state_hash == _token_hash(state))
+        .first()
+    )
+    if not attempt:
+        raise HTTPException(status_code=404, detail="MAX login-сессия не найдена")
+
+    now = _now()
+    if attempt.consumed_at is not None:
+        return {"status": "used", "expires_in_seconds": 0}
+    if attempt.expires_at <= now:
+        return {"status": "expired", "expires_in_seconds": 0}
+    if attempt.user_id is None or attempt.authorized_at is None:
+        remaining = max(0, int((attempt.expires_at - now).total_seconds()))
+        return {"status": "pending", "expires_in_seconds": remaining}
+
+    user = db.query(models.User).filter(models.User.id == attempt.user_id).first()
+    if not user:
+        raise HTTPException(status_code=500, detail="Пользователь MAX не найден")
+
+    attempt.consumed_at = now
+    db.add(attempt)
+    token = _issue_token_for_user(db, user, request, response, remember_me=True)
+    db.commit()
+    return {"status": "completed", **token, "expires_in_seconds": 0}
+
+
+@router.post("/max/webhook")
+async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
+    if not MAX_WEBHOOK_SECRET:
+        logger.error("MAX_WEBHOOK_SECRET is empty; rejecting webhook")
+        raise HTTPException(status_code=503, detail="MAX webhook secret is not configured")
+
+    header = request.headers.get("X-Max-Bot-Api-Secret") or ""
+    if not hmac.compare_digest(header, MAX_WEBHOOK_SECRET):
+        raise HTTPException(status_code=401, detail="Invalid MAX webhook secret")
+
+    body = await request.json()
+    if body.get("update_type") != "bot_started":
+        return {"ok": True}
+
+    payload = str(body.get("payload") or "").strip()
+    user_info = body.get("user") if isinstance(body.get("user"), dict) else {}
+    max_uid = str(user_info.get("user_id") or "").strip()
+    chat_id = str(body.get("chat_id") or "").strip() or None
+
+    if not payload or not max_uid:
+        return {"ok": True}
+
+    attempt = (
+        db.query(models.MaxOAuthLoginAttempt)
+        .filter(models.MaxOAuthLoginAttempt.payload_hash == _token_hash(payload))
+        .first()
+    )
+    if not attempt or attempt.expires_at <= _now():
+        await _send_max_login_message(
+            max_uid,
+            chat_id,
+            "Ссылка для входа устарела. Вернитесь на сайт AdMirra и нажмите «Войти через MAX» ещё раз.",
+        )
+        return {"ok": True}
+
+    if attempt.consumed_at is not None:
+        await _send_max_login_message(max_uid, chat_id, "Эта ссылка для входа уже использована.")
+        return {"ok": True}
+
+    try:
+        user = _get_or_create_max_user(db, user_info)
+        attempt.user_id = user.id
+        attempt.max_user_id = max_uid
+        attempt.max_username = (user_info.get("username") or "").strip() or None
+        attempt.max_name = (user_info.get("name") or "").strip() or None
+        attempt.max_chat_id = chat_id
+        attempt.authorized_at = _now()
+        db.add(attempt)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        logger.exception("MAX login conflict for user_id=%s", max_uid)
+        await _send_max_login_message(
+            max_uid,
+            chat_id,
+            "Не удалось подтвердить вход: аккаунт уже связан с другим пользователем.",
+        )
+        return {"ok": True}
+
+    await _send_max_login_message(
+        max_uid,
+        chat_id,
+        "Вход в AdMirra подтверждён. Можете вернуться на сайт.",
+    )
+    logger.info("MAX login confirmed for max_user_id=%s app_user_id=%s", max_uid, user.id)
+    return {"ok": True}
 
 
 @router.get("/yandex/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)

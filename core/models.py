@@ -102,6 +102,27 @@ class AuthRefreshSession(Base):
     user = relationship("User", backref="auth_refresh_sessions")
 
 
+class MaxOAuthLoginAttempt(Base):
+    """One-time MAX bot login attempt: website state + bot deeplink payload."""
+
+    __tablename__ = "max_oauth_login_attempts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    state_hash = Column(String(128), unique=True, nullable=False, index=True)
+    payload_hash = Column(String(128), unique=True, nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    max_user_id = Column(String(128), nullable=True, index=True)
+    max_username = Column(String(255), nullable=True)
+    max_name = Column(String(255), nullable=True)
+    max_chat_id = Column(String(128), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    authorized_at = Column(DateTime(timezone=True), nullable=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="max_oauth_login_attempts")
+
+
 class TelegramLinkToken(Base):
     """
     Одноразовый токен для deep link t.me/<bot>?start=<token>.
@@ -122,7 +143,7 @@ class TelegramLinkToken(Base):
 
 class UserOAuthIdentity(Base):
     """
-    Привязка аккаунта приложения к Яндекс ID / VK ID (тот же OAuth-приложение, что и для VK Ads).
+    Привязка аккаунта приложения к Яндекс ID / VK ID / MAX ID.
     Не путать с токенами интеграций рекламных кабинетов.
     """
 
@@ -130,7 +151,7 @@ class UserOAuthIdentity(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    provider = Column(String(32), nullable=False)  # yandex | vk
+    provider = Column(String(32), nullable=False)  # yandex | vk | max
     provider_user_id = Column(String(128), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
