@@ -26,6 +26,22 @@
             {{ channel.name }}
           </button>
         </div>
+        <div class="channel-balance-block">
+          <p class="channel-balance-title">Актуальный баланс в РК:</p>
+          <div v-if="channelBalances.length" class="channel-balance-list">
+            <div
+              v-for="balance in channelBalances"
+              :key="balance.id"
+              class="analytics-balance-tile"
+              :style="{ '--balance-bg': balance.bg, '--balance-color': balance.color }"
+            >
+              <img :src="balance.asset" :alt="balance.name" class="analytics-balance-icon" />
+              <span class="analytics-balance-name">{{ balance.name }}</span>
+              <span class="analytics-balance-value">{{ balance.value }}</span>
+            </div>
+          </div>
+          <div v-else class="channel-balance-empty">Нет подключенных РК</div>
+        </div>
       </div>
 
       <div class="panel panel-reports">
@@ -684,6 +700,23 @@ const channels = [
   { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon }
 ]
 
+const balancePlatformMeta = {
+  yandex_direct: {
+    id: 'yandex_direct',
+    name: 'Yandex Direct',
+    asset: yandexDirectIcon,
+    bg: '#fff2e4',
+    color: '#71663e'
+  },
+  vk_ads: {
+    id: 'vk_ads',
+    name: 'ВК Ads Manager',
+    asset: vkAdsIcon,
+    bg: '#f0f7ff',
+    color: '#254b78'
+  }
+}
+
 const reportChannels = [
   { name: 'Telegram', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'telegram-icon' },
   { name: 'E-mail', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon' },
@@ -805,6 +838,53 @@ const formatNumber = (value, digits = 0) => new Intl.NumberFormat('ru-RU', {
 }).format(Number(value) || 0)
 
 const formatMoney = (value) => `${formatNumber(value, 2)} ₽`
+
+const formatBalanceMoney = (value, currency = 'RUB') => {
+  if (value === null || value === undefined || value === '') return '—'
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '—'
+  const formatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(amount)
+  const code = String(currency || 'RUB').toUpperCase()
+  const symbols = { RUB: '₽', RUR: '₽', USD: '$', EUR: '€' }
+  return `${formatted} ${symbols[code] || code}`
+}
+
+const normalizeIntegrationPlatform = (platform) =>
+  String(platform || '').trim().toLowerCase().replace(/-/g, '_')
+
+const channelBalances = computed(() => {
+  const balancesByPlatform = new Map()
+
+  integrations.value.forEach((integration) => {
+    const id = normalizeIntegrationPlatform(integration.platform)
+    const meta = balancePlatformMeta[id]
+    if (!meta || integration.is_connected === false) return
+
+    const amount = integration.balance === null || integration.balance === undefined
+      ? null
+      : Number(integration.balance)
+    const current = balancesByPlatform.get(id)
+
+    if (!current) {
+      balancesByPlatform.set(id, {
+        ...meta,
+        balance: Number.isFinite(amount) ? amount : null,
+        currency: integration.currency || 'RUB'
+      })
+      return
+    }
+
+    if (Number.isFinite(amount)) {
+      current.balance = current.balance === null ? amount : current.balance + amount
+      current.currency = current.currency || integration.currency || 'RUB'
+    }
+  })
+
+  return Array.from(balancesByPlatform.values()).map((item) => ({
+    ...item,
+    value: formatBalanceMoney(item.balance, item.currency)
+  }))
+})
 
 const withVat = (value) => {
   const num = Number(value) || 0
@@ -1505,6 +1585,78 @@ onMounted(() => {
 .chip-icon {
   width: 0.9rem;
   height: 0.9rem;
+}
+
+.channel-balance-block {
+  margin-top: 1.5rem;
+}
+
+.channel-balance-title {
+  margin: 0 0 0.7rem;
+  color: #696969;
+  font-size: 0.9028rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.channel-balance-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.analytics-balance-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 2.65rem;
+  gap: 0.55rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.8333rem;
+  background: var(--balance-bg);
+  color: var(--balance-color);
+}
+
+.analytics-balance-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.analytics-balance-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9028rem;
+  font-weight: 500;
+}
+
+.analytics-balance-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  max-width: 100%;
+  flex: 0 0 auto;
+  padding: 0 0.55rem;
+  border-radius: 6.9444rem;
+  background: #fff;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.channel-balance-empty {
+  display: flex;
+  align-items: center;
+  min-height: 2.65rem;
+  padding: 0 0.85rem;
+  border-radius: 0.8333rem;
+  background: #f7f9ff;
+  color: #8a94a6;
+  font-size: 0.9028rem;
 }
 
 .panel-reports {
@@ -3737,10 +3889,15 @@ onMounted(() => {
   align-items: start;
 }
 
-.panel-channels,
+.panel-channels {
+  height: auto;
+  min-height: 12.5rem;
+  padding: 1.7361rem;
+  overflow: visible;
+}
+
 .panel-reports {
-  height: 9.0972rem;
-  min-height: 9.0972rem;
+  min-height: 12.5rem;
   padding: 1.7361rem;
   overflow: visible;
 }
@@ -3809,6 +3966,40 @@ onMounted(() => {
 
 .panel-channels .chip.active {
   box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.panel-channels .channel-balance-block {
+  margin-top: 1.0417rem;
+}
+
+.panel-channels .channel-balance-title {
+  margin-bottom: 0.5556rem;
+}
+
+.panel-channels .channel-balance-list {
+  gap: 0.6944rem;
+}
+
+.panel-channels .analytics-balance-tile {
+  min-height: 2.2222rem;
+  padding: 0.4861rem 0.625rem;
+  border-radius: 0.8333rem;
+}
+
+.panel-channels .analytics-balance-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.panel-channels .analytics-balance-name,
+.panel-channels .analytics-balance-value,
+.panel-channels .channel-balance-empty {
+  font-size: 0.8333rem;
+}
+
+.panel-channels .analytics-balance-value {
+  min-height: 1.5278rem;
+  padding: 0 0.5556rem;
 }
 
 .panel-reports .chip {
@@ -4250,6 +4441,27 @@ onMounted(() => {
   box-shadow: inset 0 0 0 1px rgba(74, 122, 255, 0.22);
 }
 
+:global(.dark) .channel-balance-title,
+:global(.darkmode) .channel-balance-title {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+:global(.dark) .analytics-balance-tile,
+:global(.darkmode) .analytics-balance-tile {
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+:global(.dark) .analytics-balance-value,
+:global(.darkmode) .analytics-balance-value {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+:global(.dark) .channel-balance-empty,
+:global(.darkmode) .channel-balance-empty {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+}
+
 :global(.dark) .chip:hover,
 :global(.darkmode) .chip:hover {
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
@@ -4507,6 +4719,10 @@ onMounted(() => {
   }
 
   .panel-reports {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-channels .channel-balance-list {
     grid-template-columns: 1fr;
   }
 }
