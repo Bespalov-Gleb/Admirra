@@ -340,110 +340,114 @@
       </button>
     </div>
 
-    <!-- MODAL: Mass edit -->
-    <div
-      v-if="massEditOpen"
-      class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center p-4"
-      @click.self="massEditOpen = false"
-    >
-      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[33.3333rem] border border-black/5 dark:border-white/10">
-        <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-2">Массовое редактирование</h4>
-        <p class="text-[0.9722rem] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}</p>
+    <Teleport to="body">
+      <!-- MODAL: Mass edit -->
+      <div
+        v-if="massEditOpen"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4"
+        @click.self="massEditOpen = false"
+      >
+        <div class="w-full max-w-[33.3333rem] rounded-2xl border border-black/5 bg-white p-6 dark:border-white/10 dark:bg-[#2C2F3D]">
+          <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-2">Массовое редактирование</h4>
+          <p class="text-[0.9722rem] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}</p>
 
-        <!-- Action picker -->
-        <div class="mb-4 flex flex-col gap-2">
-          <label
-            v-for="act in massActions"
-            :key="act.value"
-            class="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition"
-            :class="massAction === act.value
-              ? 'border-[#2563eb] bg-[#f3f7ff] dark:bg-[#2563eb]/10 dark:border-[#2563eb]/60'
-              : 'border-black/10 dark:border-white/15 hover:bg-gray-50 dark:hover:bg-white/5'"
-          >
-            <input
-              v-model="massAction"
-              type="radio"
-              :value="act.value"
-              class="accent-[#2563eb] h-4 w-4"
+          <!-- Action picker -->
+          <div class="mb-4 flex flex-col gap-2">
+            <label
+              v-for="act in massActions"
+              :key="act.value"
+              class="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition"
+              :class="massAction === act.value
+                ? 'border-[#2563eb] bg-[#f3f7ff] dark:bg-[#2563eb]/10 dark:border-[#2563eb]/60'
+                : 'border-black/10 dark:border-white/15 hover:bg-gray-50 dark:hover:bg-white/5'"
+            >
+              <input
+                v-model="massAction"
+                type="radio"
+                :value="act.value"
+                class="accent-[#2563eb] h-4 w-4"
+              />
+              <div>
+                <div class="text-[0.9722rem] font-medium text-gray-700 dark:text-gray-200">{{ act.label }}</div>
+                <div class="text-[0.7639rem] text-gray-400 dark:text-white/45">{{ act.hint }}</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Selected projects list -->
+          <ul class="text-[0.9028rem] text-gray-400 mb-3 pl-4 list-disc max-h-[8rem] overflow-y-auto">
+            <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
+          </ul>
+
+          <!-- Action: description -->
+          <template v-if="massAction === 'description'">
+            <textarea
+              v-model="massEditDescription"
+              class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
+              rows="4"
+              placeholder="Описание проекта"
             />
-            <div>
-              <div class="text-[0.9722rem] font-medium text-gray-700 dark:text-gray-200">{{ act.label }}</div>
-              <div class="text-[0.7639rem] text-gray-400 dark:text-white/45">{{ act.hint }}</div>
+          </template>
+
+          <!-- Action: delete warning -->
+          <template v-if="massAction === 'delete'">
+            <div class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 px-4 py-3 text-[0.9028rem] text-red-600 dark:text-red-300">
+              Все выбранные проекты и их данные будут удалены безвозвратно. Это действие нельзя отменить.
             </div>
-          </label>
-        </div>
+          </template>
 
-        <!-- Selected projects list -->
-        <ul class="text-[0.9028rem] text-gray-400 mb-3 pl-4 list-disc max-h-[8rem] overflow-y-auto">
-          <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
-        </ul>
+          <!-- Action: unlink integrations -->
+          <template v-if="massAction === 'unlink'">
+            <div class="mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-[0.9028rem] text-amber-700 dark:text-amber-300">
+              У выбранных проектов будут отвязаны все интеграции ({{ massIntegrationsCount }}). Проекты останутся, но перестанут получать данные.
+            </div>
+          </template>
 
-        <!-- Action: description -->
-        <template v-if="massAction === 'description'">
-          <textarea
-            v-model="massEditDescription"
-            class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
-            rows="4"
-            placeholder="Описание проекта"
-          />
-        </template>
-
-        <!-- Action: delete warning -->
-        <template v-if="massAction === 'delete'">
-          <div class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 px-4 py-3 text-[0.9028rem] text-red-600 dark:text-red-300">
-            Все выбранные проекты и их данные будут удалены безвозвратно. Это действие нельзя отменить.
+          <!-- Buttons -->
+          <div class="flex flex-wrap gap-3">
+            <button
+              class="h-[3.0556rem] px-5 rounded-xl text-white text-[0.9722rem] font-medium disabled:opacity-50 transition-colors"
+              :class="massAction === 'delete'
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-[#2563eb] hover:bg-[#1d4ed8]'"
+              type="button"
+              :disabled="massSaving || (massAction === 'description' && !massEditDescription.trim()) || (massAction === 'unlink' && massIntegrationsCount === 0)"
+              @click="executeMassAction"
+            >{{ massSaving ? 'Выполнение...' : massActionButtonLabel }}</button>
+            <button
+              class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
+              type="button"
+              :disabled="massSaving"
+              @click="massEditOpen = false"
+            >Закрыть</button>
           </div>
-        </template>
-
-        <!-- Action: unlink integrations -->
-        <template v-if="massAction === 'unlink'">
-          <div class="mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-[0.9028rem] text-amber-700 dark:text-amber-300">
-            У выбранных проектов будут отвязаны все интеграции ({{ massIntegrationsCount }}). Проекты останутся, но перестанут получать данные.
-          </div>
-        </template>
-
-        <!-- Buttons -->
-        <div class="flex flex-wrap gap-3">
-          <button
-            class="h-[3.0556rem] px-5 rounded-xl text-white text-[0.9722rem] font-medium disabled:opacity-50 transition-colors"
-            :class="massAction === 'delete'
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-[#2563eb] hover:bg-[#1d4ed8]'"
-            type="button"
-            :disabled="massSaving || (massAction === 'description' && !massEditDescription.trim()) || (massAction === 'unlink' && massIntegrationsCount === 0)"
-            @click="executeMassAction"
-          >{{ massSaving ? 'Выполнение...' : massActionButtonLabel }}</button>
-          <button
-            class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
-            type="button"
-            :disabled="massSaving"
-            @click="massEditOpen = false"
-          >Закрыть</button>
         </div>
       </div>
-    </div>
+    </Teleport>
 
-    <!-- MODAL: Delete confirm -->
-    <div
-      v-if="deleteTarget"
-      class="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center p-4"
-    >
-      <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[27.7778rem] border border-black/5 dark:border-white/10">
-        <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-3">Удалить проект?</h4>
-        <p class="text-[0.9722rem] text-gray-400 mb-5">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
-        <div class="flex gap-3">
-          <button
-            class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
-            :disabled="deleting"
-            @click="doDelete"
-          >{{ deleting ? 'Удаление...' : 'Удалить' }}</button>
-          <button
-            class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
-            @click="deleteTarget = null"
-          >Отмена</button>
+    <Teleport to="body">
+      <!-- MODAL: Delete confirm -->
+      <div
+        v-if="deleteTarget"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4"
+      >
+        <div class="w-full max-w-[27.7778rem] rounded-2xl border border-black/5 bg-white p-6 dark:border-white/10 dark:bg-[#2C2F3D]">
+          <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-3">Удалить проект?</h4>
+          <p class="text-[0.9722rem] text-gray-400 mb-5">Проект «{{ deleteTarget.name }}» и все его данные будут удалены безвозвратно.</p>
+          <div class="flex gap-3">
+            <button
+              class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
+              :disabled="deleting"
+              @click="doDelete"
+            >{{ deleting ? 'Удаление...' : 'Удалить' }}</button>
+            <button
+              class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+              @click="deleteTarget = null"
+            >Отмена</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <ProjectAvatarUploadModal
       v-if="avatarProject"
