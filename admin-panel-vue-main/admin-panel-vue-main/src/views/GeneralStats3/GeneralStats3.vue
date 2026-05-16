@@ -3,31 +3,7 @@
     <section class="top-grid">
       <div class="panel panel-channels">
         <h2>Подключенные каналы</h2>
-        <div class="chips-row">
-          <button
-            v-for="channel in channels"
-            :key="channel.name"
-            class="chip"
-            :class="{ active: selectedChannel === channel.name }"
-            :style="{ backgroundColor: getChipBackground(channel) }"
-            type="button"
-            @click="selectConnectedChannel(channel)"
-          >
-            <span class="chip-dot" :style="{ background: channel.color }">
-              <img
-                v-if="channel.asset"
-                :src="channel.asset"
-                alt=""
-                :class="['chip-img', channel.imageClass]"
-              />
-              <span v-else-if="channel.letter" class="chip-letter">{{ channel.letter }}</span>
-              <component v-else :is="channel.icon" class="chip-icon" />
-            </span>
-            {{ channel.name }}
-          </button>
-        </div>
         <div class="channel-balance-block">
-          <p class="channel-balance-title">Актуальный баланс в РК:</p>
           <div v-if="channelBalances.length" class="channel-balance-list">
             <div
               v-for="balance in channelBalances"
@@ -1528,7 +1504,7 @@ onMounted(() => {
 
 .panel-channels,
 .panel-reports {
-  min-height: 13.1rem;
+  min-height: auto;
   padding: 2.5rem;
 }
 
@@ -1579,7 +1555,7 @@ onMounted(() => {
 }
 
 .channel-balance-block {
-  margin-top: 1.5rem;
+  margin-top: 1.2rem;
 }
 
 .channel-balance-title {
@@ -3306,7 +3282,7 @@ onMounted(() => {
 
 .panel-channels,
 .panel-reports {
-  min-height: 9.0972rem;
+  min-height: auto;
   padding: 1.7361rem;
 }
 
@@ -3869,15 +3845,17 @@ onMounted(() => {
 }
 
 .panel-channels {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  min-height: 12.5rem;
+  min-height: auto;
   padding: 1.7361rem;
   overflow: visible;
 }
 
 .panel-reports {
   height: 100%;
-  min-height: 12.5rem;
+  min-height: auto;
   padding: 1.7361rem;
   overflow: visible;
 }
@@ -3949,7 +3927,7 @@ onMounted(() => {
 }
 
 .panel-channels .channel-balance-block {
-  margin-top: 1.0417rem;
+  margin-top: auto;
 }
 
 .panel-channels .channel-balance-title {
@@ -3961,20 +3939,21 @@ onMounted(() => {
 }
 
 .panel-channels .analytics-balance-tile {
-  min-height: 2.2222rem;
-  padding: 0.4861rem 0.625rem;
+  min-height: unset;
+  height: 3.1944rem;
+  padding: 0 1.0417rem;
   border-radius: 0.8333rem;
 }
 
 .panel-channels .analytics-balance-icon {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .panel-channels .analytics-balance-name,
 .panel-channels .analytics-balance-value,
 .panel-channels .channel-balance-empty {
-  font-size: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .panel-channels .analytics-balance-value {
