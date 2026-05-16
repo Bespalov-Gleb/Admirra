@@ -99,6 +99,13 @@
       :message="deleteConfirmMessage"
       @confirm="confirmDeleteProject"
     />
+
+    <EditProjectModal
+      v-if="editingProject"
+      :project="editingProject"
+      @close="editingProject = null"
+      @saved="handleEditSaved"
+    />
   </div>
 </template>
 
@@ -108,6 +115,7 @@ import { MagnifyingGlassIcon, ViewColumnsIcon, Bars3Icon } from '@heroicons/vue/
 import ProjectCard from './components/ProjectCard.vue'
 import ProjectsTable from './components/ProjectsTable.vue'
 import ConfirmModal from '../../components/ConfirmModal.vue'
+import EditProjectModal from '../../components/EditProjectModal.vue'
 import api from '../../api/axios'
 import { useRouter } from 'vue-router'
 import { useToaster } from '../../composables/useToaster'
@@ -122,6 +130,7 @@ const loading = ref(true)
 const projects = ref([])
 const viewMode = ref('table') // 'cards' or 'table'
 const deleteTarget = ref(null)
+const editingProject = ref(null)
 
 const deleteConfirmOpen = computed({
   get: () => Boolean(deleteTarget.value),
@@ -157,6 +166,7 @@ const fetchProjects = async () => {
       display_id: client.display_id,
       title: client.name,
       description: client.description,
+      avatar_url: client.avatar_url,
       impressions: client.summary?.impressions || 0,
       clicks: client.summary?.clicks || 0,
       cpc: client.summary?.cpc || 0,
@@ -238,7 +248,23 @@ const handleViewProject = (projectId) => {
 }
 
 const handleEditProject = (projectId) => {
-  router.push(`/integrations?edit=${projectId}`)
+  const project = projects.value.find(p => p.id === projectId)
+  if (project) {
+    editingProject.value = { ...project, name: project.title }
+  }
+}
+
+const handleEditSaved = (updatedProject) => {
+  const idx = projects.value.findIndex(p => p.id === updatedProject.id)
+  if (idx !== -1) {
+    projects.value[idx] = {
+      ...projects.value[idx],
+      title: updatedProject.name,
+      description: updatedProject.description,
+      avatar_url: updatedProject.avatar_url,
+    }
+  }
+  toaster.success('Проект обновлён')
 }
 
 const handleDeleteProject = async (projectId) => {

@@ -348,23 +348,71 @@
     >
       <div class="bg-white dark:bg-[#2C2F3D] rounded-2xl p-6 w-full max-w-[33.3333rem] border border-black/5 dark:border-white/10">
         <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-2">Массовое редактирование</h4>
-        <p class="text-[0.9722rem] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}. Укажите новое описание — оно будет записано во все отмеченные проекты.</p>
-        <ul class="text-[0.9028rem] text-gray-400 mb-3 pl-4 list-disc">
+        <p class="text-[0.9722rem] text-gray-400 mb-3">Выбрано проектов: {{ selectedProjectIds.length }}</p>
+
+        <!-- Action picker -->
+        <div class="mb-4 flex flex-col gap-2">
+          <label
+            v-for="act in massActions"
+            :key="act.value"
+            class="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition"
+            :class="massAction === act.value
+              ? 'border-[#2563eb] bg-[#f3f7ff] dark:bg-[#2563eb]/10 dark:border-[#2563eb]/60'
+              : 'border-black/10 dark:border-white/15 hover:bg-gray-50 dark:hover:bg-white/5'"
+          >
+            <input
+              v-model="massAction"
+              type="radio"
+              :value="act.value"
+              class="accent-[#2563eb] h-4 w-4"
+            />
+            <div>
+              <div class="text-[0.9722rem] font-medium text-gray-700 dark:text-gray-200">{{ act.label }}</div>
+              <div class="text-[0.7639rem] text-gray-400 dark:text-white/45">{{ act.hint }}</div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Selected projects list -->
+        <ul class="text-[0.9028rem] text-gray-400 mb-3 pl-4 list-disc max-h-[8rem] overflow-y-auto">
           <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
         </ul>
-        <textarea
-          v-model="massEditDescription"
-          class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
-          rows="4"
-          placeholder="Описание проекта"
-        />
+
+        <!-- Action: description -->
+        <template v-if="massAction === 'description'">
+          <textarea
+            v-model="massEditDescription"
+            class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
+            rows="4"
+            placeholder="Описание проекта"
+          />
+        </template>
+
+        <!-- Action: delete warning -->
+        <template v-if="massAction === 'delete'">
+          <div class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 px-4 py-3 text-[0.9028rem] text-red-600 dark:text-red-300">
+            Все выбранные проекты и их данные будут удалены безвозвратно. Это действие нельзя отменить.
+          </div>
+        </template>
+
+        <!-- Action: unlink integrations -->
+        <template v-if="massAction === 'unlink'">
+          <div class="mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-[0.9028rem] text-amber-700 dark:text-amber-300">
+            У выбранных проектов будут отвязаны все интеграции ({{ massIntegrationsCount }}). Проекты останутся, но перестанут получать данные.
+          </div>
+        </template>
+
+        <!-- Buttons -->
         <div class="flex flex-wrap gap-3">
           <button
-            class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] disabled:opacity-50 transition-colors"
+            class="h-[3.0556rem] px-5 rounded-xl text-white text-[0.9722rem] font-medium disabled:opacity-50 transition-colors"
+            :class="massAction === 'delete'
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-[#2563eb] hover:bg-[#1d4ed8]'"
             type="button"
-            :disabled="massSaving"
-            @click="applyMassDescription"
-          >{{ massSaving ? 'Сохранение...' : 'Применить описание' }}</button>
+            :disabled="massSaving || (massAction === 'description' && !massEditDescription.trim()) || (massAction === 'unlink' && massIntegrationsCount === 0)"
+            @click="executeMassAction"
+          >{{ massSaving ? 'Выполнение...' : massActionButtonLabel }}</button>
           <button
             class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
             type="button"
@@ -404,6 +452,13 @@
       @saved="handleAvatarSaved"
     />
 
+    <EditProjectModal
+      v-if="editingProject"
+      :project="editingProject"
+      @close="editingProject = null"
+      @saved="handleEditSaved"
+    />
+
   </div>
 </template>
 
@@ -418,6 +473,7 @@ import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } fr
 import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
+import EditProjectModal from '../../components/EditProjectModal.vue'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
@@ -444,6 +500,7 @@ const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
 const avatarProject = ref(null)
+const editingProject = ref(null)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -617,13 +674,49 @@ const toggleSelectAllRows = () => {
   }
 }
 
+const massAction = ref('description')
+
+const massActions = [
+  { value: 'description', label: 'Изменить описание', hint: 'Записать общее описание во все выбранные проекты' },
+  { value: 'delete', label: 'Удалить выбранные', hint: 'Безвозвратно удалить проекты и все их данные' },
+  { value: 'unlink', label: 'Отвязать интеграции', hint: 'Удалить все интеграции у выбранных проектов' },
+]
+
+const massIntegrationsCount = computed(() => {
+  return selectedProjectIds.value.reduce((sum, id) => {
+    const project = projects.value.find((p) => p.id === id)
+    return sum + (project?.integrations?.length || 0)
+  }, 0)
+})
+
+const massActionButtonLabel = computed(() => {
+  if (massAction.value === 'description') return 'Применить описание'
+  if (massAction.value === 'delete') return `Удалить (${selectedProjectIds.value.length})`
+  if (massAction.value === 'unlink') return `Отвязать (${massIntegrationsCount.value})`
+  return 'Выполнить'
+})
+
 const openMassEdit = () => {
   if (!selectedProjectIds.value.length) {
     toaster.warning('Отметьте один или несколько проектов в таблице.')
     return
   }
   massEditDescription.value = ''
+  massAction.value = 'description'
   massEditOpen.value = true
+}
+
+const executeMassAction = async () => {
+  if (massAction.value === 'description') return applyMassDescription()
+  if (massAction.value === 'delete') return applyMassDelete()
+  if (massAction.value === 'unlink') return applyMassUnlink()
+}
+
+const failedBulkResult = (results) => results.find((result) => result.status === 'rejected')
+
+const syncSelectedProjects = () => {
+  const existingIds = new Set(projects.value.map((project) => project.id))
+  selectedProjectIds.value = selectedProjectIds.value.filter((id) => existingIds.has(id))
 }
 
 const applyMassDescription = async () => {
@@ -634,20 +727,83 @@ const applyMassDescription = async () => {
     return
   }
   massSaving.value = true
+  const ids = [...selectedProjectIds.value]
   try {
-    await Promise.all(
-      selectedProjectIds.value.map((id) =>
-        api.put(`clients/${id}`, { description: desc })
-      )
+    const results = await Promise.allSettled(
+      ids.map((id) => api.put(`clients/${id}`, { description: desc }))
     )
-    toaster.success(`Описание обновлено для ${selectedProjectIds.value.length} проектов.`)
-    massEditOpen.value = false
-    await fetchProjects()
-    await loadProjectMetrics()
+    const failed = failedBulkResult(results)
+    const successCount = results.length - results.filter((result) => result.status === 'rejected').length
+    if (failed) {
+      toaster.error(failed.reason?.response?.data?.detail || `Описание обновлено частично: ${successCount} из ${ids.length}.`)
+    } else {
+      toaster.success(`Описание обновлено для ${ids.length} проектов.`)
+      massEditOpen.value = false
+    }
   } catch (err) {
     console.error(err)
     toaster.error(err.response?.data?.detail || 'Не удалось сохранить изменения.')
   } finally {
+    await fetchProjects()
+    await loadProjectMetrics()
+    massSaving.value = false
+  }
+}
+
+const applyMassDelete = async () => {
+  if (!selectedProjectIds.value.length) return
+  massSaving.value = true
+  const ids = [...selectedProjectIds.value]
+  try {
+    const results = await Promise.allSettled(ids.map((id) => api.delete(`clients/${id}`)))
+    const failed = failedBulkResult(results)
+    const successCount = results.length - results.filter((result) => result.status === 'rejected').length
+    if (failed) {
+      toaster.error(failed.reason?.response?.data?.detail || `Удалено частично: ${successCount} из ${ids.length}.`)
+    } else {
+      toaster.success(`Удалено проектов: ${ids.length}`)
+      selectedProjectIds.value = []
+      massEditOpen.value = false
+    }
+  } catch (err) {
+    console.error(err)
+    toaster.error(err.response?.data?.detail || 'Не удалось удалить некоторые проекты.')
+  } finally {
+    await fetchProjects()
+    syncSelectedProjects()
+    await loadProjectMetrics()
+    massSaving.value = false
+  }
+}
+
+const applyMassUnlink = async () => {
+  if (!selectedProjectIds.value.length) return
+  massSaving.value = true
+  const integrationIds = selectedProjectIds.value.flatMap((id) => {
+    const project = projects.value.find((p) => p.id === id)
+    return (project?.integrations || []).map((i) => i.id)
+  })
+  if (!integrationIds.length) {
+    toaster.warning('У выбранных проектов нет интеграций.')
+    massSaving.value = false
+    return
+  }
+  try {
+    const results = await Promise.allSettled(integrationIds.map((id) => api.delete(`integrations/${id}`)))
+    const failed = failedBulkResult(results)
+    const successCount = results.length - results.filter((result) => result.status === 'rejected').length
+    if (failed) {
+      toaster.error(failed.reason?.response?.data?.detail || `Отвязано частично: ${successCount} из ${integrationIds.length}.`)
+    } else {
+      toaster.success(`Отвязано интеграций: ${integrationIds.length}`)
+      massEditOpen.value = false
+    }
+  } catch (err) {
+    console.error(err)
+    toaster.error(err.response?.data?.detail || 'Не удалось отвязать некоторые интеграции.')
+  } finally {
+    await fetchProjects()
+    await loadProjectMetrics()
     massSaving.value = false
   }
 }
@@ -806,7 +962,12 @@ const toggleActionMenu = (project, event) => {
 
 const editProject = (project) => {
   closeActionMenu()
-  openAvatarModal(project)
+  editingProject.value = project
+}
+
+const handleEditSaved = (updatedProject) => {
+  updateProjectInList(updatedProject)
+  toaster.success('Проект обновлён')
 }
 
 const requestDeleteProject = (project) => {
