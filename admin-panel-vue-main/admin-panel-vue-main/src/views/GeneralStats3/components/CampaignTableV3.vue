@@ -105,7 +105,7 @@ const props = defineProps({
 })
 
 const filteredCampaigns = computed(() => props.campaigns)
-const VAT_FACTOR = 1.2
+const VAT_FACTOR = 1.22
 
 const withVat = (val) => {
   const num = Number(val || 0)

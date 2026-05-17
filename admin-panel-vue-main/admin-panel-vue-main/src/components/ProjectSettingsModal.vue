@@ -168,6 +168,18 @@
 
                 <!-- Expanded fields -->
                 <div v-if="form.detector_enabled || detectorFieldsExpanded">
+                  <div class="psm-period-row">
+                    <div>
+                      <label class="psm-label">Период с</label>
+                      <input v-model="form.period_start" type="date" class="psm-input psm-input--compact" />
+                    </div>
+                    <div>
+                      <label class="psm-label">Период по</label>
+                      <input v-model="form.period_end" type="date" class="psm-input psm-input--compact" />
+                    </div>
+                  </div>
+                  <p v-if="periodError" class="psm-field-error mb-4">{{ periodError }}</p>
+
                   <!-- Budgets per channel -->
                   <div class="mb-6">
                     <h4 class="psm-subsection-title">Бюджет на период — по каналам</h4>
@@ -355,6 +367,8 @@ const form = reactive({
   site_url: '',
   detector_enabled: false,
   status: 'active',
+  period_start: '',
+  period_end: '',
 })
 
 const saving = ref(false)
@@ -389,8 +403,14 @@ const avatarProjectData = computed(() => ({
   avatar_url: updatedAvatarUrl.value ?? props.project?.avatar_url,
 }))
 
+const periodError = computed(() => {
+  if (!form.period_start || !form.period_end) return 'Укажите период для бюджетов и целей'
+  if (form.period_end < form.period_start) return 'Дата окончания периода не может быть раньше даты начала'
+  return ''
+})
+
 const canSave = computed(() => {
-  return form.name?.trim() && !urlError.value
+  return form.name?.trim() && !urlError.value && !periodError.value
 })
 
 const hasUnsavedChanges = computed(() => {
@@ -407,6 +427,24 @@ const platformName = (platform) => {
   if (code.includes('VK')) return 'VK Реклама'
   return platform || 'Канал'
 }
+
+const samePlatform = (a, b) => String(a || '').toUpperCase() === String(b || '').toUpperCase()
+
+const toDateInput = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const defaultPeriod = () => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return { start: toDateInput(start), end: toDateInput(end) }
+}
+
+const samePeriod = (row) => row?.period_start === form.period_start && row?.period_end === form.period_end
 
 const channelStatusInfo = (integration) => {
   const syncStatus = String(integration.sync_status || '').toUpperCase()
@@ -451,10 +489,12 @@ const integrationState = computed(() => {
 })
 
 const currentPeriodLabel = computed(() => {
-  const now = new Date()
-  const start = `01.${String(now.getMonth() + 1).padStart(2, '0')}`
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return `${start} — ${String(end.getDate()).padStart(2, '0')}.${String(end.getMonth() + 1).padStart(2, '0')}.${end.getFullYear()}`
+  const format = (value) => {
+    if (!value) return ''
+    const [year, month, day] = value.split('-')
+    return `${day}.${month}.${year}`
+  }
+  return `${format(form.period_start)} — ${format(form.period_end)}`
 })
 
 function snapshotForm() {
@@ -470,6 +510,9 @@ watch(
       form.site_url = props.project.site_url || ''
       form.detector_enabled = props.project.detector_enabled || false
       form.status = props.project.status || 'active'
+      const period = defaultPeriod()
+      form.period_start = period.start
+      form.period_end = period.end
       updatedAvatarUrl.value = null
       error.value = ''
       urlError.value = ''
@@ -486,6 +529,15 @@ watch(
 watch(() => form.detector_enabled, (val) => {
   if (val) detectorFieldsExpanded.value = false
 })
+
+watch(
+  () => [form.period_start, form.period_end],
+  () => {
+    if (!props.project?.id || periodError.value) return
+    loadGoals()
+    loadBudgets()
+  }
+)
 
 async function loadGoals() {
   const integrations = props.project?.integrations || []
@@ -537,7 +589,12 @@ async function loadGoals() {
     const { data } = await api.get(`clients/${props.project.id}/target-cpa`)
     if (Array.isArray(data)) {
       for (const saved of data) {
-        const row = rows.find((r) => r.integrationId === saved.integration_id && r.goalId === String(saved.goal_id))
+        const row = rows.find((r) => (
+          samePeriod(saved) &&
+          samePlatform(r.platform, saved.channel) &&
+          Boolean(r.isSummary) === Boolean(saved.is_summary) &&
+          (r.isSummary || String(r.goalId) === String(saved.goal_id))
+        ))
         if (row) {
           row.targetCpa = saved.target_cpa != null ? String(saved.target_cpa) : ''
           row.controlEnabled = saved.control_enabled || false
@@ -548,12 +605,13 @@ async function loadGoals() {
 }
 
 async function loadBudgets() {
+  Object.keys(budgets).forEach((key) => { delete budgets[key] })
   try {
     const { data } = await api.get(`clients/${props.project.id}/budgets`)
     if (Array.isArray(data)) {
       for (const b of data) {
-        const ch = projectChannels.value.find((c) => c.id === b.integration_id)
-        if (ch) budgets[ch.id] = b.amount != null ? String(b.amount) : ''
+        const ch = projectChannels.value.find((c) => samePlatform(c.platform, b.channel))
+        if (ch && samePeriod(b)) budgets[ch.id] = b.amount != null ? String(b.amount) : ''
       }
     }
   } catch { /* API not ready yet */ }
@@ -611,13 +669,14 @@ async function save() {
 
     // 2. Save budgets
     const budgetPayload = projectChannels.value
-      .filter((ch) => budgets[ch.id])
       .map((ch) => ({
         integration_id: ch.id,
         amount: Number(String(budgets[ch.id]).replace(/\s/g, '').replace(/,/g, '.')) || 0,
+        period_start: form.period_start,
+        period_end: form.period_end,
       }))
 
-    if (budgetPayload.length) {
+    if (projectChannels.value.length) {
       try {
         await api.put(`clients/${props.project.id}/budgets`, budgetPayload)
       } catch { /* API not ready yet */ }
@@ -625,16 +684,17 @@ async function save() {
 
     // 3. Save target CPAs
     const cpaPayload = goalRows.value
-      .filter((g) => g.targetCpa || g.controlEnabled)
       .map((g) => ({
         integration_id: g.integrationId,
         goal_id: g.goalId,
         target_cpa: g.targetCpa ? Number(String(g.targetCpa).replace(/\s/g, '').replace(/,/g, '.')) : null,
         control_enabled: g.controlEnabled,
         is_summary: g.isSummary,
+        period_start: form.period_start,
+        period_end: form.period_end,
       }))
 
-    if (cpaPayload.length) {
+    if (goalRows.value.length) {
       try {
         await api.put(`clients/${props.project.id}/target-cpa`, cpaPayload)
       } catch { /* API not ready yet */ }
@@ -1309,6 +1369,13 @@ onUnmounted(() => {
 .psm-detector-collapsed__link:hover { color: #1d4ed8; }
 
 /* ===== Budget cards ===== */
+.psm-period-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 11.1111rem));
+  gap: 0.8333rem;
+  margin-bottom: 1.1111rem;
+}
+
 .psm-budget-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14.5833rem, 1fr));

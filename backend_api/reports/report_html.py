@@ -2,6 +2,12 @@
 Общий рендерер HTML-отчёта. Используется для веб-просмотра и экспорта в PDF/PNG.
 """
 
+VAT_RATE = 1.22
+
+
+def _with_vat(value) -> float:
+    return float(value or 0) * VAT_RATE
+
 
 def _escape_html(text: str) -> str:
     """Экранирует HTML для безопасного вывода."""
@@ -28,12 +34,12 @@ def render_report_html(data: dict) -> str:
 
     kpi_html = f"""
     <div class="kpi">
-      <div class="kpi-item"><span class="kpi-label">Расходы</span><span class="kpi-value">{int(s.get('expenses', 0)):,} ₽</span></div>
+      <div class="kpi-item"><span class="kpi-label">Расходы</span><span class="kpi-value">{int(_with_vat(s.get('expenses', 0))):,} ₽</span></div>
       <div class="kpi-item"><span class="kpi-label">Показы</span><span class="kpi-value">{int(s.get('impressions', 0)):,}</span></div>
       <div class="kpi-item"><span class="kpi-label">Клики</span><span class="kpi-value">{int(s.get('clicks', 0)):,}</span></div>
       <div class="kpi-item"><span class="kpi-label">Лиды</span><span class="kpi-value">{int(s.get('leads', 0)):,}</span></div>
-      <div class="kpi-item"><span class="kpi-label">CPC</span><span class="kpi-value">{s.get('cpc', 0):.2f} ₽</span></div>
-      <div class="kpi-item"><span class="kpi-label">CPA</span><span class="kpi-value">{s.get('cpa', 0):.2f} ₽</span></div>
+      <div class="kpi-item"><span class="kpi-label">CPC</span><span class="kpi-value">{_with_vat(s.get('cpc', 0)):.2f} ₽</span></div>
+      <div class="kpi-item"><span class="kpi-label">CPA</span><span class="kpi-value">{_with_vat(s.get('cpa', 0)):.2f} ₽</span></div>
     </div>
     """
 
@@ -41,8 +47,8 @@ def render_report_html(data: dict) -> str:
     for c in tc:
         name = _escape_html(c.get("name", c.get("campaign_name", "—")))
         conv = c.get("conversions", 0)
-        cost = f"{c.get('cost', 0):,.0f} ₽"
-        cpa = f"{c.get('cpa', 0):.2f} ₽" if c.get("conversions") else "—"
+        cost = f"{_with_vat(c.get('cost', 0)):,.0f} ₽"
+        cpa = f"{_with_vat(c.get('cpa', 0)):.2f} ₽" if c.get("conversions") else "—"
         campaigns_rows += f"<tr><td>{name}</td><td>{conv}</td><td>{cost}</td><td>{cpa}</td></tr>"
 
     campaigns_html = ""

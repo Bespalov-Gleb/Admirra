@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
@@ -378,7 +378,7 @@ class ClientResponse(ClientBase):
 class ProjectBudgetItem(BaseModel):
     integration_id: Optional[str] = None
     channel: Optional[str] = None
-    amount: float
+    amount: float = Field(ge=0)
     period_start: Optional[str] = None
     period_end: Optional[str] = None
 
@@ -413,7 +413,7 @@ class ProjectTargetCPAItem(BaseModel):
     goal_id: Optional[str] = None
     goal_name: Optional[str] = None
     is_summary: bool = False
-    target_cpa: Optional[float] = None
+    target_cpa: Optional[float] = Field(default=None, ge=0)
     control_enabled: bool = False
     period_start: Optional[str] = None
     period_end: Optional[str] = None
@@ -448,6 +448,22 @@ class ProjectTargetCPAResponse(BaseModel):
         if v is None:
             return None
         return str(v)
+
+
+class ProjectDetectorState(BaseModel):
+    status: str
+    actual_start_date: Optional[str] = None
+    days_since_start: Optional[int] = None
+    warmup_days: int = 14
+    message: str
+
+
+class ProjectSettingsResponse(BaseModel):
+    project: ClientResponse
+    integration_state: str
+    detector_state: ProjectDetectorState
+    budgets: List[ProjectBudgetResponse] = []
+    target_cpa: List[ProjectTargetCPAResponse] = []
 
 
 

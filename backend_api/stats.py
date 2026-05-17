@@ -207,9 +207,15 @@ def ensure_data_synced_async(
         CacheService.invalidate_client(str(cid))
     
     # Получаем все интеграции для этих клиентов
-    integrations = db.query(models.Integration).filter(
-        models.Integration.client_id.in_(client_ids)
-    ).all()
+    integrations = (
+        db.query(models.Integration)
+        .join(models.Client, models.Client.id == models.Integration.client_id)
+        .filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Client.status == models.ClientStatus.ACTIVE,
+        )
+        .all()
+    )
     
     if not integrations:
         logger.warning(f"No integrations found for client_ids: {client_ids}")

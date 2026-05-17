@@ -20,6 +20,7 @@ import os
 import json
 from core.logging_utils import log_event
 from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
+from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
 from backend_api.services.history import log_history_event
 
@@ -1130,6 +1131,8 @@ async def trigger_sync(
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+    if is_project_paused(integration.client):
+        raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
     
     job_id = enqueue_sync_job(integration_id, days)
     
@@ -1176,6 +1179,8 @@ async def create_sync_job(
     ).first()
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
+    if is_project_paused(integration.client):
+        raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
 
     job_id = enqueue_sync_job(iid, days)
     integration.sync_status = models.IntegrationSyncStatus.PENDING

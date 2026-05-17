@@ -12,6 +12,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from backend_api.stats_service import StatsService
 from backend_api.services.subscription import SubscriptionService
+from backend_api.services.project_settings import get_detector_state, get_integration_state
 from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.history import log_history_event
 
@@ -123,6 +124,37 @@ def get_client(
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     return client
 
+
+@router.get("/{client_id}/settings", response_model=schemas.ProjectSettingsResponse)
+def get_project_settings(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=False)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    budgets = (
+        db.query(models.ProjectBudget)
+        .filter(models.ProjectBudget.client_id == client_id)
+        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel)
+        .all()
+    )
+    target_cpa = (
+        db.query(models.ProjectTargetCPA)
+        .filter(models.ProjectTargetCPA.client_id == client_id)
+        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel)
+        .all()
+    )
+    return {
+        "project": client,
+        "integration_state": get_integration_state(client),
+        "detector_state": get_detector_state(client),
+        "budgets": budgets,
+        "target_cpa": target_cpa,
+    }
+
 @router.put("/{client_id}", response_model=schemas.ClientResponse)
 def update_client(
     client_id: uuid.UUID,
@@ -175,14 +207,15 @@ def update_client(
 
 
 def _check_can_resume_project(db: Session, user: models.User, excluded_client: models.Client):
-    if SubscriptionService.is_admin_bypass(user):
+    quota_user = db.query(models.User).filter(models.User.id == excluded_client.owner_id).first() or user
+    if SubscriptionService.is_admin_bypass(user) or SubscriptionService.is_admin_bypass(quota_user):
         return
-    plan = SubscriptionService.get_user_plan(db, user)
+    plan = SubscriptionService.get_user_plan(db, quota_user)
     active_count = db.query(models.Client).filter(
-        models.Client.owner_id == user.id,
+        models.Client.owner_id == quota_user.id,
         models.Client.status == models.ClientStatus.ACTIVE,
     ).count()
-    phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user.id).count()
+    phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == quota_user.id).count()
     total = active_count + phone_count
     if total < plan.max_projects:
         return
@@ -288,13 +321,29 @@ def _default_period() -> tuple[date, date]:
     return period_start, period_end
 
 
+def _parse_uuid(value, field_name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"Некорректный {field_name}")
+
+
+def _parse_date(value: str | None, default: date, field_name: str) -> date:
+    if not value:
+        return default
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"{field_name} должен быть в формате YYYY-MM-DD")
+
+
 def _resolve_channel(db: Session, client_id: uuid.UUID, item) -> models.IntegrationPlatform:
     if getattr(item, "channel", None):
         return _parse_platform(item.channel)
     integration_id = getattr(item, "integration_id", None)
     if integration_id:
         integration = db.query(models.Integration).filter(
-            models.Integration.id == uuid.UUID(str(integration_id)),
+            models.Integration.id == _parse_uuid(integration_id, "integration_id"),
             models.Integration.client_id == client_id,
         ).first()
         if integration:
@@ -330,14 +379,22 @@ def set_budgets(
     if not client:
         raise HTTPException(status_code=404, detail="Проект не найден")
 
-    db.query(models.ProjectBudget).filter(models.ProjectBudget.client_id == client_id).delete()
-
     default_start, default_end = _default_period()
     created = []
     for item in items:
         channel_enum = _resolve_channel(db, client_id, item)
-        p_start = datetime.strptime(item.period_start, "%Y-%m-%d").date() if item.period_start else default_start
-        p_end = datetime.strptime(item.period_end, "%Y-%m-%d").date() if item.period_end else default_end
+        p_start = _parse_date(item.period_start, default_start, "period_start")
+        p_end = _parse_date(item.period_end, default_end, "period_end")
+        if p_end < p_start:
+            raise HTTPException(status_code=400, detail="period_end не может быть раньше period_start")
+        db.query(models.ProjectBudget).filter(
+            models.ProjectBudget.client_id == client_id,
+            models.ProjectBudget.channel == channel_enum,
+            models.ProjectBudget.period_start == p_start,
+            models.ProjectBudget.period_end == p_end,
+        ).delete(synchronize_session=False)
+        if item.amount <= 0:
+            continue
         row = models.ProjectBudget(
             client_id=client_id,
             channel=channel_enum,
@@ -395,8 +452,6 @@ def set_target_cpa(
     if not client:
         raise HTTPException(status_code=404, detail="Проект не найден")
 
-    db.query(models.ProjectTargetCPA).filter(models.ProjectTargetCPA.client_id == client_id).delete()
-
     default_start, default_end = _default_period()
     created = []
     for item in items:
@@ -405,14 +460,27 @@ def set_target_cpa(
             channel_enum = _parse_platform(item.channel)
         elif item.integration_id:
             integration = db.query(models.Integration).filter(
-                models.Integration.id == uuid.UUID(str(item.integration_id)),
+                models.Integration.id == _parse_uuid(item.integration_id, "integration_id"),
                 models.Integration.client_id == client_id,
             ).first()
             if integration:
                 channel_enum = integration.platform
 
-        p_start = datetime.strptime(item.period_start, "%Y-%m-%d").date() if item.period_start else default_start
-        p_end = datetime.strptime(item.period_end, "%Y-%m-%d").date() if item.period_end else default_end
+        p_start = _parse_date(item.period_start, default_start, "period_start")
+        p_end = _parse_date(item.period_end, default_end, "period_end")
+        if p_end < p_start:
+            raise HTTPException(status_code=400, detail="period_end не может быть раньше period_start")
+
+        db.query(models.ProjectTargetCPA).filter(
+            models.ProjectTargetCPA.client_id == client_id,
+            models.ProjectTargetCPA.channel == channel_enum,
+            models.ProjectTargetCPA.goal_id == item.goal_id,
+            models.ProjectTargetCPA.is_summary == item.is_summary,
+            models.ProjectTargetCPA.period_start == p_start,
+            models.ProjectTargetCPA.period_end == p_end,
+        ).delete(synchronize_session=False)
+        if item.target_cpa is None and not item.control_enabled:
+            continue
 
         row = models.ProjectTargetCPA(
             client_id=client_id,

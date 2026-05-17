@@ -15,6 +15,7 @@ from backend_api.reports.pdf_service import generate_report_pdf
 from backend_api.reports.export_service import _get_report_data
 
 logger = logging.getLogger(__name__)
+VAT_RATE = 1.22
 
 MSK = ZoneInfo("Europe/Moscow")
 DAY_TO_WEEKDAY = {
@@ -88,6 +89,10 @@ def _parse_email_recipients(val) -> list:
         return []
 
 
+def _with_vat(value) -> float:
+    return float(value or 0) * VAT_RATE
+
+
 def _parse_delivery_channels(val, user: models.User) -> list[str]:
     allowed = {"telegram", "max", "email"}
     if val is not None and str(val).strip() != "":
@@ -122,19 +127,19 @@ def _build_text_report(db: Session, user: models.User, start_str: str, end_str: 
         f"Отчёт за период {sd} — {ed}",
         f"Проект: {client_name or 'все проекты'}",
         "",
-        f"Расходы: {float(summary.get('expenses') or 0):,.0f} ₽".replace(",", " "),
+        f"Расходы: {_with_vat(summary.get('expenses')):,.0f} ₽".replace(",", " "),
         f"Показы: {int(summary.get('impressions') or 0):,}".replace(",", " "),
         f"Клики: {int(summary.get('clicks') or 0):,}".replace(",", " "),
         f"Лиды: {int(summary.get('leads') or 0):,}".replace(",", " "),
-        f"CPC: {float(summary.get('cpc') or 0):.2f} ₽",
-        f"CPA: {float(summary.get('cpa') or 0):.2f} ₽",
+        f"CPC: {_with_vat(summary.get('cpc')):.2f} ₽",
+        f"CPA: {_with_vat(summary.get('cpa')):.2f} ₽",
     ]
     if top_campaigns:
         lines.extend(["", "Топ кампаний по лидам:"])
         for index, campaign in enumerate(top_campaigns[:5], 1):
             name = campaign.get("name") or campaign.get("campaign_name") or "Кампания"
             leads = int(campaign.get("conversions") or 0)
-            cost = float(campaign.get("cost") or 0)
+            cost = _with_vat(campaign.get("cost"))
             lines.append(f"{index}. {name}: {leads} лидов, {cost:,.0f} ₽".replace(",", " "))
     return "\n".join(lines)
 

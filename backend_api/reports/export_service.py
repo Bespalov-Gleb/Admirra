@@ -18,12 +18,17 @@ from backend_api.stats_service import StatsService
 from core import models
 
 logger = logging.getLogger(__name__)
+VAT_RATE = 1.22
 
 # Временное хранилище файлов для ссылок: token -> (filepath, expires_at)
 _report_file_cache: dict[str, tuple[str, float]] = {}
 
 # Хранилище данных для страницы просмотра отчёта: token -> (data_dict, expires_at)
 _report_view_cache: dict[str, tuple[dict, float]] = {}
+
+
+def _with_vat(value) -> float:
+    return float(value or 0) * VAT_RATE
 
 
 def _get_report_data(db, user_id, client_id, start_date, end_date, comment):
@@ -112,12 +117,12 @@ def generate_report_docx(
 
         doc.add_heading("Ключевые показатели", level=1)
         kpi_text = (
-            f"Расходы: {int(summary.get('expenses', 0))} ₽ | "
+            f"Расходы: {int(_with_vat(summary.get('expenses', 0)))} ₽ | "
             f"Показы: {int(summary.get('impressions', 0))} | "
             f"Клики: {int(summary.get('clicks', 0))} | "
             f"Лиды: {int(summary.get('leads', 0))} | "
-            f"CPC: {summary.get('cpc', 0):.2f} ₽ | "
-            f"CPA: {summary.get('cpa', 0):.2f} ₽"
+            f"CPC: {_with_vat(summary.get('cpc', 0)):.2f} ₽ | "
+            f"CPA: {_with_vat(summary.get('cpa', 0)):.2f} ₽"
         )
         doc.add_paragraph(kpi_text)
 
@@ -134,8 +139,8 @@ def generate_report_docx(
                 row = table.rows[i].cells
                 row[0].text = c.get("name", c.get("campaign_name", "—"))
                 row[1].text = str(c.get("conversions", 0))
-                row[2].text = f"{c.get('cost', 0):,.0f} ₽"
-                row[3].text = f"{c.get('cpa', 0):.2f} ₽" if c.get("conversions") else "—"
+                row[2].text = f"{_with_vat(c.get('cost', 0)):,.0f} ₽"
+                row[3].text = f"{_with_vat(c.get('cpa', 0)):.2f} ₽" if c.get("conversions") else "—"
 
         doc.add_paragraph(f"Сформировано: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 

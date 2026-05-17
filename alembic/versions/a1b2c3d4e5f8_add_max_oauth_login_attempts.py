@@ -1,6 +1,6 @@
 """add max oauth login attempts
 
-Revision ID: a1b2c3d4e5f7
+Revision ID: a1b2c3d4e5f8
 Revises: c4d5e6f7a8b9
 Create Date: 2026-05-15
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "a1b2c3d4e5f7"
+revision: str = "a1b2c3d4e5f8"
 down_revision: Union[str, Sequence[str], None] = "c4d5e6f7a8b9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

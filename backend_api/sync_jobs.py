@@ -10,6 +10,7 @@ import uuid
 from core import models
 from core.database import SessionLocal
 from automation.sync import sync_integration
+from backend_api.services.project_settings import is_project_paused, update_actual_start_date
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,13 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         if not integration:
             job.status = models.SyncJobStatus.FAILED
             job.error = "Integration not found"
+            job.finished_at = datetime.utcnow()
+            db.commit()
+            return
+        if is_project_paused(integration.client):
+            job.status = models.SyncJobStatus.FAILED
+            job.stage = "skipped"
+            job.error = "Проект на паузе: синхронизация остановлена"
             job.finished_at = datetime.utcnow()
             db.commit()
             return
@@ -75,6 +83,7 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         job.stage = "done"
         job.status = models.SyncJobStatus.SUCCESS
         job.finished_at = datetime.utcnow()
+        update_actual_start_date(db, integration.client_id)
         db.commit()
     except Exception as e:
         logger.exception("Sync job failed: %s", e)

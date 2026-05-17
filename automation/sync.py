@@ -476,6 +476,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     Syncs a single integration for a given date range.
     """
     logger.info(f"Syncing {integration.platform} for client {integration.client_id}")
+    from backend_api.services.project_settings import is_project_paused, update_actual_start_date
+    if is_project_paused(integration.client):
+        raise ValueError("Проект на паузе: синхронизация остановлена")
     
     try:
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
@@ -1193,6 +1196,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         integration.sync_status = models.IntegrationSyncStatus.SUCCESS
         integration.error_message = None
         integration.last_sync_at = datetime.utcnow()
+        update_actual_start_date(db, integration.client_id)
         
         # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
         # This prevents stale cached data from appearing on the dashboard
@@ -1234,7 +1238,12 @@ async def sync_data(days: int = 7, max_concurrent: int = 5):
     """
     db: Session = SessionLocal()
     try:
-        integrations = db.query(models.Integration).all()
+        integrations = (
+            db.query(models.Integration)
+            .join(models.Client, models.Client.id == models.Integration.client_id)
+            .filter(models.Client.status == models.ClientStatus.ACTIVE)
+            .all()
+        )
         
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
@@ -1260,7 +1269,7 @@ async def sync_data(days: int = 7, max_concurrent: int = 5):
         db.commit()
 
         # Generate reports for each client
-        clients = db.query(models.Client).all()
+        clients = db.query(models.Client).filter(models.Client.status == models.ClientStatus.ACTIVE).all()
         for client in clients:
             try:
                 generate_weekly_report(db, client.id, end_date)
