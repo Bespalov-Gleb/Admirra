@@ -90,12 +90,11 @@ def _parse_email_recipients(val) -> list:
 
 def _parse_delivery_channels(val, user: models.User) -> list[str]:
     allowed = {"telegram", "max", "email"}
-    if val:
+    if val is not None and str(val).strip() != "":
         try:
             raw = json.loads(val) if isinstance(val, str) else val
-            channels = [str(item).strip().lower() for item in raw if str(item).strip().lower() in allowed]
-            if channels:
-                return channels
+            if isinstance(raw, list):
+                return [str(item).strip().lower() for item in raw if str(item).strip().lower() in allowed]
         except Exception:
             pass
 

@@ -457,47 +457,68 @@
       </div>
     </div>
 
-    <!-- Report channel link modal -->
-    <div
-      v-if="reportLinkChannel"
-      class="fixed inset-0 z-[99999] flex items-center justify-center"
-      style="background: rgba(0,0,0,0.5)"
-      @click.self="closeReportLinkModal"
-    >
+    <Teleport to="body">
+      <!-- Report channel link modal -->
       <div
-        class="w-full mx-4"
-        style="max-width:31.1111rem; border-radius:1.6667rem; padding:1.6667rem; box-shadow:0 25px 50px rgba(0,0,0,0.35)"
-        :style="{ background: isDarkMode ? '#2a2d3c' : '#fff' }"
+        v-if="reportLinkChannel"
+        class="report-link-overlay"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeReportLinkModal"
       >
-        <h3 :style="{ fontSize:'1.25rem', fontWeight:600, color: isDarkMode ? '#f3f4f6' : '#111827', marginBottom:'0.5556rem' }">
-          Подключите {{ reportLinkChannelLabel }}
-        </h3>
-        <p :style="{ fontSize:'0.9722rem', color: isDarkMode ? 'rgba(255,255,255,0.5)' : '#6b7280', marginBottom:'1.1111rem' }">
-          Нажмите «Открыть бота», затем в {{ reportLinkChannelLabel }} нажмите <strong>Start</strong>. После этого вернитесь сюда и нажмите «Готово».
-        </p>
-        <div style="display:flex; gap:0.8333rem; margin-bottom:0.8333rem">
+        <div :class="['report-link-card', { 'is-dark': isDarkMode }]">
+          <button type="button" class="report-link-close" aria-label="Закрыть" @click="closeReportLinkModal">
+            <XMarkIcon />
+          </button>
+
+          <div class="report-link-head">
+            <div class="report-link-logo">
+              <span :class="['report-mask-icon', reportLinkChannel === 'max' ? 'max-icon' : 'telegram-icon']"></span>
+            </div>
+            <div>
+              <p class="report-link-kicker">Канал отчётов</p>
+              <h3>Привязать {{ reportLinkChannelLabel }}</h3>
+            </div>
+          </div>
+
+          <div class="report-link-steps">
+            <div class="report-link-step">
+              <span>1</span>
+              <p>Откройте бота по персональной ссылке</p>
+            </div>
+            <div class="report-link-step">
+              <span>2</span>
+              <p>Нажмите <strong>Start</strong> в {{ reportLinkChannelLabel }}</p>
+            </div>
+            <div class="report-link-step">
+              <span>3</span>
+              <p>Вернитесь сюда и проверьте привязку</p>
+            </div>
+          </div>
+
           <button
             type="button"
-            style="width:100%; padding:0.7639rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
+            class="report-link-primary"
             :disabled="reportLinkOpening"
             @click="openReportBotLink"
-          >{{ reportLinkOpening ? 'Открываем...' : 'Открыть бота' }}</button>
-        </div>
-        <div style="display:flex; gap:0.8333rem">
-          <button
-            type="button"
-            :style="{ flex:1, padding:'0.6944rem', borderRadius:'0.8333rem', border:'none', cursor:'pointer', fontSize:'0.9722rem', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f3f4f6', color: isDarkMode ? '#f3f4f6' : '#374151' }"
-            @click="closeReportLinkModal"
-          >Отмена</button>
-          <button
-            type="button"
-            style="flex:1; padding:0.6944rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
-            :disabled="reportLinkChecking"
-            @click="confirmReportChannelLinked"
-          >{{ reportLinkChecking ? 'Проверка...' : 'Готово' }}</button>
+          >
+            {{ reportLinkOpening ? 'Открываем...' : `Открыть ${reportLinkChannelLabel}` }}
+          </button>
+
+          <div class="report-link-actions">
+            <button type="button" class="report-link-cancel" @click="closeReportLinkModal">Отмена</button>
+            <button
+              type="button"
+              class="report-link-check"
+              :disabled="reportLinkChecking"
+              @click="confirmReportChannelLinked"
+            >
+              {{ reportLinkChecking ? 'Проверяем...' : 'Проверить привязку' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -2380,6 +2401,236 @@ onMounted(() => {
   height: 1.75rem;
   -webkit-mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M-1.75746 0.402423C-1.75483 2.155 -1.74827 3.53735 -1.74287 3.47433C-1.62835 2.13813 -1.05642 0.729807 -0.213224 -0.292158C0.271161 -0.879273 0.899602 -1.42898 1.51662 -1.80529C2.38365 -2.33405 3.24308 -2.62429 4.35797 -2.76478C4.40461 -2.77065 3.04667 -2.77741 1.34028 -2.77976L-1.76221 -2.78406L-1.75746 0.402423ZM19.2414 -2.76461C20.4922 -2.63472 21.664 -2.17099 22.6902 -1.39976C23.0356 -1.14018 23.7533 -0.412972 24.0095 -0.0630181C24.7695 0.97513 25.2285 2.166 25.3566 3.43137C25.3621 3.48651 25.3687 2.11061 25.3712 0.37378L25.3757 -2.78406L22.2591 -2.77947C20.545 -2.77695 19.187 -2.77025 19.2414 -2.76461ZM11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698ZM-1.75768 21.4976L-1.76221 24.7128L1.41095 24.708C3.15621 24.7053 4.53323 24.6986 4.47104 24.6931C2.08208 24.4819 -0.0147773 23.0384 -1.05509 20.889C-1.44642 20.0805 -1.65391 19.3252 -1.74361 18.3828C-1.74886 18.3276 -1.7552 19.7293 -1.75768 21.4976ZM25.3475 18.5231C25.3475 18.5846 25.3218 18.7876 25.2904 18.9743C25.1057 20.073 24.68 21.0758 24.0095 21.9917C23.7533 22.3417 23.0356 23.0689 22.6902 23.3285C21.6625 24.1008 20.4941 24.5632 19.2414 24.6933C19.187 24.699 20.545 24.7057 22.2591 24.7082L25.3757 24.7128V21.5621C25.3757 19.8292 25.3694 18.4114 25.3616 18.4114C25.3538 18.4114 25.3475 18.4617 25.3475 18.5231Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M-1.75746 0.402423C-1.75483 2.155 -1.74827 3.53735 -1.74287 3.47433C-1.62835 2.13813 -1.05642 0.729807 -0.213224 -0.292158C0.271161 -0.879273 0.899602 -1.42898 1.51662 -1.80529C2.38365 -2.33405 3.24308 -2.62429 4.35797 -2.76478C4.40461 -2.77065 3.04667 -2.77741 1.34028 -2.77976L-1.76221 -2.78406L-1.75746 0.402423ZM19.2414 -2.76461C20.4922 -2.63472 21.664 -2.17099 22.6902 -1.39976C23.0356 -1.14018 23.7533 -0.412972 24.0095 -0.0630181C24.7695 0.97513 25.2285 2.166 25.3566 3.43137C25.3621 3.48651 25.3687 2.11061 25.3712 0.37378L25.3757 -2.78406L22.2591 -2.77947C20.545 -2.77695 19.187 -2.77025 19.2414 -2.76461ZM11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698ZM-1.75768 21.4976L-1.76221 24.7128L1.41095 24.708C3.15621 24.7053 4.53323 24.6986 4.47104 24.6931C2.08208 24.4819 -0.0147773 23.0384 -1.05509 20.889C-1.44642 20.0805 -1.65391 19.3252 -1.74361 18.3828C-1.74886 18.3276 -1.7552 19.7293 -1.75768 21.4976ZM25.3475 18.5231C25.3475 18.5846 25.3218 18.7876 25.2904 18.9743C25.1057 20.073 24.68 21.0758 24.0095 21.9917C23.7533 22.3417 23.0356 23.0689 22.6902 23.3285C21.6625 24.1008 20.4941 24.5632 19.2414 24.6933C19.187 24.699 20.545 24.7057 22.2591 24.7082L25.3757 24.7128V21.5621C25.3757 19.8292 25.3694 18.4114 25.3616 18.4114C25.3538 18.4114 25.3475 18.4617 25.3475 18.5231Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.report-link-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(0.18rem);
+}
+
+.report-link-card {
+  position: relative;
+  width: min(100%, 31.25rem);
+  padding: 1.6rem;
+  border: 1px solid rgba(222, 226, 230, 0.95);
+  border-radius: 1.35rem;
+  background: #fff;
+  box-shadow: 0 1.6rem 4rem rgba(15, 23, 42, 0.28);
+}
+
+.report-link-card.is-dark {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #252838;
+  box-shadow: 0 1.6rem 4rem rgba(0, 0, 0, 0.45);
+}
+
+.report-link-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f5f7;
+  color: #697586;
+  cursor: pointer;
+}
+
+.report-link-card.is-dark .report-link-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.report-link-close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.report-link-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-right: 2.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-link-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.9rem;
+  height: 3.9rem;
+  border-radius: 1.2rem;
+  background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
+  color: #fff;
+  box-shadow: 0 0.75rem 1.8rem rgba(47, 109, 246, 0.28);
+}
+
+.report-link-logo .report-mask-icon {
+  width: 1.85rem;
+  height: 1.85rem;
+  transform: none;
+}
+
+.report-link-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: #2f6df6;
+}
+
+.report-link-card h3 {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 750;
+  color: #111827;
+}
+
+.report-link-card.is-dark h3 {
+  color: #f8fafc;
+}
+
+.report-link-steps {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1.15rem;
+}
+
+.report-link-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+}
+
+.report-link-card.is-dark .report-link-step {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.report-link-step span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.report-link-step p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.report-link-card.is-dark .report-link-step p {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.report-link-primary,
+.report-link-check,
+.report-link-cancel {
+  border: 0;
+  border-radius: 0.85rem;
+  font-size: 0.94rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, background 0.18s ease;
+}
+
+.report-link-primary {
+  width: 100%;
+  min-height: 3rem;
+  margin-bottom: 0.85rem;
+  background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
+  color: #fff;
+  box-shadow: 0 0.85rem 1.8rem rgba(47, 109, 246, 0.28);
+}
+
+.report-link-primary:hover,
+.report-link-check:hover,
+.report-link-cancel:hover {
+  transform: translateY(-1px);
+}
+
+.report-link-primary:disabled,
+.report-link-check:disabled {
+  opacity: 0.58;
+  cursor: wait;
+  transform: none;
+}
+
+.report-link-actions {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 0.75rem;
+}
+
+.report-link-cancel {
+  min-height: 2.75rem;
+  background: #f3f5f7;
+  color: #374151;
+}
+
+.report-link-card.is-dark .report-link-cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.report-link-check {
+  min-height: 2.75rem;
+  border: 1px solid #cfe0ff;
+  background: #fff;
+  color: #2563eb;
+}
+
+.report-link-card.is-dark .report-link-check {
+  border-color: rgba(47, 109, 246, 0.38);
+  background: rgba(47, 109, 246, 0.1);
+  color: #8bb4ff;
+}
+
+@media (max-width: 420px) {
+  .report-link-card {
+    padding: 1.25rem;
+    border-radius: 1.1rem;
+  }
+
+  .report-link-head {
+    align-items: flex-start;
+  }
+
+  .report-link-logo {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 1rem;
+  }
+
+  .report-link-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sync-btn svg.spinning {

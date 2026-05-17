@@ -479,7 +479,7 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
 
         allowed_channels = {"telegram", "max"}
         channels = [ch for ch in updates.report_delivery_channels if ch in allowed_channels]
-        current_user.report_delivery_channels = json.dumps(channels) if channels else None
+        current_user.report_delivery_channels = json.dumps(channels)
     if updates.report_email_recipients is not None:
         import json
 
