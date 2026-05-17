@@ -11,8 +11,8 @@ class UserRole(enum.Enum):
     MANAGER = "MANAGER"
 
 class ClientStatus(enum.Enum):
-    ACTIVE = "active"
-    PAUSED = "paused"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
 
 class TeamMemberRole(enum.Enum):
     MEMBER = "member"
@@ -209,7 +209,7 @@ class Client(Base):
     spreadsheet_id = Column(String)
     avatar_url = Column(String)
     site_url = Column(String, nullable=True)
-    status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="active")
+    status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="ACTIVE")
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     actual_start_date = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

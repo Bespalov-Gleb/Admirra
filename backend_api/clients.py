@@ -136,13 +136,13 @@ def update_client(
     update_data = client_in.dict(exclude_unset=True)
 
     if "status" in update_data:
-        new_status = update_data["status"]
-        if new_status not in ("active", "paused"):
+        raw_status = update_data["status"].upper() if update_data["status"] else ""
+        if raw_status not in ("ACTIVE", "PAUSED"):
             raise HTTPException(status_code=400, detail="Статус должен быть 'active' или 'paused'")
-        old_status = client.status.value if hasattr(client.status, "value") else client.status
-        if old_status == "paused" and new_status == "active":
+        old_status = client.status.value if hasattr(client.status, "value") else str(client.status).upper()
+        if old_status == "PAUSED" and raw_status == "ACTIVE":
             _check_can_resume_project(db, current_user, client)
-        update_data["status"] = models.ClientStatus(new_status)
+        update_data["status"] = models.ClientStatus(raw_status)
 
     for key, value in update_data.items():
         setattr(client, key, value)

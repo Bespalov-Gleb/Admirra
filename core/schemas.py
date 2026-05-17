@@ -361,8 +361,8 @@ class ClientResponse(ClientBase):
     @classmethod
     def normalize_status(cls, v):
         if hasattr(v, "value"):
-            return v.value
-        return v
+            return v.value.lower()
+        return str(v).lower() if v else "active"
 
     @field_validator("actual_start_date", mode="before")
     @classmethod

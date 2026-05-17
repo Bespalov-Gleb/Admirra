@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # New columns on clients
     op.add_column("clients", sa.Column("site_url", sa.String(), nullable=True))
-    op.add_column("clients", sa.Column("status", sa.Enum("active", "paused", name="clientstatus"), nullable=False, server_default="active"))
+    op.add_column("clients", sa.Column("status", sa.Enum("ACTIVE", "PAUSED", name="clientstatus"), nullable=False, server_default="ACTIVE"))
     op.add_column("clients", sa.Column("detector_enabled", sa.Boolean(), nullable=False, server_default="false"))
     op.add_column("clients", sa.Column("actual_start_date", sa.Date(), nullable=True))
 
@@ -61,4 +61,4 @@ def downgrade() -> None:
     op.drop_column("clients", "detector_enabled")
     op.drop_column("clients", "status")
     op.drop_column("clients", "site_url")
-    sa.Enum("active", "paused", name="clientstatus").drop(op.get_bind(), checkfirst=True)
+    sa.Enum("ACTIVE", "PAUSED", name="clientstatus").drop(op.get_bind(), checkfirst=True)
