@@ -996,7 +996,7 @@ const channelBalances = computed(() => {
 
 const withVat = (value) => {
   const num = Number(value) || 0
-  return includeVat.value ? num * 1.2 : num
+  return includeVat.value ? num * 1.22 : num
 }
 
 const formatTrend = (value) => {

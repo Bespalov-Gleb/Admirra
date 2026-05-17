@@ -109,7 +109,7 @@ let resizeObserver = null
 
 const getDataByMetric = (key) => {
   const d = props.dynamics
-  const vatFactor = props.includeVat ? 1.2 : 1
+  const vatFactor = props.includeVat ? 1.22 : 1
   const map = {
     expenses: (d.costs || []).map((v) => (Number(v) || 0) * vatFactor),
     impressions: d.impressions || [],

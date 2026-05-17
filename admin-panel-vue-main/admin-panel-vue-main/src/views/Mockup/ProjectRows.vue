@@ -831,8 +831,10 @@ const visibleProjectPlatforms = (project) => projectPlatforms(project).filter((p
 const platformIcon = (platform) => platform === 'VK' ? '/admirra/img/icons/vk-ads.png' : '/admirra/img/icons/yandex-direct.png'
 const platformLabel = (platform) => platform === 'VK' ? 'VK Ads' : 'Yandex Direct'
 
+const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
+const withVat = (num) => (Number(num) || 0) * VAT_RATE
 
 const trendText = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
@@ -845,10 +847,10 @@ const metricCells = (project) => {
   return [
     { key: 'impressions', value: formatNumber(m.impressions) },
     { key: 'clicks', value: formatNumber(m.clicks) },
-    { key: 'expenses', value: formatMoney(m.expenses), bold: true },
+    { key: 'expenses', value: formatMoney(withVat(m.expenses)), bold: true },
     { key: 'leads', value: formatNumber(m.leads) },
-    { key: 'cpc', value: formatMoney(m.cpc) },
-    { key: 'cpa', value: formatMoney(m.cpa) }
+    { key: 'cpc', value: formatMoney(withVat(m.cpc)) },
+    { key: 'cpa', value: formatMoney(withVat(m.cpa)) }
   ]
 }
 

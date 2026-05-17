@@ -377,8 +377,10 @@ const emptyMetric = () => ({
 
 const getProjectMetric = (projectId) => metricsByProjectId.value[projectId] || emptyMetric()
 
+const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
+const withVat = (num) => (Number(num) || 0) * VAT_RATE
 
 const trendText = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
@@ -433,10 +435,10 @@ const projectStats = (project) => {
   return [
     { key: 'impressions', label: 'Показы', subtitle: 'По всем каналам', value: formatNumber(metric.impressions), icon: '/admirra/img/svg/sprite.svg#diagrama' },
     { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), icon: '/admirra/img/svg/sprite.svg#cursore' },
-    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(metric.cpc), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
-    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(metric.expenses), icon: '/admirra/img/svg/sprite.svg#wallet' },
+    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(withVat(metric.cpc)), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
+    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(withVat(metric.expenses)), icon: '/admirra/img/svg/sprite.svg#wallet' },
     { key: 'leads', label: 'Лиды', subtitle: 'По всем каналам', value: `${formatNumber(metric.leads)} шт.`, icon: '/admirra/img/svg/sprite.svg#calendar' },
-    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(metric.cpa), icon: '/admirra/img/svg/sprite.svg#ok' },
+    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(withVat(metric.cpa)), icon: '/admirra/img/svg/sprite.svg#ok' },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
 }
 
