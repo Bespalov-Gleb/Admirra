@@ -554,8 +554,14 @@ function onEscape(e) {
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onEscape))
-onUnmounted(() => document.removeEventListener('keydown', onEscape))
+onMounted(() => {
+  document.addEventListener('keydown', onEscape)
+  document.body.style.overflow = 'hidden'
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onEscape)
+  document.body.style.overflow = ''
+})
 </script>
 
 <style scoped>
@@ -580,7 +586,7 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
   box-shadow: 0 1.6667rem 4.8611rem rgba(15, 23, 42, 0.22);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 4.1667rem);
+  margin-bottom: 2.0833rem;
 }
 
 /* ===== Header ===== */
@@ -615,10 +621,8 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 }
 .psm-close:hover { background: #edf3ff; color: #2563eb; }
 
-/* ===== Body (scrollable) ===== */
+/* ===== Body ===== */
 .psm-body {
-  flex: 1;
-  overflow-y: auto;
   padding: 0 2.0833rem 1.25rem;
   display: flex;
   flex-direction: column;
