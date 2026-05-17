@@ -39,7 +39,13 @@ def is_configured() -> bool:
     return bool(host and from_addr)
 
 
-def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[str] = None) -> bool:
+def _send_sync(
+    to_email: str,
+    subject: str,
+    body_text: str,
+    reply_to: Optional[str] = None,
+    body_html: Optional[str] = None,
+) -> bool:
     if not smtp_enabled():
         logger.warning("Auth email skipped: SMTP_ENABLED=false")
         return False
@@ -54,6 +60,8 @@ def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[s
     if reply_to:
         msg["Reply-To"] = reply_to
     msg.set_content(body_text)
+    if body_html:
+        msg.add_alternative(body_html, subtype="html")
     with smtplib.SMTP(host, port, timeout=15) as server:
         if use_tls:
             server.starttls()

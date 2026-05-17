@@ -12,6 +12,7 @@ from core.database import get_db
 from core import models, security
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.history import log_history_event
+from backend_api.access_control import assert_project_access
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,9 @@ async def chat(
 
     if not (body.message or "").strip():
         raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
+
+    if client_id:
+        assert_project_access(db, current_user, client_id, write=False, allow_client_ai=True)
 
     try:
         SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
@@ -129,6 +133,9 @@ async def generate_report(
             client_id = uuid.UUID(body.client_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Неверный client_id")
+
+    if client_id:
+        assert_project_access(db, current_user, client_id, write=False, allow_client_ai=True)
 
     try:
         SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)

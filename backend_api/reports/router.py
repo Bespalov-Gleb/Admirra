@@ -14,6 +14,7 @@ from core.database import get_db
 from core import models, security
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.history import log_history_event
+from backend_api.access_control import assert_project_access
 from backend_api.reports.pdf_service import generate_report_pdf
 from backend_api.reports.export_service import (
     generate_report_png,
@@ -29,6 +30,21 @@ from backend_api.reports.report_html import render_report_html
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+
+def _parse_report_client_id(
+    db: Session,
+    current_user: models.User,
+    client_id: Optional[str],
+) -> Optional[uuid.UUID]:
+    if not client_id:
+        return None
+    try:
+        u_client_id = uuid.UUID(client_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный client_id")
+    assert_project_access(db, current_user, u_client_id, write=False, allow_client_ai=True)
+    return u_client_id
 
 
 def _log_report_export(
@@ -76,12 +92,7 @@ async def get_report_pdf(
     Скачивание PDF-отчёта за указанный период. При ai=true — с AI-комментарием.
     Если передан comment — используется он вместо генерации.
     """
-    u_client_id = None
-    if client_id:
-        try:
-            u_client_id = uuid.UUID(client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, client_id)
 
     use_comment = (comment or "").strip() if comment else None
     if ai and not use_comment:
@@ -140,12 +151,7 @@ async def get_report_png(
     db: Session = Depends(get_db),
 ):
     """Скачивание PNG-отчёта (первая страница)."""
-    u_client_id = None
-    if client_id:
-        try:
-            u_client_id = uuid.UUID(client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, client_id)
     use_comment = (comment or "").strip() if comment else None
     if ai and not use_comment:
         try:
@@ -190,12 +196,7 @@ async def get_report_docx(
     db: Session = Depends(get_db),
 ):
     """Скачивание DOCX-отчёта."""
-    u_client_id = None
-    if client_id:
-        try:
-            u_client_id = uuid.UUID(client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, client_id)
     use_comment = (comment or "").strip() if comment else None
     if ai and not use_comment:
         try:
@@ -278,12 +279,7 @@ async def post_report_docx(
     db: Session = Depends(get_db),
 ):
     """Скачивание DOCX-отчёта (POST). Используйте при передаче длинного comment — избегает лимита длины URL."""
-    u_client_id = None
-    if req.client_id:
-        try:
-            u_client_id = uuid.UUID(req.client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, req.client_id)
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
@@ -315,12 +311,7 @@ async def post_report_pdf(
     db: Session = Depends(get_db),
 ):
     """Скачивание PDF-отчёта (POST). Используйте при передаче длинного comment."""
-    u_client_id = None
-    if req.client_id:
-        try:
-            u_client_id = uuid.UUID(req.client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, req.client_id)
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
@@ -350,12 +341,7 @@ async def post_report_png(
     db: Session = Depends(get_db),
 ):
     """Скачивание PNG-отчёта (POST). Используйте при передаче длинного comment."""
-    u_client_id = None
-    if req.client_id:
-        try:
-            u_client_id = uuid.UUID(req.client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, req.client_id)
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
@@ -394,12 +380,7 @@ async def create_report_link(
     db: Session = Depends(get_db),
 ):
     """Создаёт ссылку на страницу с отчётом. Ссылка действительна 24 часа."""
-    u_client_id = None
-    if req.client_id:
-        try:
-            u_client_id = uuid.UUID(req.client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, req.client_id)
     use_comment = (req.comment or "").strip() if req.comment else None
     if not use_comment:
         try:
@@ -471,12 +452,7 @@ async def send_report(
     """
     Отправка отчёта по каналам: Email, Telegram.
     """
-    u_client_id = None
-    if req.client_id:
-        try:
-            u_client_id = uuid.UUID(req.client_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный client_id")
+    u_client_id = _parse_report_client_id(db, current_user, req.client_id)
 
     pdf_bytes = None
     ai_text = None

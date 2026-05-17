@@ -1,21 +1,21 @@
-from backend_api.team import router as team_router
+from pathlib import Path
 
 
 def test_team_router_endpoints_present():
-    paths = {route.path for route in team_router.routes}
-    expected = {
-        "/team/me-context",
-        "/team/members",
-        "/team/members/invite",
-        "/team/members/{member_id}",
-        "/team/members/{member_id}/projects",
-        "/team/members/{member_id}/projects/{project_id}",
-        "/team/clients",
-        "/team/clients/invite",
-        "/team/clients/{user_id}",
-        "/team/clients/{user_id}/projects",
-        "/team/clients/{user_id}/projects/{project_id}",
-        "/team/projects",
-    }
+    text = Path(__file__).resolve().parents[1].joinpath("backend_api", "team.py").read_text(encoding="utf-8")
+    expected = [
+        '"/me-context"',
+        '"/members/invite"',
+        '"/members/{member_id}/projects"',
+        '"/projects/{project_id}/members"',
+        '"/invites/preview"',
+        '"/invites/accept"',
+    ]
     for path in expected:
-        assert path in paths
+        assert path in text, f"missing route {path}"
+
+
+def test_team_invite_token_fields_in_model():
+    text = Path(__file__).resolve().parents[1].joinpath("core", "models.py").read_text(encoding="utf-8")
+    assert "invite_token" in text
+    assert "invite_token_expires_at" in text

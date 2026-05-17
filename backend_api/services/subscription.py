@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from core import models
 from core.config import get_config
+from backend_api.services.cloudpayments import CloudPaymentsService
 from backend_api.services.history import log_history_event
+from backend_api.services.notifications import create_notification
 
 
 @dataclass
@@ -85,6 +87,18 @@ class SubscriptionService:
                 max_staff=cfg.plan_standard_max_staff,
                 max_clients=cfg.plan_standard_max_clients,
             )
+        if code in {"white_label", "whitelabel", "white-label"}:
+            return EffectivePlan(
+                code="white_label",
+                name="White Label",
+                price_rub=cfg.plan_standard_price_rub,
+                max_projects=cfg.plan_standard_max_projects,
+                max_ai_requests_per_period=cfg.plan_standard_ai_limit,
+                period_days=cfg.ai_period_days,
+                trial_days=cfg.trial_days,
+                max_staff=cfg.plan_white_label_max_staff,
+                max_clients=cfg.plan_white_label_max_clients,
+            )
         return EffectivePlan(
             code="start",
             name="Старт",
@@ -156,19 +170,186 @@ class SubscriptionService:
         return SubscriptionService.get_plan_from_config(plan_code)
 
     @staticmethod
-    def _is_subscription_active(user: models.User, sub: models.Subscription) -> bool:
+    def _period_still_valid(sub: models.Subscription) -> bool:
+        if sub.current_period_end is None:
+            return True
+        return sub.current_period_end >= SubscriptionService._now()
+
+    @staticmethod
+    def sync_user_subscription_access(
+        db: Session, user: models.User, sub: models.Subscription
+    ) -> bool:
+        """
+        Синхронизирует is_subscribed с оплаченным периодом.
+        Отключение автоплатежа (cancel_at_period_end) не обрывает доступ до current_period_end.
+        """
+        if not SubscriptionService._period_still_valid(sub):
+            if sub.status in {
+                models.SubscriptionStatus.ACTIVE,
+                models.SubscriptionStatus.TRIAL,
+                models.SubscriptionStatus.CANCELED,
+            }:
+                sub.status = models.SubscriptionStatus.EXPIRED
+            user.is_subscribed = False
+            db.flush()
+            return False
+
         if sub.status in {models.SubscriptionStatus.ACTIVE, models.SubscriptionStatus.TRIAL}:
-            if sub.current_period_end is None:
-                return True
-            return sub.current_period_end >= SubscriptionService._now()
+            user.is_subscribed = True
+            user.subscription_expires_at = sub.current_period_end
+            db.flush()
+            return True
+
+        if sub.status == models.SubscriptionStatus.PAST_DUE:
+            user.is_subscribed = False
+            db.flush()
+            return False
+
+        user.is_subscribed = False
+        db.flush()
         return False
+
+    @staticmethod
+    def _is_subscription_active(
+        db: Session, user: models.User, sub: models.Subscription
+    ) -> bool:
+        return SubscriptionService.sync_user_subscription_access(db, user, sub)
+
+    @staticmethod
+    def subscription_status_label(sub: models.Subscription) -> str:
+        if sub.cancel_at_period_end and sub.status in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.TRIAL,
+        }:
+            if SubscriptionService._period_still_valid(sub):
+                return "Активна (автоплатёж отключён)"
+        labels = {
+            models.SubscriptionStatus.TRIAL: "Пробный период",
+            models.SubscriptionStatus.ACTIVE: "Активна",
+            models.SubscriptionStatus.PAST_DUE: "Ожидает оплаты",
+            models.SubscriptionStatus.CANCELED: "Отменена",
+            models.SubscriptionStatus.EXPIRED: "Истекла",
+        }
+        return labels.get(sub.status, sub.status.value)
+
+    @staticmethod
+    def payment_method_label(sub: models.Subscription) -> str:
+        cp_id = (sub.cloudpayments_subscription_id or "").strip()
+        if sub.cancel_at_period_end and sub.status in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.TRIAL,
+        }:
+            end = sub.current_period_end
+            if end:
+                return (
+                    f"Автоплатёж отключён (доступ до {end.strftime('%d.%m.%Y')})"
+                )
+            return "Автоплатёж отключён"
+        if cp_id and sub.status == models.SubscriptionStatus.ACTIVE:
+            return "Банковская карта (автоплатёж CloudPayments)"
+        if cp_id and sub.status in {
+            models.SubscriptionStatus.PAST_DUE,
+            models.SubscriptionStatus.CANCELED,
+            models.SubscriptionStatus.EXPIRED,
+        }:
+            return "Банковская карта (автоплатёж отключён)"
+        if sub.status == models.SubscriptionStatus.TRIAL:
+            return "Пробный период (карта не привязана)"
+        return "Не подключён"
+
+    @staticmethod
+    def autopay_enabled(sub: models.Subscription) -> bool:
+        if sub.cancel_at_period_end:
+            return False
+        cp_id = (sub.cloudpayments_subscription_id or "").strip()
+        return bool(cp_id) and sub.status in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.PAST_DUE,
+        }
+
+    @staticmethod
+    def can_cancel_autopay(sub: models.Subscription) -> bool:
+        if sub.cancel_at_period_end:
+            return False
+        cp_id = (sub.cloudpayments_subscription_id or "").strip()
+        if not cp_id:
+            return False
+        return sub.status in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.PAST_DUE,
+        }
+
+    @staticmethod
+    async def cancel_user_autopay(db: Session, user: models.User) -> models.Subscription:
+        sub = SubscriptionService.ensure_default_subscription(db, user)
+        cp_id = (sub.cloudpayments_subscription_id or "").strip()
+        if not cp_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Автоплатёж не подключён — отменять нечего",
+            )
+        if sub.cancel_at_period_end:
+            raise HTTPException(status_code=400, detail="Автоплатёж уже отключён")
+        if not SubscriptionService.can_cancel_autopay(sub):
+            raise HTTPException(
+                status_code=400,
+                detail="Нет активного автоплатежа для отмены",
+            )
+
+        cfg = get_config().cloudpayments
+        if not cfg.api_secret:
+            raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_API_SECRET не настроен")
+
+        try:
+            result = await CloudPaymentsService.cancel_subscription(cp_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Не удалось отменить подписку в CloudPayments: {exc}",
+            ) from exc
+
+        if isinstance(result, dict) and result.get("Success") is False:
+            message = str(result.get("Message") or result.get("message") or "Ошибка CloudPayments")
+            raise HTTPException(status_code=502, detail=message)
+
+        plan = SubscriptionService.get_user_plan(db, user)
+        sub.cancel_at_period_end = True
+        if sub.status not in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.TRIAL,
+        }:
+            sub.status = models.SubscriptionStatus.ACTIVE
+        period_note = ""
+        if sub.current_period_end:
+            period_note = f" Доступ сохранён до {sub.current_period_end.strftime('%d.%m.%Y')}."
+        SubscriptionService.sync_user_subscription_access(db, user, sub)
+        create_notification(
+            db,
+            user_id=user.id,
+            type="payment_ok",
+            title="Автоплатёж отключён",
+            body=f"Повторные списания по карте остановлены.{period_note}",
+            meta={"plan_code": plan.code},
+        )
+        log_history_event(
+            db,
+            actor=user,
+            event_type="billing",
+            action="autopay_canceled",
+            description="Автоплатёж отключён, подписка активна до конца оплаченного периода",
+            target_type="subscription",
+            target_id=str(sub.id),
+            meta={"plan_code": plan.code, "cloudpayments_subscription_id": cp_id},
+        )
+        db.flush()
+        return sub
 
     @staticmethod
     def require_active_subscription(db: Session, user: models.User) -> None:
         if SubscriptionService.is_admin_bypass(user):
             return
         sub = SubscriptionService.ensure_default_subscription(db, user)
-        if SubscriptionService._is_subscription_active(user, sub):
+        if SubscriptionService._is_subscription_active(db, user, sub):
             return
         if not SubscriptionService.billing_enforced():
             return

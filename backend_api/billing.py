@@ -175,15 +175,12 @@ def get_my_subscription(
     SubscriptionService._ensure_ai_period(current_user, plan)
     used = int(current_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
-    # Синхронизируем is_subscribed с реальным состоянием подписки
-    is_active = SubscriptionService._is_subscription_active(current_user, sub)
-    if current_user.is_subscribed != is_active:
-        current_user.is_subscribed = is_active
-    db.flush()
+    is_active = SubscriptionService._is_subscription_active(db, current_user, sub)
     return schemas.BillingSubscriptionResponse(
         plan_code=plan.code,
         plan_name=plan.name,
         status=sub.status.value,
+        status_label=SubscriptionService.subscription_status_label(sub),
         is_subscribed=is_active,
         subscription_expires_at=current_user.subscription_expires_at,
         max_projects=plan.max_projects,
@@ -191,6 +188,27 @@ def get_my_subscription(
         ai_requests_used=used,
         ai_requests_remaining=remaining,
         period_days=plan.period_days,
+        autopay_enabled=SubscriptionService.autopay_enabled(sub),
+        payment_method=SubscriptionService.payment_method_label(sub),
+        can_cancel_autopay=SubscriptionService.can_cancel_autopay(sub),
+        cancel_at_period_end=bool(sub.cancel_at_period_end),
+    )
+
+
+@router.post("/subscription/cancel", response_model=schemas.BillingCancelAutopayResponse)
+async def cancel_my_subscription_autopay(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отключает рекуррентные списания в CloudPayments для текущего пользователя."""
+    sub = await SubscriptionService.cancel_user_autopay(db, current_user)
+    db.commit()
+    period_note = ""
+    if sub.current_period_end:
+        period_note = f" Тариф активен до {sub.current_period_end.strftime('%d.%m.%Y')}."
+    return schemas.BillingCancelAutopayResponse(
+        message=f"Автоплатёж отключён. Повторные списания по карте выполняться не будут.{period_note}",
+        status=sub.status.value,
     )
 
 
@@ -274,6 +292,7 @@ async def cloudpayments_webhook(
 
     if success and ("pay" in event_name or "recurrent" in event_name or not event_name):
         sub.status = models.SubscriptionStatus.ACTIVE
+        sub.cancel_at_period_end = False
         sub.current_period_start = now
         sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True
@@ -297,21 +316,29 @@ async def cloudpayments_webhook(
             meta={"plan_code": plan.code, "billing_period": billing_period},
         )
     elif "cancel" in event_name:
-        sub.status = models.SubscriptionStatus.CANCELED
-        user.is_subscribed = False
+        sub.cancel_at_period_end = True
+        if sub.status not in {
+            models.SubscriptionStatus.ACTIVE,
+            models.SubscriptionStatus.TRIAL,
+        }:
+            sub.status = models.SubscriptionStatus.ACTIVE
+        period_note = ""
+        if sub.current_period_end:
+            period_note = f" Доступ сохранён до {sub.current_period_end.strftime('%d.%m.%Y')}."
+        SubscriptionService.sync_user_subscription_access(db, user, sub)
         create_notification(
             db,
             user_id=user.id,
-            type="payment_failed",
-            title="Подписка отменена",
-            body="Ваша подписка была отменена. Вы можете оформить её заново в разделе «Тарифы».",
+            type="payment_ok",
+            title="Автоплатёж отключён",
+            body=f"Повторные списания по карте остановлены.{period_note}",
         )
         log_history_event(
             db,
             actor=user,
             event_type="billing",
-            action="subscription_canceled",
-            description="Подписка отменена",
+            action="autopay_canceled",
+            description="Автоплатёж отключён (webhook), доступ до конца оплаченного периода",
             target_type="subscription",
             target_id=str(sub.id),
             meta={"plan_code": plan.code},

@@ -156,6 +156,8 @@ class TeamMember(Base):
     status = Column(Enum(TeamMemberStatus), nullable=False, default=TeamMemberStatus.PENDING)
     invited_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
+    invite_token = Column(UUID(as_uuid=True), nullable=True, unique=True, index=True)
+    invite_token_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     account = relationship("User", foreign_keys=[account_id], back_populates="owned_team_members")
     user = relationship("User", foreign_keys=[user_id], back_populates="team_memberships")

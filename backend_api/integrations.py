@@ -22,6 +22,11 @@ from core.logging_utils import log_event
 from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from core.config import get_config
 from backend_api.services.history import log_history_event
+from backend_api.access_control import (
+    get_accessible_client_ids,
+    ensure_integrations_allowed,
+    can_write_project,
+)
 
 cfg = get_config()
 
@@ -76,16 +81,20 @@ def get_integrations(
     db: Session = Depends(get_db)
 ):
     """
-    List all active integrations (Yandex, VK, etc.) across all clients owned by the user.
+    List integrations for projects accessible to the current user.
     Optional client_id filters to a specific project.
     """
-    q = db.query(models.Integration).join(models.Client).filter(
-        models.Client.owner_id == current_user.id
-    )
+    ensure_integrations_allowed(db, current_user)
+    accessible = get_accessible_client_ids(db, current_user)
+    if not accessible:
+        return []
+    q = db.query(models.Integration).filter(models.Integration.client_id.in_(accessible))
     if client_id:
         try:
             from uuid import UUID
             u = UUID(client_id)
+            if u not in accessible:
+                raise HTTPException(status_code=403, detail="Нет доступа к проекту")
             q = q.filter(models.Integration.client_id == u)
         except ValueError:
             pass
@@ -996,6 +1005,7 @@ async def create_integration(
     """
     Create or update an integration manually. 
     """
+    ensure_integrations_allowed(db, current_user)
     # Проверка активности подписки перед созданием интеграции
     SubscriptionService.require_active_subscription(db, current_user)
 
@@ -3191,14 +3201,16 @@ async def delete_integration(
     CRITICAL: For VK Ads integrations, attempts to revoke the access token
     before deletion to free up token slots and prevent token_limit_exceeded errors.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
+    ensure_integrations_allowed(db, current_user)
+    integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
-    
+    accessible = get_accessible_client_ids(db, current_user)
+    if integration.client_id not in accessible:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    if not can_write_project(db, current_user, integration.client_id):
+        raise HTTPException(status_code=403, detail="Нет прав на изменение интеграций проекта")
+
     # CRITICAL: For VK Ads, revoke the token before deletion to free up token slots
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"🔄 Attempting to revoke VK Ads token before deleting integration {integration_id}...")

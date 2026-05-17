@@ -58,7 +58,19 @@ def _activate_pending_team_invites(db: Session, user: models.User) -> None:
         inv.user_id = user.id
         inv.status = models.TeamMemberStatus.ACTIVE
         inv.accepted_at = now
+        inv.invite_token = None
+        inv.invite_token_expires_at = None
         db.add(inv)
+        log_history_event(
+            db,
+            actor=user,
+            event_type="team",
+            action="member_accepted",
+            description=f"Автоактивация приглашения в команду ({inv.role.value})",
+            target_type="team_member",
+            target_id=str(inv.id),
+            meta={"role": inv.role.value, "auto": True},
+        )
 
 
 def _frontend_verify_url(raw_token: str) -> str:

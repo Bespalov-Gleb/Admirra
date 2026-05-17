@@ -116,35 +116,36 @@ def can_write_project(db: Session, user: models.User, project_id: UUID) -> bool:
     return False
 
 
-def assert_project_access(db: Session, user: models.User, project_id: UUID, write: bool = False, allow_client_ai: bool = False) -> TeamContext:
+def assert_client_in_accessible(
+    db: Session,
+    user: models.User,
+    client_id: UUID,
+    *,
+    write: bool = False,
+    allow_client_read: bool = True,
+) -> TeamContext:
+    """Проверка доступа к проекту по списку доступных client_id."""
     ctx = get_team_context(db, user)
-    if ctx.is_owner:
-        exists = db.query(models.Client.id).filter(models.Client.id == project_id, models.Client.owner_id == ctx.account_id).first()
-        if exists:
-            return ctx
-        raise HTTPException(status_code=404, detail="Client not found")
-
-    own_member_project = (
-        db.query(models.Client.id)
-        .filter(models.Client.id == project_id, models.Client.owner_id == user.id)
-        .first()
-    )
-    if own_member_project and ctx.team_role == models.TeamMemberRole.MEMBER.value:
-        return ctx
-
-    link_exists = (
-        db.query(models.TeamMemberProject.id)
-        .join(models.Client, models.Client.id == models.TeamMemberProject.project_id)
-        .filter(
-            models.TeamMemberProject.team_member_id == ctx.team_member_id,
-            models.TeamMemberProject.project_id == project_id,
-            models.Client.owner_id == ctx.account_id,
-        )
-        .first()
-    )
-    if not link_exists:
+    if ctx.team_role == models.TeamMemberRole.CLIENT.value and not allow_client_read:
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
+    accessible = get_accessible_client_ids(db, user)
+    if client_id not in accessible:
+        if ctx.is_owner:
+            raise HTTPException(status_code=404, detail="Проект не найден")
+        raise HTTPException(status_code=403, detail="Нет доступа к проекту")
+    if write and not can_write_project(db, user, client_id):
+        raise HTTPException(status_code=403, detail="Нет прав на изменение проекта")
+    return ctx
 
-    if write and ctx.team_role == models.TeamMemberRole.CLIENT.value and not allow_client_ai:
-        raise HTTPException(status_code=403, detail="Клиенту недоступно изменение проекта")
+
+def assert_project_access(db: Session, user: models.User, project_id: UUID, write: bool = False, allow_client_ai: bool = False) -> TeamContext:
+    if write and not allow_client_ai:
+        return assert_client_in_accessible(db, user, project_id, write=True)
+    return assert_client_in_accessible(db, user, project_id, write=False, allow_client_read=True)
+
+
+def ensure_integrations_allowed(db: Session, user: models.User) -> TeamContext:
+    ctx = get_team_context(db, user)
+    if ctx.team_role == models.TeamMemberRole.CLIENT.value:
+        raise HTTPException(status_code=403, detail="Интеграции недоступны для роли клиента")
     return ctx

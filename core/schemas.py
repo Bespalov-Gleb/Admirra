@@ -140,6 +140,27 @@ class UserUpdateSettings(BaseModel):
 class TeamProjectRef(BaseModel):
     id: UUID
     name: str
+    access_count: Optional[int] = None
+
+
+class TeamProjectMemberBrief(BaseModel):
+    id: UUID
+    email: EmailStr
+    role: str
+    status: str
+    full_name: Optional[str] = None
+
+
+class TeamInviteAcceptRequest(BaseModel):
+    token: str
+
+
+class TeamInvitePreviewResponse(BaseModel):
+    valid: bool
+    role: Optional[str] = None
+    inviter_email: Optional[str] = None
+    account_name: Optional[str] = None
+    invite_email: Optional[str] = None
 
 
 class TeamMemberResponse(BaseModel):
@@ -426,6 +447,7 @@ class BillingSubscriptionResponse(BaseModel):
     plan_code: str
     plan_name: str
     status: str
+    status_label: str = ""
     is_subscribed: bool
     subscription_expires_at: Optional[datetime] = None
     max_projects: int
@@ -433,6 +455,16 @@ class BillingSubscriptionResponse(BaseModel):
     ai_requests_used: int
     ai_requests_remaining: int
     period_days: int
+    autopay_enabled: bool = False
+    payment_method: str = "Не подключён"
+    can_cancel_autopay: bool = False
+    cancel_at_period_end: bool = False
+
+
+class BillingCancelAutopayResponse(BaseModel):
+    success: bool = True
+    message: str
+    status: str
 
 
 class BillingSubscribeRequest(BaseModel):

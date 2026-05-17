@@ -128,6 +128,70 @@
           </div>
         </div>
 
+        <!-- Подписка и оплата -->
+        <div class="profile-card bg-white rounded-lg p-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-2">Подписка и оплата</h2>
+          <p class="text-base text-gray-500 mb-6">
+            Текущий тариф и автоплатёж. Отмена останавливает повторные списания по карте.
+          </p>
+
+          <div v-if="subscriptionLoading" class="text-base text-gray-500">
+            Загрузка…
+          </div>
+          <div v-else class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <p class="text-base font-medium text-gray-900">Тариф</p>
+                <p class="text-sm text-gray-500 mt-1">
+                  {{ subscription.planName }}
+                  <span v-if="subscription.statusLabel" class="text-gray-400"> · {{ subscription.statusLabel }}</span>
+                </p>
+              </div>
+              <router-link
+                to="/tariffs"
+                class="px-4 py-2.5 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Тарифы
+              </router-link>
+            </div>
+
+            <div class="p-4 bg-gray-50 rounded-lg">
+              <p class="text-base font-medium text-gray-900">Способ оплаты</p>
+              <p class="text-sm text-gray-500 mt-1">{{ subscription.paymentMethod }}</p>
+              <p v-if="subscription.expiresAtLabel" class="text-sm text-gray-500 mt-1">
+                Действует до {{ subscription.expiresAtLabel }}
+              </p>
+              <p v-if="subscription.autopayEnabled" class="text-sm text-green-700 mt-1">
+                Автоплатёж включён
+              </p>
+            </div>
+
+            <div
+              v-if="subscription.canCancelAutopay"
+              class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-amber-200 bg-amber-50/80 rounded-lg"
+            >
+              <div>
+                <p class="text-base font-medium text-gray-900">Отключить автоплатёж</p>
+                <p class="text-sm text-gray-600 mt-1">
+                  Списания по карте прекратятся. Доступ по тарифу сохранится до конца уже оплаченного периода, если он не истёк.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="px-4 py-2.5 text-base font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 shrink-0"
+                :disabled="subscriptionCanceling"
+                @click="showCancelAutopayConfirm = true"
+              >
+                {{ subscriptionCanceling ? 'Отмена…' : 'Отменить подписку' }}
+              </button>
+            </div>
+
+            <p v-else-if="!subscription.autopayEnabled && subscription.isSubscribed" class="text-sm text-gray-500">
+              Автоплатёж не подключён. Для оплаты тарифа перейдите в раздел «Тарифы».
+            </p>
+          </div>
+        </div>
+
         <!-- Безопасность -->
         <div class="profile-card bg-white rounded-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-6">Безопасность</h2>
@@ -236,6 +300,13 @@
       </div>
     </div>
 
+    <ConfirmModal
+      v-model:isOpen="showCancelAutopayConfirm"
+      title="Отменить автоплатёж?"
+      message="Рекуррентные списания по карте будут остановлены. Подтвердить отмену?"
+      @confirm="cancelAutopay"
+    />
+
     <!-- Модалка изменения пароля -->
     <ChangePasswordModal
       :is-open="showChangePasswordModal"
@@ -296,6 +367,7 @@ import { CameraIcon } from '@heroicons/vue/24/solid'
 import Input from '../Settings/components/Input.vue'
 import Modal from '../../components/Modal.vue'
 import ChangePasswordModal from '../Settings/components/ChangePasswordModal.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
 import Alert from '../../components/Alert.vue'
 import api from '../../api/axios'
 import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
@@ -307,9 +379,29 @@ const { isDarkMode } = useTheme()
 const isEditMode = ref(false)
 const isReportSettingsEdit = ref(false)
 const showChangePasswordModal = ref(false)
+const showCancelAutopayConfirm = ref(false)
 const showAvatarUpload = ref(false)
 const showAlert = ref(false)
 const alertMessage = ref('')
+const subscriptionLoading = ref(false)
+const subscriptionCanceling = ref(false)
+
+const subscription = ref({
+  planName: '—',
+  statusLabel: '',
+  paymentMethod: 'Не подключён',
+  expiresAtLabel: '',
+  autopayEnabled: false,
+  canCancelAutopay: false,
+  isSubscribed: false,
+})
+
+function formatSubscriptionDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
 
 const userData = ref({
   id: null,
@@ -438,6 +530,49 @@ const showAlertMessage = (message) => {
   }, 3000)
 }
 
+const loadSubscription = async () => {
+  subscriptionLoading.value = true
+  try {
+    const { data } = await api.get('billing/subscription')
+    subscription.value = {
+      planName: data?.plan_name || '—',
+      statusLabel: data?.status_label || data?.status || '',
+      paymentMethod: data?.payment_method || 'Не подключён',
+      expiresAtLabel: formatSubscriptionDate(data?.subscription_expires_at),
+      autopayEnabled: Boolean(data?.autopay_enabled),
+      canCancelAutopay: Boolean(data?.can_cancel_autopay),
+      isSubscribed: Boolean(data?.is_subscribed),
+    }
+  } catch (e) {
+    console.error('Failed to load subscription:', e)
+    subscription.value = {
+      planName: '—',
+      statusLabel: '',
+      paymentMethod: 'Не подключён',
+      expiresAtLabel: '',
+      autopayEnabled: false,
+      canCancelAutopay: false,
+      isSubscribed: false,
+    }
+  } finally {
+    subscriptionLoading.value = false
+  }
+}
+
+const cancelAutopay = async () => {
+  subscriptionCanceling.value = true
+  try {
+    const { data } = await api.post('billing/subscription/cancel')
+    showAlertMessage(data?.message || 'Автоплатёж отключён')
+    await loadSubscription()
+  } catch (e) {
+    const d = e.response?.data?.detail
+    showAlertMessage(typeof d === 'string' ? d : 'Не удалось отменить подписку')
+  } finally {
+    subscriptionCanceling.value = false
+  }
+}
+
 const loadProfile = async () => {
   try {
     const { data } = await api.get('/auth/me')
@@ -457,6 +592,7 @@ const loadProfile = async () => {
 
 onMounted(() => {
   loadProfile()
+  loadSubscription()
 })
 </script>
 

@@ -153,6 +153,12 @@ const routes = [
     meta: { layout: 'mockup' }
   },
   {
+    path: '/team/accept',
+    name: 'TeamAccept',
+    component: () => import('../views/Mockup/TeamAccept.vue'),
+    meta: { layout: 'auth' }
+  },
+  {
     path: '/history',
     name: 'History',
     component: () => import('../views/Mockup/History.vue'),
@@ -322,7 +328,8 @@ router.beforeEach(async (to, from, next) => {
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
   // OAuth callbacks должны открываться без токена (обмен code → JWT на странице)
-  const isPublicPage = isLoginPage || isLandingPage || isOAuthCallback
+  const isTeamAcceptPage = normalizedPath === '/team/accept'
+  const isPublicPage = isLoginPage || isLandingPage || isOAuthCallback || isTeamAcceptPage
   const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
 
   if (!isAuth && !isPublicPage) {

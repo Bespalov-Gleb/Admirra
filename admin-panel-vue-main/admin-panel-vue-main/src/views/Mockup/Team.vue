@@ -21,9 +21,9 @@
         >{{ tab.label }}</button>
       </div>
 
-      <!-- Add member -->
+      <!-- Add member / client -->
       <button class="add-btn" @click="inviteMember">
-        <span>Добавить сотрудника</span>
+        <span>{{ addButtonLabel }}</span>
         <span class="icon-plus">+</span>
       </button>
     </div>
@@ -47,7 +47,13 @@
               <span>{{ (member.name || '?').slice(0, 2).toUpperCase() }}</span>
             </div>
             <div class="min-w-0">
-              <div class="text-[15px] font-medium text-[#696969] leading-none mb-[4px] truncate dark:!text-white/85">{{ member.name }}</div>
+              <div class="flex flex-wrap items-center gap-[8px] mb-[4px]">
+                <div class="text-[15px] font-medium text-[#696969] leading-none truncate dark:!text-white/85">{{ member.name }}</div>
+                <span
+                  class="status-badge"
+                  :class="member.status === 'active' ? 'status-badge--active' : 'status-badge--pending'"
+                >{{ member.status === 'active' ? 'Активен' : 'Ожидает' }}</span>
+              </div>
               <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none truncate dark:!text-white/55">{{ member.email }}</div>
             </div>
           </div>
@@ -173,6 +179,7 @@
               @click="submitGrantAccess(p)"
             >
               <span class="font-medium text-gray-900 dark:text-white/90">{{ p.name }}</span>
+              <span v-if="projectAccessLabel(p.id)" class="text-xs text-gray-500 dark:text-white/50">{{ projectAccessLabel(p.id) }}</span>
               <span class="text-xs text-gray-500 dark:text-white/50">Выдать доступ</span>
             </button>
           </li>
@@ -197,6 +204,22 @@
       :message="revokeConfirmMessage"
       @confirm="performRevokeAccess"
     />
+
+    <Modal
+      v-model:isOpen="showUpgradeModal"
+      title="Лимит тарифа"
+      size="md"
+    >
+      <p class="text-sm text-gray-600 dark:text-white/70">{{ upgradeModalMessage }}</p>
+      <template #footer>
+        <div class="flex flex-wrap justify-end gap-3">
+          <button type="button" class="team-modal-btn team-modal-btn--ghost" @click="showUpgradeModal = false">Закрыть</button>
+          <router-link to="/tariffs" class="team-modal-btn team-modal-btn--primary" @click="showUpgradeModal = false">
+            Перейти к тарифам
+          </router-link>
+        </div>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -217,6 +240,7 @@ const inviteError = ref('')
 const showGrantModal = ref(false)
 const grantMember = ref(null)
 const grantSubmitting = ref(false)
+const projectAccessById = ref({})
 
 const tabs = [
   { id: 'staff',   label: 'Сотрудники' },
@@ -230,10 +254,20 @@ const isLoading = ref(false)
 
 const showRemoveConfirm = ref(false)
 const pendingRemoveMember = ref(null)
+const addButtonLabel = computed(() =>
+  currentTab.value === 'clients' ? 'Добавить клиента' : 'Добавить сотрудника'
+)
+
 const removeConfirmMessage = computed(() => {
   const m = pendingRemoveMember.value
-  return m ? `Удалить ${m.email} из списка? Доступы к проектам будут отозваны.` : ''
+  if (!m) return ''
+  const label = m.name && m.name !== m.email ? m.name : m.email
+  const roleWord = m.role === 'client' ? 'клиента' : 'сотрудника'
+  return `Удалить ${roleWord} ${label}? Все доступы будут отозваны.`
 })
+
+const showUpgradeModal = ref(false)
+const upgradeModalMessage = ref('')
 
 const showRevokeConfirm = ref(false)
 const pendingRevoke = ref({ member: null, project: null })
@@ -343,7 +377,15 @@ async function submitInvite() {
     toaster.success('Приглашение отправлено')
     await fetchMembers()
   } catch (e) {
-    inviteError.value = e?.response?.data?.detail || 'Не удалось пригласить участника'
+    const detail = e?.response?.data?.detail
+    const status = e?.response?.status
+    if (status === 403 && String(detail || '').toLowerCase().includes('лимит')) {
+      upgradeModalMessage.value = typeof detail === 'string' ? detail : 'Достигнут лимит для текущего тарифа. Обновите тариф, чтобы добавить участников.'
+      showUpgradeModal.value = true
+      inviteError.value = ''
+    } else {
+      inviteError.value = detail || 'Не удалось пригласить участника'
+    }
   } finally {
     inviteSubmitting.value = false
   }
@@ -379,6 +421,29 @@ function closeGrantModal() {
   resetGrantModal()
 }
 
+function projectAccessLabel(projectId) {
+  const list = projectAccessById.value[projectId]
+  if (!list?.length) return ''
+  const names = list.map((m) => m.full_name || m.email).slice(0, 3)
+  const more = list.length > 3 ? ` и ещё ${list.length - 3}` : ''
+  return `Уже имеют доступ: ${names.join(', ')}${more}`
+}
+
+async function loadProjectAccessMap() {
+  const map = {}
+  await Promise.all(
+    teamProjects.value.map(async (p) => {
+      try {
+        const { data } = await api.get(`/team/projects/${p.id}/members`)
+        map[p.id] = Array.isArray(data) ? data : []
+      } catch {
+        map[p.id] = []
+      }
+    })
+  )
+  projectAccessById.value = map
+}
+
 async function grantAccess(member) {
   if (!teamProjects.value.length) {
     await fetchTeamProjects()
@@ -387,6 +452,7 @@ async function grantAccess(member) {
     toaster.warning('Нет доступных проектов для выдачи доступа')
     return
   }
+  await loadProjectAccessMap()
   grantMember.value = member
   showGrantModal.value = true
   if (!availableGrantProjects.value.length) {
@@ -824,6 +890,35 @@ onMounted(async () => {
 .team-modal-btn--ghost:hover:not(:disabled) {
   background: #e5e7eb;
 }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.status-badge--active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+.status-badge--pending {
+  background: rgba(234, 179, 8, 0.18);
+  color: #a16207;
+}
+:global(.dark) .status-badge--active,
+:global(.darkmode) .status-badge--active {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+:global(.dark) .status-badge--pending,
+:global(.darkmode) .status-badge--pending {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fde047;
+}
+
 .team-modal-btn--primary {
   background: #2563eb;
   color: #fff;

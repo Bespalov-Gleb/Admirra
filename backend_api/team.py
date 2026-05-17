@@ -1,17 +1,115 @@
-from datetime import datetime, timezone
+import uuid as uuid_lib
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core import models, schemas, security
+from core.config import get_config
+from core.public_domain import resolve_frontend_url
 from backend_api.services.subscription import SubscriptionService, EffectivePlan
-from backend_api.services.team_mail import send_team_invite_email
+from backend_api.services.team_mail import (
+    send_team_member_invite_email,
+    send_team_client_invite_email,
+    send_team_client_project_access_email,
+)
 from backend_api.access_control import get_team_context
 from backend_api.services.history import log_history_event
 
 router = APIRouter(prefix="/team", tags=["Team"])
+FRONTEND_URL = resolve_frontend_url().rstrip("/")
+
+
+def _invite_token_expiry() -> datetime:
+    days = get_config().auth.team_invite_expiry_days
+    return datetime.now(timezone.utc) + timedelta(days=max(1, days))
+
+
+def _issue_invite_token(member: models.TeamMember) -> None:
+    member.invite_token = uuid_lib.uuid4()
+    member.invite_token_expires_at = _invite_token_expiry()
+
+
+def _clear_invite_token(member: models.TeamMember) -> None:
+    member.invite_token = None
+    member.invite_token_expires_at = None
+
+
+def _member_brief(member: models.TeamMember) -> schemas.TeamProjectMemberBrief:
+    full_name = None
+    if member.user:
+        full_name = (
+            " ".join(x for x in [member.user.first_name or "", member.user.last_name or ""] if x).strip()
+            or member.user.username
+            or member.user.email
+        )
+    return schemas.TeamProjectMemberBrief(
+        id=member.id,
+        email=member.email,
+        role=member.role.value,
+        status=member.status.value,
+        full_name=full_name,
+    )
+
+
+def accept_team_invite(db: Session, user: models.User, token_str: str) -> models.TeamMember:
+    try:
+        token = UUID(token_str.strip())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверный токен приглашения")
+
+    member = db.query(models.TeamMember).filter(models.TeamMember.invite_token == token).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Приглашение не найдено")
+    if member.status != models.TeamMemberStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Приглашение уже принято")
+    now = datetime.now(timezone.utc)
+    if member.invite_token_expires_at and member.invite_token_expires_at < now:
+        raise HTTPException(status_code=400, detail="Срок действия приглашения истёк")
+    if (member.email or "").lower() != (user.email or "").lower():
+        raise HTTPException(status_code=403, detail="Email не совпадает с приглашением")
+
+    member.user_id = user.id
+    member.status = models.TeamMemberStatus.ACTIVE
+    member.accepted_at = now
+    _clear_invite_token(member)
+    db.add(member)
+    log_history_event(
+        db,
+        actor=user,
+        event_type="team",
+        action="member_accepted",
+        description=f"Принято приглашение в команду ({member.role.value})",
+        target_type="team_member",
+        target_id=str(member.id),
+        meta={"role": member.role.value},
+    )
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+def _team_project_ids_for_owner(db: Session, account_id: UUID) -> set[UUID]:
+    owner_projects = db.query(models.Client.id).filter(models.Client.owner_id == account_id).all()
+    member_user_ids = [
+        r[0]
+        for r in (
+            db.query(models.TeamMember.user_id)
+            .filter(
+                models.TeamMember.account_id == account_id,
+                models.TeamMember.role == models.TeamMemberRole.MEMBER,
+                models.TeamMember.status == models.TeamMemberStatus.ACTIVE,
+                models.TeamMember.user_id.isnot(None),
+            )
+            .all()
+        )
+    ]
+    member_projects = []
+    if member_user_ids:
+        member_projects = db.query(models.Client.id).filter(models.Client.owner_id.in_(member_user_ids)).all()
+    return {r[0] for r in owner_projects} | {r[0] for r in member_projects}
 
 
 def _ensure_owner(current_user: models.User, db: Session) -> UUID:
@@ -173,6 +271,8 @@ async def _invite_member(
         invited_at=now,
         accepted_at=now if linked_user else None,
     )
+    if not linked_user:
+        _issue_invite_token(member)
     db.add(member)
     log_history_event(
         db,
@@ -187,8 +287,12 @@ async def _invite_member(
     db.commit()
     db.refresh(member)
 
-    if not linked_user:
-        await send_team_invite_email(member.email, current_user.email, "сотрудник" if role == models.TeamMemberRole.MEMBER else "клиент")
+    if not linked_user and member.invite_token:
+        token_str = str(member.invite_token)
+        if role == models.TeamMemberRole.MEMBER:
+            await send_team_member_invite_email(member.email, current_user.email, token_str)
+        else:
+            await send_team_client_invite_email(member.email, current_user.email, token_str)
     return _member_to_response(member)
 
 
@@ -325,7 +429,7 @@ def client_projects(
     return [schemas.TeamProjectRef(id=p.project.id, name=p.project.name) for p in member.projects if p.project]
 
 
-def _grant_project(
+async def _grant_project(
     role: models.TeamMemberRole,
     user_id: UUID,
     payload: schemas.TeamGrantProjectRequest,
@@ -377,37 +481,45 @@ def _grant_project(
         meta={"role": role.value, "member_id": str(member.id)},
     )
     db.commit()
+    if role == models.TeamMemberRole.CLIENT:
+        view_url = f"{FRONTEND_URL}/?client_id={project.id}"
+        await send_team_client_project_access_email(
+            member.email,
+            current_user.email,
+            project.name,
+            view_url=view_url,
+        )
     return {"ok": True}
 
 
 @router.post("/staff/{user_id}/projects")
-def grant_staff_project(
+async def grant_staff_project(
     user_id: UUID,
     payload: schemas.TeamGrantProjectRequest,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _grant_project(models.TeamMemberRole.MEMBER, user_id, payload, current_user, db)
+    return await _grant_project(models.TeamMemberRole.MEMBER, user_id, payload, current_user, db)
 
 
 @router.post("/members/{member_id}/projects")
-def grant_member_project(
+async def grant_member_project(
     member_id: UUID,
     payload: schemas.TeamGrantProjectRequest,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _grant_project(models.TeamMemberRole.MEMBER, member_id, payload, current_user, db)
+    return await _grant_project(models.TeamMemberRole.MEMBER, member_id, payload, current_user, db)
 
 
 @router.post("/clients/{user_id}/projects")
-def grant_client_project(
+async def grant_client_project(
     user_id: UUID,
     payload: schemas.TeamGrantProjectRequest,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _grant_project(models.TeamMemberRole.CLIENT, user_id, payload, current_user, db)
+    return await _grant_project(models.TeamMemberRole.CLIENT, user_id, payload, current_user, db)
 
 
 def _revoke_project(
@@ -488,10 +600,81 @@ def get_team_projects(
     member_projects = []
     if member_user_ids:
         member_projects = db.query(models.Client.id, models.Client.name).filter(models.Client.owner_id.in_(member_user_ids)).all()
-    uniq = {}
+    uniq: dict[str, schemas.TeamProjectRef] = {}
     for pid, name in list(owner_projects) + list(member_projects):
-        uniq[str(pid)] = schemas.TeamProjectRef(id=pid, name=name)
+        access_count = (
+            db.query(models.TeamMemberProject.id)
+            .filter(models.TeamMemberProject.project_id == pid)
+            .count()
+        )
+        uniq[str(pid)] = schemas.TeamProjectRef(id=pid, name=name, access_count=access_count)
     return list(uniq.values())
+
+
+@router.get("/projects/{project_id}/members", response_model=list[schemas.TeamProjectMemberBrief])
+def get_project_members(
+    project_id: UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    account_id = _ensure_owner(current_user, db)
+    allowed_ids = _team_project_ids_for_owner(db, account_id)
+    if project_id not in allowed_ids:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    rows = (
+        db.query(models.TeamMember)
+        .join(models.TeamMemberProject, models.TeamMemberProject.team_member_id == models.TeamMember.id)
+        .filter(
+            models.TeamMemberProject.project_id == project_id,
+            models.TeamMember.account_id == account_id,
+        )
+        .all()
+    )
+    return [_member_brief(m) for m in rows]
+
+
+@router.get("/invites/preview", response_model=schemas.TeamInvitePreviewResponse)
+def preview_team_invite(
+    token: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+):
+    invalid = schemas.TeamInvitePreviewResponse(valid=False)
+    try:
+        token_uuid = UUID(token.strip())
+    except ValueError:
+        return invalid
+    member = db.query(models.TeamMember).filter(models.TeamMember.invite_token == token_uuid).first()
+    if not member or member.status != models.TeamMemberStatus.PENDING:
+        return invalid
+    now = datetime.now(timezone.utc)
+    if member.invite_token_expires_at and member.invite_token_expires_at < now:
+        return invalid
+    inviter = db.query(models.User).filter(models.User.id == member.account_id).first()
+    inviter_email = inviter.email if inviter else None
+    account_name = None
+    if inviter:
+        account_name = (
+            " ".join(x for x in [inviter.first_name or "", inviter.last_name or ""] if x).strip()
+            or inviter.username
+            or inviter.email
+        )
+    return schemas.TeamInvitePreviewResponse(
+        valid=True,
+        role=member.role.value,
+        inviter_email=inviter_email,
+        account_name=account_name,
+        invite_email=member.email,
+    )
+
+
+@router.post("/invites/accept")
+def accept_team_invite_endpoint(
+    payload: schemas.TeamInviteAcceptRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    member = accept_team_invite(db, current_user, payload.token)
+    return _member_to_response(member)
 
 
 @router.delete("/clients/{user_id}/projects/{project_id}")

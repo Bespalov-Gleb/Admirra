@@ -44,6 +44,7 @@ class AuthConfig:
     auth_require_email_verified: bool
     # Домен для синтетического email (VK и Яндекс без почты в ответе). Должен проходить проверку EmailStr.
     oauth_login_synthetic_email_domain: str
+    team_invite_expiry_days: int
 
 
 @dataclass
@@ -81,6 +82,8 @@ class BillingConfig:
     plan_start_max_clients: int
     plan_basic_max_clients: int
     plan_standard_max_clients: int
+    plan_white_label_max_staff: int
+    plan_white_label_max_clients: int
     ai_period_days: int
 
 
@@ -191,6 +194,7 @@ def get_config() -> Config:
                 "OAUTH_LOGIN_SYNTHETIC_EMAIL_DOMAIN",
                 "vk-oauth.admirra.ru",
             ),
+            team_invite_expiry_days=int(_env("TEAM_INVITE_EXPIRY_DAYS", "7")),
         ),
         public_domain=PublicDomainConfig(
             admierra_deploy_env=_env("ADMIRRA_DEPLOY_ENV").lower(),
@@ -222,6 +226,8 @@ def get_config() -> Config:
             plan_start_max_clients=int(_env("BILLING_PLAN_START_MAX_CLIENTS", "0")),
             plan_basic_max_clients=int(_env("BILLING_PLAN_BASIC_MAX_CLIENTS", "10")),
             plan_standard_max_clients=int(_env("BILLING_PLAN_STANDARD_MAX_CLIENTS", "-1")),
+            plan_white_label_max_staff=int(_env("BILLING_PLAN_WHITE_LABEL_MAX_STAFF", "50")),
+            plan_white_label_max_clients=int(_env("BILLING_PLAN_WHITE_LABEL_MAX_CLIENTS", "-1")),
             ai_period_days=int(_env("BILLING_AI_PERIOD_DAYS", "30")),
         ),
         cloudpayments=CloudPaymentsConfig(

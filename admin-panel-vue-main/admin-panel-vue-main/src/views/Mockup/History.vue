@@ -36,6 +36,31 @@
         </div>
       </div>
 
+      <!-- Тип события -->
+      <div
+        class="custom-select"
+        :class="{ open: openSelect === 'eventType' }"
+        v-click-outside="() => closeSelect('eventType')"
+      >
+        <button class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('eventType')">
+          <span class="cs-current">{{ eventTypeLabel }}</span>
+          <span class="cs-arrow dark:!bg-white/10">
+            <svg width="5" height="4" viewBox="0 0 9 6" fill="none">
+              <path d="M0.5 1L4.5 5L8.5 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+          <div
+            v-for="opt in eventTypeOptions"
+            :key="opt.value"
+            class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
+            :class="{ selected: filterEventType === opt.value }"
+            @click="selectEventType(opt.value)"
+          >{{ opt.label }}</div>
+        </div>
+      </div>
+
       <!-- Период -->
       <div
         class="custom-select"
@@ -83,14 +108,14 @@
         <!-- Пользователь -->
         <div class="flex items-center gap-[15px] min-w-0">
           <div class="user-avatar flex-shrink-0">
-            <span>{{ (item.user_email || '?').slice(0, 2).toUpperCase() }}</span>
+            <span>{{ (item.actor_email || item.user_email || '?').slice(0, 2).toUpperCase() }}</span>
           </div>
           <div class="min-w-0">
             <div class="text-[15px] text-[#696969] font-medium leading-none mb-[4px] truncate">
-              {{ item.user_email || '—' }}
+              {{ item.actor_email || item.user_email || '—' }}
             </div>
             <div class="text-[13px] text-[rgba(105,105,105,0.56)] leading-none">
-              {{ item.user_role || 'Пользователь' }}
+              {{ item.actor_role || item.user_role || 'Пользователь' }}
             </div>
           </div>
         </div>
@@ -149,6 +174,25 @@ const openMenuIndex = ref(null)
 const openSelect    = ref(null)
 const filterProject = ref('')
 const filterPeriod  = ref('14')
+const filterEventType = ref('')
+
+const eventTypeOptions = [
+  { value: '', label: 'Все типы' },
+  { value: 'team', label: 'Команда' },
+  { value: 'report', label: 'Отчёты' },
+  { value: 'ai', label: 'AI' },
+  { value: 'integration', label: 'Интеграции' },
+  { value: 'limit', label: 'Лимиты' },
+]
+
+const TEAM_ACTION_LABELS = {
+  member_invited: 'Приглашён участник',
+  member_removed: 'Участник удалён',
+  member_accepted: 'Приглашение принято',
+  member_role_changed: 'Изменена роль участника',
+  project_access_granted: 'Выдан доступ к проекту',
+  project_access_revoked: 'Отозван доступ к проекту',
+}
 
 const rowColors = ['#fff2f2', '#fff9f2', '#f2f8ff', '#f2f2ff']
 
@@ -164,6 +208,9 @@ const projectLabel = computed(() => {
 })
 const periodLabel = computed(() =>
   periodOptions.find(o => o.value === filterPeriod.value)?.label ?? ''
+)
+const eventTypeLabel = computed(() =>
+  eventTypeOptions.find(o => o.value === filterEventType.value)?.label ?? 'Все типы'
 )
 
 // ── Custom selects ──
@@ -183,6 +230,11 @@ function selectPeriod(val) {
   openSelect.value = null
   fetchHistory()
 }
+function selectEventType(val) {
+  filterEventType.value = val
+  openSelect.value = null
+  fetchHistory()
+}
 
 // ── Action menus ──
 function toggleMenu(index) {
@@ -198,7 +250,8 @@ const fetchHistory = async () => {
   try {
     const params = {}
     if (filterProject.value) params.client_id = filterProject.value
-    if (filterPeriod.value)  params.days = filterPeriod.value
+    if (filterPeriod.value) params.days = filterPeriod.value
+    if (filterEventType.value) params.event_type = filterEventType.value
     const { data } = await api.get('history/', { params })
     historyItems.value = Array.isArray(data) ? data : (data.items || data.results || [])
   } catch (err) {
@@ -217,8 +270,13 @@ const formatDate = (dateStr) => {
     day: '2-digit', month: '2-digit', year: 'numeric',
   })
 }
-const formatDescription = (item) =>
-  item.description || item.action || item.event_type || '—'
+const formatDescription = (item) => {
+  if (item.description) return item.description
+  if (item.event_type === 'team' && item.action && TEAM_ACTION_LABELS[item.action]) {
+    return TEAM_ACTION_LABELS[item.action]
+  }
+  return item.action || item.event_type || '—'
+}
 
 // ── v-click-outside ──
 const vClickOutside = {
