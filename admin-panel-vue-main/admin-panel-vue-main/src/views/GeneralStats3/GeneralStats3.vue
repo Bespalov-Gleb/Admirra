@@ -28,9 +28,15 @@
               v-for="item in reportChannels"
               :key="item.name"
               class="report-icon-btn"
-              :class="{ active: selectedReportChannel === item.name }"
+              :class="{
+                active: isReportChannelEnabled(item),
+                connected: isReportChannelConnected(item),
+                unlinked: item.linkable && !isReportChannelConnected(item),
+                disabled: item.disabled
+              }"
               type="button"
-              @click="selectedReportChannel = item.name"
+              :title="reportChannelTitle(item)"
+              @click="handleReportChannelClick(item)"
             >
               <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
                 <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
@@ -115,8 +121,8 @@
           </div>
         </div>
 
-        <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail" @click="handleSendSelectedReport">
-          {{ sendingTg || sendingEmail ? 'Отправка...' : 'Отправить отчет сейчас' }}
+        <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
+          {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить отчет сейчас' }}
           <CheckCircleIcon />
         </button>
       </div>
@@ -451,12 +457,12 @@
       </div>
     </div>
 
-    <!-- Telegram link modal -->
+    <!-- Report channel link modal -->
     <div
-      v-if="showTgLinkModal"
+      v-if="reportLinkChannel"
       class="fixed inset-0 z-[99999] flex items-center justify-center"
       style="background: rgba(0,0,0,0.5)"
-      @click.self="closeTgLinkModal"
+      @click.self="closeReportLinkModal"
     >
       <div
         class="w-full mx-4"
@@ -464,23 +470,31 @@
         :style="{ background: isDarkMode ? '#2a2d3c' : '#fff' }"
       >
         <h3 :style="{ fontSize:'1.25rem', fontWeight:600, color: isDarkMode ? '#f3f4f6' : '#111827', marginBottom:'0.5556rem' }">
-          Подключите Telegram
+          Подключите {{ reportLinkChannelLabel }}
         </h3>
         <p :style="{ fontSize:'0.9722rem', color: isDarkMode ? 'rgba(255,255,255,0.5)' : '#6b7280', marginBottom:'1.1111rem' }">
-          В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
+          Нажмите «Открыть бота», затем в {{ reportLinkChannelLabel }} нажмите <strong>Start</strong>. После этого вернитесь сюда и нажмите «Готово».
         </p>
+        <div style="display:flex; gap:0.8333rem; margin-bottom:0.8333rem">
+          <button
+            type="button"
+            style="width:100%; padding:0.7639rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
+            :disabled="reportLinkOpening"
+            @click="openReportBotLink"
+          >{{ reportLinkOpening ? 'Открываем...' : 'Открыть бота' }}</button>
+        </div>
         <div style="display:flex; gap:0.8333rem">
           <button
             type="button"
             :style="{ flex:1, padding:'0.6944rem', borderRadius:'0.8333rem', border:'none', cursor:'pointer', fontSize:'0.9722rem', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f3f4f6', color: isDarkMode ? '#f3f4f6' : '#374151' }"
-            @click="closeTgLinkModal"
+            @click="closeReportLinkModal"
           >Отмена</button>
           <button
             type="button"
             style="flex:1; padding:0.6944rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
-            :disabled="tgLinkChecking"
-            @click="confirmTgLinked"
-          >{{ tgLinkChecking ? 'Проверка...' : 'Готово' }}</button>
+            :disabled="reportLinkChecking"
+            @click="confirmReportChannelLinked"
+          >{{ reportLinkChecking ? 'Проверка...' : 'Готово' }}</button>
         </div>
       </div>
     </div>
@@ -588,21 +602,30 @@ const restoreCard = (key) => {
 const showAddMenu = ref(false)
 const metricsMap = computed(() => { const m = {}; metrics.value.forEach(x => { m[x.key] = x }); return m })
 const campaignQuery = ref('')
-const selectedReportChannel = ref('Telegram')
 const selectedReportTemplate = ref('Шаблон: Яндекс')
-const REPORT_SCHEDULE_STORAGE_KEY = 'admirra:dashboard-report-schedule'
 const defaultReportSchedule = { day: 'daily', time: '10:00' }
 const reportSchedule = ref({ ...defaultReportSchedule })
+const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
 const sendingExport = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
-const showTgLinkModal = ref(false)
-const pendingTgSendAfterLink = ref(false)
-const tgLinkChecking = ref(false)
-const userReportSettings = ref({ telegram_chat_id: '', email_recipients: [], report_schedule: '' })
+const sendingMax = ref(false)
+const reportLinkChannel = ref('')
+const reportLinkOpening = ref(false)
+const reportLinkChecking = ref(false)
+const pendingSendAfterLink = ref(false)
+const userReportSettings = ref({
+  telegram_chat_id: '',
+  max_chat_id: '',
+  max_user_id: '',
+  max_username: '',
+  email_recipients: [],
+  report_schedule: '',
+  delivery_channels: []
+})
 const reportComment = ref('')
 const reportGoals = ref([])
 const integrations = ref([])
@@ -690,9 +713,9 @@ const balancePlatformMeta = {
 }
 
 const reportChannels = [
-  { name: 'Telegram', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'telegram-icon' },
-  { name: 'E-mail', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon' },
-  { name: 'Max', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'max-icon' }
+  { name: 'Telegram', value: 'telegram', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'telegram-icon', linkable: true },
+  { name: 'E-mail', value: 'email', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon', disabled: true },
+  { name: 'Max', value: 'max', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'max-icon', linkable: true }
 ]
 
 const filterChannels = [
@@ -738,21 +761,6 @@ const formatReportSchedule = (value) => {
 
 const selectedSchedule = computed(() => formatReportSchedule(reportSchedule.value))
 
-const readStoredReportSchedule = () => {
-  if (typeof window === 'undefined') return { ...defaultReportSchedule }
-  try {
-    const raw = window.localStorage.getItem(REPORT_SCHEDULE_STORAGE_KEY)
-    return raw ? normalizeReportSchedule(JSON.parse(raw)) : { ...defaultReportSchedule }
-  } catch {
-    return { ...defaultReportSchedule }
-  }
-}
-
-const persistReportSchedule = (value) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(REPORT_SCHEDULE_STORAGE_KEY, JSON.stringify(normalizeReportSchedule(value)))
-}
-
 const updateScheduleTime = (event) => {
   const digits = String(event.target.value || '').replace(/\D/g, '').slice(0, 4)
   const value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits
@@ -763,25 +771,87 @@ const setScheduleDay = (day) => {
   reportSchedule.value = { ...reportSchedule.value, day }
 }
 
-const loadReportSchedule = () => {
-  reportSchedule.value = readStoredReportSchedule()
+const parseReportSchedule = (raw) => {
+  if (!raw) return { ...defaultReportSchedule }
+  if (typeof raw === 'object') return normalizeReportSchedule(raw)
+  const value = String(raw)
+  if (value.includes('_') && !value.trim().startsWith('{')) {
+    const [day, hour] = value.split('_')
+    const dayMap = { mon: 'monday', tue: 'tuesday', wed: 'wednesday', thu: 'thursday', fri: 'friday', sat: 'saturday', sun: 'sunday' }
+    return normalizeReportSchedule({ day: day === 'daily' ? 'daily' : (dayMap[day] || 'daily'), time: `${String(hour || '10').padStart(2, '0')}:00` })
+  }
+  try {
+    return normalizeReportSchedule(JSON.parse(value))
+  } catch {
+    return { ...defaultReportSchedule }
+  }
 }
 
-const saveReportSchedule = () => {
+const saveReportSettings = async ({ silent = false } = {}) => {
   const normalized = normalizeReportSchedule(reportSchedule.value)
   reportSchedule.value = normalized
-  persistReportSchedule(normalized)
   userReportSettings.value.report_schedule = JSON.stringify(normalized)
-  closeMenu('report-schedule')
-  toaster.success('График отправки сохранен')
+  userReportSettings.value.delivery_channels = [...reportDeliveryChannels.value]
+  await api.put('/auth/me', {
+    report_schedule: JSON.stringify(normalized),
+    report_delivery_channels: reportDeliveryChannels.value,
+  })
+  if (!silent) toaster.success('Настройки отчётов сохранены')
 }
 
-const resetReportSchedule = () => {
+const saveReportSchedule = async () => {
+  await saveReportSettings()
+  closeMenu('report-schedule')
+}
+
+const resetReportSchedule = async () => {
   reportSchedule.value = { ...defaultReportSchedule }
-  saveReportSchedule()
+  await saveReportSchedule()
 }
 
 const getChipBackground = (item) => (isDarkMode.value ? (item.darkBg ?? item.bg) : item.bg)
+
+const reportLinkChannelLabel = computed(() => {
+  if (reportLinkChannel.value === 'max') return 'MAX'
+  return 'Telegram'
+})
+
+const isReportChannelConnected = (item) => {
+  if (item.value === 'telegram') return Boolean(userReportSettings.value.telegram_chat_id)
+  if (item.value === 'max') return Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
+  return false
+}
+
+const isReportChannelEnabled = (item) => reportDeliveryChannels.value.includes(item.value)
+
+const reportChannelTitle = (item) => {
+  if (item.disabled) return 'E-mail будет подключён позже'
+  if (!isReportChannelConnected(item)) return `Привязать ${item.name}`
+  return isReportChannelEnabled(item) ? `${item.name}: включён` : `${item.name}: выключен`
+}
+
+const handleReportChannelClick = async (item) => {
+  if (item.disabled) {
+    toaster.info('E-mail подключим позже через Unisender')
+    return
+  }
+  if (!isReportChannelConnected(item)) {
+    reportLinkChannel.value = item.value
+    return
+  }
+
+  if (reportDeliveryChannels.value.includes(item.value)) {
+    reportDeliveryChannels.value = reportDeliveryChannels.value.filter((channel) => channel !== item.value)
+  } else {
+    reportDeliveryChannels.value = [...reportDeliveryChannels.value, item.value]
+  }
+
+  try {
+    await saveReportSettings({ silent: true })
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сохранить канал отчётов')
+  }
+}
 
 const filteredCampaigns = computed(() => {
   const query = campaignQuery.value.trim().toLowerCase()
@@ -1247,8 +1317,20 @@ const refreshUserReportSettings = async () => {
   try {
     const { data } = await api.get('/auth/me')
     userReportSettings.value.telegram_chat_id = data.report_telegram_chat_id || ''
+    userReportSettings.value.max_chat_id = data.report_max_chat_id || ''
+    userReportSettings.value.max_user_id = data.report_max_user_id || ''
+    userReportSettings.value.max_username = data.report_max_username || ''
     userReportSettings.value.email_recipients = data.report_email_recipients || []
-    userReportSettings.value.report_schedule = data.report_schedule || 'mon_10'
+    userReportSettings.value.report_schedule = data.report_schedule || ''
+    userReportSettings.value.delivery_channels = data.report_delivery_channels || []
+    reportSchedule.value = parseReportSchedule(data.report_schedule)
+    reportDeliveryChannels.value = (data.report_delivery_channels || []).filter((channel) => ['telegram', 'max'].includes(channel))
+    if (!reportDeliveryChannels.value.length) {
+      const defaults = []
+      if (data.report_telegram_chat_id) defaults.push('telegram')
+      if (data.report_max_chat_id || data.report_max_user_id) defaults.push('max')
+      reportDeliveryChannels.value = defaults
+    }
   } catch {
     /* ignore */
   }
@@ -1351,37 +1433,65 @@ const handleExportAction = async (type) => {
   return handleGetLink()
 }
 
-const executeTelegramReportSend = async (chatId) => {
-  sendingTg.value = true
+const executeReportSend = async () => {
+  const channels = reportDeliveryChannels.value.filter((channel) => ['telegram', 'max'].includes(channel))
+  if (!channels.length) {
+    toaster.error('Выберите канал доставки отчёта')
+    return
+  }
+  if (channels.includes('telegram') && !userReportSettings.value.telegram_chat_id) {
+    reportLinkChannel.value = 'telegram'
+    pendingSendAfterLink.value = true
+    return
+  }
+  if (channels.includes('max') && !userReportSettings.value.max_chat_id && !userReportSettings.value.max_user_id) {
+    reportLinkChannel.value = 'max'
+    pendingSendAfterLink.value = true
+    return
+  }
+
+  sendingTg.value = channels.includes('telegram')
+  sendingMax.value = channels.includes('max')
   try {
     const text = await getOrGenerateComment()
     await api.post('reports/send', {
       report_type: 'ai',
-      channels: ['telegram'],
-      telegram_chat_id: chatId,
+      channels,
+      telegram_chat_id: userReportSettings.value.telegram_chat_id || undefined,
+      max_chat_id: userReportSettings.value.max_chat_id || undefined,
+      max_user_id: userReportSettings.value.max_user_id || undefined,
       client_id: filters.client_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
       ...(text ? { comment: text } : {})
     })
-    toaster.success('Отчет отправлен в Telegram')
+    toaster.success('Отчёт отправлен')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Ошибка отправки')
   } finally {
     sendingTg.value = false
+    sendingMax.value = false
   }
 }
 
-const handleSendTelegram = async () => {
-  const existing = (userReportSettings.value.telegram_chat_id || '').trim()
-  if (existing) return executeTelegramReportSend(existing)
+const openReportBotLink = async () => {
+  if (!reportLinkChannel.value) return
+  reportLinkOpening.value = true
   try {
-    await openTelegramBotForLinking()
-    pendingTgSendAfterLink.value = true
-    showTgLinkModal.value = true
+    if (reportLinkChannel.value === 'telegram') {
+      await openTelegramBotForLinking()
+    } else {
+      const { data } = await api.post('auth/max-reports/link')
+      const url = data?.deep_link
+      if (!url) throw new Error('Нет ссылки')
+      const w = window.open(url, '_blank', 'noopener,noreferrer')
+      if (!w) window.location.assign(url)
+    }
     toaster.info('Откройте бота и нажмите Start')
   } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось открыть Telegram')
+    toaster.error(err.response?.data?.detail || 'Не удалось открыть бота')
+  } finally {
+    reportLinkOpening.value = false
   }
 }
 
@@ -1411,38 +1521,45 @@ const handleSendEmail = async () => {
   }
 }
 
-const handleSendSelectedReport = () => {
-  if (selectedReportChannel.value === 'E-mail') return handleSendEmail()
-  return handleSendTelegram()
-}
+const handleSendSelectedReport = () => executeReportSend()
 
-const refreshTelegramChatFromServer = async () => {
+const refreshReportSettingsFromServer = async () => {
   try {
     const { data } = await api.get('/auth/me')
     userReportSettings.value.telegram_chat_id = data?.report_telegram_chat_id || ''
+    userReportSettings.value.max_chat_id = data?.report_max_chat_id || ''
+    userReportSettings.value.max_user_id = data?.report_max_user_id || ''
+    userReportSettings.value.max_username = data?.report_max_username || ''
   } catch { /* ignore */ }
 }
 
-function closeTgLinkModal() {
-  showTgLinkModal.value = false
-  pendingTgSendAfterLink.value = false
+function closeReportLinkModal() {
+  reportLinkChannel.value = ''
+  pendingSendAfterLink.value = false
 }
 
-async function confirmTgLinked() {
-  tgLinkChecking.value = true
+async function confirmReportChannelLinked() {
+  reportLinkChecking.value = true
   try {
-    await refreshTelegramChatFromServer()
-    const chatId = (userReportSettings.value.telegram_chat_id || '').trim()
-    if (!chatId) {
-      toaster.error('Сначала нажмите Start в чате с ботом в Telegram')
+    const channel = reportLinkChannel.value
+    await refreshReportSettingsFromServer()
+    const linked = channel === 'telegram'
+      ? Boolean(userReportSettings.value.telegram_chat_id)
+      : Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
+    if (!linked) {
+      toaster.error(`Сначала нажмите Start в ${reportLinkChannelLabel.value}`)
       return
     }
-    showTgLinkModal.value = false
-    const sendNow = pendingTgSendAfterLink.value
-    pendingTgSendAfterLink.value = false
-    if (sendNow) await executeTelegramReportSend(chatId)
+    if (!reportDeliveryChannels.value.includes(channel)) {
+      reportDeliveryChannels.value = [...reportDeliveryChannels.value, channel]
+      await saveReportSettings({ silent: true })
+    }
+    reportLinkChannel.value = ''
+    const sendNow = pendingSendAfterLink.value
+    pendingSendAfterLink.value = false
+    if (sendNow) await executeReportSend()
   } finally {
-    tgLinkChecking.value = false
+    reportLinkChecking.value = false
   }
 }
 
@@ -1470,7 +1587,6 @@ watch(() => filters.channel, (channel) => {
 })
 
 onMounted(() => {
-  loadReportSchedule()
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
@@ -2189,10 +2305,30 @@ onMounted(() => {
   transform: scale(1.04);
 }
 
+.report-icon-btn.unlinked .report-icon-circle,
+.report-icon-btn.disabled .report-icon-circle {
+  background: #eef1f5;
+  color: #b3bccb;
+}
+
+.report-icon-btn.disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.report-icon-btn.disabled:hover {
+  transform: none;
+}
+
 .report-icon-btn.active .report-icon-circle {
   background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
   color: #fff;
   box-shadow: none;
+}
+
+.report-icon-btn.connected:not(.active) .report-icon-circle {
+  background: #e8f0ff;
+  color: #2563eb;
 }
 
 .report-icon-circle {

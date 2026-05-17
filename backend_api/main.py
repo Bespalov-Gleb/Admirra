@@ -60,6 +60,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from backend_api.auth import router as auth_router
 from backend_api.oauth_login import router as oauth_login_router
 from backend_api.telegram_report_link import link_router as telegram_link_router, webhook_router as telegram_webhook_router
+from backend_api.max_report_link import link_router as max_reports_link_router, webhook_router as max_reports_webhook_router
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
@@ -122,7 +123,7 @@ async def startup_event():
         lead_scheduler.add_job(run_weekly_report, "cron", day_of_week="mon", hour=9, minute=30, id="lead_weekly_report")
     if REPORTS_AVAILABLE:
         from backend_api.reports.scheduler import run_scheduled_reports
-        lead_scheduler.add_job(run_scheduled_reports, "cron", hour=10, minute=0, id="report_scheduled_send")
+        lead_scheduler.add_job(run_scheduled_reports, "cron", minute="*", id="report_scheduled_send")
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")
@@ -180,6 +181,8 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(oauth_login_router, prefix="/api")
 app.include_router(telegram_link_router, prefix="/api")
 app.include_router(telegram_webhook_router, prefix="/api")
+app.include_router(max_reports_link_router, prefix="/api")
+app.include_router(max_reports_webhook_router, prefix="/api")
 app.include_router(clients_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")

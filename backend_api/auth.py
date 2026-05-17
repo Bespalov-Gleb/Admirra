@@ -468,6 +468,18 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
         current_user.yandex_finance_token = updates.yandex_finance_token
     if updates.report_telegram_chat_id is not None:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
+    if updates.report_max_chat_id is not None:
+        current_user.report_max_chat_id = updates.report_max_chat_id
+    if updates.report_max_user_id is not None:
+        current_user.report_max_user_id = updates.report_max_user_id
+    if updates.report_max_username is not None:
+        current_user.report_max_username = updates.report_max_username
+    if updates.report_delivery_channels is not None:
+        import json
+
+        allowed_channels = {"telegram", "max"}
+        channels = [ch for ch in updates.report_delivery_channels if ch in allowed_channels]
+        current_user.report_delivery_channels = json.dumps(channels) if channels else None
     if updates.report_email_recipients is not None:
         import json
 

@@ -53,9 +53,11 @@ def _log_report_export(
 
 class SendReportRequest(BaseModel):
     report_type: str = "ai"  # pdf | ai | text
-    channels: List[str]  # ["email", "telegram"]
+    channels: List[str]  # ["email", "telegram", "max"]
     email_recipients: Optional[List[str]] = None
     telegram_chat_id: Optional[str] = None
+    max_chat_id: Optional[str] = None
+    max_user_id: Optional[str] = None
     client_id: Optional[str] = None
     start_date: str
     end_date: str
@@ -516,7 +518,7 @@ async def send_report(
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
 
-    results = {"email": False, "telegram": False, "email_error": None}
+    results = {"email": False, "telegram": False, "max": False, "email_error": None}
 
     # Email
     if "email" in req.channels and req.email_recipients:
@@ -579,6 +581,25 @@ async def send_report(
         else:
             raise HTTPException(status_code=400, detail="Нет данных для отправки в Telegram")
 
+    # MAX reports bot
+    if "max" in req.channels:
+        max_chat_id = (req.max_chat_id or current_user.report_max_chat_id or "").strip()
+        max_user_id = (req.max_user_id or current_user.report_max_user_id or "").strip()
+        if not max_chat_id and not max_user_id:
+            raise HTTPException(status_code=400, detail="MAX для отчётов не привязан")
+        try:
+            from backend_api.services import max_reports_bot
+
+            body_text = ai_text or f"Отчёт за период {req.start_date} — {req.end_date} сформирован."
+            header = f"AI-отчёт за период {req.start_date} — {req.end_date}\n\n" if ai_text else ""
+            results["max"] = await max_reports_bot.send_message(
+                header + body_text,
+                chat_id=max_chat_id or None,
+                user_id=max_user_id or None,
+            )
+        except Exception as e:
+            logger.exception("MAX report send failed: %s", e)
+
     if "email" in req.channels and req.email_recipients:
         log_history_event(
             db,
@@ -600,6 +621,17 @@ async def send_report(
             client_id=u_client_id,
             target_type="report_delivery",
             meta={"ok": bool(results.get("telegram")), "chat_id": req.telegram_chat_id},
+        )
+    if "max" in req.channels:
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="report",
+            action="report_sent_max",
+            description="Отправка отчета в MAX",
+            client_id=u_client_id,
+            target_type="report_delivery",
+            meta={"ok": bool(results.get("max"))},
         )
     db.commit()
     return {"ok": True, "results": results}

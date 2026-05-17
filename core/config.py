@@ -32,6 +32,9 @@ class OAuthConfig:
     max_bot_token: str
     max_bot_name: str
     max_webhook_secret: str
+    max_reports_bot_token: str
+    max_reports_bot_name: str
+    max_reports_webhook_secret: str
     max_api_base: str
     max_login_ttl_seconds: int
     max_poll_interval_ms: int
@@ -184,6 +187,9 @@ def get_config() -> Config:
             max_bot_token=_env("MAX_BOT_TOKEN"),
             max_bot_name=_env("MAX_BOT_NAME"),
             max_webhook_secret=_env("MAX_WEBHOOK_SECRET"),
+            max_reports_bot_token=_env("MAX_REPORTS_BOT_TOKEN"),
+            max_reports_bot_name=_env("MAX_REPORTS_BOT_NAME"),
+            max_reports_webhook_secret=_env("MAX_REPORTS_WEBHOOK_SECRET"),
             max_api_base=(_env("MAX_API_BASE", "https://platform-api.max.ru") or "https://platform-api.max.ru").rstrip("/"),
             max_login_ttl_seconds=int(_env("MAX_LOGIN_TTL_SECONDS", "300")),
             max_poll_interval_ms=int(_env("MAX_POLL_INTERVAL_MS", "2000")),

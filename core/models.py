@@ -35,8 +35,12 @@ class User(Base):
     yandex_finance_token = Column(String, nullable=True)
     # Настройки доставки отчётов
     report_telegram_chat_id = Column(String, nullable=True)
+    report_max_chat_id = Column(String, nullable=True)
+    report_max_user_id = Column(String, nullable=True)
+    report_max_username = Column(String, nullable=True)
+    report_delivery_channels = Column(String, nullable=True)  # JSON массив: telegram, max
     report_email_recipients = Column(String, nullable=True)  # JSON массив email адресов
-    report_schedule = Column(String, nullable=True)  # mon_10, tue_10, ..., daily_10
+    report_schedule = Column(String, nullable=True)  # JSON: {"day":"daily","time":"10:00"}
 
     # Подтверждение email (регистрация)
     email_verified = Column(Boolean, default=False, nullable=False)
@@ -139,6 +143,24 @@ class TelegramLinkToken(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", backref="telegram_link_tokens")
+
+
+class MaxReportLinkToken(Base):
+    """
+    Одноразовый токен для deep link max.ru/<bot>?start=<token>.
+    После bot_started webhook привязывает MAX-чат к пользователю для отчётов.
+    """
+
+    __tablename__ = "max_report_link_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", backref="max_report_link_tokens")
 
 
 class UserOAuthIdentity(Base):

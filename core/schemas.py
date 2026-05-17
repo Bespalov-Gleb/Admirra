@@ -12,12 +12,28 @@ class UserBase(BaseModel):
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
+    report_max_chat_id: Optional[str] = None
+    report_max_user_id: Optional[str] = None
+    report_max_username: Optional[str] = None
+    report_delivery_channels: Optional[List[str]] = None  # telegram, max
     report_email_recipients: Optional[List[str]] = None  # Массив email для отчётов
-    report_schedule: Optional[str] = None  # mon_10, tue_10, wed_10, thu_10, fri_10, daily_10
+    report_schedule: Optional[str] = None  # JSON {"day":"daily","time":"10:00"}
 
     @field_validator("report_email_recipients", mode="before")
     @classmethod
     def parse_email_recipients(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        try:
+            return json.loads(v) if v else []
+        except Exception:
+            return []
+
+    @field_validator("report_delivery_channels", mode="before")
+    @classmethod
+    def parse_report_delivery_channels(cls, v):
         if v is None:
             return None
         if isinstance(v, list):
@@ -146,6 +162,10 @@ class UserUpdateSettings(BaseModel):
     last_name: Optional[str] = None
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
+    report_max_chat_id: Optional[str] = None
+    report_max_user_id: Optional[str] = None
+    report_max_username: Optional[str] = None
+    report_delivery_channels: Optional[List[str]] = None
     report_email_recipients: Optional[List[str]] = None
     report_schedule: Optional[str] = None
 
