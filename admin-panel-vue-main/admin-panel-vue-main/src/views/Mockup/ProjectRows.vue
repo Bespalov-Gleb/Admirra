@@ -456,11 +456,12 @@
       @saved="handleAvatarSaved"
     />
 
-    <EditProjectModal
+    <ProjectSettingsModal
       v-if="editingProject"
       :project="editingProject"
       @close="editingProject = null"
       @saved="handleEditSaved"
+      @deleted="handleProjectDeleted"
     />
 
   </div>
@@ -477,7 +478,7 @@ import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } fr
 import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
-import EditProjectModal from '../../components/EditProjectModal.vue'
+import ProjectSettingsModal from '../../components/ProjectSettingsModal.vue'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
@@ -971,7 +972,12 @@ const editProject = (project) => {
 
 const handleEditSaved = (updatedProject) => {
   updateProjectInList(updatedProject)
-  toaster.success('Проект обновлён')
+  editingProject.value = null
+}
+
+const handleProjectDeleted = (projectId) => {
+  projects.value = projects.value.filter((p) => p.id !== projectId)
+  editingProject.value = null
 }
 
 const requestDeleteProject = (project) => {
