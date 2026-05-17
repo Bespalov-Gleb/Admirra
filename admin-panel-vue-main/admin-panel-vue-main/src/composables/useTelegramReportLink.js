@@ -10,7 +10,12 @@ export function useTelegramReportLink() {
     if (!url) throw new Error('Нет ссылки')
     const w = window.open(url, '_blank', 'noopener,noreferrer')
     if (!w) {
-      window.location.assign(url)
+      try {
+        await navigator.clipboard?.writeText(url)
+        return { ...data, copied_to_clipboard: true }
+      } catch {
+        throw new Error('Браузер заблокировал открытие новой вкладки')
+      }
     }
     return data
   }

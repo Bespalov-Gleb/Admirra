@@ -477,11 +477,21 @@
             </div>
             <div>
               <p class="report-link-kicker">Канал отчётов</p>
-              <h3>Привязать {{ reportLinkChannelLabel }}</h3>
+              <h3>{{ reportLinkConnected ? 'Управление' : 'Привязать' }} {{ reportLinkChannelLabel }}</h3>
             </div>
           </div>
 
-          <div class="report-link-steps">
+          <div v-if="reportLinkConnected" class="report-link-connected">
+            <div class="report-link-account">
+              <span>Привязан аккаунт</span>
+              <strong>{{ reportLinkAccountLabel }}</strong>
+            </div>
+            <p>
+              {{ reportLinkEnabled ? 'Отчёты по расписанию будут приходить в этот канал.' : 'Аккаунт привязан, но доставка по расписанию сейчас выключена.' }}
+            </p>
+          </div>
+
+          <div v-else class="report-link-steps">
             <div class="report-link-step">
               <span>1</span>
               <p>Откройте бота по персональной ссылке</p>
@@ -497,6 +507,7 @@
           </div>
 
           <button
+            v-if="!reportLinkConnected"
             type="button"
             class="report-link-primary"
             :disabled="reportLinkOpening"
@@ -505,7 +516,7 @@
             {{ reportLinkOpening ? 'Открываем...' : `Открыть ${reportLinkChannelLabel}` }}
           </button>
 
-          <div class="report-link-actions">
+          <div v-if="!reportLinkConnected" class="report-link-actions">
             <button type="button" class="report-link-cancel" @click="closeReportLinkModal">Отмена</button>
             <button
               type="button"
@@ -516,6 +527,28 @@
               {{ reportLinkChecking ? 'Проверяем...' : 'Проверить привязку' }}
             </button>
           </div>
+
+          <div v-else class="report-link-actions report-link-actions--manage">
+            <button type="button" class="report-link-cancel" @click="closeReportLinkModal">Закрыть</button>
+            <button
+              type="button"
+              class="report-link-check"
+              :disabled="reportLinkChecking"
+              @click="toggleReportChannelDelivery"
+            >
+              {{ reportLinkEnabled ? 'Выключить доставку' : 'Включить доставку' }}
+            </button>
+          </div>
+
+          <button
+            v-if="reportLinkConnected"
+            type="button"
+            class="report-link-unlink"
+            :disabled="reportLinkChecking"
+            @click="unlinkReportChannel"
+          >
+            Отвязать аккаунт
+          </button>
         </div>
       </div>
     </Teleport>
@@ -837,18 +870,42 @@ const reportLinkChannelLabel = computed(() => {
   return 'Telegram'
 })
 
-const isReportChannelConnected = (item) => {
-  if (item.value === 'telegram') return Boolean(userReportSettings.value.telegram_chat_id)
-  if (item.value === 'max') return Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
+const isReportChannelValueConnected = (channel) => {
+  if (channel === 'telegram') return Boolean(userReportSettings.value.telegram_chat_id)
+  if (channel === 'max') return Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
   return false
+}
+
+const isReportChannelConnected = (item) => {
+  return isReportChannelValueConnected(item.value)
 }
 
 const isReportChannelEnabled = (item) => reportDeliveryChannels.value.includes(item.value)
 
+const reportLinkConnected = computed(() => isReportChannelValueConnected(reportLinkChannel.value))
+
+const reportLinkEnabled = computed(() => reportDeliveryChannels.value.includes(reportLinkChannel.value))
+
+const reportLinkAccountLabel = computed(() => {
+  if (reportLinkChannel.value === 'telegram') {
+    const chatId = String(userReportSettings.value.telegram_chat_id || '').trim()
+    return chatId ? `Chat ID ${chatId}` : 'Telegram не привязан'
+  }
+  if (reportLinkChannel.value === 'max') {
+    const username = String(userReportSettings.value.max_username || '').trim()
+    const userId = String(userReportSettings.value.max_user_id || '').trim()
+    const chatId = String(userReportSettings.value.max_chat_id || '').trim()
+    if (username) return username.startsWith('@') ? username : `@${username}`
+    if (userId) return `MAX ID ${userId}`
+    if (chatId) return `MAX Chat ${chatId}`
+  }
+  return `${reportLinkChannelLabel.value} не привязан`
+})
+
 const reportChannelTitle = (item) => {
   if (item.disabled) return 'E-mail будет подключён позже'
   if (!isReportChannelConnected(item)) return `Привязать ${item.name}`
-  return isReportChannelEnabled(item) ? `${item.name}: включён` : `${item.name}: выключен`
+  return `Управлять ${item.name}`
 }
 
 const handleReportChannelClick = async (item) => {
@@ -856,21 +913,9 @@ const handleReportChannelClick = async (item) => {
     toaster.info('E-mail подключим позже через Unisender')
     return
   }
-  if (!isReportChannelConnected(item)) {
+  if (item.linkable) {
     reportLinkChannel.value = item.value
     return
-  }
-
-  if (reportDeliveryChannels.value.includes(item.value)) {
-    reportDeliveryChannels.value = reportDeliveryChannels.value.filter((channel) => channel !== item.value)
-  } else {
-    reportDeliveryChannels.value = [...reportDeliveryChannels.value, item.value]
-  }
-
-  try {
-    await saveReportSettings({ silent: true })
-  } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось сохранить канал отчётов')
   }
 }
 
@@ -1499,20 +1544,85 @@ const openReportBotLink = async () => {
   if (!reportLinkChannel.value) return
   reportLinkOpening.value = true
   try {
+    let copiedToClipboard = false
     if (reportLinkChannel.value === 'telegram') {
-      await openTelegramBotForLinking()
+      const result = await openTelegramBotForLinking()
+      copiedToClipboard = Boolean(result?.copied_to_clipboard)
     } else {
       const { data } = await api.post('auth/max-reports/link')
       const url = data?.deep_link
       if (!url) throw new Error('Нет ссылки')
       const w = window.open(url, '_blank', 'noopener,noreferrer')
-      if (!w) window.location.assign(url)
+      if (!w) {
+        try {
+          await navigator.clipboard?.writeText(url)
+          copiedToClipboard = true
+        } catch {
+          throw new Error('Браузер заблокировал открытие новой вкладки')
+        }
+      }
     }
-    toaster.info('Откройте бота и нажмите Start')
+    toaster.info(copiedToClipboard ? 'Ссылка скопирована. Откройте её в новой вкладке и нажмите Start' : 'Откройте бота и нажмите Start')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось открыть бота')
   } finally {
     reportLinkOpening.value = false
+  }
+}
+
+const saveReportDeliveryChannels = async (nextChannels) => {
+  reportDeliveryChannels.value = nextChannels.filter((channel) => ['telegram', 'max'].includes(channel))
+  await saveReportSettings({ silent: true })
+}
+
+const toggleReportChannelDelivery = async () => {
+  if (!reportLinkChannel.value || !reportLinkConnected.value) return
+  reportLinkChecking.value = true
+  try {
+    const channel = reportLinkChannel.value
+    const nextChannels = reportDeliveryChannels.value.includes(channel)
+      ? reportDeliveryChannels.value.filter((item) => item !== channel)
+      : [...reportDeliveryChannels.value, channel]
+    await saveReportDeliveryChannels(nextChannels)
+    toaster.success(reportDeliveryChannels.value.includes(channel) ? 'Доставка включена' : 'Доставка выключена')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сохранить канал отчётов')
+  } finally {
+    reportLinkChecking.value = false
+  }
+}
+
+const unlinkReportChannel = async () => {
+  if (!reportLinkChannel.value || !reportLinkConnected.value) return
+  reportLinkChecking.value = true
+  const channel = reportLinkChannel.value
+  try {
+    const payload = {
+      report_schedule: JSON.stringify(normalizeReportSchedule(reportSchedule.value)),
+      report_delivery_channels: reportDeliveryChannels.value.filter((item) => item !== channel),
+    }
+    if (channel === 'telegram') {
+      payload.report_telegram_chat_id = ''
+    } else {
+      payload.report_max_chat_id = ''
+      payload.report_max_user_id = ''
+      payload.report_max_username = ''
+    }
+    await api.put('/auth/me', payload)
+    reportDeliveryChannels.value = payload.report_delivery_channels
+    if (channel === 'telegram') {
+      userReportSettings.value.telegram_chat_id = ''
+    } else {
+      userReportSettings.value.max_chat_id = ''
+      userReportSettings.value.max_user_id = ''
+      userReportSettings.value.max_username = ''
+    }
+    userReportSettings.value.delivery_channels = [...reportDeliveryChannels.value]
+    toaster.success(`${reportLinkChannelLabel.value} отвязан`)
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отвязать аккаунт')
+  } finally {
+    reportLinkChecking.value = false
   }
 }
 
@@ -1575,10 +1685,14 @@ async function confirmReportChannelLinked() {
       reportDeliveryChannels.value = [...reportDeliveryChannels.value, channel]
       await saveReportSettings({ silent: true })
     }
-    reportLinkChannel.value = ''
     const sendNow = pendingSendAfterLink.value
     pendingSendAfterLink.value = false
-    if (sendNow) await executeReportSend()
+    if (sendNow) {
+      reportLinkChannel.value = ''
+      await executeReportSend()
+      return
+    }
+    toaster.success(`${reportLinkChannelLabel.value} привязан`)
   } finally {
     reportLinkChecking.value = false
   }
@@ -2549,9 +2663,62 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.72);
 }
 
+.report-link-connected {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.15rem;
+}
+
+.report-link-account {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid #d7e5ff;
+  border-radius: 0.95rem;
+  background: linear-gradient(135deg, rgba(47, 109, 246, 0.08) 0%, rgba(20, 184, 213, 0.08) 100%);
+}
+
+.report-link-card.is-dark .report-link-account {
+  border-color: rgba(47, 109, 246, 0.32);
+  background: linear-gradient(135deg, rgba(47, 109, 246, 0.14) 0%, rgba(20, 184, 213, 0.12) 100%);
+}
+
+.report-link-account span {
+  color: #697586;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.report-link-account strong {
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.report-link-card.is-dark .report-link-account span {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.report-link-card.is-dark .report-link-account strong {
+  color: #f8fafc;
+}
+
+.report-link-connected p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.report-link-card.is-dark .report-link-connected p {
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .report-link-primary,
 .report-link-check,
-.report-link-cancel {
+.report-link-cancel,
+.report-link-unlink {
   border: 0;
   border-radius: 0.85rem;
   font-size: 0.94rem;
@@ -2588,6 +2755,10 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
+.report-link-actions--manage {
+  margin-bottom: 0.75rem;
+}
+
 .report-link-cancel {
   min-height: 2.75rem;
   background: #f3f5f7;
@@ -2610,6 +2781,25 @@ onMounted(() => {
   border-color: rgba(47, 109, 246, 0.38);
   background: rgba(47, 109, 246, 0.1);
   color: #8bb4ff;
+}
+
+.report-link-unlink {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  color: #dc2626;
+}
+
+.report-link-card.is-dark .report-link-unlink {
+  border-color: rgba(248, 113, 113, 0.26);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.report-link-unlink:disabled {
+  opacity: 0.58;
+  cursor: wait;
 }
 
 @media (max-width: 420px) {
