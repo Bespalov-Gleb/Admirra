@@ -179,7 +179,10 @@ class SubscriptionService:
         if SubscriptionService.is_admin_bypass(user):
             return
         plan = SubscriptionService.get_user_plan(db, user)
-        clients_count = db.query(models.Client).filter(models.Client.owner_id == user.id).count()
+        clients_count = db.query(models.Client).filter(
+            models.Client.owner_id == user.id,
+            models.Client.status == models.ClientStatus.ACTIVE,
+        ).count()
         phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user.id).count()
         total = clients_count + phone_count
         if total < plan.max_projects:

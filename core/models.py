@@ -10,6 +10,10 @@ class UserRole(enum.Enum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
 
+class ClientStatus(enum.Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+
 class TeamMemberRole(enum.Enum):
     MEMBER = "member"
     CLIENT = "client"
@@ -204,10 +208,16 @@ class Client(Base):
     description = Column(String)
     spreadsheet_id = Column(String)
     avatar_url = Column(String)
+    site_url = Column(String, nullable=True)
+    status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="active")
+    detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
+    actual_start_date = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     owner = relationship("User", back_populates="clients")
     integrations = relationship("Integration", back_populates="client")
+    budgets = relationship("ProjectBudget", back_populates="client", cascade="all, delete-orphan")
+    target_cpas = relationship("ProjectTargetCPA", back_populates="client", cascade="all, delete-orphan")
     yandex_stats = relationship("YandexStats", back_populates="client")
     yandex_keywords = relationship("YandexKeywords", back_populates="client")
     yandex_groups = relationship("YandexGroups", back_populates="client")
@@ -481,6 +491,38 @@ class MetrikaGoals(Base):
     
     # Relationships
     integration = relationship("Integration", foreign_keys=[integration_id])
+
+class ProjectBudget(Base):
+    __tablename__ = "project_budgets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel = Column(Enum(IntegrationPlatform), nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    client = relationship("Client", back_populates="budgets")
+
+
+class ProjectTargetCPA(Base):
+    __tablename__ = "project_target_cpa"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel = Column(Enum(IntegrationPlatform), nullable=True)
+    goal_id = Column(String, nullable=True)
+    goal_name = Column(String, nullable=True)
+    is_summary = Column(Boolean, default=False, nullable=False)
+    target_cpa = Column(Numeric(14, 2), nullable=True)
+    control_enabled = Column(Boolean, default=False, nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    client = relationship("Client", back_populates="target_cpas")
+
 
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"

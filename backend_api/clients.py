@@ -2,11 +2,11 @@ import uuid
 from io import BytesIO
 from pathlib import Path
 from os import getenv
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, schemas, security
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from typing import List
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -130,13 +130,20 @@ def update_client(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Update client information.
-    """
     assert_project_access(db, current_user, client_id, write=True)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
-    
+
     update_data = client_in.dict(exclude_unset=True)
+
+    if "status" in update_data:
+        new_status = update_data["status"]
+        if new_status not in ("active", "paused"):
+            raise HTTPException(status_code=400, detail="Статус должен быть 'active' или 'paused'")
+        old_status = client.status.value if hasattr(client.status, "value") else client.status
+        if old_status == "paused" and new_status == "active":
+            _check_can_resume_project(db, current_user, client)
+        update_data["status"] = models.ClientStatus(new_status)
+
     for key, value in update_data.items():
         setattr(client, key, value)
     if update_data:
@@ -149,7 +156,7 @@ def update_client(
             client_id=client.id,
             target_type="client",
             target_id=str(client.id),
-            meta={"fields": sorted(update_data.keys())},
+            meta={"fields": sorted(str(k) for k in update_data.keys())},
         )
         log_history_event(
             db,
@@ -160,11 +167,31 @@ def update_client(
             client_id=client.id,
             target_type="client",
             target_id=str(client.id),
-            meta={"fields": sorted(update_data.keys())},
+            meta={"fields": sorted(str(k) for k in update_data.keys())},
         )
     db.commit()
     db.refresh(client)
     return client
+
+
+def _check_can_resume_project(db: Session, user: models.User, excluded_client: models.Client):
+    if SubscriptionService.is_admin_bypass(user):
+        return
+    plan = SubscriptionService.get_user_plan(db, user)
+    active_count = db.query(models.Client).filter(
+        models.Client.owner_id == user.id,
+        models.Client.status == models.ClientStatus.ACTIVE,
+    ).count()
+    phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user.id).count()
+    total = active_count + phone_count
+    if total < plan.max_projects:
+        return
+    if not SubscriptionService.billing_enforced():
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"Достигнут лимит активных проектов для тарифа '{plan.name}' ({plan.max_projects}). Повысьте тариф или приостановите другой проект.",
+    )
 
 
 @router.post("/{client_id}/avatar", response_model=schemas.ClientResponse)
@@ -231,12 +258,9 @@ def delete_client(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete a client. All related integrations and stats will be affected (based on DB constraints).
-    """
     assert_project_access(db, current_user, client_id, write=True)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
-    
+
     log_history_event(
         db,
         actor=current_user,
@@ -250,3 +274,180 @@ def delete_client(
     db.delete(client)
     db.commit()
     return None
+
+
+# ── Budgets ──────────────────────────────────────────────────────────
+
+def _default_period() -> tuple[date, date]:
+    today = date.today()
+    period_start = today.replace(day=1)
+    if today.month == 12:
+        period_end = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
+    else:
+        period_end = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+    return period_start, period_end
+
+
+def _resolve_channel(db: Session, client_id: uuid.UUID, item) -> models.IntegrationPlatform:
+    if getattr(item, "channel", None):
+        return _parse_platform(item.channel)
+    integration_id = getattr(item, "integration_id", None)
+    if integration_id:
+        integration = db.query(models.Integration).filter(
+            models.Integration.id == uuid.UUID(str(integration_id)),
+            models.Integration.client_id == client_id,
+        ).first()
+        if integration:
+            return integration.platform
+    raise HTTPException(status_code=400, detail="Не указан канал или integration_id")
+
+
+@router.get("/{client_id}/budgets", response_model=List[schemas.ProjectBudgetResponse])
+def get_budgets(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=False)
+    rows = (
+        db.query(models.ProjectBudget)
+        .filter(models.ProjectBudget.client_id == client_id)
+        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel)
+        .all()
+    )
+    return rows
+
+
+@router.put("/{client_id}/budgets", response_model=List[schemas.ProjectBudgetResponse])
+def set_budgets(
+    client_id: uuid.UUID,
+    items: List[schemas.ProjectBudgetItem] = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    db.query(models.ProjectBudget).filter(models.ProjectBudget.client_id == client_id).delete()
+
+    default_start, default_end = _default_period()
+    created = []
+    for item in items:
+        channel_enum = _resolve_channel(db, client_id, item)
+        p_start = datetime.strptime(item.period_start, "%Y-%m-%d").date() if item.period_start else default_start
+        p_end = datetime.strptime(item.period_end, "%Y-%m-%d").date() if item.period_end else default_end
+        row = models.ProjectBudget(
+            client_id=client_id,
+            channel=channel_enum,
+            amount=item.amount,
+            period_start=p_start,
+            period_end=p_end,
+        )
+        db.add(row)
+        created.append(row)
+
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_budgets_updated",
+        description=f"Обновлены бюджеты проекта {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+        meta={"count": len(created)},
+    )
+    db.commit()
+    for row in created:
+        db.refresh(row)
+    return created
+
+
+# ── Target CPA ───────────────────────────────────────────────────────
+
+@router.get("/{client_id}/target-cpa", response_model=List[schemas.ProjectTargetCPAResponse])
+def get_target_cpa(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=False)
+    rows = (
+        db.query(models.ProjectTargetCPA)
+        .filter(models.ProjectTargetCPA.client_id == client_id)
+        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel)
+        .all()
+    )
+    return rows
+
+
+@router.put("/{client_id}/target-cpa", response_model=List[schemas.ProjectTargetCPAResponse])
+def set_target_cpa(
+    client_id: uuid.UUID,
+    items: List[schemas.ProjectTargetCPAItem] = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    db.query(models.ProjectTargetCPA).filter(models.ProjectTargetCPA.client_id == client_id).delete()
+
+    default_start, default_end = _default_period()
+    created = []
+    for item in items:
+        channel_enum = None
+        if item.channel:
+            channel_enum = _parse_platform(item.channel)
+        elif item.integration_id:
+            integration = db.query(models.Integration).filter(
+                models.Integration.id == uuid.UUID(str(item.integration_id)),
+                models.Integration.client_id == client_id,
+            ).first()
+            if integration:
+                channel_enum = integration.platform
+
+        p_start = datetime.strptime(item.period_start, "%Y-%m-%d").date() if item.period_start else default_start
+        p_end = datetime.strptime(item.period_end, "%Y-%m-%d").date() if item.period_end else default_end
+
+        row = models.ProjectTargetCPA(
+            client_id=client_id,
+            channel=channel_enum,
+            goal_id=item.goal_id,
+            goal_name=item.goal_name,
+            is_summary=item.is_summary,
+            target_cpa=item.target_cpa,
+            control_enabled=item.control_enabled,
+            period_start=p_start,
+            period_end=p_end,
+        )
+        db.add(row)
+        created.append(row)
+
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_target_cpa_updated",
+        description=f"Обновлены целевые CPA проекта {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+        meta={"count": len(created)},
+    )
+    db.commit()
+    for row in created:
+        db.refresh(row)
+    return created
+
+
+def _parse_platform(value: str) -> models.IntegrationPlatform:
+    normalized = value.upper().replace(" ", "_").replace("-", "_")
+    try:
+        return models.IntegrationPlatform(normalized)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Неизвестная платформа: {value}")

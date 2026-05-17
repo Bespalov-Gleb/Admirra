@@ -340,18 +340,114 @@ class ClientUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     spreadsheet_id: Optional[str] = None
+    site_url: Optional[str] = None
+    detector_enabled: Optional[bool] = None
+    status: Optional[str] = None
 
 class ClientResponse(ClientBase):
     id: UUID
     display_id: Optional[int] = None
     owner_id: UUID
     avatar_url: Optional[str] = None
+    site_url: Optional[str] = None
+    status: Optional[str] = "active"
+    detector_enabled: Optional[bool] = False
+    actual_start_date: Optional[str] = None
     created_at: datetime
     integrations: List[IntegrationResponse] = []
     summary: Optional[StatsSummary] = None
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        if hasattr(v, "value"):
+            return v.value
+        return v
+
+    @field_validator("actual_start_date", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        if v is None:
+            return None
+        return str(v)
+
     class Config:
         from_attributes = True
+
+
+class ProjectBudgetItem(BaseModel):
+    integration_id: Optional[str] = None
+    channel: Optional[str] = None
+    amount: float
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+
+class ProjectBudgetResponse(BaseModel):
+    id: UUID
+    channel: str
+    amount: float
+    period_start: str
+    period_end: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @field_validator("channel", mode="before")
+    @classmethod
+    def normalize_channel(cls, v):
+        if hasattr(v, "value"):
+            return v.value
+        return v
+
+    @field_validator("period_start", "period_end", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        if v is None:
+            return None
+        return str(v)
+
+class ProjectTargetCPAItem(BaseModel):
+    integration_id: Optional[str] = None
+    channel: Optional[str] = None
+    goal_id: Optional[str] = None
+    goal_name: Optional[str] = None
+    is_summary: bool = False
+    target_cpa: Optional[float] = None
+    control_enabled: bool = False
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+
+class ProjectTargetCPAResponse(BaseModel):
+    id: UUID
+    channel: Optional[str] = None
+    goal_id: Optional[str] = None
+    goal_name: Optional[str] = None
+    is_summary: bool = False
+    target_cpa: Optional[float] = None
+    control_enabled: bool = False
+    period_start: str
+    period_end: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+    @field_validator("channel", mode="before")
+    @classmethod
+    def normalize_channel(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            return v.value
+        return v
+
+    @field_validator("period_start", "period_end", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        if v is None:
+            return None
+        return str(v)
 
 
 
