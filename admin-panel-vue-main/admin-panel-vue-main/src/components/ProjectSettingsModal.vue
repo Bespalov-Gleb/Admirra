@@ -687,6 +687,7 @@ async function save() {
       .map((g) => ({
         integration_id: g.integrationId,
         goal_id: g.goalId,
+        goal_name: g.name,
         target_cpa: g.targetCpa ? Number(String(g.targetCpa).replace(/\s/g, '').replace(/,/g, '.')) : null,
         control_enabled: g.controlEnabled,
         is_summary: g.isSummary,
@@ -792,7 +793,7 @@ onUnmounted(() => {
 
 .psm-container {
   width: 100%;
-  max-width: 52.0833rem;
+  max-width: min(130.2083rem, calc(100vw - 2.7778rem));
   background: #f5f7f9;
   border-radius: 1.25rem;
   box-shadow: 0 1.6667rem 4.8611rem rgba(15, 23, 42, 0.22);
@@ -844,8 +845,8 @@ onUnmounted(() => {
 /* ===== Body ===== */
 .psm-body {
   padding: 1.25rem 2.0833rem 1.25rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.0417rem;
 }
 
@@ -865,6 +866,10 @@ onUnmounted(() => {
   border-radius: 1.0417rem;
   border: 1px solid rgba(0, 0, 0, 0.06);
   overflow: hidden;
+}
+
+.psm-card:nth-of-type(4) {
+  grid-column: 1 / -1;
 }
 
 .psm-card__header {
@@ -1378,7 +1383,7 @@ onUnmounted(() => {
 
 .psm-budget-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14.5833rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: 1.0417rem;
 }
 
@@ -1404,7 +1409,7 @@ onUnmounted(() => {
 
 .psm-goals-table__header {
   display: grid;
-  grid-template-columns: 3.4722rem 1fr 9.7222rem 5.5556rem;
+  grid-template-columns: 4.1667rem minmax(18rem, 1fr) 13.8889rem 7.6389rem;
   gap: 0.6944rem;
   padding: 0.6944rem 1.0417rem;
   font-size: 0.7639rem;
@@ -1418,7 +1423,7 @@ onUnmounted(() => {
 
 .psm-goals-table__row {
   display: grid;
-  grid-template-columns: 3.4722rem 1fr 9.7222rem 5.5556rem;
+  grid-template-columns: 4.1667rem minmax(18rem, 1fr) 13.8889rem 7.6389rem;
   gap: 0.6944rem;
   align-items: center;
   padding: 0.6944rem 1.0417rem;
@@ -1427,6 +1432,30 @@ onUnmounted(() => {
 }
 .psm-goals-table__row:last-child { border-bottom: 0; }
 .psm-goals-table__row:hover { background: rgba(0, 0, 0, 0.015); }
+
+@media (max-width: 75rem) {
+  .psm-container {
+    max-width: min(52.0833rem, calc(100vw - 2.7778rem));
+  }
+
+  .psm-body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .psm-card:nth-of-type(4) {
+    grid-column: auto;
+  }
+
+  .psm-goals-table {
+    overflow-x: auto;
+  }
+
+  .psm-goals-table__header,
+  .psm-goals-table__row {
+    min-width: 42rem;
+  }
+}
 
 .psm-goals-table__row--summary {
   background: #fefce8;

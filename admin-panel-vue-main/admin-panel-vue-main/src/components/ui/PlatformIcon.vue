@@ -1,12 +1,8 @@
 <template>
-  <div v-if="platform === 'YANDEX_DIRECT'" :class="sizeClass" class="rounded-full flex items-center justify-center overflow-hidden">
-    <svg viewBox="0 0 100 100" class="w-full h-full">
-      <circle cx="50" cy="50" r="50" fill="#FFCC00"/>
-      <path d="M65 25C58 25 52 30 52 38C52 46 58 51 65 51C72 51 78 46 78 38C78 30 72 25 65 25ZM65 41C63 41 62 39 62 38C62 37 63 35 65 35C67 35 68 37 68 38C68 39 67 41 65 41Z" fill="#000"/>
-      <path d="M25 75L45 25H55L75 75H65L60 62H40L35 75H25ZM43 54H57L50 36L43 54Z" fill="#000"/>
-    </svg>
+  <div v-if="normalizedPlatform === 'YANDEX_DIRECT'" :class="sizeClass" class="rounded-full flex items-center justify-center overflow-hidden">
+    <img :src="yandexDirectIcon" alt="Яндекс Директ" class="w-full h-full object-contain" />
   </div>
-  <div v-else-if="platform === 'VK_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
+  <div v-else-if="normalizedPlatform === 'VK_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
     <img :src="vkAdsIcon" alt="VK Ads" class="w-full h-full object-contain" />
   </div>
   <div v-else :class="sizeClass" class="bg-gray-100 rounded-xl flex items-center justify-center text-[0.6944rem] font-black text-gray-400 uppercase border border-gray-200">
@@ -16,7 +12,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import vkAdsIcon from '@/assets/icons/vk-ads.png'
 
 const props = defineProps({
   platform: String,
@@ -24,6 +19,16 @@ const props = defineProps({
     type: String,
     default: 'md' // sm, md, lg
   }
+})
+
+const yandexDirectIcon = '/admirra/img/icons/yandex-direct.png'
+const vkAdsIcon = '/admirra/img/icons/vk-ads.png'
+
+const normalizedPlatform = computed(() => {
+  const code = String(props.platform || '').toUpperCase()
+  if (code.includes('YANDEX') || code.includes('DIRECT')) return 'YANDEX_DIRECT'
+  if (code.includes('VK')) return 'VK_ADS'
+  return code
 })
 
 const sizeClass = computed(() => {
