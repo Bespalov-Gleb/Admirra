@@ -462,6 +462,8 @@
       @close="editingProject = null"
       @saved="handleEditSaved"
       @deleted="handleProjectDeleted"
+      @add-channel="handleSettingsAddChannel"
+      @configure-channel="handleSettingsConfigureChannel"
     />
 
   </div>
@@ -980,6 +982,20 @@ const handleEditSaved = (updatedProject) => {
 const handleProjectDeleted = (projectId) => {
   projects.value = projects.value.filter((p) => p.id !== projectId)
   editingProject.value = null
+}
+
+const handleSettingsAddChannel = () => {
+  const projectId = editingProject.value?.id
+  editingProject.value = null
+  router.push({ path: '/integrations/wizard', query: projectId ? { client_id: projectId } : {} })
+}
+
+const handleSettingsConfigureChannel = (channel) => {
+  editingProject.value = null
+  router.push({
+    path: '/integrations/wizard',
+    query: { resume_integration_id: channel.id, initial_step: 2 },
+  })
 }
 
 const requestDeleteProject = (project) => {

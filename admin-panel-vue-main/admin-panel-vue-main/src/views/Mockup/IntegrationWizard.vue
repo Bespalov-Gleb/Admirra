@@ -531,6 +531,12 @@ onMounted(async () => {
 
   await fetchProjects()
 
+  const clientIdQuery = router.currentRoute.value.query.client_id
+  if (clientIdQuery && projects.value.some((project) => String(project.id) === String(clientIdQuery))) {
+    form.client_id = String(clientIdQuery)
+    isNewProject.value = false
+  }
+
   // Проверяем, есть ли resumption после OAuth-редиректа
   const resumeId = router.currentRoute.value.query.resume_integration_id
   const startStep = router.currentRoute.value.query.initial_step

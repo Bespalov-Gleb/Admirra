@@ -229,6 +229,8 @@
       @close="settingsProject = null"
       @saved="handleSettingsSaved"
       @deleted="handleProjectDeleted"
+      @add-channel="handleSettingsAddChannel"
+      @configure-channel="handleSettingsConfigureChannel"
     />
 
   </div>
@@ -515,6 +517,20 @@ function handleSettingsSaved(updatedProject) {
 function handleProjectDeleted(projectId) {
   projects.value = projects.value.filter((p) => p.id !== projectId)
   settingsProject.value = null
+}
+
+function handleSettingsAddChannel() {
+  const projectId = settingsProject.value?.id
+  settingsProject.value = null
+  router.push({ path: '/integrations/wizard', query: projectId ? { client_id: projectId } : {} })
+}
+
+function handleSettingsConfigureChannel(channel) {
+  settingsProject.value = null
+  router.push({
+    path: '/integrations/wizard',
+    query: { resume_integration_id: channel.id, initial_step: 2 },
+  })
 }
 
 function openAvatarModal(project) {

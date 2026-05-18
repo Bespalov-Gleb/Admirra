@@ -545,13 +545,7 @@ async function loadGoals() {
 
   for (const intg of integrations) {
     const platform = String(intg.platform || '').toUpperCase()
-    let goals = []
-    try {
-      const selectedGoals = intg.selected_goals ? JSON.parse(intg.selected_goals) : []
-      if (selectedGoals.length) {
-        goals = selectedGoals.map((g) => (typeof g === 'object' ? g : { id: g, name: `Цель ${g}` }))
-      }
-    } catch { /* ignore */ }
+    const goals = normalizeSelectedGoals(intg.selected_goals)
 
     for (const g of goals) {
       rows.push({
@@ -622,6 +616,21 @@ function formatBudgetInput(chId) {
   budgets[chId] = raw ? Number(raw).toLocaleString('ru-RU') : ''
 }
 
+function normalizeSelectedGoals(value) {
+  let selectedGoals = []
+  if (Array.isArray(value)) {
+    selectedGoals = value
+  } else if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      selectedGoals = Array.isArray(parsed) ? parsed : []
+    } catch {
+      selectedGoals = []
+    }
+  }
+  return selectedGoals.map((g) => (typeof g === 'object' ? g : { id: g, name: `Цель ${g}` }))
+}
+
 function validateUrl() {
   const url = (form.site_url || '').trim()
   if (!url) { urlError.value = ''; return }
@@ -677,9 +686,7 @@ async function save() {
       }))
 
     if (projectChannels.value.length) {
-      try {
-        await api.put(`clients/${props.project.id}/budgets`, budgetPayload)
-      } catch { /* API not ready yet */ }
+      await api.put(`clients/${props.project.id}/budgets`, budgetPayload)
     }
 
     // 3. Save target CPAs
@@ -687,17 +694,16 @@ async function save() {
       .map((g) => ({
         integration_id: g.integrationId,
         goal_id: g.goalId,
+        goal_name: g.name,
         target_cpa: g.targetCpa ? Number(String(g.targetCpa).replace(/\s/g, '').replace(/,/g, '.')) : null,
-        control_enabled: g.controlEnabled,
+        control_enabled: Boolean(g.controlEnabled && g.targetCpa),
         is_summary: g.isSummary,
         period_start: form.period_start,
         period_end: form.period_end,
       }))
 
     if (goalRows.value.length) {
-      try {
-        await api.put(`clients/${props.project.id}/target-cpa`, cpaPayload)
-      } catch { /* API not ready yet */ }
+      await api.put(`clients/${props.project.id}/target-cpa`, cpaPayload)
     }
 
     emit('saved', data)
@@ -724,9 +730,10 @@ async function deleteChannel() {
   channelDeleting.value = true
   try {
     await api.delete(`integrations/${channelToDelete.value.id}`)
+    const { data } = await api.get(`clients/${props.project.id}`)
     toaster.success('Интеграция удалена')
     channelToDelete.value = null
-    emit('saved', props.project)
+    emit('saved', data)
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось удалить интеграцию')
   } finally {
