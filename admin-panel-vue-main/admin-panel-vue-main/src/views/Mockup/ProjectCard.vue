@@ -157,8 +157,9 @@
                   <img :src="platform.icon" :alt="platform.name" />
                 </span>
               </div>
-              <button class="circle-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть проект">
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
+                <span>Аналитика</span>
+                <svg width="11" height="11" viewBox="0 0 13 13" fill="none">
                   <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
@@ -178,10 +179,12 @@
           <div class="project-goals-section">
             <button type="button" class="project-goals-title" @click="toggleProjectGoals(project.id)">
               <span>Целевые действия по каналам</span>
-              <span class="project-goals-title__action">{{ isProjectGoalsExpanded(project.id) ? 'Свернуть' : 'Развернуть' }}</span>
-              <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="12" height="8" viewBox="0 0 12 8" fill="none">
+              <span class="project-goals-title__action">
+                {{ isProjectGoalsExpanded(project.id) ? 'Свернуть' : 'Развернуть' }}
+                <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
                 <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
+              </span>
             </button>
 
             <div class="project-channel-list" :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }">
@@ -996,14 +999,14 @@ onMounted(async () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.1806rem;
+  margin-bottom: 1.4583rem;
 }
 
 .project-tile-identity {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.9722rem;
+  gap: 1.1806rem;
 }
 
 .project-tile-title-block {
@@ -1013,7 +1016,7 @@ onMounted(async () => {
 .project-title-link--tile {
   display: block;
   color: #171717;
-  font-size: 1.1806rem;
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.12;
   max-width: 18rem;
@@ -1023,11 +1026,11 @@ onMounted(async () => {
 }
 
 .project-tile-description {
-  margin-top: 0.2778rem;
+  margin-top: 0.4167rem;
   max-width: 18rem;
   color: rgba(105, 105, 105, 0.66);
-  font-size: 0.9028rem;
-  line-height: 1.15;
+  font-size: 0.9722rem;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1036,7 +1039,7 @@ onMounted(async () => {
 .project-tile-actions {
   display: flex;
   align-items: center;
-  gap: 0.5556rem;
+  gap: 0.625rem;
   flex-shrink: 0;
 }
 
@@ -1079,21 +1082,21 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.8333rem;
-  margin-bottom: 1.1806rem;
+  margin-bottom: 1.25rem;
 }
 
 .stat-box__label {
   display: block;
   color: rgba(105, 105, 105, 0.76);
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   line-height: 1.1;
 }
 
 .stat-box__value {
   display: block;
-  margin-top: 0.4167rem;
+  margin-top: 0.3472rem;
   color: #171717;
-  font-size: 1.25rem;
+  font-size: 1.3889rem;
   font-weight: 700;
   line-height: 1.1;
   overflow: hidden;
@@ -1102,16 +1105,16 @@ onMounted(async () => {
 }
 
 .project-goals-section {
-  margin-top: 1.3194rem;
+  margin-top: 0;
 }
 
 .project-goals-title {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
-  gap: 0.5556rem;
+  justify-content: space-between;
+  gap: 0.8333rem;
   width: 100%;
-  margin-bottom: 0.625rem;
+  margin-bottom: 0.6944rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1125,15 +1128,27 @@ onMounted(async () => {
 }
 
 .project-goals-title__action {
-  color: rgba(37, 99, 235, 0.72);
-  font-size: 0.7639rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  min-height: 1.6667rem;
+  padding: 0 0.5556rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.07);
+  color: #2563eb;
+  font-size: 0.7292rem;
   font-weight: 700;
   text-transform: none;
   white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+
+.project-goals-title:hover .project-goals-title__action {
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .project-goals-title__icon {
-  color: rgba(105, 105, 105, 0.46);
+  color: currentColor;
   transition: transform 0.2s;
 }
 
@@ -1493,28 +1508,39 @@ onMounted(async () => {
   height: 1rem;
 }
 
-/* ---- Circle open button ---- */
-.circle-open-btn {
-  display: flex;
+/* ---- Analytics open button ---- */
+.analytics-open-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.7778rem;
-  height: 2.7778rem;
-  border-radius: 50%;
+  gap: 0.4167rem;
+  min-height: 2.3611rem;
+  padding: 0 0.8333rem;
+  border-radius: 999px;
   border: 1px solid rgba(169, 169, 169, 0.35);
-  background: transparent;
+  background: #fff;
   cursor: pointer;
   color: #696969;
-  transition: border-color 0.3s;
+  font-size: 0.8333rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition: border-color 0.25s, color 0.25s, background 0.25s, box-shadow 0.25s;
 }
-.circle-open-btn:hover { border-color: rgba(37, 99, 235, 0.4); color: #2563eb; }
+
+.analytics-open-btn:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.04);
+  color: #2563eb;
+  box-shadow: 0 0.3472rem 1.0417rem rgba(37, 99, 235, 0.08);
+}
 
 /* ---- Stat box ---- */
 .stat-box {
   display: flex;
   flex-direction: column;
   min-height: 4.8611rem;
-  padding: 0.7639rem 0.9722rem;
+  padding: 0.6944rem 0.9722rem;
   background-color: #f8fafb;
   border-radius: 0.5556rem;
   line-height: 1.1;
@@ -1782,13 +1808,18 @@ onMounted(async () => {
 :global(.darkmode) .project-divider {
   border-top-color: rgba(255, 255, 255, 0.1);
 }
-:global(.dark) .circle-open-btn,
-:global(.darkmode) .circle-open-btn {
+:global(.dark) .analytics-open-btn,
+:global(.darkmode) .analytics-open-btn {
+  background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.68);
 }
-:global(.dark) .circle-open-btn path,
-:global(.darkmode) .circle-open-btn path {
-  stroke: rgba(255, 255, 255, 0.65);
+
+:global(.dark) .analytics-open-btn:hover,
+:global(.darkmode) .analytics-open-btn:hover {
+  border-color: rgba(103, 168, 255, 0.32);
+  background: rgba(103, 168, 255, 0.1);
+  color: #67a8ff;
 }
 :global(.dark) .stat-box,
 :global(.darkmode) .stat-box {
@@ -1833,6 +1864,17 @@ onMounted(async () => {
 :global(.dark) .project-goal-empty,
 :global(.darkmode) .project-goal-empty {
   color: rgba(255, 255, 255, 0.52);
+}
+
+:global(.dark) .project-goals-title__action,
+:global(.darkmode) .project-goals-title__action {
+  background: rgba(103, 168, 255, 0.12);
+  color: #67a8ff;
+}
+
+:global(.dark) .project-goals-title:hover .project-goals-title__action,
+:global(.darkmode) .project-goals-title:hover .project-goals-title__action {
+  background: rgba(103, 168, 255, 0.18);
 }
 
 :global(.dark) .project-channel-card,
