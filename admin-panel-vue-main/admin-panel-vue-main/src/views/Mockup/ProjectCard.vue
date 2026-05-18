@@ -153,7 +153,9 @@
                   :key="platform.code"
                   class="project-platform-chip"
                   :class="`project-platform-chip--${platform.code}`"
-                >{{ platform.short }}</span>
+                >
+                  <img :src="platform.icon" :alt="platform.name" />
+                </span>
               </div>
               <button class="circle-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть проект">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -176,6 +178,7 @@
           <div class="project-goals-section">
             <button type="button" class="project-goals-title" @click="toggleProjectGoals(project.id)">
               <span>Целевые действия по каналам</span>
+              <span class="project-goals-title__action">{{ isProjectGoalsExpanded(project.id) ? 'Свернуть' : 'Развернуть' }}</span>
               <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="12" height="8" viewBox="0 0 12 8" fill="none">
                 <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -184,7 +187,9 @@
             <div class="project-channel-list" :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }">
               <div v-for="channel in projectChannelSummaries(project)" :key="channel.code" class="project-channel-card">
                 <div class="project-channel-row">
-                  <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">{{ channel.short }}</span>
+                  <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">
+                    <img :src="channel.icon" :alt="channel.name" />
+                  </span>
                   <div class="project-channel-main">
                     <strong>{{ channel.name }}</strong>
                     <span>{{ channel.summaryText }}</span>
@@ -209,21 +214,35 @@
         </div>
 
         <div class="project-tile-footer">
-          <div class="project-balance-strip">
-            <div
-              v-for="balance in projectBalances(project)"
-              :key="balance.code"
-              class="balance-chip"
-              :class="`balance-chip--${balance.code}`"
-            >
-              <span>{{ balance.short }}</span>
-              <strong>{{ balance.value }}</strong>
-              <small v-if="balance.low">пополнить</small>
+          <div class="project-balance-area">
+            <div class="project-balance-title">Баланс в кабинетах</div>
+            <div class="project-balance-strip">
+              <div
+                v-for="balance in projectBalances(project)"
+                :key="balance.code"
+                class="balance-chip"
+                :class="`balance-chip--${balance.code}`"
+              >
+                <img :src="balance.icon" :alt="balance.name" />
+                <span>{{ balance.name }}</span>
+                <strong>{{ balance.value }}</strong>
+                <small v-if="balance.low">пополнить</small>
+              </div>
             </div>
           </div>
           <div class="project-footer-actions">
-            <button type="button" class="settings-btn" @click.stop="openSettings(project)">Настройки</button>
-            <button type="button" class="ai-audit-btn" @click.stop="openAiAudit(project)">AI-аудит</button>
+            <button type="button" class="settings-btn" @click.stop="openSettings(project)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+              </svg>
+              Настройки
+            </button>
+            <button type="button" class="ai-audit-btn" @click.stop="openAiAudit(project)">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8.5 1.6 9.8 5.1l3.5 1.3-3.5 1.3-1.3 3.5-1.3-3.5-3.5-1.3 3.5-1.3 1.3-3.5ZM3.4 9.9l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6.6-1.7Z"/>
+              </svg>
+              AI-аудит
+            </button>
           </div>
         </div>
       </div>
@@ -472,11 +491,15 @@ const platformConfig = {
     code: 'yandex',
     short: 'Я',
     name: 'Яндекс Директ',
+    balanceName: 'Yandex Direct',
+    icon: '/admirra/img/icons/yandex-direct.png',
   },
   vk: {
     code: 'vk',
     short: 'ВК',
     name: 'VK Реклама',
+    balanceName: 'VK Ads',
+    icon: '/admirra/img/icons/vk-ads.png',
   },
 }
 
@@ -528,6 +551,7 @@ const projectBalances = (project) => {
     const value = Number(insights[platform.code]?.balance || 0)
     return {
       ...platform,
+      name: platform.balanceName,
       value: formatMoney(value),
       low: value <= 0,
     }
@@ -957,7 +981,7 @@ onMounted(async () => {
   flex-direction: column;
   border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow: 0 0.1389rem 0.4167rem rgba(15, 23, 42, 0.03);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .project-tile-main {
@@ -1027,24 +1051,28 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.0833rem;
-  height: 2.0833rem;
+  width: 2.2222rem;
+  height: 2.2222rem;
   border-radius: 0.5556rem;
-  font-size: 0.9028rem;
-  font-weight: 700;
   flex-shrink: 0;
+}
+
+.project-platform-chip img,
+.project-channel-icon img {
+  display: block;
+  width: 1.3194rem;
+  height: 1.3194rem;
+  object-fit: contain;
 }
 
 .project-platform-chip--yandex,
 .project-channel-icon--yandex {
-  background: #fff6df;
-  color: #8a5f00;
+  background: #fff2e4;
 }
 
 .project-platform-chip--vk,
 .project-channel-icon--vk {
-  background: #eef7ff;
-  color: #1b5d91;
+  background: #f0f7ff;
 }
 
 .project-tile-stats {
@@ -1074,13 +1102,14 @@ onMounted(async () => {
 }
 
 .project-goals-section {
-  margin-top: auto;
+  margin-top: 1.3194rem;
 }
 
 .project-goals-title {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5556rem;
   width: 100%;
   margin-bottom: 0.625rem;
   padding: 0;
@@ -1093,6 +1122,14 @@ onMounted(async () => {
   letter-spacing: 0;
   line-height: 1.1;
   text-transform: uppercase;
+}
+
+.project-goals-title__action {
+  color: rgba(37, 99, 235, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 700;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .project-goals-title__icon {
@@ -1113,16 +1150,16 @@ onMounted(async () => {
 .project-channel-card {
   border-radius: 0.6944rem;
   background: #f8fafb;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.0833rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.2222rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.8333rem;
-  min-height: 3.6806rem;
-  padding: 0.625rem 0.9028rem;
+  min-height: 3.75rem;
+  padding: 0.6944rem 0.9722rem;
 }
 
 .project-channel-main {
@@ -1152,7 +1189,7 @@ onMounted(async () => {
 }
 
 .project-channel-spend {
-  min-width: 5.9028rem;
+  min-width: 6.25rem;
   text-align: right;
 }
 
@@ -1175,7 +1212,7 @@ onMounted(async () => {
 }
 
 .project-goal-detail-list {
-  padding: 0 0.9028rem 0.625rem;
+  padding: 0 0.9722rem 0.7639rem 4.0278rem;
 }
 
 .project-goal-detail-row {
@@ -1183,10 +1220,10 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr) 3.8194rem 4.8611rem 3.3333rem;
   align-items: center;
   gap: 0.625rem;
-  min-height: 2.0833rem;
+  min-height: 2.2222rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   color: #171717;
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
 }
 
 .project-goal-detail-row span {
@@ -1236,53 +1273,94 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 0.8333rem;
-  min-height: 5.3472rem;
-  padding: 1.1111rem 1.7361rem 1.3889rem;
+  min-height: 6.1111rem;
+  padding: 1.0417rem 1.7361rem 1.3889rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+.project-balance-area,
 .project-balance-strip,
 .project-footer-actions {
   display: flex;
-  align-items: center;
-  gap: 0.5556rem;
   min-width: 0;
 }
 
+.project-balance-area {
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4861rem;
+}
+
+.project-balance-title {
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 0.7639rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .project-balance-strip {
+  align-items: center;
+  gap: 0.5556rem;
   flex-wrap: wrap;
+}
+
+.project-footer-actions {
+  align-items: flex-end;
+  gap: 0.5556rem;
+  padding-top: 1.5972rem;
 }
 
 .balance-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.4167rem;
-  min-height: 2.0833rem;
-  max-width: 10.4167rem;
-  padding: 0 0.6944rem;
-  border-radius: 0.4167rem;
-  font-size: 0.7639rem;
+  min-height: 2.2222rem;
+  max-width: 13.8889rem;
+  padding: 0.3472rem 0.6944rem;
+  border-radius: 0.8333rem;
+  font-size: 0.8333rem;
   white-space: nowrap;
 }
 
 .balance-chip--yandex {
-  background: #fff6df;
-  color: #8a5f00;
+  background: #fff2e4;
+  color: #71663e;
 }
 
 .balance-chip--vk {
-  background: #eef7ff;
-  color: #1b5d91;
+  background: #f0f7ff;
+  color: #254b78;
+}
+
+.balance-chip img {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .balance-chip span {
-  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .balance-chip strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5278rem;
+  padding: 0 0.5556rem;
+  border-radius: 6.9444rem;
+  background: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 700;
+  font-size: 0.7639rem;
+  font-weight: 600;
 }
 
 .balance-chip small {
@@ -1294,6 +1372,7 @@ onMounted(async () => {
 .ai-audit-btn {
   display: inline-flex;
   align-items: center;
+  gap: 0.3472rem;
   min-height: 2.0833rem;
   padding: 0 0.8333rem;
   border-radius: 0.5556rem;
@@ -1730,5 +1809,74 @@ onMounted(async () => {
 :global(.dark) .stat-box b,
 :global(.darkmode) .stat-box b {
   color: rgba(255, 255, 255, 0.9);
+}
+
+:global(.dark) .project-title-link--tile,
+:global(.darkmode) .project-title-link--tile,
+:global(.dark) .project-channel-main strong,
+:global(.darkmode) .project-channel-main strong,
+:global(.dark) .project-channel-spend strong,
+:global(.darkmode) .project-channel-spend strong,
+:global(.dark) .project-goal-detail-row,
+:global(.darkmode) .project-goal-detail-row {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:global(.dark) .project-goals-title,
+:global(.darkmode) .project-goals-title,
+:global(.dark) .project-balance-title,
+:global(.darkmode) .project-balance-title,
+:global(.dark) .project-channel-main span,
+:global(.darkmode) .project-channel-main span,
+:global(.dark) .project-channel-spend span,
+:global(.darkmode) .project-channel-spend span,
+:global(.dark) .project-goal-empty,
+:global(.darkmode) .project-goal-empty {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+:global(.dark) .project-channel-card,
+:global(.darkmode) .project-channel-card {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+:global(.dark) .project-tile-footer,
+:global(.darkmode) .project-tile-footer,
+:global(.dark) .project-goal-detail-row,
+:global(.darkmode) .project-goal-detail-row,
+:global(.dark) .project-goal-empty,
+:global(.darkmode) .project-goal-empty {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .balance-chip--yandex,
+:global(.darkmode) .balance-chip--yandex {
+  background: #3a3128;
+  color: #f0d99a;
+}
+
+:global(.dark) .balance-chip--vk,
+:global(.darkmode) .balance-chip--vk {
+  background: #213652;
+  color: #8bb7ff;
+}
+
+:global(.dark) .balance-chip strong,
+:global(.darkmode) .balance-chip strong {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark) .settings-btn,
+:global(.darkmode) .settings-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+:global(.dark) .settings-btn:hover,
+:global(.darkmode) .settings-btn:hover {
+  border-color: rgba(103, 168, 255, 0.32);
+  color: #67a8ff;
 }
 </style>
