@@ -848,6 +848,8 @@ onUnmounted(() => {
 .psm-container {
   width: 100%;
   max-width: 52.0833rem;
+  height: calc(100vh - 4.1666rem);
+  height: calc(100dvh - 4.1666rem);
   max-height: calc(100vh - 4.1666rem);
   max-height: calc(100dvh - 4.1666rem);
   background: #f5f7f9;
