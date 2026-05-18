@@ -20,7 +20,7 @@
           <div v-if="error" class="psm-error">{{ error }}</div>
 
           <!-- ===== Block 1: Основное ===== -->
-          <section class="psm-card psm-card--side">
+          <section class="psm-card">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Основное</h3>
               <div class="psm-card__id">
@@ -68,7 +68,7 @@
           </section>
 
           <!-- ===== Block 2: Подключённые каналы ===== -->
-          <section class="psm-card psm-card--side">
+          <section class="psm-card">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Подключённые каналы</h3>
               <button type="button" class="psm-btn-accent" @click="$emit('add-channel')">
@@ -107,7 +107,7 @@
           </section>
 
           <!-- ===== Block 3: Сайт проекта ===== -->
-          <section class="psm-card psm-card--side">
+          <section class="psm-card">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Сайт проекта</h3>
             </div>
@@ -297,7 +297,7 @@
           </section>
 
           <!-- ===== Block 5: Управление проектом ===== -->
-          <section class="psm-card psm-card--side">
+          <section class="psm-card">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Управление проектом</h3>
             </div>
@@ -949,7 +949,7 @@ onUnmounted(() => {
 
 .psm-container {
   width: 100%;
-  max-width: min(130.2083rem, calc(100vw - 2.7778rem));
+  max-width: min(118rem, calc(100vw - 2.7778rem));
   max-height: calc(100vh - 4.1667rem);
   background: #f5f7f9;
   border-radius: 1.25rem;
@@ -1004,7 +1004,7 @@ onUnmounted(() => {
 .psm-body {
   padding: 1.25rem 2.0833rem 1.25rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(24rem, 0.65fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.0417rem;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1030,12 +1030,7 @@ onUnmounted(() => {
 }
 
 .psm-card--detector {
-  grid-column: 1;
-  grid-row: 1 / span 5;
-}
-
-.psm-card--side {
-  grid-column: 2;
+  grid-column: 1 / -1;
 }
 
 .psm-card__header {
@@ -1704,10 +1699,8 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .psm-card--detector,
-  .psm-card--side {
+  .psm-card--detector {
     grid-column: auto;
-    grid-row: auto;
   }
 
   .psm-goals-table {
