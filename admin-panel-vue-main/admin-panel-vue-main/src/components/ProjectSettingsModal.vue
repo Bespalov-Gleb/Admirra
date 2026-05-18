@@ -20,7 +20,7 @@
           <div v-if="error" class="psm-error">{{ error }}</div>
 
           <!-- ===== Block 1: Основное ===== -->
-          <section class="psm-card">
+          <section class="psm-card psm-card--side">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Основное</h3>
               <div class="psm-card__id">
@@ -68,7 +68,7 @@
           </section>
 
           <!-- ===== Block 2: Подключённые каналы ===== -->
-          <section class="psm-card">
+          <section class="psm-card psm-card--side">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Подключённые каналы</h3>
               <button type="button" class="psm-btn-accent" @click="$emit('add-channel')">
@@ -107,7 +107,7 @@
           </section>
 
           <!-- ===== Block 3: Сайт проекта ===== -->
-          <section class="psm-card">
+          <section class="psm-card psm-card--side">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Сайт проекта</h3>
             </div>
@@ -119,7 +119,7 @@
           </section>
 
           <!-- ===== Block 4: Детектор и цели ===== -->
-          <section class="psm-card">
+          <section class="psm-card psm-card--detector">
             <div class="psm-card__header">
               <h3 class="psm-card__title">
                 Детектор и цели
@@ -135,7 +135,38 @@
             </div>
 
             <div class="psm-card__body">
-              <p class="psm-hint mb-4">Детектор по истории работает и без заполнения — поля ниже добавляют план-факт.</p>
+              <p class="psm-hint mb-4">План-факт по расходам и CPA за выбранный период. Детектор подсвечивает риск превышения бюджета или целевой стоимости действия.</p>
+
+              <div class="psm-detector-status" :class="detectorStatusClass">
+                <div>
+                  <div class="psm-detector-status__label">{{ detectorStatusTitle }}</div>
+                  <div class="psm-detector-status__text">{{ detectorStatusText }}</div>
+                </div>
+                <span class="psm-detector-status__badge">{{ detectorStatusBadge }}</span>
+              </div>
+
+              <div class="psm-detector-metrics">
+                <div class="psm-detector-metric">
+                  <span class="psm-detector-metric__label">Расходы</span>
+                  <strong>{{ formatMoney(metricExpenses) }}</strong>
+                  <small>с НДС за период</small>
+                </div>
+                <div class="psm-detector-metric">
+                  <span class="psm-detector-metric__label">Лиды</span>
+                  <strong>{{ formatNumber(detectorMetrics.leads) }}</strong>
+                  <small>по всем каналам</small>
+                </div>
+                <div class="psm-detector-metric">
+                  <span class="psm-detector-metric__label">CPL/CPA</span>
+                  <strong>{{ formatMoney(metricCpa) }}</strong>
+                  <small>факт по проекту</small>
+                </div>
+                <div class="psm-detector-metric">
+                  <span class="psm-detector-metric__label">Бюджет</span>
+                  <strong>{{ totalBudget ? formatMoney(totalBudget) : 'не задан' }}</strong>
+                  <small>{{ budgetUsageText }}</small>
+                </div>
+              </div>
 
               <!-- State A: no integrations -->
               <div v-if="integrationState === 'A'" class="psm-detector-stub">
@@ -216,6 +247,7 @@
                         <span>Канал</span>
                         <span>Цель</span>
                         <span>Целевой CPA</span>
+                        <span>Факт</span>
                         <span>Контроль</span>
                       </div>
                       <div
@@ -242,6 +274,11 @@
                             <span class="psm-input-suffix">₽</span>
                           </div>
                         </div>
+                        <div>
+                          <div class="psm-goal-fact" :class="goalFactClass(goal)">
+                            {{ goalFactText(goal) }}
+                          </div>
+                        </div>
                         <div class="flex justify-center">
                           <label class="psm-toggle psm-toggle--sm">
                             <input type="checkbox" v-model="goal.controlEnabled" class="sr-only" :disabled="!goal.targetCpa" />
@@ -260,7 +297,7 @@
           </section>
 
           <!-- ===== Block 5: Управление проектом ===== -->
-          <section class="psm-card">
+          <section class="psm-card psm-card--side">
             <div class="psm-card__header">
               <h3 class="psm-card__title">Управление проектом</h3>
             </div>
@@ -387,6 +424,15 @@ const idCopied = ref(false)
 const initialFormSnapshot = ref('')
 
 const goalRows = ref([])
+const detectorMetrics = ref({
+  expenses: 0,
+  impressions: 0,
+  clicks: 0,
+  leads: 0,
+  cpc: 0,
+  cpa: 0,
+})
+const detectorMetricsLoading = ref(false)
 
 const projectDisplayId = computed(() => props.project?.display_id || String(props.project?.id || '').substring(0, 8).toUpperCase())
 
@@ -419,6 +465,72 @@ const hasUnsavedChanges = computed(() => {
 
 const hasVkChannels = computed(() => {
   return projectChannels.value.some((ch) => String(ch.platform || '').toUpperCase().includes('VK'))
+})
+
+const VAT_RATE = 1.22
+const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
+const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
+const withVat = (num) => (Number(num) || 0) * VAT_RATE
+const parseMoneyInput = (value) => Number(String(value || '').replace(/\s/g, '').replace(/,/g, '.')) || 0
+
+const metricExpenses = computed(() => withVat(detectorMetrics.value.expenses))
+const metricCpa = computed(() => withVat(detectorMetrics.value.cpa))
+const metricCpc = computed(() => withVat(detectorMetrics.value.cpc))
+const totalBudget = computed(() => Object.values(budgets).reduce((sum, value) => sum + parseMoneyInput(value), 0))
+const controlledTargets = computed(() => goalRows.value.filter((goal) => goal.controlEnabled && parseMoneyInput(goal.targetCpa) > 0))
+const minControlledTarget = computed(() => {
+  const values = controlledTargets.value.map((goal) => parseMoneyInput(goal.targetCpa)).filter(Boolean)
+  return values.length ? Math.min(...values) : 0
+})
+const budgetUsagePercent = computed(() => {
+  if (!totalBudget.value) return null
+  return Math.round((metricExpenses.value / totalBudget.value) * 100)
+})
+const budgetUsageText = computed(() => {
+  if (detectorMetricsLoading.value) return 'загрузка факта...'
+  if (!totalBudget.value) return 'план не задан'
+  return `освоено ${budgetUsagePercent.value}%`
+})
+
+const detectorStatusTitle = computed(() => {
+  if (!form.detector_enabled) return 'Детектор выключен'
+  if (form.status === 'paused') return 'Проект на паузе'
+  if (detectorMetricsLoading.value) return 'Обновляем показатели'
+  if (detectorRiskLevel.value === 'danger') return 'Есть риск превышения'
+  if (detectorRiskLevel.value === 'warning') return 'Нужен контроль'
+  return 'Показатели в норме'
+})
+
+const detectorStatusText = computed(() => {
+  if (!form.detector_enabled) return 'Включите тумблер, чтобы контролировать бюджет и CPA по выбранному периоду.'
+  if (form.status === 'paused') return 'Синхронизация и контроль остановлены до возобновления проекта.'
+  if (detectorMetricsLoading.value) return 'Получаем фактические расходы, лиды и CPA из аналитики проекта.'
+  const messages = []
+  if (totalBudget.value && metricExpenses.value > totalBudget.value) {
+    messages.push(`расход выше бюджета на ${formatMoney(metricExpenses.value - totalBudget.value)}`)
+  } else if (budgetUsagePercent.value !== null && budgetUsagePercent.value >= 85) {
+    messages.push(`бюджет освоен на ${budgetUsagePercent.value}%`)
+  }
+  if (minControlledTarget.value && metricCpa.value > minControlledTarget.value) {
+    messages.push(`фактический CPA выше целевого на ${formatMoney(metricCpa.value - minControlledTarget.value)}`)
+  }
+  return messages.length ? messages.join('; ') : 'Расходы и CPA укладываются в заданные плановые значения.'
+})
+
+const detectorRiskLevel = computed(() => {
+  if (!form.detector_enabled || form.status === 'paused') return 'muted'
+  const budgetExceeded = totalBudget.value && metricExpenses.value > totalBudget.value
+  const cpaExceeded = minControlledTarget.value && metricCpa.value > minControlledTarget.value
+  if (budgetExceeded || cpaExceeded) return 'danger'
+  if (budgetUsagePercent.value !== null && budgetUsagePercent.value >= 85) return 'warning'
+  return 'ok'
+})
+
+const detectorStatusClass = computed(() => `psm-detector-status--${detectorRiskLevel.value}`)
+const detectorStatusBadge = computed(() => {
+  if (!form.detector_enabled) return 'off'
+  if (form.status === 'paused') return 'pause'
+  return detectorRiskLevel.value === 'danger' ? 'risk' : detectorRiskLevel.value === 'warning' ? 'watch' : 'ok'
 })
 
 const platformName = (platform) => {
@@ -520,6 +632,7 @@ watch(
       deleteConfirmText.value = ''
       loadGoals()
       loadBudgets()
+      loadDetectorMetrics()
       snapshotForm()
     }
   },
@@ -536,8 +649,36 @@ watch(
     if (!props.project?.id || periodError.value) return
     loadGoals()
     loadBudgets()
+    loadDetectorMetrics()
   }
 )
+
+async function loadDetectorMetrics() {
+  if (!props.project?.id || periodError.value) return
+  detectorMetricsLoading.value = true
+  try {
+    const { data } = await api.get('dashboard/summary', {
+      params: {
+        client_id: props.project.id,
+        platform: 'all',
+        start_date: form.period_start,
+        end_date: form.period_end,
+      },
+    })
+    detectorMetrics.value = { ...detectorMetrics.value, ...(data || {}) }
+  } catch {
+    detectorMetrics.value = {
+      expenses: 0,
+      impressions: 0,
+      clicks: 0,
+      leads: 0,
+      cpc: 0,
+      cpa: 0,
+    }
+  } finally {
+    detectorMetricsLoading.value = false
+  }
+}
 
 async function loadGoals() {
   const integrations = props.project?.integrations || []
@@ -620,6 +761,21 @@ async function loadBudgets() {
 function formatBudgetInput(chId) {
   const raw = String(budgets[chId] || '').replace(/[^\d]/g, '')
   budgets[chId] = raw ? Number(raw).toLocaleString('ru-RU') : ''
+}
+
+function goalFactText(goal) {
+  const target = parseMoneyInput(goal.targetCpa)
+  if (!target) return 'план не задан'
+  if (!metricCpa.value) return 'нет факта'
+  const diff = metricCpa.value - target
+  if (diff <= 0) return `ниже на ${formatMoney(Math.abs(diff))}`
+  return `выше на ${formatMoney(diff)}`
+}
+
+function goalFactClass(goal) {
+  const target = parseMoneyInput(goal.targetCpa)
+  if (!target || !metricCpa.value) return 'psm-goal-fact--muted'
+  return metricCpa.value > target ? 'psm-goal-fact--bad' : 'psm-goal-fact--good'
 }
 
 function validateUrl() {
@@ -794,6 +950,7 @@ onUnmounted(() => {
 .psm-container {
   width: 100%;
   max-width: min(130.2083rem, calc(100vw - 2.7778rem));
+  max-height: calc(100vh - 4.1667rem);
   background: #f5f7f9;
   border-radius: 1.25rem;
   box-shadow: 0 1.6667rem 4.8611rem rgba(15, 23, 42, 0.22);
@@ -801,6 +958,7 @@ onUnmounted(() => {
   flex-direction: column;
   margin-bottom: 2.0833rem;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 /* ===== Header ===== */
@@ -846,12 +1004,15 @@ onUnmounted(() => {
 .psm-body {
   padding: 1.25rem 2.0833rem 1.25rem;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) minmax(24rem, 0.65fr);
   gap: 1.0417rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ===== Error banner ===== */
 .psm-error {
+  grid-column: 1 / -1;
   padding: 0.8333rem 1.0417rem;
   background: #fef2f2;
   border: 1px solid rgba(220, 38, 38, 0.15);
@@ -868,8 +1029,13 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.psm-card:nth-of-type(4) {
-  grid-column: 1 / -1;
+.psm-card--detector {
+  grid-column: 1;
+  grid-row: 1 / span 5;
+}
+
+.psm-card--side {
+  grid-column: 2;
 }
 
 .psm-card__header {
@@ -1337,6 +1503,101 @@ onUnmounted(() => {
   font-size: 0.9028rem;
 }
 
+.psm-detector-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.0417rem;
+  border-radius: 0.8333rem;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(34, 197, 94, 0.06));
+  margin-bottom: 1.0417rem;
+}
+
+.psm-detector-status--danger {
+  border-color: rgba(220, 38, 38, 0.16);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1), rgba(245, 158, 11, 0.08));
+}
+
+.psm-detector-status--warning {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(250, 204, 21, 0.08));
+}
+
+.psm-detector-status--muted {
+  border-color: rgba(0, 0, 0, 0.06);
+  background: #f8fafb;
+}
+
+.psm-detector-status__label {
+  font-size: 1.0417rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+.psm-detector-status__text {
+  margin-top: 0.2778rem;
+  font-size: 0.8333rem;
+  line-height: 1.45;
+  color: rgba(105, 105, 105, 0.72);
+}
+
+.psm-detector-status__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.0556rem;
+  height: 1.6667rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #2563eb;
+  font-size: 0.6944rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.psm-detector-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8333rem;
+  margin-bottom: 1.25rem;
+}
+
+.psm-detector-metric {
+  padding: 0.9028rem;
+  border-radius: 0.8333rem;
+  background: #f8fafb;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  min-width: 0;
+}
+
+.psm-detector-metric__label {
+  display: block;
+  font-size: 0.6944rem;
+  font-weight: 700;
+  color: rgba(105, 105, 105, 0.5);
+  text-transform: uppercase;
+}
+
+.psm-detector-metric strong {
+  display: block;
+  margin-top: 0.2778rem;
+  font-size: 1.0417rem;
+  color: #171717;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.psm-detector-metric small {
+  display: block;
+  margin-top: 0.2083rem;
+  font-size: 0.7639rem;
+  color: rgba(105, 105, 105, 0.52);
+}
+
 .psm-detector-collapsed {
   display: flex;
   align-items: center;
@@ -1409,7 +1670,7 @@ onUnmounted(() => {
 
 .psm-goals-table__header {
   display: grid;
-  grid-template-columns: 4.1667rem minmax(18rem, 1fr) 13.8889rem 7.6389rem;
+  grid-template-columns: 4.1667rem minmax(16rem, 1fr) 11.1111rem 11.1111rem 6.25rem;
   gap: 0.6944rem;
   padding: 0.6944rem 1.0417rem;
   font-size: 0.7639rem;
@@ -1423,7 +1684,7 @@ onUnmounted(() => {
 
 .psm-goals-table__row {
   display: grid;
-  grid-template-columns: 4.1667rem minmax(18rem, 1fr) 13.8889rem 7.6389rem;
+  grid-template-columns: 4.1667rem minmax(16rem, 1fr) 11.1111rem 11.1111rem 6.25rem;
   gap: 0.6944rem;
   align-items: center;
   padding: 0.6944rem 1.0417rem;
@@ -1443,8 +1704,10 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .psm-card:nth-of-type(4) {
+  .psm-card--detector,
+  .psm-card--side {
     grid-column: auto;
+    grid-row: auto;
   }
 
   .psm-goals-table {
@@ -1453,7 +1716,13 @@ onUnmounted(() => {
 
   .psm-goals-table__header,
   .psm-goals-table__row {
-    min-width: 42rem;
+    min-width: 50rem;
+  }
+}
+
+@media (max-width: 62rem) {
+  .psm-detector-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1466,6 +1735,29 @@ onUnmounted(() => {
   font-size: 0.9028rem;
   font-weight: 500;
   color: #171717;
+}
+
+.psm-goal-fact {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6667rem;
+  padding: 0 0.5556rem;
+  border-radius: 0.4167rem;
+  background: rgba(105, 105, 105, 0.08);
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.psm-goal-fact--good {
+  background: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.psm-goal-fact--bad {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
 }
 
 /* ===== Subsections ===== */
@@ -1515,8 +1807,9 @@ onUnmounted(() => {
   flex-shrink: 0;
   background: #f5f7f9;
   border-radius: 0 0 1.25rem 1.25rem;
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 -0.8333rem 1.6667rem rgba(245, 247, 249, 0.95);
 }
 
 .psm-unsaved-dot {
