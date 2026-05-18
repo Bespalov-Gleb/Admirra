@@ -120,14 +120,12 @@
     </div>
 
     <!-- Projects grid -->
-    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[1.0417rem] mb-[2.0833rem]">
-      <div v-for="project in filteredProjects" :key="project.id" class="project-card bg-white rounded-[1.0417rem]">
+    <div v-else class="projects-tile-grid mb-[2.0833rem]">
+      <div v-for="project in filteredProjects" :key="project.id" class="project-card project-card--tile bg-white rounded-[1.0417rem]">
 
-        <!-- Card body -->
-        <div class="p-[2.0833rem]">
-          <!-- Project header row -->
-          <div class="flex items-center justify-between pb-[0.6944rem] mb-[1.0417rem]">
-            <div class="flex items-center">
+        <div class="project-tile-main">
+          <div class="project-tile-header">
+            <div class="project-tile-identity">
               <button type="button" class="project-avatar project-avatar--editable" :aria-label="`Загрузить аватарку проекта ${project.name}`" @click.stop="openAvatarModal(project)">
                 <img v-if="projectAvatarUrl(project)" :src="projectAvatarUrl(project)" :alt="project.name" class="w-full h-full object-cover" />
                 <span v-else class="project-avatar__initials">{{ projectInitials(project) }}</span>
@@ -137,82 +135,97 @@
                   </svg>
                 </span>
               </button>
-              <div class="pl-[1.0417rem]">
+              <div class="project-tile-title-block">
                 <button
                   type="button"
-                  class="project-title-link text-[1.0417rem] text-[#696969] font-medium mb-[0.2083rem] leading-none"
+                  class="project-title-link project-title-link--tile"
                   @click="openProject(project)"
                 >
                   {{ project.name }}
                 </button>
-                <p v-if="project.description" class="mb-[0.2778rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] leading-none">{{ project.description }}</p>
-                <button type="button" class="project-id-link" @click.stop="copyProjectId(project)">ID: {{ projectSupportId(project) }}</button>
+                <p class="project-tile-description">{{ project.description || 'Без описания' }} · ID {{ projectSupportId(project) }}</p>
               </div>
             </div>
-            <button class="circle-open-btn flex-shrink-0" @click="openProject(project)">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="#696969" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
+            <div class="project-tile-actions">
+              <div class="project-platform-chips">
+                <span
+                  v-for="platform in projectPlatformCards(project)"
+                  :key="platform.code"
+                  class="project-platform-chip"
+                  :class="`project-platform-chip--${platform.code}`"
+                >{{ platform.short }}</span>
+              </div>
+              <button class="circle-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть проект">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <!-- Stats grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[1.0417rem]">
+          <div class="project-tile-stats">
             <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
-              <div class="flex items-start pb-[0.3472rem] mb-[1.0417rem]">
-                <div class="iconbox flex-shrink-0">
-                  <svg width="11" height="11" fill="#2563eb">
-                    <use :href="stat.icon" />
-                  </svg>
+              <span class="stat-box__label">{{ stat.label }}</span>
+              <b class="stat-box__value">{{ stat.value }}</b>
+              <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                {{ stat.change }}
+              </span>
+            </div>
+          </div>
+
+          <div class="project-goals-section">
+            <button type="button" class="project-goals-title" @click="toggleProjectGoals(project.id)">
+              <span>Целевые действия по каналам</span>
+              <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+
+            <div class="project-channel-list" :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }">
+              <div v-for="channel in projectChannelSummaries(project)" :key="channel.code" class="project-channel-card">
+                <div class="project-channel-row">
+                  <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">{{ channel.short }}</span>
+                  <div class="project-channel-main">
+                    <strong>{{ channel.name }}</strong>
+                    <span>{{ channel.summaryText }}</span>
+                  </div>
+                  <div class="project-channel-spend">
+                    <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
+                    <span>расход</span>
+                  </div>
                 </div>
-                <div class="pl-[0.6944rem] self-center min-w-0">
-                  <h4 class="text-[0.9028rem] text-[#696969] font-medium mb-[0.1389rem] leading-[1.1] truncate">{{ stat.label }}</h4>
-                  <p class="text-[0.8333rem] text-[rgba(105,105,105,0.56)] leading-[1.1] truncate">{{ stat.subtitle }}</p>
+                <div v-if="isProjectGoalsExpanded(project.id)" class="project-goal-detail-list">
+                  <div v-for="goal in channel.goals" :key="goal.id || goal.name" class="project-goal-detail-row">
+                    <span>{{ goal.name }}</span>
+                    <strong>{{ formatNumber(goal.count) }} шт</strong>
+                    <b>{{ formatMoney(withVat(goal.cpl)) }}</b>
+                    <em :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
+                  </div>
+                  <div v-if="!channel.goals.length" class="project-goal-empty">Цели за период не найдены</div>
                 </div>
-              </div>
-              <div class="stat-value-row flex items-center mt-auto">
-                <b class="min-w-0 truncate text-[1.3889rem] font-semibold leading-[1.1] text-[#2c2c2c]">{{ stat.value }}</b>
-                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
-                  <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none">
-                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  {{ stat.change }}
-                </span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Divider -->
-        <hr class="project-divider m-0 border-0 border-t border-[rgba(0,0,0,0.05)]" />
-
-        <!-- Balance section -->
-        <div class="p-[2.0833rem]">
-          <div class="flex items-center justify-between mb-[0.6944rem]">
-            <p class="text-[0.9028rem] text-[#696969]">Актуальный баланс в ЛК:</p>
-            <button type="button" class="settings-btn" @click.stop="openSettings(project)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-              </svg>
-              Настройки
-            </button>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-[1.0417rem]">
+        <div class="project-tile-footer">
+          <div class="project-balance-strip">
             <div
               v-for="balance in projectBalances(project)"
-              :key="balance.name"
-              :style="{ backgroundColor: balance.bg }"
-              class="balance-tile rounded-[0.8333rem] p-[0.6944rem]"
+              :key="balance.code"
+              class="balance-chip"
+              :class="`balance-chip--${balance.code}`"
             >
-              <div class="flex min-w-0 items-center justify-center gap-[0.5556rem]">
-                <img :src="balance.icon" :alt="balance.name" width="18" class="flex-shrink-0" />
-                <span class="min-w-0 truncate text-[0.9028rem] font-medium" :style="{ color: balance.color }">{{ balance.name }}</span>
-                <span class="badge-white shrink-0" :style="{ color: balance.color }">{{ balance.value }}</span>
-              </div>
+              <span>{{ balance.short }}</span>
+              <strong>{{ balance.value }}</strong>
+              <small v-if="balance.low">пополнить</small>
             </div>
           </div>
+          <div class="project-footer-actions">
+            <button type="button" class="settings-btn" @click.stop="openSettings(project)">Настройки</button>
+            <button type="button" class="ai-audit-btn" @click.stop="openAiAudit(project)">AI-аудит</button>
+          </div>
         </div>
-
       </div>
     </div>
 
@@ -259,6 +272,8 @@ const customPeriodRange = ref({ start: null, end: null })
 const search = ref('')
 const openSelect = ref(null)
 const metricsByProjectId = ref({})
+const projectInsightsById = ref({})
+const expandedGoalsByProjectId = ref({})
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
@@ -378,6 +393,16 @@ const emptyMetric = () => ({
 })
 
 const getProjectMetric = (projectId) => metricsByProjectId.value[projectId] || emptyMetric()
+const emptyProjectInsights = () => ({
+  all: emptyMetric(),
+  yandex: emptyMetric(),
+  vk: emptyMetric(),
+  goals: {
+    yandex: [],
+    vk: [],
+  },
+})
+const getProjectInsights = (projectId) => projectInsightsById.value[projectId] || emptyProjectInsights()
 
 const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
@@ -435,46 +460,105 @@ const hasAnyPlatform = (project) => projectPlatforms(project).length > 0
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
   return [
-    { key: 'impressions', label: 'Показы', subtitle: 'По всем каналам', value: formatNumber(metric.impressions), icon: '/admirra/img/svg/sprite.svg#diagrama' },
-    { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), icon: '/admirra/img/svg/sprite.svg#cursore' },
-    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(withVat(metric.cpc)), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
-    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(withVat(metric.expenses)), icon: '/admirra/img/svg/sprite.svg#wallet' },
-    { key: 'leads', label: 'Лиды', subtitle: 'По всем каналам', value: `${formatNumber(metric.leads)} шт.`, icon: '/admirra/img/svg/sprite.svg#calendar' },
-    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(withVat(metric.cpa)), icon: '/admirra/img/svg/sprite.svg#ok' },
+    { key: 'impressions', label: 'Показы', value: formatNumber(metric.impressions) },
+    { key: 'clicks', label: 'Клики', value: formatNumber(metric.clicks) },
+    { key: 'expenses', label: 'Расход', value: formatMoney(withVat(metric.expenses)) },
+    { key: 'cpc', label: 'CPC', value: formatMoney(withVat(metric.cpc)) },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
 }
 
+const platformConfig = {
+  yandex: {
+    code: 'yandex',
+    short: 'Я',
+    name: 'Яндекс Директ',
+  },
+  vk: {
+    code: 'vk',
+    short: 'ВК',
+    name: 'VK Реклама',
+  },
+}
+
+const projectPlatformCards = (project) => {
+  const cards = []
+  if (hasPlatform(project, 'YANDEX') || !hasAnyPlatform(project)) cards.push(platformConfig.yandex)
+  if (hasPlatform(project, 'VK')) cards.push(platformConfig.vk)
+  return cards
+}
+
+const normalizeGoalRows = (goals = []) => goals.map((goal) => {
+  const count = Number(goal.count || 0)
+  const cost = Number(goal.cost || 0)
+  return {
+    id: goal.id,
+    name: goal.name || 'Цель',
+    count,
+    trend: Number(goal.trend || 0),
+    cost,
+    cpl: count > 0 ? cost / count : 0,
+  }
+})
+
+const topGoalSummary = (goals) => {
+  const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+  if (!total) return 'нет целей за период'
+  const cplValues = goals.map((goal) => Number(goal.cpl || 0)).filter(Boolean)
+  const avgCpl = cplValues.length ? cplValues.reduce((sum, value) => sum + value, 0) / cplValues.length : 0
+  return `${formatNumber(total)} заявок · CPL ${formatMoney(withVat(avgCpl))}`
+}
+
+const projectChannelSummaries = (project) => {
+  const insights = getProjectInsights(project.id)
+  return projectPlatformCards(project).map((platform) => {
+    const metric = insights[platform.code] || emptyMetric()
+    const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
+    return {
+      ...platform,
+      expenses: Number(metric.expenses || 0),
+      goals,
+      summaryText: topGoalSummary(goals),
+    }
+  })
+}
+
 const projectBalances = (project) => {
-  const metric = getProjectMetric(project.id)
-  const balances = []
-  if (hasPlatform(project, 'YANDEX') || !hasAnyPlatform(project)) {
-    balances.push({
-      name: 'Yandex Direct',
-      value: formatMoney(metric.balance),
-      icon: '/admirra/img/icons/yandex-direct.png',
-      bg: '#fff2e4',
-      color: '#71663e',
-    })
+  const insights = getProjectInsights(project.id)
+  return projectPlatformCards(project).map((platform) => {
+    const value = Number(insights[platform.code]?.balance || 0)
+    return {
+      ...platform,
+      value: formatMoney(value),
+      low: value <= 0,
+    }
+  })
+}
+
+const isProjectGoalsExpanded = (projectId) => Boolean(expandedGoalsByProjectId.value[projectId])
+
+const toggleProjectGoals = (projectId) => {
+  expandedGoalsByProjectId.value = {
+    ...expandedGoalsByProjectId.value,
+    [projectId]: !expandedGoalsByProjectId.value[projectId],
   }
-  if (hasPlatform(project, 'VK')) {
-    balances.push({
-      name: 'ВК Ads Manager',
-      value: formatMoney(metric.balance),
-      icon: '/admirra/img/icons/vk-ads.png',
-      bg: '#f0f7ff',
-      color: '#254b78',
-    })
-  }
-  if (!balances.length) {
-    balances.push({
-      name: 'Шаблон канала',
-      value: formatMoney(metric.balance),
-      icon: '/admirra/img/icons/target.png',
-      bg: '#fff0f1',
-      color: '#662529',
-    })
-  }
-  return balances
+}
+
+const trendTextFromValue = (value) => {
+  const trend = Number(value || 0)
+  const sign = trend >= 0 ? '+' : ''
+  return `${sign}${trend.toFixed(0)}%`
+}
+
+const goalTrendClass = (value) => {
+  const trend = Number(value || 0)
+  if (trend > 0) return 'project-goal-trend project-goal-trend--up'
+  if (trend < 0) return 'project-goal-trend project-goal-trend--down'
+  return 'project-goal-trend'
+}
+
+const openAiAudit = (project) => {
+  setCurrentProject(project.id)
+  toaster.info('AI-аудит будет доступен позже.')
 }
 
 const loadProjectMetrics = async () => {
@@ -483,21 +567,49 @@ const loadProjectMetrics = async () => {
   const entries = await Promise.all(
     projects.value.map(async (project) => {
       try {
-        const { data } = await api.get('dashboard/summary', {
-          params: {
-            client_id: project.id,
-            platform: 'all',
-            start_date: startDate,
-            end_date: endDate,
-          },
-        })
-        return [project.id, data || emptyMetric()]
+        const data = await loadProjectInsight(project.id, startDate, endDate)
+        return [project.id, data]
       } catch {
-        return [project.id, emptyMetric()]
+        return [project.id, emptyProjectInsights()]
       }
     })
   )
-  metricsByProjectId.value = Object.fromEntries(entries)
+  const insights = Object.fromEntries(entries)
+  projectInsightsById.value = insights
+  metricsByProjectId.value = Object.fromEntries(entries.map(([projectId, data]) => [projectId, data.all || emptyMetric()]))
+}
+
+const loadProjectInsight = async (projectId, startDate, endDate) => {
+  const summaryParams = (platform) => ({
+    client_id: projectId,
+    platform,
+    start_date: startDate,
+    end_date: endDate,
+  })
+  const goalParams = (platform) => ({
+    client_id: projectId,
+    platform,
+    date_from: startDate,
+    date_to: endDate,
+  })
+
+  const [all, yandex, vk, yandexGoals, vkGoals] = await Promise.all([
+    api.get('dashboard/summary', { params: summaryParams('all') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
+    api.get('dashboard/summary', { params: summaryParams('yandex') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
+    api.get('dashboard/summary', { params: summaryParams('vk') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
+    api.get('dashboard/goals', { params: goalParams('yandex') }).then((res) => res.data || []).catch(() => []),
+    api.get('dashboard/goals', { params: goalParams('vk') }).then((res) => res.data || []).catch(() => []),
+  ])
+
+  return {
+    all,
+    yandex,
+    vk,
+    goals: {
+      yandex: yandexGoals,
+      vk: vkGoals,
+    },
+  }
 }
 
 const openProject = (project) => {
@@ -832,6 +944,374 @@ onMounted(async () => {
   color: #2563eb;
 }
 
+.projects-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.7361rem;
+  align-items: start;
+}
+
+.project-card--tile {
+  display: flex;
+  min-height: 34.7222rem;
+  flex-direction: column;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0.1389rem 0.4167rem rgba(15, 23, 42, 0.03);
+  overflow: hidden;
+}
+
+.project-tile-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 1.7361rem;
+}
+
+.project-tile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.1806rem;
+}
+
+.project-tile-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.9722rem;
+}
+
+.project-tile-title-block {
+  min-width: 0;
+}
+
+.project-title-link--tile {
+  display: block;
+  color: #171717;
+  font-size: 1.1806rem;
+  font-weight: 700;
+  line-height: 1.12;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tile-description {
+  margin-top: 0.2778rem;
+  max-width: 18rem;
+  color: rgba(105, 105, 105, 0.66);
+  font-size: 0.9028rem;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-tile-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5556rem;
+  flex-shrink: 0;
+}
+
+.project-platform-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.3472rem;
+}
+
+.project-platform-chip,
+.project-channel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.0833rem;
+  height: 2.0833rem;
+  border-radius: 0.5556rem;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.project-platform-chip--yandex,
+.project-channel-icon--yandex {
+  background: #fff6df;
+  color: #8a5f00;
+}
+
+.project-platform-chip--vk,
+.project-channel-icon--vk {
+  background: #eef7ff;
+  color: #1b5d91;
+}
+
+.project-tile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8333rem;
+  margin-bottom: 1.1806rem;
+}
+
+.stat-box__label {
+  display: block;
+  color: rgba(105, 105, 105, 0.76);
+  font-size: 0.9028rem;
+  line-height: 1.1;
+}
+
+.stat-box__value {
+  display: block;
+  margin-top: 0.4167rem;
+  color: #171717;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-goals-section {
+  margin-top: auto;
+}
+
+.project-goals-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.625rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.62);
+  cursor: pointer;
+  font-size: 0.7639rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.project-goals-title__icon {
+  color: rgba(105, 105, 105, 0.46);
+  transition: transform 0.2s;
+}
+
+.project-goals-title__icon--open {
+  transform: rotate(180deg);
+}
+
+.project-channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5556rem;
+}
+
+.project-channel-card {
+  border-radius: 0.6944rem;
+  background: #f8fafb;
+  overflow: hidden;
+}
+
+.project-channel-row {
+  display: grid;
+  grid-template-columns: 2.0833rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8333rem;
+  min-height: 3.6806rem;
+  padding: 0.625rem 0.9028rem;
+}
+
+.project-channel-main {
+  min-width: 0;
+}
+
+.project-channel-main strong,
+.project-channel-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-channel-main strong {
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.project-channel-main span {
+  margin-top: 0.1389rem;
+  color: rgba(105, 105, 105, 0.7);
+  font-size: 0.7639rem;
+  line-height: 1.15;
+}
+
+.project-channel-spend {
+  min-width: 5.9028rem;
+  text-align: right;
+}
+
+.project-channel-spend strong,
+.project-channel-spend span {
+  display: block;
+}
+
+.project-channel-spend strong {
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.project-channel-spend span {
+  margin-top: 0.1389rem;
+  color: rgba(105, 105, 105, 0.5);
+  font-size: 0.6944rem;
+}
+
+.project-goal-detail-list {
+  padding: 0 0.9028rem 0.625rem;
+}
+
+.project-goal-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.8194rem 4.8611rem 3.3333rem;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.0833rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  color: #171717;
+  font-size: 0.7639rem;
+}
+
+.project-goal-detail-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-goal-detail-row strong,
+.project-goal-detail-row b {
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.project-goal-trend {
+  display: inline-flex;
+  justify-content: center;
+  padding: 0.1389rem 0.4167rem;
+  border-radius: 999px;
+  background: rgba(105, 105, 105, 0.08);
+  color: rgba(105, 105, 105, 0.72);
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.project-goal-trend--up {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.project-goal-trend--down {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.project-goal-empty {
+  padding: 0.625rem 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  color: rgba(105, 105, 105, 0.55);
+  font-size: 0.7639rem;
+}
+
+.project-tile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8333rem;
+  min-height: 5.3472rem;
+  padding: 1.1111rem 1.7361rem 1.3889rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.project-balance-strip,
+.project-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5556rem;
+  min-width: 0;
+}
+
+.project-balance-strip {
+  flex-wrap: wrap;
+}
+
+.balance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
+  min-height: 2.0833rem;
+  max-width: 10.4167rem;
+  padding: 0 0.6944rem;
+  border-radius: 0.4167rem;
+  font-size: 0.7639rem;
+  white-space: nowrap;
+}
+
+.balance-chip--yandex {
+  background: #fff6df;
+  color: #8a5f00;
+}
+
+.balance-chip--vk {
+  background: #eef7ff;
+  color: #1b5d91;
+}
+
+.balance-chip span {
+  font-weight: 700;
+}
+
+.balance-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.balance-chip small {
+  color: currentColor;
+  font-size: 0.6944rem;
+  opacity: 0.72;
+}
+
+.ai-audit-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.0833rem;
+  padding: 0 0.8333rem;
+  border-radius: 0.5556rem;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(6, 181, 212, 0.08));
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.8333rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.ai-audit-btn:hover {
+  border-color: rgba(37, 99, 235, 0.34);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.13), rgba(6, 181, 212, 0.13));
+}
+
 .project-id-link {
   display: inline-flex;
   max-width: 100%;
@@ -856,8 +1336,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.7778rem;
-  height: 2.7778rem;
+  width: 3.0556rem;
+  height: 3.0556rem;
   border: 0;
   border-radius: 50%;
   background: #e8eef9;
@@ -945,17 +1425,19 @@ onMounted(async () => {
   border: 1px solid rgba(169, 169, 169, 0.35);
   background: transparent;
   cursor: pointer;
+  color: #696969;
   transition: border-color 0.3s;
 }
-.circle-open-btn:hover { border-color: rgba(37, 99, 235, 0.4); }
+.circle-open-btn:hover { border-color: rgba(37, 99, 235, 0.4); color: #2563eb; }
 
 /* ---- Stat box ---- */
 .stat-box {
   display: flex;
   flex-direction: column;
-  padding: 1.0417rem;
+  min-height: 4.8611rem;
+  padding: 0.7639rem 0.9722rem;
   background-color: #f8fafb;
-  border-radius: 0.8333rem;
+  border-radius: 0.5556rem;
   line-height: 1.1;
 }
 
@@ -988,7 +1470,9 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.2083rem;
-  padding: 0.2083rem 0.4861rem;
+  align-self: flex-end;
+  margin-top: auto;
+  padding: 0.1389rem 0.4167rem;
   font-size: 0.7639rem;
   font-weight: 500;
   border-radius: 6.9444rem;
@@ -1040,19 +1524,66 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.4167rem;
-  padding: 0.4167rem 0.8333rem;
+  min-height: 2.0833rem;
+  padding: 0 0.8333rem;
   font-size: 0.8333rem;
   font-weight: 500;
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.06);
-  border: 1px solid rgba(37, 99, 235, 0.12);
-  border-radius: 6.9444rem;
+  color: rgba(105, 105, 105, 0.86);
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.5556rem;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
   white-space: nowrap;
 }
-.settings-btn:hover { background: rgba(37, 99, 235, 0.12); border-color: rgba(37, 99, 235, 0.25); }
+.settings-btn:hover { background: #f8fafb; border-color: rgba(37, 99, 235, 0.2); color: #2563eb; }
 .settings-btn svg { flex-shrink: 0; }
+
+@media (max-width: 88rem) {
+  .projects-tile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .project-card--tile {
+    min-height: auto;
+  }
+
+  .project-tile-main,
+  .project-tile-footer {
+    padding-left: 1.1111rem;
+    padding-right: 1.1111rem;
+  }
+
+  .project-tile-header,
+  .project-tile-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-tile-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .project-channel-row {
+    grid-template-columns: 2.0833rem minmax(0, 1fr);
+  }
+
+  .project-channel-spend {
+    grid-column: 2;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .project-goal-detail-row {
+    grid-template-columns: minmax(0, 1fr) 3.6111rem 4.4444rem;
+  }
+
+  .project-goal-detail-row em {
+    display: none;
+  }
+}
 
 @media (max-width: 322.5px) {
   .stat-value-row {

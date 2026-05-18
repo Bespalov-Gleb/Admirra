@@ -1046,7 +1046,10 @@ async def get_goals(
         return result
 
     # ——— Yandex / all: Metrika goals ———
-    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
+    # For channel cards, platform=yandex must distribute only Yandex spend across
+    # Yandex goals. platform=all keeps the legacy aggregate behavior.
+    cost_platform = "yandex" if (platform or "").lower() == "yandex" else "all"
+    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, cost_platform, None)
     total_cost = float(summary.get("expenses", 0) or 0)
 
     query = db.query(
