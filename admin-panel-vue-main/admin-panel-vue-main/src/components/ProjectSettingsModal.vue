@@ -168,6 +168,17 @@
 
                 <!-- Expanded fields -->
                 <div v-if="form.detector_enabled || detectorFieldsExpanded">
+                  <div v-if="!form.detector_enabled" class="psm-detector-expanded-toolbar">
+                    <div>
+                      <div class="psm-detector-expanded-toolbar__title">Бюджеты и цели раскрыты</div>
+                      <div class="psm-detector-expanded-toolbar__hint">Детектор выключен, но плановые значения можно редактировать.</div>
+                    </div>
+                    <button type="button" class="psm-detector-collapsed__link" @click="detectorFieldsExpanded = false">
+                      Свернуть
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 7.5l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+
                   <div class="psm-period-row">
                     <div>
                       <label class="psm-label">Период с</label>
@@ -274,7 +285,7 @@
                 <button
                   type="button"
                   :class="form.status === 'paused' ? 'psm-btn-accent' : 'psm-btn-outline'"
-                  @click="togglePause"
+                  @click="requestTogglePause"
                 >
                   {{ form.status === 'paused' ? 'Возобновить' : 'Приостановить' }}
                 </button>
@@ -300,6 +311,20 @@
           </button>
           <button type="button" class="psm-btn-secondary" :disabled="saving" @click="close">Отмена</button>
           <div v-if="hasUnsavedChanges" class="psm-unsaved-dot" title="Есть несохранённые изменения"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause/resume confirmation -->
+    <div v-if="showPauseConfirm" class="psm-confirm-overlay" @mousedown.self="showPauseConfirm = false">
+      <div class="psm-confirm-box">
+        <h4 class="psm-confirm-title">{{ pauseConfirmTitle }}</h4>
+        <p class="psm-hint mb-4">{{ pauseConfirmText }}</p>
+        <div class="flex gap-3">
+          <button type="button" :class="pauseTargetStatus === 'active' ? 'psm-btn-accent' : 'psm-btn-outline'" @click="confirmTogglePause">
+            {{ pauseTargetStatus === 'active' ? 'Возобновить' : 'Приостановить' }}
+          </button>
+          <button type="button" class="psm-btn-secondary" @click="showPauseConfirm = false">Отмена</button>
         </div>
       </div>
     </div>
@@ -377,6 +402,8 @@ const urlError = ref('')
 const avatarModalOpen = ref(false)
 const updatedAvatarUrl = ref(null)
 const detectorFieldsExpanded = ref(false)
+const showPauseConfirm = ref(false)
+const pauseTargetStatus = ref('')
 const showDeleteConfirm = ref(false)
 const deleteConfirmText = ref('')
 const channelToDelete = ref(null)
@@ -420,6 +447,16 @@ const hasUnsavedChanges = computed(() => {
 const hasVkChannels = computed(() => {
   return projectChannels.value.some((ch) => String(ch.platform || '').toUpperCase().includes('VK'))
 })
+
+const pauseConfirmTitle = computed(() => (
+  pauseTargetStatus.value === 'active' ? 'Возобновить проект?' : 'Приостановить проект?'
+))
+
+const pauseConfirmText = computed(() => (
+  pauseTargetStatus.value === 'active'
+    ? 'Проект снова станет активным и будет занимать слот тарифа. Если лимит заполнен, сервер не даст сохранить возобновление.'
+    : 'Проект освободит слот тарифа. Интеграции, история, бюджеты и цели сохранятся, но синхронизация и детектор будут остановлены после сохранения.'
+))
 
 const platformName = (platform) => {
   const code = String(platform || '').toUpperCase()
@@ -517,6 +554,8 @@ watch(
       error.value = ''
       urlError.value = ''
       detectorFieldsExpanded.value = false
+      showPauseConfirm.value = false
+      pauseTargetStatus.value = ''
       deleteConfirmText.value = ''
       loadGoals()
       loadBudgets()
@@ -717,8 +756,16 @@ async function save() {
   }
 }
 
-function togglePause() {
-  form.status = form.status === 'paused' ? 'active' : 'paused'
+function requestTogglePause() {
+  pauseTargetStatus.value = form.status === 'paused' ? 'active' : 'paused'
+  showPauseConfirm.value = true
+}
+
+function confirmTogglePause() {
+  if (!pauseTargetStatus.value) return
+  form.status = pauseTargetStatus.value
+  showPauseConfirm.value = false
+  pauseTargetStatus.value = ''
 }
 
 function confirmDeleteChannel(ch) {
@@ -759,6 +806,7 @@ function close() {
 
 function onEscape(e) {
   if (e.key === 'Escape') {
+    if (showPauseConfirm.value) { showPauseConfirm.value = false; return }
     if (showDeleteConfirm.value) { showDeleteConfirm.value = false; return }
     if (channelToDelete.value) { channelToDelete.value = null; return }
     if (avatarModalOpen.value) return
@@ -1374,6 +1422,29 @@ onUnmounted(() => {
   transition: color 0.2s;
 }
 .psm-detector-collapsed__link:hover { color: #1d4ed8; }
+
+.psm-detector-expanded-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8333rem 1.0417rem;
+  margin-bottom: 1.1111rem;
+  background: #f8fafb;
+  border-radius: 0.6944rem;
+}
+
+.psm-detector-expanded-toolbar__title {
+  font-size: 0.9028rem;
+  font-weight: 500;
+  color: #171717;
+}
+
+.psm-detector-expanded-toolbar__hint {
+  margin-top: 0.1389rem;
+  font-size: 0.8333rem;
+  color: rgba(105, 105, 105, 0.5);
+}
 
 /* ===== Budget cards ===== */
 .psm-period-row {
