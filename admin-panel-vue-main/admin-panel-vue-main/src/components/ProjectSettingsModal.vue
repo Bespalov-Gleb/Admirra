@@ -841,20 +841,24 @@ onUnmounted(() => {
   justify-content: center;
   padding: 2.0833rem 1.3889rem;
   background: rgba(0, 0, 0, 0.5);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .psm-container {
   width: 100%;
   max-width: 52.0833rem;
+  max-height: calc(100vh - 4.1666rem);
+  max-height: calc(100dvh - 4.1666rem);
   background: #f5f7f9;
   border-radius: 1.25rem;
   box-shadow: 0 1.6667rem 4.8611rem rgba(15, 23, 42, 0.22);
   display: flex;
   flex-direction: column;
-  margin-bottom: 2.0833rem;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 /* ===== Header ===== */
@@ -902,6 +906,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1.0417rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /* ===== Error banner ===== */
@@ -1564,8 +1574,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   background: #f5f7f9;
   border-radius: 0 0 1.25rem 1.25rem;
-  position: sticky;
-  bottom: 0;
+  box-shadow: 0 -0.4167rem 1.25rem rgba(15, 23, 42, 0.035);
 }
 
 .psm-unsaved-dot {
