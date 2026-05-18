@@ -159,7 +159,7 @@
               </div>
               <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
                 <span>Аналитика</span>
-                <svg width="11" height="11" viewBox="0 0 13 13" fill="none">
+                <svg width="8" height="8" viewBox="0 0 13 13" fill="none">
                   <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
@@ -229,7 +229,6 @@
                 <img :src="balance.icon" :alt="balance.name" />
                 <span>{{ balance.name }}</span>
                 <strong>{{ balance.value }}</strong>
-                <small v-if="balance.low">пополнить</small>
               </div>
             </div>
           </div>
@@ -556,7 +555,6 @@ const projectBalances = (project) => {
       ...platform,
       name: platform.balanceName,
       value: formatMoney(value),
-      low: value <= 0,
     }
   })
 }
@@ -1016,7 +1014,7 @@ onMounted(async () => {
 .project-title-link--tile {
   display: block;
   color: #171717;
-  font-size: 1.25rem;
+  font-size: 1.3889rem;
   font-weight: 700;
   line-height: 1.12;
   max-width: 18rem;
@@ -1029,7 +1027,7 @@ onMounted(async () => {
   margin-top: 0.4167rem;
   max-width: 18rem;
   color: rgba(105, 105, 105, 0.66);
-  font-size: 0.9722rem;
+  font-size: 1.0417rem;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1088,7 +1086,7 @@ onMounted(async () => {
 .stat-box__label {
   display: block;
   color: rgba(105, 105, 105, 0.76);
-  font-size: 0.9722rem;
+  font-size: 1.0417rem;
   line-height: 1.1;
 }
 
@@ -1096,7 +1094,7 @@ onMounted(async () => {
   display: block;
   margin-top: 0.3472rem;
   color: #171717;
-  font-size: 1.3889rem;
+  font-size: 1.5278rem;
   font-weight: 700;
   line-height: 1.1;
   overflow: hidden;
@@ -1120,7 +1118,7 @@ onMounted(async () => {
   background: transparent;
   color: rgba(105, 105, 105, 0.62);
   cursor: pointer;
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.1;
@@ -1136,7 +1134,7 @@ onMounted(async () => {
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.07);
   color: #2563eb;
-  font-size: 0.7292rem;
+  font-size: 0.7639rem;
   font-weight: 700;
   text-transform: none;
   white-space: nowrap;
@@ -1191,7 +1189,7 @@ onMounted(async () => {
 
 .project-channel-main strong {
   color: #171717;
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   font-weight: 700;
   line-height: 1.15;
 }
@@ -1199,7 +1197,7 @@ onMounted(async () => {
 .project-channel-main span {
   margin-top: 0.1389rem;
   color: rgba(105, 105, 105, 0.7);
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
   line-height: 1.15;
 }
 
@@ -1215,7 +1213,7 @@ onMounted(async () => {
 
 .project-channel-spend strong {
   color: #171717;
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   font-weight: 700;
   line-height: 1.15;
 }
@@ -1223,7 +1221,7 @@ onMounted(async () => {
 .project-channel-spend span {
   margin-top: 0.1389rem;
   color: rgba(105, 105, 105, 0.5);
-  font-size: 0.6944rem;
+  font-size: 0.7639rem;
 }
 
 .project-goal-detail-list {
@@ -1238,7 +1236,7 @@ onMounted(async () => {
   min-height: 2.2222rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   color: #171717;
-  font-size: 0.8333rem;
+  font-size: 0.9028rem;
 }
 
 .project-goal-detail-row span {
@@ -1309,7 +1307,7 @@ onMounted(async () => {
 
 .project-balance-title {
   color: rgba(105, 105, 105, 0.62);
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.1;
@@ -1336,7 +1334,7 @@ onMounted(async () => {
   max-width: 13.8889rem;
   padding: 0.3472rem 0.6944rem;
   border-radius: 0.8333rem;
-  font-size: 0.8333rem;
+  font-size: 0.9028rem;
   white-space: nowrap;
 }
 
@@ -1374,14 +1372,8 @@ onMounted(async () => {
   background: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
   font-weight: 600;
-}
-
-.balance-chip small {
-  color: currentColor;
-  font-size: 0.6944rem;
-  opacity: 0.72;
 }
 
 .ai-audit-btn {
@@ -1395,7 +1387,7 @@ onMounted(async () => {
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(6, 181, 212, 0.08));
   color: #2563eb;
   cursor: pointer;
-  font-size: 0.8333rem;
+  font-size: 0.9028rem;
   font-weight: 700;
   white-space: nowrap;
   transition: background 0.2s, border-color 0.2s;
@@ -1578,7 +1570,7 @@ onMounted(async () => {
   align-self: flex-end;
   margin-top: auto;
   padding: 0.1389rem 0.4167rem;
-  font-size: 0.7639rem;
+  font-size: 0.8333rem;
   font-weight: 500;
   border-radius: 6.9444rem;
   white-space: nowrap;
@@ -1631,7 +1623,7 @@ onMounted(async () => {
   gap: 0.4167rem;
   min-height: 2.0833rem;
   padding: 0 0.8333rem;
-  font-size: 0.8333rem;
+  font-size: 0.9028rem;
   font-weight: 500;
   color: rgba(105, 105, 105, 0.86);
   background: #fff;

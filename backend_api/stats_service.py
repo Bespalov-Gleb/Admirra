@@ -384,6 +384,22 @@ class StatsService:
         # Если выбраны конкретные кампании, фильтруем по ним
         if campaign_ids:
             active_campaigns_query = active_campaigns_query.filter(models.Campaign.id.in_(campaign_ids))
+
+        if platform == "yandex":
+            active_campaigns_query = active_campaigns_query.filter(
+                models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+            )
+        elif platform == "vk":
+            active_campaigns_query = active_campaigns_query.filter(
+                models.Integration.platform == models.IntegrationPlatform.VK_ADS
+            )
+        elif platform == "all":
+            active_campaigns_query = active_campaigns_query.filter(
+                models.Integration.platform.in_([
+                    models.IntegrationPlatform.YANDEX_DIRECT,
+                    models.IntegrationPlatform.VK_ADS,
+                ])
+            )
         
         active_integration_ids = [ci[0] for ci in active_campaigns_query.distinct().all() if ci[0]]
         

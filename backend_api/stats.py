@@ -998,6 +998,7 @@ async def get_goals(
             models.VKStats.client_id.in_(effective_client_ids),
             models.VKStats.date >= date_from_obj,
             models.VKStats.date <= date_to_obj,
+            models.Campaign.is_active.is_(True),
             models.Campaign.vk_goal_action_id.isnot(None),
             models.Campaign.vk_goal_action_id != "",
         )
@@ -1019,6 +1020,7 @@ async def get_goals(
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(effective_client_ids),
                 models.Campaign.vk_goal_action_id == row.vk_goal_action_id,
+                models.Campaign.is_active.is_(True),
                 models.VKStats.date >= prev_date_from,
                 models.VKStats.date <= prev_date_to,
             )
