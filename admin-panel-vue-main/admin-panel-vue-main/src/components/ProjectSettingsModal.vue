@@ -382,7 +382,7 @@ const props = defineProps({
   project: { type: Object, required: true },
 })
 
-const emit = defineEmits(['close', 'saved', 'deleted', 'add-channel', 'configure-channel'])
+const emit = defineEmits(['close', 'saved', 'deleted', 'add-channel', 'configure-channel', 'avatar-saved'])
 
 const toaster = useToaster()
 
@@ -695,7 +695,7 @@ async function copyProjectId() {
 
 function handleAvatarSaved(updatedProject) {
   updatedAvatarUrl.value = projectAvatarUrl(updatedProject) || null
-  emit('saved', updatedProject)
+  emit('avatar-saved', updatedProject)
 }
 
 async function save() {

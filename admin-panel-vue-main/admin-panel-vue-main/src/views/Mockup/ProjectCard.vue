@@ -143,20 +143,13 @@
                 >
                   {{ project.name }}
                 </button>
-                <p class="project-tile-description">{{ project.description || 'Без описания' }} · ID {{ projectSupportId(project) }}</p>
+                <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
+                <button type="button" class="project-tile-id" @click.stop="copyProjectId(project)">
+                  ID {{ projectSupportId(project) }}
+                </button>
               </div>
             </div>
             <div class="project-tile-actions">
-              <div class="project-platform-chips">
-                <span
-                  v-for="platform in projectPlatformCards(project)"
-                  :key="platform.code"
-                  class="project-platform-chip"
-                  :class="`project-platform-chip--${platform.code}`"
-                >
-                  <img :src="platform.icon" :alt="platform.name" />
-                </span>
-              </div>
               <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
                 <span>Аналитика</span>
                 <svg width="8" height="8" viewBox="0 0 13 13" fill="none">
@@ -262,6 +255,7 @@
       :project="settingsProject"
       @close="settingsProject = null"
       @saved="handleSettingsSaved"
+      @avatar-saved="handleAvatarSaved"
       @deleted="handleProjectDeleted"
       @add-channel="handleSettingsAddChannel"
       @configure-channel="handleSettingsConfigureChannel"
@@ -1034,6 +1028,29 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.project-tile-id {
+  display: inline-flex;
+  max-width: 18rem;
+  margin-top: 0.2778rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.48);
+  cursor: pointer;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  line-height: 1.15;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.project-tile-id:hover {
+  color: #2563eb;
+}
+
 .project-tile-actions {
   display: flex;
   align-items: center;
@@ -1331,7 +1348,7 @@ onMounted(async () => {
   align-items: center;
   gap: 0.4167rem;
   min-height: 2.2222rem;
-  max-width: 13.8889rem;
+  max-width: 100%;
   padding: 0.3472rem 0.6944rem;
   border-radius: 0.8333rem;
   font-size: 0.9028rem;
@@ -1357,21 +1374,18 @@ onMounted(async () => {
 }
 
 .balance-chip span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
   font-weight: 500;
 }
 
 .balance-chip strong {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   min-height: 1.5278rem;
   padding: 0 0.5556rem;
   border-radius: 6.9444rem;
   background: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-size: 0.8333rem;
   font-weight: 600;
 }
@@ -1506,9 +1520,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 0.4167rem;
-  min-height: 2.3611rem;
+  min-height: 2.0833rem;
   padding: 0 0.8333rem;
-  border-radius: 999px;
+  border-radius: 0.5556rem;
   border: 1px solid rgba(169, 169, 169, 0.35);
   background: #fff;
   cursor: pointer;

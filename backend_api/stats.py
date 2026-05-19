@@ -1016,7 +1016,8 @@ async def get_goals(
 
         for row in vk_rows:
             prev_q = db.query(
-                func.sum(models.VKStats.conversions)
+                func.sum(models.VKStats.conversions),
+                func.sum(models.VKStats.cost),
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(effective_client_ids),
                 models.Campaign.vk_goal_action_id == row.vk_goal_action_id,
@@ -1026,12 +1027,17 @@ async def get_goals(
             )
             if u_campaign_ids:
                 prev_q = prev_q.filter(models.Campaign.id.in_(u_campaign_ids))
-            prev_count = prev_q.scalar() or 0
+            prev_count, prev_cost = prev_q.first() or (0, 0)
 
             current_count = int(row.count or 0)
+            current_cost = float(row.cost or 0)
+            prev_count = int(prev_count or 0)
+            prev_cost = float(prev_cost or 0)
             trend = 0.0
-            if prev_count and prev_count > 0:
-                trend = round(((current_count - int(prev_count)) / int(prev_count)) * 100, 1)
+            current_cpl = current_cost / current_count if current_count > 0 else 0
+            prev_cpl = prev_cost / prev_count if prev_count > 0 else 0
+            if prev_cpl > 0 and current_cpl > 0:
+                trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
 
             name = (row.vk_goal_action_name or "").strip() or get_vk_goal_action_name_ru(row.vk_goal_action_id or "")
             if not name:
@@ -1042,7 +1048,7 @@ async def get_goals(
                 "name": name,
                 "count": current_count,
                 "trend": trend,
-                "cost": float(row.cost or 0),
+                "cost": current_cost,
             })
 
         return result
@@ -1128,14 +1134,27 @@ async def get_goals(
     # Calculate total conversions for proportional cost distribution
     total_conversions = sum(int(g.count or 0) for g in goals)
 
-    # Calculate trend and cost (simplified - compare with previous period)
+    period_days = (date_to_obj - date_from_obj).days + 1
+    prev_date_from = date_from_obj - timedelta(days=period_days)
+    prev_date_to = date_from_obj - timedelta(days=1)
+    prev_summary = StatsService.aggregate_summary(db, effective_client_ids, prev_date_from, prev_date_to, cost_platform, None)
+    prev_total_cost = float(prev_summary.get("expenses", 0) or 0)
+    prev_total_query = db.query(
+        func.sum(models.MetrikaGoals.conversion_count)
+    ).filter(
+        models.MetrikaGoals.client_id.in_(effective_client_ids),
+        models.MetrikaGoals.date >= prev_date_from,
+        models.MetrikaGoals.date <= prev_date_to,
+        models.MetrikaGoals.goal_id != "all",
+    )
+    if selected_goal_ids:
+        prev_total_query = prev_total_query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+    prev_total_conversions = prev_total_query.scalar() or 0
+
+    # Calculate CPL trend and cost. The project tiles display trend next to CPL,
+    # so this value must describe cost-per-lead movement, not conversion volume.
     result = []
     for g in goals:
-        # Get previous period data for trend calculation
-        period_days = (date_to_obj - date_from_obj).days + 1
-        prev_date_from = date_from_obj - timedelta(days=period_days)
-        prev_date_to = date_from_obj - timedelta(days=1)
-        
         prev_count = db.query(
             func.sum(models.MetrikaGoals.conversion_count)
         ).filter(
@@ -1144,22 +1163,30 @@ async def get_goals(
             models.MetrikaGoals.date >= prev_date_from,
             models.MetrikaGoals.date <= prev_date_to
         ).scalar() or 0
-        
+
         current_count = int(g.count or 0)
-        trend = 0.0
-        if prev_count > 0:
-            trend = round(((current_count - prev_count) / prev_count) * 100, 1)
-        
+
         # Calculate cost proportionally to conversions
         cost = 0.0
         if total_conversions > 0 and total_cost > 0:
             cost = round((current_count / total_conversions) * total_cost, 2)
-        
+
+        prev_cost = 0.0
+        if prev_total_conversions > 0 and prev_total_cost > 0:
+            prev_cost = round((int(prev_count or 0) / int(prev_total_conversions)) * prev_total_cost, 2)
+
+        current_cpl = cost / current_count if current_count > 0 else 0
+        prev_cpl = prev_cost / int(prev_count or 0) if int(prev_count or 0) > 0 else 0
+
+        cpl_trend = 0.0
+        if prev_cpl > 0 and current_cpl > 0:
+            cpl_trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
+
         result.append({
             "id": g.goal_id,
             "name": g.goal_name or f"Goal {g.goal_id}",
             "count": current_count,
-            "trend": trend,
+            "trend": cpl_trend,
             "cost": cost  # NEW: Add cost field
         })
     

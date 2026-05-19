@@ -461,6 +461,7 @@
       :project="editingProject"
       @close="editingProject = null"
       @saved="handleEditSaved"
+      @avatar-saved="handleAvatarSaved"
       @deleted="handleProjectDeleted"
       @add-channel="handleSettingsAddChannel"
       @configure-channel="handleSettingsConfigureChannel"
