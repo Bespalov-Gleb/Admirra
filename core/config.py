@@ -132,6 +132,22 @@ class TelegramBotConfig:
 
 
 @dataclass
+class DetectorCfg:
+    enabled: bool
+    baseline_days: int
+    fresh_window_days: int
+    fresh_window_skip_days: int
+    warmup_days: int
+    min_conversions_silence: int
+    min_conversions_warning_only: int
+    duration_warning: int
+    duration_problem: int
+    recovery_days: int
+    thresholds_json: str
+    holidays_json: str
+
+
+@dataclass
 class Config:
     security: SecurityConfig
     database: DatabaseConfig
@@ -144,6 +160,7 @@ class Config:
     telegram_bot: TelegramBotConfig
     smtp: SmtpConfig
     support: SupportConfig
+    detector: DetectorCfg
 
 
 def _bool(name: str, default: bool) -> bool:
@@ -268,6 +285,20 @@ def get_config() -> Config:
         ),
         support=SupportConfig(
             inbox_email=_env("SUPPORT_INBOX_EMAIL", "support@admirra.ru"),
+        ),
+        detector=DetectorCfg(
+            enabled=_bool("DETECTOR_ENABLED", True),
+            baseline_days=int(_env("DETECTOR_BASELINE_DAYS", "42")),
+            fresh_window_days=int(_env("DETECTOR_FRESH_WINDOW_DAYS", "5")),
+            fresh_window_skip_days=int(_env("DETECTOR_FRESH_WINDOW_SKIP_DAYS", "2")),
+            warmup_days=int(_env("DETECTOR_WARMUP_DAYS", "21")),
+            min_conversions_silence=int(_env("DETECTOR_MIN_CONVERSIONS_SILENCE", "10")),
+            min_conversions_warning_only=int(_env("DETECTOR_MIN_CONVERSIONS_WARNING_ONLY", "30")),
+            duration_warning=int(_env("DETECTOR_DURATION_WARNING", "2")),
+            duration_problem=int(_env("DETECTOR_DURATION_PROBLEM", "3")),
+            recovery_days=int(_env("DETECTOR_RECOVERY_DAYS", "2")),
+            thresholds_json=_env("DETECTOR_THRESHOLDS_JSON"),
+            holidays_json=_env("DETECTOR_HOLIDAYS_JSON"),
         ),
     )
 

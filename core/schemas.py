@@ -467,6 +467,53 @@ class ProjectSettingsResponse(BaseModel):
 
 
 
+class DetectorAlertResponse(BaseModel):
+    id: UUID
+    metric: str
+    detection_level: str
+    entity_id: Optional[str] = None
+    channel: Optional[str] = None
+    mode: str
+    severity: str
+    deviation_pct: Optional[float] = None
+    baseline_value: Optional[float] = None
+    actual_value: Optional[float] = None
+    consecutive_days: int = 1
+    pattern_key: Optional[str] = None
+    hypothesis_text: Optional[str] = None
+    status: str
+    opened_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @field_validator("channel", mode="before")
+    @classmethod
+    def normalize_channel(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            return v.value
+        return v
+
+
+class DetectorSummaryResponse(BaseModel):
+    warning_count: int = 0
+    problem_count: int = 0
+    max_severity: Optional[str] = None
+    warmup_status: Optional[str] = None
+    warmup_days_left: Optional[int] = None
+    alerts: List[DetectorAlertResponse] = []
+
+
+class DetectorCrossProjectItem(BaseModel):
+    project_id: UUID
+    warning_count: int = 0
+    problem_count: int = 0
+    max_severity: Optional[str] = None
+    warmup_status: Optional[str] = None
+
+
 class DynamicsStat(BaseModel):
     labels: List[str]
     costs: List[float]

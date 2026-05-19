@@ -524,6 +524,42 @@ class ProjectTargetCPA(Base):
     client = relationship("Client", back_populates="target_cpas")
 
 
+class DetectorAlert(Base):
+    __tablename__ = "detector_alerts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    metric = Column(String(32), nullable=False)
+    detection_level = Column(String(32), nullable=False, default="project")
+    entity_id = Column(String(128), nullable=True)
+    channel = Column(Enum(IntegrationPlatform), nullable=True)
+    mode = Column(String(16), nullable=False, default="baseline")
+    severity = Column(String(16), nullable=False, default="warning")
+    deviation_pct = Column(Numeric(8, 2), nullable=True)
+    baseline_value = Column(Numeric(20, 2), nullable=True)
+    actual_value = Column(Numeric(20, 2), nullable=True)
+    consecutive_days = Column(Integer, nullable=False, default=1)
+    pattern_key = Column(String(64), nullable=True)
+    hypothesis_text = Column(String(500), nullable=True)
+    status = Column(String(16), nullable=False, default="open", index=True)
+    opened_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    last_checked_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    meta = Column(JSON, nullable=True)
+
+    client = relationship("Client")
+    owner = relationship("User", foreign_keys=[owner_id])
+
+    __table_args__ = (
+        UniqueConstraint(
+            "client_id", "metric", "detection_level", "entity_id", "channel", "mode",
+            name="uq_detector_alert_open",
+        ),
+    )
+
+
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"
     

@@ -150,6 +150,15 @@
               </div>
             </div>
             <div class="project-tile-actions">
+              <span
+                v-if="detectorBadge(project)"
+                class="detector-badge"
+                :class="`detector-badge--${detectorBadge(project).type}`"
+                :title="detectorBadge(project).text"
+              >
+                <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <template v-else>{{ detectorBadge(project).count }}</template>
+              </span>
               <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
                 <span>Аналитика</span>
                 <svg width="8" height="8" viewBox="0 0 13 13" fill="none">
@@ -296,10 +305,12 @@ import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
 import ProjectSettingsModal from '../../components/ProjectSettingsModal.vue'
+import { useDetectorCrossProject } from '../../composables/useDetector'
 
 const router = useRouter()
 const toaster = useToaster()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
+const { fetchCrossProject, getProjectStatus } = useDetectorCrossProject()
 
 const projectFilter = ref('all')
 const periodKey = ref('last_7_days')
@@ -748,9 +759,22 @@ const openMassEdit = () => {
   router.push('/project-rows')
 }
 
+const detectorBadge = (project) => {
+  const status = getProjectStatus(project.id)
+  if (!status) return null
+  if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Детектор накапливает данные' }
+  const total = (status.warning_count || 0) + (status.problem_count || 0)
+  if (!total) return null
+  return {
+    type: status.max_severity || 'warning',
+    text: `${total} ${total === 1 ? 'отклонение' : total < 5 ? 'отклонения' : 'отклонений'}`,
+    count: total,
+  }
+}
+
 onMounted(async () => {
   await fetchProjects()
-  await loadProjectMetrics()
+  await Promise.all([loadProjectMetrics(), fetchCrossProject()])
 })
 </script>
 
@@ -1765,6 +1789,35 @@ onMounted(async () => {
 .settings-btn:hover { background: #f8fafb; border-color: rgba(37, 99, 235, 0.2); color: #2563eb; }
 .settings-btn svg { flex-shrink: 0; }
 
+.detector-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6667rem;
+  height: 1.6667rem;
+  padding: 0 0.4167rem;
+  border-radius: 0.5556rem;
+  font-size: 0.7639rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.detector-badge--warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+.detector-badge--problem {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.detector-badge--warmup {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
 @media (max-width: 88rem) {
   .projects-tile-grid {
     grid-template-columns: 1fr;
@@ -2051,5 +2104,24 @@ onMounted(async () => {
 :global(.darkmode) .settings-btn:hover {
   border-color: rgba(103, 168, 255, 0.32);
   color: #67a8ff;
+}
+
+:global(.dark) .detector-badge--warning,
+:global(.darkmode) .detector-badge--warning {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+:global(.dark) .detector-badge--problem,
+:global(.darkmode) .detector-badge--problem {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+:global(.dark) .detector-badge--warmup,
+:global(.darkmode) .detector-badge--warmup {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
 }
 </style>

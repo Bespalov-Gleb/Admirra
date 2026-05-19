@@ -5,8 +5,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from core import models
-
-DETECTOR_WARMUP_DAYS = 14
+from core.config import get_config
 
 
 def _enum_value(value) -> str:
@@ -38,7 +37,7 @@ def get_detector_state(client: models.Client | None) -> dict:
         status = "waiting_for_data"
     else:
         days_since_start = max((date.today() - actual_start).days + 1, 0)
-        status = "ready" if days_since_start >= DETECTOR_WARMUP_DAYS else "warming_up"
+        status = "ready" if days_since_start >= get_config().detector.warmup_days else "warming_up"
 
     days_since_start = None
     if actual_start:
@@ -48,14 +47,14 @@ def get_detector_state(client: models.Client | None) -> dict:
         "disabled": "Детектор выключен.",
         "paused": "Проект на паузе, детектор остановлен.",
         "waiting_for_data": "Ждём первые данные интеграций для запуска прогрева.",
-        "warming_up": f"Идёт прогрев детектора: нужно {DETECTOR_WARMUP_DAYS} дней данных.",
+        "warming_up": f"Идёт прогрев детектора: нужно {get_config().detector.warmup_days} дней данных.",
         "ready": "Детектор готов к работе.",
     }
     return {
         "status": status,
         "actual_start_date": str(actual_start) if actual_start else None,
         "days_since_start": days_since_start,
-        "warmup_days": DETECTOR_WARMUP_DAYS,
+        "warmup_days": get_config().detector.warmup_days,
         "message": messages[status],
     }
 

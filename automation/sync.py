@@ -1197,7 +1197,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         integration.error_message = None
         integration.last_sync_at = datetime.utcnow()
         update_actual_start_date(db, integration.client_id)
-        
+
+        try:
+            from backend_api.services.detector import run_detector_for_client
+            run_detector_for_client(db, integration.client_id)
+        except Exception as det_err:
+            logger.exception("Detector failed for client %s: %s", integration.client_id, det_err)
+
         # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
         # This prevents stale cached data from appearing on the dashboard
         from backend_api.cache_service import CacheService

@@ -225,6 +225,17 @@
       </div>
     </section>
 
+    <DetectorBanner
+      v-if="filters.client_id && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
+      :warning-count="detectorSummary?.warning_count || 0"
+      :problem-count="detectorSummary?.problem_count || 0"
+      :severity="detectorSummary?.max_severity"
+      :hypothesis="detectorBannerHypothesis"
+      :warmup-status="detectorSummary?.warmup_status"
+      :warmup-days-left="detectorSummary?.warmup_days_left"
+      class="detector-banner-slot"
+    />
+
     <VueDraggable
       v-model="visibleSlots"
       tag="section"
@@ -234,7 +245,14 @@
       draggable=".metric-card-item"
       @end="saveKpiConfig"
     >
-      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item">
+      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
+        <span
+          v-if="getMetricAnomaly(key)"
+          class="anomaly-dot"
+          :class="`anomaly-dot--${getMetricAnomaly(key).severity}`"
+          :title="getMetricAnomalyTooltip(key)"
+          @click.stop="handleDismissAnomaly(key)"
+        ></span>
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -591,6 +609,8 @@ import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { VueDraggable } from 'vue-draggable-plus'
+import DetectorBanner from '@/components/DetectorBanner.vue'
+import { useDetector } from '@/composables/useDetector'
 
 const { isDarkMode } = useTheme()
 const toaster = useToaster()
@@ -611,6 +631,13 @@ const {
   deviceStats: deviceStatsRaw,
   placements: placementsRaw
 } = useDashboardStats()
+
+const {
+  summary: detectorSummary,
+  fetchSummary: fetchDetectorSummary,
+  dismissAlert: dismissDetectorAlert,
+  getAlertForMetric,
+} = useDetector()
 
 const openMenu = ref('')
 
@@ -1720,6 +1747,39 @@ watch(() => filters.period, (period) => {
 watch(() => filters.channel, (channel) => {
   if (channel === 'vk') fetchAllCampaignsForGoalsTab()
 })
+
+watch(() => filters.client_id, (clientId) => {
+  if (clientId) fetchDetectorSummary(clientId)
+}, { immediate: true })
+
+const detectorBannerHypothesis = computed(() => {
+  if (!detectorSummary.value?.alerts?.length) return ''
+  return detectorSummary.value.alerts[0]?.hypothesis_text || ''
+})
+
+const metricAnomalyClass = (key) => {
+  const alert = getAlertForMetric(key)
+  if (!alert) return ''
+  return `metric-card--anomaly-${alert.severity}`
+}
+
+const getMetricAnomaly = (key) => getAlertForMetric(key)
+
+const getMetricAnomalyTooltip = (key) => {
+  const alert = getAlertForMetric(key)
+  if (!alert) return ''
+  const deviation = alert.deviation_pct > 0 ? `+${alert.deviation_pct}%` : `${alert.deviation_pct}%`
+  const days = alert.consecutive_days
+  const hypothesis = alert.hypothesis_text ? `\n${alert.hypothesis_text}` : ''
+  return `Отклонение ${deviation}, ${days} дн. подряд${hypothesis}\nКликните чтобы скрыть`
+}
+
+const handleDismissAnomaly = async (key) => {
+  const alert = getAlertForMetric(key)
+  if (!alert) return
+  const ok = await dismissDetectorAlert(alert.id)
+  if (ok) toaster.success('Алерт скрыт')
+}
 
 onMounted(() => {
   refreshUserReportSettings()
@@ -2923,6 +2983,7 @@ onMounted(() => {
 }
 
 .metric-card {
+  position: relative;
   padding: 2.5rem;
   border-radius: 1.5rem;
   background: #fff;
@@ -2930,12 +2991,50 @@ onMounted(() => {
   align-items: center;
   border: 2px solid transparent;
   overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 .metric-card.metric-card--add {
   background: transparent;
   border-style: dashed;
   border-color: #d1d5db;
   overflow: visible;
+}
+
+.metric-card--anomaly-warning {
+  border-color: #fcd34d;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 0.4rem 1rem rgba(251, 191, 36, 0.08);
+}
+.metric-card--anomaly-problem {
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0.4rem 1rem rgba(239, 68, 68, 0.08);
+}
+
+.anomaly-dot {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  animation: anomaly-pulse 2s ease-in-out infinite;
+}
+.anomaly-dot--warning {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(245, 158, 11, 0.4);
+}
+.anomaly-dot--problem {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(239, 68, 68, 0.4);
+}
+@keyframes anomaly-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.detector-banner-slot {
+  margin-top: 2rem;
 }
 
 .metric-head {
@@ -5278,6 +5377,22 @@ onMounted(() => {
 .figma-dashboard.is-dark .metric-card--add {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.15);
+}
+.figma-dashboard.is-dark .metric-card--anomaly-warning {
+  border-color: rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2);
+  background: rgba(251, 191, 36, 0.04);
+}
+.figma-dashboard.is-dark .metric-card--anomaly-problem {
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.04);
+}
+.figma-dashboard.is-dark .anomaly-dot--warning {
+  box-shadow: 0 0 0 2px #2a2d3c, 0 0 0.5rem rgba(245, 158, 11, 0.5);
+}
+.figma-dashboard.is-dark .anomaly-dot--problem {
+  box-shadow: 0 0 0 2px #2a2d3c, 0 0 0.5rem rgba(239, 68, 68, 0.5);
 }
 .figma-dashboard.is-dark .metric-card--add:hover {
   background: rgba(74, 122, 255, 0.1);

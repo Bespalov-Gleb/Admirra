@@ -75,6 +75,7 @@ from backend_api.health_routes import router as health_router
 from backend_api.team import router as team_router
 from backend_api.history import router as history_router
 from backend_api.admin import router as admin_router
+from backend_api.detector import router as detector_router
 
 try:
     from ai.router import router as ai_router
@@ -197,6 +198,7 @@ app.include_router(health_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(detector_router, prefix="/api")
 
 if AI_AVAILABLE:
     app.include_router(ai_router, prefix="/api")
