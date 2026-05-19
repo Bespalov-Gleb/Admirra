@@ -161,11 +161,26 @@
 
           <div class="project-tile-stats">
             <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
-              <span class="stat-box__label">{{ stat.label }}</span>
-              <b class="stat-box__value">{{ stat.value }}</b>
-              <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
-                {{ stat.change }}
-              </span>
+              <div class="stat-box__head">
+                <div class="iconbox flex-shrink-0">
+                  <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
+                    <use :href="stat.icon" />
+                  </svg>
+                </div>
+                <div class="stat-box__copy">
+                  <h4>{{ stat.label }}</h4>
+                  <p>{{ stat.subtitle }}</p>
+                </div>
+              </div>
+              <div class="stat-value-row">
+                <b>{{ stat.value }}</b>
+                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                  <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
+                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  {{ stat.change }}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -188,7 +203,12 @@
                   </span>
                   <div class="project-channel-main">
                     <strong>{{ channel.name }}</strong>
-                    <span>{{ channel.summaryText }}</span>
+                    <span v-if="!channel.goalTotal">нет целей за период</span>
+                    <span v-else>{{ channel.goalNoun }} за период</span>
+                  </div>
+                  <div v-if="channel.goalTotal" class="project-channel-summary">
+                    <strong>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</strong>
+                    <span>CPL {{ channel.avgCpl ? formatMoney(withVat(channel.avgCpl)) : '—' }}</span>
                   </div>
                   <div class="project-channel-spend">
                     <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
@@ -475,10 +495,12 @@ const hasAnyPlatform = (project) => projectPlatforms(project).length > 0
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
   return [
-    { key: 'impressions', label: 'Показы', value: formatNumber(metric.impressions) },
-    { key: 'clicks', label: 'Клики', value: formatNumber(metric.clicks) },
-    { key: 'expenses', label: 'Расход', value: formatMoney(withVat(metric.expenses)) },
-    { key: 'cpc', label: 'CPC', value: formatMoney(withVat(metric.cpc)) },
+    { key: 'impressions', label: 'Показы', subtitle: 'По всем каналам', value: formatNumber(metric.impressions), icon: '/admirra/img/svg/sprite.svg#diagrama' },
+    { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), icon: '/admirra/img/svg/sprite.svg#cursore' },
+    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(withVat(metric.cpc)), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
+    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(withVat(metric.expenses)), icon: '/admirra/img/svg/sprite.svg#wallet' },
+    { key: 'leads', label: 'Лиды', subtitle: 'По всем каналам', value: `${formatNumber(metric.leads)} шт.`, icon: '/admirra/img/svg/sprite.svg#calendar' },
+    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(withVat(metric.cpa)), icon: '/admirra/img/svg/sprite.svg#ok' },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
 }
 
@@ -521,13 +543,45 @@ const normalizeGoalRows = (goals = []) => goals.map((goal) => {
   }
 })
 
+const goalNoun = (count) => {
+  const value = Math.abs(Number(count || 0))
+  const lastTwo = value % 100
+  const last = value % 10
+  if (lastTwo >= 11 && lastTwo <= 14) return 'заявок'
+  if (last === 1) return 'заявка'
+  if (last >= 2 && last <= 4) return 'заявки'
+  return 'заявок'
+}
+
 const topGoalSummary = (goals) => {
   const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
-  if (!total) return 'нет целей за период'
-  const cplValues = goals.map((goal) => Number(goal.cpl || 0)).filter(Boolean)
-  if (!cplValues.length) return `${formatNumber(total)} заявок`
-  const avgCpl = cplValues.reduce((sum, value) => sum + value, 0) / cplValues.length
-  return `${formatNumber(total)} заявок · CPL ${formatMoney(withVat(avgCpl))}`
+  const noun = goalNoun(total)
+  const pricedGoals = goals.filter((goal) => goal.hasCost && Number(goal.count || 0) > 0)
+  const pricedCount = pricedGoals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+  const pricedCost = pricedGoals.reduce((sum, goal) => sum + Number(goal.cost || 0), 0)
+  const avgCpl = pricedCount ? pricedCost / pricedCount : null
+  if (!total) {
+    return {
+      total: 0,
+      noun,
+      avgCpl,
+      text: 'нет целей за период',
+    }
+  }
+  if (!avgCpl) {
+    return {
+      total,
+      noun,
+      avgCpl,
+      text: `${formatNumber(total)} ${noun}`,
+    }
+  }
+  return {
+    total,
+    noun,
+    avgCpl,
+    text: `${formatNumber(total)} ${noun} · CPL ${formatMoney(withVat(avgCpl))}`,
+  }
 }
 
 const formatGoalCpl = (goal) => goal.hasCost ? formatMoney(withVat(goal.cpl)) : '—'
@@ -537,11 +591,15 @@ const projectChannelSummaries = (project) => {
   return projectPlatformCards(project).map((platform) => {
     const metric = insights[platform.code] || emptyMetric()
     const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
+    const summary = topGoalSummary(goals)
     return {
       ...platform,
       expenses: Number(metric.expenses || 0),
       goals,
-      summaryText: topGoalSummary(goals),
+      goalTotal: summary.total,
+      goalNoun: summary.noun,
+      avgCpl: summary.avgCpl,
+      summaryText: summary.text,
     }
   })
 }
@@ -1100,28 +1158,9 @@ onMounted(async () => {
 
 .project-tile-stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8333rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7639rem;
   margin-bottom: 1.25rem;
-}
-
-.stat-box__label {
-  display: block;
-  color: rgba(105, 105, 105, 0.76);
-  font-size: 1.0417rem;
-  line-height: 1.1;
-}
-
-.stat-box__value {
-  display: block;
-  margin-top: 0.3472rem;
-  color: #171717;
-  font-size: 1.5278rem;
-  font-weight: 700;
-  line-height: 1.1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .project-goals-section {
@@ -1190,7 +1229,7 @@ onMounted(async () => {
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.2222rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.2222rem minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.8333rem;
   min-height: 3.75rem;
@@ -1221,6 +1260,30 @@ onMounted(async () => {
   color: rgba(105, 105, 105, 0.7);
   font-size: 0.8333rem;
   line-height: 1.15;
+}
+
+.project-channel-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.5556rem;
+  min-width: 10.4167rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.project-channel-summary strong {
+  color: #171717;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.project-channel-summary span {
+  color: #171717;
+  font-size: 1.0417rem;
+  font-weight: 700;
+  line-height: 1.05;
 }
 
 .project-channel-spend {
@@ -1550,10 +1613,44 @@ onMounted(async () => {
 .stat-box {
   display: flex;
   flex-direction: column;
-  min-height: 4.8611rem;
-  padding: 0.6944rem 0.9722rem;
+  min-height: 6.4583rem;
+  padding: 0.8333rem;
   background-color: #f8fafb;
-  border-radius: 0.5556rem;
+  border-radius: 0.6944rem;
+  line-height: 1.1;
+}
+
+.stat-box__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-width: 0;
+  padding-bottom: 0.4167rem;
+}
+
+.stat-box__copy {
+  min-width: 0;
+}
+
+.stat-box__copy h4,
+.stat-box__copy p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-box__copy h4 {
+  margin: 0 0 0.1389rem;
+  color: #696969;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.stat-box__copy p {
+  margin: 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 0.7639rem;
   line-height: 1.1;
 }
 
@@ -1562,8 +1659,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.2222rem;
-  height: 2.2222rem;
+  width: 1.9444rem;
+  height: 1.9444rem;
   background: #fff;
   border-radius: 0.4167rem;
 }
@@ -1586,10 +1683,8 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.2083rem;
-  align-self: flex-end;
-  margin-top: auto;
   padding: 0.1389rem 0.4167rem;
-  font-size: 0.8333rem;
+  font-size: 0.7639rem;
   font-weight: 500;
   border-radius: 6.9444rem;
   white-space: nowrap;
@@ -1614,8 +1709,23 @@ onMounted(async () => {
 }
 
 .stat-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   min-width: 0;
-  gap: 0.5556rem;
+  gap: 0.4861rem;
+  margin-top: auto;
+}
+
+.stat-value-row b {
+  min-width: 0;
+  overflow: hidden;
+  color: #2c2c2c;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge-white {
@@ -1686,10 +1796,16 @@ onMounted(async () => {
     grid-template-columns: 2.0833rem minmax(0, 1fr);
   }
 
+  .project-channel-summary,
   .project-channel-spend {
     grid-column: 2;
     min-width: 0;
     text-align: left;
+  }
+
+  .project-channel-summary {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .project-goal-detail-row {
@@ -1857,6 +1973,10 @@ onMounted(async () => {
 :global(.darkmode) .project-title-link--tile,
 :global(.dark) .project-channel-main strong,
 :global(.darkmode) .project-channel-main strong,
+:global(.dark) .project-channel-summary strong,
+:global(.darkmode) .project-channel-summary strong,
+:global(.dark) .project-channel-summary span,
+:global(.darkmode) .project-channel-summary span,
 :global(.dark) .project-channel-spend strong,
 :global(.darkmode) .project-channel-spend strong,
 :global(.dark) .project-goal-detail-row,
