@@ -199,8 +199,8 @@
                   <div v-for="goal in channel.goals" :key="goal.id || goal.name" class="project-goal-detail-row">
                     <span>{{ goal.name }}</span>
                     <strong>{{ formatNumber(goal.count) }} шт</strong>
-                    <b>{{ formatMoney(withVat(goal.cpl)) }}</b>
-                    <em :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
+                    <b>{{ formatGoalCpl(goal) }}</b>
+                    <em v-if="goal.hasCost" :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
                   </div>
                   <div v-if="!channel.goals.length" class="project-goal-empty">Цели за период не найдены</div>
                 </div>
@@ -508,14 +508,16 @@ const projectPlatformCards = (project) => {
 
 const normalizeGoalRows = (goals = []) => goals.map((goal) => {
   const count = Number(goal.count || 0)
-  const cost = Number(goal.cost || 0)
+  const hasCost = goal.cost !== null && goal.cost !== undefined
+  const cost = hasCost ? Number(goal.cost || 0) : null
   return {
     id: goal.id,
     name: goal.name || 'Цель',
     count,
     trend: Number(goal.trend || 0),
+    hasCost,
     cost,
-    cpl: count > 0 ? cost / count : 0,
+    cpl: hasCost && count > 0 ? cost / count : null,
   }
 })
 
@@ -523,9 +525,12 @@ const topGoalSummary = (goals) => {
   const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
   if (!total) return 'нет целей за период'
   const cplValues = goals.map((goal) => Number(goal.cpl || 0)).filter(Boolean)
-  const avgCpl = cplValues.length ? cplValues.reduce((sum, value) => sum + value, 0) / cplValues.length : 0
+  if (!cplValues.length) return `${formatNumber(total)} заявок`
+  const avgCpl = cplValues.reduce((sum, value) => sum + value, 0) / cplValues.length
   return `${formatNumber(total)} заявок · CPL ${formatMoney(withVat(avgCpl))}`
 }
+
+const formatGoalCpl = (goal) => goal.hasCost ? formatMoney(withVat(goal.cpl)) : '—'
 
 const projectChannelSummaries = (project) => {
   const insights = getProjectInsights(project.id)
@@ -1147,10 +1152,10 @@ onMounted(async () => {
   align-items: center;
   gap: 0.3472rem;
   min-height: 1.6667rem;
-  padding: 0 0.5556rem;
-  border-radius: 999px;
-  background: rgba(37, 99, 235, 0.07);
-  color: #2563eb;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.68);
   font-size: 0.7639rem;
   font-weight: 700;
   text-transform: none;
@@ -1159,7 +1164,7 @@ onMounted(async () => {
 }
 
 .project-goals-title:hover .project-goals-title__action {
-  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
 }
 
 .project-goals-title__icon {
@@ -1874,13 +1879,13 @@ onMounted(async () => {
 
 :global(.dark) .project-goals-title__action,
 :global(.darkmode) .project-goals-title__action {
-  background: rgba(103, 168, 255, 0.12);
-  color: #67a8ff;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.58);
 }
 
 :global(.dark) .project-goals-title:hover .project-goals-title__action,
 :global(.darkmode) .project-goals-title:hover .project-goals-title__action {
-  background: rgba(103, 168, 255, 0.18);
+  color: #67a8ff;
 }
 
 :global(.dark) .project-channel-card,

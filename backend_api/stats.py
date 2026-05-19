@@ -1054,11 +1054,6 @@ async def get_goals(
         return result
 
     # ——— Yandex / all: Metrika goals ———
-    # For channel cards, platform=yandex must distribute only Yandex spend across
-    # Yandex goals. platform=all keeps the legacy aggregate behavior.
-    cost_platform = "yandex" if (platform or "").lower() == "yandex" else "all"
-    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, cost_platform, None)
-    total_cost = float(summary.get("expenses", 0) or 0)
 
     query = db.query(
         models.MetrikaGoals.goal_id,
@@ -1131,28 +1126,13 @@ async def get_goals(
     except Exception: pass
     # #endregion
 
-    # Calculate total conversions for proportional cost distribution
-    total_conversions = sum(int(g.count or 0) for g in goals)
-
     period_days = (date_to_obj - date_from_obj).days + 1
     prev_date_from = date_from_obj - timedelta(days=period_days)
     prev_date_to = date_from_obj - timedelta(days=1)
-    prev_summary = StatsService.aggregate_summary(db, effective_client_ids, prev_date_from, prev_date_to, cost_platform, None)
-    prev_total_cost = float(prev_summary.get("expenses", 0) or 0)
-    prev_total_query = db.query(
-        func.sum(models.MetrikaGoals.conversion_count)
-    ).filter(
-        models.MetrikaGoals.client_id.in_(effective_client_ids),
-        models.MetrikaGoals.date >= prev_date_from,
-        models.MetrikaGoals.date <= prev_date_to,
-        models.MetrikaGoals.goal_id != "all",
-    )
-    if selected_goal_ids:
-        prev_total_query = prev_total_query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
-    prev_total_conversions = prev_total_query.scalar() or 0
 
-    # Calculate CPL trend and cost. The project tiles display trend next to CPL,
-    # so this value must describe cost-per-lead movement, not conversion volume.
+    # Yandex/Metrika stores goal reaches separately from Direct spend. Without
+    # campaign-goal attribution, assigning spend per individual goal would make
+    # every goal's CPL identical. Return no per-goal cost instead of fake CPL.
     result = []
     for g in goals:
         prev_count = db.query(
@@ -1165,29 +1145,16 @@ async def get_goals(
         ).scalar() or 0
 
         current_count = int(g.count or 0)
-
-        # Calculate cost proportionally to conversions
-        cost = 0.0
-        if total_conversions > 0 and total_cost > 0:
-            cost = round((current_count / total_conversions) * total_cost, 2)
-
-        prev_cost = 0.0
-        if prev_total_conversions > 0 and prev_total_cost > 0:
-            prev_cost = round((int(prev_count or 0) / int(prev_total_conversions)) * prev_total_cost, 2)
-
-        current_cpl = cost / current_count if current_count > 0 else 0
-        prev_cpl = prev_cost / int(prev_count or 0) if int(prev_count or 0) > 0 else 0
-
-        cpl_trend = 0.0
-        if prev_cpl > 0 and current_cpl > 0:
-            cpl_trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
+        count_trend = 0.0
+        if prev_count > 0:
+            count_trend = round(((current_count - int(prev_count)) / int(prev_count)) * 100, 1)
 
         result.append({
             "id": g.goal_id,
             "name": g.goal_name or f"Goal {g.goal_id}",
             "count": current_count,
-            "trend": cpl_trend,
-            "cost": cost  # NEW: Add cost field
+            "trend": count_trend,
+            "cost": None,
         })
     
     return result
