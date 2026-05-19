@@ -1,6 +1,90 @@
 import { ref, readonly } from 'vue'
 import api from '@/api/axios'
 
+// >>> DEMO MODE — убрать после проверки <<<
+const DEMO_MODE = true
+
+const DEMO_ALERTS = [
+  {
+    id: 'demo-1',
+    metric: 'expenses',
+    detection_level: 'project',
+    entity_id: null,
+    channel: null,
+    mode: 'baseline',
+    severity: 'problem',
+    deviation_pct: -42.3,
+    baseline_value: 85000,
+    actual_value: 49065,
+    consecutive_days: 4,
+    pattern_key: 'budget_exhausted',
+    hypothesis_text: 'Закончился бюджет или остановилась кампания',
+    status: 'open',
+    opened_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-2',
+    metric: 'clicks',
+    detection_level: 'project',
+    entity_id: null,
+    channel: null,
+    mode: 'baseline',
+    severity: 'warning',
+    deviation_pct: -31.5,
+    baseline_value: 1240,
+    actual_value: 849,
+    consecutive_days: 2,
+    pattern_key: 'reach_down',
+    hypothesis_text: 'Сужение охвата — проверьте настройки таргетинга',
+    status: 'open',
+    opened_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-3',
+    metric: 'cpa',
+    detection_level: 'project',
+    entity_id: null,
+    channel: null,
+    mode: 'plan_cpa',
+    severity: 'warning',
+    deviation_pct: 48.7,
+    baseline_value: 1200,
+    actual_value: 1784,
+    consecutive_days: 3,
+    pattern_key: 'conversion_drop',
+    hypothesis_text: 'Просела конверсия сайта — CPA вырос при стабильном трафике',
+    status: 'open',
+    opened_at: new Date().toISOString(),
+  },
+  {
+    id: 'demo-4',
+    metric: 'impressions',
+    detection_level: 'project',
+    entity_id: null,
+    channel: null,
+    mode: 'baseline',
+    severity: 'problem',
+    deviation_pct: -55.2,
+    baseline_value: 48000,
+    actual_value: 21504,
+    consecutive_days: 3,
+    pattern_key: 'reach_down',
+    hypothesis_text: 'Резкое снижение показов — возможна проблема с модерацией',
+    status: 'open',
+    opened_at: new Date().toISOString(),
+  },
+]
+
+const DEMO_SUMMARY = {
+  warning_count: 2,
+  problem_count: 2,
+  max_severity: 'problem',
+  warmup_status: null,
+  warmup_days_left: null,
+  alerts: DEMO_ALERTS,
+}
+// <<< END DEMO MODE >>>
+
 const crossProjectData = ref({})
 const crossProjectLoading = ref(false)
 
@@ -10,6 +94,10 @@ export function useDetector() {
 
   async function fetchSummary(clientId) {
     if (!clientId) return
+    if (DEMO_MODE) {
+      summary.value = JSON.parse(JSON.stringify(DEMO_SUMMARY))
+      return
+    }
     loading.value = true
     try {
       const { data } = await api.get(`detector/${clientId}/summary`)
@@ -63,6 +151,10 @@ export function useDetector() {
 
 export function useDetectorCrossProject() {
   async function fetchCrossProject() {
+    if (DEMO_MODE) {
+      crossProjectLoading.value = false
+      return
+    }
     crossProjectLoading.value = true
     try {
       const { data } = await api.get('detector/cross-project')
@@ -79,6 +171,15 @@ export function useDetectorCrossProject() {
   }
 
   function getProjectStatus(projectId) {
+    if (DEMO_MODE) {
+      const demoStatuses = [
+        { warning_count: 2, problem_count: 1, max_severity: 'problem', warmup_status: null },
+        { warning_count: 1, problem_count: 0, max_severity: 'warning', warmup_status: null },
+        { warning_count: 0, problem_count: 0, max_severity: null, warmup_status: 'warming_up' },
+      ]
+      const hash = String(projectId).charCodeAt(0) % 3
+      return demoStatuses[hash]
+    }
     return crossProjectData.value[projectId] || null
   }
 
