@@ -73,7 +73,11 @@ from backend_api.support import router as support_router
 from backend_api.health_routes import router as health_router
 from backend_api.team import router as team_router
 from backend_api.history import router as history_router
-from backend_api.admin import router as admin_router
+from internal_admin.router import router as internal_admin_router
+from internal_admin.manager_router import router as internal_manager_router
+from internal_admin.seo_router import router as internal_seo_router
+from internal_admin.auth_public_router import router as internal_auth_public_router
+import internal_admin.models  # noqa: F401 — регистрация ORM для create_all
 
 try:
     from ai.router import router as ai_router
@@ -126,6 +130,20 @@ async def startup_event():
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")
+
+    from core.config import get_config
+    if get_config().internal_admin.enabled:
+        from core.database import SessionLocal
+        from internal_admin.bootstrap import ensure_default_seo_pages
+
+        db = SessionLocal()
+        try:
+            ensure_default_seo_pages(db)
+            logger.info("✅ Internal admin SEO pages seeded")
+        except Exception as e:
+            logger.warning("Internal admin bootstrap skipped: %s", e)
+        finally:
+            db.close()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -193,7 +211,10 @@ app.include_router(support_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
-app.include_router(admin_router, prefix="/api")
+app.include_router(internal_admin_router, prefix="/api")
+app.include_router(internal_manager_router, prefix="/api")
+app.include_router(internal_seo_router, prefix="/api")
+app.include_router(internal_auth_public_router, prefix="/api")
 
 if AI_AVAILABLE:
     app.include_router(ai_router, prefix="/api")
@@ -207,9 +228,20 @@ if LEAD_VALIDATOR_AVAILABLE:
     app.include_router(webhook_router, prefix="/api")  # Публичные webhook'и для Tilda/Marquiz
 
 # Configure CORS
+from core.config import get_config
+
+_cfg = get_config()
+_cors_origins = ["*"]
+_ia_cors = _cfg.internal_admin.cors_origins.strip()
+if _ia_cors and _ia_cors != "*":
+    _cors_origins = [o.strip() for o in _ia_cors.split(",") if o.strip()]
+    _frontend = _cfg.public_domain.frontend_url.strip().rstrip("/")
+    if _frontend and _frontend not in _cors_origins:
+        _cors_origins.append(_frontend)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace with actual frontend domain
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -29,6 +29,9 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    registration_utm_source: Optional[str] = None
+    registration_utm_medium: Optional[str] = None
+    registration_utm_campaign: Optional[str] = None
 
 class UserResponse(UserBase):
     id: UUID

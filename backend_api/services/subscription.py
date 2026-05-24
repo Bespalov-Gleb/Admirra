@@ -43,7 +43,11 @@ class SubscriptionService:
 
     @staticmethod
     def is_admin_bypass(user: models.User) -> bool:
-        if user.role == models.UserRole.ADMIN:
+        if user.role in {
+            models.UserRole.ADMIN,
+            models.UserRole.SUPERADMIN,
+            models.UserRole.DEVELOPER,
+        }:
             return True
         whitelist = SubscriptionService._admin_whitelist()
         if not whitelist:
@@ -140,6 +144,9 @@ class SubscriptionService:
         db.add(sub)
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
+        from internal_admin.services.ai_quota import schedule_ai_quota_reset
+
+        schedule_ai_quota_reset(user, anchor=now)
         db.flush()
         return sub
 
@@ -383,6 +390,13 @@ class SubscriptionService:
 
     @staticmethod
     def _ensure_ai_period(user: models.User, plan: EffectivePlan) -> None:
+        from internal_admin.services.ai_quota import maybe_reset_ai_quota, schedule_ai_quota_reset
+
+        if user.ai_quota_resets_at is None:
+            schedule_ai_quota_reset(user, anchor=SubscriptionService._now())
+        if maybe_reset_ai_quota(user):
+            return
+
         now = SubscriptionService._now()
         started = user.ai_requests_period_started_at
         if started is None:
@@ -432,9 +446,15 @@ class SubscriptionService:
             target_type="subscription",
             meta={"plan_code": plan.code, "limit": limit, "used": used},
         )
+        reset_note = ""
+        if quota_user.ai_quota_resets_at:
+            reset_note = f" Следующий сброс: {quota_user.ai_quota_resets_at.strftime('%d.%m.%Y')}."
         raise HTTPException(
             status_code=429,
-            detail=f"Превышен лимит AI-запросов для тарифа '{plan.name}' ({limit} за период)",
+            detail=(
+                f"Лимит исчерпан. Превышен лимит AI-запросов для тарифа '{plan.name}' ({limit} за период)."
+                f"{reset_note} Апгрейд тарифа доступен в биллинге."
+            ),
         )
 
     @staticmethod

@@ -7,8 +7,19 @@ from .database import Base
 import enum
 
 class UserRole(enum.Enum):
-    ADMIN = "ADMIN"
-    MANAGER = "MANAGER"
+    ADMIN = "ADMIN"  # legacy → superadmin
+    SUPERADMIN = "SUPERADMIN"
+    MANAGER = "MANAGER"  # клиент SaaS
+    STAFF_MANAGER = "STAFF_MANAGER"  # внутренний менеджер (панель /api/manager)
+    SUPPORT = "SUPPORT"  # legacy, те же права что STAFF_MANAGER
+    SEO = "SEO"
+    DEVELOPER = "DEVELOPER"
+
+
+class StaffStatus(enum.Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    INACTIVE = "inactive"
 
 class TeamMemberRole(enum.Enum):
     MEMBER = "member"
@@ -51,6 +62,17 @@ class User(Base):
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     ai_requests_used = Column(Integer, nullable=False, default=0)
     ai_requests_period_started_at = Column(DateTime(timezone=True), nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    registration_utm_source = Column(String, nullable=True)
+    registration_utm_medium = Column(String, nullable=True)
+    registration_utm_campaign = Column(String, nullable=True)
+    block_reason = Column(String, nullable=True)
+    ai_quota_resets_at = Column(DateTime(timezone=True), nullable=True)
+    staff_status = Column(Enum(StaffStatus), nullable=True)
+    staff_totp_enabled = Column(Boolean, nullable=False, default=False)
+    staff_totp_secret_encrypted = Column(String, nullable=True)
+    staff_totp_pending_secret_encrypted = Column(String, nullable=True)
+    staff_recovery_codes_hashed = Column(JSON, nullable=True)
 
     clients = relationship("Client", back_populates="owner")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")

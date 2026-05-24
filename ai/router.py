@@ -86,6 +86,16 @@ async def chat(
             history=body.history or [],
         )
         SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        from internal_admin.usage import record_ai_call
+
+        record_ai_call(
+            db,
+            user_id=current_user.id,
+            action="ai_chat",
+            prompt_text=body.message.strip(),
+            response_text=text,
+            meta={"client_id": str(client_id) if client_id else None},
+        )
         log_history_event(
             db,
             actor=current_user,
@@ -148,6 +158,16 @@ async def generate_report(
             report_type=body.report_type or "full",
         )
         SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        from internal_admin.usage import record_ai_call
+
+        record_ai_call(
+            db,
+            user_id=current_user.id,
+            action="ai_report",
+            prompt_text=f"{body.report_type or 'full'} {body.start_date}-{body.end_date}",
+            response_text=text,
+            meta={"client_id": str(client_id) if client_id else None, "report_type": body.report_type or "full"},
+        )
         log_history_event(
             db,
             actor=current_user,

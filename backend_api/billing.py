@@ -297,6 +297,10 @@ async def cloudpayments_webhook(
         sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
+        from internal_admin.services.ai_quota import schedule_ai_quota_reset
+
+        user.ai_requests_used = 0
+        schedule_ai_quota_reset(user, anchor=now)
         create_notification(
             db,
             user_id=user.id,
