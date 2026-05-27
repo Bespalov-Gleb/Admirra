@@ -1289,10 +1289,8 @@ async def sync_data(days: int = 7, max_concurrent: int = 5):
             spreadsheet_id = getattr(client, 'spreadsheet_id', None)
             if spreadsheet_id and gs.service:
                 try:
-                    gs.export_raw_data(spreadsheet_id, client.id, db)
-                    gs.export_reports(spreadsheet_id, client.id, db)
-                    gs.export_metrika_goals(spreadsheet_id, client.id, db)
-                    logger.info(f"Data exported to Google Sheets for client {client.name}")
+                    summary = gs.export_all(spreadsheet_id, client.id, db)
+                    logger.info(f"Data exported to Google Sheets for client {client.name}: {summary}")
                 except Exception as e:
                     logger.error(f"Error exporting to Sheets for client {client.name}: {e}")
 

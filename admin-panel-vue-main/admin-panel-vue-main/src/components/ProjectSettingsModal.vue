@@ -118,6 +118,68 @@
             </div>
           </section>
 
+          <!-- ===== Block 4: Google Sheets ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">
+                Google Sheets
+                <span class="psm-optional-tag">отчёты</span>
+              </h3>
+            </div>
+            <div class="psm-card__body">
+              <p class="psm-hint mb-3">Таблица проекта для выгрузки сырых данных, недельных и месячных отчётов, а также целей Метрики.</p>
+
+              <div class="psm-sheets-card">
+                <div class="psm-sheets-card__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#1e8e3e"/>
+                    <path d="M14 2v5h5" fill="#9ad6aa"/>
+                    <path d="M8.5 10h7M8.5 13h7M8.5 16h7M10.5 10v6M13.5 10v6" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="psm-sheets-card__content">
+                  <label class="psm-label">Ссылка или ID Google таблицы</label>
+                  <input
+                    v-model="form.spreadsheet_id"
+                    type="text"
+                    class="psm-input"
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                  />
+                  <p class="psm-hint mt-2">
+                    Листы создаются автоматически: Raw Data, Weekly Reports, Monthly Report, Goals.
+                  </p>
+                </div>
+              </div>
+
+              <div class="psm-sheets-instruction">
+                <span class="psm-sheets-instruction__label">Доступ</span>
+                <span v-if="sheetsServiceEmail" class="psm-code-pill">{{ sheetsServiceEmail }}</span>
+                <span v-else class="psm-hint">service account не настроен на сервере</span>
+                <span class="psm-hint">Расшарьте таблицу на этот email с правом «Редактор».</span>
+              </div>
+
+              <div
+                class="psm-sheets-status"
+                :class="{ 'psm-sheets-status--ok': sheetsConnected, 'psm-sheets-status--warn': !sheetsConnected }"
+              >
+                <span class="psm-channel-dot" :class="sheetsConnected ? 'psm-channel-dot--active' : 'psm-channel-dot--sync'"></span>
+                {{ sheetsStatusText }}
+              </div>
+
+              <div class="psm-sheets-actions">
+                <button type="button" class="psm-btn-accent" :disabled="sheetsBusy" @click="connectGoogleSheets">
+                  {{ sheetsChecking ? 'Проверяем...' : sheetsConnected ? 'Проверить доступ' : 'Проверить и подключить' }}
+                </button>
+                <button type="button" class="psm-btn-outline" :disabled="sheetsBusy || !sheetsConnected" @click="exportGoogleSheetsNow">
+                  {{ sheetsExporting ? 'Выгружаем...' : 'Выгрузить сейчас' }}
+                </button>
+                <button type="button" class="psm-btn-outline psm-btn-outline--warn" :disabled="sheetsBusy || !sheetsConnected" @click="disconnectGoogleSheets">
+                  {{ sheetsDisconnecting ? 'Отключаем...' : 'Отключить' }}
+                </button>
+              </div>
+            </div>
+          </section>
+
           <!-- ===== Block 4: Детектор и цели ===== -->
           <section class="psm-card">
             <div class="psm-card__header">
@@ -390,6 +452,7 @@ const form = reactive({
   name: '',
   description: '',
   site_url: '',
+  spreadsheet_id: '',
   detector_enabled: false,
   status: 'active',
   period_start: '',
@@ -412,6 +475,10 @@ const budgets = reactive({})
 const containerRef = ref(null)
 const idCopied = ref(false)
 const initialFormSnapshot = ref('')
+const sheetsStatus = ref(null)
+const sheetsChecking = ref(false)
+const sheetsExporting = ref(false)
+const sheetsDisconnecting = ref(false)
 
 const goalRows = ref([])
 
@@ -441,7 +508,30 @@ const canSave = computed(() => {
 })
 
 const hasUnsavedChanges = computed(() => {
-  return JSON.stringify({ name: form.name, description: form.description, site_url: form.site_url, detector_enabled: form.detector_enabled, status: form.status }) !== initialFormSnapshot.value
+  return JSON.stringify({
+    name: form.name,
+    description: form.description,
+    site_url: form.site_url,
+    spreadsheet_id: form.spreadsheet_id,
+    detector_enabled: form.detector_enabled,
+    status: form.status,
+  }) !== initialFormSnapshot.value
+})
+
+const sheetsBusy = computed(() => sheetsChecking.value || sheetsExporting.value || sheetsDisconnecting.value)
+
+const sheetsConnected = computed(() => Boolean(sheetsStatus.value?.connected && form.spreadsheet_id?.trim()))
+
+const sheetsServiceEmail = computed(() => sheetsStatus.value?.service_account_email || '')
+
+const sheetsStatusText = computed(() => {
+  if (sheetsStatus.value?.message) return sheetsStatus.value.message
+  if (sheetsConnected.value) {
+    return sheetsStatus.value?.spreadsheet_title
+      ? `Подключена таблица: ${sheetsStatus.value.spreadsheet_title}`
+      : 'Google таблица подключена'
+  }
+  return 'Google таблица не подключена'
 })
 
 const hasVkChannels = computed(() => {
@@ -535,7 +625,14 @@ const currentPeriodLabel = computed(() => {
 })
 
 function snapshotForm() {
-  initialFormSnapshot.value = JSON.stringify({ name: form.name, description: form.description, site_url: form.site_url, detector_enabled: form.detector_enabled, status: form.status })
+  initialFormSnapshot.value = JSON.stringify({
+    name: form.name,
+    description: form.description,
+    site_url: form.site_url,
+    spreadsheet_id: form.spreadsheet_id,
+    detector_enabled: form.detector_enabled,
+    status: form.status,
+  })
 }
 
 watch(
@@ -545,6 +642,7 @@ watch(
       form.name = props.project.name || ''
       form.description = props.project.description || ''
       form.site_url = props.project.site_url || ''
+      form.spreadsheet_id = props.project.spreadsheet_id || ''
       form.detector_enabled = props.project.detector_enabled || false
       form.status = props.project.status || 'active'
       const period = defaultPeriod()
@@ -557,8 +655,10 @@ watch(
       showPauseConfirm.value = false
       pauseTargetStatus.value = ''
       deleteConfirmText.value = ''
+      sheetsStatus.value = null
       loadGoals()
       loadBudgets()
+      loadGoogleSheetsStatus()
       snapshotForm()
     }
   },
@@ -650,6 +750,80 @@ async function loadBudgets() {
   } catch { /* API not ready yet */ }
 }
 
+async function loadGoogleSheetsStatus() {
+  if (!props.project?.id) return
+  try {
+    const { data } = await api.get(`clients/${props.project.id}/google-sheets/status`)
+    sheetsStatus.value = data
+    if (data?.spreadsheet_id) {
+      form.spreadsheet_id = data.spreadsheet_id
+      snapshotForm()
+    }
+  } catch {
+    sheetsStatus.value = {
+      connected: false,
+      configured: false,
+      message: 'Не удалось получить статус Google Sheets',
+    }
+  }
+}
+
+async function connectGoogleSheets() {
+  const value = form.spreadsheet_id?.trim()
+  if (!value) {
+    toaster.warning('Вставьте ссылку или ID Google таблицы')
+    return
+  }
+  sheetsChecking.value = true
+  try {
+    const { data } = await api.put(`clients/${props.project.id}/google-sheets`, { spreadsheet_id: value })
+    sheetsStatus.value = data
+    form.spreadsheet_id = data.spreadsheet_id || value
+    snapshotForm()
+    emit('saved', { ...props.project, spreadsheet_id: form.spreadsheet_id })
+    toaster.success('Google таблица подключена')
+  } catch (err) {
+    const message = err.response?.data?.detail || 'Не удалось подключить Google таблицу'
+    sheetsStatus.value = { ...(sheetsStatus.value || {}), connected: false, message }
+    toaster.error(message)
+  } finally {
+    sheetsChecking.value = false
+  }
+}
+
+async function exportGoogleSheetsNow() {
+  if (!sheetsConnected.value) return
+  sheetsExporting.value = true
+  try {
+    const { data } = await api.post(`clients/${props.project.id}/google-sheets/export`)
+    sheetsStatus.value = data
+    toaster.success('Данные выгружены в Google Sheets')
+  } catch (err) {
+    const message = err.response?.data?.detail || 'Не удалось выгрузить данные'
+    sheetsStatus.value = { ...(sheetsStatus.value || {}), message }
+    toaster.error(message)
+  } finally {
+    sheetsExporting.value = false
+  }
+}
+
+async function disconnectGoogleSheets() {
+  if (!sheetsConnected.value) return
+  sheetsDisconnecting.value = true
+  try {
+    const { data } = await api.delete(`clients/${props.project.id}/google-sheets`)
+    sheetsStatus.value = data
+    form.spreadsheet_id = ''
+    snapshotForm()
+    emit('saved', { ...props.project, spreadsheet_id: null })
+    toaster.success('Google таблица отключена')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отключить Google таблицу')
+  } finally {
+    sheetsDisconnecting.value = false
+  }
+}
+
 function formatBudgetInput(chId) {
   const raw = String(budgets[chId] || '').replace(/[^\d]/g, '')
   budgets[chId] = raw ? Number(raw).toLocaleString('ru-RU') : ''
@@ -709,6 +883,7 @@ async function save() {
       name: form.name.trim(),
       description: form.description.trim() || null,
       site_url: form.site_url.trim() || null,
+      spreadsheet_id: form.spreadsheet_id.trim() || null,
       detector_enabled: form.detector_enabled,
       status: form.status,
     }
@@ -1207,6 +1382,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .psm-btn-accent:hover { background: #1d4ed8; }
+.psm-btn-accent:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .psm-btn-outline {
   display: inline-flex;
@@ -1225,6 +1401,13 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .psm-btn-outline:hover { background: #f5f7f9; }
+.psm-btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.psm-btn-outline--warn {
+  color: #dc6b2f;
+  border-color: rgba(220, 107, 47, 0.25);
+}
+.psm-btn-outline--warn:hover { background: #fff7f0; border-color: rgba(220, 107, 47, 0.4); color: #c0501d; }
 
 .psm-btn-outline-sm {
   display: inline-flex;
@@ -1386,6 +1569,96 @@ onUnmounted(() => {
 @keyframes psm-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* ===== Google Sheets ===== */
+.psm-sheets-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  padding: 1.0417rem;
+  background: linear-gradient(135deg, #f8fafb 0%, #eff6ff 100%);
+  border: 1px solid rgba(37, 99, 235, 0.08);
+  border-radius: 0.8333rem;
+}
+
+.psm-sheets-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6389rem;
+  height: 2.6389rem;
+  border-radius: 0.6944rem;
+  background: #fff;
+  box-shadow: 0 0.3472rem 1.0417rem rgba(15, 23, 42, 0.06);
+}
+
+.psm-sheets-card__content {
+  min-width: 0;
+}
+
+.psm-sheets-instruction {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5556rem;
+  margin-top: 0.8333rem;
+  padding: 0.7639rem 0.8333rem;
+  background: #fff;
+  border: 1px dashed rgba(105, 105, 105, 0.2);
+  border-radius: 0.6944rem;
+}
+
+.psm-sheets-instruction__label {
+  font-size: 0.7639rem;
+  font-weight: 600;
+  color: rgba(105, 105, 105, 0.72);
+  text-transform: uppercase;
+}
+
+.psm-code-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.2083rem 0.5556rem;
+  font-size: 0.7639rem;
+  font-weight: 500;
+  color: #1f2937;
+  background: #f3f4f6;
+  border-radius: 0.4167rem;
+  overflow-wrap: anywhere;
+}
+
+.psm-sheets-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4861rem;
+  margin-top: 0.8333rem;
+  padding: 0.6944rem 0.8333rem;
+  font-size: 0.8333rem;
+  font-weight: 500;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid rgba(245, 158, 11, 0.16);
+  border-radius: 0.6944rem;
+}
+
+.psm-sheets-status--ok {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: rgba(34, 197, 94, 0.16);
+}
+
+.psm-sheets-status--warn {
+  color: #92400e;
+}
+
+.psm-sheets-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6944rem;
+  margin-top: 0.8333rem;
 }
 
 /* ===== Detector stub ===== */
@@ -1656,6 +1929,7 @@ onUnmounted(() => {
 :root.dark .psm-channel-row, .dark .psm-channel-row,
 :root.dark .psm-manage-row, .dark .psm-manage-row,
 :root.dark .psm-budget-card, .dark .psm-budget-card,
+:root.dark .psm-sheets-card, .dark .psm-sheets-card,
 :root.dark .psm-detector-collapsed, .dark .psm-detector-collapsed,
 :root.dark .psm-goals-table__header, .dark .psm-goals-table__header,
 :root.dark .psm-empty, .dark .psm-empty { background: rgba(255, 255, 255, 0.04); }
@@ -1673,6 +1947,13 @@ onUnmounted(() => {
 :root.dark .psm-btn-secondary, .dark .psm-btn-secondary { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); color: #9ca3af; }
 :root.dark .psm-btn-outline, .dark .psm-btn-outline,
 :root.dark .psm-btn-outline-sm, .dark .psm-btn-outline-sm { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); color: #9ca3af; }
+
+:root.dark .psm-sheets-card__icon, .dark .psm-sheets-card__icon,
+:root.dark .psm-sheets-instruction, .dark .psm-sheets-instruction,
+:root.dark .psm-code-pill, .dark .psm-code-pill { background: rgba(255, 255, 255, 0.06); color: #e5e7eb; }
+
+:root.dark .psm-sheets-status, .dark .psm-sheets-status { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.12); }
+:root.dark .psm-sheets-status--ok, .dark .psm-sheets-status--ok { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.12); color: #86efac; }
 
 :root.dark .psm-footer, .dark .psm-footer { border-top-color: rgba(255, 255, 255, 0.06); background: #1e2130; }
 :root.dark .psm-header, .dark .psm-header { border-bottom-color: rgba(255, 255, 255, 0.06); }

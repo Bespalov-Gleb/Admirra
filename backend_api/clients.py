@@ -15,6 +15,7 @@ from backend_api.services.subscription import SubscriptionService
 from backend_api.services.project_settings import get_detector_state, get_integration_state
 from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.history import log_history_event
+from automation.google_sheets import GoogleSheetsService, extract_spreadsheet_id
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
@@ -155,6 +156,157 @@ def get_project_settings(
         "target_cpa": target_cpa,
     }
 
+
+def _google_sheets_status(client: models.Client, gs: GoogleSheetsService, message: str | None = None, last_export=None):
+    try:
+        spreadsheet_id = extract_spreadsheet_id(client.spreadsheet_id) if client.spreadsheet_id else None
+    except ValueError as exc:
+        spreadsheet_id = None
+        message = message or str(exc)
+    payload = {
+        "spreadsheet_id": spreadsheet_id,
+        "connected": False,
+        "configured": gs.configured,
+        "service_account_email": gs.service_account_email,
+        "last_export": last_export,
+        "message": message,
+    }
+    if spreadsheet_id and gs.configured:
+        try:
+            payload.update(gs.check_access(spreadsheet_id))
+            payload["connected"] = True
+            payload["message"] = message or "Доступ к Google таблице подтверждён"
+        except Exception as exc:
+            payload["message"] = str(exc)
+    elif not gs.configured:
+        payload["message"] = message or "Google Sheets не настроен на сервере"
+    return payload
+
+
+@router.get("/{client_id}/google-sheets/status", response_model=schemas.GoogleSheetsStatusResponse)
+def get_google_sheets_status(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=False)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    return _google_sheets_status(client, GoogleSheetsService())
+
+
+@router.put("/{client_id}/google-sheets", response_model=schemas.GoogleSheetsStatusResponse)
+def connect_google_sheets(
+    client_id: uuid.UUID,
+    body: schemas.GoogleSheetsConnectRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    try:
+        spreadsheet_id = extract_spreadsheet_id(body.spreadsheet_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not spreadsheet_id:
+        raise HTTPException(status_code=400, detail="Укажите ссылку или ID Google таблицы")
+
+    gs = GoogleSheetsService()
+    try:
+        access_info = gs.check_access(spreadsheet_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Нет доступа к таблице. Расшарьте её на service account {gs.service_account_email or ''}. Ошибка: {exc}",
+        )
+
+    client.spreadsheet_id = spreadsheet_id
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_google_sheets_connected",
+        description=f"Подключена Google таблица к проекту {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+        meta={"spreadsheet_id": spreadsheet_id},
+    )
+    db.commit()
+    db.refresh(client)
+
+    status_payload = _google_sheets_status(client, gs, message="Google таблица подключена")
+    status_payload.update(access_info)
+    return status_payload
+
+
+@router.delete("/{client_id}/google-sheets", response_model=schemas.GoogleSheetsStatusResponse)
+def disconnect_google_sheets(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    client.spreadsheet_id = None
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_google_sheets_disconnected",
+        description=f"Google таблица отключена от проекта {client.name}",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+    )
+    db.commit()
+    db.refresh(client)
+    return _google_sheets_status(client, GoogleSheetsService(), message="Google таблица отключена")
+
+
+@router.post("/{client_id}/google-sheets/export", response_model=schemas.GoogleSheetsStatusResponse)
+def export_google_sheets_now(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    assert_project_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    if not client.spreadsheet_id:
+        raise HTTPException(status_code=400, detail="Сначала подключите Google таблицу")
+
+    gs = GoogleSheetsService()
+    try:
+        export_summary = gs.export_all(client.spreadsheet_id, client.id, db)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Не удалось выгрузить данные в Google Sheets: {exc}")
+
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="project",
+        action="project_google_sheets_exported",
+        description=f"Данные проекта {client.name} выгружены в Google Sheets",
+        client_id=client.id,
+        target_type="client",
+        target_id=str(client.id),
+        meta=export_summary,
+    )
+    db.commit()
+    return _google_sheets_status(client, gs, message="Данные выгружены в Google Sheets", last_export=export_summary)
+
 @router.put("/{client_id}", response_model=schemas.ClientResponse)
 def update_client(
     client_id: uuid.UUID,
@@ -166,6 +318,12 @@ def update_client(
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
 
     update_data = client_in.dict(exclude_unset=True)
+
+    if "spreadsheet_id" in update_data:
+        try:
+            update_data["spreadsheet_id"] = extract_spreadsheet_id(update_data["spreadsheet_id"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if "status" in update_data:
         raw_status = update_data["status"].upper() if update_data["status"] else ""

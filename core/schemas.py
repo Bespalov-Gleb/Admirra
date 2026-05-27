@@ -466,6 +466,20 @@ class ProjectSettingsResponse(BaseModel):
     target_cpa: List[ProjectTargetCPAResponse] = []
 
 
+class GoogleSheetsConnectRequest(BaseModel):
+    spreadsheet_id: str
+
+
+class GoogleSheetsStatusResponse(BaseModel):
+    spreadsheet_id: Optional[str] = None
+    connected: bool = False
+    configured: bool = False
+    service_account_email: Optional[str] = None
+    spreadsheet_title: Optional[str] = None
+    spreadsheet_url: Optional[str] = None
+    last_export: Optional[Any] = None
+    message: Optional[str] = None
+
 
 class DetectorAlertResponse(BaseModel):
     id: UUID
