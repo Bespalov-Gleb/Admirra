@@ -512,7 +512,6 @@ const hasUnsavedChanges = computed(() => {
     name: form.name,
     description: form.description,
     site_url: form.site_url,
-    spreadsheet_id: form.spreadsheet_id,
     detector_enabled: form.detector_enabled,
     status: form.status,
   }) !== initialFormSnapshot.value
@@ -520,11 +519,18 @@ const hasUnsavedChanges = computed(() => {
 
 const sheetsBusy = computed(() => sheetsChecking.value || sheetsExporting.value || sheetsDisconnecting.value)
 
-const sheetsConnected = computed(() => Boolean(sheetsStatus.value?.connected && form.spreadsheet_id?.trim()))
+const sheetsConnected = computed(() => Boolean(
+  sheetsStatus.value?.connected &&
+  sheetsStatus.value?.spreadsheet_id &&
+  form.spreadsheet_id?.trim() === sheetsStatus.value.spreadsheet_id
+))
 
 const sheetsServiceEmail = computed(() => sheetsStatus.value?.service_account_email || '')
 
 const sheetsStatusText = computed(() => {
+  if (form.spreadsheet_id?.trim() && form.spreadsheet_id.trim() !== sheetsStatus.value?.spreadsheet_id) {
+    return 'Нажмите «Проверить и подключить», чтобы сохранить новую таблицу'
+  }
   if (sheetsStatus.value?.message) return sheetsStatus.value.message
   if (sheetsConnected.value) {
     return sheetsStatus.value?.spreadsheet_title
@@ -629,7 +635,6 @@ function snapshotForm() {
     name: form.name,
     description: form.description,
     site_url: form.site_url,
-    spreadsheet_id: form.spreadsheet_id,
     detector_enabled: form.detector_enabled,
     status: form.status,
   })
@@ -883,7 +888,6 @@ async function save() {
       name: form.name.trim(),
       description: form.description.trim() || null,
       site_url: form.site_url.trim() || null,
-      spreadsheet_id: form.spreadsheet_id.trim() || null,
       detector_enabled: form.detector_enabled,
       status: form.status,
     }
