@@ -36,6 +36,7 @@ services:
       - DADATA_SECRET_KEY=${DADATA_SECRET_KEY:-}
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/google-service-account.json}
     depends_on:
       db:
         condition: service_healthy
@@ -43,6 +44,7 @@ services:
       - "8001:8001"
     volumes:
       - ./uploads:/app/uploads
+      - ./secrets:/app/secrets:ro
 
   automation:
     build: .
@@ -64,9 +66,12 @@ services:
       - DADATA_SECRET_KEY=${DADATA_SECRET_KEY:-}
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/app/secrets/google-service-account.json}
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ./secrets:/app/secrets:ro
     restart: unless-stopped
 
   frontend:

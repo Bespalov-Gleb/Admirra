@@ -27,3 +27,6 @@ uploads/*
 !uploads/.gitkeep
 !uploads/project-avatars/
 !uploads/project-avatars/.gitkeep
+secrets/
+service_account.json
+google-service-account.json
