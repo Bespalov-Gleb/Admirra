@@ -1,8 +1,8 @@
 import { ref, readonly } from 'vue'
 import api from '@/api/axios'
 
-// >>> DEMO MODE — убрать после проверки <<<
-const DEMO_MODE = true
+// Demo mode is kept only for local visual checks. Production must read real detector API data.
+const DEMO_MODE = false
 
 const DEMO_ALERTS = [
   {

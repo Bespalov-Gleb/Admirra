@@ -26,6 +26,15 @@ def get_detector_summary(
 
     det_state = get_detector_state(client)
     warmup_status = det_state["status"]
+    if warmup_status == "disabled":
+        return {
+            "warning_count": 0,
+            "problem_count": 0,
+            "max_severity": None,
+            "warmup_status": warmup_status,
+            "warmup_days_left": None,
+            "alerts": [],
+        }
 
     alerts = (
         db.query(models.DetectorAlert)
@@ -125,8 +134,18 @@ def get_cross_project_status(
 
     result = []
     for client in clients:
-        project_alerts = by_project.get(client.id, [])
         det_state = get_detector_state(client)
+        if det_state["status"] == "disabled":
+            result.append({
+                "project_id": client.id,
+                "warning_count": 0,
+                "problem_count": 0,
+                "max_severity": None,
+                "warmup_status": "disabled",
+            })
+            continue
+
+        project_alerts = by_project.get(client.id, [])
         w = sum(1 for a in project_alerts if a.severity == "warning")
         p = sum(1 for a in project_alerts if a.severity == "problem")
         max_sev = "problem" if p > 0 else ("warning" if w > 0 else None)

@@ -37,6 +37,15 @@ DEFAULT_THRESHOLDS: dict[str, dict[str, float]] = {
 
 METRICS = ["expenses", "impressions", "clicks", "cpc", "conversions", "cpa"]
 
+BAD_DIRECTIONS = {
+    "expenses": {"up", "down"},
+    "impressions": {"down"},
+    "clicks": {"down"},
+    "cpc": {"up"},
+    "conversions": {"down"},
+    "cpa": {"up"},
+}
+
 # ── Correlation patterns (from TZ 1.9) ───────────────────────────
 
 PATTERNS = [
@@ -264,6 +273,30 @@ def compute_fresh_window(
     return _query_daily_metrics(db, client_id, channel, window_start, window_end)
 
 
+def _best_consecutive_run(points: list[dict], min_days: int) -> list[dict]:
+    """Return the longest same-direction consecutive deviation run."""
+    best: list[dict] = []
+    current: list[dict] = []
+    prev_date: date | None = None
+    prev_direction: str | None = None
+
+    for point in sorted(points, key=lambda item: item["date"]):
+        is_next_day = prev_date is not None and point["date"] == prev_date + timedelta(days=1)
+        same_direction = prev_direction is not None and point["direction"] == prev_direction
+        if current and is_next_day and same_direction:
+            current.append(point)
+        else:
+            current = [point]
+
+        if len(current) > len(best):
+            best = list(current)
+
+        prev_date = point["date"]
+        prev_direction = point["direction"]
+
+    return best if len(best) >= min_days else []
+
+
 # ── Mode 1: Baseline comparison ──────────────────────────────────
 
 def check_mode1(
@@ -280,7 +313,8 @@ def check_mode1(
         if metric in ("conversions", "cpa") and total_conversions < cfg.min_conversions_silence:
             continue
 
-        deviations = []
+        warning_points: list[dict] = []
+        problem_points: list[dict] = []
         for row in fresh_window:
             if is_near_holiday(row["date"]):
                 continue
@@ -290,35 +324,43 @@ def check_mode1(
             if bv == 0:
                 continue
             dev = (av - bv) / bv
-            deviations.append(dev)
+            direction = "up" if dev > 0 else "down"
+            if direction not in BAD_DIRECTIONS.get(metric, {"up", "down"}):
+                continue
 
-        if not deviations:
-            continue
+            point = {
+                "date": row["date"],
+                "dev": dev,
+                "direction": direction,
+                "baseline": float(bv),
+                "actual": av,
+            }
 
-        avg_dev = sum(deviations) / len(deviations)
-        abs_dev = abs(avg_dev)
-        direction = "up" if avg_dev > 0 else "down"
+            th = thresholds.get(metric, {"warning": 0.30, "problem": 0.50})
+            abs_dev = abs(dev)
+            if abs_dev >= th["warning"]:
+                warning_points.append(point)
+            if abs_dev >= th["problem"]:
+                problem_points.append(point)
 
-        th = thresholds.get(metric, {"warning": 0.30, "problem": 0.50})
+        problem_run = _best_consecutive_run(problem_points, cfg.duration_problem)
+        warning_run = _best_consecutive_run(warning_points, cfg.duration_warning)
 
-        severity = None
-        if abs_dev >= th["problem"]:
-            if len(deviations) >= cfg.duration_problem:
-                severity = "problem"
-            elif len(deviations) >= cfg.duration_warning:
-                severity = "warning"
-        elif abs_dev >= th["warning"]:
-            if len(deviations) >= cfg.duration_warning:
-                severity = "warning"
-
-        if severity is None:
+        if problem_run:
+            severity = "problem"
+            run = problem_run
+        elif warning_run:
+            severity = "warning"
+            run = warning_run
+        else:
             continue
 
         if metric in ("conversions", "cpa") and total_conversions < cfg.min_conversions_warning_only:
             severity = "warning"
 
-        bv_avg = sum(baseline[metric].values()) / max(len(baseline[metric]), 1)
-        av_avg = sum(row.get(metric, 0) for row in fresh_window) / max(len(fresh_window), 1)
+        avg_dev = sum(point["dev"] for point in run) / len(run)
+        bv_avg = sum(point["baseline"] for point in run) / len(run)
+        av_avg = sum(point["actual"] for point in run) / len(run)
 
         candidates.append(AlertCandidate(
             metric=metric,
@@ -330,7 +372,7 @@ def check_mode1(
             deviation_pct=round(avg_dev * 100, 2),
             baseline_value=round(bv_avg, 2),
             actual_value=round(av_avg, 2),
-            direction=direction,
+            direction=run[-1]["direction"],
         ))
 
     return candidates
@@ -480,6 +522,8 @@ def check_mode2b_cpa(
 
         actual_cpa = total_cost / total_conv if total_conv > 0 else 0
         dev = (actual_cpa - target_val) / target_val if target_val > 0 else 0
+        if dev <= 0:
+            continue
         abs_dev = abs(dev)
 
         if abs_dev < 0.25:
@@ -560,22 +604,26 @@ def upsert_alerts(
         db.query(models.DetectorAlert)
         .filter(
             models.DetectorAlert.client_id == client_id,
-            models.DetectorAlert.status == "open",
+            models.DetectorAlert.status.in_(["open", "dismissed", "closed"]),
         )
+        .order_by(models.DetectorAlert.opened_at.desc())
         .all()
     )
-    open_map = {}
+    active_map = {}
+    latest_map = {}
     for a in open_alerts:
         ch_val = a.channel.value if a.channel else None
         key = (a.metric, a.detection_level, a.entity_id, ch_val, a.mode)
-        open_map[key] = a
+        latest_map.setdefault(key, a)
+        if a.status in ("open", "dismissed"):
+            active_map.setdefault(key, a)
 
     fired_keys = set()
     for c in candidates:
         key = _alert_key(c)
         fired_keys.add(key)
 
-        existing = open_map.get(key)
+        existing = active_map.get(key)
         if existing:
             existing.severity = c.severity
             existing.deviation_pct = Decimal(str(c.deviation_pct))
@@ -585,27 +633,46 @@ def upsert_alerts(
             existing.pattern_key = c.pattern_key
             existing.hypothesis_text = c.hypothesis_text
             existing.last_checked_at = now
+            existing.meta = {**(existing.meta or {}), "recovery_count": 0}
         else:
-            alert = models.DetectorAlert(
-                client_id=client_id,
-                owner_id=owner_id,
-                metric=c.metric,
-                detection_level=c.detection_level,
-                entity_id=c.entity_id,
-                channel=c.channel,
-                mode=c.mode,
-                severity=c.severity,
-                deviation_pct=Decimal(str(c.deviation_pct)),
-                baseline_value=Decimal(str(c.baseline_value)),
-                actual_value=Decimal(str(c.actual_value)),
-                consecutive_days=1,
-                pattern_key=c.pattern_key,
-                hypothesis_text=c.hypothesis_text,
-                status="open",
-                opened_at=now,
-                last_checked_at=now,
-            )
-            db.add(alert)
+            alert = latest_map.get(key)
+            if alert:
+                alert.owner_id = owner_id
+                alert.severity = c.severity
+                alert.deviation_pct = Decimal(str(c.deviation_pct))
+                alert.baseline_value = Decimal(str(c.baseline_value))
+                alert.actual_value = Decimal(str(c.actual_value))
+                alert.consecutive_days = 1
+                alert.pattern_key = c.pattern_key
+                alert.hypothesis_text = c.hypothesis_text
+                alert.status = "open"
+                alert.opened_at = now
+                alert.dismissed_at = None
+                alert.closed_at = None
+                alert.last_checked_at = now
+                alert.meta = {"recovery_count": 0}
+            else:
+                alert = models.DetectorAlert(
+                    client_id=client_id,
+                    owner_id=owner_id,
+                    metric=c.metric,
+                    detection_level=c.detection_level,
+                    entity_id=c.entity_id,
+                    channel=c.channel,
+                    mode=c.mode,
+                    severity=c.severity,
+                    deviation_pct=Decimal(str(c.deviation_pct)),
+                    baseline_value=Decimal(str(c.baseline_value)),
+                    actual_value=Decimal(str(c.actual_value)),
+                    consecutive_days=1,
+                    pattern_key=c.pattern_key,
+                    hypothesis_text=c.hypothesis_text,
+                    status="open",
+                    opened_at=now,
+                    last_checked_at=now,
+                    meta={"recovery_count": 0},
+                )
+                db.add(alert)
             try:
                 from backend_api.services.notifications import create_notification
                 sev_text = "Проблема" if c.severity == "problem" else "Внимание"
@@ -620,7 +687,7 @@ def upsert_alerts(
             except Exception:
                 logger.exception("Failed to create notification for alert")
 
-    for key, alert in open_map.items():
+    for key, alert in active_map.items():
         if key not in fired_keys:
             if not alert.meta:
                 alert.meta = {}
@@ -652,8 +719,6 @@ def run_detector_for_client(
 
     status_val = client.status.value if hasattr(client.status, "value") else str(client.status or "")
     if status_val.upper() == "PAUSED":
-        return
-    if not client.detector_enabled:
         return
 
     ref = reference_date or date.today()
@@ -703,7 +768,6 @@ def run_detector_all(db: Session):
     clients = (
         db.query(models.Client)
         .filter(
-            models.Client.detector_enabled.is_(True),
             models.Client.status == models.ClientStatus.ACTIVE,
         )
         .all()

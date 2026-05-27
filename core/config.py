@@ -289,7 +289,7 @@ def get_config() -> Config:
         detector=DetectorCfg(
             enabled=_bool("DETECTOR_ENABLED", True),
             baseline_days=int(_env("DETECTOR_BASELINE_DAYS", "42")),
-            fresh_window_days=int(_env("DETECTOR_FRESH_WINDOW_DAYS", "5")),
+            fresh_window_days=int(_env("DETECTOR_FRESH_WINDOW_DAYS", "7")),
             fresh_window_skip_days=int(_env("DETECTOR_FRESH_WINDOW_SKIP_DAYS", "2")),
             warmup_days=int(_env("DETECTOR_WARMUP_DAYS", "21")),
             min_conversions_silence=int(_env("DETECTOR_MIN_CONVERSIONS_SILENCE", "10")),
