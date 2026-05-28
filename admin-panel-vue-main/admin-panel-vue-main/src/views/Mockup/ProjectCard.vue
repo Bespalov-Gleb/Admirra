@@ -189,26 +189,22 @@
             <div v-if="isProjectWarmingUp(project)" class="project-warmup-pill">накопление данных</div>
             <div class="project-tile-stats">
               <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
-                <div class="stat-box__head">
-                  <div class="iconbox flex-shrink-0">
-                    <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
-                      <use :href="stat.icon" />
-                    </svg>
-                  </div>
-                  <div class="stat-box__copy">
-                    <h4>{{ stat.label }}</h4>
-                    <p>{{ stat.subtitle }}</p>
-                  </div>
+                <div class="iconbox flex-shrink-0">
+                  <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
+                    <use :href="stat.icon" />
+                  </svg>
                 </div>
-                <div class="stat-value-row">
-                  <b>{{ stat.value }}</b>
-                  <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
-                    <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
-                      <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    {{ stat.change }}
-                  </span>
+                <div class="stat-box__copy">
+                  <h4>{{ stat.label }}</h4>
+                  <p>{{ stat.subtitle }}</p>
                 </div>
+                <b class="stat-box__value">{{ stat.value }}</b>
+                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                  <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
+                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  {{ stat.change }}
+                </span>
               </div>
             </div>
           </div>
@@ -2033,24 +2029,18 @@ onMounted(async () => {
 /* ---- Stat box ---- */
 .stat-box {
   display: flex;
-  flex-direction: column;
-  min-height: 6.4583rem;
-  padding: 0.8333rem;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 4.6rem;
+  padding: 0.7rem 1rem;
   background-color: #f8fafb;
   border-radius: 0.6944rem;
   line-height: 1.1;
 }
 
-.stat-box__head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  min-width: 0;
-  padding-bottom: 0.4167rem;
-}
-
 .stat-box__copy {
   min-width: 0;
+  flex-shrink: 1;
 }
 
 .stat-box__copy h4,
@@ -2061,18 +2051,31 @@ onMounted(async () => {
 }
 
 .stat-box__copy h4 {
-  margin: 0 0 0.1389rem;
+  margin: 0 0 0.15rem;
   color: #696969;
   font-size: 0.9028rem;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .stat-box__copy p {
   margin: 0;
   color: rgba(105, 105, 105, 0.56);
   font-size: 0.7639rem;
+  line-height: 1.15;
+}
+
+.stat-box__value {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #2c2c2c;
+  font-size: 1.25rem;
+  font-weight: 700;
   line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ---- Icon box ---- */
@@ -2136,17 +2139,6 @@ onMounted(async () => {
   min-width: 0;
   gap: 0.4861rem;
   margin-top: auto;
-}
-
-.stat-value-row b {
-  min-width: 0;
-  overflow: hidden;
-  color: #2c2c2c;
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .badge-white {
