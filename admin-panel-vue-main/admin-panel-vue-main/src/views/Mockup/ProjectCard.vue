@@ -251,7 +251,7 @@
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
                       <strong>{{ formatNumber(channel.goalTotal) }}</strong>
-                      <span>{{ channel.goalNoun }}</span>
+                      <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withVat(channel.avgCpl)) : '—' }}</strong>
@@ -623,6 +623,11 @@ const goalNoun = (count) => {
   if (last === 1) return 'заявка'
   if (last >= 2 && last <= 4) return 'заявки'
   return 'заявок'
+}
+
+const capitalizeFirst = (value) => {
+  const text = String(value || '')
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''
 }
 
 const topGoalSummary = (goals, platformCode, expenses) => {
@@ -1524,8 +1529,9 @@ onMounted(async () => {
 
 .project-channel-card {
   border-radius: 0.6944rem;
-  background: #f8fafb;
-  overflow: visible;
+  background: linear-gradient(90deg, rgba(255, 249, 232, 0.98) 0%, rgba(255, 243, 205, 0.98) 100%);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
 }
 
 .project-channel-empty {
@@ -1601,8 +1607,8 @@ onMounted(async () => {
   grid-template-columns: 2.2222rem minmax(0, 1fr) minmax(17.5rem, 0.92fr);
   align-items: center;
   gap: 0.8333rem;
-  min-height: 3.75rem;
-  padding: 0.6944rem 0.9722rem;
+  min-height: 4.1667rem;
+  padding: 0.7639rem 0.9722rem;
 }
 
 .project-channel-main {
@@ -1637,19 +1643,19 @@ onMounted(async () => {
   align-self: stretch;
   min-width: 0;
   overflow: hidden;
-  border-left: 1px solid rgba(245, 158, 11, 0.13);
+  border-left: 1px solid rgba(245, 158, 11, 0.14);
 }
 
 .project-channel-metric {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   gap: 0.2083rem;
   padding: 0.1389rem 0.6944rem;
-  border-left: 1px solid rgba(245, 158, 11, 0.13);
-  text-align: right;
+  border-left: 1px solid rgba(245, 158, 11, 0.14);
+  text-align: center;
 }
 
 .project-channel-metric:first-child {
@@ -1681,7 +1687,7 @@ onMounted(async () => {
 }
 
 .project-channel-metric--cpl {
-  background: linear-gradient(135deg, rgba(255, 247, 221, 0.88), rgba(255, 241, 190, 0.5));
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .project-channel-metric--cpl strong {
