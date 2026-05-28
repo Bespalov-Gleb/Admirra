@@ -608,7 +608,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -800,17 +800,37 @@ const periodLabel = computed(() => {
   return getProjectPeriodLabel(periodKey.value)
 })
 
-const periodPopoverStyle = computed(() => {
-  if (openMenu.value !== 'period' || !periodTriggerRef.value || typeof window === 'undefined') return {}
+const periodPopoverStyle = ref({})
+
+const updatePeriodPopoverPosition = () => {
+  if (!periodTriggerRef.value || typeof window === 'undefined') { periodPopoverStyle.value = {}; return }
   const rect = periodTriggerRef.value.getBoundingClientRect()
-  const width = Math.max(rect.width, 302)
+  const width = Math.max(rect.width, 260)
   const viewportPadding = 12
   const left = Math.min(
     Math.max(viewportPadding, rect.left),
     Math.max(viewportPadding, window.innerWidth - width - viewportPadding)
   )
-  return { top: `${rect.bottom + 4}px`, left: `${left}px`, minWidth: `${width}px` }
+  periodPopoverStyle.value = { top: `${rect.bottom + 4}px`, left: `${left}px`, minWidth: `${width}px` }
+}
+
+let _periodScrollCleanup = null
+watch(() => openMenu.value, (val) => {
+  if (val === 'period') {
+    nextTick(updatePeriodPopoverPosition)
+    const handler = () => updatePeriodPopoverPosition()
+    window.addEventListener('scroll', handler, true)
+    window.addEventListener('resize', handler)
+    _periodScrollCleanup = () => {
+      window.removeEventListener('scroll', handler, true)
+      window.removeEventListener('resize', handler)
+    }
+  } else if (_periodScrollCleanup) {
+    _periodScrollCleanup()
+    _periodScrollCleanup = null
+  }
 })
+onBeforeUnmount(() => { if (_periodScrollCleanup) _periodScrollCleanup() })
 
 const applyPeriodRange = () => {
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
@@ -2131,36 +2151,36 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 0;
+  padding: 0.3rem 0;
   background-color: #fff;
-  min-width: 21rem;
-  border-radius: 1.2rem;
-  box-shadow: 0 1.6rem 4rem rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(68, 68, 68, 0.08);
+  min-width: 18rem;
+  border-radius: 0.8rem;
+  box-shadow: 0 0.8rem 2.4rem rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(68, 68, 68, 0.06);
 }
 
 .period-list__divider {
   height: 1px;
-  margin: 0.4rem 0;
+  margin: 0.2rem 0;
   background: rgba(0, 0, 0, 0.06);
 }
 
 .period-option {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 1.4rem;
+  grid-template-columns: minmax(0, 1fr) 1.2rem;
   align-items: center;
-  gap: 1.4rem;
+  gap: 1rem;
   width: 100%;
-  min-height: 4rem;
-  padding: 0.8rem 1.6rem;
+  min-height: 2.8rem;
+  padding: 0.5rem 1.2rem;
   border: 0;
   background: transparent;
   color: rgba(0, 0, 0, 0.78);
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   line-height: 1.2;
   text-align: left;
   white-space: nowrap;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 
 .period-option:hover,
@@ -2169,23 +2189,23 @@ onMounted(() => {
 }
 
 .period-option__check {
-  width: 1.4rem;
-  height: 1.1rem;
+  width: 1.2rem;
+  height: 0.9rem;
   color: #171717;
 }
 
 .project-period-custom-picker :deep(.drp-trigger) {
   height: auto;
-  min-height: 4rem;
+  min-height: 2.8rem;
   justify-content: flex-start;
   border: 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 0;
-  padding: 1rem 1.6rem;
+  padding: 0.5rem 1.2rem;
   background: transparent;
   box-shadow: none;
   color: #171717;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   line-height: 1.15;
 }
 
@@ -2604,14 +2624,13 @@ onMounted(() => {
   color: rgba(105, 105, 105, 0.62);
   border-radius: 1.2rem;
   padding: 0 1.4rem;
-  border: 0.5px solid rgba(15, 23, 42, 0.1);
+  border: none;
   font-weight: 500;
 }
 
 .sync-btn-ghost:hover:not(:disabled) {
   background: rgba(37, 99, 235, 0.04);
   color: rgba(105, 105, 105, 0.82);
-  border-color: rgba(15, 23, 42, 0.16);
 }
 
 .nds-check-wrap {
@@ -5347,13 +5366,11 @@ onMounted(() => {
 
 :global(.dark) .sync-btn-ghost,
 :global(.darkmode) .sync-btn-ghost {
-  border-color: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.48);
 }
 :global(.dark) .sync-btn-ghost:hover:not(:disabled),
 :global(.darkmode) .sync-btn-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.62);
 }
 
@@ -5709,12 +5726,10 @@ onMounted(() => {
 }
 
 .figma-dashboard.is-dark .sync-btn-ghost {
-  border-color: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.48);
 }
 .figma-dashboard.is-dark .sync-btn-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.62);
 }
 
