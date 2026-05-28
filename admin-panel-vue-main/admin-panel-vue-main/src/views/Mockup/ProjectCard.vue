@@ -84,6 +84,18 @@
 
       <!-- Right: bulk edit + view toggle -->
       <div class="flex items-center gap-[0.6944rem]">
+        <label class="tile-nds-check-wrap">
+          <input type="checkbox" v-model="includeVat" class="tile-nds-checkbox" />
+          <span class="tile-nds-label">С НДС 22%</span>
+        </label>
+
+        <button class="tile-sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncProjects">
+          <svg :class="{ spinning: syncingIntegrations }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизировать' }}
+        </button>
+
         <button class="bulk-btn" @click="openMassEdit">
           <span>Массовое редактирование</span>
           <span class="bulk-btn__icon">
@@ -144,58 +156,73 @@
                   {{ project.name }}
                 </button>
                 <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
-                <button type="button" class="project-tile-id" @click.stop="copyProjectId(project)">
-                  ID {{ projectSupportId(project) }}
-                </button>
               </div>
             </div>
             <div class="project-tile-actions">
-              <span
-                v-if="detectorBadge(project)"
-                class="detector-badge"
-                :class="`detector-badge--${detectorBadge(project).type}`"
-                :title="detectorBadge(project).text"
-              >
-                <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                <template v-else>{{ detectorBadge(project).count }}</template>
-              </span>
-              <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
-                <span>Аналитика</span>
-                <svg width="8" height="8" viewBox="0 0 13 13" fill="none">
-                  <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <div class="project-tile-actions__top">
+                <span
+                  v-if="detectorBadge(project)"
+                  class="detector-badge"
+                  :class="`detector-badge--${detectorBadge(project).type}`"
+                  :title="detectorBadge(project).text"
+                >
+                  <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                  <template v-else>{{ detectorBadge(project).count }}</template>
+                </span>
+                <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
+                  <span>Аналитика</span>
+                  <svg width="7" height="7" viewBox="0 0 13 13" fill="none">
+                    <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <button type="button" class="project-tile-id project-tile-id--corner" @click.stop="copyProjectId(project)" title="Копировать ID">
+                <span>ID {{ projectSupportId(project) }}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
               </button>
             </div>
           </div>
 
-          <div class="project-tile-stats">
-            <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
-              <div class="stat-box__head">
-                <div class="iconbox flex-shrink-0">
-                  <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
-                    <use :href="stat.icon" />
-                  </svg>
+          <div class="project-tile-stats-wrap">
+            <div v-if="isProjectWarmingUp(project)" class="project-warmup-pill">накопление данных</div>
+            <div class="project-tile-stats">
+              <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
+                <div class="stat-box__head">
+                  <div class="iconbox flex-shrink-0">
+                    <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
+                      <use :href="stat.icon" />
+                    </svg>
+                  </div>
+                  <div class="stat-box__copy">
+                    <h4>{{ stat.label }}</h4>
+                    <p>{{ stat.subtitle }}</p>
+                  </div>
                 </div>
-                <div class="stat-box__copy">
-                  <h4>{{ stat.label }}</h4>
-                  <p>{{ stat.subtitle }}</p>
+                <div class="stat-value-row">
+                  <b>{{ stat.value }}</b>
+                  <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                    <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
+                      <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    {{ stat.change }}
+                  </span>
                 </div>
-              </div>
-              <div class="stat-value-row">
-                <b>{{ stat.value }}</b>
-                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
-                  <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
-                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  {{ stat.change }}
-                </span>
               </div>
             </div>
           </div>
 
           <div class="project-goals-section">
             <button type="button" class="project-goals-title" @click="toggleProjectGoals(project.id)">
-              <span>Целевые действия по каналам</span>
+              <span class="project-goals-title__label">
+                Целевые действия по каналам
+                <span
+                  class="project-goals-info"
+                  title="Стоимость по каждой цели не показывается: расход кампании невозможно честно разделить между разными целевыми действиями одной сессии. Для Яндекса показан сводный CPL по всем конверсиям. Для ВК сводного CPL нет — типы кампаний разнородны."
+                  @click.stop
+                >i</span>
+              </span>
               <span class="project-goals-title__action">
                 {{ isProjectGoalsExpanded(project.id) ? 'Свернуть' : 'Развернуть' }}
                 <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
@@ -217,7 +244,9 @@
                   </div>
                   <div v-if="channel.goalTotal" class="project-channel-summary">
                     <strong>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</strong>
-                    <span>CPL {{ channel.avgCpl ? formatMoney(withVat(channel.avgCpl)) : '—' }}</span>
+                    <span v-if="channel.code === 'yandex'" class="project-channel-summary__cpl">
+                      Все конверсии · общий CPL {{ channel.avgCpl !== null ? formatMoney(withVat(channel.avgCpl)) : '—' }}
+                    </span>
                   </div>
                   <div class="project-channel-spend">
                     <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
@@ -225,11 +254,18 @@
                   </div>
                 </div>
                 <div v-if="isProjectGoalsExpanded(project.id)" class="project-goal-detail-list">
-                  <div v-for="goal in channel.goals" :key="goal.id || goal.name" class="project-goal-detail-row">
+                  <div
+                    v-for="goal in channel.goals"
+                    :key="goal.id || goal.name"
+                    class="project-goal-detail-row"
+                    :class="{ 'project-goal-detail-row--simple': channel.code === 'yandex' }"
+                  >
                     <span>{{ goal.name }}</span>
                     <strong>{{ formatNumber(goal.count) }} шт</strong>
-                    <b>{{ formatGoalCpl(goal) }}</b>
-                    <em v-if="goal.hasCost" :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
+                    <template v-if="channel.code !== 'yandex'">
+                      <b>{{ formatGoalCpl(goal) }}</b>
+                      <em v-if="goal.hasCost" :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
+                    </template>
                   </div>
                   <div v-if="!channel.goals.length" class="project-goal-empty">Цели за период не найдены</div>
                 </div>
@@ -325,6 +361,8 @@ const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
 const avatarProject = ref(null)
 const settingsProject = ref(null)
+const includeVat = ref(true)
+const syncingIntegrations = ref(false)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -453,7 +491,7 @@ const getProjectInsights = (projectId) => projectInsightsById.value[projectId] |
 const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
-const withVat = (num) => (Number(num) || 0) * VAT_RATE
+const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
 
 const trendText = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
@@ -510,8 +548,6 @@ const projectStats = (project) => {
     { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), icon: '/admirra/img/svg/sprite.svg#cursore' },
     { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(withVat(metric.cpc)), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
     { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(withVat(metric.expenses)), icon: '/admirra/img/svg/sprite.svg#wallet' },
-    { key: 'leads', label: 'Лиды', subtitle: 'По всем каналам', value: `${formatNumber(metric.leads)} шт.`, icon: '/admirra/img/svg/sprite.svg#calendar' },
-    { key: 'cpa', label: 'CPL', subtitle: 'Стоимость лида', value: formatMoney(withVat(metric.cpa)), icon: '/admirra/img/svg/sprite.svg#ok' },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
 }
 
@@ -539,20 +575,22 @@ const projectPlatformCards = (project) => {
   return cards
 }
 
-const normalizeGoalRows = (goals = []) => goals.map((goal) => {
-  const count = Number(goal.count || 0)
-  const hasCost = goal.cost !== null && goal.cost !== undefined
-  const cost = hasCost ? Number(goal.cost || 0) : null
-  return {
-    id: goal.id,
-    name: goal.name || 'Цель',
-    count,
-    trend: Number(goal.trend || 0),
-    hasCost,
-    cost,
-    cpl: hasCost && count > 0 ? cost / count : null,
-  }
-})
+const normalizeGoalRows = (goals = []) => goals
+  .map((goal) => {
+    const count = Number(goal.count || 0)
+    const hasCost = goal.cost !== null && goal.cost !== undefined
+    const cost = hasCost ? Number(goal.cost || 0) : null
+    return {
+      id: goal.id,
+      name: goal.name || 'Цель',
+      count,
+      trend: Number(goal.trend || 0),
+      hasCost,
+      cost,
+      cpl: hasCost && count > 0 ? cost / count : null,
+    }
+  })
+  .filter((goal) => goal.count > 0)
 
 const goalNoun = (count) => {
   const value = Math.abs(Number(count || 0))
@@ -564,13 +602,10 @@ const goalNoun = (count) => {
   return 'заявок'
 }
 
-const topGoalSummary = (goals) => {
+const topGoalSummary = (goals, platformCode, expenses) => {
   const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
   const noun = goalNoun(total)
-  const pricedGoals = goals.filter((goal) => goal.hasCost && Number(goal.count || 0) > 0)
-  const pricedCount = pricedGoals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
-  const pricedCost = pricedGoals.reduce((sum, goal) => sum + Number(goal.cost || 0), 0)
-  const avgCpl = pricedCount ? pricedCost / pricedCount : null
+  const avgCpl = platformCode === 'yandex' && total > 0 ? Number(expenses || 0) / total : null
   if (!total) {
     return {
       total: 0,
@@ -602,7 +637,7 @@ const projectChannelSummaries = (project) => {
   return projectPlatformCards(project).map((platform) => {
     const metric = insights[platform.code] || emptyMetric()
     const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
-    const summary = topGoalSummary(goals)
+    const summary = topGoalSummary(goals, platform.code, metric.expenses)
     return {
       ...platform,
       expenses: Number(metric.expenses || 0),
@@ -759,6 +794,32 @@ const openMassEdit = () => {
   router.push('/project-rows')
 }
 
+const handleSyncProjects = async () => {
+  if (syncingIntegrations.value) return
+
+  const integrations = projects.value.flatMap((project) => project.integrations || [])
+  const uniqueIntegrations = Array.from(
+    new Map(integrations.filter((integration) => integration?.id).map((integration) => [integration.id, integration])).values()
+  )
+
+  if (!uniqueIntegrations.length) {
+    toaster.info('Нет подключённых каналов для синхронизации.')
+    return
+  }
+
+  syncingIntegrations.value = true
+  try {
+    await Promise.all(uniqueIntegrations.map((integration) => api.post(`integrations/${integration.id}/sync`, { days: 90 })))
+    toaster.success(`Синхронизация запущена для ${uniqueIntegrations.length} ${uniqueIntegrations.length === 1 ? 'канала' : 'каналов'}.`)
+    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject()])
+  } catch (err) {
+    console.error(err)
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию.')
+  } finally {
+    syncingIntegrations.value = false
+  }
+}
+
 const detectorBadge = (project) => {
   const status = getProjectStatus(project.id)
   if (!status) return null
@@ -771,6 +832,8 @@ const detectorBadge = (project) => {
     count: total,
   }
 }
+
+const isProjectWarmingUp = (project) => detectorBadge(project)?.type === 'warmup'
 
 onMounted(async () => {
   await fetchProjects()
@@ -980,6 +1043,72 @@ onMounted(async () => {
 }
 
 /* ---- Bulk edit button ---- */
+.tile-nds-check-wrap,
+.tile-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 3.1944rem;
+  border-radius: 1.0417rem;
+  white-space: nowrap;
+}
+
+.tile-nds-check-wrap {
+  gap: 0.5556rem;
+  padding: 0.5556rem 1.0417rem;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.58);
+  cursor: pointer;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  user-select: none;
+}
+
+.tile-nds-checkbox {
+  width: 1.0417rem;
+  height: 1.0417rem;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.tile-nds-label {
+  line-height: 1;
+}
+
+.tile-sync-btn {
+  gap: 0.5556rem;
+  padding: 0.5556rem 1.1806rem;
+  border: 0;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.14);
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.tile-sync-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  transform: translateY(-1px);
+}
+
+.tile-sync-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.spinning {
+  animation: tile-spin 0.9s linear infinite;
+}
+
+@keyframes tile-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .bulk-btn {
   display: inline-flex;
   align-items: center;
@@ -1140,8 +1269,30 @@ onMounted(async () => {
 
 .project-tile-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4167rem;
+  flex-shrink: 0;
+}
+
+.project-tile-actions__top {
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.625rem;
+}
+
+.project-tile-id--corner {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3472rem;
+  max-width: 12rem;
+  margin-top: 0;
+  font-size: 0.7639rem;
+  text-align: right;
+}
+
+.project-tile-id--corner svg {
   flex-shrink: 0;
 }
 
@@ -1180,11 +1331,38 @@ onMounted(async () => {
   background: #f0f7ff;
 }
 
+.project-tile-stats-wrap {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.project-warmup-pill {
+  position: absolute;
+  top: -0.6944rem;
+  left: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.7361rem;
+  padding: 0.2778rem 0.6944rem;
+  border-radius: 999px;
+  background: rgba(239, 246, 255, 0.96);
+  color: #1d4ed8;
+  font-size: 0.7639rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  box-shadow: 0 0.4167rem 1.0417rem rgba(37, 99, 235, 0.14);
+}
+
 .project-tile-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7639rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0;
 }
 
 .project-goals-section {
@@ -1228,6 +1406,28 @@ onMounted(async () => {
 
 .project-goals-title:hover .project-goals-title__action {
   color: #2563eb;
+}
+
+.project-goals-title__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
+  min-width: 0;
+}
+
+.project-goals-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.0417rem;
+  height: 1.0417rem;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 0.625rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: none;
 }
 
 .project-goals-title__icon {
@@ -1288,10 +1488,11 @@ onMounted(async () => {
 
 .project-channel-summary {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
-  gap: 0.5556rem;
-  min-width: 10.4167rem;
+  gap: 0.2778rem;
+  min-width: 12.5rem;
   text-align: right;
   white-space: nowrap;
 }
@@ -1303,9 +1504,16 @@ onMounted(async () => {
   line-height: 1.05;
 }
 
-.project-channel-summary span {
-  color: #171717;
-  font-size: 1.0417rem;
+.project-channel-summary span,
+.project-channel-summary__cpl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2083rem 0.5556rem;
+  border-radius: 999px;
+  background: #fff7dd;
+  color: #8a5a00;
+  font-size: 0.7639rem;
   font-weight: 700;
   line-height: 1.05;
 }
@@ -1346,6 +1554,10 @@ onMounted(async () => {
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   color: #171717;
   font-size: 0.9028rem;
+}
+
+.project-goal-detail-row--simple {
+  grid-template-columns: minmax(0, 1fr) 4.1667rem;
 }
 
 .project-goal-detail-row span {
@@ -1865,6 +2077,10 @@ onMounted(async () => {
     grid-template-columns: minmax(0, 1fr) 3.6111rem 4.4444rem;
   }
 
+  .project-goal-detail-row--simple {
+    grid-template-columns: minmax(0, 1fr) 3.6111rem;
+  }
+
   .project-goal-detail-row em {
     display: none;
   }
@@ -2059,6 +2275,41 @@ onMounted(async () => {
 :global(.dark) .project-goals-title:hover .project-goals-title__action,
 :global(.darkmode) .project-goals-title:hover .project-goals-title__action {
   color: #67a8ff;
+}
+
+:global(.dark) .tile-nds-check-wrap,
+:global(.darkmode) .tile-nds-check-wrap,
+:global(.dark) .tile-sync-btn,
+:global(.darkmode) .tile-sync-btn {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .tile-nds-check-wrap,
+:global(.darkmode) .tile-nds-check-wrap {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+:global(.dark) .tile-sync-btn,
+:global(.darkmode) .tile-sync-btn {
+  color: #67a8ff;
+}
+
+:global(.dark) .tile-sync-btn:hover:not(:disabled),
+:global(.darkmode) .tile-sync-btn:hover:not(:disabled) {
+  background: rgba(103, 168, 255, 0.12);
+}
+
+:global(.dark) .project-channel-summary__cpl,
+:global(.darkmode) .project-channel-summary__cpl {
+  background: rgba(251, 191, 36, 0.16);
+  color: #fbbf24;
+}
+
+:global(.dark) .project-warmup-pill,
+:global(.darkmode) .project-warmup-pill {
+  background: rgba(37, 99, 235, 0.24);
+  color: #bfdbfe;
 }
 
 :global(.dark) .project-channel-card,
