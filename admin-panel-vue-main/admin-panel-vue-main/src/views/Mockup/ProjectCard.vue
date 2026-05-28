@@ -1119,21 +1119,20 @@ onMounted(async () => {
 
 .tile-sync-btn {
   gap: 0.4rem;
-  padding: 0.5556rem 1rem;
-  border: 1px solid #e0e0e0;
+  padding: 0.5556rem 0.8rem;
+  border: none;
   border-radius: 1.0417rem;
-  background: #fff;
-  color: #6b7280;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.62);
   cursor: pointer;
   font-size: 0.9028rem;
   font-weight: 500;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 
 .tile-sync-btn:hover:not(:disabled) {
-  background: #f9fafb;
-  color: #374151;
-  border-color: #d1d5db;
+  background: rgba(37, 99, 235, 0.04);
+  color: rgba(105, 105, 105, 0.82);
 }
 
 .tile-sync-btn:disabled {
@@ -2466,16 +2465,14 @@ onMounted(async () => {
 
 :global(.dark) .tile-sync-btn,
 :global(.darkmode) .tile-sync-btn {
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.45);
+  background: transparent;
 }
 
 :global(.dark) .tile-sync-btn:hover:not(:disabled),
 :global(.darkmode) .tile-sync-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.75);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 :global(.dark) .filters-bar,
