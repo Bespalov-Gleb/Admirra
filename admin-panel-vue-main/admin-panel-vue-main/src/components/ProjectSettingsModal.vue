@@ -187,13 +187,18 @@
                 Детектор и цели
                 <span class="psm-optional-tag">необязательно</span>
               </h3>
-              <label class="psm-toggle">
-                <input type="checkbox" :checked="form.detector_enabled" class="sr-only" @change="handleDetectorToggle" />
+              <button
+                type="button"
+                class="psm-toggle"
+                role="switch"
+                :aria-checked="form.detector_enabled"
+                @click="handleDetectorToggle"
+              >
                 <span class="psm-toggle__track" :class="{ 'psm-toggle__track--on': form.detector_enabled }">
                   <span class="psm-toggle__thumb" :class="{ 'psm-toggle__thumb--on': form.detector_enabled }"></span>
                 </span>
                 <span class="psm-toggle__label">Детектор аномалий</span>
-              </label>
+              </button>
             </div>
 
             <div class="psm-card__body">
@@ -433,7 +438,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, reactive, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/api/axios'
 import { projectAvatarUrl, projectInitials } from '@/utils/projectAvatar'
 import { useToaster } from '@/composables/useToaster'
@@ -675,12 +680,22 @@ watch(() => form.detector_enabled, (val) => {
   if (val) detectorFieldsExpanded.value = false
 })
 
-function handleDetectorToggle(event) {
-  const nextValue = Boolean(event.target.checked)
-  const scrollTop = bodyRef.value?.scrollTop || 0
+async function handleDetectorToggle() {
+  const body = bodyRef.value
+  const scrollTop = body?.scrollTop || 0
+  const nextValue = !form.detector_enabled
+
   form.detector_enabled = nextValue
-  requestAnimationFrame(() => {
+  await nextTick()
+
+  const restoreScroll = () => {
     if (bodyRef.value) bodyRef.value.scrollTop = scrollTop
+  }
+
+  restoreScroll()
+  requestAnimationFrame(() => {
+    restoreScroll()
+    requestAnimationFrame(restoreScroll)
   })
 }
 
@@ -1103,6 +1118,7 @@ onUnmounted(() => {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  overflow-anchor: none;
 }
 
 /* ===== Error banner ===== */
@@ -1479,7 +1495,12 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5556rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
+  font: inherit;
   user-select: none;
 }
 
