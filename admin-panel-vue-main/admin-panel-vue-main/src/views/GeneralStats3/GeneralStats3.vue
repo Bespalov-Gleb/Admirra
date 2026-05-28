@@ -186,11 +186,45 @@
           </div>
         </div>
 
-        <DateRangePicker
-          class="dashboard-date-picker"
-          :model-value="{ start: filters.start_date, end: filters.end_date }"
-          @change="handleDateRangeChange"
-        />
+        <div class="filter-wrap custom-select dashboard-select dashboard-period-select" :class="{ open: openMenu === 'period' }" v-click-outside="closePeriodMenu">
+          <button ref="periodTriggerRef" class="filter-btn cs-head" type="button" @click="toggleMenu('period')">
+            <span class="cs-current">{{ periodLabel }}</span>
+            <span class="cs-arrow">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          <Teleport to="body">
+            <div
+              v-if="openMenu === 'period'"
+              ref="periodPopoverRef"
+              class="period-popover period-list"
+              :style="periodPopoverStyle"
+            >
+              <template v-for="(opt, index) in projectPeriodOptions" :key="opt.value || `${opt.type}-${index}`">
+                <DateRangePicker
+                  v-if="opt.type === 'label'"
+                  v-model="customPeriodRange"
+                  class="project-period-custom-picker"
+                  :trigger-text="opt.label"
+                  @change="selectCustomDashboardPeriod"
+                />
+                <div v-else-if="opt.type === 'divider'" class="period-list__divider"></div>
+                <button
+                  v-else
+                  type="button"
+                  class="period-option"
+                  :class="{ selected: periodKey === opt.value }"
+                  @click="selectPeriodPreset(opt.value)"
+                >
+                  <span>{{ opt.label }}</span>
+                  <svg v-if="periodKey === opt.value" class="period-option__check" viewBox="0 0 18 14" fill="none" aria-hidden="true">
+                    <path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </template>
+            </div>
+          </Teleport>
+        </div>
 
         <span class="sync-status-label">
           <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
@@ -203,7 +237,7 @@
             <span class="nds-label">НДС 22%</span>
           </label>
 
-          <button class="sync-btn sync-btn-blue" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
+          <button class="sync-btn sync-btn-ghost" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
             <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
             {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизация' }}
           </button>
@@ -608,6 +642,7 @@ import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
+import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import { useDetector } from '@/composables/useDetector'
@@ -688,6 +723,10 @@ const defaultReportSchedule = { day: 'daily', time: '10:00' }
 const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
+const periodKey = ref('last_7_days')
+const customPeriodRange = ref({ start: null, end: null })
+const periodTriggerRef = ref(null)
+const periodPopoverRef = ref(null)
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
 const sendingExport = ref(false)
@@ -751,6 +790,54 @@ const handleDateRangeChange = (range) => {
   if (range?.end) filters.end_date = range.end
   filters.period = 'custom'
   fetchStats()
+}
+
+const periodLabel = computed(() => {
+  if (periodKey.value === 'custom' && customPeriodRange.value.start && customPeriodRange.value.end) {
+    const fmt = (v) => { const [y,m,d] = String(v).split('-'); return `${d}.${m}.${y}` }
+    return `${fmt(customPeriodRange.value.start)} — ${fmt(customPeriodRange.value.end)}`
+  }
+  return getProjectPeriodLabel(periodKey.value)
+})
+
+const periodPopoverStyle = computed(() => {
+  if (openMenu.value !== 'period' || !periodTriggerRef.value || typeof window === 'undefined') return {}
+  const rect = periodTriggerRef.value.getBoundingClientRect()
+  const width = Math.max(rect.width, 302)
+  const viewportPadding = 12
+  const left = Math.min(
+    Math.max(viewportPadding, rect.left),
+    Math.max(viewportPadding, window.innerWidth - width - viewportPadding)
+  )
+  return { top: `${rect.bottom + 4}px`, left: `${left}px`, minWidth: `${width}px` }
+})
+
+const applyPeriodRange = () => {
+  const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
+  filters.start_date = startDate
+  filters.end_date = endDate
+  filters.period = periodKey.value === 'custom' ? 'custom' : periodKey.value
+  fetchStats()
+}
+
+const selectPeriodPreset = (value) => {
+  periodKey.value = value
+  openMenu.value = ''
+  applyPeriodRange()
+}
+
+const selectCustomDashboardPeriod = (range) => {
+  if (!range?.start || !range?.end) return
+  customPeriodRange.value = { start: range.start, end: range.end }
+  periodKey.value = 'custom'
+  openMenu.value = ''
+  applyPeriodRange()
+}
+
+const closePeriodMenu = (event) => {
+  if (periodPopoverRef.value?.contains(event.target)) return
+  if (event.target?.closest?.('.calendar-popup')) return
+  closeMenu('period')
 }
 
 const selectConnectedChannel = (channel) => {
@@ -2034,6 +2121,90 @@ onMounted(() => {
   width: 26rem;
 }
 
+.dashboard-period-select .cs-head {
+  min-width: 18rem;
+}
+
+.period-popover.period-list {
+  position: fixed;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background-color: #fff;
+  min-width: 21rem;
+  border-radius: 1.2rem;
+  box-shadow: 0 1.6rem 4rem rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(68, 68, 68, 0.08);
+}
+
+.period-list__divider {
+  height: 1px;
+  margin: 0.4rem 0;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.period-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.4rem;
+  align-items: center;
+  gap: 1.4rem;
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.8rem 1.6rem;
+  border: 0;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.78);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.period-option:hover,
+.period-option.selected {
+  background-color: #f5f7f9;
+}
+
+.period-option__check {
+  width: 1.4rem;
+  height: 1.1rem;
+  color: #171717;
+}
+
+.project-period-custom-picker :deep(.drp-trigger) {
+  height: auto;
+  min-height: 4rem;
+  justify-content: flex-start;
+  border: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 0;
+  padding: 1rem 1.6rem;
+  background: transparent;
+  box-shadow: none;
+  color: #171717;
+  font-size: 1.2rem;
+  line-height: 1.15;
+}
+
+.project-period-custom-picker :deep(.drp-trigger:hover) {
+  background: #f5f7f9;
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: none;
+}
+
+.project-period-custom-picker :deep(.drp-trigger .truncate) {
+  color: #171717;
+  font-weight: 600;
+}
+
+.project-period-custom-picker :deep(.drp-trigger svg),
+.project-period-custom-picker :deep(.drp-trigger > span) {
+  display: none;
+}
+
 .filter-right-group {
   display: flex;
   align-items: center;
@@ -2428,15 +2599,19 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.sync-btn-blue {
-  background: #2563eb;
-  color: #fff;
+.sync-btn-ghost {
+  background: transparent;
+  color: rgba(105, 105, 105, 0.62);
   border-radius: 1.2rem;
-  padding: 0 2rem;
+  padding: 0 1.4rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.1);
+  font-weight: 500;
 }
 
-.sync-btn-blue:hover:not(:disabled) {
-  background: #1d4ed8;
+.sync-btn-ghost:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.04);
+  color: rgba(105, 105, 105, 0.82);
+  border-color: rgba(15, 23, 42, 0.16);
 }
 
 .nds-check-wrap {
@@ -4077,9 +4252,9 @@ onMounted(() => {
   font-size: 0.9028rem;
 }
 
-.sync-btn-blue {
+.sync-btn-ghost {
   border-radius: 0.8333rem;
-  padding: 0 1.25rem;
+  padding: 0 0.9722rem;
 }
 
 .nds-label {
@@ -5133,6 +5308,55 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.58);
 }
 
+:global(.dark) .period-popover.period-list,
+:global(.darkmode) .period-popover.period-list {
+  background-color: #2a2d3c;
+  box-shadow: 0 1.6rem 4rem rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .period-list__divider,
+:global(.darkmode) .period-list__divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+:global(.dark) .period-option,
+:global(.darkmode) .period-option {
+  color: rgba(255, 255, 255, 0.72);
+}
+:global(.dark) .period-option:hover,
+:global(.darkmode) .period-option:hover,
+:global(.dark) .period-option.selected,
+:global(.darkmode) .period-option.selected {
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .period-option__check,
+:global(.darkmode) .period-option__check {
+  color: rgba(255, 255, 255, 0.9);
+}
+:global(.dark) .project-period-custom-picker :deep(.drp-trigger),
+:global(.darkmode) .project-period-custom-picker :deep(.drp-trigger) {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+:global(.dark) .project-period-custom-picker :deep(.drp-trigger:hover),
+:global(.darkmode) .project-period-custom-picker :deep(.drp-trigger:hover) {
+  background: rgba(255, 255, 255, 0.06);
+}
+:global(.dark) .project-period-custom-picker :deep(.drp-trigger .truncate),
+:global(.darkmode) .project-period-custom-picker :deep(.drp-trigger .truncate) {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:global(.dark) .sync-btn-ghost,
+:global(.darkmode) .sync-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.48);
+}
+:global(.dark) .sync-btn-ghost:hover:not(:disabled),
+:global(.darkmode) .sync-btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.62);
+}
+
 :global(.dark) .select-like:hover,
 :global(.darkmode) .select-like:hover,
 :global(.dark) .filter-btn:hover,
@@ -5463,6 +5687,34 @@ onMounted(() => {
 .figma-dashboard.is-dark .round-action {
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.figma-dashboard.is-dark .period-popover.period-list {
+  background-color: #2a2d3c;
+  box-shadow: 0 1.6rem 4rem rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.figma-dashboard.is-dark .period-list__divider {
+  background: rgba(255, 255, 255, 0.08);
+}
+.figma-dashboard.is-dark .period-option {
+  color: rgba(255, 255, 255, 0.72);
+}
+.figma-dashboard.is-dark .period-option:hover,
+.figma-dashboard.is-dark .period-option.selected {
+  background: rgba(255, 255, 255, 0.06);
+}
+.figma-dashboard.is-dark .period-option__check {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .sync-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.48);
+}
+.figma-dashboard.is-dark .sync-btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.62);
 }
 
