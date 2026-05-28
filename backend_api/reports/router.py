@@ -513,8 +513,7 @@ async def send_report(
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
             db.commit()
         except Exception as e:
-            logger.exception("AI report generation failed: %s", e)
-            raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
+            logger.warning("AI report generation skipped: %s", e)
 
     # Конвертируем скриншот в PDF, или генерируем PDF из HTML-шаблона
     if png_bytes:
