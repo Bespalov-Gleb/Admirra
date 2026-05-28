@@ -248,21 +248,19 @@
                     <span v-if="!channel.goalTotal">нет целей за период</span>
                     <span v-else>{{ channel.goalNoun }} за период</span>
                   </div>
-                  <div
-                    v-if="channel.goalTotal"
-                    class="project-channel-summary"
-                    :class="{ 'project-channel-summary--cpl': channel.code === 'yandex' }"
-                  >
-                    <span v-if="channel.code === 'yandex'" class="project-channel-summary__cpl">
-                      <span>общий CPL</span>
+                  <div class="project-channel-metrics">
+                    <div class="project-channel-metric">
+                      <strong>{{ formatNumber(channel.goalTotal) }}</strong>
+                      <span>{{ channel.goalNoun }}</span>
+                    </div>
+                    <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withVat(channel.avgCpl)) : '—' }}</strong>
-                      <em>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</em>
-                    </span>
-                    <strong v-else>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</strong>
-                  </div>
-                  <div class="project-channel-spend">
-                    <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
-                    <span>расход</span>
+                      <span>Общий CPL</span>
+                    </div>
+                    <div class="project-channel-metric project-channel-metric--spend">
+                      <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
+                      <span>Расход</span>
+                    </div>
                   </div>
                 </div>
                 <div v-if="isProjectGoalsExpanded(project.id)" class="project-goal-detail-list">
@@ -1600,7 +1598,7 @@ onMounted(async () => {
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.2222rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 2.2222rem minmax(0, 1fr) minmax(17.5rem, 0.92fr);
   align-items: center;
   gap: 0.8333rem;
   min-height: 3.75rem;
@@ -1633,90 +1631,72 @@ onMounted(async () => {
   line-height: 1.15;
 }
 
-.project-channel-summary {
+.project-channel-metrics {
+  display: grid;
+  grid-template-columns: minmax(4.4444rem, 0.74fr) minmax(6.9444rem, 1fr) minmax(6.9444rem, 1fr);
+  align-self: stretch;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 1px solid rgba(245, 158, 11, 0.13);
+}
+
+.project-channel-metric {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: flex-end;
-  gap: 0.2778rem;
-  min-width: 12.5rem;
+  justify-content: center;
+  gap: 0.2083rem;
+  padding: 0.1389rem 0.6944rem;
+  border-left: 1px solid rgba(245, 158, 11, 0.13);
   text-align: right;
+}
+
+.project-channel-metric:first-child {
+  border-left: 0;
+}
+
+.project-channel-metric strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #171717;
+  font-size: 1.1111rem;
+  font-weight: 800;
+  line-height: 1.05;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.project-channel-summary--cpl {
-  min-width: 11.8056rem;
-}
-
-.project-channel-summary > strong {
-  color: #171717;
-  font-size: 1.25rem;
-  font-weight: 800;
-  line-height: 1.05;
-}
-
-.project-channel-summary__cpl {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  justify-content: end;
-  column-gap: 0.4861rem;
-  row-gap: 0.1389rem;
-  padding: 0.4861rem 0.6944rem;
-  border-radius: 0.6944rem;
-  background: linear-gradient(135deg, #fff7dd 0%, #fff1be 100%);
-  color: #8a5a00;
-  font-size: 0.7639rem;
-  font-weight: 700;
-  line-height: 1.05;
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.16), 0 0.3472rem 0.9028rem rgba(245, 158, 11, 0.08);
-}
-
-.project-channel-summary__cpl > span {
-  color: rgba(138, 90, 0, 0.68);
-  font-size: 0.6944rem;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.project-channel-summary__cpl > strong {
-  color: #171717;
-  font-size: 1.1111rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.project-channel-summary__cpl > em {
-  grid-column: 1 / -1;
-  color: rgba(138, 90, 0, 0.72);
-  font-size: 0.6944rem;
-  font-style: normal;
-  font-weight: 700;
-  text-align: right;
-}
-
-.project-channel-spend {
-  min-width: 6.25rem;
-  text-align: right;
-}
-
-.project-channel-spend strong,
-.project-channel-spend span {
+.project-channel-metric span {
   display: block;
-}
-
-.project-channel-spend strong {
-  color: #171717;
-  font-size: 0.9722rem;
-  font-weight: 700;
-  line-height: 1.15;
-}
-
-.project-channel-spend span {
-  margin-top: 0.1389rem;
+  max-width: 100%;
+  overflow: hidden;
   color: rgba(105, 105, 105, 0.5);
   font-size: 0.7639rem;
+  font-weight: 600;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-channel-metric--cpl {
+  background: linear-gradient(135deg, rgba(255, 247, 221, 0.88), rgba(255, 241, 190, 0.5));
+}
+
+.project-channel-metric--cpl strong {
+  color: #171717;
+  font-size: 1.1806rem;
+  font-weight: 900;
+}
+
+.project-channel-metric--cpl span {
+  color: rgba(138, 90, 0, 0.7);
+  font-weight: 800;
+}
+
+.project-channel-metric--spend strong {
+  font-size: 1.0417rem;
 }
 
 .project-goal-detail-list {
@@ -2245,16 +2225,17 @@ onMounted(async () => {
     grid-template-columns: 2.0833rem minmax(0, 1fr);
   }
 
-  .project-channel-summary,
-  .project-channel-spend {
+  .project-channel-metrics {
     grid-column: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     min-width: 0;
-    text-align: left;
+    border-top: 1px solid rgba(245, 158, 11, 0.13);
+    border-left: 0;
+    padding-top: 0.5556rem;
   }
 
-  .project-channel-summary {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .project-channel-metric:first-child {
+    border-left: 0;
   }
 
   .project-goal-detail-row {
@@ -2426,12 +2407,8 @@ onMounted(async () => {
 :global(.darkmode) .project-title-link--tile,
 :global(.dark) .project-channel-main strong,
 :global(.darkmode) .project-channel-main strong,
-:global(.dark) .project-channel-summary strong,
-:global(.darkmode) .project-channel-summary strong,
-:global(.dark) .project-channel-summary span,
-:global(.darkmode) .project-channel-summary span,
-:global(.dark) .project-channel-spend strong,
-:global(.darkmode) .project-channel-spend strong,
+:global(.dark) .project-channel-metric strong,
+:global(.darkmode) .project-channel-metric strong,
 :global(.dark) .project-goal-detail-row,
 :global(.darkmode) .project-goal-detail-row {
   color: rgba(255, 255, 255, 0.9);
@@ -2443,8 +2420,8 @@ onMounted(async () => {
 :global(.darkmode) .project-balance-title,
 :global(.dark) .project-channel-main span,
 :global(.darkmode) .project-channel-main span,
-:global(.dark) .project-channel-spend span,
-:global(.darkmode) .project-channel-spend span,
+:global(.dark) .project-channel-metric span,
+:global(.darkmode) .project-channel-metric span,
 :global(.dark) .project-goal-empty,
 :global(.darkmode) .project-goal-empty {
   color: rgba(255, 255, 255, 0.52);
@@ -2485,14 +2462,13 @@ onMounted(async () => {
   color: #93c5fd;
 }
 
-:global(.dark) .project-channel-summary__cpl,
-:global(.darkmode) .project-channel-summary__cpl {
+:global(.dark) .project-channel-metric--cpl,
+:global(.darkmode) .project-channel-metric--cpl {
   background: rgba(251, 191, 36, 0.16);
-  color: #fbbf24;
 }
 
-:global(.dark) .project-channel-summary__cpl > strong,
-:global(.darkmode) .project-channel-summary__cpl > strong,
+:global(.dark) .project-channel-metric--cpl strong,
+:global(.darkmode) .project-channel-metric--cpl strong,
 :global(.dark) .project-channel-empty__copy strong,
 :global(.darkmode) .project-channel-empty__copy strong {
   color: rgba(255, 255, 255, 0.92);
