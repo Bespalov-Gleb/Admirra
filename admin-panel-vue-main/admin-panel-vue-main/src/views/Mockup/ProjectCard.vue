@@ -7,7 +7,7 @@
     </div>
 
     <!-- Filters bar -->
-    <div class="flex flex-wrap items-center justify-between gap-[0.6944rem] mb-[2.0833rem]">
+    <div class="filters-bar">
       <!-- Left: selects + search -->
       <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <!-- Dropdown: Все -->
@@ -83,7 +83,7 @@
       </div>
 
       <!-- Right: bulk edit + view toggle -->
-      <div class="flex items-center gap-[0.6944rem]">
+      <div class="flex items-center gap-[1.1rem]">
         <label class="tile-nds-check-wrap">
           <input type="checkbox" v-model="includeVat" class="tile-nds-checkbox" />
           <span class="tile-nds-label">С НДС 22%</span>
@@ -870,6 +870,24 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ---- Filters bar (sticky) ---- */
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6944rem;
+  margin-bottom: 1.4rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(245, 247, 249, 0.92);
+  backdrop-filter: blur(10px);
+  padding: 0.9rem 1.7361rem;
+  margin-left: -1.7361rem;
+  margin-right: -1.7361rem;
+}
+
 /* ---- Custom Select ---- */
 .custom-select {
   position: relative;
@@ -1104,21 +1122,22 @@ onMounted(async () => {
 }
 
 .tile-sync-btn {
-  gap: 0.5556rem;
-  padding: 0.5556rem 0.2778rem;
-  border: 0;
-  background: transparent;
-  color: #2563eb;
+  gap: 0.4rem;
+  padding: 0.5556rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 1.0417rem;
+  background: #fff;
+  color: #6b7280;
   cursor: pointer;
   font-size: 0.9028rem;
-  font-weight: 700;
-  transition: background 0.2s, color 0.2s, transform 0.2s;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .tile-sync-btn:hover:not(:disabled) {
-  background: transparent;
-  color: #1d4ed8;
-  transform: translateY(-1px);
+  background: #f9fafb;
+  color: #374151;
+  border-color: #d1d5db;
 }
 
 .tile-sync-btn:disabled {
@@ -1692,17 +1711,13 @@ onMounted(async () => {
 
 .project-channel-metric--cpl strong {
   color: #171717;
-  font-size: 1.1806rem;
-  font-weight: 900;
+  font-size: 1.1111rem;
+  font-weight: 800;
 }
 
 .project-channel-metric--cpl span {
   color: rgba(138, 90, 0, 0.7);
-  font-weight: 800;
-}
-
-.project-channel-metric--spend strong {
-  font-size: 1.0417rem;
+  font-weight: 600;
 }
 
 .project-goal-detail-list {
@@ -2459,13 +2474,21 @@ onMounted(async () => {
 
 :global(.dark) .tile-sync-btn,
 :global(.darkmode) .tile-sync-btn {
-  color: #67a8ff;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 :global(.dark) .tile-sync-btn:hover:not(:disabled),
 :global(.darkmode) .tile-sync-btn:hover:not(:disabled) {
-  background: transparent;
-  color: #93c5fd;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+:global(.dark) .filters-bar,
+:global(.darkmode) .filters-bar {
+  background: rgba(30, 32, 44, 0.92);
 }
 
 :global(.dark) .project-channel-metric--cpl,
