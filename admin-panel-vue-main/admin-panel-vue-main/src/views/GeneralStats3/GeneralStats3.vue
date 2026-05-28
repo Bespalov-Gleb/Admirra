@@ -188,9 +188,9 @@
               <template v-if="campaignGroupArchive.length">
                 <button type="button" class="cmp-group-header" @click="campaignArchiveOpen = !campaignArchiveOpen">
                   Архив ({{ campaignGroupArchive.length }})
-                  <ChevronDownIcon class="cmp-group-chevron" :class="{ 'cmp-group-chevron--open': campaignArchiveOpen }" />
+                  <ChevronDownIcon class="cmp-group-chevron" :class="{ 'cmp-group-chevron--open': campaignArchiveVisible }" />
                 </button>
-                <template v-if="campaignArchiveOpen">
+                <template v-if="campaignArchiveVisible">
                   <div v-for="campaign in campaignGroupArchive" :key="campaign.id" class="cmp-row cmp-row--archive" @click="togglePendingCampaign(campaign.id)">
                     <input type="checkbox" class="cmp-check" :checked="pendingCampaignIds.includes(campaign.id)" @click.stop="togglePendingCampaign(campaign.id)" />
                     <span class="cmp-status-dot cmp-status-dot--archive" title="Архив"></span>
@@ -497,39 +497,57 @@
             <div class="creative-image creative-skeleton"></div>
             <div class="creative-skeleton-line creative-skeleton-line--short"></div>
             <div class="creative-skeleton-line"></div>
-            <div class="creative-skeleton-metrics">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
           </div>
         </div>
-        <div v-else-if="creatives.length" class="creatives-row">
-          <div v-for="creative in creatives" :key="creative.id || creative.title" class="creative-card">
+        <template v-else-if="creativeTabs.length">
+          <div v-if="creativeTabs.length > 1" class="creative-tabs">
             <button
-              v-if="creative.imageUrl"
+              v-for="tab in creativeTabs"
+              :key="tab.key"
               type="button"
-              class="creative-image creative-image-button"
-              :style="{ backgroundImage: `url(${creative.imageUrl})` }"
-              @click="openCreativeImage(creative)"
-            ></button>
-            <div v-else class="creative-image" :class="creative.class"></div>
-            <span class="creative-platform" :class="creative.platformClass">
-              <img v-if="creative.platformIcon" :src="creative.platformIcon" alt="" />
-              {{ creative.badge }}
-            </span>
-            <p>Заголовок:</p>
-            <em>{{ creative.heading }}</em>
-            <p>Текст:</p>
-            <em>{{ creative.text }}</em>
-            <div class="creative-metrics">
-              <span v-for="metric in creative.metrics" :key="metric.label">
-                <b>{{ metric.label }}</b>
-                <strong>{{ metric.value }}</strong>
+              class="creative-tab"
+              :class="{ 'creative-tab--active': activeCreativeTab === tab.key }"
+              @click="activeCreativeTab = tab.key"
+            >{{ tab.label }} · {{ tab.count }}</button>
+          </div>
+          <div class="creatives-row">
+            <div
+              v-for="creative in activeCreativeCards"
+              :key="creative.id"
+              class="creative-card"
+              @mouseenter="creative.isVideo ? ($event.currentTarget.querySelector('video')?.play()) : null"
+              @mouseleave="creative.isVideo ? ($event.currentTarget.querySelector('video')?.pause()) : null"
+            >
+              <div class="creative-image-wrap">
+                <template v-if="creative.isVideo && creative.thumbnailUrl">
+                  <img :src="creative.thumbnailUrl" alt="" class="creative-image creative-image--cover" />
+                  <video
+                    v-if="creative.imageUrl"
+                    :src="creative.imageUrl"
+                    class="creative-image creative-image--video"
+                    muted loop playsinline preload="none"
+                  ></video>
+                  <span class="creative-play-icon">▶</span>
+                </template>
+                <button
+                  v-else-if="creative.imageUrl"
+                  type="button"
+                  class="creative-image creative-image-button"
+                  :style="{ backgroundImage: `url(${creative.imageUrl})` }"
+                  @click="openCreativeImage(creative)"
+                ></button>
+                <div v-else class="creative-image creative-image--placeholder"></div>
+                <span v-if="creative.formatBadge" class="creative-format-badge">{{ creative.formatBadge }}</span>
+              </div>
+              <span class="creative-platform" :class="creative.platformClass">
+                <img v-if="creative.platformIcon" :src="creative.platformIcon" alt="" />
+                {{ creative.badge }}
               </span>
+              <em class="creative-title">{{ creative.heading }}</em>
+              <em v-if="creative.text" class="creative-text">{{ creative.text }}</em>
             </div>
           </div>
-        </div>
+        </template>
         <div v-else class="creative-empty"></div>
       </article>
 
@@ -900,6 +918,7 @@ const campaignReset = () => {
 
 const campaignGroupActive = computed(() => filteredCampaigns.value.filter(c => c.is_active))
 const campaignGroupArchive = computed(() => filteredCampaigns.value.filter(c => !c.is_active))
+const campaignArchiveVisible = computed(() => campaignQuery.value.trim() ? true : campaignArchiveOpen.value)
 
 const selectChartPeriod = (option) => {
   selectedChartPeriod.value = option
@@ -1701,34 +1720,72 @@ const campaignRows = computed(() => {
   }))
 })
 
-const creatives = computed(() => {
+const AD_TYPE_TAB_MAP = {
+  TEXT_AD: 'search', TEXT_IMAGE_AD: 'rsya_image', IMAGE_AD: 'rsya_image',
+  TEXT_AD_BUILDER_AD: 'rsya_image', DYNAMIC_TEXT_AD: 'dynamic',
+  SMART_AD: 'smart', SHOPPING_AD: 'smart', LISTING_AD: 'smart',
+  MOBILE_APP_AD: 'mobile', MOBILE_APP_IMAGE_AD: 'mobile',
+  CPC_VIDEO_AD: 'video', CPM_VIDEO_AD: 'video', CPM_BANNER_AD: 'video',
+  CPM_BANNER_AD_BUILDER_AD: 'video', SMART_AD_BUILDER_AD: 'smart',
+  CAMPAIGN_FALLBACK: 'other',
+}
+const AD_TAB_LABELS = {
+  search: 'Поиск', rsya_image: 'РСЯ + Графика', dynamic: 'Динамические',
+  smart: 'Смарт / Товарные', video: 'Видео', mobile: 'Мобильные', other: 'Прочие',
+}
+const VIDEO_TABS = new Set(['video'])
+
+const activeCreativeTab = ref('')
+
+const allCreativeCards = computed(() => {
   if (!topAds.value.length) return []
-  const classes = ['city', 'blue', 'house']
-  return topAds.value.slice(0, 3).map((post, index) => {
-    const platform = String(post.platform || post.source || '').toLowerCase()
-    const cost = parseOptionalNumber(post.cost ?? post.spend ?? post.expenses)
-    const leads = parseOptionalNumber(post.conversions ?? post.leads ?? post.goal_count ?? post.goals)
-    const cplSource = parseOptionalNumber(post.cpl ?? post.cpa ?? post.cost_per_lead)
-    const cpl = Number.isFinite(cplSource) ? cplSource : (Number.isFinite(cost) && Number.isFinite(leads) && leads > 0 ? cost / leads : NaN)
-    const platformLabel = post.subtitle || post.platform_label || (platform.includes('vk') ? 'VK Ads' : 'Яндекс.Директ')
+  return topAds.value.map((post, index) => {
+    const platform = String(post.platform || '').toLowerCase()
+    const adType = post.ad_type || ''
+    const tabKey = AD_TYPE_TAB_MAP[adType] || 'other'
+    const isVideo = VIDEO_TABS.has(tabKey)
+    const platformLabel = post.subtitle || (platform.includes('vk') ? 'VK Ads' : 'Яндекс.Директ')
+    let formatBadge = null
+    if (isVideo) formatBadge = 'Видео'
+    else if (tabKey === 'smart') formatBadge = 'Смарт'
+    else if (tabKey === 'dynamic') formatBadge = 'Динамическое'
     return {
-      id: post.id || `${post.title}-${index}`,
+      id: post.id || `ad-${index}`,
+      tabKey,
       badge: platformLabel,
-      title: post.title || 'Креатив',
-      heading: post.heading || post.title || '—',
-      text: post.text || post.description || '—',
-      imageUrl: post.image_url || post.imageUrl || post.preview_url || '',
+      heading: post.title || '—',
+      text: post.text || '',
+      imageUrl: post.image_url || post.preview_url || '',
+      thumbnailUrl: post.thumbnail_url || '',
       platformIcon: platform.includes('vk') ? vkAdsIcon : yandexDirectIcon,
       platformClass: platform.includes('vk') ? 'creative-platform--vk' : 'creative-platform--yandex',
-      class: classes[index % classes.length],
-      metrics: [
-        { label: 'Затраты', value: Number.isFinite(cost) ? formatMoney(withVat(cost)) : '—' },
-        { label: 'Лиды', value: Number.isFinite(leads) ? `${formatNumber(leads)} шт.` : '—' },
-        { label: 'CPL', value: Number.isFinite(cpl) ? formatMoney(withVat(cpl)) : '—' },
-      ]
+      isVideo,
+      formatBadge,
+      cost: post.cost || 0,
     }
   })
 })
+
+const creativeTabs = computed(() => {
+  const groups = {}
+  for (const card of allCreativeCards.value) {
+    if (!groups[card.tabKey]) groups[card.tabKey] = { key: card.tabKey, count: 0, totalCost: 0 }
+    groups[card.tabKey].count++
+    groups[card.tabKey].totalCost += card.cost
+  }
+  const tabs = Object.values(groups)
+    .filter(g => g.count > 0)
+    .map(g => ({ ...g, label: AD_TAB_LABELS[g.key] || g.key }))
+    .sort((a, b) => b.totalCost - a.totalCost)
+  if (tabs.length && (!activeCreativeTab.value || !tabs.find(t => t.key === activeCreativeTab.value))) {
+    activeCreativeTab.value = tabs[0].key
+  }
+  return tabs
+})
+
+const activeCreativeCards = computed(() =>
+  allCreativeCards.value.filter(c => c.tabKey === activeCreativeTab.value).slice(0, 4)
+)
 const aiComments = computed(() => {
   if (!reportComment.value) return []
   return reportComment.value
@@ -4393,129 +4450,158 @@ onMounted(() => {
   overflow-x: auto;
 }
 
+/* Creative tabs */
+.creative-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.2rem;
+}
+.creative-tab {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 1.5rem;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.creative-tab:hover { background: #f5f7fa; color: #374151; }
+.creative-tab--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.creative-tab--active:hover { background: #1d4ed8; }
+
 .creative-card {
   flex: 0 0 19.5rem;
 }
 
-.creative-image {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 19rem;
-  padding: 1.6rem;
-  border-radius: 2rem;
+.creative-image-wrap {
+  position: relative;
+  border-radius: 1rem;
   overflow: hidden;
-  color: #fff;
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
+}
+
+.creative-image {
+  display: block;
+  width: 100%;
+  min-height: 14rem;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #f1f5f9;
   background-position: center;
   background-size: cover;
+  object-fit: cover;
 }
 
 .creative-image-button {
   width: 100%;
   border: 0;
   cursor: zoom-in;
+  min-height: 14rem;
 }
 
-.creative-image.city {
-  background: linear-gradient(rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.42)), linear-gradient(135deg, #dbeafe, #60a5fa 52%, #2563eb);
+.creative-image--placeholder {
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
 }
 
-.creative-image.blue {
-  background: radial-gradient(circle at 80% 70%, #1e3a8a 0 18%, transparent 19%), linear-gradient(135deg, #38bdf8, #2563eb);
+.creative-image--cover {
+  position: relative;
+  z-index: 1;
 }
 
-.creative-image.house {
-  background: linear-gradient(135deg, #93c5fd, #1d4ed8 65%);
+.creative-image--video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.creative-card:hover .creative-image--video { opacity: 1; }
+.creative-card:hover .creative-play-icon { opacity: 0; }
+
+.creative-play-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.1rem;
+  transition: opacity 0.2s;
 }
 
-.creative-image span {
-  font-size: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.creative-image strong {
-  margin-top: 1rem;
-  font-size: 1.7rem;
-  line-height: 1.05;
-}
-
-.creative-card p {
-  margin: 2rem 0 0.8rem;
-  color: #4b4b4b;
-  font-size: 1.3rem;
-}
-
-.creative-card em {
-  display: block;
-  color: #ababab;
-  font-size: 1.3rem;
-  font-style: normal;
-  line-height: 1.35;
+.creative-format-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 4;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .creative-platform {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.5rem;
   width: max-content;
   max-width: 100%;
-  min-height: 2.8rem;
-  margin-top: 1.2rem;
-  padding: 0 1rem;
+  min-height: 2.2rem;
+  margin-top: 0.8rem;
+  padding: 0 0.7rem;
   border-radius: 69.375rem;
   color: #3f3f3f;
-  font-size: 1.1rem;
+  font-size: 0.88rem;
   font-weight: 600;
 }
-
 .creative-platform img {
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.1rem;
+  height: 1.1rem;
   object-fit: contain;
 }
+.creative-platform--yandex { background: #fff7d8; }
+.creative-platform--vk { background: #e8f0ff; }
 
-.creative-platform--yandex {
-  background: #fff7d8;
-}
-
-.creative-platform--vk {
-  background: #e8f0ff;
-}
-
-.creative-metrics {
-  display: grid;
-  gap: 0.8rem;
-  margin-top: 1.4rem;
-}
-
-.creative-metrics span {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 3.2rem;
-  padding: 0 1rem;
-  border-radius: 0.8rem;
-  background: #f8fafc;
-}
-
-.creative-metrics b,
-.creative-metrics strong {
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.creative-metrics b {
-  color: #9ca3af;
-  font-weight: 600;
-}
-
-.creative-metrics strong {
+.creative-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.5rem;
   color: #171717;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 0.95rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.creative-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.3rem;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-style: normal;
+  line-height: 1.35;
 }
 
 .creative-empty,
@@ -4529,18 +4615,14 @@ onMounted(() => {
 .creative-card--skeleton {
   pointer-events: none;
 }
-
 .creative-skeleton,
-.creative-skeleton-line,
-.creative-skeleton-metrics span {
+.creative-skeleton-line {
   position: relative;
   overflow: hidden;
   background: #eef2f7;
 }
-
 .creative-skeleton::after,
-.creative-skeleton-line::after,
-.creative-skeleton-metrics span::after {
+.creative-skeleton-line::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -4548,27 +4630,12 @@ onMounted(() => {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
   animation: skeleton-shimmer 1.25s infinite;
 }
-
 .creative-skeleton-line {
   height: 1rem;
-  margin-top: 1.4rem;
+  margin-top: 1.2rem;
   border-radius: 69.375rem;
 }
-
-.creative-skeleton-line--short {
-  width: 64%;
-}
-
-.creative-skeleton-metrics {
-  display: grid;
-  gap: 0.8rem;
-  margin-top: 1.4rem;
-}
-
-.creative-skeleton-metrics span {
-  height: 3.2rem;
-  border-radius: 0.8rem;
-}
+.creative-skeleton-line--short { width: 64%; }
 
 @keyframes skeleton-shimmer {
   100% {
@@ -5938,8 +6005,6 @@ onMounted(() => {
 :global(.darkmode) .campaign-row,
 :global(.dark) .goal-item p,
 :global(.darkmode) .goal-item p,
-:global(.dark) .creative-card p,
-:global(.darkmode) .creative-card p,
 :global(.dark) .ai-panel ul,
 :global(.darkmode) .ai-panel ul,
 :global(.dark) .progress-line,
@@ -5997,8 +6062,6 @@ onMounted(() => {
 :global(.darkmode) .metric-card p,
 :global(.dark) .campaign-row.header,
 :global(.darkmode) .campaign-row.header,
-:global(.dark) .creative-card em,
-:global(.darkmode) .creative-card em,
 :global(.dark) .ai-panel > p,
 :global(.darkmode) .ai-panel > p {
   color: rgba(255, 255, 255, 0.48);
@@ -6355,7 +6418,6 @@ onMounted(() => {
 .figma-dashboard.is-dark .chip,
 .figma-dashboard.is-dark .campaign-row,
 .figma-dashboard.is-dark .goal-item p,
-.figma-dashboard.is-dark .creative-card p,
 .figma-dashboard.is-dark .ai-panel ul,
 .figma-dashboard.is-dark .progress-line {
   color: rgba(255, 255, 255, 0.78);
@@ -6383,7 +6445,6 @@ onMounted(() => {
 .figma-dashboard.is-dark .metric-card p,
 .figma-dashboard.is-dark .metric-foot,
 .figma-dashboard.is-dark .campaign-row.header,
-.figma-dashboard.is-dark .creative-card em,
 .figma-dashboard.is-dark .ai-panel > p {
   color: rgba(255, 255, 255, 0.5);
 }
@@ -6800,21 +6861,6 @@ onMounted(() => {
   height: 0.9722rem;
 }
 
-.creative-metrics {
-  gap: 0.5556rem;
-  margin-top: 0.9722rem;
-}
-
-.creative-metrics span {
-  min-height: 2.2222rem;
-  padding: 0 0.6944rem;
-  border-radius: 0.5556rem;
-}
-
-.creative-metrics b,
-.creative-metrics strong {
-  font-size: 0.7639rem;
-}
 
 .creative-empty,
 .ai-empty {
@@ -6838,22 +6884,20 @@ onMounted(() => {
   border-radius: 0.5556rem;
 }
 
-.figma-dashboard.is-dark .creative-metrics span,
 .figma-dashboard.is-dark .creative-empty,
 .figma-dashboard.is-dark .ai-empty,
 .figma-dashboard.is-dark .creative-skeleton,
-.figma-dashboard.is-dark .creative-skeleton-line,
-.figma-dashboard.is-dark .creative-skeleton-metrics span {
+.figma-dashboard.is-dark .creative-skeleton-line {
   background: rgba(255, 255, 255, 0.06);
 }
-
-.figma-dashboard.is-dark .creative-metrics strong {
-  color: #f3f4f6;
+.figma-dashboard.is-dark .creative-title { color: #f3f4f6; }
+.figma-dashboard.is-dark .creative-text { color: rgba(255, 255, 255, 0.5); }
+.figma-dashboard.is-dark .creative-tab {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
 }
-
-.figma-dashboard.is-dark .creative-metrics b {
-  color: rgba(255, 255, 255, 0.48);
-}
+.figma-dashboard.is-dark .creative-tab:hover { background: rgba(255, 255, 255, 0.06); }
+.figma-dashboard.is-dark .creative-image--placeholder { background: rgba(255, 255, 255, 0.08); }
 
 .side-stat-stack {
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);

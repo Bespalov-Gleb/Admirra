@@ -247,7 +247,10 @@ async def _get_yandex_top_ads(
                 all_ads.append({
                     "id": f"yd_{ad_id}",
                     "title": title[:120] if title else f"Объявление {ad_id}",
+                    "text": (info.get("Text") or "")[:200],
+                    "ad_type": info.get("Type", ""),
                     "image_url": image_url,
+                    "thumbnail_url": info.get("ThumbnailUrl"),
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
@@ -361,7 +364,10 @@ async def _get_yandex_ads_via_campaigns_get(
         result.append({
             "id": f"yd_{ad['Id']}",
             "title": title[:120] if title else "Объявление",
+            "text": (ad.get("Text") or "")[:200],
+            "ad_type": ad.get("Type", "SMART_AD"),
             "image_url": image_url,
+            "thumbnail_url": ad.get("ThumbnailUrl"),
             "impressions": imps,
             "clicks": clicks,
             "cost": round(float(cost), 2),
@@ -404,7 +410,10 @@ def _get_yandex_top_ads_fallback(
         result.append({
             "id": f"yd_camp_{c.get('id', '')}",
             "title": name,
+            "text": "",
+            "ad_type": "CAMPAIGN_FALLBACK",
             "image_url": None,
+            "thumbnail_url": None,
             "impressions": imps,
             "clicks": clicks,
             "cost": c.get("cost", 0),

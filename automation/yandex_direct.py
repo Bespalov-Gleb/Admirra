@@ -1458,7 +1458,7 @@ class YandexDirectAPI:
             "params": {
                 "SelectionCriteria": criteria,
                 "FieldNames": ["Id", "CampaignId", "State", "Type"],
-                "TextAdFieldNames": ["Title", "AdImageHash"],
+                "TextAdFieldNames": ["Title", "Text", "AdImageHash"],
                 "TextImageAdFieldNames": ["AdImageHash", "Href"],
                 "DynamicTextAdFieldNames": ["AdImageHash", "Text"],
                 "MobileAppAdFieldNames": ["Title", "AdImageHash"],
@@ -1506,34 +1506,38 @@ class YandexDirectAPI:
                     ads = await self._get_ads_via_adgroups(campaign_ids)
                 result = []
                 for ad in ads:
-                    # Уже распарсено (AdGroups path) или сырые данные API
                     title = ad.get("Title")
+                    text = ad.get("Text", "")
                     ad_image_hash = ad.get("AdImageHash")
                     preview_url = ad.get("PreviewUrl")
-                    # TextAd, DynamicTextAd (Title не поддерживается, используем Text), MobileAppAd
+                    thumbnail_url = ad.get("ThumbnailUrl")
+                    ad_type = ad.get("Type", "")
                     for block in ["TextAd", "DynamicTextAd", "MobileAppAd"]:
                         if block in ad:
                             title = ad[block].get("Title") or ad[block].get("Text", "")[:80] or title
+                            text = ad[block].get("Text", "") or text
                             ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
-                    # Image ads
                     for block in ["TextImageAd", "MobileAppImageAd"]:
                         if block in ad:
                             ad_image_hash = ad[block].get("AdImageHash") or ad_image_hash
                             if not title and block == "TextImageAd":
                                 title = ad[block].get("Href", "")[:80] or "Объявление"
-                    # SmartAdBuilderAd, TextAdBuilderAd, CpmBannerAdBuilderAd — Creative.PreviewUrl/ThumbnailUrl
                     for block in ["SmartAdBuilderAd", "TextAdBuilderAd", "CpmBannerAdBuilderAd", "CpmVideoAdBuilderAd"]:
                         if block in ad and isinstance(ad[block].get("Creative"), dict):
                             creative = ad[block]["Creative"]
-                            preview_url = creative.get("PreviewUrl") or creative.get("ThumbnailUrl") or preview_url
+                            preview_url = creative.get("PreviewUrl") or preview_url
+                            thumbnail_url = creative.get("ThumbnailUrl") or thumbnail_url
                     if not title:
                         title = f"Объявление {ad.get('Id', '')}"
                     result.append({
                         "Id": ad["Id"],
                         "CampaignId": ad["CampaignId"],
                         "Title": (title or "")[:120],
+                        "Text": (text or "")[:200],
+                        "Type": ad_type,
                         "AdImageHash": ad_image_hash,
-                        "PreviewUrl": preview_url,  # для Smart/Builder объявлений — сразу URL
+                        "PreviewUrl": preview_url,
+                        "ThumbnailUrl": thumbnail_url,
                     })
                 return result
             except Exception as e:

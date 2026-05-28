@@ -652,7 +652,7 @@ async def get_top_ads(
     try:
         ads = await get_top_ads_with_images(
             db, effective_client_ids, d_start, d_end,
-            platform, u_campaign_ids, u_goal_action_ids, limit=4
+            platform, u_campaign_ids, u_goal_action_ids, limit=16
         )
         return ads
     except Exception as e:
