@@ -335,41 +335,59 @@
             :key="chip.key"
             type="button"
             class="chart-chip"
-            :class="{ 'chart-chip--active': chartMetricKey === chip.key }"
-            @click="chartMetricKey = chip.key"
-          >{{ chip.label }}</button>
+            :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
+            :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
+            @click="toggleChartMetric(chip.key)"
+          >
+            <span class="chart-chip__dot" :style="{ background: chip.color }"></span>
+            {{ chip.label }}
+          </button>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
           <svg ref="chartSvgRef" viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
-            <defs>
-              <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#e8a95f" stop-opacity="0.18" />
-                <stop offset="100%" stop-color="#e8a95f" stop-opacity="0" />
-              </linearGradient>
-            </defs>
             <g class="grid-lines">
               <line v-for="y in [34, 82, 130, 178, 226]" :key="y" x1="46" :y1="y" x2="858" :y2="y" />
             </g>
-            <path class="chart-fill" :d="chartFillPath" />
-            <path class="chart-line" :d="smoothChartPath" />
-            <line v-if="chartHoverIndex >= 0 && chartPoints[chartHoverIndex]" class="chart-hover-line" :x1="chartPoints[chartHoverIndex].x" :y1="34" :x2="chartPoints[chartHoverIndex].x" :y2="226" />
-            <circle v-if="chartHoverIndex >= 0 && chartPoints[chartHoverIndex]" class="chart-hover-dot" :cx="chartPoints[chartHoverIndex].x" :cy="chartPoints[chartHoverIndex].y" r="5" />
+            <path
+              v-for="series in chartSeries"
+              :key="`${series.key}-fill`"
+              class="chart-fill"
+              :d="series.fillPath"
+              :style="{ fill: toRgba(series.color, 0.14) }"
+            />
+            <path
+              v-for="series in chartSeries"
+              :key="`${series.key}-line`"
+              class="chart-line"
+              :d="series.path"
+              :style="{ stroke: series.color }"
+            />
+            <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="34" :x2="chartHoverX" :y2="226" />
+            <circle
+              v-for="series in chartHoverSeries"
+              :key="`${series.key}-dot`"
+              class="chart-hover-dot"
+              :cx="series.point.x"
+              :cy="series.point.y"
+              r="4.5"
+              :style="{ fill: series.color }"
+            />
             <g class="axis-labels">
               <text text-anchor="end" x="42" y="38">{{ chartYLabels[0] }}</text>
               <text text-anchor="end" x="42" y="86">{{ chartYLabels[1] }}</text>
               <text text-anchor="end" x="42" y="134">{{ chartYLabels[2] }}</text>
               <text text-anchor="end" x="42" y="182">{{ chartYLabels[3] }}</text>
               <text text-anchor="end" x="42" y="230">{{ chartYLabels[4] }}</text>
-              <text v-for="(label, index) in dateLabels" :key="label" :x="62 + index * 61" y="252" :class="{ 'axis-label--active': chartHoverIndex === index }">{{ label }}</text>
+              <text v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`" :x="label.x" y="252" :class="{ 'axis-label--active': chartHoverIndex === label.index }">{{ label.text }}</text>
             </g>
           </svg>
           <div v-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
             <div class="chart-tooltip__date">{{ chartTooltipData.date }}</div>
-            <div class="chart-tooltip__main">
-              <span class="chart-tooltip__dot"></span>
-              {{ chartTooltipData.label }} — {{ chartTooltipData.value }}
+            <div v-for="item in chartTooltipData.main" :key="item.key" class="chart-tooltip__main">
+              <span class="chart-tooltip__dot" :style="{ background: item.color }"></span>
+              {{ item.label }} — {{ item.value }}
             </div>
-            <div class="chart-tooltip__divider"></div>
+            <div v-if="chartTooltipData.context.length" class="chart-tooltip__divider"></div>
             <div v-for="ctx in chartTooltipData.context" :key="ctx.label" class="chart-tooltip__ctx">
               {{ ctx.label }}: <strong>{{ ctx.value }}</strong>
             </div>
@@ -755,7 +773,7 @@ const defaultReportSchedule = { day: 'daily', time: '10:00' }
 const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
-const chartMetricKey = ref('expenses')
+const chartSelectedMetricKeys = ref(['expenses'])
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const periodKey = ref('last_7_days')
@@ -1250,24 +1268,45 @@ const metrics = computed(() => {
 })
 
 const chartMetricChips = [
-  { key: 'expenses', label: 'Расход' },
-  { key: 'impressions', label: 'Показы' },
-  { key: 'clicks', label: 'Клики' },
-  { key: 'cpc', label: 'CPC' },
-  { key: 'leads', label: 'Конверсии' },
+  { key: 'expenses', label: 'Расход', color: '#3464F3', money: true },
+  { key: 'impressions', label: 'Показы', color: '#F0926D', money: false },
+  { key: 'clicks', label: 'Клики', color: '#38BDF8', money: false },
+  { key: 'cpc', label: 'CPC', color: '#D38CFF', money: true },
+  { key: 'leads', label: 'Конверсии', color: '#8ADA70', money: false },
 ]
 
 const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', leads: 'leads' }
+const chartChipByKey = computed(() => Object.fromEntries(chartMetricChips.map((chip) => [chip.key, chip])))
 
-const chartSourceValues = computed(() => {
-  const dynKey = chartDynamicsKeyMap[chartMetricKey.value] || 'costs'
-  const values = dynamics.value?.[dynKey] || []
-  const isMoney = chartMetricKey.value === 'expenses' || chartMetricKey.value === 'cpc'
-  return values.map((v) => isMoney ? withVat(v) : Number(v) || 0)
+const activeChartMetricKeys = computed(() => {
+  const allowed = new Set(chartMetricChips.map((chip) => chip.key))
+  const selected = chartSelectedMetricKeys.value.filter((key) => allowed.has(key))
+  return selected.length ? selected : ['expenses']
 })
 
-const chartPoints = computed(() => {
-  const values = chartSourceValues.value
+const toggleChartMetric = (key) => {
+  const active = new Set(chartSelectedMetricKeys.value)
+  if (active.has(key)) {
+    if (active.size === 1) return
+    active.delete(key)
+  } else {
+    active.add(key)
+  }
+  chartSelectedMetricKeys.value = chartMetricChips
+    .map((chip) => chip.key)
+    .filter((metricKey) => active.has(metricKey))
+}
+
+const getChartSourceValues = (metricKey) => {
+  const dynKey = chartDynamicsKeyMap[metricKey] || 'costs'
+  const values = dynamics.value?.[dynKey] || []
+  const isMoney = chartChipByKey.value[metricKey]?.money
+  return values.map((v) => isMoney ? withVat(v) : Number(v) || 0)
+}
+
+const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricKeys.value[0] || 'expenses'))
+
+const buildChartPoints = (values) => {
   const max = Math.max(...values, 1)
   const min = Math.min(...values, 0)
   const span = Math.max(max - min, 1)
@@ -1280,19 +1319,13 @@ const chartPoints = computed(() => {
     y: bottom - ((value - min) / span) * (bottom - top),
     value
   }))
-})
+}
 
-const chartPath = computed(() => `M ${chartPoints.value.map((point) => `${point.x} ${point.y}`).join(' L ')}`)
-const chartFillPath = computed(() => {
-  const points = chartPoints.value
-  const first = points[0] || { x: 56 }
-  const last = points[points.length - 1] || { x: 846 }
-  return `${smoothChartPath.value} L ${last.x} 226 L ${first.x} 226 Z`
-})
+const chartPoints = computed(() => chartSeries.value[0]?.points || [])
 
-const smoothChartPath = computed(() => {
-  const pts = chartPoints.value
-  if (pts.length < 2) return chartPath.value
+const buildSmoothChartPath = (pts) => {
+  if (!pts.length) return ''
+  if (pts.length < 2) return `M ${pts[0].x} ${pts[0].y}`
   const tension = 0.3
   let d = `M ${pts[0].x} ${pts[0].y}`
   for (let i = 0; i < pts.length - 1; i++) {
@@ -1307,7 +1340,37 @@ const smoothChartPath = computed(() => {
     d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
   }
   return d
+}
+
+const buildChartFillPath = (points, path) => {
+  if (!points.length || !path) return ''
+  const first = points[0] || { x: 56 }
+  const last = points[points.length - 1] || { x: 846 }
+  return `${path} L ${last.x} 226 L ${first.x} 226 Z`
+}
+
+const chartSeries = computed(() => {
+  return activeChartMetricKeys.value.map((metricKey) => {
+    const values = getChartSourceValues(metricKey)
+    const points = buildChartPoints(values)
+    const path = buildSmoothChartPath(points)
+    const chip = chartChipByKey.value[metricKey] || {}
+    return {
+      key: metricKey,
+      label: chip.label || metricKey,
+      color: chip.color || '#3464F3',
+      money: Boolean(chip.money),
+      values,
+      points,
+      path,
+      fillPath: buildChartFillPath(points, path),
+    }
+  })
 })
+
+const chartPath = computed(() => `M ${chartPoints.value.map((point) => `${point.x} ${point.y}`).join(' L ')}`)
+const chartFillPath = computed(() => chartSeries.value[0]?.fillPath || '')
+const smoothChartPath = computed(() => chartSeries.value[0]?.path || chartPath.value)
 
 const handleChartHover = (e) => {
   if (!chartSvgRef.value || !chartPoints.value.length) { chartHoverIndex.value = -1; return }
@@ -1323,27 +1386,48 @@ const handleChartHover = (e) => {
   chartHoverIndex.value = minDist < 40 ? closest : -1
 }
 
+const formatChartMetricValue = (metricKey, value) => {
+  const chip = chartChipByKey.value[metricKey] || {}
+  return chip.money ? formatMoney(value) : formatNumber(value)
+}
+
+const chartHoverX = computed(() => {
+  const idx = chartHoverIndex.value
+  if (idx < 0) return null
+  return chartPoints.value[idx]?.x ?? null
+})
+
+const chartHoverSeries = computed(() => {
+  const idx = chartHoverIndex.value
+  if (idx < 0) return []
+  return chartSeries.value
+    .map((series) => ({ ...series, point: series.points[idx] }))
+    .filter((series) => series.point)
+})
+
 const chartTooltipData = computed(() => {
   const idx = chartHoverIndex.value
   if (idx < 0) return null
   const labels = dateLabels.value
   const date = labels[idx] || ''
-  const chipLabel = chartMetricChips.find(c => c.key === chartMetricKey.value)?.label || ''
-  const val = chartSourceValues.value[idx]
-  const isMoney = chartMetricKey.value === 'expenses' || chartMetricKey.value === 'cpc'
-  const fmtVal = isMoney ? formatMoney(val) : formatNumber(val)
-  const context = []
-  const otherKeys = [
-    { key: 'clicks', label: 'Клики', dyn: 'clicks', money: false },
-    { key: 'cpc', label: 'CPC', dyn: 'cpc', money: true },
-    { key: 'leads', label: 'Конверсии', dyn: 'leads', money: false },
-  ].filter(k => k.key !== chartMetricKey.value)
-  for (const k of otherKeys) {
-    const arr = dynamics.value?.[k.dyn] || []
-    const v = arr[idx]
-    context.push({ label: k.label, value: k.money ? formatMoney(withVat(v)) : formatNumber(v) })
-  }
-  return { date, label: chipLabel, value: fmtVal, context }
+  const main = chartSeries.value.map((series) => ({
+    key: series.key,
+    label: series.label,
+    color: series.color,
+    value: formatChartMetricValue(series.key, series.values[idx] || 0),
+  }))
+  const selected = new Set(activeChartMetricKeys.value)
+  const context = chartMetricChips
+    .filter((chip) => !selected.has(chip.key))
+    .slice(0, Math.max(0, 4 - main.length))
+    .map((chip) => {
+      const values = getChartSourceValues(chip.key)
+      return {
+        label: chip.label,
+        value: formatChartMetricValue(chip.key, values[idx] || 0),
+      }
+    })
+  return { date, main, context }
 })
 
 const chartTooltipStyle = computed(() => {
@@ -1364,7 +1448,19 @@ const chartTooltipStyle = computed(() => {
 
 const dateLabels = computed(() => dynamics.value?.labels || [])
 
+const chartDateAxisLabels = computed(() => {
+  const labels = dateLabels.value
+  const points = chartPoints.value
+  if (!labels.length || !points.length) return []
+  const maxLabels = 8
+  const step = Math.max(1, Math.ceil(labels.length / maxLabels))
+  return labels
+    .map((text, index) => ({ text, index, x: points[index]?.x }))
+    .filter((item, index) => item.x !== undefined && (index === 0 || index === labels.length - 1 || index % step === 0))
+})
+
 const chartYLabels = computed(() => {
+  if (activeChartMetricKeys.value.length > 1) return ['', '', '', '', '']
   const values = chartSourceValues.value
   const rawMax = Math.max(...values, 0)
   if (rawMax === 0) return ['0', '0', '0', '0', '0']
@@ -3707,6 +3803,7 @@ onMounted(() => {
 .chart-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.55rem;
   height: 2.6rem;
   padding: 0 1.1rem;
   border: 1px solid #e5e7eb;
@@ -3718,6 +3815,14 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.18s ease;
   font-family: Inter, system-ui, sans-serif;
+}
+
+.chart-chip__dot {
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.75);
+  flex-shrink: 0;
 }
 
 .chart-chip:hover {
@@ -3757,15 +3862,15 @@ onMounted(() => {
 }
 
 .chart-fill {
-  fill: url(#lineFill);
+  pointer-events: none;
 }
 
 .chart-line {
   fill: none;
-  stroke: #2563eb;
-  stroke-width: 2;
+  stroke-width: 2.4;
   stroke-linejoin: round;
   stroke-linecap: round;
+  filter: drop-shadow(0 0.4rem 0.8rem rgba(37, 99, 235, 0.06));
 }
 
 .chart-area circle {
@@ -3793,7 +3898,6 @@ onMounted(() => {
 }
 
 .chart-hover-dot {
-  fill: #2563eb;
   stroke: #fff;
   stroke-width: 2.5;
   filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.25));
@@ -3829,6 +3933,7 @@ onMounted(() => {
   font-weight: 600;
   font-size: 1.2rem;
   line-height: 1.3;
+  margin-top: 0.35rem;
 }
 
 .chart-tooltip__dot {
