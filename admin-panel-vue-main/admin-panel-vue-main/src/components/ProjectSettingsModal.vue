@@ -15,7 +15,7 @@
           </button>
         </div>
 
-        <div class="psm-body">
+        <div class="psm-body" ref="bodyRef">
           <!-- Error banner -->
           <div v-if="error" class="psm-error">{{ error }}</div>
 
@@ -188,7 +188,7 @@
                 <span class="psm-optional-tag">необязательно</span>
               </h3>
               <label class="psm-toggle">
-                <input type="checkbox" v-model="form.detector_enabled" class="sr-only" />
+                <input type="checkbox" :checked="form.detector_enabled" class="sr-only" @change="handleDetectorToggle" />
                 <span class="psm-toggle__track" :class="{ 'psm-toggle__track--on': form.detector_enabled }">
                   <span class="psm-toggle__thumb" :class="{ 'psm-toggle__thumb--on': form.detector_enabled }"></span>
                 </span>
@@ -462,6 +462,7 @@ const form = reactive({
 const saving = ref(false)
 const error = ref('')
 const urlError = ref('')
+const bodyRef = ref(null)
 const avatarModalOpen = ref(false)
 const updatedAvatarUrl = ref(null)
 const detectorFieldsExpanded = ref(false)
@@ -673,6 +674,15 @@ watch(
 watch(() => form.detector_enabled, (val) => {
   if (val) detectorFieldsExpanded.value = false
 })
+
+function handleDetectorToggle(event) {
+  const nextValue = Boolean(event.target.checked)
+  const scrollTop = bodyRef.value?.scrollTop || 0
+  form.detector_enabled = nextValue
+  requestAnimationFrame(() => {
+    if (bodyRef.value) bodyRef.value.scrollTop = scrollTop
+  })
+}
 
 watch(
   () => [form.period_start, form.period_end],

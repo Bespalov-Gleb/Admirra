@@ -233,7 +233,11 @@
               </button>
             </div>
 
-            <div class="project-channel-list" :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }">
+            <div
+              v-if="projectChannelSummaries(project).length"
+              class="project-channel-list"
+              :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }"
+            >
               <div v-for="channel in projectChannelSummaries(project)" :key="channel.code" class="project-channel-card">
                 <div class="project-channel-row">
                   <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">
@@ -244,11 +248,17 @@
                     <span v-if="!channel.goalTotal">нет целей за период</span>
                     <span v-else>{{ channel.goalNoun }} за период</span>
                   </div>
-                  <div v-if="channel.goalTotal" class="project-channel-summary">
-                    <strong>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</strong>
+                  <div
+                    v-if="channel.goalTotal"
+                    class="project-channel-summary"
+                    :class="{ 'project-channel-summary--cpl': channel.code === 'yandex' }"
+                  >
                     <span v-if="channel.code === 'yandex'" class="project-channel-summary__cpl">
-                      Все конверсии · общий CPL {{ channel.avgCpl !== null ? formatMoney(withVat(channel.avgCpl)) : '—' }}
+                      <span>общий CPL</span>
+                      <strong>{{ channel.avgCpl !== null ? formatMoney(withVat(channel.avgCpl)) : '—' }}</strong>
+                      <em>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</em>
                     </span>
+                    <strong v-else>{{ formatNumber(channel.goalTotal) }} {{ channel.goalNoun }}</strong>
                   </div>
                   <div class="project-channel-spend">
                     <strong>{{ formatMoney(withVat(channel.expenses)) }}</strong>
@@ -273,13 +283,26 @@
                 </div>
               </div>
             </div>
+            <div v-else class="project-channel-empty">
+              <div class="project-channel-empty__icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l2.2-2.2a5 5 0 0 0-7.07-7.07l-.95.95" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-2.2 2.2a5 5 0 0 0 7.07 7.07l.95-.95" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="project-channel-empty__copy">
+                <strong>Каналы не подключены</strong>
+                <span>Подключите Яндекс Директ или VK Рекламу, чтобы увидеть цели, CPL и расходы.</span>
+              </div>
+              <button type="button" class="project-channel-empty__btn" @click.stop="openSettings(project)">Настроить</button>
+            </div>
           </div>
         </div>
 
         <div class="project-tile-footer">
           <div class="project-balance-area">
             <div class="project-balance-title">Баланс в кабинетах</div>
-            <div class="project-balance-strip">
+            <div v-if="projectBalances(project).length" class="project-balance-strip">
               <div
                 v-for="balance in projectBalances(project)"
                 :key="balance.code"
@@ -291,6 +314,7 @@
                 <strong>{{ balance.value }}</strong>
               </div>
             </div>
+            <div v-else class="project-balance-empty">Нет подключённых кабинетов</div>
           </div>
           <div class="project-footer-actions">
             <button type="button" class="settings-btn" @click.stop="openSettings(project)">
@@ -337,7 +361,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
-import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
+import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
@@ -541,7 +565,6 @@ async function copyProjectId(project) {
 }
 
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
-const hasAnyPlatform = (project) => projectPlatforms(project).length > 0
 
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
@@ -572,7 +595,7 @@ const platformConfig = {
 
 const projectPlatformCards = (project) => {
   const cards = []
-  if (hasPlatform(project, 'YANDEX') || !hasAnyPlatform(project)) cards.push(platformConfig.yandex)
+  if (hasPlatform(project, 'YANDEX')) cards.push(platformConfig.yandex)
   if (hasPlatform(project, 'VK')) cards.push(platformConfig.vk)
   return cards
 }
@@ -1056,13 +1079,12 @@ onMounted(async () => {
 
 .tile-nds-check-wrap {
   gap: 0.5556rem;
-  padding: 0.5556rem 1.0417rem;
-  background: #fff;
+  padding: 0.5556rem 0.2778rem;
+  background: transparent;
   color: rgba(0, 0, 0, 0.58);
   cursor: pointer;
   font-size: 0.9028rem;
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
   user-select: none;
 }
 
@@ -1080,19 +1102,19 @@ onMounted(async () => {
 
 .tile-sync-btn {
   gap: 0.5556rem;
-  padding: 0.5556rem 1.1806rem;
+  padding: 0.5556rem 0.2778rem;
   border: 0;
-  background: #fff;
+  background: transparent;
   color: #2563eb;
   cursor: pointer;
   font-size: 0.9028rem;
   font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.14);
   transition: background 0.2s, color 0.2s, transform 0.2s;
 }
 
 .tile-sync-btn:hover:not(:disabled) {
-  background: #eff6ff;
+  background: transparent;
+  color: #1d4ed8;
   transform: translateY(-1px);
 }
 
@@ -1508,6 +1530,74 @@ onMounted(async () => {
   overflow: visible;
 }
 
+.project-channel-empty {
+  display: grid;
+  grid-template-columns: 2.2222rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8333rem;
+  min-height: 4.5833rem;
+  padding: 0.8333rem 0.9722rem;
+  border: 1px dashed rgba(37, 99, 235, 0.18);
+  border-radius: 0.6944rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.055), rgba(6, 181, 212, 0.035));
+}
+
+.project-channel-empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2222rem;
+  height: 2.2222rem;
+  border-radius: 0.5556rem;
+  background: rgba(37, 99, 235, 0.09);
+  color: #2563eb;
+}
+
+.project-channel-empty__copy {
+  min-width: 0;
+}
+
+.project-channel-empty__copy strong,
+.project-channel-empty__copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-channel-empty__copy strong {
+  color: #171717;
+  font-size: 0.9722rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.project-channel-empty__copy span {
+  margin-top: 0.2083rem;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 0.7639rem;
+  line-height: 1.2;
+}
+
+.project-channel-empty__btn {
+  min-height: 2.0833rem;
+  padding: 0.4167rem 0.7639rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  background: #fff;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.7639rem;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.14);
+  transition: background 0.2s, color 0.2s;
+}
+
+.project-channel-empty__btn:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .project-channel-row {
   display: grid;
   grid-template-columns: 2.2222rem minmax(0, 1fr) auto auto;
@@ -1554,25 +1644,56 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.project-channel-summary strong {
+.project-channel-summary--cpl {
+  min-width: 11.8056rem;
+}
+
+.project-channel-summary > strong {
   color: #171717;
   font-size: 1.25rem;
   font-weight: 800;
   line-height: 1.05;
 }
 
-.project-channel-summary span,
 .project-channel-summary__cpl {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  padding: 0.2083rem 0.5556rem;
-  border-radius: 999px;
-  background: #fff7dd;
+  justify-content: end;
+  column-gap: 0.4861rem;
+  row-gap: 0.1389rem;
+  padding: 0.4861rem 0.6944rem;
+  border-radius: 0.6944rem;
+  background: linear-gradient(135deg, #fff7dd 0%, #fff1be 100%);
   color: #8a5a00;
   font-size: 0.7639rem;
   font-weight: 700;
   line-height: 1.05;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.16), 0 0.3472rem 0.9028rem rgba(245, 158, 11, 0.08);
+}
+
+.project-channel-summary__cpl > span {
+  color: rgba(138, 90, 0, 0.68);
+  font-size: 0.6944rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.project-channel-summary__cpl > strong {
+  color: #171717;
+  font-size: 1.1111rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.project-channel-summary__cpl > em {
+  grid-column: 1 / -1;
+  color: rgba(138, 90, 0, 0.72);
+  font-size: 0.6944rem;
+  font-style: normal;
+  font-weight: 700;
+  text-align: right;
 }
 
 .project-channel-spend {
@@ -1696,6 +1817,12 @@ onMounted(async () => {
   align-items: center;
   gap: 0.5556rem;
   flex-wrap: wrap;
+}
+
+.project-balance-empty {
+  color: rgba(105, 105, 105, 0.55);
+  font-size: 0.8333rem;
+  line-height: 1.2;
 }
 
 .project-footer-actions {
@@ -2338,8 +2465,8 @@ onMounted(async () => {
 :global(.darkmode) .tile-nds-check-wrap,
 :global(.dark) .tile-sync-btn,
 :global(.darkmode) .tile-sync-btn {
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: transparent;
+  box-shadow: none;
 }
 
 :global(.dark) .tile-nds-check-wrap,
@@ -2354,13 +2481,36 @@ onMounted(async () => {
 
 :global(.dark) .tile-sync-btn:hover:not(:disabled),
 :global(.darkmode) .tile-sync-btn:hover:not(:disabled) {
-  background: rgba(103, 168, 255, 0.12);
+  background: transparent;
+  color: #93c5fd;
 }
 
 :global(.dark) .project-channel-summary__cpl,
 :global(.darkmode) .project-channel-summary__cpl {
   background: rgba(251, 191, 36, 0.16);
   color: #fbbf24;
+}
+
+:global(.dark) .project-channel-summary__cpl > strong,
+:global(.darkmode) .project-channel-summary__cpl > strong,
+:global(.dark) .project-channel-empty__copy strong,
+:global(.darkmode) .project-channel-empty__copy strong {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+:global(.dark) .project-channel-empty,
+:global(.darkmode) .project-channel-empty {
+  border-color: rgba(103, 168, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:global(.dark) .project-channel-empty__icon,
+:global(.darkmode) .project-channel-empty__icon,
+:global(.dark) .project-channel-empty__btn,
+:global(.darkmode) .project-channel-empty__btn {
+  background: rgba(103, 168, 255, 0.1);
+  color: #67a8ff;
+  box-shadow: inset 0 0 0 1px rgba(103, 168, 255, 0.14);
 }
 
 :global(.dark) .project-warmup-pill,
