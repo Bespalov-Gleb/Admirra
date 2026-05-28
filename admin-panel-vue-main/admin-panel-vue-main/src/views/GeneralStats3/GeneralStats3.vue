@@ -344,9 +344,9 @@
           </button>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
-          <svg ref="chartSvgRef" viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
+          <svg ref="chartSvgRef" :viewBox="`0 0 ${CHART_VIEWBOX_WIDTH} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <g class="grid-lines">
-              <line v-for="y in [34, 82, 130, 178, 226]" :key="y" x1="46" :y1="y" x2="858" :y2="y" />
+              <line v-for="y in chartGridLines" :key="y" :x1="CHART_GRID_LEFT" :y1="y" :x2="CHART_GRID_RIGHT" :y2="y" />
             </g>
             <path
               v-for="series in chartSeries"
@@ -362,7 +362,7 @@
               :d="series.path"
               :style="{ stroke: series.color }"
             />
-            <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="34" :x2="chartHoverX" :y2="226" />
+            <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="CHART_TOP" :x2="chartHoverX" :y2="CHART_BOTTOM" />
             <circle
               v-for="series in chartHoverSeries"
               :key="`${series.key}-dot`"
@@ -373,12 +373,8 @@
               :style="{ fill: series.color }"
             />
             <g class="axis-labels">
-              <text text-anchor="end" x="42" y="38">{{ chartYLabels[0] }}</text>
-              <text text-anchor="end" x="42" y="86">{{ chartYLabels[1] }}</text>
-              <text text-anchor="end" x="42" y="134">{{ chartYLabels[2] }}</text>
-              <text text-anchor="end" x="42" y="182">{{ chartYLabels[3] }}</text>
-              <text text-anchor="end" x="42" y="230">{{ chartYLabels[4] }}</text>
-              <text v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`" :x="label.x" y="252" :class="{ 'axis-label--active': chartHoverIndex === label.index }">{{ label.text }}</text>
+              <text v-for="tick in chartYTicks" :key="tick.index" text-anchor="end" :x="CHART_Y_LABEL_X" :y="tick.y">{{ chartYLabels[tick.index] }}</text>
+              <text v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`" :x="label.x" :y="CHART_DATE_LABEL_Y" :class="{ 'axis-label--active': chartHoverIndex === label.index }">{{ label.text }}</text>
             </g>
           </svg>
           <div v-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
@@ -1272,10 +1268,25 @@ const chartMetricChips = [
   { key: 'impressions', label: 'Показы', color: '#F0926D', money: false },
   { key: 'clicks', label: 'Клики', color: '#38BDF8', money: false },
   { key: 'cpc', label: 'CPC', color: '#D38CFF', money: true },
+  { key: 'cpa', label: 'CPL', color: '#EB8525', money: true },
   { key: 'leads', label: 'Конверсии', color: '#8ADA70', money: false },
 ]
 
-const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', leads: 'leads' }
+const CHART_VIEWBOX_WIDTH = 880
+const CHART_VIEWBOX_HEIGHT = 272
+const CHART_LEFT = 56
+const CHART_RIGHT = 846
+const CHART_TOP = 32
+const CHART_BOTTOM = 216
+const CHART_BASELINE = 218
+const CHART_GRID_LEFT = 46
+const CHART_GRID_RIGHT = 858
+const CHART_Y_LABEL_X = 42
+const CHART_DATE_LABEL_Y = 264
+const chartGridLines = [32, 78, 124, 170, 216]
+const chartYTicks = chartGridLines.map((y, index) => ({ y: y + 4, index }))
+
+const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', cpa: 'cpa', leads: 'leads' }
 const chartChipByKey = computed(() => Object.fromEntries(chartMetricChips.map((chip) => [chip.key, chip])))
 
 const activeChartMetricKeys = computed(() => {
@@ -1310,13 +1321,9 @@ const buildChartPoints = (values) => {
   const max = Math.max(...values, 1)
   const min = Math.min(...values, 0)
   const span = Math.max(max - min, 1)
-  const left = 56
-  const right = 846
-  const top = 35
-  const bottom = 224
   return values.map((value, index) => ({
-    x: values.length === 1 ? left : left + ((right - left) / (values.length - 1)) * index,
-    y: bottom - ((value - min) / span) * (bottom - top),
+    x: values.length === 1 ? CHART_LEFT : CHART_LEFT + ((CHART_RIGHT - CHART_LEFT) / (values.length - 1)) * index,
+    y: CHART_BOTTOM - ((value - min) / span) * (CHART_BOTTOM - CHART_TOP),
     value
   }))
 }
@@ -1344,9 +1351,9 @@ const buildSmoothChartPath = (pts) => {
 
 const buildChartFillPath = (points, path) => {
   if (!points.length || !path) return ''
-  const first = points[0] || { x: 56 }
-  const last = points[points.length - 1] || { x: 846 }
-  return `${path} L ${last.x} 226 L ${first.x} 226 Z`
+  const first = points[0] || { x: CHART_LEFT }
+  const last = points[points.length - 1] || { x: CHART_RIGHT }
+  return `${path} L ${last.x} ${CHART_BASELINE} L ${first.x} ${CHART_BASELINE} Z`
 }
 
 const chartSeries = computed(() => {
@@ -1375,7 +1382,7 @@ const smoothChartPath = computed(() => chartSeries.value[0]?.path || chartPath.v
 const handleChartHover = (e) => {
   if (!chartSvgRef.value || !chartPoints.value.length) { chartHoverIndex.value = -1; return }
   const rect = chartSvgRef.value.getBoundingClientRect()
-  const scaleX = 880 / rect.width
+  const scaleX = CHART_VIEWBOX_WIDTH / rect.width
   const svgX = (e.clientX - rect.left) * scaleX
   let closest = 0
   let minDist = Infinity
@@ -1436,13 +1443,21 @@ const chartTooltipStyle = computed(() => {
   const pt = chartPoints.value[idx]
   if (!pt) return {}
   const rect = chartSvgRef.value.getBoundingClientRect()
-  const x = (pt.x / 880) * rect.width
-  const y = (pt.y / 260) * rect.height
-  const leftPx = x + 12
-  const flip = leftPx + 180 > rect.width
+  const x = (pt.x / CHART_VIEWBOX_WIDTH) * rect.width
+  const y = (pt.y / CHART_VIEWBOX_HEIGHT) * rect.height
+  const viewportX = rect.left + x
+  const viewportY = rect.top + y
+  const leftPx = viewportX + 12
+  const tooltipWidth = 220
+  const lineCount = (chartTooltipData.value?.main?.length || 1) + (chartTooltipData.value?.context?.length || 0)
+  const tooltipHeight = 48 + lineCount * 22
+  const flip = leftPx + tooltipWidth > window.innerWidth - 8
+  const topPx = viewportY + tooltipHeight + 12 > window.innerHeight
+    ? Math.max(8, viewportY - tooltipHeight - 14)
+    : Math.max(8, viewportY - 40)
   return {
-    top: `${Math.max(0, y - 40)}px`,
-    [flip ? 'right' : 'left']: flip ? `${rect.width - x + 12}px` : `${leftPx}px`,
+    top: `${topPx}px`,
+    [flip ? 'right' : 'left']: flip ? `${Math.max(8, window.innerWidth - viewportX + 12)}px` : `${leftPx}px`,
   }
 })
 
@@ -3729,6 +3744,7 @@ onMounted(() => {
   gap: 1.6rem;
   margin-top: 1.6rem;
   align-items: stretch;
+  overflow: visible;
 }
 
 .chart-panel,
@@ -3740,6 +3756,9 @@ onMounted(() => {
 .chart-panel {
   display: flex;
   flex-direction: column;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .goals-panel {
@@ -3848,6 +3867,8 @@ onMounted(() => {
   margin-top: 1.2rem;
   flex: 1;
   min-height: 24rem;
+  overflow: visible;
+  z-index: 3;
 }
 
 .chart-area svg {
@@ -3904,9 +3925,10 @@ onMounted(() => {
 }
 
 .chart-tooltip {
-  position: absolute;
-  z-index: 10;
+  position: fixed;
+  z-index: 1000;
   min-width: 17rem;
+  max-width: min(24rem, calc(100vw - 2rem));
   padding: 1.1rem 1.4rem;
   border-radius: 1rem;
   background: #1e293b;
@@ -3915,7 +3937,7 @@ onMounted(() => {
   font-family: Inter, system-ui, sans-serif;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
   backdrop-filter: blur(8px);
 }
 
@@ -6567,7 +6589,7 @@ onMounted(() => {
   flex: 1;
   aspect-ratio: 880 / 300;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
 }
 
@@ -6576,7 +6598,7 @@ onMounted(() => {
   display: block;
   width: max(50rem, 100%);
   height: auto;
-  aspect-ratio: 880 / 260;
+  aspect-ratio: 880 / 272;
   max-height: 100%;
 }
 
