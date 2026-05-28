@@ -287,22 +287,22 @@
           :title="getMetricAnomalyTooltip(key)"
           @click.stop="handleDismissAnomaly(key)"
         ></span>
-        <div class="metric-head">
-          <span class="metric-icon drag-handle" title="Перетащить">
-            <component :is="metricsMap[key]?.icon" />
-          </span>
+        <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
+          <XMarkIcon />
+        </button>
+        <div class="metric-card__body">
           <div class="metric-text">
             <h3>{{ metricsMap[key]?.title }}</h3>
             <strong>{{ metricsMap[key]?.value }}</strong>
+            <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+              <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
+              <ArrowTrendingDownIcon v-else class="trend-icon" />
+              {{ metricsMap[key]?.trend }}
+            </span>
           </div>
-          <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
-            <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
-            <ArrowTrendingDownIcon v-else class="trend-icon" />
-            {{ metricsMap[key]?.trend }}
+          <span class="metric-icon drag-handle" title="Перетащить">
+            <component :is="metricsMap[key]?.icon" />
           </span>
-          <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
-            <XMarkIcon />
-          </button>
         </div>
       </article>
       <div
@@ -2043,11 +2043,51 @@ const handleDismissAnomaly = async (key) => {
   if (ok) toaster.success('Алерт скрыт')
 }
 
+const DEMO_SUMMARY = {
+  expenses: 90190.55, impressions: 120302, clicks: 967, cpc: 93.27,
+  leads: 130, cpa: 693.77, balance: 15400, currency: 'RUB',
+  trends: { expenses: 15.6, impressions: 8.3, clicks: 12.1, cpc: -4.2, leads: 22.5, cpa: -15.0 }
+}
+const DEMO_DYNAMICS = {
+  labels: ['14 мая', '15 мая', '16 мая', '17 мая', '18 мая', '19 мая', '20 мая', '21 мая', '22 мая', '23 мая', '24 мая', '25 мая', '26 мая', '27 мая'],
+  costs: [5200, 6800, 7100, 5900, 8200, 9100, 6300, 7400, 8800, 6100, 7900, 8500, 9200, 7700],
+  clicks: [52, 68, 71, 49, 82, 91, 63, 74, 88, 61, 79, 85, 92, 77],
+  impressions: [6800, 8900, 9200, 7600, 10600, 11800, 8200, 9600, 11400, 7900, 10200, 11000, 11900, 10000],
+  leads: [7, 10, 9, 6, 12, 14, 8, 11, 13, 7, 10, 12, 14, 10],
+  cpc: [100, 100, 100, 120, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+  cpa: [743, 680, 789, 983, 683, 650, 788, 673, 677, 871, 790, 708, 657, 770]
+}
+const DEMO_GOALS = [
+  { id: 'demo-1', name: 'Заявка с формы', count: 52, trend: 12.4, color: '#3f63f6' },
+  { id: 'demo-2', name: 'Подписка на рассылку', count: 38, trend: -5.2, color: '#f39a72' },
+  { id: 'demo-3', name: 'Звонок с сайта', count: 24, trend: 8.1, color: '#6ee7b7' },
+  { id: 'demo-4', name: 'Визит "Контакты"', count: 16, color: '#d38cff' },
+]
+const DEMO_CAMPAIGNS = [
+  { name: 'РСЯ | Ретаргетинг | Москва', cost: 30285, impressions: 45200, clicks: 367, cpc: 82.52, conversions: 48, cpa: 631.0, trend_cost: 8.2, trend_impressions: 12.1, trend_clicks: 6.8, trend_cpc: -3.4, trend_conversions: 15.6, trend_cpa: -6.4 },
+  { name: 'Поиск | Бренд | Россия', cost: 35102, impressions: 42100, clicks: 312, cpc: 112.51, conversions: 44, cpa: 797.8, trend_cost: 14.1, trend_impressions: 9.2, trend_clicks: 11.4, trend_cpc: 2.4, trend_conversions: 22.7, trend_cpa: -7.0 },
+  { name: 'РСЯ | Look-alike | Регионы', cost: 24804, impressions: 33002, clicks: 288, cpc: 86.13, conversions: 38, cpa: 652.7, trend_cost: 5.3, trend_impressions: -2.1, trend_clicks: 3.6, trend_cpc: 1.6, trend_conversions: 18.4, trend_cpa: -11.1 },
+]
+
+const injectDemoData = () => {
+  const s = summary.value
+  if (s && (s.expenses || s.clicks || s.impressions)) return
+  summary.value = { ...DEMO_SUMMARY }
+  dynamics.value = { ...DEMO_DYNAMICS }
+  reportGoals.value = [...DEMO_GOALS]
+  campaigns.value = [...DEMO_CAMPAIGNS]
+}
+
+watch(loading, (isLoading) => {
+  if (!isLoading) nextTick(injectDemoData)
+}, { immediate: true })
+
 onMounted(() => {
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
   fetchTopAds()
+  setTimeout(injectDemoData, 2000)
 })
 </script>
 
@@ -3326,21 +3366,22 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 10.4rem;
   gap: 2rem;
   margin-top: 3rem;
 }
 
 .metric-card {
   position: relative;
-  padding: 2.5rem;
+  padding: 2rem 2.4rem;
   border-radius: 1.5rem;
   background: #fff;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
   border: 2px solid transparent;
   overflow: hidden;
   transition: border-color 0.3s, box-shadow 0.3s;
+  min-height: 12rem;
 }
 .metric-card.metric-card--add {
   background: transparent;
@@ -3386,41 +3427,45 @@ onMounted(() => {
   margin-top: 2rem;
 }
 
-.metric-head {
+.metric-card__body {
   display: flex;
-  align-items: center;
-  gap: 2rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
   width: 100%;
 }
 
 .metric-icon {
   display: grid;
   place-items: center;
-  width: 5.2rem;
-  height: 5.2rem;
-  border-radius: 1.2rem;
-  background: #f6f6f6;
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 1rem;
+  background: #f0f5ff;
   color: #2563eb;
+  flex-shrink: 0;
 }
 
 .metric-icon svg,
 .round-action svg,
 .ai-title svg {
-  width: 2rem;
-  height: 2rem;
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .metric-text {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .metric-card h3 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 500;
-  color: #ababab;
-  line-height: 1;
+  color: #9ca3af;
+  line-height: 1.2;
 }
 
 .metric-card p {
@@ -3442,10 +3487,15 @@ onMounted(() => {
 
 .metric-card strong {
   display: block;
-  margin-top: 0.6rem;
-  font-size: 2.6rem;
+  margin-top: 0.8rem;
+  font-size: 2.2rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.metric-card .trend {
+  margin-top: 0.8rem;
 }
 
 .metric-card--add {
@@ -3525,17 +3575,20 @@ onMounted(() => {
   cursor: grabbing;
 }
 .card-delete-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
   opacity: 0;
   display: grid;
   place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 50%;
   background: transparent;
   border: none;
   color: #b3b3b3;
   cursor: pointer;
-  flex-shrink: 0;
+  z-index: 3;
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .metric-card:hover .card-delete-btn {
@@ -4771,7 +4824,6 @@ onMounted(() => {
 .kpi-grid {
   gap: 1.0417rem;
   margin-top: 1.7361rem;
-  grid-auto-rows: 6.1111rem;
 }
 
 .metric-card {
@@ -4779,6 +4831,7 @@ onMounted(() => {
   border-radius: 1.0417rem;
   border: 2px solid transparent;
   overflow: hidden;
+  min-height: 8.5rem;
 }
 .metric-card.metric-card--add {
   border-style: dashed;
@@ -4786,7 +4839,7 @@ onMounted(() => {
   overflow: visible;
 }
 
-.metric-head {
+.metric-card__body {
   gap: 1.1111rem;
 }
 
@@ -4803,14 +4856,8 @@ onMounted(() => {
   height: 1.25rem;
 }
 
-.metric-text {
-  flex: 1;
-  min-width: 0;
-}
-
 .metric-card h3 {
   font-size: 0.9028rem;
-  color: #ababab;
 }
 
 .metric-card p {
