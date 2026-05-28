@@ -214,22 +214,24 @@
           </div>
 
           <div class="project-goals-section">
-            <button type="button" class="project-goals-title" @click="toggleProjectGoals(project.id)">
+            <div class="project-goals-title">
               <span class="project-goals-title__label">
                 Целевые действия по каналам
-                <span
+                <button
+                  type="button"
                   class="project-goals-info"
-                  title="Стоимость по каждой цели не показывается: расход кампании невозможно честно разделить между разными целевыми действиями одной сессии. Для Яндекса показан сводный CPL по всем конверсиям. Для ВК сводного CPL нет — типы кампаний разнородны."
+                  data-tooltip="Стоимость по каждой цели не показывается: расход кампании невозможно честно разделить между разными целевыми действиями одной сессии. Для Яндекса показан сводный CPL по всем конверсиям. Для ВК сводного CPL нет — типы кампаний разнородны."
+                  aria-label="Пояснение по стоимости целей"
                   @click.stop
-                >i</span>
+                >i</button>
               </span>
-              <span class="project-goals-title__action">
+              <button type="button" class="project-goals-title__action" @click="toggleProjectGoals(project.id)">
                 {{ isProjectGoalsExpanded(project.id) ? 'Свернуть' : 'Развернуть' }}
                 <svg :class="{ 'project-goals-title__icon--open': isProjectGoalsExpanded(project.id) }" class="project-goals-title__icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
                 <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              </span>
-            </button>
+              </button>
+            </div>
 
             <div class="project-channel-list" :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }">
               <div v-for="channel in projectChannelSummaries(project)" :key="channel.code" class="project-channel-card">
@@ -1380,7 +1382,7 @@ onMounted(async () => {
   border: 0;
   background: transparent;
   color: rgba(105, 105, 105, 0.62);
-  cursor: pointer;
+  cursor: default;
   font-size: 0.8333rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -1394,9 +1396,11 @@ onMounted(async () => {
   gap: 0.3472rem;
   min-height: 1.6667rem;
   padding: 0;
+  border: 0;
   border-radius: 0;
   background: transparent;
   color: rgba(105, 105, 105, 0.68);
+  cursor: pointer;
   font-size: 0.7639rem;
   font-weight: 700;
   text-transform: none;
@@ -1416,6 +1420,7 @@ onMounted(async () => {
 }
 
 .project-goals-info {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1428,6 +1433,58 @@ onMounted(async () => {
   font-weight: 800;
   line-height: 1;
   text-transform: none;
+  border: 0;
+  cursor: help;
+}
+
+.project-goals-info::before,
+.project-goals-info::after {
+  position: absolute;
+  left: 50%;
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.4167rem);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.project-goals-info::before {
+  top: calc(100% + 0.2778rem);
+  width: 0.6944rem;
+  height: 0.6944rem;
+  background: #111827;
+  content: "";
+  transform: translate(-50%, 0.4167rem) rotate(45deg);
+}
+
+.project-goals-info::after {
+  top: calc(100% + 0.5556rem);
+  width: min(24rem, 72vw);
+  padding: 0.6944rem 0.8333rem;
+  border-radius: 0.6944rem;
+  background: #111827;
+  box-shadow: 0 0.8333rem 2.0833rem rgba(15, 23, 42, 0.18);
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 0.8333rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+}
+
+.project-goals-info:hover::before,
+.project-goals-info:hover::after,
+.project-goals-info:focus-visible::before,
+.project-goals-info:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+.project-goals-info:hover::after,
+.project-goals-info:focus-visible::after {
+  transform: translate(-50%, 0);
 }
 
 .project-goals-title__icon {
