@@ -114,15 +114,7 @@ def _parse_delivery_channels(val, user: models.User) -> list[str]:
     return channels
 
 
-def _build_text_report(db: Session, user: models.User, start_str: str, end_str: str) -> str:
-    summary, top_campaigns, client_name, _, sd, ed = _get_report_data(
-        db=db,
-        user_id=user.id,
-        client_id=None,
-        start_date=start_str,
-        end_date=end_str,
-        comment=None,
-    )
+def _format_text_report(summary: dict, top_campaigns: list, client_name: str, sd: str, ed: str) -> str:
     lines = [
         f"Отчёт за период {sd} — {ed}",
         f"Проект: {client_name or 'все проекты'}",
@@ -132,7 +124,7 @@ def _build_text_report(db: Session, user: models.User, start_str: str, end_str: 
         f"Клики: {int(summary.get('clicks') or 0):,}".replace(",", " "),
         f"Лиды: {int(summary.get('leads') or 0):,}".replace(",", " "),
         f"CPC: {_with_vat(summary.get('cpc')):.2f} ₽",
-        f"CPA: {_with_vat(summary.get('cpa')):.2f} ₽",
+        f"CPL: {_with_vat(summary.get('cpa')):.2f} ₽",
     ]
     if top_campaigns:
         lines.extend(["", "Топ кампаний по лидам:"])
@@ -182,6 +174,16 @@ async def run_scheduled_reports():
                 logger.debug(f"User {user.email}: schedule {user.report_schedule} but no report channels configured, skip")
                 continue
 
+            # Fetch report data once for all channels
+            try:
+                summary, top_campaigns, client_name, _, _, _ = _get_report_data(
+                    db=db, user_id=user.id, client_id=None,
+                    start_date=start_str, end_date=end_str, comment=None,
+                )
+            except Exception as e:
+                logger.exception(f"Scheduled report data failed for user {user.email}: {e}")
+                continue
+
             try:
                 pdf_bytes = generate_report_pdf(
                     db=db,
@@ -217,7 +219,7 @@ async def run_scheduled_reports():
             if "max" in channels and (max_chat_id or max_user_id):
                 try:
                     from backend_api.services import max_reports_bot
-                    text_report = _build_text_report(db, user, start_str, end_str)
+                    text_report = _format_text_report(summary, top_campaigns, client_name, start_str, end_str)
                     ok = await max_reports_bot.send_message(
                         text_report,
                         chat_id=max_chat_id or None,
@@ -230,19 +232,42 @@ async def run_scheduled_reports():
                 except Exception as e:
                     logger.exception(f"Scheduled report MAX error for user {user.email}: {e}")
 
-            # Email
+            # Email (UniSender Go → SMTP fallback)
             if "email" in channels and email_recipients:
                 try:
-                    from lead_validator.services.email_sender import email_sender
                     subject = f"Отчёт за период {start_str} — {end_str}"
-                    body_text = f"Отчёт по рекламным кампаниям за период {start_str} — {end_str}."
-                    ok, err = await email_sender.send_report_email(
-                        recipients=email_recipients,
-                        subject=subject,
-                        body=body_text,
-                        pdf_bytes=pdf_bytes,
-                        filename=f"report_{start_str}_{end_str}.pdf",
-                    )
+                    from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+                    if unisender_ok():
+                        from backend_api.reports.email_template import render_report_email_html
+                        email_data = {
+                            "summary": summary,
+                            "top_campaigns": top_campaigns,
+                            "client_name": client_name or "",
+                            "ai_comment": "",
+                            "start_date": start_str,
+                            "end_date": end_str,
+                            "generated_at": now.strftime("%Y-%m-%d %H:%M"),
+                        }
+                        html_body = render_report_email_html(email_data)
+                        plain_body = _format_text_report(summary, top_campaigns, client_name, start_str, end_str)
+                        ok, err = await uni_send(
+                            recipients=email_recipients,
+                            subject=subject,
+                            html_body=html_body,
+                            plain_body=plain_body,
+                            pdf_bytes=pdf_bytes,
+                            filename=f"report_{start_str}_{end_str}.pdf",
+                        )
+                    else:
+                        from lead_validator.services.email_sender import email_sender
+                        body_text = f"Отчёт по рекламным кампаниям за период {start_str} — {end_str}."
+                        ok, err = await email_sender.send_report_email(
+                            recipients=email_recipients,
+                            subject=subject,
+                            body=body_text,
+                            pdf_bytes=pdf_bytes,
+                            filename=f"report_{start_str}_{end_str}.pdf",
+                        )
                     if ok:
                         logger.info(f"Scheduled report sent to Email for user {user.email}")
                     else:

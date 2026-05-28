@@ -1,5 +1,5 @@
 <template>
-  <div class="figma-dashboard" :class="{ 'is-dark': isDarkMode }">
+  <div ref="dashboardRef" class="figma-dashboard" :class="{ 'is-dark': isDarkMode }">
     <section class="top-grid">
       <div class="panel panel-channels">
         <h2>Подключенные каналы</h2>
@@ -742,6 +742,7 @@ import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } fr
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import { useDetector } from '@/composables/useDetector'
+import html2canvas from 'html2canvas'
 
 const { isDarkMode } = useTheme()
 const toaster = useToaster()
@@ -822,6 +823,7 @@ const selectedChartPeriod = ref('Месяц')
 const chartSelectedMetricKeys = ref(['expenses'])
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
+const dashboardRef = ref(null)
 const periodKey = ref('last_7_days')
 const customPeriodRange = ref({ start: null, end: null })
 const periodTriggerRef = ref(null)
@@ -1045,7 +1047,7 @@ const balancePlatformMeta = {
 
 const reportChannels = [
   { name: 'Telegram', value: 'telegram', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'telegram-icon', linkable: true },
-  { name: 'E-mail', value: 'email', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon', disabled: true },
+  { name: 'E-mail', value: 'email', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'email-icon' },
   { name: 'Max', value: 'max', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'max-icon', linkable: true }
 ]
 
@@ -1150,6 +1152,7 @@ const reportLinkChannelLabel = computed(() => {
 const isReportChannelValueConnected = (channel) => {
   if (channel === 'telegram') return Boolean(userReportSettings.value.telegram_chat_id)
   if (channel === 'max') return Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
+  if (channel === 'email') return Boolean(userReportSettings.value.email_recipients?.length)
   return false
 }
 
@@ -1181,6 +1184,10 @@ const reportLinkAccountLabel = computed(() => {
 
 const reportChannelTitle = (item) => {
   if (item.disabled) return 'E-mail будет подключён позже'
+  if (item.value === 'email') {
+    if (!isReportChannelConnected(item)) return 'Укажите email в настройках профиля'
+    return isReportChannelEnabled(item) ? 'Отключить E-mail' : 'Включить E-mail'
+  }
   if (!isReportChannelConnected(item)) return `Привязать ${item.name}`
   return `Управлять ${item.name}`
 }
@@ -1192,6 +1199,20 @@ const handleReportChannelClick = async (item) => {
   }
   if (item.linkable) {
     reportLinkChannel.value = item.value
+    return
+  }
+  if (item.value === 'email') {
+    if (!isReportChannelConnected(item)) {
+      toaster.info('Укажите email для получения отчётов в настройках профиля')
+      return
+    }
+    const idx = reportDeliveryChannels.value.indexOf('email')
+    if (idx >= 0) {
+      reportDeliveryChannels.value.splice(idx, 1)
+    } else {
+      reportDeliveryChannels.value.push('email')
+    }
+    await saveReportSettings({ silent: true })
     return
   }
 }
@@ -1927,11 +1948,12 @@ const refreshUserReportSettings = async () => {
     userReportSettings.value.report_schedule = data.report_schedule || ''
     userReportSettings.value.delivery_channels = data.report_delivery_channels || []
     reportSchedule.value = parseReportSchedule(data.report_schedule)
-    reportDeliveryChannels.value = (data.report_delivery_channels || []).filter((channel) => ['telegram', 'max'].includes(channel))
+    reportDeliveryChannels.value = (data.report_delivery_channels || []).filter((channel) => ['telegram', 'max', 'email'].includes(channel))
     if (!reportDeliveryChannels.value.length) {
       const defaults = []
       if (data.report_telegram_chat_id) defaults.push('telegram')
       if (data.report_max_chat_id || data.report_max_user_id) defaults.push('max')
+      if (data.report_email_recipients?.length) defaults.push('email')
       reportDeliveryChannels.value = defaults
     }
   } catch {
@@ -1995,12 +2017,21 @@ const handleDownloadPdf = async () => {
 const handleDownloadPng = async () => {
   sendingExport.value = true
   try {
-    const payload = getReportPayload()
-    const response = reportComment.value?.trim()
-      ? await api.post('reports/png', payload, { responseType: 'blob' })
-      : await api.get('reports/png', { params: payload, responseType: 'blob' })
-    downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
-    toaster.success('PNG скачан')
+    const screenshot = await captureDashboardScreenshot()
+    if (screenshot) {
+      const byteChars = atob(screenshot)
+      const byteArray = new Uint8Array(byteChars.length)
+      for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+      downloadBlob(new Blob([byteArray], { type: 'image/png' }), `report_${filters.start_date}_${filters.end_date}.png`)
+      toaster.success('PNG скачан')
+    } else {
+      const payload = getReportPayload()
+      const response = reportComment.value?.trim()
+        ? await api.post('reports/png', payload, { responseType: 'blob' })
+        : await api.get('reports/png', { params: payload, responseType: 'blob' })
+      downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.png`)
+      toaster.success('PNG скачан')
+    }
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось скачать PNG')
   } finally {
@@ -2036,8 +2067,27 @@ const handleExportAction = async (type) => {
   return handleGetLink()
 }
 
+const captureDashboardScreenshot = async () => {
+  const el = dashboardRef.value
+  if (!el) return null
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#f3f4f8',
+      logging: false,
+    })
+    const dataUrl = canvas.toDataURL('image/png')
+    return dataUrl.split(',')[1]
+  } catch (err) {
+    console.error('html2canvas failed:', err)
+    return null
+  }
+}
+
 const executeReportSend = async () => {
-  const channels = reportDeliveryChannels.value.filter((channel) => ['telegram', 'max'].includes(channel))
+  const channels = reportDeliveryChannels.value.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   if (!channels.length) {
     toaster.error('Выберите канал доставки отчёта')
     return
@@ -2052,21 +2102,29 @@ const executeReportSend = async () => {
     pendingSendAfterLink.value = true
     return
   }
+  if (channels.includes('email') && !userReportSettings.value.email_recipients?.length) {
+    toaster.error('Укажите email для получения отчётов в настройках профиля')
+    return
+  }
 
   sendingTg.value = channels.includes('telegram')
   sendingMax.value = channels.includes('max')
+  sendingEmail.value = channels.includes('email')
   try {
     const text = await getOrGenerateComment()
+    const screenshot = await captureDashboardScreenshot()
     await api.post('reports/send', {
       report_type: 'ai',
       channels,
       telegram_chat_id: userReportSettings.value.telegram_chat_id || undefined,
       max_chat_id: userReportSettings.value.max_chat_id || undefined,
       max_user_id: userReportSettings.value.max_user_id || undefined,
+      email_recipients: channels.includes('email') ? userReportSettings.value.email_recipients : undefined,
       client_id: filters.client_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
-      ...(text ? { comment: text } : {})
+      ...(text ? { comment: text } : {}),
+      ...(screenshot ? { screenshot_base64: screenshot } : {}),
     })
     toaster.success('Отчёт отправлен')
   } catch (err) {
@@ -2074,6 +2132,7 @@ const executeReportSend = async () => {
   } finally {
     sendingTg.value = false
     sendingMax.value = false
+    sendingEmail.value = false
   }
 }
 

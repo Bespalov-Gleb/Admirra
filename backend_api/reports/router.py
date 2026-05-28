@@ -62,6 +62,7 @@ class SendReportRequest(BaseModel):
     start_date: str
     end_date: str
     comment: Optional[str] = None  # готовый текст — если передан, не генерируем заново
+    screenshot_base64: Optional[str] = None  # PNG скриншот дашборда (base64)
 
 
 @router.get("/pdf")
@@ -481,25 +482,22 @@ async def send_report(
             raise HTTPException(status_code=400, detail="Неверный client_id")
 
     pdf_bytes = None
+    png_bytes = None
     ai_text = None
+
+    # Скриншот дашборда с фронтенда (base64 PNG)
+    if req.screenshot_base64:
+        import base64
+        try:
+            png_bytes = base64.b64decode(req.screenshot_base64)
+            logger.info("send_report: received dashboard screenshot (%d bytes)", len(png_bytes))
+        except Exception as e:
+            logger.warning("send_report: invalid screenshot_base64: %s", e)
 
     # Если передан готовый текст — используем его напрямую, не генерируем заново
     if req.comment and req.comment.strip():
         ai_text = req.comment.strip()
         logger.info("send_report: using provided comment text (len=%d), skipping AI generation", len(ai_text))
-    elif req.report_type == "pdf":
-        try:
-            pdf_bytes = generate_report_pdf(
-                db=db,
-                user_id=current_user.id,
-                client_id=u_client_id,
-                start_date=req.start_date,
-                end_date=req.end_date,
-                comment=None,
-            )
-        except Exception as e:
-            logger.exception("PDF generation failed: %s", e)
-            raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
     elif req.report_type in ("ai", "text"):
         try:
             SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
@@ -518,68 +516,104 @@ async def send_report(
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
 
+    # Конвертируем скриншот в PDF, или генерируем PDF из HTML-шаблона
+    if png_bytes:
+        try:
+            from backend_api.reports.screenshot_to_pdf import png_to_pdf
+            pdf_bytes = png_to_pdf(png_bytes, ai_text)
+        except Exception as e:
+            logger.exception("Screenshot to PDF failed: %s", e)
+    if not pdf_bytes:
+        try:
+            pdf_bytes = generate_report_pdf(
+                db=db,
+                user_id=current_user.id,
+                client_id=u_client_id,
+                start_date=req.start_date,
+                end_date=req.end_date,
+                comment=ai_text,
+            )
+        except Exception as e:
+            logger.exception("PDF generation failed: %s", e)
+
     results = {"email": False, "telegram": False, "max": False, "email_error": None}
 
-    # Email
+    # Email (UniSender Go → SMTP fallback)
     if "email" in req.channels and req.email_recipients:
         try:
-            from lead_validator.services.email_sender import email_sender
             subject = f"Отчёт за период {req.start_date} — {req.end_date}"
-            body_text = ai_text if ai_text else f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
-            if pdf_bytes:
-                ok, err = await email_sender.send_report_email(
+            from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+            if unisender_ok():
+                from backend_api.reports.email_template import render_report_email_html
+                from datetime import datetime as _dt
+                report_data = _get_report_data(
+                    db, current_user.id, u_client_id,
+                    req.start_date, req.end_date, None,
+                )
+                summary, top_campaigns, client_name, _, _, _ = report_data
+                email_data = {
+                    "summary": summary,
+                    "top_campaigns": top_campaigns,
+                    "client_name": client_name or "",
+                    "ai_comment": ai_text or "",
+                    "start_date": req.start_date,
+                    "end_date": req.end_date,
+                    "generated_at": _dt.now().strftime("%Y-%m-%d %H:%M"),
+                }
+                html_body = render_report_email_html(email_data)
+                plain_body = ai_text or f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
+                ok, err = await uni_send(
                     recipients=req.email_recipients,
                     subject=subject,
-                    body=body_text,
+                    html_body=html_body,
+                    plain_body=plain_body,
                     pdf_bytes=pdf_bytes,
                     filename=f"report_{req.start_date}_{req.end_date}.pdf",
                 )
             else:
+                from lead_validator.services.email_sender import email_sender
+                body_text = ai_text or f"Отчёт по рекламным кампаниям за период {req.start_date} — {req.end_date}."
                 ok, err = await email_sender.send_report_email(
                     recipients=req.email_recipients,
                     subject=subject,
                     body=body_text,
+                    pdf_bytes=pdf_bytes if pdf_bytes else None,
+                    filename=f"report_{req.start_date}_{req.end_date}.pdf",
                 )
             results["email"] = ok
             if err:
                 results["email_error"] = err
-        except ImportError:
-            raise HTTPException(status_code=503, detail="Модуль email недоступен")
         except Exception as e:
             logger.exception("Email send failed: %s", e)
             results["email_error"] = str(e)
 
-    # Telegram
+    # Telegram — всегда отправляем PDF как документ (скриншот дашборда)
     if "telegram" in req.channels and req.telegram_chat_id:
-        if pdf_bytes:
-            try:
-                from lead_validator.services.telegram import telegram_notifier
-                caption = f"Отчёт за период {req.start_date} — {req.end_date}"
+        try:
+            from lead_validator.services.telegram import telegram_notifier
+            if pdf_bytes:
+                caption = f"📊 Отчёт за период {req.start_date} — {req.end_date}"
                 results["telegram"] = await telegram_notifier.send_document(
                     chat_id=req.telegram_chat_id,
                     document=pdf_bytes,
                     filename=f"report_{req.start_date}_{req.end_date}.pdf",
                     caption=caption,
                 )
-            except ImportError:
-                raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
-            except Exception as e:
-                logger.exception("Telegram send failed: %s", e)
-        elif ai_text:
-            try:
-                from lead_validator.services.telegram import telegram_notifier
+            elif ai_text:
                 header = f"📊 AI-отчёт за период {req.start_date} — {req.end_date}\n\n"
                 results["telegram"] = await telegram_notifier.send_message(
                     text=header + ai_text,
                     parse_mode=None,
                     chat_id=req.telegram_chat_id,
                 )
-            except ImportError:
-                raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
-            except Exception as e:
-                logger.exception("Telegram send failed: %s", e)
-        else:
-            raise HTTPException(status_code=400, detail="Нет данных для отправки в Telegram")
+            else:
+                raise HTTPException(status_code=400, detail="Нет данных для отправки в Telegram")
+        except ImportError:
+            raise HTTPException(status_code=503, detail="Модуль Telegram недоступен")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("Telegram send failed: %s", e)
 
     # MAX reports bot
     if "max" in req.channels:

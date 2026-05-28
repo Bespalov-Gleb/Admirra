@@ -118,6 +118,14 @@ class SmtpConfig:
 
 
 @dataclass
+class UniSenderConfig:
+    api_key: str
+    from_email: str
+    from_name: str
+    api_url: str
+
+
+@dataclass
 class SupportConfig:
     """Куда слать обращения с формы «Предложить идею» (POST /api/support/idea)."""
     inbox_email: str
@@ -159,6 +167,7 @@ class Config:
     cloudpayments: CloudPaymentsConfig
     telegram_bot: TelegramBotConfig
     smtp: SmtpConfig
+    unisender: UniSenderConfig
     support: SupportConfig
     detector: DetectorCfg
 
@@ -282,6 +291,12 @@ def get_config() -> Config:
             password=_env("SMTP_PASSWORD"),
             from_addr=_env("SMTP_FROM", "noreply@admirra.ru"),
             use_tls=_bool("SMTP_USE_TLS", True),
+        ),
+        unisender=UniSenderConfig(
+            api_key=_env("UNISENDER_API_KEY"),
+            from_email=_env("UNISENDER_FROM_EMAIL", "reports@admirra.online"),
+            from_name=_env("UNISENDER_FROM_NAME", "AdMirra"),
+            api_url=_env("UNISENDER_API_URL", "https://go2.unisender.ru/ru/transactional/api/v1"),
         ),
         support=SupportConfig(
             inbox_email=_env("SUPPORT_INBOX_EMAIL", "support@admirra.ru"),
