@@ -412,7 +412,7 @@
             <div v-for="bar in goalBars" :key="bar.id" class="goals-bar-row">
               <span class="goals-bar-name">{{ bar.name }}</span>
               <div class="goals-bar-track">
-                <div class="goals-bar-fill" :style="{ width: bar.pct + '%', background: bar.color }"></div>
+                <div class="goals-bar-fill" :style="{ width: bar.pct + '%', minWidth: bar.count > 0 ? '3px' : '0', background: bar.color }"></div>
               </div>
               <strong class="goals-bar-count">{{ bar.countText }}</strong>
               <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
@@ -1276,14 +1276,14 @@ const CHART_VIEWBOX_WIDTH = 880
 const CHART_VIEWBOX_HEIGHT = 272
 const CHART_LEFT = 56
 const CHART_RIGHT = 846
-const CHART_TOP = 32
-const CHART_BOTTOM = 216
-const CHART_BASELINE = 218
+const CHART_TOP = 26
+const CHART_BOTTOM = 232
+const CHART_BASELINE = 234
 const CHART_GRID_LEFT = 46
 const CHART_GRID_RIGHT = 858
 const CHART_Y_LABEL_X = 42
 const CHART_DATE_LABEL_Y = 264
-const chartGridLines = [32, 78, 124, 170, 216]
+const chartGridLines = [26, 77.5, 129, 180.5, 232]
 const chartYTicks = chartGridLines.map((y, index) => ({ y: y + 4, index }))
 
 const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', cpa: 'cpa', leads: 'leads' }
@@ -3764,6 +3764,7 @@ onMounted(() => {
 .goals-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .panel-title-row {
@@ -4093,6 +4094,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
 }
 
 .goals-channel-header {
@@ -4123,22 +4125,25 @@ onMounted(() => {
   flex-direction: column;
   gap: 1.1rem;
   flex: 1;
+  min-width: 0;
 }
 
 .goals-bar-row {
   display: grid;
-  grid-template-columns: minmax(7rem, 13rem) 1fr auto auto;
+  grid-template-columns: minmax(9rem, 17rem) minmax(8rem, 1fr) auto auto;
   align-items: center;
   gap: 1rem;
   font-size: 1.15rem;
+  min-width: 0;
 }
 
 .goals-bar-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: #374151;
   font-size: 1.15rem;
+  line-height: 1.25;
   font-weight: 450;
 }
 
@@ -4154,7 +4159,6 @@ onMounted(() => {
   height: 100%;
   border-radius: 10rem;
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 3px;
 }
 
 .goals-bar-count {
@@ -5031,7 +5035,7 @@ onMounted(() => {
 }
 
 .chart-goals-grid {
-  grid-template-columns: minmax(0, 1.5fr) minmax(25rem, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.3889rem;
   margin-top: 1.3889rem;
   align-items: stretch;
@@ -5063,10 +5067,10 @@ onMounted(() => {
 }
 
 .chart-area {
-  height: 18.4028rem;
+  height: 19.2rem;
   margin-top: 1.6667rem;
   flex: 1;
-  min-height: 18.4028rem;
+  min-height: 19.2rem;
 }
 
 .axis-labels text {
@@ -6573,6 +6577,7 @@ onMounted(() => {
 /* Chart responsiveness pass: keep plots readable instead of squeezing them. */
 .chart-goals-grid {
   align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .chart-panel {
@@ -6585,9 +6590,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 18.0556rem;
+  min-height: 19.2rem;
   flex: 1;
-  aspect-ratio: 880 / 300;
+  aspect-ratio: 880 / 312;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -6792,8 +6797,12 @@ onMounted(() => {
 }
 
 @media (max-width: 885px) {
+  .chart-goals-grid {
+    grid-template-columns: 1fr;
+  }
+
   .chart-area {
-    min-height: 18.0556rem;
+    min-height: 19.2rem;
   }
 
   .bottom-grid {
@@ -6817,7 +6826,7 @@ onMounted(() => {
   }
 
   .chart-area {
-    min-height: 18.0556rem;
+    min-height: 19.2rem;
     aspect-ratio: auto;
     margin-top: 1.25rem;
   }
