@@ -1279,17 +1279,17 @@ const chartMetricChips = [
 ]
 
 const CHART_VIEWBOX_WIDTH = 880
-const CHART_VIEWBOX_HEIGHT = 272
+const CHART_VIEWBOX_HEIGHT = 300
 const CHART_LEFT = 44
 const CHART_RIGHT = 868
-const CHART_TOP = 16
-const CHART_BOTTOM = 240
-const CHART_BASELINE = 242
+const CHART_TOP = 10
+const CHART_BOTTOM = 264
+const CHART_BASELINE = 266
 const CHART_GRID_LEFT = 34
 const CHART_GRID_RIGHT = 876
 const CHART_Y_LABEL_X = 30
-const CHART_DATE_LABEL_Y = 262
-const chartGridLines = [16, 72, 128, 184, 240]
+const CHART_DATE_LABEL_Y = 290
+const chartGridLines = [10, 73.5, 137, 200.5, 264]
 const chartYTicks = chartGridLines.map((y, index) => ({ y: y + 4, index }))
 
 const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', cpa: 'cpa', leads: 'leads' }
@@ -3871,9 +3871,9 @@ onMounted(() => {
 
 .chart-area {
   position: relative;
-  margin-top: 0.8rem;
+  margin-top: 0.6rem;
   flex: 1;
-  min-height: 28rem;
+  min-height: 30rem;
   overflow: visible;
   z-index: 3;
 }
@@ -4066,25 +4066,26 @@ onMounted(() => {
 }
 
 .goals-panel__header {
-  margin-bottom: 0;
+  margin-bottom: 0.6rem;
 }
 
 .goals-panel__header h2 {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  font-size: 1.5rem;
 }
 
 .goals-info-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
   background: #f1f5f9;
   color: #94a3b8;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
   font-style: italic;
   cursor: help;
@@ -4106,23 +4107,23 @@ onMounted(() => {
 .goals-channel-header {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding-bottom: 1rem;
+  gap: 0.6rem;
+  padding-bottom: 0.8rem;
   border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 1.2rem;
-  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
 }
 
 .goals-channel-icon {
-  width: 2rem;
-  height: 2rem;
+  width: 1.6rem;
+  height: 1.6rem;
   object-fit: contain;
 }
 
 .goals-channel-expense {
   margin-left: auto;
   color: #94a3b8;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
 }
 
@@ -6629,7 +6630,7 @@ onMounted(() => {
   width: 100%;
   min-height: 24rem;
   flex: 1;
-  aspect-ratio: 880 / 312;
+  aspect-ratio: 880 / 340;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -6640,7 +6641,7 @@ onMounted(() => {
   display: block;
   width: max(50rem, 100%);
   height: auto;
-  aspect-ratio: 880 / 272;
+  aspect-ratio: 880 / 300;
   max-height: 100%;
 }
 
