@@ -329,11 +329,21 @@
         <div class="panel-title-row">
           <h2>Эффективность кампаний</h2>
         </div>
-        <div class="chart-area">
-          <svg viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
+        <div class="chart-metric-chips">
+          <button
+            v-for="chip in chartMetricChips"
+            :key="chip.key"
+            type="button"
+            class="chart-chip"
+            :class="{ 'chart-chip--active': chartMetricKey === chip.key }"
+            @click="chartMetricKey = chip.key"
+          >{{ chip.label }}</button>
+        </div>
+        <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
+          <svg ref="chartSvgRef" viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <defs>
               <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.2" />
+                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.15" />
                 <stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
               </linearGradient>
             </defs>
@@ -341,45 +351,63 @@
               <line v-for="y in [34, 82, 130, 178, 226]" :key="y" x1="46" :y1="y" x2="858" :y2="y" />
             </g>
             <path class="chart-fill" :d="chartFillPath" />
-            <path class="chart-line" :d="chartPath" />
-            <g>
-              <circle v-for="point in chartPoints" :key="`${point.x}-${point.y}`" :cx="point.x" :cy="point.y" r="3.5" />
-            </g>
+            <path class="chart-line" :d="smoothChartPath" />
+            <line v-if="chartHoverIndex >= 0 && chartPoints[chartHoverIndex]" class="chart-hover-line" :x1="chartPoints[chartHoverIndex].x" :y1="34" :x2="chartPoints[chartHoverIndex].x" :y2="226" />
+            <circle v-if="chartHoverIndex >= 0 && chartPoints[chartHoverIndex]" class="chart-hover-dot" :cx="chartPoints[chartHoverIndex].x" :cy="chartPoints[chartHoverIndex].y" r="5" />
             <g class="axis-labels">
               <text text-anchor="end" x="42" y="38">{{ chartYLabels[0] }}</text>
               <text text-anchor="end" x="42" y="86">{{ chartYLabels[1] }}</text>
               <text text-anchor="end" x="42" y="134">{{ chartYLabels[2] }}</text>
               <text text-anchor="end" x="42" y="182">{{ chartYLabels[3] }}</text>
               <text text-anchor="end" x="42" y="230">{{ chartYLabels[4] }}</text>
-              <text v-for="(label, index) in dateLabels" :key="label" :x="62 + index * 61" y="252">{{ label }}</text>
+              <text v-for="(label, index) in dateLabels" :key="label" :x="62 + index * 61" y="252" :class="{ 'axis-label--active': chartHoverIndex === index }">{{ label }}</text>
             </g>
           </svg>
+          <div v-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
+            <div class="chart-tooltip__date">{{ chartTooltipData.date }}</div>
+            <div class="chart-tooltip__main">
+              <span class="chart-tooltip__dot"></span>
+              {{ chartTooltipData.label }} — {{ chartTooltipData.value }}
+            </div>
+            <div class="chart-tooltip__divider"></div>
+            <div v-for="ctx in chartTooltipData.context" :key="ctx.label" class="chart-tooltip__ctx">
+              {{ ctx.label }}: <strong>{{ ctx.value }}</strong>
+            </div>
+          </div>
         </div>
       </article>
 
       <article class="panel goals-panel">
-        <h2>Разбивка по целям</h2>
-        <div class="goals-content" :style="{ '--goals-count': goals.length }">
-          <div class="donut-wrap">
-            <div
-              class="donut"
-              :style="{ '--donut-outer': donutGradient, '--donut-inner': innerDonutGradient }"
-            ></div>
-            <span>{{ goalsTotalLabel }}</span>
+        <div class="goals-panel__header">
+          <h2>
+            Целевые действия
+            <span
+              class="goals-info-icon"
+              title="CPA по отдельным целям не показывается — расход кампании не делится между разными целями одной сессии. Общий CPL по Яндексу считается как сумма расхода / сумма всех конверсий — это корректный сводный показатель."
+              @click.stop
+            >i</span>
+          </h2>
+        </div>
+        <div class="goals-channel-block">
+          <div class="goals-channel-header">
+            <img :src="yandexDirectIcon" alt="Яндекс" class="goals-channel-icon" />
+            <strong>Яндекс Директ</strong>
+            <span class="goals-channel-expense">{{ formatMoney(withVat(summary?.expenses || 0)) }}</span>
           </div>
-          <div class="goals-list">
-            <div
-              v-for="goal in goals"
-              :key="goal.id || goal.name"
-              class="goal-item"
-              :style="{ '--goal-color': goal.color, '--goal-bg': goal.legendBg || goal.color + '24', '--goal-border': goal.color + '24' }"
-            >
-              <div>
-                <span :style="{ background: goal.dotColor || goal.color }"></span>
-                {{ goal.name }}
+          <div v-if="goalBars.length" class="goals-bar-list">
+            <div v-for="bar in goalBars" :key="bar.id" class="goals-bar-row">
+              <span class="goals-bar-name">{{ bar.name }}</span>
+              <div class="goals-bar-track">
+                <div class="goals-bar-fill" :style="{ width: bar.pct + '%', background: bar.color }"></div>
               </div>
-              <p>{{ goal.value }}</p>
+              <strong class="goals-bar-count">{{ bar.countText }}</strong>
+              <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
             </div>
+          </div>
+          <div v-else class="goals-bar-empty">Нет целей за период</div>
+          <div v-if="goalBars.length" class="goals-summary-row">
+            <span>Все конверсии · общий CPL</span>
+            <strong>{{ goalsSummaryCpl }}</strong>
           </div>
         </div>
       </article>
@@ -723,6 +751,9 @@ const defaultReportSchedule = { day: 'daily', time: '10:00' }
 const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
+const chartMetricKey = ref('expenses')
+const chartHoverIndex = ref(-1)
+const chartSvgRef = ref(null)
 const periodKey = ref('last_7_days')
 const customPeriodRange = ref({ start: null, end: null })
 const periodTriggerRef = ref(null)
@@ -1214,9 +1245,21 @@ const metrics = computed(() => {
   })
 })
 
+const chartMetricChips = [
+  { key: 'expenses', label: 'Расход' },
+  { key: 'impressions', label: 'Показы' },
+  { key: 'clicks', label: 'Клики' },
+  { key: 'cpc', label: 'CPC' },
+  { key: 'leads', label: 'Конверсии' },
+]
+
+const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', leads: 'leads' }
+
 const chartSourceValues = computed(() => {
-  const values = dynamics.value?.costs || []
-  return values.map((value) => withVat(value))
+  const dynKey = chartDynamicsKeyMap[chartMetricKey.value] || 'costs'
+  const values = dynamics.value?.[dynKey] || []
+  const isMoney = chartMetricKey.value === 'expenses' || chartMetricKey.value === 'cpc'
+  return values.map((v) => isMoney ? withVat(v) : Number(v) || 0)
 })
 
 const chartPoints = computed(() => {
@@ -1240,7 +1283,79 @@ const chartFillPath = computed(() => {
   const points = chartPoints.value
   const first = points[0] || { x: 56 }
   const last = points[points.length - 1] || { x: 846 }
-  return `${chartPath.value} L ${last.x} 226 L ${first.x} 226 Z`
+  return `${smoothChartPath.value} L ${last.x} 226 L ${first.x} 226 Z`
+})
+
+const smoothChartPath = computed(() => {
+  const pts = chartPoints.value
+  if (pts.length < 2) return chartPath.value
+  const tension = 0.3
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(i + 2, pts.length - 1)]
+    const cp1x = p1.x + (p2.x - p0.x) * tension
+    const cp1y = p1.y + (p2.y - p0.y) * tension
+    const cp2x = p2.x - (p3.x - p1.x) * tension
+    const cp2y = p2.y - (p3.y - p1.y) * tension
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+  }
+  return d
+})
+
+const handleChartHover = (e) => {
+  if (!chartSvgRef.value || !chartPoints.value.length) { chartHoverIndex.value = -1; return }
+  const rect = chartSvgRef.value.getBoundingClientRect()
+  const scaleX = 880 / rect.width
+  const svgX = (e.clientX - rect.left) * scaleX
+  let closest = 0
+  let minDist = Infinity
+  chartPoints.value.forEach((pt, i) => {
+    const d = Math.abs(pt.x - svgX)
+    if (d < minDist) { minDist = d; closest = i }
+  })
+  chartHoverIndex.value = minDist < 40 ? closest : -1
+}
+
+const chartTooltipData = computed(() => {
+  const idx = chartHoverIndex.value
+  if (idx < 0) return null
+  const labels = dateLabels.value
+  const date = labels[idx] || ''
+  const chipLabel = chartMetricChips.find(c => c.key === chartMetricKey.value)?.label || ''
+  const val = chartSourceValues.value[idx]
+  const isMoney = chartMetricKey.value === 'expenses' || chartMetricKey.value === 'cpc'
+  const fmtVal = isMoney ? formatMoney(val) : formatNumber(val)
+  const context = []
+  const otherKeys = [
+    { key: 'clicks', label: 'Клики', dyn: 'clicks', money: false },
+    { key: 'cpc', label: 'CPC', dyn: 'cpc', money: true },
+    { key: 'leads', label: 'Конверсии', dyn: 'leads', money: false },
+  ].filter(k => k.key !== chartMetricKey.value)
+  for (const k of otherKeys) {
+    const arr = dynamics.value?.[k.dyn] || []
+    const v = arr[idx]
+    context.push({ label: k.label, value: k.money ? formatMoney(withVat(v)) : formatNumber(v) })
+  }
+  return { date, label: chipLabel, value: fmtVal, context }
+})
+
+const chartTooltipStyle = computed(() => {
+  const idx = chartHoverIndex.value
+  if (idx < 0 || !chartSvgRef.value) return {}
+  const pt = chartPoints.value[idx]
+  if (!pt) return {}
+  const rect = chartSvgRef.value.getBoundingClientRect()
+  const x = (pt.x / 880) * rect.width
+  const y = (pt.y / 260) * rect.height
+  const leftPx = x + 12
+  const flip = leftPx + 180 > rect.width
+  return {
+    top: `${Math.max(0, y - 40)}px`,
+    [flip ? 'right' : 'left']: flip ? `${rect.width - x + 12}px` : `${leftPx}px`,
+  }
 })
 
 const dateLabels = computed(() => dynamics.value?.labels || [])
@@ -1331,6 +1446,42 @@ const goalsTotalLabel = computed(() => {
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
   return `${formatNumber(total || summary.value?.leads || 0)} шт.`
+})
+
+const goalBars = computed(() => {
+  const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
+  if (!reportGoals.value.length) return []
+  const items = reportGoals.value.map((goal, index) => {
+    const count = parseOptionalNumber(goal.count ?? goal.conversions ?? goal.value)
+    const safeCount = Number.isFinite(count) ? count : 0
+    const trendRaw = parseOptionalNumber(goal.trend ?? goal.trend_pct)
+    const trend = Number.isFinite(trendRaw) ? trendRaw : null
+    return {
+      id: goal.id || goal.goal_id || goal.external_id || `goal-${index}`,
+      name: goal.name || goal.goal_name || `Цель ${index + 1}`,
+      count: safeCount,
+      color: goal.color || colors[index % colors.length],
+      trend,
+    }
+  }).sort((a, b) => b.count - a.count)
+  const maxCount = Math.max(...items.map(i => i.count), 1)
+  return items.map(item => ({
+    ...item,
+    pct: (item.count / maxCount) * 100,
+    countText: `${formatNumber(item.count)} шт.`,
+    trendText: item.trend !== null ? `${item.trend > 0 ? '+' : ''}${formatNumber(item.trend, 1)}%` : null,
+    trendClass: item.trend !== null ? (item.trend >= 0 ? 'goals-bar-trend--up' : 'goals-bar-trend--down') : '',
+  }))
+})
+
+const goalsSummaryCpl = computed(() => {
+  const totalGoals = reportGoals.value.reduce((sum, item) => {
+    const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
+    return sum + (Number.isFinite(count) ? count : 0)
+  }, 0)
+  const expenses = summary.value?.expenses || 0
+  if (!totalGoals || !expenses) return '—'
+  return formatMoney(withVat(expenses / totalGoals))
 })
 
 const campaignRows = computed(() => {
@@ -3495,9 +3646,50 @@ onMounted(() => {
   height: 1.2rem;
 }
 
+.chart-metric-chips {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+  flex-wrap: wrap;
+}
+
+.chart-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 2.8rem;
+  padding: 0 1.2rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 2rem;
+  background: #fff;
+  color: #6b7280;
+  font-size: 1.2rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.chart-chip:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.chart-chip--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.chart-chip--active:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
 .chart-area {
+  position: relative;
   height: 29rem;
-  margin-top: 2.8rem;
+  margin-top: 1.6rem;
   flex: 1;
   min-height: 29rem;
 }
@@ -3534,6 +3726,78 @@ onMounted(() => {
 .axis-labels text {
   fill: rgba(43, 48, 52, 0.4);
   font-size: 1.1rem;
+}
+
+.axis-label--active {
+  fill: #2563eb !important;
+  font-weight: 600;
+}
+
+.chart-hover-line {
+  stroke: #2563eb;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.5;
+}
+
+.chart-hover-dot {
+  fill: #2563eb;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 10;
+  min-width: 16rem;
+  padding: 1rem 1.2rem;
+  border-radius: 0.8rem;
+  background: #1e293b;
+  color: #fff;
+  font-size: 1.15rem;
+  font-family: Inter, system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-tooltip__date {
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 0.4rem;
+}
+
+.chart-tooltip__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.chart-tooltip__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.chart-tooltip__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0.6rem 0;
+}
+
+.chart-tooltip__ctx {
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+}
+
+.chart-tooltip__ctx strong {
+  color: #fff;
+  font-weight: 600;
 }
 
 .goals-content {
@@ -3608,6 +3872,143 @@ onMounted(() => {
   margin: 0;
   padding: 1.4rem 1.6rem;
   color: #4b4b4b;
+  font-size: 1.3rem;
+}
+
+.goals-panel__header {
+  margin-bottom: 1.6rem;
+}
+
+.goals-panel__header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.goals-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 600;
+  font-style: italic;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.goals-channel-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.goals-channel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 1.2rem;
+  font-size: 1.3rem;
+}
+
+.goals-channel-icon {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.goals-channel-expense {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.goals-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.goals-bar-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1.2rem;
+}
+
+.goals-bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4b5563;
+  font-size: 1.2rem;
+}
+
+.goals-bar-track {
+  height: 0.7rem;
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  min-width: 6rem;
+}
+
+.goals-bar-fill {
+  height: 100%;
+  border-radius: 0.4rem;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+
+.goals-bar-count {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.goals-bar-trend {
+  font-size: 1.05rem;
+  font-weight: 500;
+  white-space: nowrap;
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.goals-bar-trend--up {
+  color: #16a34a;
+}
+
+.goals-bar-trend--down {
+  color: #ef4444;
+}
+
+.goals-bar-empty {
+  padding: 2rem 0;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 1.2rem;
+}
+
+.goals-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 1.2rem;
+  color: #6b7280;
+}
+
+.goals-summary-row strong {
+  color: #1e293b;
   font-size: 1.3rem;
 }
 
@@ -5866,6 +6267,66 @@ onMounted(() => {
   color: #4a7aff;
 }
 
+.figma-dashboard.is-dark .chart-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.figma-dashboard.is-dark .chart-chip:hover {
+  border-color: #4a7aff;
+  color: #4a7aff;
+}
+
+.figma-dashboard.is-dark .chart-chip--active {
+  background: #4a7aff;
+  border-color: #4a7aff;
+  color: #fff;
+}
+
+.figma-dashboard.is-dark .chart-tooltip {
+  background: #0f172a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.figma-dashboard.is-dark .goals-info-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.figma-dashboard.is-dark .goals-channel-header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.figma-dashboard.is-dark .goals-channel-expense {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.figma-dashboard.is-dark .goals-bar-name {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.figma-dashboard.is-dark .goals-bar-track {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.figma-dashboard.is-dark .goals-bar-count {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .goals-bar-empty {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.figma-dashboard.is-dark .goals-summary-row {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.figma-dashboard.is-dark .goals-summary-row strong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* Chart responsiveness pass: keep plots readable instead of squeezing them. */
 .chart-goals-grid {
   align-items: stretch;
@@ -6134,6 +6595,25 @@ onMounted(() => {
   .donut-wrap {
     width: min(16.6667rem, 72vw);
     height: min(16.6667rem, 72vw);
+  }
+
+  .goals-bar-row {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  .goals-bar-row .goals-bar-track {
+    order: -1;
+  }
+
+  .chart-metric-chips {
+    gap: 0.4rem;
+  }
+
+  .chart-chip {
+    height: 2.4rem;
+    padding: 0 0.8rem;
+    font-size: 1.05rem;
   }
 
   .creative-modal {
