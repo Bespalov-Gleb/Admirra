@@ -410,22 +410,28 @@
           </div>
           <div v-if="goalBars.length" class="goals-bar-list">
             <div v-for="bar in goalBars" :key="bar.id" class="goals-bar-row">
-              <span class="goals-bar-name">{{ bar.name }}</span>
+              <div class="goals-bar-left">
+                <span class="goals-bar-name">{{ bar.name }}</span>
+                <div class="goals-bar-meta">
+                  <strong class="goals-bar-count">{{ bar.countText }}</strong>
+                  <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
+                </div>
+              </div>
               <div class="goals-bar-track">
                 <div class="goals-bar-fill" :style="{ width: bar.pct + '%', minWidth: bar.count > 0 ? '3px' : '0', background: bar.color }"></div>
               </div>
-              <strong class="goals-bar-count">{{ bar.countText }}</strong>
-              <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
             </div>
           </div>
           <div v-else class="goals-bar-empty">Нет целей за период</div>
-          <div v-if="goalBars.length" class="goals-summary-row goals-summary-row--accent">
-            <span>Все конверсии · общий CPL</span>
-            <strong>{{ goalsSummaryCpl }}</strong>
-          </div>
-          <div v-if="goalBars.length" class="goals-total-row">
-            <span>Итого расход</span>
-            <strong>{{ formatMoney(withVat(summary?.expenses || 0)) }}</strong>
+          <div class="goals-footer">
+            <div v-if="goalBars.length" class="goals-summary-row goals-summary-row--accent">
+              <span>Все конверсии · общий CPL</span>
+              <strong>{{ goalsSummaryCpl }}</strong>
+            </div>
+            <div v-if="goalBars.length" class="goals-total-row">
+              <span>Итого расход</span>
+              <strong>{{ formatMoney(withVat(summary?.expenses || 0)) }}</strong>
+            </div>
           </div>
         </div>
       </article>
@@ -1274,16 +1280,16 @@ const chartMetricChips = [
 
 const CHART_VIEWBOX_WIDTH = 880
 const CHART_VIEWBOX_HEIGHT = 272
-const CHART_LEFT = 56
-const CHART_RIGHT = 846
-const CHART_TOP = 26
-const CHART_BOTTOM = 232
-const CHART_BASELINE = 234
-const CHART_GRID_LEFT = 46
-const CHART_GRID_RIGHT = 858
-const CHART_Y_LABEL_X = 42
-const CHART_DATE_LABEL_Y = 264
-const chartGridLines = [26, 77.5, 129, 180.5, 232]
+const CHART_LEFT = 44
+const CHART_RIGHT = 868
+const CHART_TOP = 16
+const CHART_BOTTOM = 240
+const CHART_BASELINE = 242
+const CHART_GRID_LEFT = 34
+const CHART_GRID_RIGHT = 876
+const CHART_Y_LABEL_X = 30
+const CHART_DATE_LABEL_Y = 262
+const chartGridLines = [16, 72, 128, 184, 240]
 const chartYTicks = chartGridLines.map((y, index) => ({ y: y + 4, index }))
 
 const chartDynamicsKeyMap = { expenses: 'costs', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', cpa: 'cpa', leads: 'leads' }
@@ -3749,7 +3755,7 @@ onMounted(() => {
 
 .chart-panel,
 .goals-panel {
-  min-height: 36rem;
+  min-height: 40rem;
   padding: 2.4rem;
 }
 
@@ -3816,7 +3822,7 @@ onMounted(() => {
 .chart-metric-chips {
   display: flex;
   gap: 0.5rem;
-  margin-top: 1.2rem;
+  margin-top: 0.8rem;
   flex-wrap: wrap;
 }
 
@@ -3865,9 +3871,9 @@ onMounted(() => {
 
 .chart-area {
   position: relative;
-  margin-top: 1.2rem;
+  margin-top: 0.8rem;
   flex: 1;
-  min-height: 24rem;
+  min-height: 28rem;
   overflow: visible;
   z-index: 3;
 }
@@ -4101,10 +4107,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  padding: 1.2rem 0;
+  padding-bottom: 1rem;
   border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 1.4rem;
-  font-size: 1.25rem;
+  margin-bottom: 1.2rem;
+  font-size: 1.2rem;
 }
 
 .goals-channel-icon {
@@ -4116,24 +4122,40 @@ onMounted(() => {
 .goals-channel-expense {
   margin-left: auto;
   color: #94a3b8;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 500;
 }
 
 .goals-bar-list {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1rem;
   flex: 1;
   min-width: 0;
 }
 
 .goals-bar-row {
-  display: grid;
-  grid-template-columns: minmax(9rem, 17rem) minmax(8rem, 1fr) auto auto;
-  align-items: center;
-  gap: 1rem;
-  font-size: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.7rem 1rem;
+  border-radius: 0.7rem;
+  background: #fafbfc;
+  border: 1px solid #f1f3f5;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.goals-bar-row:hover {
+  border-color: #e2e8f0;
+  background: #f8f9fb;
+}
+
+.goals-bar-left {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
   min-width: 0;
 }
 
@@ -4142,17 +4164,23 @@ onMounted(() => {
   white-space: normal;
   overflow-wrap: anywhere;
   color: #374151;
-  font-size: 1.15rem;
-  line-height: 1.25;
+  font-size: 1.1rem;
+  line-height: 1.3;
   font-weight: 450;
 }
 
+.goals-bar-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
 .goals-bar-track {
-  height: 0.6rem;
-  background: #f1f5f9;
+  height: 0.5rem;
+  background: #e9ecf0;
   border-radius: 10rem;
   overflow: hidden;
-  min-width: 5rem;
 }
 
 .goals-bar-fill {
@@ -4169,11 +4197,9 @@ onMounted(() => {
 }
 
 .goals-bar-trend {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   white-space: nowrap;
-  min-width: 4.5rem;
-  text-align: right;
 }
 
 .goals-bar-trend--up {
@@ -4195,29 +4221,29 @@ onMounted(() => {
   justify-content: center;
 }
 
+.goals-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
 .goals-summary-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: auto;
-  padding-top: 1.2rem;
-  border-top: 1px solid #f1f5f9;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   color: #6b7280;
 }
 
 .goals-summary-row strong {
   color: #1e293b;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
 }
 
 .goals-summary-row--accent {
   background: #fffbeb;
   border: 1px solid #fde68a;
-  border-radius: 0.8rem;
-  padding: 0.9rem 1.2rem;
-  margin-top: 1.4rem;
-  border-top: 1px solid #fde68a;
+  border-radius: 0.7rem;
+  padding: 0.85rem 1.1rem;
   color: #92400e;
 }
 
@@ -4230,14 +4256,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.7rem;
-  font-size: 1.1rem;
+  margin-top: 0.55rem;
+  padding: 0 0.2rem;
+  font-size: 1.05rem;
   color: #9ca3af;
 }
 
 .goals-total-row strong {
   color: #6b7280;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
 }
 
@@ -5043,7 +5070,7 @@ onMounted(() => {
 
 .chart-panel,
 .goals-panel {
-  min-height: 25rem;
+  min-height: 28rem;
   padding: 1.7361rem;
 }
 
@@ -5067,10 +5094,10 @@ onMounted(() => {
 }
 
 .chart-area {
-  height: 19.2rem;
-  margin-top: 1.6667rem;
+  height: 24rem;
+  margin-top: 0.8rem;
   flex: 1;
-  min-height: 19.2rem;
+  min-height: 24rem;
 }
 
 .axis-labels text {
@@ -6531,6 +6558,16 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.figma-dashboard.is-dark .goals-bar-row {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.figma-dashboard.is-dark .goals-bar-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
 .figma-dashboard.is-dark .goals-bar-name {
   color: rgba(255, 255, 255, 0.7);
 }
@@ -6590,7 +6627,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 19.2rem;
+  min-height: 24rem;
   flex: 1;
   aspect-ratio: 880 / 312;
   overflow-x: auto;
@@ -6802,7 +6839,7 @@ onMounted(() => {
   }
 
   .chart-area {
-    min-height: 19.2rem;
+    min-height: 22rem;
   }
 
   .bottom-grid {
@@ -6826,7 +6863,7 @@ onMounted(() => {
   }
 
   .chart-area {
-    min-height: 19.2rem;
+    min-height: 20rem;
     aspect-ratio: auto;
     margin-top: 1.25rem;
   }
