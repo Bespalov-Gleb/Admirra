@@ -398,13 +398,15 @@ const filteredProjects = computed(() => {
     list = list.filter((p) => !hasActiveProjectIntegration(p))
   }
   const q = search.value.trim().toLowerCase()
-  if (!q) return list
-  return list.filter((p) =>
-    p.name?.toLowerCase().includes(q) ||
-    String(p.display_id || '').toLowerCase().includes(q) ||
-    String(p.id || '').toLowerCase().includes(q) ||
-    p.description?.toLowerCase().includes(q)
-  )
+  if (q) {
+    list = list.filter((p) =>
+      p.name?.toLowerCase().includes(q) ||
+      String(p.display_id || '').toLowerCase().includes(q) ||
+      String(p.id || '').toLowerCase().includes(q) ||
+      p.description?.toLowerCase().includes(q)
+    )
+  }
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
 })
 
 const projectFilterLabel = computed(() => {
@@ -877,11 +879,14 @@ onMounted(async () => {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(245, 247, 249, 0.92);
-  backdrop-filter: blur(10px);
+  background: rgba(245, 247, 249, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding: 0.9rem 1.7361rem;
   margin-left: -1.7361rem;
   margin-right: -1.7361rem;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
 }
 
 /* ---- Custom Select ---- */
@@ -1618,7 +1623,7 @@ onMounted(async () => {
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.2222rem minmax(0, 1fr) minmax(17.5rem, 0.92fr);
+  grid-template-columns: 2.2222rem minmax(0, 0.85fr) minmax(19rem, 1fr);
   align-items: center;
   gap: 0.8333rem;
   min-height: 4.1667rem;
@@ -1653,7 +1658,7 @@ onMounted(async () => {
 
 .project-channel-metrics {
   display: grid;
-  grid-template-columns: minmax(4.4444rem, 0.74fr) minmax(6.9444rem, 1fr) minmax(6.9444rem, 1fr);
+  grid-template-columns: minmax(4rem, 0.7fr) minmax(6.2rem, 1fr) minmax(6.2rem, 1fr);
   align-self: stretch;
   min-width: 0;
   overflow: hidden;
@@ -1667,7 +1672,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 0.2083rem;
-  padding: 0.1389rem 0.6944rem;
+  padding: 0.1389rem 0.4rem;
   border-left: 1px solid rgba(245, 158, 11, 0.14);
   text-align: center;
 }

@@ -161,28 +161,49 @@
           </div>
         </div>
 
-        <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="() => closeMenu('campaigns')">
-          <button class="filter-btn cs-head" type="button" @click="toggleMenu('campaigns')">
+        <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
+          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
             </span>
           </button>
-          <div class="cs-list dropdown-panel campaigns" @click.stop>
+          <div class="cs-list dropdown-panel campaigns-multiselect" @click.stop>
             <label class="search-box">
               <MagnifyingGlassIcon />
               <input v-model="campaignQuery" type="search" placeholder="Поиск кампании" />
             </label>
-            <button
-              v-for="campaign in filteredCampaigns"
-              :key="campaign.id || campaign.name"
-              type="button"
-              class="cs-option"
-              :class="{ selected: isCampaignSelected(campaign) }"
-              @click="selectCampaign(campaign)"
-            >
-              {{ campaign.name }}
-            </button>
+            <div class="cmp-mass-actions">
+              <button type="button" class="cmp-mass-btn" @click="campaignSelectAll">Выбрать все</button>
+              <button type="button" class="cmp-mass-btn" @click="campaignDeselectAll">Снять все</button>
+            </div>
+            <div class="cmp-scroll">
+              <template v-if="campaignGroupActive.length">
+                <div v-for="campaign in campaignGroupActive" :key="campaign.id" class="cmp-row" @click="togglePendingCampaign(campaign.id)">
+                  <input type="checkbox" class="cmp-check" :checked="pendingCampaignIds.includes(campaign.id)" @click.stop="togglePendingCampaign(campaign.id)" />
+                  <span class="cmp-status-dot" :class="campaign.is_active ? 'cmp-status-dot--active' : 'cmp-status-dot--paused'" :title="campaign.is_active ? 'Активна' : 'Остановлена'"></span>
+                  <span class="cmp-name">{{ campaign.name }}</span>
+                </div>
+              </template>
+              <template v-if="campaignGroupArchive.length">
+                <button type="button" class="cmp-group-header" @click="campaignArchiveOpen = !campaignArchiveOpen">
+                  Архив ({{ campaignGroupArchive.length }})
+                  <ChevronDownIcon class="cmp-group-chevron" :class="{ 'cmp-group-chevron--open': campaignArchiveOpen }" />
+                </button>
+                <template v-if="campaignArchiveOpen">
+                  <div v-for="campaign in campaignGroupArchive" :key="campaign.id" class="cmp-row cmp-row--archive" @click="togglePendingCampaign(campaign.id)">
+                    <input type="checkbox" class="cmp-check" :checked="pendingCampaignIds.includes(campaign.id)" @click.stop="togglePendingCampaign(campaign.id)" />
+                    <span class="cmp-status-dot cmp-status-dot--archive" title="Архив"></span>
+                    <span class="cmp-name">{{ campaign.name }}</span>
+                  </div>
+                </template>
+              </template>
+              <div v-if="!campaignGroupActive.length && !campaignGroupArchive.length" class="cmp-empty">Нет кампаний</div>
+            </div>
+            <div class="cmp-footer">
+              <button type="button" class="cmp-footer-btn cmp-footer-btn--reset" @click="campaignReset">Сбросить</button>
+              <button type="button" class="cmp-footer-btn cmp-footer-btn--apply" @click="campaignApply">Применить</button>
+            </div>
           </div>
         </div>
 
@@ -258,6 +279,11 @@
         </div>
       </div>
     </section>
+
+    <div v-if="filters.campaign_ids.length > 0" class="campaign-filter-banner">
+      <span>Показаны данные по {{ filters.campaign_ids.length }} {{ filters.campaign_ids.length === 1 ? 'кампании' : 'кампаниям' }} из {{ allCampaigns.length }}</span>
+      <button type="button" class="campaign-filter-banner__reset" @click="campaignReset">сбросить</button>
+    </div>
 
     <DetectorBanner
       v-if="filters.client_id && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
@@ -827,10 +853,53 @@ const selectFilterChannel = (channel) => {
   closeMenu('channels')
 }
 
-const selectCampaign = (campaign) => {
-  filters.campaign_ids = campaign?.id ? [campaign.id] : []
-  closeMenu('campaigns')
+const pendingCampaignIds = ref([])
+const campaignArchiveOpen = ref(false)
+
+const openCampaignMenu = () => {
+  pendingCampaignIds.value = [...filters.campaign_ids]
+  campaignQuery.value = ''
+  campaignArchiveOpen.value = false
+  openMenu.value = openMenu.value === 'campaigns' ? '' : 'campaigns'
 }
+
+const closeCampaignMenu = () => {
+  if (openMenu.value === 'campaigns') openMenu.value = ''
+}
+
+const togglePendingCampaign = (id) => {
+  const idx = pendingCampaignIds.value.indexOf(id)
+  if (idx >= 0) pendingCampaignIds.value.splice(idx, 1)
+  else pendingCampaignIds.value.push(id)
+}
+
+const campaignSelectAll = () => {
+  const visible = filteredCampaigns.value.map(c => c.id)
+  const set = new Set(pendingCampaignIds.value)
+  visible.forEach(id => set.add(id))
+  pendingCampaignIds.value = [...set]
+}
+
+const campaignDeselectAll = () => {
+  const visible = new Set(filteredCampaigns.value.map(c => c.id))
+  pendingCampaignIds.value = pendingCampaignIds.value.filter(id => !visible.has(id))
+}
+
+const campaignApply = () => {
+  filters.campaign_ids = [...pendingCampaignIds.value]
+  openMenu.value = ''
+  handlePeriodChange()
+}
+
+const campaignReset = () => {
+  pendingCampaignIds.value = []
+  filters.campaign_ids = []
+  openMenu.value = ''
+  handlePeriodChange()
+}
+
+const campaignGroupActive = computed(() => filteredCampaigns.value.filter(c => c.is_active))
+const campaignGroupArchive = computed(() => filteredCampaigns.value.filter(c => !c.is_active))
 
 const selectChartPeriod = (option) => {
   selectedChartPeriod.value = option
@@ -1213,13 +1282,18 @@ const selectedFilterChannelLabel = computed(() => selectedChannel.value)
 const selectedCampaignLabel = computed(() => {
   if (!filters.client_id) return 'Сначала проект'
   if (loadingCampaigns.value) return 'Загрузка...'
-  if (!filters.campaign_ids?.length) return 'Кампании'
-  if (filters.campaign_ids.length > 1) return `Кампании (${filters.campaign_ids.length})`
-  const found = allCampaigns.value.find((campaign) => campaign.id === filters.campaign_ids[0])
-  return found?.name || 'Кампания'
+  const ids = filters.campaign_ids
+  if (!ids?.length) return 'Кампании'
+  if (ids.length === 1) {
+    const found = allCampaigns.value.find(c => c.id === ids[0])
+    return found?.name || 'Кампания'
+  }
+  if (ids.length <= 3) {
+    const names = ids.map(id => allCampaigns.value.find(c => c.id === id)?.name).filter(Boolean)
+    return names.join(', ')
+  }
+  return `Выбрано ${ids.length} кампаний`
 })
-
-const isCampaignSelected = (campaign) => filters.campaign_ids?.includes(campaign.id)
 
 const dateRangeLabel = computed(() => {
   const format = (date) => {
@@ -6914,5 +6988,223 @@ onMounted(() => {
     top: 0.6944rem;
     right: 0.6944rem;
   }
+}
+
+/* Campaign multiselect filter */
+.campaigns-multiselect {
+  width: 22rem;
+  max-height: 26rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+}
+
+.campaigns-multiselect .search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+.campaigns-multiselect .search-box svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.campaigns-multiselect .search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  width: 100%;
+  color: inherit;
+}
+
+.cmp-mass-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.cmp-mass-btn {
+  font-size: 0.78rem;
+  color: #2563eb;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.cmp-mass-btn:hover { text-decoration: underline; }
+
+.cmp-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.3rem 0;
+}
+
+.cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cmp-row:hover { background: #f5f7fa; }
+.cmp-row--archive { opacity: 0.6; }
+
+.cmp-check {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #2563eb;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.cmp-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmp-status-dot--active { background: #22c55e; }
+.cmp-status-dot--paused { background: #f59e0b; }
+.cmp-status-dot--archive { background: #9ca3af; }
+
+.cmp-name {
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.cmp-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+  background: none;
+  border: none;
+  border-top: 1px solid #f0f0f0;
+  cursor: pointer;
+}
+.cmp-group-header:hover { color: #374151; }
+.cmp-group-chevron {
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform 0.15s;
+}
+.cmp-group-chevron--open { transform: rotate(180deg); }
+
+.cmp-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.88rem;
+}
+
+.cmp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-top: 1px solid #e5e7eb;
+}
+.cmp-footer-btn {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 0.4rem;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+.cmp-footer-btn--reset {
+  background: transparent;
+  color: #6b7280;
+}
+.cmp-footer-btn--reset:hover { color: #374151; }
+.cmp-footer-btn--apply {
+  background: #2563eb;
+  color: #fff;
+}
+.cmp-footer-btn--apply:hover { background: #1d4ed8; }
+
+.cs-head--active {
+  border-color: #2563eb !important;
+  color: #2563eb;
+}
+
+.campaign-filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1.2rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  font-size: 0.88rem;
+  color: #1e40af;
+  margin-bottom: 0.5rem;
+}
+.campaign-filter-banner__reset {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  padding: 0;
+}
+.campaign-filter-banner__reset:hover { color: #1d4ed8; }
+
+/* Dark mode for campaign multiselect */
+:global(.dark) .campaigns-multiselect,
+:global(.darkmode) .campaigns-multiselect,
+.figma-dashboard.is-dark .campaigns-multiselect {
+  background: #1f2937;
+  border-color: #374151;
+}
+:global(.dark) .campaigns-multiselect .search-box,
+:global(.darkmode) .campaigns-multiselect .search-box,
+.figma-dashboard.is-dark .campaigns-multiselect .search-box {
+  border-color: #374151;
+}
+:global(.dark) .cmp-row:hover,
+:global(.darkmode) .cmp-row:hover,
+.figma-dashboard.is-dark .cmp-row:hover {
+  background: #374151;
+}
+:global(.dark) .cmp-mass-actions,
+:global(.darkmode) .cmp-mass-actions,
+.figma-dashboard.is-dark .cmp-mass-actions {
+  border-color: #374151;
+}
+:global(.dark) .cmp-group-header,
+:global(.darkmode) .cmp-group-header,
+.figma-dashboard.is-dark .cmp-group-header {
+  color: #9ca3af;
+  border-color: #374151;
+}
+:global(.dark) .cmp-footer,
+:global(.darkmode) .cmp-footer,
+.figma-dashboard.is-dark .cmp-footer {
+  border-color: #374151;
+}
+:global(.dark) .cmp-footer-btn--reset,
+:global(.darkmode) .cmp-footer-btn--reset,
+.figma-dashboard.is-dark .cmp-footer-btn--reset {
+  color: #9ca3af;
+}
+:global(.dark) .campaign-filter-banner,
+:global(.darkmode) .campaign-filter-banner,
+.figma-dashboard.is-dark .campaign-filter-banner {
+  background: #1e3a5f;
+  border-color: #2563eb40;
+  color: #93c5fd;
 }
 </style>

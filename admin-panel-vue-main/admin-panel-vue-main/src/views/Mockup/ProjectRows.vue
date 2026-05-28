@@ -643,13 +643,15 @@ const filteredProjects = computed(() => {
   } else if (projectFilter.value === 'inactive') {
     list = list.filter((p) => !hasActiveProjectIntegration(p))
   }
-  if (!search.value.trim()) return list
-  const q = search.value.toLowerCase()
-  return list.filter(p =>
-    p.name?.toLowerCase().includes(q) ||
-    String(p.display_id || '').toLowerCase().includes(q) ||
-    String(p.id || '').toLowerCase().includes(q)
-  )
+  if (search.value.trim()) {
+    const q = search.value.toLowerCase()
+    list = list.filter(p =>
+      p.name?.toLowerCase().includes(q) ||
+      String(p.display_id || '').toLowerCase().includes(q) ||
+      String(p.id || '').toLowerCase().includes(q)
+    )
+  }
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
 })
 
 const allRowsSelected = computed(() => {
