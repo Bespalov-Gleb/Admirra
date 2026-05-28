@@ -2103,9 +2103,9 @@ onMounted(() => {
 
 .panel {
   background: #fff;
-  border: 1px solid rgba(235, 235, 235, 0.8);
-  border-radius: 1.5rem;
-  box-shadow: 0 0.8rem 2.6rem rgba(15, 23, 42, 0.025);
+  border: 1px solid #eef0f2;
+  border-radius: 1.4rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.02);
 }
 
 .top-grid {
@@ -2125,9 +2125,11 @@ onMounted(() => {
 .panel-channels h2,
 .panel-reports h2 {
   margin: 0;
-  font-size: 2rem;
-  font-weight: 500;
-  line-height: 1;
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #1e293b;
+  letter-spacing: -0.01em;
 }
 
 .chips-row {
@@ -3366,61 +3368,66 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2rem;
-  margin-top: 3rem;
+  gap: 1.6rem;
+  margin-top: 2.4rem;
 }
 
 .metric-card {
   position: relative;
-  padding: 2rem 2.4rem;
-  border-radius: 1.5rem;
+  padding: 2rem 2.2rem 1.8rem;
+  border-radius: 1.4rem;
   background: #fff;
+  border: 1px solid rgba(235, 235, 235, 0.8);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border: 2px solid transparent;
   overflow: hidden;
-  transition: border-color 0.3s, box-shadow 0.3s;
-  min-height: 12rem;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  min-height: 13rem;
+}
+.metric-card:hover {
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
 .metric-card.metric-card--add {
   background: transparent;
   border-style: dashed;
   border-color: #d1d5db;
+  box-shadow: none;
   overflow: visible;
 }
 
 .metric-card--anomaly-warning {
   border-color: #fcd34d;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 0.4rem 1rem rgba(251, 191, 36, 0.08);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 4px 12px rgba(251, 191, 36, 0.08);
 }
 .metric-card--anomaly-problem {
   border-color: #fca5a5;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0.4rem 1rem rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 4px 12px rgba(239, 68, 68, 0.08);
 }
 
 .anomaly-dot {
   position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
-  width: 0.625rem;
-  height: 0.625rem;
+  top: 1rem;
+  right: 1rem;
+  width: 0.6rem;
+  height: 0.6rem;
   border-radius: 50%;
   cursor: pointer;
-  z-index: 2;
+  z-index: 4;
   animation: anomaly-pulse 2s ease-in-out infinite;
 }
 .anomaly-dot--warning {
   background: #f59e0b;
-  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 0 2px #fff, 0 0 6px rgba(245, 158, 11, 0.4);
 }
 .anomaly-dot--problem {
   background: #ef4444;
-  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 0 2px #fff, 0 0 6px rgba(239, 68, 68, 0.4);
 }
 @keyframes anomaly-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  50% { opacity: 0.55; }
 }
 
 .detector-banner-slot {
@@ -3431,19 +3438,20 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: 1.2rem;
   width: 100%;
 }
 
 .metric-icon {
   display: grid;
   place-items: center;
-  width: 4.4rem;
-  height: 4.4rem;
-  border-radius: 1rem;
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 1.1rem;
   background: #f0f5ff;
   color: #2563eb;
   flex-shrink: 0;
+  transition: background 0.2s;
 }
 
 .metric-icon svg,
@@ -3462,10 +3470,11 @@ onMounted(() => {
 
 .metric-card h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 500;
   color: #9ca3af;
-  line-height: 1.2;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
 .metric-card p {
@@ -3487,15 +3496,16 @@ onMounted(() => {
 
 .metric-card strong {
   display: block;
-  margin-top: 0.8rem;
-  font-size: 2.2rem;
+  margin-top: 0.7rem;
+  font-size: 2.1rem;
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: #171717;
 }
 
 .metric-card .trend {
-  margin-top: 0.8rem;
+  margin-top: 0.7rem;
 }
 
 .metric-card--add {
@@ -3622,37 +3632,43 @@ onMounted(() => {
 .trend {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  height: 3.5rem;
-  padding: 0 1rem;
-  border-radius: 0.4rem;
-  background: #e5fbea;
-  color: #18b44d;
-  font-weight: 700;
+  gap: 0.4rem;
+  height: 2.6rem;
+  padding: 0 0.8rem;
+  border-radius: 0.5rem;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 1.15rem;
+  font-weight: 600;
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .trend.negative {
   background: #fef2f2;
-  color: #ef4444;
+  color: #dc2626;
 }
 
 .chart-goals-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 63.2rem;
-  gap: 2rem;
-  margin-top: 2rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.6rem;
+  margin-top: 1.6rem;
   align-items: stretch;
 }
 
 .chart-panel,
 .goals-panel {
-  min-height: 38.2rem;
-  padding: 3rem;
+  min-height: 36rem;
+  padding: 2.4rem;
 }
 
 .chart-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.goals-panel {
   display: flex;
   flex-direction: column;
 }
@@ -3705,30 +3721,31 @@ onMounted(() => {
 
 .chart-metric-chips {
   display: flex;
-  gap: 0.6rem;
-  margin-top: 1.4rem;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
   flex-wrap: wrap;
 }
 
 .chart-chip {
   display: inline-flex;
   align-items: center;
-  height: 2.8rem;
-  padding: 0 1.2rem;
+  height: 2.6rem;
+  padding: 0 1.1rem;
   border: 1px solid #e5e7eb;
-  border-radius: 2rem;
+  border-radius: 10rem;
   background: #fff;
   color: #6b7280;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   font-family: Inter, system-ui, sans-serif;
 }
 
 .chart-chip:hover {
-  border-color: #2563eb;
+  border-color: #93a8f0;
   color: #2563eb;
+  background: #f8faff;
 }
 
 .chart-chip--active {
@@ -3745,10 +3762,9 @@ onMounted(() => {
 
 .chart-area {
   position: relative;
-  height: 29rem;
-  margin-top: 1.6rem;
+  margin-top: 1.2rem;
   flex: 1;
-  min-height: 29rem;
+  min-height: 24rem;
 }
 
 .chart-area svg {
@@ -3758,8 +3774,8 @@ onMounted(() => {
 }
 
 .grid-lines line {
-  stroke: #f0f1f4;
-  stroke-width: 1;
+  stroke: #f1f3f5;
+  stroke-width: 0.8;
 }
 
 .chart-fill {
@@ -3769,7 +3785,7 @@ onMounted(() => {
 .chart-line {
   fill: none;
   stroke: #2563eb;
-  stroke-width: 2.4;
+  stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
@@ -3777,12 +3793,13 @@ onMounted(() => {
 .chart-area circle {
   fill: #2563eb;
   stroke: #fff;
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 
 .axis-labels text {
-  fill: rgba(43, 48, 52, 0.4);
-  font-size: 1.1rem;
+  fill: rgba(43, 48, 52, 0.35);
+  font-size: 1rem;
+  font-family: Inter, system-ui, sans-serif;
 }
 
 .axis-label--active {
@@ -3791,69 +3808,73 @@ onMounted(() => {
 }
 
 .chart-hover-line {
-  stroke: #2563eb;
+  stroke: #94a3b8;
   stroke-width: 1;
-  stroke-dasharray: 4 3;
-  opacity: 0.5;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
 }
 
 .chart-hover-dot {
   fill: #2563eb;
   stroke: #fff;
-  stroke-width: 2;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.25));
 }
 
 .chart-tooltip {
   position: absolute;
   z-index: 10;
-  min-width: 16rem;
-  padding: 1rem 1.2rem;
-  border-radius: 0.8rem;
+  min-width: 17rem;
+  padding: 1.1rem 1.4rem;
+  border-radius: 1rem;
   background: #1e293b;
   color: #fff;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-family: Inter, system-ui, sans-serif;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
   pointer-events: none;
   white-space: nowrap;
+  backdrop-filter: blur(8px);
 }
 
 .chart-tooltip__date {
-  font-size: 1.05rem;
-  color: rgba(255, 255, 255, 0.55);
-  margin-bottom: 0.4rem;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.5rem;
+  font-weight: 400;
 }
 
 .chart-tooltip__main {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   font-weight: 600;
   font-size: 1.2rem;
+  line-height: 1.3;
 }
 
 .chart-tooltip__dot {
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 0.65rem;
+  height: 0.65rem;
   border-radius: 50%;
-  background: #2563eb;
+  background: #60a5fa;
   flex-shrink: 0;
 }
 
 .chart-tooltip__divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.12);
-  margin: 0.6rem 0;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0.65rem 0;
 }
 
 .chart-tooltip__ctx {
-  font-size: 1.05rem;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.6;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.7;
 }
 
 .chart-tooltip__ctx strong {
-  color: #fff;
+  color: rgba(255, 255, 255, 0.95);
   font-weight: 600;
 }
 
@@ -3933,7 +3954,7 @@ onMounted(() => {
 }
 
 .goals-panel__header {
-  margin-bottom: 1.6rem;
+  margin-bottom: 0;
 }
 
 .goals-panel__header h2 {
@@ -3946,31 +3967,37 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 50%;
   background: #f1f5f9;
   color: #94a3b8;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
   font-style: italic;
   cursor: help;
   flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.goals-info-icon:hover {
+  background: #e2e8f0;
 }
 
 .goals-channel-block {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .goals-channel-header {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  padding: 1rem 0;
+  padding: 1.2rem 0;
   border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 1.2rem;
-  font-size: 1.3rem;
+  margin-bottom: 1.4rem;
+  font-size: 1.25rem;
 }
 
 .goals-channel-icon {
@@ -3981,57 +4008,59 @@ onMounted(() => {
 
 .goals-channel-expense {
   margin-left: auto;
-  color: #6b7280;
-  font-size: 1.2rem;
+  color: #94a3b8;
+  font-size: 1.15rem;
   font-weight: 500;
 }
 
 .goals-bar-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.1rem;
+  flex: 1;
 }
 
 .goals-bar-row {
   display: grid;
-  grid-template-columns: minmax(8rem, 14rem) 1fr auto auto;
+  grid-template-columns: minmax(7rem, 13rem) 1fr auto auto;
   align-items: center;
   gap: 1rem;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
 }
 
 .goals-bar-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #4b5563;
-  font-size: 1.2rem;
+  color: #374151;
+  font-size: 1.15rem;
+  font-weight: 450;
 }
 
 .goals-bar-track {
-  height: 0.7rem;
+  height: 0.6rem;
   background: #f1f5f9;
-  border-radius: 0.4rem;
+  border-radius: 10rem;
   overflow: hidden;
-  min-width: 6rem;
+  min-width: 5rem;
 }
 
 .goals-bar-fill {
   height: 100%;
-  border-radius: 0.4rem;
-  transition: width 0.4s ease;
-  min-width: 2px;
+  border-radius: 10rem;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 3px;
 }
 
 .goals-bar-count {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 600;
   color: #1e293b;
   white-space: nowrap;
 }
 
 .goals-bar-trend {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 500;
   white-space: nowrap;
   min-width: 4.5rem;
@@ -4039,68 +4068,73 @@ onMounted(() => {
 }
 
 .goals-bar-trend--up {
-  color: #16a34a;
+  color: #059669;
 }
 
 .goals-bar-trend--down {
-  color: #ef4444;
+  color: #dc2626;
 }
 
 .goals-bar-empty {
-  padding: 2rem 0;
+  padding: 3rem 0;
   text-align: center;
-  color: #9ca3af;
-  font-size: 1.2rem;
+  color: #d1d5db;
+  font-size: 1.15rem;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .goals-summary-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 1.4rem;
+  margin-top: auto;
   padding-top: 1.2rem;
   border-top: 1px solid #f1f5f9;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   color: #6b7280;
 }
 
 .goals-summary-row strong {
   color: #1e293b;
-  font-size: 1.3rem;
+  font-size: 1.25rem;
 }
 
 .goals-summary-row--accent {
-  background: #fef9c3;
-  border-radius: 0.6rem;
-  padding: 0.8rem 1rem;
-  margin-top: 1.2rem;
-  border-top: none;
-  color: #78350f;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.8rem;
+  padding: 0.9rem 1.2rem;
+  margin-top: 1.4rem;
+  border-top: 1px solid #fde68a;
+  color: #92400e;
 }
 
 .goals-summary-row--accent strong {
-  color: #92400e;
+  color: #78350f;
+  font-weight: 700;
 }
 
 .goals-total-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.6rem;
-  padding-top: 0;
-  font-size: 1.15rem;
+  margin-top: 0.7rem;
+  font-size: 1.1rem;
   color: #9ca3af;
 }
 
 .goals-total-row strong {
   color: #6b7280;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 500;
 }
 
 .campaigns-panel {
-  margin-top: 2rem;
-  padding: 3rem;
+  margin-top: 1.6rem;
+  padding: 2.4rem;
 }
 
 .see-all {
@@ -6408,12 +6442,13 @@ onMounted(() => {
 }
 
 .figma-dashboard.is-dark .goals-summary-row--accent {
-  background: rgba(250, 204, 21, 0.1);
+  background: rgba(250, 204, 21, 0.08);
+  border-color: rgba(250, 204, 21, 0.2);
   color: #fbbf24;
 }
 
 .figma-dashboard.is-dark .goals-summary-row--accent strong {
-  color: #fbbf24;
+  color: #fcd34d;
 }
 
 .figma-dashboard.is-dark .goals-total-row {
