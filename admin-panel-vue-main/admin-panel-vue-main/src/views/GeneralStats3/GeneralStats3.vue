@@ -343,8 +343,8 @@
           <svg ref="chartSvgRef" viewBox="0 0 880 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <defs>
               <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.15" />
-                <stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
+                <stop offset="0%" stop-color="#e8a95f" stop-opacity="0.18" />
+                <stop offset="100%" stop-color="#e8a95f" stop-opacity="0" />
               </linearGradient>
             </defs>
             <g class="grid-lines">
@@ -405,9 +405,13 @@
             </div>
           </div>
           <div v-else class="goals-bar-empty">Нет целей за период</div>
-          <div v-if="goalBars.length" class="goals-summary-row">
+          <div v-if="goalBars.length" class="goals-summary-row goals-summary-row--accent">
             <span>Все конверсии · общий CPL</span>
             <strong>{{ goalsSummaryCpl }}</strong>
+          </div>
+          <div v-if="goalBars.length" class="goals-total-row">
+            <span>Итого расход</span>
+            <strong>{{ formatMoney(withVat(summary?.expenses || 0)) }}</strong>
           </div>
         </div>
       </article>
@@ -4012,6 +4016,35 @@ onMounted(() => {
   font-size: 1.3rem;
 }
 
+.goals-summary-row--accent {
+  background: #fef9c3;
+  border-radius: 0.6rem;
+  padding: 0.8rem 1rem;
+  margin-top: 1.2rem;
+  border-top: none;
+  color: #78350f;
+}
+
+.goals-summary-row--accent strong {
+  color: #92400e;
+}
+
+.goals-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.6rem;
+  padding-top: 0;
+  font-size: 1.15rem;
+  color: #9ca3af;
+}
+
+.goals-total-row strong {
+  color: #6b7280;
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
 .campaigns-panel {
   margin-top: 2rem;
   padding: 3rem;
@@ -6325,6 +6358,23 @@ onMounted(() => {
 
 .figma-dashboard.is-dark .goals-summary-row strong {
   color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .goals-summary-row--accent {
+  background: rgba(250, 204, 21, 0.1);
+  color: #fbbf24;
+}
+
+.figma-dashboard.is-dark .goals-summary-row--accent strong {
+  color: #fbbf24;
+}
+
+.figma-dashboard.is-dark .goals-total-row {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.figma-dashboard.is-dark .goals-total-row strong {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* Chart responsiveness pass: keep plots readable instead of squeezing them. */
