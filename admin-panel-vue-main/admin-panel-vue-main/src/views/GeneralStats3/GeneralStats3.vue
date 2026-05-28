@@ -287,22 +287,22 @@
           :title="getMetricAnomalyTooltip(key)"
           @click.stop="handleDismissAnomaly(key)"
         ></span>
-        <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
-          <XMarkIcon />
-        </button>
-        <div class="metric-card__body">
-          <div class="metric-text">
-            <h3>{{ metricsMap[key]?.title }}</h3>
-            <strong>{{ metricsMap[key]?.value }}</strong>
-            <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
-              <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
-              <ArrowTrendingDownIcon v-else class="trend-icon" />
-              {{ metricsMap[key]?.trend }}
-            </span>
-          </div>
+        <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
           </span>
+          <div class="metric-text">
+            <h3>{{ metricsMap[key]?.title }}</h3>
+            <strong>{{ metricsMap[key]?.value }}</strong>
+          </div>
+          <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+            <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
+            <ArrowTrendingDownIcon v-else class="trend-icon" />
+            {{ metricsMap[key]?.trend }}
+          </span>
+          <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
+            <XMarkIcon />
+          </button>
         </div>
       </article>
       <div
@@ -3368,113 +3368,101 @@ onMounted(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.6rem;
+  grid-auto-rows: 10.4rem;
+  gap: 2rem;
   margin-top: 2.4rem;
 }
 
 .metric-card {
   position: relative;
-  padding: 2rem 2.2rem 1.8rem;
-  border-radius: 1.4rem;
+  padding: 2.5rem;
+  border-radius: 1.5rem;
   background: #fff;
-  border: 1px solid rgba(235, 235, 235, 0.8);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
+  border: 2px solid transparent;
   overflow: hidden;
-  transition: border-color 0.25s, box-shadow 0.25s;
-  min-height: 13rem;
-}
-.metric-card:hover {
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 .metric-card.metric-card--add {
   background: transparent;
   border-style: dashed;
   border-color: #d1d5db;
-  box-shadow: none;
   overflow: visible;
 }
 
 .metric-card--anomaly-warning {
   border-color: #fcd34d;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 4px 12px rgba(251, 191, 36, 0.08);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 0.4rem 1rem rgba(251, 191, 36, 0.08);
 }
 .metric-card--anomaly-problem {
   border-color: #fca5a5;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 4px 12px rgba(239, 68, 68, 0.08);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0.4rem 1rem rgba(239, 68, 68, 0.08);
 }
 
 .anomaly-dot {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 0.6rem;
-  height: 0.6rem;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   cursor: pointer;
-  z-index: 4;
+  z-index: 2;
   animation: anomaly-pulse 2s ease-in-out infinite;
 }
 .anomaly-dot--warning {
   background: #f59e0b;
-  box-shadow: 0 0 0 2px #fff, 0 0 6px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(245, 158, 11, 0.4);
 }
 .anomaly-dot--problem {
   background: #ef4444;
-  box-shadow: 0 0 0 2px #fff, 0 0 6px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(239, 68, 68, 0.4);
 }
 @keyframes anomaly-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+  50% { opacity: 0.6; }
 }
 
 .detector-banner-slot {
   margin-top: 2rem;
 }
 
-.metric-card__body {
+.metric-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.2rem;
+  align-items: center;
+  gap: 2rem;
   width: 100%;
 }
 
 .metric-icon {
   display: grid;
   place-items: center;
-  width: 4.2rem;
-  height: 4.2rem;
-  border-radius: 1.1rem;
-  background: #f0f5ff;
+  width: 5.2rem;
+  height: 5.2rem;
+  border-radius: 1.2rem;
+  background: #f6f6f6;
   color: #2563eb;
-  flex-shrink: 0;
-  transition: background 0.2s;
 }
 
 .metric-icon svg,
 .round-action svg,
 .ai-title svg {
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 .metric-text {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 .metric-card h3 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.3rem;
   font-weight: 500;
-  color: #9ca3af;
-  line-height: 1.3;
-  letter-spacing: 0.01em;
+  color: #ababab;
+  line-height: 1;
 }
 
 .metric-card p {
@@ -3496,16 +3484,10 @@ onMounted(() => {
 
 .metric-card strong {
   display: block;
-  margin-top: 0.7rem;
-  font-size: 2.1rem;
+  margin-top: 0.6rem;
+  font-size: 2.6rem;
   font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  color: #171717;
-}
-
-.metric-card .trend {
-  margin-top: 0.7rem;
+  line-height: 1;
 }
 
 .metric-card--add {
@@ -3585,20 +3567,17 @@ onMounted(() => {
   cursor: grabbing;
 }
 .card-delete-btn {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
   opacity: 0;
   display: grid;
   place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.6rem;
+  height: 2.6rem;
   border-radius: 50%;
   background: transparent;
   border: none;
   color: #b3b3b3;
   cursor: pointer;
-  z-index: 3;
+  flex-shrink: 0;
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .metric-card:hover .card-delete-btn {
@@ -3632,21 +3611,20 @@ onMounted(() => {
 .trend {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  height: 2.6rem;
-  padding: 0 0.8rem;
-  border-radius: 0.5rem;
-  background: #ecfdf5;
-  color: #059669;
-  font-size: 1.15rem;
-  font-weight: 600;
+  gap: 0.6rem;
+  height: 3.5rem;
+  padding: 0 1rem;
+  border-radius: 0.4rem;
+  background: #e5fbea;
+  color: #18b44d;
+  font-weight: 700;
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .trend.negative {
   background: #fef2f2;
-  color: #dc2626;
+  color: #ef4444;
 }
 
 .chart-goals-grid {
@@ -4858,6 +4836,7 @@ onMounted(() => {
 .kpi-grid {
   gap: 1.0417rem;
   margin-top: 1.7361rem;
+  grid-auto-rows: 6.1111rem;
 }
 
 .metric-card {
@@ -4865,7 +4844,6 @@ onMounted(() => {
   border-radius: 1.0417rem;
   border: 2px solid transparent;
   overflow: hidden;
-  min-height: 8.5rem;
 }
 .metric-card.metric-card--add {
   border-style: dashed;
@@ -4873,7 +4851,7 @@ onMounted(() => {
   overflow: visible;
 }
 
-.metric-card__body {
+.metric-head {
   gap: 1.1111rem;
 }
 
@@ -4890,8 +4868,14 @@ onMounted(() => {
   height: 1.25rem;
 }
 
+.metric-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .metric-card h3 {
   font-size: 0.9028rem;
+  color: #ababab;
 }
 
 .metric-card p {
