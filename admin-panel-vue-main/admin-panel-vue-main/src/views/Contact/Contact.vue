@@ -6,29 +6,26 @@
       <div class="contact-hero__bg" aria-hidden="true">
         <div class="contact-hero__blob contact-hero__blob--1"></div>
         <div class="contact-hero__blob contact-hero__blob--2"></div>
-        <div class="contact-hero__blob contact-hero__blob--3"></div>
       </div>
       <div class="contact-hero__inner">
         <div class="contact-hero__icon-wrap">
-          <!-- Lightbulb icon -->
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21h6M12 3a6 6 0 0 1 6 6c0 2.5-1.4 4.7-3.5 5.9V17a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-2.1C7.4 13.7 6 11.5 6 9a6 6 0 0 1 6-6z"/>
           </svg>
         </div>
         <div class="contact-hero__text">
           <h1 class="contact-hero__title">Что допилить?</h1>
-          <p class="contact-hero__sub">Идеи, баги, пожелания — всё это попадает напрямую в команду</p>
+          <p class="contact-hero__sub">Идеи, баги, пожелания — всё попадает напрямую в команду</p>
         </div>
-        <div class="contact-hero__stat-group">
-          <div class="contact-hero__stat">
-            <span class="contact-hero__stat-num">1 день</span>
-            <span class="contact-hero__stat-label">среднее время ответа</span>
-          </div>
-          <div class="contact-hero__stat-divider"></div>
-          <div class="contact-hero__stat">
-            <span class="contact-hero__stat-num">Лично</span>
-            <span class="contact-hero__stat-label">читаем и отвечаем</span>
-          </div>
+        <div class="contact-hero__badges">
+          <span class="contact-hero__badge">
+            <span class="contact-hero__badge-dot"></span>
+            Ответим за 1 день
+          </span>
+          <span class="contact-hero__badge">
+            <span class="contact-hero__badge-dot contact-hero__badge-dot--green"></span>
+            Идеи идут в релиз
+          </span>
         </div>
       </div>
     </div>
@@ -81,6 +78,52 @@
             />
           </div>
 
+          <!-- File attachment -->
+          <div class="contact-field">
+            <label class="contact-label">
+              Скриншоты / файлы
+              <span class="contact-label__hint">— до 5 файлов, каждый не более 5 МБ</span>
+            </label>
+            <div
+              class="contact-dropzone"
+              :class="{ 'contact-dropzone--over': isDragging }"
+              @click="triggerFileInput"
+              @dragover.prevent="isDragging = true"
+              @dragleave.prevent="isDragging = false"
+              @drop.prevent="handleDrop"
+            >
+              <input
+                ref="fileInput"
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                class="contact-dropzone__input"
+                @change="handleFileChange"
+              />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="contact-dropzone__icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span class="contact-dropzone__text">
+                Перетащите файлы или <span class="contact-dropzone__link">выберите</span>
+              </span>
+            </div>
+
+            <!-- Attached files list -->
+            <div v-if="attachedFiles.length" class="contact-files">
+              <div v-for="(file, idx) in attachedFiles" :key="idx" class="contact-file">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="contact-file__icon">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <span class="contact-file__name">{{ file.name }}</span>
+                <span class="contact-file__size">{{ formatSize(file.size) }}</span>
+                <button type="button" class="contact-file__remove" @click="removeFile(idx)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <div v-if="fileError" class="contact-file-error">{{ fileError }}</div>
+          </div>
+
           <!-- Chips -->
           <div class="contact-chips">
             <span class="contact-chips__label">Быстрый выбор:</span>
@@ -125,16 +168,16 @@
         <!-- Email -->
         <div class="contact-info-card">
           <div class="contact-info-card__icon" style="background:#eff6ff;">
-            <!-- EnvelopeIcon (heroicons solid style) -->
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#2563eb" xmlns="http://www.w3.org/2000/svg">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="#2563eb">
               <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/>
               <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/>
             </svg>
           </div>
           <div class="contact-info-card__body">
             <div class="contact-info-card__label">Электронная почта</div>
-            <a href="mailto:support@admirra.ru" class="contact-info-card__value contact-info-card__value--link">
+            <a href="mailto:support@admirra.ru" class="contact-info-card__link">
               support@admirra.ru
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </a>
           </div>
         </div>
@@ -142,15 +185,15 @@
         <!-- Telegram bot -->
         <div class="contact-info-card">
           <div class="contact-info-card__icon" style="background:#eff6ff;">
-            <!-- Telegram icon (same as dashboard) -->
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="#2563eb" xmlns="http://www.w3.org/2000/svg">
+            <svg width="19" height="19" viewBox="0 0 32 32" fill="#2563eb">
               <path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
             </svg>
           </div>
           <div class="contact-info-card__body">
-            <div class="contact-info-card__label">Telegram-бот поддержки</div>
-            <a href="https://t.me/admirra_support_bot" target="_blank" class="contact-info-card__value contact-info-card__value--link">
+            <div class="contact-info-card__label">Telegram поддержка</div>
+            <a href="https://t.me/admirra_support_bot" target="_blank" class="contact-info-card__link">
               @admirra_support_bot
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </a>
           </div>
         </div>
@@ -158,14 +201,15 @@
         <!-- Telegram direct -->
         <div class="contact-info-card">
           <div class="contact-info-card__icon" style="background:#eff6ff;">
-            <svg width="20" height="20" viewBox="0 0 32 32" fill="#2563eb" xmlns="http://www.w3.org/2000/svg">
+            <svg width="19" height="19" viewBox="0 0 32 32" fill="#2563eb">
               <path d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
             </svg>
           </div>
           <div class="contact-info-card__body">
             <div class="contact-info-card__label">Telegram напрямую</div>
-            <a href="https://t.me/adreal777" target="_blank" class="contact-info-card__value contact-info-card__value--link">
+            <a href="https://t.me/adreal777" target="_blank" class="contact-info-card__link">
               @adreal777
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </a>
           </div>
         </div>
@@ -173,8 +217,7 @@
         <!-- Working hours -->
         <div class="contact-info-card">
           <div class="contact-info-card__icon" style="background:#f0fdf4;">
-            <!-- ClockIcon outline -->
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
           </div>
@@ -190,19 +233,19 @@
           <div class="contact-promise__title">Наши обязательства</div>
           <div class="contact-promise__row">
             <div class="contact-promise__check contact-promise__check--blue">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <span>Читаем каждое сообщение</span>
           </div>
           <div class="contact-promise__row">
             <div class="contact-promise__check contact-promise__check--green">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <span>Отвечаем в течение 1 рабочего дня</span>
           </div>
           <div class="contact-promise__row">
             <div class="contact-promise__check contact-promise__check--purple">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <span>Лучшие идеи попадают в релиз</span>
           </div>
@@ -221,8 +264,55 @@ const form = ref({ subject: '', message: '', email: '' })
 const loading = ref(false)
 const successMsg = ref('')
 const errorMsg = ref('')
+const isDragging = ref(false)
+const attachedFiles = ref([])
+const fileError = ref('')
+const fileInput = ref(null)
 
 const chips = ['Новый источник данных', 'Улучшить отчёты', 'Баг / ошибка', 'Интеграция', 'Другое']
+
+const MAX_FILES = 5
+const MAX_SIZE = 5 * 1024 * 1024
+
+const formatSize = (bytes) => {
+  if (bytes < 1024) return bytes + ' Б'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' КБ'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
+}
+
+const addFiles = (newFiles) => {
+  fileError.value = ''
+  for (const f of newFiles) {
+    if (attachedFiles.value.length >= MAX_FILES) {
+      fileError.value = `Максимум ${MAX_FILES} файлов`
+      break
+    }
+    if (f.size > MAX_SIZE) {
+      fileError.value = `Файл «${f.name}» превышает 5 МБ`
+      continue
+    }
+    if (!attachedFiles.value.find(x => x.name === f.name && x.size === f.size)) {
+      attachedFiles.value.push(f)
+    }
+  }
+}
+
+const triggerFileInput = () => fileInput.value?.click()
+
+const handleFileChange = (e) => {
+  addFiles(Array.from(e.target.files || []))
+  e.target.value = ''
+}
+
+const handleDrop = (e) => {
+  isDragging.value = false
+  addFiles(Array.from(e.dataTransfer?.files || []))
+}
+
+const removeFile = (idx) => {
+  attachedFiles.value.splice(idx, 1)
+  fileError.value = ''
+}
 
 const formatApiError = (err) => {
   const d = err.response?.data?.detail
@@ -243,13 +333,17 @@ const handleSubmit = async () => {
     return
   }
   try {
-    await api.post('support/idea', {
-      subject: form.value.subject.trim(),
-      message: form.value.message.trim(),
-      email,
-    })
+    const fd = new FormData()
+    fd.append('subject', form.value.subject.trim())
+    fd.append('message', form.value.message.trim())
+    fd.append('email', email)
+    attachedFiles.value.forEach(f => fd.append('files', f))
+
+    await api.post('support/idea', fd)
     successMsg.value = 'Спасибо! Идея отправлена команде. Мы свяжемся с вами при необходимости.'
     form.value = { subject: '', message: '', email: '' }
+    attachedFiles.value = []
+    fileError.value = ''
   } catch (err) {
     errorMsg.value = formatApiError(err)
   } finally {
@@ -270,131 +364,99 @@ const handleSubmit = async () => {
 .contact-hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 45%, #3b82f6 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
   border-radius: 1.25rem;
-  padding: 2.5rem 3rem;
+  padding: 1.5rem 2.5rem;
   margin-bottom: 1.6667rem;
-  box-shadow: 0 6px 28px rgba(37, 99, 235, 0.32);
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.28);
 }
 
-.contact-hero__bg {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
+.contact-hero__bg { position: absolute; inset: 0; pointer-events: none; }
 
 .contact-hero__blob {
   position: absolute;
   border-radius: 50%;
   filter: blur(48px);
-  opacity: 0.22;
+  opacity: 0.2;
 }
 
-.contact-hero__blob--1 {
-  width: 22rem;
-  height: 22rem;
-  background: #93c5fd;
-  top: -8rem;
-  right: 6rem;
-}
-
-.contact-hero__blob--2 {
-  width: 14rem;
-  height: 14rem;
-  background: #818cf8;
-  bottom: -5rem;
-  left: 10rem;
-}
-
-.contact-hero__blob--3 {
-  width: 8rem;
-  height: 8rem;
-  background: #a5f3fc;
-  top: 1rem;
-  right: 20rem;
-  opacity: 0.18;
-}
+.contact-hero__blob--1 { width: 20rem; height: 20rem; background: #93c5fd; top: -8rem; right: 4rem; }
+.contact-hero__blob--2 { width: 12rem; height: 12rem; background: #818cf8; bottom: -5rem; left: 8rem; }
 
 .contact-hero__inner {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
 .contact-hero__icon-wrap {
   flex-shrink: 0;
-  width: 4.25rem;
-  height: 4.25rem;
-  border-radius: 1.1rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.9rem;
   background: rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.contact-hero__text {
-  flex: 1;
-  min-width: 0;
-}
+.contact-hero__text { flex: 1; min-width: 0; }
 
 .contact-hero__title {
-  font-size: 1.875rem;
+  font-size: 1.625rem;
   font-weight: 700;
   color: #fff;
   line-height: 1.15;
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.3rem;
   letter-spacing: -0.025em;
 }
 
 .contact-hero__sub {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.9167rem;
+  color: rgba(255, 255, 255, 0.75);
   margin: 0;
-  line-height: 1.5;
 }
 
-.contact-hero__stat-group {
+.contact-hero__badges {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0.9rem;
-  padding: 0.875rem 1.5rem;
-  backdrop-filter: blur(6px);
 }
 
-.contact-hero__stat {
-  display: flex;
-  flex-direction: column;
+.contact-hero__badge {
+  display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-}
-
-.contact-hero__stat-num {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-}
-
-.contact-hero__stat-label {
-  font-size: 0.7222rem;
-  color: rgba(255, 255, 255, 0.68);
+  gap: 0.4rem;
+  padding: 0.375rem 0.875rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
   white-space: nowrap;
 }
 
-.contact-hero__stat-divider {
-  width: 1px;
-  height: 2rem;
-  background: rgba(255, 255, 255, 0.25);
+.contact-hero__badge-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: #60a5fa;
+  flex-shrink: 0;
+}
+
+.contact-hero__badge-dot--green { background: #86efac; }
+
+@media (max-width: 860px) {
+  .contact-hero__badges { display: none; }
 }
 
 /* ===== Grid ===== */
@@ -407,7 +469,6 @@ const handleSubmit = async () => {
 
 @media (max-width: 900px) {
   .contact-grid { grid-template-columns: 1fr; }
-  .contact-hero__stat-group { display: none; }
 }
 
 /* ===== Form card ===== */
@@ -420,7 +481,7 @@ const handleSubmit = async () => {
 
 .contact-card__header {
   margin-bottom: 1.5rem;
-  padding-bottom: 1.25rem;
+  padding-bottom: 1.1111rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -433,13 +494,11 @@ const handleSubmit = async () => {
 
 .contact-card__desc {
   font-size: 0.875rem;
-  color: rgba(105, 105, 105, 0.7);
+  color: rgba(105, 105, 105, 0.68);
   margin: 0;
 }
 
-.contact-field {
-  margin-bottom: 1.1667rem;
-}
+.contact-field { margin-bottom: 1.1667rem; }
 
 .contact-label {
   display: block;
@@ -451,7 +510,7 @@ const handleSubmit = async () => {
 
 .contact-label__hint {
   font-weight: 400;
-  color: rgba(105, 105, 105, 0.6);
+  color: rgba(105, 105, 105, 0.58);
   margin-left: 0.25rem;
 }
 
@@ -475,10 +534,114 @@ const handleSubmit = async () => {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.contact-textarea {
-  resize: vertical;
-  min-height: 10rem;
-  line-height: 1.6;
+.contact-textarea { resize: vertical; min-height: 10rem; line-height: 1.6; }
+
+/* Dropzone */
+.contact-dropzone {
+  border: 1.5px dashed rgba(0, 0, 0, 0.14);
+  border-radius: 0.6944rem;
+  padding: 1.1111rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  background: #f8f9fb;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: none;
+}
+
+.contact-dropzone:hover,
+.contact-dropzone--over {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.contact-dropzone__input {
+  display: none;
+}
+
+.contact-dropzone__icon {
+  color: rgba(105, 105, 105, 0.5);
+  flex-shrink: 0;
+}
+
+.contact-dropzone--over .contact-dropzone__icon,
+.contact-dropzone:hover .contact-dropzone__icon {
+  color: #2563eb;
+}
+
+.contact-dropzone__text {
+  font-size: 0.8611rem;
+  color: rgba(105, 105, 105, 0.7);
+}
+
+.contact-dropzone__link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Files list */
+.contact-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3333rem;
+  margin-top: 0.5556rem;
+}
+
+.contact-file {
+  display: flex;
+  align-items: center;
+  gap: 0.4444rem;
+  padding: 0.4167rem 0.6944rem;
+  background: #f0f4ff;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+}
+
+.contact-file__icon { color: #2563eb; flex-shrink: 0; }
+
+.contact-file__name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #171717;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-file__size {
+  font-size: 0.75rem;
+  color: rgba(105, 105, 105, 0.6);
+  flex-shrink: 0;
+}
+
+.contact-file__remove {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(105, 105, 105, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.contact-file__remove:hover { background: #fecaca; color: #dc2626; }
+
+.contact-file-error {
+  margin-top: 0.3333rem;
+  font-size: 0.7917rem;
+  color: #dc2626;
+  font-weight: 500;
 }
 
 /* Chips */
@@ -487,12 +650,12 @@ const handleSubmit = async () => {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4167rem;
-  margin-bottom: 1.3889rem;
+  margin-bottom: 1.25rem;
 }
 
 .contact-chips__label {
   font-size: 0.75rem;
-  color: rgba(105, 105, 105, 0.55);
+  color: rgba(105, 105, 105, 0.52);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -508,19 +671,11 @@ const handleSubmit = async () => {
   cursor: pointer;
   transition: all 0.18s;
   white-space: nowrap;
+  font-family: inherit;
 }
 
-.contact-chip:hover {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
-}
-
-.contact-chip--active {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
-}
+.contact-chip:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+.contact-chip--active { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
 
 /* Alerts */
 .contact-alert {
@@ -535,24 +690,15 @@ const handleSubmit = async () => {
   margin-bottom: 1rem;
 }
 
-.contact-alert--success {
-  background: #f0fdf4;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-}
+.contact-alert--success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.contact-alert--error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
-.contact-alert--error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-/* Submit button */
+/* Submit */
 .contact-submit {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5556rem;
+  gap: 0.5rem;
   width: 100%;
   padding: 0.8333rem 1.5rem;
   border: none;
@@ -563,123 +709,103 @@ const handleSubmit = async () => {
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-  box-shadow: 0 4px 14px rgba(242, 91, 42, 0.32);
+  box-shadow: 0 4px 14px rgba(242, 91, 42, 0.3);
   font-family: inherit;
 }
 
-.contact-submit:hover:not(:disabled) {
-  opacity: 0.92;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(242, 91, 42, 0.4);
-}
-
+.contact-submit:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(242, 91, 42, 0.38); }
 .contact-submit:active:not(:disabled) { transform: translateY(0); }
+.contact-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.contact-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.contact-submit__spin {
-  animation: spin 0.9s linear infinite;
-}
-
+.contact-submit__spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Aside ===== */
-.contact-aside {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+.contact-aside { display: flex; flex-direction: column; gap: 0.6944rem; }
 
 /* Info cards */
 .contact-info-card {
   background: #fff;
   border-radius: 1.0417rem;
-  padding: 1.1111rem 1.3889rem;
+  padding: 1rem 1.25rem;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.8333rem;
 }
 
 .contact-info-card__icon {
   flex-shrink: 0;
-  width: 2.9167rem;
-  height: 2.9167rem;
-  border-radius: 0.75rem;
+  width: 2.6667rem;
+  height: 2.6667rem;
+  border-radius: 0.6944rem;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.contact-info-card__body {
-  flex: 1;
-  min-width: 0;
-}
+.contact-info-card__body { flex: 1; min-width: 0; }
 
 .contact-info-card__label {
-  font-size: 0.7083rem;
+  font-size: 0.6944rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(105, 105, 105, 0.55);
-  margin-bottom: 0.2222rem;
+  color: rgba(105, 105, 105, 0.52);
+  margin-bottom: 0.1667rem;
 }
 
-.contact-info-card__value {
-  font-size: 0.9167rem;
+/* Links in info cards — dark by default, blue only on hover */
+.contact-info-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9028rem;
   font-weight: 600;
-  color: #171717;
-}
-
-.contact-info-card__value--link {
-  color: #2563eb;
+  color: #1a1a2a;
   text-decoration: none;
   transition: color 0.15s;
 }
 
-.contact-info-card__value--link:hover { color: #1d4ed8; text-decoration: underline; }
+.contact-info-card__link:hover { color: #2563eb; }
+.contact-info-card__link svg { opacity: 0.35; transition: opacity 0.15s; flex-shrink: 0; }
+.contact-info-card__link:hover svg { opacity: 0.8; }
 
-.contact-info-card__sub {
-  font-size: 0.7917rem;
-  color: rgba(105, 105, 105, 0.55);
-  margin-top: 0.1111rem;
-}
+.contact-info-card__value { font-size: 0.9028rem; font-weight: 600; color: #1a1a2a; }
+.contact-info-card__sub { font-size: 0.7917rem; color: rgba(105, 105, 105, 0.52); margin-top: 0.0833rem; }
 
 /* Promise block */
 .contact-promise {
   background: #fff;
   border-radius: 1.0417rem;
-  padding: 1.25rem 1.3889rem;
+  padding: 1.1111rem 1.25rem;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
   display: flex;
   flex-direction: column;
-  gap: 0.7778rem;
+  gap: 0.6111rem;
 }
 
 .contact-promise__title {
-  font-size: 0.7083rem;
+  font-size: 0.6944rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(105, 105, 105, 0.55);
-  margin-bottom: 0.1667rem;
+  color: rgba(105, 105, 105, 0.52);
+  margin-bottom: 0.1111rem;
 }
 
 .contact-promise__row {
   display: flex;
   align-items: center;
-  gap: 0.7222rem;
-  font-size: 0.875rem;
+  gap: 0.6111rem;
+  font-size: 0.8611rem;
   color: #515151;
   font-weight: 500;
 }
 
 .contact-promise__check {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.1667rem;
+  height: 1.1667rem;
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
@@ -703,21 +829,19 @@ const handleSubmit = async () => {
 }
 
 :global(.dark) .contact-card__header,
-:global(.darkmode) .contact-card__header {
-  border-bottom-color: rgba(255,255,255,0.08);
-}
+:global(.darkmode) .contact-card__header { border-bottom-color: rgba(255,255,255,0.08); }
 
 :global(.dark) .contact-card__title,
 :global(.darkmode) .contact-card__title { color: rgba(255,255,255,0.92); }
 
 :global(.dark) .contact-card__desc,
-:global(.darkmode) .contact-card__desc { color: rgba(255,255,255,0.42); }
+:global(.darkmode) .contact-card__desc { color: rgba(255,255,255,0.4); }
 
 :global(.dark) .contact-label,
 :global(.darkmode) .contact-label { color: rgba(255,255,255,0.82); }
 
 :global(.dark) .contact-label__hint,
-:global(.darkmode) .contact-label__hint { color: rgba(255,255,255,0.38); }
+:global(.darkmode) .contact-label__hint { color: rgba(255,255,255,0.36); }
 
 :global(.dark) .contact-input,
 :global(.darkmode) .contact-input {
@@ -727,7 +851,7 @@ const handleSubmit = async () => {
 }
 
 :global(.dark) .contact-input::placeholder,
-:global(.darkmode) .contact-input::placeholder { color: rgba(255,255,255,0.32); }
+:global(.darkmode) .contact-input::placeholder { color: rgba(255,255,255,0.3); }
 
 :global(.dark) .contact-input:focus,
 :global(.darkmode) .contact-input:focus {
@@ -736,11 +860,40 @@ const handleSubmit = async () => {
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 
+:global(.dark) .contact-dropzone,
+:global(.darkmode) .contact-dropzone {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.14);
+}
+
+:global(.dark) .contact-dropzone:hover,
+:global(.darkmode) .contact-dropzone:hover,
+:global(.dark) .contact-dropzone--over,
+:global(.darkmode) .contact-dropzone--over {
+  border-color: #3b82f6;
+  background: rgba(59,130,246,0.1);
+}
+
+:global(.dark) .contact-dropzone__text,
+:global(.darkmode) .contact-dropzone__text { color: rgba(255,255,255,0.45); }
+
+:global(.dark) .contact-file,
+:global(.darkmode) .contact-file {
+  background: rgba(59,130,246,0.1);
+  border-color: rgba(59,130,246,0.2);
+}
+
+:global(.dark) .contact-file__name,
+:global(.darkmode) .contact-file__name { color: rgba(255,255,255,0.88); }
+
+:global(.dark) .contact-file__size,
+:global(.darkmode) .contact-file__size { color: rgba(255,255,255,0.38); }
+
 :global(.dark) .contact-chip,
 :global(.darkmode) .contact-chip {
   background: rgba(255,255,255,0.07);
   border-color: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.62);
+  color: rgba(255,255,255,0.6);
 }
 
 :global(.dark) .contact-chip:hover,
@@ -753,35 +906,37 @@ const handleSubmit = async () => {
 }
 
 :global(.dark) .contact-chips__label,
-:global(.darkmode) .contact-chips__label { color: rgba(255,255,255,0.32); }
+:global(.darkmode) .contact-chips__label { color: rgba(255,255,255,0.3); }
 
 :global(.dark) .contact-info-card__label,
 :global(.darkmode) .contact-info-card__label { color: rgba(255,255,255,0.38); }
 
+:global(.dark) .contact-info-card__link,
+:global(.darkmode) .contact-info-card__link { color: rgba(255,255,255,0.88); }
+
+:global(.dark) .contact-info-card__link:hover,
+:global(.darkmode) .contact-info-card__link:hover { color: #60a5fa; }
+
 :global(.dark) .contact-info-card__value,
-:global(.darkmode) .contact-info-card__value { color: rgba(255,255,255,0.9); }
+:global(.darkmode) .contact-info-card__value { color: rgba(255,255,255,0.88); }
 
 :global(.dark) .contact-info-card__sub,
 :global(.darkmode) .contact-info-card__sub { color: rgba(255,255,255,0.38); }
 
 :global(.dark) .contact-promise__title,
-:global(.darkmode) .contact-promise__title { color: rgba(255,255,255,0.38); }
+:global(.darkmode) .contact-promise__title { color: rgba(255,255,255,0.36); }
 
 :global(.dark) .contact-promise__row,
 :global(.darkmode) .contact-promise__row { color: rgba(255,255,255,0.72); }
 
 :global(.dark) .contact-alert--success,
 :global(.darkmode) .contact-alert--success {
-  background: rgba(34,197,94,0.12);
-  color: #86efac;
-  border-color: rgba(34,197,94,0.25);
+  background: rgba(34,197,94,0.12); color: #86efac; border-color: rgba(34,197,94,0.25);
 }
 
 :global(.dark) .contact-alert--error,
 :global(.darkmode) .contact-alert--error {
-  background: rgba(248,113,113,0.12);
-  color: #fca5a5;
-  border-color: rgba(248,113,113,0.25);
+  background: rgba(248,113,113,0.12); color: #fca5a5; border-color: rgba(248,113,113,0.25);
 }
 
 :global(.dark) .contact-info-card__icon[style*='background:#eff6ff'],
