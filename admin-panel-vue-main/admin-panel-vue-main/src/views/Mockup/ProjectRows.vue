@@ -85,7 +85,19 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-[0.6944rem]">
+      <div class="flex items-center gap-[1.1rem]">
+        <label class="tile-nds-check-wrap">
+          <input type="checkbox" v-model="includeVat" class="tile-nds-checkbox" />
+          <span class="tile-nds-label">С НДС 22%</span>
+        </label>
+
+        <button class="tile-sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncProjects">
+          <svg :class="{ spinning: syncingIntegrations }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизировать' }}
+        </button>
+
         <button type="button" class="bulk-btn" @click="openMassEdit">
           <span>Массовое редактирование</span>
           <span class="bulk-btn__icon">
@@ -889,9 +901,34 @@ const platformIcon = (platform) => platform === 'VK' ? '/admirra/img/icons/vk-ad
 const platformLabel = (platform) => platform === 'VK' ? 'VK Ads' : 'Yandex Direct'
 
 const VAT_RATE = 1.22
+const includeVat = ref(true)
+const syncingIntegrations = ref(false)
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
-const withVat = (num) => (Number(num) || 0) * VAT_RATE
+const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
+
+const handleSyncProjects = async () => {
+  if (syncingIntegrations.value) return
+  const integrations = projects.value.flatMap((project) => project.integrations || [])
+  const uniqueIntegrations = Array.from(
+    new Map(integrations.filter((i) => i?.id).map((i) => [i.id, i])).values()
+  )
+  if (!uniqueIntegrations.length) {
+    toaster.info('Нет подключённых каналов для синхронизации.')
+    return
+  }
+  syncingIntegrations.value = true
+  try {
+    await Promise.all(uniqueIntegrations.map((i) => api.post(`integrations/${i.id}/sync`, { days: 90 })))
+    toaster.success(`Синхронизация запущена для ${uniqueIntegrations.length} ${uniqueIntegrations.length === 1 ? 'канала' : 'каналов'}.`)
+    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject()])
+  } catch (err) {
+    console.error(err)
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию.')
+  } finally {
+    syncingIntegrations.value = false
+  }
+}
 
 const trendText = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
@@ -1427,6 +1464,69 @@ onUnmounted(() => {
   border-radius: 50%;
   transform: translateY(-50%);
   pointer-events: none;
+}
+
+.tile-nds-check-wrap,
+.tile-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 3.1944rem;
+  border-radius: 1.0417rem;
+  white-space: nowrap;
+}
+
+.tile-nds-check-wrap {
+  gap: 0.5556rem;
+  padding: 0.5556rem 0.2778rem;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.58);
+  cursor: pointer;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  user-select: none;
+}
+
+.tile-nds-checkbox {
+  width: 1.0417rem;
+  height: 1.0417rem;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.tile-nds-label {
+  line-height: 1;
+}
+
+.tile-sync-btn {
+  gap: 0.4rem;
+  padding: 0.5556rem 0.8rem;
+  border: none;
+  border-radius: 1.0417rem;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.62);
+  cursor: pointer;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.tile-sync-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.04);
+  color: rgba(105, 105, 105, 0.82);
+}
+
+.tile-sync-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.spinning {
+  animation: rows-spin 0.9s linear infinite;
+}
+
+@keyframes rows-spin {
+  to { transform: rotate(360deg); }
 }
 
 .bulk-btn {
