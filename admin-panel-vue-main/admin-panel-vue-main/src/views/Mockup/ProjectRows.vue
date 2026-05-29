@@ -1,10 +1,13 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-visible px-[1.7361rem] py-[2.0833rem]">
-    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
-      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
-    </div>
+  <div class="flex flex-col h-full">
 
-    <div class="sticky top-0 z-[10] bg-[#F4F6F8] dark:bg-[#232637] mb-[2.0833rem] flex flex-wrap items-center justify-between gap-[0.6944rem] py-[0.5rem]">
+    <!-- Fixed header: title + toolbar always visible -->
+    <div class="flex-shrink-0 bg-[#F4F6F8] dark:bg-[#232637] px-[1.7361rem] pt-[2.0833rem] z-[2]">
+      <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+        <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
+      </div>
+
+      <div class="mb-[1.25rem] flex flex-wrap items-center justify-between gap-[0.6944rem] py-[0.5rem]">
       <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <div class="custom-select" :class="{ open: openSelect === 'project' }" v-click-outside="() => closeSelect('project')">
           <button type="button" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('project')">
@@ -110,6 +113,11 @@
         </div>
       </div>
     </div>
+
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="flex-1 overflow-y-auto px-[1.7361rem] pb-[2.0833rem]">
 
     <!-- Loading -->
     <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
@@ -321,6 +329,8 @@
         </div>
       </div>
     </div>
+
+    </div><!-- end scrollable -->
 
     <div
       v-if="activeActionProject"
