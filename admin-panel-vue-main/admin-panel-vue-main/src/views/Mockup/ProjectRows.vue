@@ -267,6 +267,42 @@
                 </button>
               </td>
             </tr>
+            <!-- placeholder rows for scroll test -->
+            <tr v-for="n in 10" :key="`ph-${n}`" class="pointer-events-none select-none">
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="ml-[1.0417rem] h-5 w-5 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
+              </td>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="flex items-center gap-3">
+                  <div class="h-10 w-10 rounded-full bg-[#f0f1f3] dark:bg-white/8 flex-shrink-0"></div>
+                  <div class="flex flex-col gap-2">
+                    <div class="h-[0.75rem] rounded bg-[#f0f1f3] dark:bg-white/8" :style="{ width: `${80 + (n * 19) % 60}px` }"></div>
+                    <div class="h-[0.625rem] w-14 rounded bg-[#f0f1f3] dark:bg-white/5"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="flex gap-1.5">
+                  <div class="h-[1.375rem] w-[1.375rem] rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
+                  <div v-if="n % 3 !== 0" class="h-[1.375rem] w-[1.375rem] rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
+                </div>
+              </td>
+              <td v-for="col in 8" :key="col" class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="flex flex-col gap-1.5">
+                  <div class="h-[0.75rem] rounded bg-[#f0f1f3] dark:bg-white/8" :style="{ width: `${36 + (col * 11 + n * 7) % 28}px` }"></div>
+                  <div class="h-[0.625rem] w-8 rounded bg-[#f0f1f3] dark:bg-white/5"></div>
+                </div>
+              </td>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="h-7 w-20 rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
+              </td>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="h-[0.75rem] w-16 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
+              </td>
+              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
+                <div class="h-[0.625rem] w-8 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
