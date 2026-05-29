@@ -1,10 +1,14 @@
 <template>
   <div class="flex flex-col flex-1 min-h-0">
 
-    <!-- Fixed header: title + toolbar always visible -->
-    <div class="flex-shrink-0 bg-[#F4F6F8] dark:bg-[#232637] px-[1.7361rem] py-[0.75rem] z-[20] border-b border-black/[0.04] dark:border-white/[0.06]">
+    <!-- Scrollable area: title scrolls, toolbar sticks at top -->
+    <div class="flex-1 min-h-0 overflow-y-auto pb-[2.0833rem]">
 
-      <div class="flex flex-wrap items-center justify-between gap-[0.6944rem]">
+      <div class="px-[1.7361rem] pt-[2.0833rem] pb-[0.6944rem]">
+        <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
+      </div>
+
+      <div class="rows-toolbar">
       <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <div class="custom-select" :class="{ open: openSelect === 'project' }" v-click-outside="() => closeSelect('project')">
           <button type="button" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('project')">
@@ -111,14 +115,7 @@
       </div>
     </div>
 
-    </div>
-
-    <!-- Scrollable content area -->
-    <div class="flex-1 min-h-0 overflow-y-auto px-[1.7361rem] pb-[2.0833rem]">
-
-      <div class="pt-[2.0833rem] pb-[0.6944rem]">
-        <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
-      </div>
+    <div class="px-[1.7361rem]">
 
     <!-- Loading -->
     <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
@@ -366,6 +363,8 @@
         </div>
       </div>
     </div>
+
+    </div><!-- end px-wrapper -->
 
     </div><!-- end scrollable -->
 
@@ -1185,6 +1184,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.rows-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6944rem;
+  padding: 0.75rem 1.7361rem;
+  margin-bottom: 1.25rem;
+  background: rgba(244, 246, 248, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+:global(.dark) .rows-toolbar {
+  background: rgba(35, 38, 55, 0.97);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
 .custom-select {
   position: relative;
   display: inline-flex;
