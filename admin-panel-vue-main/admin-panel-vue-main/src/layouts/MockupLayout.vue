@@ -8,7 +8,7 @@
       <header class="flex-shrink-0">
         <Header />
       </header>
-      <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637]">
+      <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637] flex flex-col">
         <slot />
       </main>
     </div>

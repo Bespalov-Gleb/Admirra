@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col flex-1 min-h-0">
 
     <!-- Fixed header: title + toolbar always visible -->
     <div class="flex-shrink-0 bg-[#F4F6F8] dark:bg-[#232637] px-[1.7361rem] pt-[2.0833rem] z-[2]">
@@ -117,7 +117,7 @@
     </div>
 
     <!-- Scrollable content -->
-    <div class="flex-1 overflow-y-auto px-[1.7361rem] pb-[2.0833rem]">
+    <div class="flex-1 min-h-0 overflow-y-auto px-[1.7361rem] pb-[2.0833rem]">
 
     <!-- Loading -->
     <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
