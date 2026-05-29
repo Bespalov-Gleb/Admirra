@@ -52,7 +52,7 @@
           <!-- Section label -->
           <div
             v-if="item.sectionLabel && !isCollapsed"
-            :class="['px-[0.9722rem] text-[0.7639rem] font-normal text-[#b0b0b0] dark:text-white/30', menuItems.indexOf(item) === 0 ? 'pb-[0.2083rem]' : 'pt-[0.9722rem] pb-[0.2083rem]']"
+            :class="['px-[0.9722rem] text-[0.7639rem] font-medium text-[#b0b0b0] dark:text-white/30', menuItems.indexOf(item) === 0 ? 'pb-[0.2083rem]' : 'pt-[0.9722rem] pb-[0.2083rem]']"
           >{{ item.sectionLabel }}</div>
 
           <!-- Item with submenu -->
@@ -82,7 +82,7 @@
                 </span>
                 <template v-if="!isCollapsed">
                   <span
-                    class="flex-1 text-[0.9722rem] font-semibold leading-none transition-colors duration-500"
+                    class="flex-1 text-[0.9722rem] font-bold leading-none transition-colors duration-500"
                     :class="isSubmenuActive(item) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                   >{{ item.name }}</span>
                   <!-- Arrow -->
@@ -158,7 +158,7 @@
                 </span>
                 <span
                   v-if="!isCollapsed"
-                  class="flex-1 text-[0.9722rem] font-semibold leading-none transition-colors duration-500"
+                  class="flex-1 text-[0.9722rem] font-bold leading-none transition-colors duration-500"
                   :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                 >{{ item.name }}</span>
               </button>
@@ -203,7 +203,7 @@
               </span>
               <span
                 v-if="!isCollapsed"
-                class="flex-1 text-[0.9722rem] font-semibold leading-none transition-colors duration-500"
+                class="flex-1 text-[0.9722rem] font-bold leading-none transition-colors duration-500"
                 :class="link.path && isActive(link.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
               >{{ link.name }}</span>
             </button>
