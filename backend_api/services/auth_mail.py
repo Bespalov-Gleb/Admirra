@@ -39,7 +39,13 @@ def is_configured() -> bool:
     return bool(host and from_addr)
 
 
-def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[str] = None) -> bool:
+def _send_sync(
+    to_email: str,
+    subject: str,
+    body_text: str,
+    reply_to: Optional[str] = None,
+    attachments: Optional[list] = None,
+) -> bool:
     if not smtp_enabled():
         logger.warning("Auth email skipped: SMTP_ENABLED=false")
         return False
@@ -54,6 +60,13 @@ def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[s
     if reply_to:
         msg["Reply-To"] = reply_to
     msg.set_content(body_text)
+    if attachments:
+        for filename, content_type, data in attachments:
+            if "/" in (content_type or ""):
+                maintype, subtype = content_type.split("/", 1)
+            else:
+                maintype, subtype = "application", "octet-stream"
+            msg.add_attachment(data, maintype=maintype, subtype=subtype, filename=filename)
     with smtplib.SMTP(host, port, timeout=15) as server:
         if use_tls:
             server.starttls()
@@ -125,22 +138,31 @@ async def send_support_idea_email(
     subject: str,
     message: str,
     sender_email: str,
+    attachments: Optional[list] = None,
 ) -> bool:
     """Письмо команде с формы обратной связи; Reply-To — email отправителя для ответа в почтовом клиенте."""
     safe_subject = (subject or "").strip()[:500] or "Без темы"
     text = (message or "").strip()
     if len(text) > 20000:
         text = text[:20000] + "\n\n[…текст обрезан]"
+    attach_note = ""
+    if attachments:
+        names = ", ".join(fn for fn, _, _ in attachments)
+        attach_note = f"\nВложения ({len(attachments)}): {names}\n"
     body = (
-        "Обращение с формы «Предложить идея» (AdMirra).\n\n"
+        "Обращение с формы «Что допилить?» (AdMirra).\n\n"
         f"Тема: {safe_subject}\n"
-        f"Контактный email: {sender_email}\n\n"
+        f"Контактный email: {sender_email}\n"
+        f"{attach_note}\n"
         "Сообщение:\n"
         f"{text}\n"
     )
     subject_line = f"[AdMirra] Идея: {safe_subject}"[:998]
     try:
-        return await asyncio.to_thread(_send_sync, inbox_to, subject_line, body, reply_to=sender_email)
+        return await asyncio.to_thread(
+            _send_sync, inbox_to, subject_line, body,
+            reply_to=sender_email, attachments=attachments or [],
+        )
     except Exception as e:
         logger.exception("send_support_idea_email failed: %s", e)
         return False
