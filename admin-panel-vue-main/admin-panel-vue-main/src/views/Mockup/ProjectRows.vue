@@ -4,7 +4,7 @@
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
     </div>
 
-    <div class="sticky top-0 z-[10] bg-[#F3F4F8] dark:bg-[#1a1c2a] mb-[2.0833rem] flex flex-wrap items-center justify-between gap-[0.6944rem] py-[0.5rem]">
+    <div class="sticky top-0 z-[10] bg-[#F4F6F8] dark:bg-[#232637] mb-[2.0833rem] flex flex-wrap items-center justify-between gap-[0.6944rem] py-[0.5rem]">
       <div class="flex flex-wrap items-center gap-[0.6944rem]">
         <div class="custom-select" :class="{ open: openSelect === 'project' }" v-click-outside="() => closeSelect('project')">
           <button type="button" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" @click="toggleSelect('project')">
