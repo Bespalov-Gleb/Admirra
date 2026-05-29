@@ -52,7 +52,7 @@
           <!-- Section label -->
           <div
             v-if="item.sectionLabel && !isCollapsed"
-            :class="['px-[0.9722rem] text-[0.7639rem] font-semibold text-[#b0b0b0] dark:text-white/30', menuItems.indexOf(item) === 0 ? 'pb-[0.2083rem]' : 'pt-[0.9722rem] pb-[0.2083rem]']"
+            :class="['px-[0.9722rem] text-[0.8333rem] font-semibold tracking-wide text-[#999] dark:text-white/38', menuItems.indexOf(item) === 0 ? 'pb-[0.2083rem]' : 'pt-[0.9722rem] pb-[0.2083rem]']"
           >{{ item.sectionLabel }}</div>
 
           <!-- Item with submenu -->
