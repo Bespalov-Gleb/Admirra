@@ -99,37 +99,10 @@
           class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[1360px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
-            Добавить новый проект
+            Добавить проект
             <span class="relative inline-flex h-[0.9722rem] w-[0.9722rem] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[1.0417rem] 2xl:w-[1.0417rem]">
               <span class="absolute left-1/2 top-1/2 h-px w-[0.3472rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
               <span class="absolute left-1/2 top-1/2 h-[0.3472rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
-            </span>
-          </span>
-        </button>
-
-        <!-- "Предложить идею" (lg+) -->
-        <button
-          @click="router.push('/contact')"
-          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-medium leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#38e1ff_0.35%,#4abeff_32.08%,#5187ff_96.51%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] 2xl:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
-        >
-          <span class="relative z-[1] flex items-center gap-1.5 2xl:gap-2.5">
-            Предложить идею
-            <svg class="h-3.5 w-3.5 fill-white 2xl:h-4 2xl:w-4" viewBox="0 0 24 24">
-              <use href="/admirra/img/svg/sprite.svg#idea"></use>
-            </svg>
-          </span>
-        </button>
-
-        <!-- Upgrade button (xxxl only = 2xl+) -->
-        <button
-          @click="router.push('/tariffs')"
-          class="hidden min-h-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#2563eb] px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none text-white transition-all duration-500 hover:scale-[1.03] hover:bg-[#5187ff] active:scale-[0.97] 2xl:flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
-        >
-          <span class="flex items-center gap-1.5 2xl:gap-2.5">
-            Перейти на тариф Старт
-            <span class="relative inline-flex h-[1.0417rem] w-[1.0417rem] flex-shrink-0 items-center justify-center rounded-full bg-black/20">
-              <span class="absolute left-1/2 top-1/2 h-px w-[0.3819rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
-              <span class="absolute left-1/2 top-1/2 h-[0.3819rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
             </span>
           </span>
         </button>

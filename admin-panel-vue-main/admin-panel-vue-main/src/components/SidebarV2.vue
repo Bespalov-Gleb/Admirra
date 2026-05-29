@@ -49,6 +49,12 @@
       <nav class="px-[0.7639rem] space-y-[0.6944rem]">
         <div v-for="item in menuItems" :key="item.name" class="relative">
 
+          <!-- Section label -->
+          <div
+            v-if="item.sectionLabel && !isCollapsed"
+            :class="['px-[0.9722rem] text-[0.7639rem] font-medium text-[#696969]/56 dark:text-white/45', menuItems.indexOf(item) === 0 ? 'pb-[0.3472rem]' : 'pt-[0.6944rem] pb-[0.3472rem]']"
+          >{{ item.sectionLabel }}</div>
+
           <!-- Item with submenu -->
           <template v-if="item.children">
             <div class="relative">
@@ -228,6 +234,9 @@ import {
   UserGroupIcon,
   RectangleStackIcon,
   CreditCardIcon,
+  SparklesIcon,
+  LightBulbIcon,
+  LinkIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -240,7 +249,7 @@ const { logout } = useAuth()
 
 const route = useRoute()
 const router = useRouter()
-const isDashboardSubmenuOpen = ref(false)
+const isAISubmenuOpen = ref(false)
 const showLogoutModal = ref(false)
 
 const logoSrc = computed(() => {
@@ -248,33 +257,29 @@ const logoSrc = computed(() => {
   return isDarkMode.value ? '/admirra/img/logo-white.png' : '/admirra/img/logo.png'
 })
 
-const menuItems = computed(() => {
-  const items = [
-    {
-      name: 'Аналитика',
-      icon: Squares2X2Icon,
-      submenuKey: 'dashboard',
-      children: [
-        { name: 'Аналитика проекта', path: '/dashboard/general-3' },
-        { name: 'AI отчет по проекту', path: '/ai-analysis' },
-      ]
-    },
-    { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon },
-    { name: 'Интеграции', path: '/integrations', icon: RectangleStackIcon },
-  ]
-
-  items.push(
-    { name: 'Команда', path: '/team', icon: UserGroupIcon },
-    { name: 'История', path: '/history', icon: ClockIcon },
-    { name: 'Тарифы', path: '/tariffs', icon: CreditCardIcon },
-    { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
-  )
-
-  return items
-})
+const menuItems = computed(() => [
+  { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon, sectionLabel: 'Работа' },
+  { name: 'Аналитика', path: '/dashboard/general-3', icon: Squares2X2Icon },
+  {
+    name: 'AI анализ',
+    icon: SparklesIcon,
+    submenuKey: 'ai',
+    children: [
+      { name: 'Ассистент', path: '/ai-analysis' },
+      { name: 'Аудит', path: '/ai-audit' },
+      { name: 'Отчёты', path: '/reports' },
+    ],
+  },
+  { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
+  { name: 'Команда', path: '/team', icon: UserGroupIcon },
+  { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
+  { name: 'Тарифы', path: '/tariffs', icon: CreditCardIcon },
+  { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
+])
 
 const bottomLinks = computed(() => [
-  { name: 'Поддержка', path: '/contact', icon: ComputerDesktopIcon },
+  { name: 'Что допилить?', path: '/contact', icon: LightBulbIcon },
+  { name: 'Поддержка', path: '/support', icon: ComputerDesktopIcon },
 ])
 
 const isActive = (path) => {
@@ -288,7 +293,7 @@ const isSubmenuActive = (item) => {
 }
 
 const isSubmenuOpenForKey = (key) => {
-  if (key === 'dashboard') return isDashboardSubmenuOpen.value
+  if (key === 'ai') return isAISubmenuOpen.value
   return false
 }
 
@@ -296,16 +301,16 @@ const toggleSubmenu = (key) => {
   if (isCollapsed.value) {
     toggleCollapse()
     setTimeout(() => {
-      if (key === 'dashboard') isDashboardSubmenuOpen.value = true
+      if (key === 'ai') isAISubmenuOpen.value = true
     }, 100)
   } else {
-    if (key === 'dashboard') isDashboardSubmenuOpen.value = !isDashboardSubmenuOpen.value
+    if (key === 'ai') isAISubmenuOpen.value = !isAISubmenuOpen.value
   }
 }
 
 watch(() => route?.path, (path) => {
-  if (path?.startsWith('/dashboard')) {
-    isDashboardSubmenuOpen.value = true
+  if (path?.startsWith('/ai-') || path === '/reports') {
+    isAISubmenuOpen.value = true
   }
 }, { immediate: true })
 
@@ -317,7 +322,7 @@ const handleLinkClick = (path) => {
 const handleToggleCollapse = () => {
   toggleCollapse()
   if (isCollapsed.value) {
-    isDashboardSubmenuOpen.value = false
+    isAISubmenuOpen.value = false
   }
 }
 
