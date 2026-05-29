@@ -46,13 +46,13 @@
 
     <!-- Main navigation -->
     <div class="flex-1 overflow-y-auto scrollbar-hide py-[1.0417rem]">
-      <nav class="px-[0.7639rem] space-y-[0.6944rem]">
+      <nav class="px-[0.7639rem] space-y-[0.1389rem]">
         <div v-for="item in menuItems" :key="item.name" class="relative">
 
           <!-- Section label -->
           <div
             v-if="item.sectionLabel && !isCollapsed"
-            :class="['px-[0.9722rem] text-[0.7639rem] font-medium text-[#696969]/56 dark:text-white/45', menuItems.indexOf(item) === 0 ? 'pb-[0.3472rem]' : 'pt-[0.6944rem] pb-[0.3472rem]']"
+            :class="['px-[0.9722rem] text-[0.7639rem] font-normal text-[#b0b0b0] dark:text-white/30', menuItems.indexOf(item) === 0 ? 'pb-[0.2083rem]' : 'pt-[0.9722rem] pb-[0.2083rem]']"
           >{{ item.sectionLabel }}</div>
 
           <!-- Item with submenu -->
@@ -178,7 +178,7 @@
     <!-- Bottom: separator + support + logout -->
     <div class="flex-shrink-0 pb-4">
       <hr class="mx-[0.7639rem] border-black/5 dark:border-white/10 my-2" />
-      <nav class="px-[0.7639rem] space-y-[0.6944rem]">
+      <nav class="px-[0.7639rem] space-y-[0.1389rem]">
         <div v-for="link in bottomLinks" :key="link.name">
           <div class="relative">
             <div
