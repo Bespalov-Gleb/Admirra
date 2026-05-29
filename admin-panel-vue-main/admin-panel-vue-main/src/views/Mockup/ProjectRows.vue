@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col flex-1 min-h-0">
+  <div class="relative z-[2] flex flex-col">
 
-    <!-- Fixed header: title + toolbar always visible -->
-    <div class="flex-shrink-0 bg-[#F4F6F8] dark:bg-[#232637] px-[1.7361rem] pt-[2.0833rem] z-[2]">
+    <!-- Sticky header: title + toolbar always visible -->
+    <div class="sticky top-0 z-[20] bg-[#F4F6F8] dark:bg-[#232637] px-[1.7361rem] pt-[2.0833rem]">
       <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
         <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
       </div>
@@ -116,8 +116,8 @@
 
     </div>
 
-    <!-- Scrollable content -->
-    <div class="flex-1 min-h-0 overflow-y-auto px-[1.7361rem] pb-[2.0833rem]">
+    <!-- Content scrolled by <main> -->
+    <div class="px-[1.7361rem] pb-[2.0833rem]">
 
     <!-- Loading -->
     <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
