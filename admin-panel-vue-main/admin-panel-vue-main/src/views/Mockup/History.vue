@@ -1,6 +1,6 @@
 <template>
   <div
-    class="relative z-[2] flex min-h-full flex-col overflow-hidden px-4 py-6 sm:px-[1.7361rem] sm:py-[2.0833rem]"
+    class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-4 py-6 sm:px-[1.7361rem] sm:py-[2.0833rem]"
     @click="closeAllMenus"
   >
     <!-- Heading -->
