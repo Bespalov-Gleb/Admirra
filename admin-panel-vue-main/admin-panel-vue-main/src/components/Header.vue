@@ -96,7 +96,7 @@
         <!-- Add project -->
         <button
           @click="router.push('/projects/create')"
-          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[0.625rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[1360px]:inline-flex 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[1.25rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[1360px]:inline-flex 2xl:px-[1.6667rem] 2xl:text-[0.9028rem]"
         >
           <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
             Добавить проект

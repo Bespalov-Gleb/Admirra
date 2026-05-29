@@ -327,11 +327,8 @@ const handleToggleCollapse = () => {
 }
 
 const handleBrandClick = () => {
-  if (isMobileViewport.value) {
-    if (!isMobileMenuOpen.value) toggleMobileMenu()
-  } else {
-    if (isCollapsed.value) toggleCollapse()
-  }
+  router.push('/project-card')
+  if (isMobileViewport.value) closeMobileMenu()
 }
 
 function handleLogoutClick() {

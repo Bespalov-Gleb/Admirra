@@ -192,7 +192,7 @@
                 class="psm-toggle"
                 role="switch"
                 :aria-checked="form.detector_enabled"
-                @click="handleDetectorToggle"
+                @click.stop="handleDetectorToggle"
               >
                 <span class="psm-toggle__track" :class="{ 'psm-toggle__track--on': form.detector_enabled }">
                   <span class="psm-toggle__thumb" :class="{ 'psm-toggle__thumb--on': form.detector_enabled }"></span>
@@ -712,17 +712,29 @@ async function loadGoals() {
   const integrations = props.project?.integrations || []
   const rows = []
 
+  const goalNameCache = {}
+  await Promise.all(integrations.map(async (intg) => {
+    try {
+      const { data } = await api.get(`integrations/${intg.id}/goals`)
+      const goals = Array.isArray(data) ? data : data?.goals || []
+      for (const g of goals) {
+        goalNameCache[`${intg.id}-${g.id}`] = g.name || g.goal_name || null
+      }
+    } catch { /* ignore — will fall back to ID */ }
+  }))
+
   for (const intg of integrations) {
     const platform = String(intg.platform || '').toUpperCase()
     const goals = normalizeSelectedGoals(intg.selected_goals)
 
     for (const g of goals) {
+      const gid = g.id || g
       rows.push({
-        id: `${intg.id}-${g.id || g}`,
+        id: `${intg.id}-${gid}`,
         integrationId: intg.id,
-        goalId: g.id || g,
+        goalId: gid,
         platform: intg.platform,
-        name: g.name || g.goal_name || `Цель ${g.id || g}`,
+        name: g.name || g.goal_name || goalNameCache[`${intg.id}-${gid}`] || `Цель ${gid}`,
         hint: '',
         targetCpa: '',
         controlEnabled: false,
