@@ -1144,20 +1144,39 @@ const detectorBadge = (project) => {
   }
 }
 
+let _mainEl = null
+
+function _lockMain() {
+  _mainEl = _mainEl || document.querySelector('main')
+  if (!_mainEl) return
+  // Reset first so getBoundingClientRect gives the natural flex height
+  _mainEl.style.height = ''
+  _mainEl.style.overflowY = ''
+  const h = _mainEl.getBoundingClientRect().height
+  // Pin explicit pixel height so flex-1 children can resolve against it
+  _mainEl.style.height = h + 'px'
+  _mainEl.style.overflowY = 'hidden'
+}
+
+function _unlockMain() {
+  if (!_mainEl) return
+  _mainEl.style.height = ''
+  _mainEl.style.overflowY = ''
+  _mainEl = null
+}
+
 onMounted(async () => {
   document.addEventListener('click', closeActionMenu)
-  // Lock <main> vertical scroll so the inner content div is the only scroll container
-  const main = document.querySelector('main')
-  if (main) main.style.overflowY = 'hidden'
+  _lockMain()
+  window.addEventListener('resize', _lockMain)
   await fetchProjects()
   await Promise.all([loadProjectMetrics(), fetchCrossProject()])
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeActionMenu)
-  // Restore <main> scroll for other pages
-  const main = document.querySelector('main')
-  if (main) main.style.overflowY = ''
+  window.removeEventListener('resize', _lockMain)
+  _unlockMain()
 })
 </script>
 
