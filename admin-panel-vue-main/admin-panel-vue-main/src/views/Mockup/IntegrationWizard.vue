@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
     <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Новая интеграция</h3>
       <p class="mt-[0.5556rem] text-[1.0417rem] font-medium leading-[1.35] text-[rgba(105,105,105,0.56)] dark:text-white/55">Добавление рекламного канала</p>

@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
     <div v-if="loading" class="flex justify-center py-24 text-[rgba(105,105,105,0.56)] text-sm font-medium dark:text-white/55">
       Загрузка тарифов…
     </div>

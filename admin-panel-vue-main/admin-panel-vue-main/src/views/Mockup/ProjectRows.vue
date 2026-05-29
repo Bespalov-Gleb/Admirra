@@ -1,8 +1,5 @@
 <template>
-  <div class="flex flex-col flex-1 min-h-0">
-
-    <!-- Scrollable area: title scrolls, toolbar sticks at top -->
-    <div class="flex-1 min-h-0 overflow-y-auto px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-visible px-[1.7361rem] py-[2.0833rem]">
 
       <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
         <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
@@ -275,42 +272,6 @@
                 </button>
               </td>
             </tr>
-            <!-- placeholder rows for scroll test -->
-            <tr v-for="n in 10" :key="`ph-${n}`" class="pointer-events-none select-none">
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="ml-[1.0417rem] h-5 w-5 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
-              </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="flex items-center gap-3">
-                  <div class="h-10 w-10 rounded-full bg-[#f0f1f3] dark:bg-white/8 flex-shrink-0"></div>
-                  <div class="flex flex-col gap-2">
-                    <div class="h-[0.75rem] rounded bg-[#f0f1f3] dark:bg-white/8" :style="{ width: `${80 + (n * 19) % 60}px` }"></div>
-                    <div class="h-[0.625rem] w-14 rounded bg-[#f0f1f3] dark:bg-white/5"></div>
-                  </div>
-                </div>
-              </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="flex gap-1.5">
-                  <div class="h-[1.375rem] w-[1.375rem] rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
-                  <div v-if="n % 3 !== 0" class="h-[1.375rem] w-[1.375rem] rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
-                </div>
-              </td>
-              <td v-for="col in 8" :key="col" class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="flex flex-col gap-1.5">
-                  <div class="h-[0.75rem] rounded bg-[#f0f1f3] dark:bg-white/8" :style="{ width: `${36 + (col * 11 + n * 7) % 28}px` }"></div>
-                  <div class="h-[0.625rem] w-8 rounded bg-[#f0f1f3] dark:bg-white/5"></div>
-                </div>
-              </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="h-7 w-20 rounded-full bg-[#f0f1f3] dark:bg-white/8"></div>
-              </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="h-[0.75rem] w-16 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
-              </td>
-              <td class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[1.6667rem] align-middle dark:border-white/10">
-                <div class="h-[0.625rem] w-8 rounded bg-[#f0f1f3] dark:bg-white/8"></div>
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -373,8 +334,6 @@
         </div>
       </div>
     </div>
-
-    </div><!-- end scrollable -->
 
     <div
       v-if="activeActionProject"
@@ -533,7 +492,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
@@ -1177,42 +1136,14 @@ const detectorBadge = (project) => {
   }
 }
 
-let _mainEl = null
-
-function _lockMain() {
-  _mainEl = _mainEl || document.querySelector('main')
-  if (!_mainEl) return
-  // Reset first so getBoundingClientRect gives the natural flex height
-  _mainEl.style.height = ''
-  _mainEl.style.overflowY = ''
-  const h = _mainEl.getBoundingClientRect().height
-  // Pin explicit pixel height so flex-1 children can resolve against it
-  _mainEl.style.height = h + 'px'
-  _mainEl.style.overflowY = 'hidden'
-}
-
-function _unlockMain() {
-  if (!_mainEl) return
-  _mainEl.style.height = ''
-  _mainEl.style.overflowY = ''
-  _mainEl = null
-}
-
 onMounted(async () => {
   document.addEventListener('click', closeActionMenu)
-  _lockMain()
-  window.addEventListener('resize', _lockMain)
   await fetchProjects()
   await Promise.all([loadProjectMetrics(), fetchCrossProject()])
-  // Re-lock after Vue renders real data — layout may shift
-  await nextTick()
-  _lockMain()
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeActionMenu)
-  window.removeEventListener('resize', _lockMain)
-  _unlockMain()
 })
 </script>
 

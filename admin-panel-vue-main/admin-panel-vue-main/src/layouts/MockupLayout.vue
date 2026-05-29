@@ -2,13 +2,13 @@
   <div class="flex min-h-screen bg-[#F4F6F8] dark:bg-[#1A1C2C] dark:text-white font-[Inter]">
     <SidebarV2 />
     <div :class="[
-      'flex-1 flex flex-col h-screen min-w-0 transition-all duration-300 ml-0',
+      'flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-300 ml-0',
       mainMargin
     ]">
       <header class="flex-shrink-0">
         <Header />
       </header>
-      <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637] flex flex-col">
+      <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637]">
         <slot />
       </main>
     </div>

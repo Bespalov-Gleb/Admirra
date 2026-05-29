@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
     <div class="flex flex-1 items-center">
       <div class="w-full grid grid-cols-1 lg:grid-cols-[7fr_4fr_4fr] gap-[1.0417rem] text-[1.0417rem]">
 
