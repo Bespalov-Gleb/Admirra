@@ -60,6 +60,13 @@ class User(Base):
     ai_requests_used = Column(Integer, nullable=False, default=0)
     ai_requests_period_started_at = Column(DateTime(timezone=True), nullable=True)
 
+    brand_logo_url = Column(String, nullable=True)
+    brand_color = Column(String(7), nullable=True)
+    brand_pdf_header = Column(String, nullable=True)
+    brand_pdf_signature = Column(String, nullable=True)
+    brand_custom_domain = Column(String, nullable=True)
+    brand_domain_status = Column(String(16), nullable=True, default="none")
+
     clients = relationship("Client", back_populates="owner")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     oauth_identities = relationship(
@@ -366,6 +373,7 @@ class TariffPlan(Base):
     max_ai_requests_per_period = Column(Integer, nullable=False, default=30)
     period_days = Column(Integer, nullable=False, default=30)
     trial_days = Column(Integer, nullable=False, default=14)
+    whitelabel_included = Column(Boolean, nullable=False, default=False)
     is_default = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

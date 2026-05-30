@@ -446,8 +446,30 @@ def reset_password_confirm(
 
 
 @router.get("/me", response_model=schemas.UserResponse)
-def read_users_me(current_user: models.User = Depends(security.get_current_user)):
-    return current_user
+def read_users_me(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    sub = (
+        db.query(models.Subscription)
+        .filter(
+            models.Subscription.user_id == current_user.id,
+            models.Subscription.status.in_([
+                models.SubscriptionStatus.ACTIVE,
+                models.SubscriptionStatus.TRIAL,
+            ]),
+        )
+        .order_by(models.Subscription.created_at.desc())
+        .first()
+    )
+    wl = False
+    if sub and sub.plan_id:
+        plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
+        if plan and getattr(plan, "whitelabel_included", False):
+            wl = True
+    resp = schemas.UserResponse.model_validate(current_user)
+    resp.whitelabel_available = wl
+    return resp
 
 
 def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):

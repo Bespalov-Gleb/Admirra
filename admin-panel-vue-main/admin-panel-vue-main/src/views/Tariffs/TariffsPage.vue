@@ -237,13 +237,18 @@ function currentPerProject(plan) {
 
 function planBullets(plan) {
   const display = landingDisplay(plan)
-  return [
+  const code = String(plan?.code || '').toLowerCase()
+  const bullets = [
     display?.projects || projectBullet(plan),
     channelsBullet(plan.code),
     usersBullet(plan.code),
     display?.ai || aiBullet(plan),
     'Экспорт отчетов, отправка по расписанию',
   ]
+  if (code === 'standard') {
+    bullets.push('White Label (бренд в отчётах)')
+  }
+  return bullets
 }
 
 onMounted(async () => {

@@ -67,9 +67,12 @@
         </Transition>
       </div>
 
-      <!-- Subscription info (xxl+) -->
-      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 2xl:flex 2xl:gap-4 2xl:pl-4">
-        <div>
+      <!-- Subscription info (xxl+) — вся зона кликабельна -->
+      <button
+        @click="router.push('/settings?tab=tariff')"
+        class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 2xl:flex 2xl:gap-4 2xl:pl-4 cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0"
+      >
+        <div class="text-left">
           <div class="whitespace-nowrap text-[0.6944rem] font-medium text-gray-500 dark:text-white/55 2xl:text-[0.9028rem]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
           </div>
@@ -77,15 +80,14 @@
             Действует до {{ subscription.expiresAtLabel }}
           </div>
         </div>
-        <button
-          @click="router.push('/settings?tab=tariff')"
-          class="flex min-h-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] border border-[#e1e1e1] dark:border-white/20 dark:hover:border-white/40 px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+        <span
+          class="flex min-h-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] border border-[#e1e1e1] dark:border-white/20 px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">
             Продлить
           </span>
-        </button>
-      </div>
+        </span>
+      </button>
 
       <!-- Spacer -->
       <div class="min-w-1 flex-1" />

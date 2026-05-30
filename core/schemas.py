@@ -54,6 +54,13 @@ class UserResponse(UserBase):
     email_verified: bool = False
     is_subscribed: bool = False
     subscription_expires_at: Optional[datetime] = None
+    brand_logo_url: Optional[str] = None
+    brand_color: Optional[str] = None
+    brand_pdf_header: Optional[str] = None
+    brand_pdf_signature: Optional[str] = None
+    brand_custom_domain: Optional[str] = None
+    brand_domain_status: Optional[str] = None
+    whitelabel_available: bool = False
 
     class Config:
         from_attributes = True

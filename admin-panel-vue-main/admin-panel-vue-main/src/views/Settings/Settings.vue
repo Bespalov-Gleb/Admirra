@@ -3,28 +3,28 @@
 
     <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[1.3889rem]">
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Настройки</h3>
+      <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mt-[0.6944rem]">Конфигурация уровня аккаунта</p>
     </div>
 
     <div class="flex flex-col lg:flex-row gap-[1.7361rem] flex-1">
       <!-- Left: vertical tabs -->
-      <aside class="lg:w-[16.6667rem] flex-shrink-0">
-        <div class="bg-white dark:bg-[#2C2F3D] dark:border dark:border-white/10 rounded-[1.0417rem] p-[1.0417rem]">
-          <nav class="flex flex-col gap-[0.3472rem]">
+      <aside class="lg:w-[17.3611rem] flex-shrink-0">
+        <div class="settings-sidebar">
+          <nav class="flex flex-col gap-[0.2083rem]">
             <button
               v-for="tab in tabs"
               :key="tab.id"
               @click="selectTab(tab.id)"
               :class="[
-                'w-full text-left px-[1.0417rem] py-[0.8333rem] rounded-[0.6944rem] text-[0.9722rem] font-medium transition-colors flex items-center gap-[0.6944rem]',
-                activeTab === tab.id
-                  ? 'bg-[#ecf3fe] text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]'
-                  : 'text-[#696969]/75 hover:bg-[#f5f7f9] hover:text-[#171717] dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white/90'
+                'settings-tab-btn',
+                activeTab === tab.id ? 'settings-tab-btn--active' : '',
               ]"
             >
-              <svg v-if="tab.id === 'brand' && !whitelabelAvailable" class="w-4 h-4 flex-shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <component :is="tab.icon" class="w-[1.1111rem] h-[1.1111rem] flex-shrink-0" />
+              <span class="flex-1">{{ tab.label }}</span>
+              <svg v-if="tab.id === 'brand' && !brand.whitelabel_available" class="w-[0.8333rem] h-[0.8333rem] flex-shrink-0 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
-              {{ tab.label }}
             </button>
           </nav>
         </div>
@@ -33,137 +33,149 @@
       <!-- Right: tab content -->
       <div class="flex-1 min-w-0">
 
-        <!-- Tab: Бренд / White Label -->
+        <!-- ===== Tab: Бренд / White Label ===== -->
         <div v-if="activeTab === 'brand'">
 
           <!-- Locked state -->
-          <div v-if="!whitelabelAvailable">
+          <template v-if="!brand.whitelabel_available">
             <div class="flex items-center gap-[0.6944rem] mb-[1.7361rem]">
               <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
-              <span class="inline-flex items-center gap-1 px-[0.6944rem] py-[0.3472rem] rounded-full bg-[#f0f1f3] dark:bg-white/10 text-[0.7639rem] font-semibold text-[#696969] dark:text-white/55">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              <span class="wl-lock-badge">
+                <svg class="w-[0.7639rem] h-[0.7639rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                 Доступно на старшем тарифе
               </span>
             </div>
 
             <!-- Upsell card -->
-            <div class="rounded-[1.3889rem] p-[2.0833rem] mb-[2.0833rem] relative overflow-hidden"
-                 style="background: linear-gradient(135deg, #2563eb 0%, #1f9de4 50%, #06b5d4 100%)">
-              <div class="absolute inset-0 pointer-events-none opacity-15" style="background: url('/admirra/img/pattern.png') center/5.3472rem"></div>
-              <div class="relative z-10">
-                <h4 class="text-[1.3889rem] font-semibold text-white mb-[0.6944rem]">Персонализируйте отчёты под ваш бренд</h4>
-                <p class="text-[1.0417rem] text-white/80 mb-[1.3889rem] max-w-[34.7222rem]">
-                  Клиенты видят ваш бренд, а не AdMirra — в PDF-отчётах, КП и сообщениях
-                </p>
-                <ul class="flex flex-col gap-[0.6944rem] mb-[1.7361rem]">
-                  <li v-for="item in wlFeatures" :key="item" class="flex items-center gap-[0.6944rem] text-[1.0417rem] text-white">
-                    <span class="w-[0.6944rem] h-[0.6944rem] rounded-full bg-white/40 flex-shrink-0"></span>
-                    {{ item }}
-                  </li>
-                </ul>
-                <button @click="selectTab('tariff')" class="inline-flex items-center min-h-[3.1944rem] px-[1.6667rem] rounded-[0.8333rem] bg-white text-[0.9722rem] font-semibold text-[#2563eb] hover:bg-white/90 transition-colors">
-                  Перейти на старший тариф
-                </button>
+            <div class="wl-upsell-card">
+              <div class="absolute inset-0 pointer-events-none opacity-[0.12]" style="background: url('/admirra/img/pattern.png') center/5.3472rem"></div>
+              <div class="relative z-10 flex flex-col lg:flex-row lg:items-center gap-[2.0833rem]">
+                <div class="flex-1">
+                  <h4 class="text-[1.5278rem] font-bold text-white mb-[0.6944rem] leading-[1.25]">Персонализируйте отчёты<br>под ваш бренд</h4>
+                  <p class="text-[1.0417rem] text-white/75 mb-[1.3889rem] max-w-[31.9444rem] leading-[1.45]">
+                    Клиенты видят ваш бренд, а не AdMirra — в PDF-отчётах, КП и сообщениях. Полный контроль над визуалом.
+                  </p>
+                  <div class="grid grid-cols-2 gap-x-[1.3889rem] gap-y-[0.6944rem] mb-[1.7361rem]">
+                    <div v-for="item in wlFeatures" :key="item" class="flex items-center gap-[0.5556rem] text-[0.9722rem] text-white/90">
+                      <span class="w-[1.25rem] h-[1.25rem] rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-[0.625rem] h-[0.625rem] text-white" viewBox="0 0 12 10" fill="currentColor"><path d="M4.2 9.2.4 5.4l1.4-1.4 2.4 2.4L10.2.3l1.4 1.4-7.4 7.5Z"/></svg>
+                      </span>
+                      {{ item }}
+                    </div>
+                  </div>
+                  <button @click="selectTab('tariff')" class="wl-upsell-btn">
+                    Перейти на старший тариф
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
 
             <!-- Dimmed preview -->
-            <div class="opacity-40 pointer-events-none select-none grayscale-[30%]">
+            <div class="mt-[2.0833rem] opacity-[0.35] pointer-events-none select-none" style="filter: grayscale(0.3) blur(0.3px)">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-[1.0417rem]">
-                <div v-for="field in brandFields" :key="field.title" class="bg-white dark:bg-[#2C2F3D] rounded-[1.0417rem] p-[1.3889rem] border border-black/5 dark:border-white/10">
+                <div v-for="field in brandFields" :key="field.title" class="settings-card">
                   <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/80 mb-[0.6944rem]">{{ field.title }}</div>
-                  <div class="text-[0.9028rem] text-[#696969]/60 dark:text-white/40">{{ field.placeholder }}</div>
+                  <div class="h-[3.4722rem] rounded-[0.6944rem] bg-[#f5f7f9] dark:bg-white/5"></div>
+                  <div class="text-[0.8333rem] text-[#696969]/40 dark:text-white/25 mt-[0.4861rem]">{{ field.placeholder }}</div>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
 
           <!-- Unlocked state -->
-          <div v-else>
+          <template v-else>
             <div class="flex items-center gap-[0.6944rem] mb-[1.7361rem]">
               <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
-              <span class="inline-flex items-center gap-1 px-[0.6944rem] py-[0.3472rem] rounded-full bg-[#00ff4e]/10 text-[0.7639rem] font-semibold text-[#16a34a] dark:bg-[#00ff4e]/15 dark:text-[#5ee886]">
-                Активно
-              </span>
+              <span class="wl-active-badge">Активно</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-[1.0417rem]">
               <!-- Logo -->
               <div class="settings-card">
-                <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/90 mb-[0.6944rem]">Логотип агентства</div>
-                <div v-if="brandLogo" class="flex items-center gap-[1.0417rem] mb-[0.6944rem]">
-                  <img :src="brandLogo" alt="Logo" class="h-[3.4722rem] max-w-[10.4167rem] object-contain rounded" />
-                  <div class="flex gap-[0.4861rem]">
+                <div class="settings-card-title">Логотип агентства</div>
+                <div v-if="brand.brand_logo_url" class="flex items-center gap-[1.0417rem] mb-[0.6944rem]">
+                  <div class="w-[6.9444rem] h-[4.1667rem] rounded-[0.6944rem] border border-black/5 dark:border-white/10 flex items-center justify-center bg-[#f9fafb] dark:bg-white/5 overflow-hidden">
+                    <img :src="brand.brand_logo_url" alt="Logo" class="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div class="flex flex-col gap-[0.3472rem]">
                     <label class="settings-link cursor-pointer">
                       Заменить
-                      <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="handleLogoUpload" />
+                      <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
                     </label>
-                    <button class="settings-link text-red-500" @click="brandLogo = null">Удалить</button>
+                    <button class="settings-link settings-link--danger" @click="deleteLogo">Удалить</button>
                   </div>
                 </div>
-                <label v-else class="flex items-center justify-center h-[5.5556rem] border-2 border-dashed border-[#e1e1e1] dark:border-white/15 rounded-[0.8333rem] cursor-pointer hover:border-[#2563eb] dark:hover:border-[#4A7AFF] transition-colors">
-                  <span class="text-[0.9028rem] text-[#696969]/60 dark:text-white/40">Нажмите для загрузки PNG, SVG или JPG</span>
-                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="handleLogoUpload" />
+                <label v-else class="logo-upload-zone">
+                  <svg class="w-[1.6667rem] h-[1.6667rem] text-[#b0b0b0] dark:text-white/30 mb-[0.3472rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                  <span class="text-[0.9028rem] text-[#696969]/50 dark:text-white/35">PNG, SVG или JPG · до 2 МБ</span>
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
                 </label>
               </div>
 
               <!-- Brand color -->
               <div class="settings-card">
-                <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/90 mb-[0.6944rem]">Фирменный цвет</div>
-                <div class="flex items-center gap-[0.6944rem] flex-wrap mb-[0.6944rem]">
+                <div class="settings-card-title">Фирменный цвет</div>
+                <div class="flex items-center gap-[0.4861rem] flex-wrap mb-[0.8333rem]">
                   <button
                     v-for="color in presetColors"
                     :key="color"
-                    class="w-[2.0833rem] h-[2.0833rem] rounded-full border-2 transition-all"
+                    class="color-swatch"
                     :style="{ backgroundColor: color }"
-                    :class="brandColor === color ? 'border-[#171717] dark:border-white scale-110' : 'border-transparent hover:scale-105'"
-                    @click="brandColor = color"
+                    :class="{ 'color-swatch--selected': brand.brand_color === color }"
+                    @click="brand.brand_color = color; saveBrand()"
                   />
                 </div>
-                <div class="flex items-center gap-[0.4861rem]">
-                  <span class="text-[0.9028rem] text-[#696969]/60 dark:text-white/40">HEX:</span>
-                  <input
-                    v-model="brandColor"
-                    type="text"
-                    maxlength="7"
-                    class="w-[6.9444rem] px-[0.6944rem] py-[0.4861rem] rounded-[0.4861rem] text-[0.9028rem] bg-[#f5f7f9] dark:bg-white/10 border border-transparent focus:border-[#2563eb] outline-none text-[#171717] dark:text-white"
-                    placeholder="#2563EB"
-                  />
-                  <span class="w-[1.6667rem] h-[1.6667rem] rounded-full border border-black/10 dark:border-white/15" :style="{ backgroundColor: brandColor || '#ccc' }"></span>
+                <div class="flex items-center gap-[0.6944rem]">
+                  <span class="text-[0.8333rem] text-[#696969]/50 dark:text-white/40 font-medium">HEX</span>
+                  <div class="flex items-center gap-[0.4861rem] flex-1">
+                    <input
+                      v-model="brand.brand_color"
+                      type="text"
+                      maxlength="7"
+                      class="settings-input w-[6.9444rem]"
+                      placeholder="#2563EB"
+                      @blur="saveBrand"
+                    />
+                    <span class="w-[2.0833rem] h-[2.0833rem] rounded-[0.4861rem] border border-black/10 dark:border-white/15 flex-shrink-0" :style="{ backgroundColor: brand.brand_color || '#ccc' }"></span>
+                  </div>
                 </div>
               </div>
 
               <!-- PDF header/footer -->
               <div class="settings-card">
-                <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/90 mb-[0.6944rem]">Шапка и подпись PDF</div>
-                <div v-if="pdfHeader || pdfSignature" class="text-[0.9028rem] text-[#444] dark:text-white/70 mb-[0.4861rem]">
-                  <div v-if="pdfHeader">{{ pdfHeader }}</div>
-                  <div v-if="pdfSignature" class="text-[#696969]/60 dark:text-white/40 mt-1">{{ pdfSignature }}</div>
+                <div class="settings-card-title">Шапка и подпись PDF</div>
+                <div v-if="brand.brand_pdf_header || brand.brand_pdf_signature">
+                  <div class="text-[0.9028rem] text-[#444] dark:text-white/70 leading-[1.4]">{{ brand.brand_pdf_header }}</div>
+                  <div v-if="brand.brand_pdf_signature" class="text-[0.8333rem] text-[#696969]/50 dark:text-white/35 mt-[0.2778rem] leading-[1.4]">{{ brand.brand_pdf_signature }}</div>
                 </div>
-                <div v-else class="text-[0.9028rem] text-[#696969]/60 dark:text-white/40 mb-[0.4861rem]">Не заполнено</div>
-                <button class="settings-link" @click="pdfModalOpen = true">Редактировать</button>
+                <div v-else class="text-[0.9028rem] text-[#696969]/40 dark:text-white/30 italic">Не заполнено</div>
+                <button class="settings-link mt-[0.6944rem]" @click="openPdfModal">Редактировать</button>
               </div>
 
               <!-- Custom domain -->
               <div class="settings-card">
-                <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/90 mb-[0.6944rem]">Свой домен для отчётов</div>
-                <div v-if="customDomain" class="flex items-center gap-[0.6944rem] mb-[0.4861rem]">
-                  <span class="text-[0.9028rem] text-[#444] dark:text-white/70">{{ customDomain }}</span>
-                  <span :class="domainStatusClass">{{ domainStatusLabel }}</span>
+                <div class="settings-card-title">Свой домен для отчётов</div>
+                <div v-if="brand.brand_custom_domain" class="flex items-center gap-[0.6944rem] mb-[0.6944rem]">
+                  <span class="text-[0.9722rem] font-medium text-[#171717] dark:text-white/85">{{ brand.brand_custom_domain }}</span>
+                  <span v-if="brand.brand_domain_status === 'verified'" class="domain-badge domain-badge--verified">Подтверждён</span>
+                  <span v-else-if="brand.brand_domain_status === 'pending'" class="domain-badge domain-badge--pending">Ожидает проверки</span>
+                  <span v-else-if="brand.brand_domain_status === 'error'" class="domain-badge domain-badge--error">Ошибка DNS</span>
                 </div>
-                <div v-else class="text-[0.9028rem] text-[#696969]/60 dark:text-white/40 mb-[0.4861rem]">Не настроен</div>
                 <input
-                  v-model="customDomain"
+                  v-model="brand.brand_custom_domain"
                   type="text"
-                  class="w-full px-[0.6944rem] py-[0.4861rem] rounded-[0.4861rem] text-[0.9028rem] bg-[#f5f7f9] dark:bg-white/10 border border-transparent focus:border-[#2563eb] outline-none text-[#171717] dark:text-white"
+                  class="settings-input w-full"
                   placeholder="reports.вашдомен.ru"
+                  @blur="saveBrand"
                 />
+                <p class="text-[0.7639rem] text-[#696969]/40 dark:text-white/25 mt-[0.4861rem]">Добавьте CNAME-запись на ваш домен, указывающую на reports.admirra.ru</p>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
-        <!-- Tab: Тариф и оплата -->
+        <!-- ===== Tab: Тариф и оплата ===== -->
         <div v-else-if="activeTab === 'tariff'">
           <TariffsContent />
         </div>
@@ -174,42 +186,45 @@
     <!-- PDF edit modal -->
     <Teleport to="body">
       <div v-if="pdfModalOpen" class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/50 p-4" @click.self="pdfModalOpen = false">
-        <div class="w-full max-w-[33.3333rem] rounded-2xl border border-black/5 bg-white dark:bg-[#2C2F3D] dark:border-white/10 p-6">
-          <h4 class="text-[1.25rem] font-bold text-gray-800 dark:text-gray-100 mb-4">Шапка и подпись PDF</h4>
-          <div class="flex flex-col gap-3 mb-5">
+        <div class="w-full max-w-[33.3333rem] rounded-[1.3889rem] border border-black/5 bg-white dark:bg-[#2C2F3D] dark:border-white/10 p-[2.0833rem] shadow-[0_1.3889rem_3.4722rem_rgba(0,0,0,0.12)]">
+          <h4 class="text-[1.3889rem] font-bold text-[#171717] dark:text-gray-100 mb-[1.3889rem]">Шапка и подпись PDF</h4>
+          <div class="flex flex-col gap-[1.0417rem] mb-[1.7361rem]">
             <div>
-              <label class="block text-[0.9028rem] text-[#696969] dark:text-white/55 mb-1">Название агентства / шапка</label>
-              <input v-model="pdfHeaderDraft" type="text" class="w-full px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 outline-none focus:border-[#2563eb]" placeholder="ООО «Рекламное агентство»" />
+              <label class="block text-[0.9028rem] font-medium text-[#696969] dark:text-white/55 mb-[0.4861rem]">Название агентства / шапка</label>
+              <input v-model="pdfHeaderDraft" type="text" class="settings-input w-full" placeholder="ООО «Рекламное агентство»" />
             </div>
             <div>
-              <label class="block text-[0.9028rem] text-[#696969] dark:text-white/55 mb-1">Подпись / контакты внизу отчёта</label>
-              <textarea v-model="pdfSignatureDraft" rows="3" class="w-full px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 outline-none focus:border-[#2563eb] resize-y" placeholder="Телефон, email, адрес"></textarea>
+              <label class="block text-[0.9028rem] font-medium text-[#696969] dark:text-white/55 mb-[0.4861rem]">Подпись / контакты внизу</label>
+              <textarea v-model="pdfSignatureDraft" rows="3" class="settings-input w-full resize-y" placeholder="Телефон, email, адрес"></textarea>
             </div>
           </div>
-          <div class="flex gap-3">
-            <button class="h-[3.0556rem] px-5 rounded-xl bg-[#2563eb] text-white text-[0.9722rem] font-medium hover:bg-[#1d4ed8] transition-colors" @click="savePdf">Сохранить</button>
-            <button class="h-[3.0556rem] px-5 rounded-xl border border-black/10 dark:border-white/15 bg-white dark:bg-white/5 text-[0.9722rem] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors" @click="pdfModalOpen = false">Отмена</button>
+          <div class="flex gap-[0.6944rem]">
+            <button class="settings-btn-primary" @click="savePdf">Сохранить</button>
+            <button class="settings-btn-secondary" @click="pdfModalOpen = false">Отмена</button>
           </div>
         </div>
       </div>
     </Teleport>
-
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { SwatchIcon, CreditCardIcon } from '@heroicons/vue/24/outline'
+import api from '@/api/axios'
+import { useToaster } from '@/composables/useToaster'
 import TariffsContent from '../Tariffs/TariffsPage.vue'
 
 const route = useRoute()
 const router = useRouter()
+const toaster = useToaster()
 
 const activeTab = ref('brand')
 
 const tabs = [
-  { id: 'brand', label: 'Бренд / White Label' },
-  { id: 'tariff', label: 'Тариф и оплата' },
+  { id: 'brand', label: 'Бренд / White Label', icon: SwatchIcon },
+  { id: 'tariff', label: 'Тариф и оплата', icon: CreditCardIcon },
 ]
 
 const selectTab = (tabId) => {
@@ -218,92 +233,184 @@ const selectTab = (tabId) => {
 }
 
 onMounted(() => {
-  if (route.query.tab === 'tariff') {
-    activeTab.value = 'tariff'
-  }
+  if (route.query.tab === 'tariff') activeTab.value = 'tariff'
+  loadBrand()
 })
 
 watch(() => route.query.tab, (val) => {
   if (val === 'tariff') activeTab.value = 'tariff'
+  else if (!val) activeTab.value = 'brand'
 })
 
-const whitelabelAvailable = ref(false)
+const brand = reactive({
+  brand_logo_url: null,
+  brand_color: '#2563EB',
+  brand_pdf_header: '',
+  brand_pdf_signature: '',
+  brand_custom_domain: '',
+  brand_domain_status: 'none',
+  whitelabel_available: false,
+})
 
 const wlFeatures = [
   'Логотип агентства в отчётах',
-  'Фирменный цвет в PDF и документах',
-  'Шапка и подпись в отчётах',
+  'Фирменный цвет в PDF',
+  'Шапка и подпись в документах',
   'Собственный домен для ссылок',
 ]
 
 const brandFields = [
-  { title: 'Логотип агентства', placeholder: 'Загрузите PNG, SVG или JPG' },
-  { title: 'Фирменный цвет', placeholder: 'Выберите акцентный цвет или введите HEX' },
-  { title: 'Шапка и подпись PDF', placeholder: 'Название агентства, контакты, подпись' },
+  { title: 'Логотип агентства', placeholder: 'Загрузите изображение' },
+  { title: 'Фирменный цвет', placeholder: 'Выберите цвет или введите HEX' },
+  { title: 'Шапка и подпись PDF', placeholder: 'Название, контакты, подпись' },
   { title: 'Свой домен для отчётов', placeholder: 'reports.вашдомен.ru' },
 ]
 
-const brandLogo = ref(null)
-const brandColor = ref('#2563EB')
 const presetColors = ['#2563EB', '#06B5D4', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#171717']
 
-const pdfHeader = ref('')
-const pdfSignature = ref('')
 const pdfModalOpen = ref(false)
 const pdfHeaderDraft = ref('')
 const pdfSignatureDraft = ref('')
 
-watch(pdfModalOpen, (open) => {
-  if (open) {
-    pdfHeaderDraft.value = pdfHeader.value
-    pdfSignatureDraft.value = pdfSignature.value
-  }
-})
-
-function savePdf() {
-  pdfHeader.value = pdfHeaderDraft.value
-  pdfSignature.value = pdfSignatureDraft.value
-  pdfModalOpen.value = false
+async function loadBrand() {
+  try {
+    const { data } = await api.get('brand')
+    Object.assign(brand, data)
+  } catch { /* keep defaults */ }
 }
 
-const customDomain = ref('')
-const domainStatus = ref('none')
-
-const domainStatusClass = ref('inline-flex px-2 py-0.5 rounded-full text-[0.7639rem] font-semibold bg-[#f0f1f3] text-[#696969]')
-const domainStatusLabel = ref('')
-
-watch(domainStatus, (s) => {
-  if (s === 'verified') {
-    domainStatusClass.value = 'inline-flex px-2 py-0.5 rounded-full text-[0.7639rem] font-semibold bg-[#00ff4e]/10 text-[#16a34a]'
-    domainStatusLabel.value = 'Подтверждён'
-  } else if (s === 'pending') {
-    domainStatusClass.value = 'inline-flex px-2 py-0.5 rounded-full text-[0.7639rem] font-semibold bg-[#F59E0B]/10 text-[#92400E]'
-    domainStatusLabel.value = 'Ожидает проверки'
-  } else if (s === 'error') {
-    domainStatusClass.value = 'inline-flex px-2 py-0.5 rounded-full text-[0.7639rem] font-semibold bg-red-500/10 text-red-600'
-    domainStatusLabel.value = 'Ошибка DNS'
+async function saveBrand() {
+  try {
+    const { data } = await api.put('brand', {
+      brand_color: brand.brand_color,
+      brand_pdf_header: brand.brand_pdf_header,
+      brand_pdf_signature: brand.brand_pdf_signature,
+      brand_custom_domain: brand.brand_custom_domain,
+    })
+    Object.assign(brand, data)
+  } catch (e) {
+    const msg = e?.response?.data?.detail
+    if (msg) toaster.error(msg)
   }
-})
+}
 
-function handleLogoUpload(event) {
+async function uploadLogo(event) {
   const file = event.target.files?.[0]
   if (!file) return
-  brandLogo.value = URL.createObjectURL(file)
+  const form = new FormData()
+  form.append('file', file)
+  try {
+    const { data } = await api.post('brand/logo', form)
+    Object.assign(brand, data)
+    toaster.success('Логотип загружен')
+  } catch (e) {
+    toaster.error(e?.response?.data?.detail || 'Не удалось загрузить логотип')
+  }
+}
+
+async function deleteLogo() {
+  try {
+    const { data } = await api.delete('brand/logo')
+    Object.assign(brand, data)
+    toaster.success('Логотип удалён')
+  } catch (e) {
+    toaster.error(e?.response?.data?.detail || 'Не удалось удалить логотип')
+  }
+}
+
+function openPdfModal() {
+  pdfHeaderDraft.value = brand.brand_pdf_header || ''
+  pdfSignatureDraft.value = brand.brand_pdf_signature || ''
+  pdfModalOpen.value = true
+}
+
+async function savePdf() {
+  brand.brand_pdf_header = pdfHeaderDraft.value
+  brand.brand_pdf_signature = pdfSignatureDraft.value
+  pdfModalOpen.value = false
+  await saveBrand()
 }
 </script>
 
 <style scoped>
+.settings-sidebar {
+  background: #fff;
+  border-radius: 1.0417rem;
+  padding: 0.8333rem;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+:global(.dark) .settings-sidebar {
+  background: #2C2F3D;
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+.settings-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.8333rem 1.0417rem;
+  border-radius: 0.6944rem;
+  font-size: 0.9722rem;
+  font-weight: 500;
+  color: rgba(105,105,105,0.65);
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.settings-tab-btn:hover {
+  background: #f5f7f9;
+  color: #171717;
+}
+.settings-tab-btn--active {
+  background: #ecf3fe;
+  color: #2563eb;
+  font-weight: 600;
+}
+:global(.dark) .settings-tab-btn { color: rgba(255,255,255,0.55); }
+:global(.dark) .settings-tab-btn:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); }
+:global(.dark) .settings-tab-btn--active { background: rgba(255,255,255,0.10); color: #4A7AFF; }
+
 .settings-card {
-  background-color: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.05);
   border-radius: 1.0417rem;
   padding: 1.3889rem;
 }
-
 :global(.dark) .settings-card {
-  background-color: #2C2F3D;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: #2C2F3D;
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+.settings-card-title {
+  font-size: 0.9722rem;
+  font-weight: 600;
+  color: #171717;
+  margin-bottom: 0.8333rem;
+}
+:global(.dark) .settings-card-title { color: rgba(255,255,255,0.85); }
+
+.settings-input {
+  padding: 0.6944rem 0.8333rem;
+  border-radius: 0.6944rem;
+  font-size: 0.9028rem;
+  background: #f5f7f9;
+  border: 1px solid transparent;
+  outline: none;
+  color: #171717;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.settings-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+:global(.dark) .settings-input {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.88);
 }
 
 .settings-link {
@@ -311,14 +418,151 @@ function handleLogoUpload(event) {
   font-weight: 500;
   color: #2563eb;
   cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
   transition: opacity 0.2s;
 }
+.settings-link:hover { opacity: 0.7; }
+.settings-link--danger { color: #ef4444; }
+:global(.dark) .settings-link { color: #4A7AFF; }
+:global(.dark) .settings-link--danger { color: #f87171; }
 
-.settings-link:hover {
-  opacity: 0.75;
+.settings-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.0556rem;
+  padding: 0 1.3889rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9722rem;
+  font-weight: 500;
+  color: #fff;
+  background: #2563eb;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.settings-btn-primary:hover { background: #1d4ed8; }
+
+.settings-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.0556rem;
+  padding: 0 1.3889rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9722rem;
+  font-weight: 500;
+  color: #696969;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.settings-btn-secondary:hover { background: #f9fafb; }
+:global(.dark) .settings-btn-secondary {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7);
 }
 
-:global(.dark) .settings-link {
-  color: #4A7AFF;
+.wl-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  padding: 0.3472rem 0.8333rem;
+  border-radius: 2.7778rem;
+  background: #f0f1f3;
+  font-size: 0.7639rem;
+  font-weight: 600;
+  color: #696969;
 }
+:global(.dark) .wl-lock-badge { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.55); }
+
+.wl-active-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3472rem 0.8333rem;
+  border-radius: 2.7778rem;
+  background: rgba(0,255,78,0.10);
+  font-size: 0.7639rem;
+  font-weight: 700;
+  color: #16a34a;
+}
+:global(.dark) .wl-active-badge { background: rgba(0,255,78,0.15); color: #5ee886; }
+
+.wl-upsell-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.3889rem;
+  padding: 2.5rem 2.0833rem;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 35%, #1f9de4 70%, #06b5d4 100%);
+}
+
+.wl-upsell-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5556rem;
+  min-height: 3.1944rem;
+  padding: 0 1.6667rem;
+  border-radius: 0.8333rem;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.9722rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.wl-upsell-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0.6944rem 2.0833rem rgba(0,0,0,0.15);
+}
+
+.logo-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 6.25rem;
+  border: 2px dashed #e1e1e1;
+  border-radius: 0.8333rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.logo-upload-zone:hover {
+  border-color: #2563eb;
+  background: rgba(37,99,235,0.02);
+}
+:global(.dark) .logo-upload-zone { border-color: rgba(255,255,255,0.12); }
+:global(.dark) .logo-upload-zone:hover { border-color: #4A7AFF; background: rgba(74,122,255,0.04); }
+
+.color-swatch {
+  width: 2.0833rem;
+  height: 2.0833rem;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch--selected {
+  border-color: #171717;
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor;
+}
+:global(.dark) .color-swatch--selected { border-color: #fff; box-shadow: 0 0 0 2px #2C2F3D, 0 0 0 4px currentColor; }
+
+.domain-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2083rem 0.5556rem;
+  border-radius: 2.7778rem;
+  font-size: 0.7639rem;
+  font-weight: 600;
+}
+.domain-badge--verified { background: rgba(0,255,78,0.10); color: #16a34a; }
+.domain-badge--pending { background: rgba(245,158,11,0.10); color: #92400e; }
+.domain-badge--error { background: rgba(239,68,68,0.10); color: #dc2626; }
 </style>
