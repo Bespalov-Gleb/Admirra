@@ -233,7 +233,6 @@ import {
   Cog6ToothIcon,
   UserGroupIcon,
   RectangleStackIcon,
-  CreditCardIcon,
   SparklesIcon,
   LightBulbIcon,
   LinkIcon,
@@ -271,9 +270,8 @@ const menuItems = computed(() => [
     ],
   },
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
-  { name: 'Команда', path: '/team', icon: UserGroupIcon },
   { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
-  { name: 'Тарифы', path: '/tariffs', icon: CreditCardIcon },
+  { name: 'Команда', path: '/team', icon: UserGroupIcon },
   { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
 ])
 

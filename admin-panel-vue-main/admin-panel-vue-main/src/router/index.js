@@ -160,9 +160,7 @@ const routes = [
   },
   {
     path: '/tariffs',
-    name: 'Tariffs',
-    component: () => import('../views/Tariffs/TariffsPage.vue'),
-    meta: { layout: 'mockup' }
+    redirect: '/settings?tab=tariff'
   },
   {
     path: '/settings',

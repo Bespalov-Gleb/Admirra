@@ -1,13 +1,12 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div>
     <div v-if="loading" class="flex justify-center py-24 text-[rgba(105,105,105,0.56)] text-sm font-medium dark:text-white/55">
       Загрузка тарифов…
     </div>
 
     <template v-else>
-      <!-- Section header -->
-      <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
-        <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Тарифы</h3>
+      <div class="mb-[0.6944rem]">
+        <h4 class="text-[1.6667rem] font-semibold leading-none text-[#171717] dark:text-white">Тариф и оплата</h4>
       </div>
       <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mb-[1.7361rem]">
         Выберите подходящий тариф в зависимости от количества проектов и задач аналитики
@@ -165,55 +164,6 @@
       </div>
       </Transition>
 
-      <!-- White Label -->
-      <div class="wl-card bg-white rounded-[2.0833rem] p-[2.0833rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          <!-- About -->
-          <div class="pr-[2.0833rem] flex flex-col gap-[1.3889rem]">
-            <div class="flex items-start gap-[1.1806rem]">
-              <span class="two-circles" style="margin-top:0.2778rem"></span>
-              <h4 class="text-[1.3889rem] font-semibold leading-[1.3] text-[#171717] dark:!text-white/90">
-                White Label —<br />
-                персонализация<br />
-                кабинета и&nbsp;отчетности
-              </h4>
-            </div>
-            <ul class="font-medium">
-              <li v-for="item in wlFeatures" :key="item" class="feature-row">
-                <span class="feature-dot"></span>
-                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-
-          <!-- UI preview -->
-          <div class="flex items-center justify-center" style="margin:-0.6944rem 0 0 -1.3889rem">
-            <img
-              src="/admirra/img/white-label/ui.png"
-              alt="White Label UI"
-              class="block"
-              style="width:27.7778rem;height:24.3056rem;object-fit:contain"
-            />
-          </div>
-
-          <!-- Action -->
-          <div class="flex flex-col" style="padding:0.5556rem 0 0 2.7778rem">
-            <div class="mb-[1.1111rem]">
-              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
-              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
-            </div>
-            <p class="text-[1.0417rem] text-[rgba(105,105,105,0.56)] max-w-[13.8889rem] pt-[0.6944rem] mb-[3.125rem] dark:!text-white/55">
-              При покупке на год — возможны&nbsp;персональные скидки.
-              Оставьте заявку, чтобы обсудить детали использования WL.
-            </p>
-            <div class="mt-auto">
-              <button class="plan-btn w-full" @click="onContactWl">
-                <span class="relative z-[1]">Перейти на тариф WL</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </template>
   </div>
 </template>
@@ -296,13 +246,6 @@ function planBullets(plan) {
   ]
 }
 
-const wlFeatures = [
-  'Отчеты без логотипа сервиса',
-  'Брендирование отчетов',
-  'Использование платформы как собственной системы аналитики',
-  'Собственный домен',
-]
-
 onMounted(async () => {
   if (!getAccessToken()) return
   try {
@@ -319,8 +262,8 @@ async function onSubscribe(planCode, bp = 'month') {
     const { data } = await api.post('billing/subscribe', {
       plan_code: planCode,
       billing_period: bp,
-      success_url: `${window.location.origin}/tariffs`,
-      fail_url: `${window.location.origin}/tariffs`,
+      success_url: `${window.location.origin}/settings?tab=tariff`,
+      fail_url: `${window.location.origin}/settings?tab=tariff`,
     })
     const result = await payWithCloudPayments({
       public_id: data.public_id,
@@ -345,9 +288,6 @@ async function onSubscribe(planCode, bp = 'month') {
   }
 }
 
-function onContactWl() {
-  router.push('/contact')
-}
 </script>
 
 <style scoped>
