@@ -89,6 +89,70 @@
         </span>
       </button>
 
+      <!-- Usage chip -->
+      <div ref="usageChipRef" class="relative hidden items-center min-[1180px]:flex">
+        <button
+          @click="toggleUsagePopover"
+          class="usage-chip"
+        >
+          <span :class="['usage-gauge', projectsAtLimit ? 'usage-gauge--amber' : '']">
+            <svg class="w-[0.8333rem] h-[0.8333rem] 2xl:hidden" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+            <span class="usage-num">{{ usage.projectsUsed }}&thinsp;/&thinsp;{{ usage.projectsLimit }}</span>
+            <span class="usage-label">проекты</span>
+          </span>
+          <span class="usage-dot">·</span>
+          <span :class="['usage-gauge', aiAtLimit ? 'usage-gauge--amber' : '']">
+            <svg class="w-[0.8333rem] h-[0.8333rem] 2xl:hidden" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.5 3 3.3.5-2.4 2.3.6 3.2L8 9l-3 1.5.6-3.2L3.2 5l3.3-.5L8 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            <span class="usage-num">{{ usage.aiRemaining }}</span>
+            <span class="usage-label">AI осталось</span>
+          </span>
+        </button>
+
+        <!-- Popover -->
+        <Transition name="dropdown">
+          <div
+            v-if="showUsagePopover"
+            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[20.8333rem]"
+          >
+            <div class="usage-popover">
+              <div class="usage-popover-header">
+                <span>Тариф «{{ subscription.planName }}»</span>
+                <span v-if="expiresShort" class="usage-popover-date">{{ expiresShort }}</span>
+              </div>
+
+              <div class="usage-popover-row">
+                <div class="flex items-center justify-between mb-[0.4861rem]">
+                  <span class="text-[0.9028rem] font-medium text-[#444] dark:text-white/80">Проекты</span>
+                  <span class="text-[0.9028rem] font-semibold" :class="projectsAtLimit ? 'text-[#d97706]' : 'text-[#444] dark:text-white/80'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
+                </div>
+                <div class="usage-bar">
+                  <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%' }"></div>
+                </div>
+              </div>
+
+              <div class="usage-popover-row">
+                <div class="flex items-center justify-between mb-[0.4861rem]">
+                  <span class="text-[0.9028rem] font-medium text-[#444] dark:text-white/80">AI-запросы</span>
+                  <span class="text-[0.9028rem] font-semibold" :class="aiAtLimit ? 'text-[#d97706]' : 'text-[#444] dark:text-white/80'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
+                </div>
+                <div class="usage-bar">
+                  <div class="usage-bar-fill" :class="aiAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: aiPct + '%' }"></div>
+                </div>
+                <div class="flex items-center justify-between mt-[0.3472rem]">
+                  <span class="text-[0.7639rem] text-[#696969]/60 dark:text-white/40">осталось {{ usage.aiRemaining }}</span>
+                  <span v-if="usage.aiResetDate" class="text-[0.7639rem] text-[#696969]/60 dark:text-white/40">сброс {{ usage.aiResetDate }}</span>
+                </div>
+              </div>
+
+              <button @click="router.push('/settings?tab=tariff'); showUsagePopover = false" class="usage-popover-link">
+                Управление тарифом
+                <svg class="w-[0.8333rem] h-[0.8333rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              </button>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
       <!-- Spacer -->
       <div class="min-w-1 flex-1" />
 
@@ -312,6 +376,9 @@ const showNotifications = ref(false)
 const showLogoutModal = ref(false)
 
 const subscription = ref({ planName: '—', expiresAt: null, expiresAtLabel: '' })
+const usage = ref({ projectsUsed: 0, projectsLimit: 1, aiUsed: 0, aiLimit: 30, aiRemaining: 30, aiResetDate: '' })
+const showUsagePopover = ref(false)
+const usageChipRef = ref(null)
 
 const displayName = computed(() => {
   if (!user.value) return 'Загрузка...'
@@ -362,10 +429,38 @@ const loadSubscription = async () => {
       expiresAt: data?.subscription_expires_at || null,
       expiresAtLabel: formatDate(data?.subscription_expires_at),
     }
+    usage.value = {
+      projectsUsed: data?.projects_used ?? 0,
+      projectsLimit: data?.max_projects ?? 1,
+      aiUsed: data?.ai_requests_used ?? 0,
+      aiLimit: data?.max_ai_requests_per_period ?? 30,
+      aiRemaining: data?.ai_requests_remaining ?? 30,
+      aiResetDate: data?.ai_reset_date || '',
+    }
   } catch {
     subscription.value = { planName: '—', expiresAt: null, expiresAtLabel: '' }
   }
 }
+
+const projectsAtLimit = computed(() => usage.value.projectsUsed >= usage.value.projectsLimit)
+const aiAtLimit = computed(() => usage.value.aiRemaining <= 0)
+const projectsPct = computed(() => Math.min(100, Math.round((usage.value.projectsUsed / Math.max(usage.value.projectsLimit, 1)) * 100)))
+const aiPct = computed(() => Math.min(100, Math.round((usage.value.aiUsed / Math.max(usage.value.aiLimit, 1)) * 100)))
+
+const toggleUsagePopover = () => {
+  showUsagePopover.value = !showUsagePopover.value
+  if (showUsagePopover.value) {
+    isProfileMenuOpen.value = false
+    showNotifications.value = false
+  }
+}
+
+const expiresShort = computed(() => {
+  if (!subscription.value.expiresAt) return ''
+  const d = new Date(subscription.value.expiresAt)
+  if (Number.isNaN(d.getTime())) return ''
+  return `до ${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`
+})
 
 const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
@@ -414,6 +509,9 @@ const handleClickOutside = (event) => {
     const notificationsButton = target.closest('[data-notifications-button]')
     const notificationsDropdown = target.closest('.absolute')
     if (!notificationsButton && !notificationsDropdown) showNotifications.value = false
+  }
+  if (showUsagePopover.value && usageChipRef.value) {
+    if (!usageChipRef.value.contains(target)) showUsagePopover.value = false
   }
   if (isProjectMenuOpen.value && projectMenuRef.value) {
     if (!projectMenuRef.value.contains(target)) isProjectMenuOpen.value = false
@@ -517,4 +615,126 @@ onUnmounted(() => {
 :global(.darkmode) .burger-line {
   background: rgba(255, 255, 255, 0.88);
 }
+
+/* ── Usage chip ── */
+.usage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4861rem;
+  min-height: 2.7778rem;
+  padding: 0.4167rem 0.8333rem;
+  border-radius: 0.6944rem;
+  background: #f5f7f9;
+  border: 1px solid rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+  font-size: 0.8333rem;
+}
+.usage-chip:hover {
+  background: #ecf3fe;
+  border-color: rgba(37,99,235,0.12);
+}
+:global(.dark) .usage-chip {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.06);
+}
+:global(.dark) .usage-chip:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(74,122,255,0.2);
+}
+
+.usage-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  color: #696969;
+  transition: color 0.2s;
+}
+:global(.dark) .usage-gauge { color: rgba(255,255,255,0.65); }
+.usage-gauge--amber { color: #d97706; }
+:global(.dark) .usage-gauge--amber { color: #fbbf24; }
+
+.usage-num { font-weight: 700; font-size: 0.8333rem; }
+.usage-label { font-weight: 400; font-size: 0.7639rem; opacity: 0.7; }
+@media (max-width: 1440px) { .usage-label { display: none; } }
+
+.usage-dot { color: #ccc; font-weight: 300; font-size: 0.9028rem; }
+:global(.dark) .usage-dot { color: rgba(255,255,255,0.25); }
+
+/* ── Usage popover ── */
+.usage-popover {
+  background: #fff;
+  border-radius: 1.0417rem;
+  padding: 1.25rem;
+  box-shadow: 0 1.3889rem 3.4722rem rgba(15,23,42,0.14), 0 0 0 1px rgba(68,68,68,0.06);
+}
+:global(.dark) .usage-popover {
+  background: #2C2F3D;
+  box-shadow: 0 1.3889rem 3.4722rem rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.usage-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9722rem;
+  font-weight: 600;
+  color: #171717;
+  margin-bottom: 1.0417rem;
+  padding-bottom: 0.6944rem;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+:global(.dark) .usage-popover-header {
+  color: rgba(255,255,255,0.9);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+.usage-popover-date {
+  font-weight: 400;
+  font-size: 0.8333rem;
+  color: #696969;
+}
+:global(.dark) .usage-popover-date { color: rgba(255,255,255,0.45); }
+
+.usage-popover-row {
+  margin-bottom: 0.8333rem;
+}
+
+.usage-bar {
+  height: 0.4167rem;
+  border-radius: 2.7778rem;
+  background: #f0f1f3;
+  overflow: hidden;
+}
+:global(.dark) .usage-bar { background: rgba(255,255,255,0.08); }
+
+.usage-bar-fill {
+  height: 100%;
+  border-radius: 2.7778rem;
+  background: #2563eb;
+  transition: width 0.5s ease;
+}
+.usage-bar-fill--amber { background: #d97706; }
+
+.usage-popover-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4861rem;
+  width: 100%;
+  padding: 0.6944rem;
+  margin-top: 0.3472rem;
+  border-radius: 0.6944rem;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  color: #2563eb;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.usage-popover-link:hover { background: #ecf3fe; }
+:global(.dark) .usage-popover-link { color: #4A7AFF; }
+:global(.dark) .usage-popover-link:hover { background: rgba(255,255,255,0.06); }
 </style>

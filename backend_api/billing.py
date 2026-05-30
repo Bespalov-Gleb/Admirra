@@ -175,7 +175,11 @@ def get_my_subscription(
     SubscriptionService._ensure_ai_period(current_user, plan)
     used = int(current_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
-    # Синхронизируем is_subscribed с реальным состоянием подписки
+    projects_used = db.query(models.Client).filter(models.Client.owner_id == current_user.id).count()
+    ai_reset_date = None
+    if current_user.ai_requests_period_started_at:
+        reset_dt = current_user.ai_requests_period_started_at + timedelta(days=int(plan.period_days or 30))
+        ai_reset_date = reset_dt.strftime("%d.%m")
     is_active = SubscriptionService._is_subscription_active(current_user, sub)
     if current_user.is_subscribed != is_active:
         current_user.is_subscribed = is_active
@@ -187,9 +191,11 @@ def get_my_subscription(
         is_subscribed=is_active,
         subscription_expires_at=current_user.subscription_expires_at,
         max_projects=plan.max_projects,
+        projects_used=projects_used,
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         ai_requests_used=used,
         ai_requests_remaining=remaining,
+        ai_reset_date=ai_reset_date,
         period_days=plan.period_days,
     )
 

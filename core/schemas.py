@@ -649,9 +649,11 @@ class BillingSubscriptionResponse(BaseModel):
     is_subscribed: bool
     subscription_expires_at: Optional[datetime] = None
     max_projects: int
+    projects_used: int = 0
     max_ai_requests_per_period: int
     ai_requests_used: int
     ai_requests_remaining: int
+    ai_reset_date: Optional[str] = None
     period_days: int
 
 
