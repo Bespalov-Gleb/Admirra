@@ -327,33 +327,6 @@
         </div>
       </div>
 
-      <!-- Placeholder cards for scroll testing -->
-      <div v-for="n in 6" :key="`card-ph-${n}`" class="project-card project-card--tile bg-white rounded-[1.0417rem] pointer-events-none select-none opacity-40">
-        <div class="project-tile-main">
-          <div class="project-tile-header">
-            <div class="project-tile-identity">
-              <div class="project-avatar" style="background:#e8ecf3"></div>
-              <div class="project-tile-title-block">
-                <div :style="`width:${7 + (n % 4) * 2}rem`" class="h-[1.2rem] bg-[#e8ecf3] rounded-[0.3rem] mb-[0.5rem]"></div>
-                <div :style="`width:${4 + (n % 3)}rem`" class="h-[0.85rem] bg-[#e8ecf3] rounded-[0.3rem]"></div>
-              </div>
-            </div>
-          </div>
-          <div class="project-tile-stats">
-            <div v-for="s in 4" :key="s" class="stat-box">
-              <div class="iconbox flex-shrink-0" style="background:#e8ecf3"></div>
-              <div class="stat-box__copy">
-                <div class="h-[0.75rem] bg-[#e8ecf3] rounded w-[3rem] mb-[0.3rem]"></div>
-                <div class="h-[0.65rem] bg-[#e8ecf3] rounded w-[2.2rem]"></div>
-              </div>
-              <div class="h-[1rem] bg-[#e8ecf3] rounded w-[2.5rem]"></div>
-            </div>
-          </div>
-        </div>
-        <div class="project-tile-footer">
-          <div class="h-[1rem] bg-[#e8ecf3] rounded w-[8rem]"></div>
-        </div>
-      </div>
     </div>
 
     <ProjectAvatarUploadModal
