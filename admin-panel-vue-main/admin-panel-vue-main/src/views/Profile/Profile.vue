@@ -20,7 +20,7 @@
         <div class="hero-info">
           <h2>{{ displayName }}</h2>
           <p>{{ form.email }}</p>
-          <span class="role-badge">{{ form.role || 'MANAGER' }}</span>
+          <span v-if="form.role" class="role-badge">{{ form.role }}</span>
         </div>
         <button v-if="form.avatarUrl" class="ghost-btn" type="button" @click="deleteAvatar">Удалить аватар</button>
       </section>
@@ -82,7 +82,7 @@
           <div class="security-row">
             <div>
               <strong>Двухфакторная аутентификация</strong>
-              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. Метод 2FA будет расширен позже.</span>
+              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. При входе потребуется код из email.</span>
             </div>
             <button
               class="toggle"
@@ -103,7 +103,7 @@
               :class="`oauth-row--${provider.provider}`"
             >
               <div class="oauth-mark">
-                <img v-if="provider.icon" :src="provider.icon" :alt="provider.label" />
+                <img v-if="provider.icon_url" :src="provider.icon_url" :alt="provider.label" />
                 <span v-else>{{ provider.short }}</span>
               </div>
               <div class="oauth-main">
@@ -266,12 +266,6 @@ const passwordForm = reactive({
   repeat: '',
 })
 
-const providerMeta = {
-  yandex: { label: 'Яндекс ID', short: 'Я', icon: '/admirra/img/icons/yandex.png' },
-  vk: { label: 'ВКонтакте', short: 'VK', icon: '/admirra/img/icons/vk.png' },
-  max: { label: 'Max', short: 'M', icon: '/admirra/img/icons/max.png' },
-}
-
 const displayName = computed(() => {
   return [form.firstName, form.lastName].filter(Boolean).join(' ').trim() || form.email || 'Пользователь'
 })
@@ -288,15 +282,7 @@ const passwordSubtitle = computed(() => {
 })
 
 const oauthProviders = computed(() => {
-  const byProvider = new Map(oauth.value.map((item) => [item.provider, item]))
-  return ['yandex', 'vk', 'max'].map((provider) => ({
-    provider,
-    ...providerMeta[provider],
-    connected: false,
-    can_unlink: false,
-    hint: '',
-    ...(byProvider.get(provider) || {}),
-  }))
+  return oauth.value.filter((item) => item?.provider)
 })
 
 function fillProfile(data) {
@@ -629,8 +615,8 @@ onMounted(loadProfile)
 .field input,
 .field select {
   width: 100%;
-  min-height: 2.7083rem;
-  padding: 0 0.9028rem;
+  min-height: 2.3611rem;
+  padding: 0 0.8333rem;
   border: 1px solid transparent;
   border-radius: 0.6944rem;
   outline: none;
@@ -749,8 +735,8 @@ button:disabled {
   height: 2.6389rem;
   flex-shrink: 0;
   border-radius: 0.6944rem;
-  background: #fff3db;
-  color: #9a5a0a;
+  background: #f3f6fb;
+  color: #445064;
   font-size: 0.9028rem;
   font-weight: 900;
 }
@@ -760,8 +746,11 @@ button:disabled {
   height: 1.6667rem;
   object-fit: contain;
 }
-.oauth-row--vk .oauth-mark { background: #eef6ff; color: #1f5f9f; }
-.oauth-row--max .oauth-mark { background: #eef8f4; color: #167147; }
+.oauth-row--vk .oauth-mark,
+.oauth-row--max .oauth-mark {
+  background: #f3f6fb;
+  color: #445064;
+}
 .oauth-main {
   min-width: 0;
   flex: 1;

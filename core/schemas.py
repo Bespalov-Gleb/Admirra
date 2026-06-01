@@ -195,6 +195,8 @@ class PasswordChangeRequest(BaseModel):
 class OAuthIdentityStatus(BaseModel):
     provider: str
     label: str
+    short: Optional[str] = None
+    icon_url: Optional[str] = None
     connected: bool
     can_unlink: bool = False
     hint: Optional[str] = None

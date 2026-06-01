@@ -282,7 +282,9 @@ async def login_password_step(
     if security.AUTH_REQUIRE_EMAIL_VERIFIED and not user.email_verified:
         return schemas.LoginPasswordStepResponse(step="email_not_verified", email=user.email)
 
-    if not AUTH_LOGIN_OTP_ENABLED:
+    otp_required = AUTH_LOGIN_OTP_ENABLED or bool(getattr(user, "two_factor_enabled", False))
+
+    if not otp_required:
         logger.info("AUTH_LOGIN_OTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
         log_history_event(
             db,
@@ -298,6 +300,11 @@ async def login_password_step(
         return token
 
     if not smtp_delivery_active():
+        if getattr(user, "two_factor_enabled", False):
+            raise HTTPException(
+                status_code=503,
+                detail="Двухфакторная аутентификация временно недоступна: email-доставка не настроена",
+            )
         if smtp_enabled() and not smtp_configured():
             logger.error("SMTP not configured; cannot send login OTP")
             raise HTTPException(
@@ -660,9 +667,29 @@ def get_users_me_oauth_identities(
     connected = {identity.provider for identity in (current_user.oauth_identities or [])}
     has_password = _user_has_usable_password(current_user)
     connected_count = len(connected)
-    labels = {"yandex": "Яндекс ID", "vk": "ВКонтакте", "max": "Max"}
+    providers = [
+        {
+            "provider": "yandex",
+            "label": "Яндекс ID",
+            "short": "Я",
+            "icon_url": "/admirra/img/icons/yandex.png",
+        },
+        {
+            "provider": "vk",
+            "label": "ВКонтакте",
+            "short": "VK",
+            "icon_url": "/admirra/img/icons/vk.png",
+        },
+        {
+            "provider": "max",
+            "label": "Max",
+            "short": "M",
+            "icon_url": "/admirra/img/icons/max.png",
+        },
+    ]
     result = []
-    for provider in ("yandex", "vk", "max"):
+    for item in providers:
+        provider = item["provider"]
         is_connected = provider in connected
         can_unlink = bool(is_connected and (has_password or connected_count > 1))
         hint = None
@@ -671,7 +698,9 @@ def get_users_me_oauth_identities(
         result.append(
             schemas.OAuthIdentityStatus(
                 provider=provider,
-                label=labels[provider],
+                label=item["label"],
+                short=item["short"],
+                icon_url=item["icon_url"],
                 connected=is_connected,
                 can_unlink=can_unlink,
                 hint=hint,
