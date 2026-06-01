@@ -662,6 +662,7 @@ class BillingSubscriptionResponse(BaseModel):
     ai_reset_date: Optional[str] = None
     period_days: int
     autorenew: bool = True
+    payment_method: Optional[Any] = None
     whitelabel_available: bool = False
 
 

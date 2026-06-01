@@ -20,6 +20,7 @@ class EffectivePlan:
     max_ai_requests_per_period: int
     period_days: int
     trial_days: int
+    max_cabinets: int
     max_staff: int
     max_clients: int
     is_default: bool = False
@@ -70,6 +71,7 @@ class SubscriptionService:
                 max_ai_requests_per_period=cfg.plan_basic_ai_limit,
                 period_days=cfg.ai_period_days,
                 trial_days=cfg.trial_days,
+                max_cabinets=10,
                 max_staff=cfg.plan_basic_max_staff,
                 max_clients=cfg.plan_basic_max_clients,
             )
@@ -82,6 +84,7 @@ class SubscriptionService:
                 max_ai_requests_per_period=cfg.plan_standard_ai_limit,
                 period_days=cfg.ai_period_days,
                 trial_days=cfg.trial_days,
+                max_cabinets=30,
                 max_staff=cfg.plan_standard_max_staff,
                 max_clients=cfg.plan_standard_max_clients,
             )
@@ -93,6 +96,7 @@ class SubscriptionService:
             max_ai_requests_per_period=cfg.plan_start_ai_limit,
             period_days=cfg.ai_period_days,
             trial_days=cfg.trial_days,
+            max_cabinets=3,
             max_staff=cfg.plan_start_max_staff,
             max_clients=cfg.plan_start_max_clients,
             is_default=True,
@@ -148,6 +152,7 @@ class SubscriptionService:
                 max_ai_requests_per_period=plan_row.max_ai_requests_per_period,
                 period_days=plan_row.period_days,
                 trial_days=plan_row.trial_days,
+                max_cabinets=getattr(plan_row, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan_row.code),
                 max_staff=getattr(plan_row, "max_staff", get_config().billing.plan_start_max_staff),
                 max_clients=getattr(plan_row, "max_clients", get_config().billing.plan_start_max_clients),
                 is_default=plan_row.is_default,
@@ -173,6 +178,15 @@ class SubscriptionService:
         if not SubscriptionService.billing_enforced():
             return
         raise HTTPException(status_code=402, detail="Подписка неактивна")
+
+    @staticmethod
+    def cabinet_limit_for_plan(plan_code: str) -> int:
+        code = str(plan_code or "").lower()
+        if code == "standard":
+            return 30
+        if code == "basic":
+            return 10
+        return 3
 
     @staticmethod
     def ensure_can_create_project(db: Session, user: models.User) -> None:
@@ -201,6 +215,36 @@ class SubscriptionService:
         raise HTTPException(
             status_code=403,
             detail=f"Достигнут лимит проектов для тарифа '{plan.name}' ({plan.max_projects})",
+        )
+
+    @staticmethod
+    def ensure_can_create_cabinet(db: Session, user: models.User) -> None:
+        if SubscriptionService.is_admin_bypass(user):
+            return
+        plan = SubscriptionService.get_user_plan(db, user)
+        limit = getattr(plan, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan.code)
+        total = (
+            db.query(models.Integration.id)
+            .join(models.Client, models.Client.id == models.Integration.client_id)
+            .filter(models.Client.owner_id == user.id)
+            .count()
+        )
+        if total < limit:
+            return
+        if not SubscriptionService.billing_enforced():
+            return
+        log_history_event(
+            db,
+            actor=user,
+            event_type="limit",
+            action="cabinet_limit_reached",
+            description=f"Достигнут лимит кабинетов ({limit})",
+            target_type="subscription",
+            meta={"plan_code": plan.code, "limit": limit, "current_total": total},
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"Достигнут лимит кабинетов для тарифа '{plan.name}' ({limit})",
         )
 
     @staticmethod
@@ -284,4 +328,3 @@ class SubscriptionService:
             if owner:
                 return owner
         return user
-

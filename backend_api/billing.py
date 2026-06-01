@@ -105,12 +105,7 @@ def _billing_period_days(plan, billing_period: str) -> int:
 
 
 def _cabinet_limit_for_plan(plan_code: str) -> int:
-    code = str(plan_code or "").lower()
-    if code == "standard":
-        return 30
-    if code == "basic":
-        return 10
-    return 3
+    return SubscriptionService.cabinet_limit_for_plan(plan_code)
 
 
 def _plan_has_whitelabel(plan) -> bool:
@@ -228,7 +223,7 @@ def get_my_subscription(
         max_projects=plan.max_projects,
         projects_used=projects_used,
         paused_projects=paused_projects,
-        max_cabinets=_cabinet_limit_for_plan(plan.code),
+        max_cabinets=getattr(plan, "max_cabinets", None) or _cabinet_limit_for_plan(plan.code),
         cabinets_used=int(cabinets_used),
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         ai_requests_used=used,
@@ -236,6 +231,7 @@ def get_my_subscription(
         ai_reset_date=ai_reset_date,
         period_days=plan.period_days,
         autorenew=not bool(sub.cancel_at_period_end),
+        payment_method=None,
         whitelabel_available=_plan_has_whitelabel(plan),
     )
 

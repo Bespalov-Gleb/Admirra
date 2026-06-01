@@ -23,6 +23,7 @@ from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
 from backend_api.services.history import log_history_event
+from backend_api.services.subscription import SubscriptionService
 
 cfg = get_config()
 
@@ -310,6 +311,8 @@ async def exchange_yandex_token(
     """
     Exchange authorization code for access token.
     """
+    SubscriptionService.require_active_subscription(db, current_user)
+
     auth_code = payload.get("code")
     redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
     client_name_input = payload.get("client_name")
@@ -391,6 +394,7 @@ async def exchange_yandex_token(
             ).first()
             
             if not client:
+                SubscriptionService.ensure_can_create_project(db, current_user)
                 client = models.Client(
                     owner_id=current_user.id,
                     name=client_name
@@ -420,6 +424,7 @@ async def exchange_yandex_token(
             db_integration.platform_client_id = encrypted_platform_id
             db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         else:
+            SubscriptionService.ensure_can_create_cabinet(db, current_user)
             db_integration = models.Integration(
                 client_id=client.id,
                 platform=models.IntegrationPlatform.YANDEX_DIRECT,
@@ -470,6 +475,8 @@ async def exchange_vk_token_oauth(
     Примечание: client_secret НЕ требуется для Authorization Code Grant в VK Ads API.
     """
     # Проверяем, есть ли уже готовый токен от VKID.Auth.exchangeCode
+    SubscriptionService.require_active_subscription(db, current_user)
+
     access_token = payload.get("access_token")
     refresh_token = payload.get("refresh_token")
     expires_in = payload.get("expires_in")
@@ -700,6 +707,7 @@ async def exchange_vk_token_oauth(
         ).first()
         
         if not db_client:
+            SubscriptionService.ensure_can_create_project(db, current_user)
             db_client = models.Client(owner_id=current_user.id, name=client_name)
             db.add(db_client)
             db.flush()
@@ -765,6 +773,7 @@ async def exchange_vk_token_oauth(
                 db_integration.sync_status = models.IntegrationSyncStatus.NEVER
             else:
                 # Create new integration
+                SubscriptionService.ensure_can_create_cabinet(db, current_user)
                 encrypted_access = security.encrypt_token(access_token)
                 encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
                 db_integration = models.Integration(
@@ -795,6 +804,7 @@ async def exchange_vk_token_oauth(
                 db_integration.vk_user_id = vk_user_id
             db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         else:
+            SubscriptionService.ensure_can_create_cabinet(db, current_user)
             db_integration = models.Integration(
                 client_id=db_client.id,
                 platform=models.IntegrationPlatform.VK_ADS,
@@ -834,6 +844,8 @@ async def exchange_mytarget_token(
     Endpoint: POST https://target-sandbox.my.com/api/v2/oauth2/token.json (для песочницы)
     Параметры: grant_type=authorization_code, code={code}, client_id={client_id}, client_secret={client_secret}, redirect_uri={redirect_uri}
     """
+    SubscriptionService.require_active_subscription(db, current_user)
+
     if not MYTARGET_CLIENT_ID or not MYTARGET_CLIENT_SECRET:
         raise HTTPException(
             status_code=500,
@@ -943,6 +955,7 @@ async def exchange_mytarget_token(
         ).first()
         
         if not db_client:
+            SubscriptionService.ensure_can_create_project(db, current_user)
             db_client = models.Client(owner_id=current_user.id, name=client_name)
             db.add(db_client)
             db.flush()
@@ -963,6 +976,7 @@ async def exchange_mytarget_token(
         db_integration.account_id = mytarget_account_id
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
     else:
+        SubscriptionService.ensure_can_create_cabinet(db, current_user)
         db_integration = models.Integration(
             client_id=db_client.id,
             platform=models.IntegrationPlatform.MYTARGET,
@@ -986,7 +1000,6 @@ async def exchange_mytarget_token(
     }
 
 from .services import IntegrationService
-from .services.subscription import SubscriptionService
 
 @router.post("/", response_model=schemas.IntegrationResponse, status_code=status.HTTP_201_CREATED)
 async def create_integration(
@@ -1022,6 +1035,7 @@ async def create_integration(
     ).first()
     
     if not client:
+        SubscriptionService.ensure_can_create_project(db, current_user)
         client = models.Client(
             owner_id=current_user.id,
             name=integration.client_name
@@ -1081,6 +1095,7 @@ async def create_integration(
         db.refresh(db_integration)
         return db_integration
 
+    SubscriptionService.ensure_can_create_cabinet(db, current_user)
     new_integration = models.Integration(
         client_id=client.id,
         platform=integration.platform,

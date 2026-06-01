@@ -5,24 +5,27 @@
     </div>
 
     <template v-else>
-      <div class="mb-[0.6944rem]">
+      <div class="tariff-page-head">
         <h4 class="text-[1.6667rem] font-semibold leading-none text-[#171717] dark:text-white">Тариф и оплата</h4>
+        <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55">
+          Управляйте текущей подпиской, лимитами и сменой тарифа
+        </p>
       </div>
-      <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mb-[1.7361rem]">
-        Управляйте текущей подпиской, лимитами и сменой тарифа
-      </p>
 
       <!-- Subscription state -->
       <section class="subscription-card">
         <div class="subscription-head">
           <div>
-            <div class="subscription-eyebrow">Подписка</div>
             <div class="subscription-title-row">
-              <h5>{{ subscription.plan_name || 'Старт' }}</h5>
+              <h5>Тариф «{{ subscription.plan_name || 'Старт' }}»</h5>
               <span class="subscription-status" :class="`subscription-status--${subscriptionStatusKey}`">{{ subscriptionStatusLabel }}</span>
+              <span class="subscription-period">{{ planMetaLine }}</span>
               <span v-if="subscription.whitelabel_available" class="subscription-status subscription-status--wl">White Label</span>
             </div>
-            <p>{{ renewalText }}</p>
+            <p class="subscription-renewal">
+              <svg class="w-[1.0417rem] h-[1.0417rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1Z"/></svg>
+              {{ renewalText }}
+            </p>
           </div>
           <button class="subscription-change-btn" type="button" @click="scrollToPlans">
             Изменить тариф
@@ -42,33 +45,43 @@
           </div>
         </div>
 
-        <div class="subscription-rows">
-          <div class="subscription-row">
-            <span>Доступные каналы</span>
-            <div class="channel-chip-list">
-              <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]">{{ channel.label }}</span>
-              <em v-if="currentPlanCode === 'start'">все каналы — от Базового</em>
-            </div>
+        <div class="subscription-channel-row">
+          <span>Доступные каналы</span>
+          <div class="channel-chip-list">
+            <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]">{{ channel.label }}</span>
           </div>
-          <div class="subscription-row">
-            <span>Способ оплаты</span>
-            <div class="subscription-muted-action">
-              <strong>Карта не привязана</strong>
+          <em>{{ currentPlanCode === 'start' ? 'Все каналы — от «Базового»' : 'Все каналы доступны' }}</em>
+        </div>
+
+        <div class="subscription-footer">
+          <div class="payment-line">
+            <div class="payment-method">
+              <span class="payment-card-icon"></span>
+              <strong>{{ paymentMethodLabel }}</strong>
+              <span>·</span>
+              <span>{{ subscription.autorenew ? 'автопродление вкл.' : 'автопродление выкл.' }}</span>
+            </div>
+            <div class="subscription-footer-actions">
               <button type="button" disabled>Изменить карту</button>
+              <button type="button" disabled>{{ subscription.autorenew ? 'Отменить автопрод.' : 'Включить автопрод.' }}</button>
             </div>
           </div>
-          <div class="subscription-row">
-            <span>Автопродление</span>
-            <div class="subscription-muted-action">
-              <strong>{{ subscription.autorenew ? 'Включено' : 'Отключено' }}</strong>
-              <button type="button" disabled>{{ subscription.autorenew ? 'Отключить' : 'Включить' }}</button>
-            </div>
-          </div>
-          <div class="subscription-row subscription-row--disabled" title="Будет позже">
+          <div class="documents-line" title="Будет позже">
             <span>Документы и оплата по счёту</span>
             <strong>будет позже</strong>
           </div>
         </div>
+
+        <div v-if="subscriptionStatusKey === 'past_due'" class="subscription-warning">
+          Не удалось списать оплату. Обновите карту, чтобы сохранить доступ после грейс-периода.
+        </div>
+        <div v-else-if="subscriptionStatusKey === 'trial'" class="subscription-note">
+          После окончания пробного периода подписка продолжится по выбранному тарифу.
+        </div>
+        <div v-else-if="subscription.autorenew" class="subscription-note">
+          {{ autorenewHint }}
+        </div>
+
       </section>
 
       <div ref="plansAnchor" class="tariff-section-head">
@@ -237,23 +250,22 @@
       </div>
       </Transition>
 
-      <section class="wl-card wl-card--premium" :class="{ 'wl-card--locked': !subscription.whitelabel_available }">
-        <div class="wl-card__content">
-          <div>
-            <div class="wl-card__badge">
+      <section class="wl-upsell-banner" :class="{ 'wl-upsell-banner--unlocked': subscription.whitelabel_available }">
+        <div class="wl-upsell-banner__pattern"></div>
+        <div class="wl-upsell-banner__content">
+          <div class="wl-upsell-banner__copy">
+            <div class="wl-upsell-banner__badge">
               <svg v-if="!subscription.whitelabel_available" class="w-[0.8333rem] h-[0.8333rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              {{ subscription.whitelabel_available ? 'Подключено' : 'Премиальная функция' }}
+              {{ subscription.whitelabel_available ? 'White Label подключён' : 'White Label' }}
             </div>
-            <h4>White Label для агентства</h4>
-            <p>
-              Логотип, фирменный цвет, подпись PDF и собственный домен для отчётов. Настройка живёт в отдельной вкладке «Бренд / White Label».
-            </p>
+            <h4>Отчёты и ссылки под брендом вашего агентства</h4>
+            <p>Логотип, фирменный цвет, подпись PDF и собственный домен. Конфигурация находится в отдельной вкладке «Бренд / White Label».</p>
           </div>
-          <ul>
-            <li v-for="item in wlFeatures" :key="item">{{ item }}</li>
-          </ul>
-          <button class="wl-card__button" type="button" @click="router.push('/settings')">
-            {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Посмотреть White Label' }}
+          <div class="wl-upsell-banner__features">
+            <span v-for="item in wlFeatures" :key="item">{{ item }}</span>
+          </div>
+          <button class="wl-upsell-banner__button" type="button" @click="router.push('/settings')">
+            {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Открыть White Label' }}
           </button>
         </div>
       </section>
@@ -308,6 +320,7 @@ const subscription = ref({
   ai_reset_date: '',
   autorenew: true,
   whitelabel_available: false,
+  payment_method: null,
 })
 
 const resolvedPlans = computed(() => plans.value)
@@ -339,11 +352,32 @@ const daysLeft = computed(() => {
 const renewalText = computed(() => {
   const date = formatDate(subscription.value?.subscription_expires_at)
   const days = daysLeft.value
-  const suffix = days !== null ? `, осталось ${days} дн.` : ''
-  if (subscriptionStatusKey.value === 'trial') return date ? `Триал до ${date}${suffix}` : 'Триал активен'
+  const suffix = days !== null ? ` · осталось ${days} дн.` : ''
+  if (subscriptionStatusKey.value === 'trial') return date ? `Продлится ${date}${suffix}` : 'Триал активен'
   if (subscriptionStatusKey.value === 'canceled') return date ? `Доступ сохранится до ${date}` : 'Автопродление отключено'
   if (subscriptionStatusKey.value === 'past_due') return 'Не удалось списать оплату. Обновите способ оплаты.'
-  return date ? `Следующее продление ${date}${suffix}` : 'Подписка активна'
+  return date ? `Продлится ${date}${suffix}` : 'Подписка активна'
+})
+
+const planMetaLine = computed(() => {
+  const period = billingPeriod.value === 'year' ? 'годовая' : 'помесячно'
+  return `${period} · ${currentPrice(currentPlan.value)}/${billingPeriod.value === 'year' ? 'год' : 'мес'}`
+})
+
+const paymentMethodLabel = computed(() => {
+  const method = subscription.value?.payment_method || {}
+  const last4 = method.last4 || subscription.value?.payment_last4
+  const exp = method.exp || method.expires || subscription.value?.payment_exp
+  if (last4 && exp) return `•• ${last4} ${exp}`
+  if (last4) return `•• ${last4}`
+  return 'Карта не привязана'
+})
+
+const autorenewHint = computed(() => {
+  const date = formatDate(subscription.value?.subscription_expires_at)
+  const amount = currentPrice(currentPlan.value)
+  if (!date) return 'Автопродление включено.'
+  return `${date} спишется ${amount}.`
 })
 
 const usagePercent = (used, limit) => {
@@ -523,13 +557,20 @@ async function onSubscribe(planCode, bp = 'month') {
 </script>
 
 <style scoped>
+.tariff-page-head {
+  margin: -0.2778rem 0 1.3889rem;
+}
+.tariff-page-head p {
+  margin: 0.6944rem 0 0;
+}
+
 .subscription-card {
   margin-bottom: 2.0833rem;
-  padding: 1.7361rem;
+  padding: 1.5278rem;
   border: 1px solid rgba(0,0,0,0.05);
   border-radius: 1.3889rem;
-  background: #fff;
-  box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.035);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.035), inset 0 0 0 1px rgba(255,255,255,0.75);
 }
 :global(.dark) .subscription-card,
 :global(.darkmode) .subscription-card {
@@ -543,16 +584,7 @@ async function onSubscribe(planCode, bp = 'month') {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.3889rem;
-  margin-bottom: 1.3889rem;
-}
-
-.subscription-eyebrow {
-  margin-bottom: 0.4861rem;
-  color: rgba(105,105,105,0.58);
-  font-size: 0.8333rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  margin-bottom: 1.25rem;
 }
 
 .subscription-title-row {
@@ -564,23 +596,26 @@ async function onSubscribe(planCode, bp = 'month') {
 
 .subscription-title-row h5 {
   margin: 0;
-  color: #171717;
+  color: #1f2937;
   font-size: 1.5278rem;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.1;
 }
 :global(.dark) .subscription-title-row h5,
 :global(.darkmode) .subscription-title-row h5 { color: rgba(255,255,255,0.92); }
 
-.subscription-head p,
+.subscription-renewal,
 .tariff-section-head p {
-  margin: 0.4861rem 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  margin: 0.625rem 0 0;
   color: rgba(105,105,105,0.62);
   font-size: 0.9722rem;
-  font-weight: 500;
+  font-weight: 600;
 }
-:global(.dark) .subscription-head p,
-:global(.darkmode) .subscription-head p,
+:global(.dark) .subscription-renewal,
+:global(.darkmode) .subscription-renewal,
 :global(.dark) .tariff-section-head p,
 :global(.darkmode) .tariff-section-head p { color: rgba(255,255,255,0.55); }
 
@@ -595,6 +630,11 @@ async function onSubscribe(planCode, bp = 'month') {
   font-size: 0.7639rem;
   font-weight: 700;
   white-space: nowrap;
+}
+.subscription-period {
+  color: #9ca3af;
+  font-size: 0.9028rem;
+  font-weight: 700;
 }
 .subscription-status--active,
 .subscription-status--trial,
@@ -649,15 +689,15 @@ async function onSubscribe(planCode, bp = 'month') {
 }
 .usage-tile {
   min-width: 0;
-  padding: 1.0417rem;
-  border-radius: 1.0417rem;
-  background: #f5f7f9;
+  padding: 0.9028rem 1.0417rem;
+  border-radius: 0.8333rem;
+  background: linear-gradient(180deg, rgba(255,250,240,0.76), rgba(245,247,249,0.94));
 }
 :global(.dark) .usage-tile,
 :global(.darkmode) .usage-tile { background: rgba(255,255,255,0.06); }
 .usage-tile__top {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 0.6944rem;
   color: #696969;
@@ -666,7 +706,8 @@ async function onSubscribe(planCode, bp = 'month') {
 }
 .usage-tile__top strong {
   color: #171717;
-  font-size: 1.1111rem;
+  font-size: 1.3889rem;
+  line-height: 1;
 }
 :global(.dark) .usage-tile__top,
 :global(.darkmode) .usage-tile__top { color: rgba(255,255,255,0.56); }
@@ -687,12 +728,137 @@ async function onSubscribe(planCode, bp = 'month') {
 }
 .usage-tile__bar .usage-tile__fill--warn { background: #f59e0b; }
 .usage-tile p {
-  margin: 0.5556rem 0 0;
+  margin: 0.4861rem 0 0;
   color: rgba(105,105,105,0.58);
   font-size: 0.8333rem;
 }
 :global(.dark) .usage-tile p,
 :global(.darkmode) .usage-tile p { color: rgba(255,255,255,0.42); }
+
+.subscription-channel-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8333rem;
+  min-height: 3.0556rem;
+  margin-bottom: 1.0417rem;
+  padding: 0.625rem 0.8333rem;
+  border-radius: 0.8333rem;
+  background: linear-gradient(90deg, rgba(255,243,219,0.72), rgba(246,248,252,0.9));
+}
+:global(.dark) .subscription-channel-row,
+:global(.darkmode) .subscription-channel-row { background: rgba(255,255,255,0.05); }
+.subscription-channel-row > span {
+  color: #696969;
+  font-size: 0.9028rem;
+  font-weight: 700;
+}
+.subscription-channel-row em {
+  color: #9ca3af;
+  font-size: 0.8333rem;
+  font-style: normal;
+  font-weight: 700;
+  text-align: right;
+}
+
+.subscription-footer {
+  display: grid;
+  gap: 0.6944rem;
+  padding-top: 1.0417rem;
+  border-top: 1px solid rgba(15,23,42,0.06);
+}
+:global(.dark) .subscription-footer,
+:global(.darkmode) .subscription-footer { border-top-color: rgba(255,255,255,0.08); }
+.payment-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.payment-method {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.4167rem;
+  color: #4b5563;
+  font-size: 0.9028rem;
+  font-weight: 700;
+}
+.payment-method strong {
+  color: #1f2937;
+  font-weight: 800;
+}
+.payment-card-icon {
+  width: 1.25rem;
+  height: 0.8333rem;
+  border-radius: 0.1389rem;
+  background: linear-gradient(90deg, #d1a246 0 35%, #eef2f7 35% 100%);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  flex-shrink: 0;
+}
+.subscription-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+.subscription-footer-actions button {
+  min-height: 2.6389rem;
+  padding: 0 0.9722rem;
+  border: 1px solid rgba(37,99,235,0.26);
+  border-radius: 0.6944rem;
+  background: #fff;
+  color: #344054;
+  font-size: 0.9028rem;
+  font-weight: 800;
+  cursor: not-allowed;
+}
+.documents-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  color: #c7ced8;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+.documents-line strong {
+  padding: 0.3472rem 0.8333rem;
+  border-radius: 2.7778rem;
+  background: rgba(245,247,249,0.85);
+  color: #d1d5db;
+  font-size: 0.7639rem;
+}
+.subscription-note,
+.subscription-warning {
+  margin-top: 0.8333rem;
+  padding: 0.625rem 0.8333rem;
+  border-radius: 0.6944rem;
+  color: #64748b;
+  background: rgba(245,247,249,0.72);
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+.subscription-warning {
+  color: #b45309;
+  background: rgba(245,158,11,0.12);
+}
+:global(.dark) .payment-method,
+:global(.darkmode) .payment-method,
+:global(.dark) .subscription-channel-row > span,
+:global(.darkmode) .subscription-channel-row > span { color: rgba(255,255,255,0.64); }
+:global(.dark) .payment-method strong,
+:global(.darkmode) .payment-method strong { color: rgba(255,255,255,0.9); }
+:global(.dark) .subscription-footer-actions button,
+:global(.darkmode) .subscription-footer-actions button {
+  border-color: rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+}
+:global(.dark) .subscription-note,
+:global(.darkmode) .subscription-note { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.54); }
 
 .subscription-rows {
   display: grid;
@@ -1043,70 +1209,71 @@ async function onSubscribe(planCode, bp = 'month') {
   background-color: rgba(255,255,255,0.92);
 }
 
-.wl-card--premium {
+.wl-upsell-banner {
+  position: relative;
+  overflow: hidden;
   padding: 1.7361rem;
   border-radius: 1.3889rem;
-  border: 1px solid rgba(37,99,235,0.14);
-  background:
-    radial-gradient(circle at 12% 20%, rgba(6,181,212,0.18), transparent 28%),
-    linear-gradient(135deg, #ffffff 0%, #f7fbff 58%, #eef5ff 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 36%, #1f9de4 72%, #06b5d4 100%);
+  box-shadow: 0 1rem 2.5rem rgba(37,99,235,0.16);
 }
-:global(.dark) .wl-card--premium,
-:global(.darkmode) .wl-card--premium {
-  border-color: rgba(74,122,255,0.18);
-  background:
-    radial-gradient(circle at 12% 20%, rgba(74,122,255,0.20), transparent 28%),
-    #2C2F3D;
+.wl-upsell-banner--unlocked {
+  background: linear-gradient(135deg, #0f766e 0%, #2563eb 52%, #1f9de4 100%);
 }
-.wl-card--locked {
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4), 0 1rem 2.5rem rgba(15,23,42,0.04);
+.wl-upsell-banner__pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background: url('/admirra/img/pattern.png') center/5.3472rem;
 }
-.wl-card__content {
+.wl-upsell-banner__content {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(14rem, 0.85fr) auto;
+  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.95fr) auto;
   align-items: center;
   gap: 1.3889rem;
 }
-.wl-card__badge {
+.wl-upsell-banner__badge {
   display: inline-flex;
   align-items: center;
   gap: 0.4167rem;
   min-height: 1.9444rem;
   padding: 0 0.7639rem;
   border-radius: 2.7778rem;
-  background: rgba(37,99,235,0.10);
-  color: #2563eb;
+  background: rgba(255,255,255,0.18);
+  color: #fff;
   font-size: 0.7639rem;
   font-weight: 800;
   margin-bottom: 0.6944rem;
 }
-.wl-card__content h4 {
+.wl-upsell-banner__copy h4 {
   margin: 0;
-  color: #171717;
+  color: #fff;
   font-size: 1.5278rem;
   font-weight: 800;
+  line-height: 1.2;
 }
-.wl-card__content p {
+.wl-upsell-banner__copy p {
   margin: 0.5556rem 0 0;
-  color: rgba(105,105,105,0.66);
+  max-width: 40rem;
+  color: rgba(255,255,255,0.78);
   font-size: 0.9722rem;
   line-height: 1.45;
 }
-.wl-card__content ul {
+.wl-upsell-banner__features {
   display: grid;
-  gap: 0.4861rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: 0.5556rem;
 }
-.wl-card__content li {
+.wl-upsell-banner__features span {
   position: relative;
   padding-left: 1.1111rem;
-  color: #4b5563;
+  color: rgba(255,255,255,0.9);
   font-size: 0.9028rem;
-  font-weight: 600;
+  font-weight: 700;
 }
-.wl-card__content li::before {
+.wl-upsell-banner__features span::before {
   content: '';
   position: absolute;
   left: 0;
@@ -1114,40 +1281,44 @@ async function onSubscribe(planCode, bp = 'month') {
   width: 0.4167rem;
   height: 0.4167rem;
   border-radius: 50%;
-  background: #2563eb;
+  background: #fff;
 }
-.wl-card__button {
+.wl-upsell-banner__button {
   min-height: 3.0556rem;
   padding: 0 1.25rem;
   border: 0;
   border-radius: 0.8333rem;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  color: #fff;
+  background: #fff;
+  color: #2563eb;
   font-size: 0.9028rem;
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
 }
-.wl-card__button:hover { transform: translateY(-1px); }
-:global(.dark) .wl-card__content h4,
-:global(.darkmode) .wl-card__content h4 { color: rgba(255,255,255,0.92); }
-:global(.dark) .wl-card__content p,
-:global(.darkmode) .wl-card__content p { color: rgba(255,255,255,0.56); }
-:global(.dark) .wl-card__content li,
-:global(.darkmode) .wl-card__content li { color: rgba(255,255,255,0.74); }
+.wl-upsell-banner__button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.6944rem 2.0833rem rgba(0,0,0,0.15);
+}
 
 @media (max-width: 1024px) {
   .usage-grid,
-  .wl-card__content {
+  .wl-upsell-banner__content {
     grid-template-columns: 1fr;
   }
   .subscription-head,
-  .subscription-row {
+  .subscription-row,
+  .payment-line,
+  .subscription-channel-row {
     align-items: flex-start;
     flex-direction: column;
   }
+  .subscription-channel-row {
+    display: flex;
+  }
   .channel-chip-list,
-  .subscription-muted-action {
+  .subscription-muted-action,
+  .subscription-footer-actions {
     justify-content: flex-start;
   }
 }

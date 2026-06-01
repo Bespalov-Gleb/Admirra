@@ -90,19 +90,28 @@
       </button>
 
       <!-- Usage chip -->
-      <div ref="usageChipRef" class="relative hidden items-center min-[1180px]:flex">
+      <div
+        ref="usageChipRef"
+        class="relative hidden items-center min-[1180px]:flex"
+        @mouseenter="openUsagePopover"
+        @mouseleave="scheduleCloseUsagePopover"
+      >
         <button
           @click="toggleUsagePopover"
+          @focus="openUsagePopover"
+          @keydown.esc.stop="closeUsagePopover"
+          :aria-expanded="showUsagePopover ? 'true' : 'false'"
+          aria-haspopup="dialog"
+          aria-label="Использование лимитов тарифа"
           class="usage-chip"
         >
           <span :class="['usage-gauge', projectsAtLimit ? 'usage-gauge--amber' : '']">
-            <svg class="w-[0.8333rem] h-[0.8333rem] 2xl:hidden" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
-            <span class="usage-num">{{ usage.projectsUsed }}&thinsp;/&thinsp;{{ usage.projectsLimit }}</span>
+            <svg class="usage-icon" viewBox="0 0 16 16" fill="none"><path d="M2.5 5.2V4.1c0-.7.5-1.2 1.2-1.2h3l1.2 1.3h4.4c.7 0 1.2.5 1.2 1.2v6.4c0 .7-.5 1.2-1.2 1.2H3.7c-.7 0-1.2-.5-1.2-1.2V5.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <span class="usage-num">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
             <span class="usage-label">проекты</span>
           </span>
-          <span class="usage-dot">·</span>
           <span :class="['usage-gauge', aiAtLimit ? 'usage-gauge--amber' : '']">
-            <svg class="w-[0.8333rem] h-[0.8333rem] 2xl:hidden" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.5 3 3.3.5-2.4 2.3.6 3.2L8 9l-3 1.5.6-3.2L3.2 5l3.3-.5L8 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            <svg class="usage-icon usage-icon--ai" viewBox="0 0 16 16" fill="none"><path d="M8 1.8l1.1 2.9 2.9 1.1-2.9 1.1L8 9.8 6.9 6.9 4 5.8l2.9-1.1L8 1.8Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M12.4 9.4l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5.5-1.2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
             <span class="usage-num">{{ usage.aiRemaining }}</span>
             <span class="usage-label">AI осталось</span>
           </span>
@@ -112,7 +121,7 @@
         <Transition name="dropdown">
           <div
             v-if="showUsagePopover"
-            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[20.8333rem]"
+            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[22.2222rem]"
           >
             <div class="usage-popover">
               <div class="usage-popover-header">
@@ -121,9 +130,9 @@
               </div>
 
               <div class="usage-popover-row">
-                <div class="flex items-center justify-between mb-[0.4861rem]">
-                  <span class="text-[0.9028rem] font-medium text-[#444] dark:text-white/80">Проекты</span>
-                  <span class="text-[0.9028rem] font-semibold" :class="projectsAtLimit ? 'text-[#d97706]' : 'text-[#444] dark:text-white/80'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
+                <div class="flex items-center justify-between mb-[0.625rem]">
+                  <span class="text-[1.1111rem] font-semibold text-[#444] dark:text-white/80">Проекты</span>
+                  <span class="text-[1.1111rem] font-extrabold" :class="projectsAtLimit ? 'text-[#604810]' : 'text-[#111827] dark:text-white/90'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
                 </div>
                 <div class="usage-bar">
                   <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%' }"></div>
@@ -131,16 +140,16 @@
               </div>
 
               <div class="usage-popover-row">
-                <div class="flex items-center justify-between mb-[0.4861rem]">
-                  <span class="text-[0.9028rem] font-medium text-[#444] dark:text-white/80">AI-запросы</span>
-                  <span class="text-[0.9028rem] font-semibold" :class="aiAtLimit ? 'text-[#d97706]' : 'text-[#444] dark:text-white/80'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
+                <div class="flex items-center justify-between mb-[0.625rem]">
+                  <span class="text-[1.1111rem] font-semibold text-[#444] dark:text-white/80">AI-запросы</span>
+                  <span class="text-[1.1111rem] font-extrabold" :class="aiAtLimit ? 'text-[#604810]' : 'text-[#111827] dark:text-white/90'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
                 </div>
                 <div class="usage-bar">
                   <div class="usage-bar-fill" :class="aiAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: aiPct + '%' }"></div>
                 </div>
-                <div class="flex items-center justify-between mt-[0.3472rem]">
-                  <span class="text-[0.7639rem] text-[#696969]/60 dark:text-white/40">осталось {{ usage.aiRemaining }}</span>
-                  <span v-if="usage.aiResetDate" class="text-[0.7639rem] text-[#696969]/60 dark:text-white/40">сброс {{ usage.aiResetDate }}</span>
+                <div class="flex items-center justify-between mt-[0.5556rem]">
+                  <span class="text-[0.9722rem] font-semibold text-[#696969]/75 dark:text-white/45">осталось {{ usage.aiRemaining }}</span>
+                  <span v-if="usage.aiResetDate" class="text-[0.9722rem] font-semibold text-[#696969]/75 dark:text-white/45">сброс {{ usage.aiResetDate }}</span>
                 </div>
               </div>
 
@@ -343,7 +352,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api/axios'
 import ConfirmModal from './ConfirmModal.vue'
@@ -379,6 +388,7 @@ const subscription = ref({ planName: '—', expiresAt: null, expiresAtLabel: '' 
 const usage = ref({ projectsUsed: 0, projectsLimit: 1, aiUsed: 0, aiLimit: 30, aiRemaining: 30, aiResetDate: '' })
 const showUsagePopover = ref(false)
 const usageChipRef = ref(null)
+let usageCloseTimer = null
 
 const displayName = computed(() => {
   if (!user.value) return 'Загрузка...'
@@ -399,6 +409,7 @@ const notifications = ref([])
 const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)
 
 let notificationsPollTimer = null
+let subscriptionPollTimer = null
 
 const fetchNotifications = async () => {
   try {
@@ -447,12 +458,36 @@ const aiAtLimit = computed(() => usage.value.aiRemaining <= 0)
 const projectsPct = computed(() => Math.min(100, Math.round((usage.value.projectsUsed / Math.max(usage.value.projectsLimit, 1)) * 100)))
 const aiPct = computed(() => Math.min(100, Math.round((usage.value.aiUsed / Math.max(usage.value.aiLimit, 1)) * 100)))
 
-const toggleUsagePopover = () => {
-  showUsagePopover.value = !showUsagePopover.value
-  if (showUsagePopover.value) {
-    isProfileMenuOpen.value = false
-    showNotifications.value = false
+const clearUsageCloseTimer = () => {
+  if (usageCloseTimer) {
+    clearTimeout(usageCloseTimer)
+    usageCloseTimer = null
   }
+}
+
+const openUsagePopover = () => {
+  clearUsageCloseTimer()
+  showUsagePopover.value = true
+  isProfileMenuOpen.value = false
+  showNotifications.value = false
+}
+
+const closeUsagePopover = () => {
+  clearUsageCloseTimer()
+  showUsagePopover.value = false
+}
+
+const scheduleCloseUsagePopover = () => {
+  clearUsageCloseTimer()
+  usageCloseTimer = setTimeout(() => {
+    showUsagePopover.value = false
+    usageCloseTimer = null
+  }, 140)
+}
+
+const toggleUsagePopover = () => {
+  if (showUsagePopover.value) closeUsagePopover()
+  else openUsagePopover()
 }
 
 const expiresShort = computed(() => {
@@ -464,12 +499,18 @@ const expiresShort = computed(() => {
 
 const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
-  if (isProfileMenuOpen.value) showNotifications.value = false
+  if (isProfileMenuOpen.value) {
+    showNotifications.value = false
+    closeUsagePopover()
+  }
 }
 
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value
-  if (showNotifications.value) isProfileMenuOpen.value = false
+  if (showNotifications.value) {
+    isProfileMenuOpen.value = false
+    closeUsagePopover()
+  }
 }
 
 const closeProfileMenu = () => { isProfileMenuOpen.value = false }
@@ -511,10 +552,19 @@ const handleClickOutside = (event) => {
     if (!notificationsButton && !notificationsDropdown) showNotifications.value = false
   }
   if (showUsagePopover.value && usageChipRef.value) {
-    if (!usageChipRef.value.contains(target)) showUsagePopover.value = false
+    if (!usageChipRef.value.contains(target)) closeUsagePopover()
   }
   if (isProjectMenuOpen.value && projectMenuRef.value) {
     if (!projectMenuRef.value.contains(target)) isProjectMenuOpen.value = false
+  }
+}
+
+const handleKeydown = (event) => {
+  if (event.key === 'Escape') {
+    closeProfileMenu()
+    showNotifications.value = false
+    closeUsagePopover()
+    isProjectMenuOpen.value = false
   }
 }
 
@@ -523,13 +573,23 @@ onMounted(() => {
   loadSubscription()
   fetchNotifications()
   notificationsPollTimer = setInterval(fetchNotifications, 30_000)
+  subscriptionPollTimer = setInterval(loadSubscription, 60_000)
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeydown)
+  clearUsageCloseTimer()
   if (notificationsPollTimer) clearInterval(notificationsPollTimer)
+  if (subscriptionPollTimer) clearInterval(subscriptionPollTimer)
 })
+
+watch(
+  () => projects.value.map((project) => `${project.id}:${project.status || ''}`).join('|'),
+  () => loadSubscription(),
+)
 </script>
 
 <style scoped>
@@ -620,54 +680,97 @@ onUnmounted(() => {
 .usage-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.4861rem;
-  min-height: 2.7778rem;
-  padding: 0.4167rem 0.8333rem;
-  border-radius: 0.6944rem;
-  background: #f5f7f9;
-  border: 1px solid rgba(0,0,0,0.04);
+  gap: 0;
+  min-height: 3.0556rem;
+  padding: 0;
+  border-radius: 0.9722rem;
+  background: #fff;
+  border: 1px solid rgba(120, 120, 120, 0.24);
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   white-space: nowrap;
   font-size: 0.8333rem;
+  box-shadow: 0 0.2778rem 0.8333rem rgba(15, 23, 42, 0.03);
 }
 .usage-chip:hover {
-  background: #ecf3fe;
-  border-color: rgba(37,99,235,0.12);
+  border-color: rgba(37,99,235,0.24);
+  box-shadow: 0 0.5556rem 1.3889rem rgba(15, 23, 42, 0.07);
+}
+.usage-chip:focus-visible {
+  outline: none;
+  border-color: rgba(37,99,235,0.5);
+  box-shadow: 0 0 0 0.2083rem rgba(37,99,235,0.12), 0 0.5556rem 1.3889rem rgba(15, 23, 42, 0.07);
 }
 :global(.dark) .usage-chip {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
 }
 :global(.dark) .usage-chip:hover {
-  background: rgba(255,255,255,0.12);
   border-color: rgba(74,122,255,0.2);
 }
 
 .usage-gauge {
   display: inline-flex;
   align-items: center;
-  gap: 0.3472rem;
-  color: #696969;
-  transition: color 0.2s;
+  justify-content: center;
+  gap: 0.4861rem;
+  min-height: 3.0556rem;
+  padding: 0 1.1111rem;
+  color: #6b7280;
+  transition: background-color 0.2s, color 0.2s;
 }
 :global(.dark) .usage-gauge { color: rgba(255,255,255,0.65); }
-.usage-gauge--amber { color: #d97706; }
-:global(.dark) .usage-gauge--amber { color: #fbbf24; }
+.usage-gauge + .usage-gauge {
+  border-left: 1px solid rgba(120, 120, 120, 0.20);
+}
+:global(.dark) .usage-gauge + .usage-gauge {
+  border-left-color: rgba(255,255,255,0.10);
+}
+.usage-gauge--amber {
+  background: #fff7e8;
+  color: #7a4f0a;
+}
+:global(.dark) .usage-gauge--amber {
+  background: rgba(217,119,6,0.14);
+  color: #fbbf24;
+}
 
-.usage-num { font-weight: 700; font-size: 0.8333rem; }
-.usage-label { font-weight: 400; font-size: 0.7639rem; opacity: 0.7; }
+.usage-icon {
+  width: 1.1111rem;
+  height: 1.1111rem;
+  flex-shrink: 0;
+  color: currentColor;
+}
+.usage-icon--ai {
+  color: #2563eb;
+}
+.usage-gauge--amber .usage-icon--ai {
+  color: currentColor;
+}
+.usage-num {
+  color: #111827;
+  font-weight: 800;
+  font-size: 1.1111rem;
+  line-height: 1;
+}
+:global(.dark) .usage-num { color: rgba(255,255,255,0.92); }
+.usage-gauge--amber .usage-num { color: #5d3d08; }
+.usage-label {
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 0.9028rem;
+}
+:global(.dark) .usage-label { color: rgba(255,255,255,0.58); }
+.usage-gauge--amber .usage-label { color: #a16207; }
 @media (max-width: 1440px) { .usage-label { display: none; } }
-
-.usage-dot { color: #ccc; font-weight: 300; font-size: 0.9028rem; }
-:global(.dark) .usage-dot { color: rgba(255,255,255,0.25); }
 
 /* ── Usage popover ── */
 .usage-popover {
   background: #fff;
-  border-radius: 1.0417rem;
-  padding: 1.25rem;
-  box-shadow: 0 1.3889rem 3.4722rem rgba(15,23,42,0.14), 0 0 0 1px rgba(68,68,68,0.06);
+  border-radius: 1.1111rem;
+  padding: 1.6667rem;
+  box-shadow: 0 1.6667rem 4.1667rem rgba(15,23,42,0.16), 0 0 0 1px rgba(68,68,68,0.08);
 }
 :global(.dark) .usage-popover {
   background: #2C2F3D;
@@ -678,33 +781,31 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.9722rem;
-  font-weight: 600;
-  color: #171717;
-  margin-bottom: 1.0417rem;
-  padding-bottom: 0.6944rem;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  gap: 1rem;
+  font-size: 1.3889rem;
+  font-weight: 800;
+  color: #111827;
+  margin-bottom: 1.5278rem;
 }
 :global(.dark) .usage-popover-header {
   color: rgba(255,255,255,0.9);
-  border-bottom-color: rgba(255,255,255,0.08);
 }
 
 .usage-popover-date {
-  font-weight: 400;
-  font-size: 0.8333rem;
-  color: #696969;
+  font-weight: 800;
+  font-size: 1.0417rem;
+  color: #737373;
 }
 :global(.dark) .usage-popover-date { color: rgba(255,255,255,0.45); }
 
 .usage-popover-row {
-  margin-bottom: 0.8333rem;
+  margin-bottom: 1.25rem;
 }
 
 .usage-bar {
-  height: 0.4167rem;
+  height: 0.625rem;
   border-radius: 2.7778rem;
-  background: #f0f1f3;
+  background: #dddddd;
   overflow: hidden;
 }
 :global(.dark) .usage-bar { background: rgba(255,255,255,0.08); }
@@ -712,29 +813,33 @@ onUnmounted(() => {
 .usage-bar-fill {
   height: 100%;
   border-radius: 2.7778rem;
-  background: #2563eb;
+  background: #2f67bd;
   transition: width 0.5s ease;
 }
-.usage-bar-fill--amber { background: #d97706; }
+.usage-bar-fill--amber { background: #604810; }
 
 .usage-popover-link {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.4861rem;
   width: 100%;
-  padding: 0.6944rem;
-  margin-top: 0.3472rem;
-  border-radius: 0.6944rem;
-  font-size: 0.9028rem;
-  font-weight: 500;
-  color: #2563eb;
+  padding: 1.1111rem 0 0;
+  margin-top: 1.3889rem;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  border-radius: 0;
+  font-size: 1.1111rem;
+  font-weight: 800;
+  color: #2f67bd;
   background: transparent;
-  border: none;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: color 0.2s;
 }
-.usage-popover-link:hover { background: #ecf3fe; }
+.usage-popover-link:hover { color: #1d4ed8; }
 :global(.dark) .usage-popover-link { color: #4A7AFF; }
-:global(.dark) .usage-popover-link:hover { background: rgba(255,255,255,0.06); }
+:global(.dark) .usage-popover-link { border-top-color: rgba(255,255,255,0.08); }
 </style>
