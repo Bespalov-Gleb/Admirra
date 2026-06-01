@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse # Changed from fastapi.responses.FileResponse
 from core.database import engine
 from core import models
+from sqlalchemy import text
 import os
 from dotenv import load_dotenv
 
@@ -35,6 +36,13 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
     for attempt in range(max_retries):
         try:
             models.Base.metadata.create_all(bind=engine)
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_updated_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS interface_language VARCHAR(8) NOT NULL DEFAULT 'ru'"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_email VARCHAR"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

@@ -107,7 +107,13 @@ onMounted(async () => {
     if (!userResult.success) {
       throw new Error('Не удалось загрузить профиль')
     }
-    router.push(DEFAULT_DASHBOARD_PATH)
+    const profileLinkProvider = sessionStorage.getItem('oauth_profile_link')
+    if (profileLinkProvider === provider) {
+      sessionStorage.removeItem('oauth_profile_link')
+      router.push('/profile')
+    } else {
+      router.push(DEFAULT_DASHBOARD_PATH)
+    }
   } catch (err) {
     console.error('[OAuthLoginCallback]', err)
     const d = err.response?.data?.detail

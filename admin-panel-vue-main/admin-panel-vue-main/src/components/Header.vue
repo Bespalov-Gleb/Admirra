@@ -764,7 +764,7 @@ watch(
 }
 :global(.dark) .usage-label { color: rgba(255,255,255,0.58); }
 .usage-gauge--amber .usage-label { color: #a16207; }
-@media (max-width: 1440px) { .usage-label { display: none; } }
+@media (max-width: 1200px) { .usage-label { display: none; } }
 
 /* ── Usage popover ── */
 .usage-popover {

@@ -9,7 +9,11 @@ class UserBase(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    # Пользовательский FinanceToken для Яндекс.Директа (или его база)
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    two_factor_enabled: bool = False
+    interface_language: str = "ru"
+    notification_email: Optional[EmailStr] = None
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_max_chat_id: Optional[str] = None
@@ -61,6 +65,8 @@ class UserResponse(UserBase):
     brand_custom_domain: Optional[str] = None
     brand_domain_status: Optional[str] = None
     whitelabel_available: bool = False
+    has_password: bool = True
+    password_updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -167,6 +173,10 @@ class UserUpdateSettings(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    phone: Optional[str] = None
+    notification_email: Optional[EmailStr] = None
+    interface_language: Optional[str] = None
+    two_factor_enabled: Optional[bool] = None
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_max_chat_id: Optional[str] = None
@@ -175,6 +185,19 @@ class UserUpdateSettings(BaseModel):
     report_delivery_channels: Optional[List[str]] = None
     report_email_recipients: Optional[List[str]] = None
     report_schedule: Optional[str] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: Optional[str] = None
+    new_password: str
+
+
+class OAuthIdentityStatus(BaseModel):
+    provider: str
+    label: str
+    connected: bool
+    can_unlink: bool = False
+    hint: Optional[str] = None
 
 
 class TeamProjectRef(BaseModel):

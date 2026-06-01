@@ -30,10 +30,15 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=True) # Temporarily nullable for migration
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
     password_hash = Column(String, nullable=False)
+    password_updated_at = Column(DateTime(timezone=True), nullable=True)
     role = Column(Enum(UserRole), default=UserRole.MANAGER)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    two_factor_enabled = Column(Boolean, nullable=False, default=False)
+    interface_language = Column(String(8), nullable=False, default="ru")
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     # Используется при запросе баланса через AccountManagement API.
     yandex_finance_token = Column(String, nullable=True)
@@ -44,6 +49,7 @@ class User(Base):
     report_max_username = Column(String, nullable=True)
     report_delivery_channels = Column(String, nullable=True)  # JSON массив: telegram, max
     report_email_recipients = Column(String, nullable=True)  # JSON массив email адресов
+    notification_email = Column(String, nullable=True)
     report_schedule = Column(String, nullable=True)  # JSON: {"day":"daily","time":"10:00"}
 
     # Подтверждение email (регистрация)

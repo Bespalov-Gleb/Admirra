@@ -1,11 +1,15 @@
 import asyncio
 import logging
+import os
 import uuid
+from io import BytesIO
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from core.database import get_db
 from core import models, schemas, security
@@ -41,6 +45,41 @@ FRONTEND_URL = resolve_frontend_url()
 cfg = get_config()
 RESEND_COOLDOWN_SEC = cfg.auth.resend_cooldown_sec
 AUTH_LOGIN_OTP_ENABLED = cfg.auth.auth_login_otp_enabled
+AVATAR_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+AVATAR_MAX_BYTES = 5 * 1024 * 1024
+AVATAR_SIZE = (256, 256)
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "uploads"))
+USER_AVATAR_DIR = UPLOADS_DIR / "user-avatars"
+
+
+def _user_avatar_public_url(filename: str) -> str:
+    return f"/uploads/user-avatars/{filename}"
+
+
+def _remove_user_avatar(avatar_url: str | None) -> None:
+    if not avatar_url or not avatar_url.startswith("/uploads/user-avatars/"):
+        return
+    filename = avatar_url.rsplit("/", 1)[-1]
+    if not filename:
+        return
+    try:
+        (USER_AVATAR_DIR / filename).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _user_has_usable_password(user: models.User) -> bool:
+    if getattr(user, "password_updated_at", None):
+        return True
+    identities = getattr(user, "oauth_identities", None) or []
+    if identities:
+        return False
+    return bool(user.password_hash)
+
+
+def _decorate_user_response(resp: schemas.UserResponse, user: models.User) -> schemas.UserResponse:
+    resp.has_password = _user_has_usable_password(user)
+    return resp
 
 
 def _issue_login_session(
@@ -106,6 +145,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
         first_name=user.first_name,
         last_name=user.last_name,
         password_hash=hashed_password,
+        password_updated_at=utcnow(),
         role=models.UserRole.MANAGER,
         email_verified=False,
         email_verification_token_hash=token_hash,
@@ -437,6 +477,7 @@ def reset_password_confirm(
         raise HTTPException(status_code=400, detail="Ссылка недействительна или срок действия истёк")
 
     user.password_hash = security.get_password_hash(body.new_password)
+    user.password_updated_at = utcnow()
     user.password_reset_token_hash = None
     user.password_reset_expires_at = None
     db.add(user)
@@ -471,7 +512,7 @@ def read_users_me(
             wl = SubscriptionService.get_user_plan(db, current_user).code == "standard"
     resp = schemas.UserResponse.model_validate(current_user)
     resp.whitelabel_available = wl
-    return resp
+    return _decorate_user_response(resp, current_user)
 
 
 def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):
@@ -488,6 +529,16 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
         current_user.first_name = updates.first_name
     if updates.last_name is not None:
         current_user.last_name = updates.last_name
+    if updates.phone is not None:
+        current_user.phone = updates.phone
+    if updates.notification_email is not None:
+        current_user.notification_email = str(updates.notification_email) if updates.notification_email else None
+    if updates.interface_language is not None:
+        if updates.interface_language not in {"ru", "en"}:
+            raise HTTPException(status_code=400, detail="Unsupported interface language")
+        current_user.interface_language = updates.interface_language
+    if updates.two_factor_enabled is not None:
+        current_user.two_factor_enabled = updates.two_factor_enabled
     if updates.yandex_finance_token is not None:
         current_user.yandex_finance_token = updates.yandex_finance_token
     if updates.report_telegram_chat_id is not None:
@@ -515,7 +566,7 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
-    return current_user
+    return _decorate_user_response(schemas.UserResponse.model_validate(current_user), current_user)
 
 
 @router.put("/me", response_model=schemas.UserResponse)
@@ -534,3 +585,131 @@ def patch_users_me(
     current_user: models.User = Depends(security.get_current_user),
 ):
     return _update_user_settings(updates, current_user, db)
+
+
+@router.post("/me/avatar", response_model=schemas.UserResponse)
+async def upload_user_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    if file.content_type not in AVATAR_ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="Поддерживаются PNG, JPG и WebP")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Файл пустой")
+    if len(raw) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Файл больше 5 МБ")
+    try:
+        image = Image.open(BytesIO(raw))
+        image = ImageOps.exif_transpose(image).convert("RGBA")
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=400, detail="Не удалось прочитать изображение")
+
+    image.thumbnail(AVATAR_SIZE)
+    canvas = Image.new("RGBA", AVATAR_SIZE, (255, 255, 255, 0))
+    canvas.alpha_composite(image, ((AVATAR_SIZE[0] - image.width) // 2, (AVATAR_SIZE[1] - image.height) // 2))
+    USER_AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{current_user.id}-{uuid.uuid4().hex}.png"
+    canvas.save(USER_AVATAR_DIR / filename, format="PNG", optimize=True)
+    _remove_user_avatar(current_user.avatar_url)
+    current_user.avatar_url = _user_avatar_public_url(filename)
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _decorate_user_response(schemas.UserResponse.model_validate(current_user), current_user)
+
+
+@router.delete("/me/avatar", response_model=schemas.UserResponse)
+def delete_user_avatar(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    _remove_user_avatar(current_user.avatar_url)
+    current_user.avatar_url = None
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _decorate_user_response(schemas.UserResponse.model_validate(current_user), current_user)
+
+
+@router.post("/me/password", response_model=schemas.UserResponse)
+def change_users_me_password(
+    body: schemas.PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    new_password = (body.new_password or "").strip()
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Пароль должен быть не короче 8 символов")
+    if _user_has_usable_password(current_user):
+        if not body.current_password or not security.verify_password(body.current_password, current_user.password_hash):
+            raise HTTPException(status_code=400, detail="Текущий пароль указан неверно")
+    current_user.password_hash = security.get_password_hash(new_password)
+    current_user.password_updated_at = utcnow()
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _decorate_user_response(schemas.UserResponse.model_validate(current_user), current_user)
+
+
+@router.get("/me/oauth-identities", response_model=list[schemas.OAuthIdentityStatus])
+def get_users_me_oauth_identities(
+    current_user: models.User = Depends(security.get_current_user),
+):
+    connected = {identity.provider for identity in (current_user.oauth_identities or [])}
+    has_password = _user_has_usable_password(current_user)
+    connected_count = len(connected)
+    labels = {"yandex": "Яндекс ID", "vk": "ВКонтакте", "max": "Max"}
+    result = []
+    for provider in ("yandex", "vk", "max"):
+        is_connected = provider in connected
+        can_unlink = bool(is_connected and (has_password or connected_count > 1))
+        hint = None
+        if is_connected and not can_unlink:
+            hint = "Сначала задайте пароль или привяжите другой способ входа."
+        result.append(
+            schemas.OAuthIdentityStatus(
+                provider=provider,
+                label=labels[provider],
+                connected=is_connected,
+                can_unlink=can_unlink,
+                hint=hint,
+            )
+        )
+    return result
+
+
+@router.delete("/me/oauth-identities/{provider}", response_model=list[schemas.OAuthIdentityStatus])
+def unlink_users_me_oauth_identity(
+    provider: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    provider = provider.lower()
+    if provider not in {"yandex", "vk", "max"}:
+        raise HTTPException(status_code=404, detail="Провайдер не найден")
+    identity = next((item for item in (current_user.oauth_identities or []) if item.provider == provider), None)
+    if not identity:
+        raise HTTPException(status_code=404, detail="Способ входа не привязан")
+    connected_count = len(current_user.oauth_identities or [])
+    if not _user_has_usable_password(current_user) and connected_count <= 1:
+        raise HTTPException(status_code=400, detail="Сначала задайте пароль или привяжите другой способ входа")
+    db.delete(identity)
+    db.commit()
+    db.refresh(current_user)
+    return get_users_me_oauth_identities(current_user)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_users_me(
+    confirmation: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    if confirmation != "УДАЛИТЬ":
+        raise HTTPException(status_code=400, detail="Введите УДАЛИТЬ для подтверждения")
+    _remove_user_avatar(current_user.avatar_url)
+    db.delete(current_user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

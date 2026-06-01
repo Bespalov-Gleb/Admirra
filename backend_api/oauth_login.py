@@ -355,6 +355,21 @@ def _issue_token_for_user(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+def _optional_current_user(request: Request, db: Session) -> Optional[models.User]:
+    header = request.headers.get("Authorization") or request.headers.get("authorization") or ""
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    try:
+        payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    email = (payload.get("sub") or "").strip()
+    if not email:
+        return None
+    return _find_user_by_email_ci(db, email)
+
+
 def _pick_username(db: Session, login: Optional[str]) -> Optional[str]:
     if not login:
         return None
@@ -453,7 +468,7 @@ def _find_user_by_email_ci(db: Session, email: str) -> Optional[models.User]:
 
 
 @router.get("/max/authorize-url", response_model=schemas.OAuthAuthorizeUrlResponse)
-async def max_oauth_authorize_url(db: Session = Depends(get_db)):
+async def max_oauth_authorize_url(request: Request, db: Session = Depends(get_db)):
     """
     MAX login: создаёт одноразовый payload для deep link бота.
     Браузер открывает https://max.ru/<botName>?start=<payload> и polling-ом ждёт webhook bot_started.
@@ -474,6 +489,7 @@ async def max_oauth_authorize_url(db: Session = Depends(get_db)):
     attempt = models.MaxOAuthLoginAttempt(
         state_hash=_token_hash(state),
         payload_hash=_token_hash(payload),
+        user_id=getattr(_optional_current_user(request, db), "id", None),
         expires_at=expires_at,
     )
     db.add(attempt)
@@ -566,7 +582,13 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
         return {"ok": True}
 
     try:
-        user = _get_or_create_max_user(db, user_info)
+        if attempt.user_id:
+            user = db.query(models.User).filter(models.User.id == attempt.user_id).first()
+            if not user:
+                raise HTTPException(status_code=500, detail="Пользователь MAX не найден")
+            _attach_identity(db, user, "max", max_uid)
+        else:
+            user = _get_or_create_max_user(db, user_info)
         attempt.user_id = user.id
         attempt.max_user_id = max_uid
         attempt.max_username = (user_info.get("username") or "").strip() or None
@@ -582,6 +604,15 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
             max_uid,
             chat_id,
             "Не удалось подтвердить вход: аккаунт уже связан с другим пользователем.",
+        )
+        return {"ok": True}
+    except HTTPException as exc:
+        db.rollback()
+        logger.warning("MAX login/link rejected for max_user_id=%s: %s", max_uid, exc.detail)
+        await _send_max_login_message(
+            max_uid,
+            chat_id,
+            str(exc.detail or "Не удалось привязать MAX к аккаунту."),
         )
         return {"ok": True}
 
@@ -640,6 +671,7 @@ async def yandex_oauth_callback(
     if not email:
         email = _synthetic_email("yandex", yandex_uid)
 
+    current_user = _optional_current_user(request, db)
     identity = (
         db.query(models.UserOAuthIdentity)
         .filter(
@@ -649,10 +681,32 @@ async def yandex_oauth_callback(
         .first()
     )
     if identity:
+        if current_user and identity.user_id != current_user.id:
+            raise HTTPException(status_code=409, detail="Этот Яндекс уже привязан к другому аккаунту")
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
         token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+        db.commit()
+        return token
+
+    if current_user:
+        _attach_identity(db, current_user, "yandex", yandex_uid)
+        current_user.email_verified = True
+        if first_name and not current_user.first_name:
+            current_user.first_name = first_name
+        if last_name and not current_user.last_name:
+            current_user.last_name = last_name
+        db.add(current_user)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Не удалось привязать Яндекс к аккаунту",
+            )
+        token = _issue_token_for_user(db, current_user, request, response, remember_me=body.remember_me)
         db.commit()
         return token
 
@@ -792,6 +846,7 @@ async def vk_oauth_callback(
     first_name = (user_info.get("first_name") or "").strip() or None
     last_name = (user_info.get("last_name") or "").strip() or None
 
+    current_user = _optional_current_user(request, db)
     identity = (
         db.query(models.UserOAuthIdentity)
         .filter(
@@ -801,10 +856,32 @@ async def vk_oauth_callback(
         .first()
     )
     if identity:
+        if current_user and identity.user_id != current_user.id:
+            raise HTTPException(status_code=409, detail="Этот VK уже привязан к другому аккаунту")
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
         token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+        db.commit()
+        return token
+
+    if current_user:
+        _attach_identity(db, current_user, "vk", vk_uid_str)
+        current_user.email_verified = True
+        if first_name and not current_user.first_name:
+            current_user.first_name = first_name
+        if last_name and not current_user.last_name:
+            current_user.last_name = last_name
+        db.add(current_user)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Не удалось привязать VK к аккаунту",
+            )
+        token = _issue_token_for_user(db, current_user, request, response, remember_me=body.remember_me)
         db.commit()
         return token
 
