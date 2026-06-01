@@ -27,7 +27,7 @@
         <img
           :src="logoSrc"
           alt="AdMirra"
-          :class="isCollapsed ? 'h-8 w-8 object-contain' : 'h-[5.4rem] object-contain'"
+          :class="isCollapsed ? 'h-8 w-8 object-contain' : 'h-[2.1528rem] w-[10rem] object-contain object-left'"
         />
       </div>
     </div>
@@ -253,7 +253,7 @@ const showLogoutModal = ref(false)
 
 const logoSrc = computed(() => {
   if (isCollapsed.value) return '/admirra/img/favicon/favicon-96x96.png'
-  return isDarkMode.value ? '/admirra/img/newlogotest.png' : '/admirra/img/newlogotest.png'
+  return isDarkMode.value ? '/admirra/img/logo-white.png' : '/admirra/img/logo.png'
 })
 
 const menuItems = computed(() => [
