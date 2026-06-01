@@ -103,7 +103,7 @@ const handleSubmit = async () => {
     const { data } = await api.post('clients/', { name: projectName.value.trim() })
     await fetchProjects()
     setCurrentProject(data.id)
-    router.push('/dashboard/general-3')
+    router.push({ path: '/integrations/wizard', query: { client_id: data.id } })
   } catch (err) {
     errorMsg.value = err.response?.data?.detail || 'Не удалось создать проект'
   } finally {
