@@ -255,6 +255,12 @@ class StatsService:
             
             if platform == "vk":
                 convs = vk_convs
+            elif campaign_ids:
+                # MetrikaGoals are currently stored by integration, not by
+                # campaign. For campaign/direction filters, using integration-
+                # level Metrika would overcount; Direct campaign conversions are
+                # the accurate campaign-scoped fallback.
+                convs = yandex_convs + vk_convs
             elif platform in ["all", "yandex"]:
                 # Yandex: Метрика приоритетна; если пусто — временно Direct (пока Metrika не синхронизирована)
                 convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs

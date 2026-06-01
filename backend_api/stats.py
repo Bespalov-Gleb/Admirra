@@ -534,6 +534,11 @@ async def get_dynamics(
         vk_le = int(v_s.leads if v_s else 0)
         if platform == "vk":
             le = vk_le
+        elif u_campaign_ids:
+            # MetrikaGoals are integration-scoped in the current schema. For a
+            # selected campaign set (also used by directions), use campaign-
+            # scoped Direct conversions to avoid overcounting the whole cabinet.
+            le = yandex_le + vk_le
         else:
             le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
         # #region agent log

@@ -373,6 +373,7 @@ class ClientUpdate(BaseModel):
     description: Optional[str] = None
     spreadsheet_id: Optional[str] = None
     site_url: Optional[str] = None
+    direction_label: Optional[str] = None
     detector_enabled: Optional[bool] = None
     status: Optional[str] = None
 
@@ -382,6 +383,7 @@ class ClientResponse(ClientBase):
     owner_id: UUID
     avatar_url: Optional[str] = None
     site_url: Optional[str] = None
+    direction_label: str = "directions"
     status: Optional[str] = "active"
     detector_enabled: Optional[bool] = False
     actual_start_date: Optional[str] = None
@@ -405,6 +407,106 @@ class ClientResponse(ClientBase):
 
     class Config:
         from_attributes = True
+
+
+class DirectionMaskResponse(BaseModel):
+    id: UUID
+    mask: str
+    position: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectDirectionBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    masks: List[str] = Field(default_factory=list)
+
+
+class ProjectDirectionCreate(ProjectDirectionBase):
+    position: Optional[int] = None
+
+
+class ProjectDirectionUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    masks: Optional[List[str]] = None
+    position: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class ProjectDirectionResponse(BaseModel):
+    id: UUID
+    client_id: UUID
+    name: str
+    position: int = 0
+    is_active: bool = True
+    masks: List[DirectionMaskResponse] = []
+    campaign_ids: List[str] = []
+    campaign_count: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DirectionLabelUpdate(BaseModel):
+    label: str = Field(default="directions", max_length=32)
+
+
+class DirectionPreviewRequest(BaseModel):
+    name: Optional[str] = None
+    masks: List[str] = Field(default_factory=list)
+    exclude_direction_id: Optional[UUID] = None
+    platform: Optional[str] = "all"
+
+
+class DirectionPreviewCampaign(BaseModel):
+    id: str
+    name: str
+    platform: str
+    matched_mask: Optional[str] = None
+    conflict_direction_id: Optional[str] = None
+    conflict_direction_name: Optional[str] = None
+
+
+class DirectionPreviewResponse(BaseModel):
+    total_campaigns: int = 0
+    matched_count: int = 0
+    conflict_count: int = 0
+    campaigns: List[DirectionPreviewCampaign] = []
+
+
+class DirectionReorderRequest(BaseModel):
+    direction_ids: List[UUID]
+
+
+class DirectionSuggestion(BaseModel):
+    name: str
+    masks: List[str]
+    matched_count: int
+    campaign_ids: List[str] = []
+
+
+class DirectionStatsItem(BaseModel):
+    id: str
+    name: str
+    is_unassigned: bool = False
+    campaign_ids: List[str] = []
+    campaign_count: int = 0
+    expenses: float = 0
+    budget_share: float = 0
+    leads: int = 0
+    cpl: float = 0
+    trend: float = 0
+
+
+class DirectionStatsResponse(BaseModel):
+    label: str = "Направления"
+    label_key: str = "directions"
+    mode: str = "cards"
+    total_expenses: float = 0
+    items: List[DirectionStatsItem] = []
 
 
 class ProjectBudgetItem(BaseModel):

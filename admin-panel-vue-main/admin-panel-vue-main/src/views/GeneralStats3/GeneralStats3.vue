@@ -161,6 +161,43 @@
           </div>
         </div>
 
+        <div
+          v-if="directionsEnabled"
+          class="filter-wrap custom-select dashboard-select"
+          :class="{ open: openMenu === 'directions' }"
+          v-click-outside="() => closeMenu('directions')"
+        >
+          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': selectedDirectionId }" @click="toggleMenu('directions')">
+            <span class="cs-current">{{ selectedDirectionLabel }}</span>
+            <span class="cs-arrow">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          <div class="cs-list dropdown-panel directions-menu" @click.stop>
+            <button type="button" class="cs-option" :class="{ selected: !selectedDirectionId }" @click="selectDirection(null)">
+              Все {{ directionLabelLower }}
+            </button>
+            <button
+              v-for="item in directionStats.items"
+              :key="item.id"
+              type="button"
+              class="cs-option direction-option"
+              :class="{ selected: selectedDirectionId === item.id }"
+              @click="selectDirection(item)"
+            >
+              <span>{{ item.name }}</span>
+              <small>{{ item.campaign_count }} камп.</small>
+            </button>
+            <div class="directions-menu__divider"></div>
+            <button type="button" class="cs-option direction-action" @click="openDirectionEditor()">
+              + Создать направление
+            </button>
+            <button type="button" class="cs-option direction-action" @click="openDirectionManager">
+              Управление направлениями
+            </button>
+          </div>
+        </div>
+
         <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
           <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
@@ -281,7 +318,8 @@
     </section>
 
     <div v-if="filters.campaign_ids.length > 0" class="campaign-filter-banner">
-      <span>Показаны данные по {{ filters.campaign_ids.length }} {{ filters.campaign_ids.length === 1 ? 'кампании' : 'кампаниям' }} из {{ allCampaigns.length }}</span>
+      <span v-if="selectedDirection">Показаны данные по направлению «{{ selectedDirection.name }}» · {{ filters.campaign_ids.length }} камп.</span>
+      <span v-else>Показаны данные по {{ filters.campaign_ids.length }} {{ filters.campaign_ids.length === 1 ? 'кампании' : 'кампаниям' }} из {{ allCampaigns.length }}</span>
       <button type="button" class="campaign-filter-banner__reset" @click="campaignReset">сбросить</button>
     </div>
 
@@ -349,6 +387,56 @@
         </div>
       </div>
     </VueDraggable>
+
+    <section v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length" class="directions-panel panel">
+      <div class="directions-head">
+        <div>
+          <p class="directions-kicker">Разбивка кампаний</p>
+          <h2>{{ directionStats.label }}</h2>
+        </div>
+        <button type="button" class="directions-manage-btn" @click="openDirectionManager">
+          Управлять
+        </button>
+      </div>
+      <div v-if="directionStats.mode === 'table'" class="directions-table">
+        <button
+          v-for="item in directionStats.items"
+          :key="item.id"
+          type="button"
+          class="direction-table-row"
+          @click="selectDirection(item)"
+        >
+          <span class="direction-table-name">{{ item.name }}</span>
+          <span>{{ formatMoney(withVat(item.expenses)) }}</span>
+          <span>{{ formatNumber(item.budget_share, 1) }}%</span>
+          <span>{{ formatNumber(item.leads) }} лидов</span>
+          <strong>{{ formatMoney(withVat(item.cpl)) }}</strong>
+        </button>
+      </div>
+      <div v-else class="directions-grid">
+        <button
+          v-for="item in directionStats.items"
+          :key="item.id"
+          type="button"
+          class="direction-card"
+          :class="{ 'direction-card--unassigned': item.is_unassigned }"
+          @click="selectDirection(item)"
+        >
+          <div class="direction-card__top">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.campaign_count }} камп.</span>
+          </div>
+          <div class="direction-card__money">{{ formatMoney(withVat(item.expenses)) }}</div>
+          <div class="direction-share">
+            <span :style="{ width: `${Math.min(item.budget_share, 100)}%` }"></span>
+          </div>
+          <div class="direction-card__bottom">
+            <span>{{ formatNumber(item.budget_share, 1) }}% бюджета</span>
+            <strong>{{ formatNumber(item.leads) }} лидов · CPL {{ formatMoney(withVat(item.cpl)) }}</strong>
+          </div>
+        </button>
+      </div>
+    </section>
 
     <section class="chart-goals-grid">
       <article class="panel chart-panel">
@@ -606,6 +694,125 @@
     </div>
 
     <Teleport to="body">
+      <div
+        v-if="directionModalOpen"
+        class="direction-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        @click.self="closeDirectionModal"
+      >
+        <div class="direction-modal">
+          <button type="button" class="direction-modal__close" aria-label="Закрыть" @click="closeDirectionModal">
+            <XMarkIcon />
+          </button>
+          <div class="direction-modal__head">
+            <p>{{ directionEditor.id ? 'Редактирование' : 'Новое направление' }}</p>
+            <h3>{{ directionEditor.id ? directionEditor.name : `Создать ${directionLabelSingular}` }}</h3>
+          </div>
+          <label class="direction-field">
+            <span>Название</span>
+            <input v-model="directionEditor.name" type="text" placeholder="Например: iPhone" />
+          </label>
+          <label class="direction-field">
+            <span>Ключевые слова</span>
+            <input
+              v-model="directionMaskInput"
+              type="text"
+              placeholder="Введите слово и нажмите Enter"
+              @keydown.enter.prevent="addDirectionMask"
+            />
+          </label>
+          <div class="direction-mask-list">
+            <button
+              v-for="mask in directionEditor.masks"
+              :key="mask"
+              type="button"
+              class="direction-mask-chip"
+              @click="removeDirectionMask(mask)"
+            >
+              {{ mask }} <XMarkIcon />
+            </button>
+          </div>
+          <div class="direction-preview">
+            <div class="direction-preview__summary">
+              <strong>{{ directionPreview.matched_count || 0 }}</strong>
+              <span>из {{ directionPreview.total_campaigns || 0 }} кампаний попадёт в направление</span>
+            </div>
+            <p v-if="directionPreview.conflict_count" class="direction-preview__warning">
+              {{ directionPreview.conflict_count }} камп. уже попадают в направление выше по списку
+            </p>
+            <div class="direction-preview__list">
+              <div v-for="campaign in directionPreview.campaigns" :key="campaign.id" class="direction-preview__row">
+                <span>{{ campaign.name }}</span>
+                <small>{{ campaign.matched_mask }}</small>
+              </div>
+              <div v-if="!directionPreview.campaigns?.length" class="direction-preview__empty">Добавьте маску для предпросмотра</div>
+            </div>
+          </div>
+          <div class="direction-modal__actions">
+            <button type="button" class="direction-secondary" @click="closeDirectionModal">Отмена</button>
+            <button type="button" class="direction-primary" :disabled="directionSaving || !directionEditor.name.trim() || !directionEditor.masks.length" @click="saveDirection">
+              {{ directionSaving ? 'Сохраняем...' : 'Сохранить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="directionManagerOpen"
+        class="direction-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        @click.self="directionManagerOpen = false"
+      >
+        <div class="direction-modal direction-modal--manager">
+          <button type="button" class="direction-modal__close" aria-label="Закрыть" @click="directionManagerOpen = false">
+            <XMarkIcon />
+          </button>
+          <div class="direction-modal__head">
+            <p>Управление</p>
+            <h3>{{ directionStats.label }}</h3>
+          </div>
+          <div class="direction-manager-actions">
+            <button type="button" class="direction-primary" @click="openDirectionEditor()">Создать</button>
+            <button type="button" class="direction-secondary" :disabled="directionSuggestionsLoading" @click="loadDirectionSuggestions">
+              {{ directionSuggestionsLoading ? 'Анализируем...' : 'Предложить автоматически' }}
+            </button>
+          </div>
+          <div v-if="directionSuggestions.length" class="direction-suggestions">
+            <button
+              v-for="suggestion in directionSuggestions"
+              :key="suggestion.name"
+              type="button"
+              class="direction-suggestion"
+              @click="applyDirectionSuggestion(suggestion)"
+            >
+              <strong>{{ suggestion.name }}</strong>
+              <span>{{ suggestion.matched_count }} камп. · {{ suggestion.masks.join(', ') }}</span>
+            </button>
+          </div>
+          <div class="direction-manager-list">
+            <div v-for="direction in directions" :key="direction.id" class="direction-manager-row">
+              <div>
+                <strong>{{ direction.name }}</strong>
+                <span>{{ direction.masks.map((mask) => mask.mask).join(', ') }}</span>
+              </div>
+              <div class="direction-manager-row__actions">
+                <button type="button" @click="moveDirection(direction, -1)">↑</button>
+                <button type="button" @click="moveDirection(direction, 1)">↓</button>
+                <button type="button" @click="openDirectionEditor(direction)">Править</button>
+                <button type="button" class="danger" @click="deleteDirection(direction)">Удалить</button>
+              </div>
+            </div>
+            <div v-if="!directions.length" class="direction-preview__empty">Направления пока не созданы</div>
+          </div>
+          <div v-if="unassignedDirection" class="direction-unassigned-note">
+            <strong>{{ unassignedDirection.name }}</strong>
+            <span>{{ unassignedDirection.campaign_count }} кампаний не попали ни под одну маску</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Report channel link modal -->
       <div
         v-if="reportLinkChannel"
@@ -853,6 +1060,236 @@ const integrations = ref([])
 const topAds = ref([])
 const topAdsLoading = ref(false)
 const selectedCreativeImage = ref(null)
+const directions = ref([])
+const directionStats = ref({ label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] })
+const selectedDirectionId = ref(null)
+const directionModalOpen = ref(false)
+const directionManagerOpen = ref(false)
+const directionSaving = ref(false)
+const directionMaskInput = ref('')
+const directionPreview = ref({ total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] })
+const directionSuggestions = ref([])
+const directionSuggestionsLoading = ref(false)
+const directionEditor = ref({ id: null, name: '', masks: [] })
+
+const directionLabels = {
+  directions: { plural: 'Направления', lower: 'направления', singular: 'направление' },
+  categories: { plural: 'Категории', lower: 'категории', singular: 'категорию' },
+  products: { plural: 'Товары', lower: 'товары', singular: 'товар' },
+  services: { plural: 'Услуги', lower: 'услуги', singular: 'услугу' },
+  brands: { plural: 'Бренды', lower: 'бренды', singular: 'бренд' },
+  branches: { plural: 'Филиалы', lower: 'филиалы', singular: 'филиал' },
+  regions: { plural: 'Регионы', lower: 'регионы', singular: 'регион' },
+}
+
+const directionLabelMeta = computed(() => directionLabels[directionStats.value.label_key] || directionLabels.directions)
+const directionLabelLower = computed(() => directionLabelMeta.value.lower)
+const directionLabelSingular = computed(() => directionLabelMeta.value.singular)
+const directionsEnabled = computed(() => Boolean(filters.client_id))
+const unassignedDirection = computed(() => directionStats.value.items?.find((item) => item.is_unassigned) || null)
+const selectedDirection = computed(() => directionStats.value.items?.find((item) => item.id === selectedDirectionId.value) || null)
+const selectedDirectionLabel = computed(() => selectedDirection.value?.name || `Все ${directionLabelLower.value}`)
+
+const fetchDirections = async () => {
+  if (!filters.client_id) {
+    directions.value = []
+    return
+  }
+  try {
+    const { data } = await api.get(`clients/${filters.client_id}/directions/`, {
+      params: { platform: filters.channel }
+    })
+    directions.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('[Directions] list failed:', err)
+    directions.value = []
+  }
+}
+
+const fetchDirectionStats = async () => {
+  if (!filters.client_id || !filters.start_date || !filters.end_date) {
+    directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
+    return
+  }
+  try {
+    const { data } = await api.get(`clients/${filters.client_id}/directions/stats`, {
+      params: {
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        platform: filters.channel
+      }
+    })
+    directionStats.value = {
+      label: data?.label || 'Направления',
+      label_key: data?.label_key || 'directions',
+      mode: data?.mode || 'cards',
+      total_expenses: Number(data?.total_expenses || 0),
+      items: Array.isArray(data?.items) ? data.items : []
+    }
+    if (selectedDirectionId.value) {
+      const current = directionStats.value.items.find((item) => item.id === selectedDirectionId.value)
+      if (current) filters.campaign_ids = [...current.campaign_ids]
+      else selectedDirectionId.value = null
+    }
+  } catch (err) {
+    console.error('[Directions] stats failed:', err)
+    directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
+  }
+}
+
+const refreshDirections = async () => {
+  await Promise.all([fetchDirections(), fetchDirectionStats()])
+}
+
+const selectDirection = (item) => {
+  selectedDirectionId.value = item?.id || null
+  filters.campaign_ids = item?.campaign_ids?.length ? [...item.campaign_ids] : []
+  closeMenu('directions')
+  fetchStats()
+}
+
+const openDirectionEditor = (direction = null) => {
+  directionManagerOpen.value = false
+  directionModalOpen.value = true
+  directionMaskInput.value = ''
+  directionPreview.value = { total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] }
+  if (direction) {
+    directionEditor.value = {
+      id: direction.id,
+      name: direction.name,
+      masks: direction.masks.map((mask) => mask.mask),
+    }
+  } else {
+    directionEditor.value = { id: null, name: '', masks: [] }
+  }
+  nextTick(fetchDirectionPreview)
+}
+
+const closeDirectionModal = () => {
+  directionModalOpen.value = false
+  directionEditor.value = { id: null, name: '', masks: [] }
+  directionMaskInput.value = ''
+}
+
+const addDirectionMask = () => {
+  const mask = directionMaskInput.value.trim().toLowerCase()
+  if (!mask || directionEditor.value.masks.includes(mask)) return
+  directionEditor.value.masks = [...directionEditor.value.masks, mask]
+  directionMaskInput.value = ''
+}
+
+const removeDirectionMask = (mask) => {
+  directionEditor.value.masks = directionEditor.value.masks.filter((item) => item !== mask)
+}
+
+const fetchDirectionPreview = async () => {
+  if (!directionModalOpen.value || !filters.client_id || !directionEditor.value.masks.length) {
+    directionPreview.value = { total_campaigns: allCampaigns.value.length, matched_count: 0, conflict_count: 0, campaigns: [] }
+    return
+  }
+  try {
+    const { data } = await api.post(`clients/${filters.client_id}/directions/preview`, {
+      name: directionEditor.value.name,
+      masks: directionEditor.value.masks,
+      exclude_direction_id: directionEditor.value.id || undefined,
+      platform: filters.channel,
+    })
+    directionPreview.value = data || { total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] }
+  } catch {
+    directionPreview.value = { total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] }
+  }
+}
+
+const saveDirection = async () => {
+  if (!filters.client_id || !directionEditor.value.name.trim() || !directionEditor.value.masks.length) return
+  directionSaving.value = true
+  try {
+    const payload = {
+      name: directionEditor.value.name.trim(),
+      masks: directionEditor.value.masks,
+    }
+    if (directionEditor.value.id) {
+      await api.patch(`clients/${filters.client_id}/directions/${directionEditor.value.id}`, payload)
+    } else {
+      await api.post(`clients/${filters.client_id}/directions/`, payload)
+    }
+    toaster.success('Направление сохранено')
+    closeDirectionModal()
+    await refreshDirections()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сохранить направление')
+  } finally {
+    directionSaving.value = false
+  }
+}
+
+const openDirectionManager = async () => {
+  closeMenu('directions')
+  directionManagerOpen.value = true
+  await fetchDirections()
+}
+
+const deleteDirection = async (direction) => {
+  if (!filters.client_id || !direction?.id) return
+  if (!window.confirm(`Удалить направление «${direction.name}»? Кампании перейдут в «Без направления».`)) return
+  try {
+    await api.delete(`clients/${filters.client_id}/directions/${direction.id}`)
+    if (selectedDirectionId.value === direction.id) {
+      selectedDirectionId.value = null
+      filters.campaign_ids = []
+    }
+    toaster.success('Направление удалено')
+    await refreshDirections()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось удалить направление')
+  }
+}
+
+const moveDirection = async (direction, delta) => {
+  const list = directions.value.filter((item) => !item.is_unassigned)
+  const index = list.findIndex((item) => item.id === direction.id)
+  const next = index + delta
+  if (index < 0 || next < 0 || next >= list.length) return
+  const reordered = [...list]
+  const [item] = reordered.splice(index, 1)
+  reordered.splice(next, 0, item)
+  try {
+    await api.post(`clients/${filters.client_id}/directions/reorder`, {
+      direction_ids: reordered.map((row) => row.id)
+    })
+    await refreshDirections()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось изменить порядок')
+  }
+}
+
+const loadDirectionSuggestions = async () => {
+  if (!filters.client_id) return
+  directionSuggestionsLoading.value = true
+  try {
+    const { data } = await api.get(`clients/${filters.client_id}/directions/suggestions`, {
+      params: { platform: filters.channel }
+    })
+    directionSuggestions.value = Array.isArray(data) ? data : []
+    if (!directionSuggestions.value.length) toaster.info('Автопредложения не найдены')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось получить предложения')
+  } finally {
+    directionSuggestionsLoading.value = false
+  }
+}
+
+const applyDirectionSuggestion = (suggestion) => {
+  directionManagerOpen.value = false
+  directionModalOpen.value = true
+  directionEditor.value = {
+    id: null,
+    name: suggestion.name,
+    masks: [...suggestion.masks],
+  }
+  directionSuggestions.value = []
+  nextTick(fetchDirectionPreview)
+}
 
 const toggleMenu = (name) => {
   openMenu.value = openMenu.value === name ? '' : name
@@ -870,6 +1307,7 @@ const selectReportTemplate = (option) => {
 const selectFilterChannel = (channel) => {
   filters.channel = channel.value
   filters.campaign_ids = []
+  selectedDirectionId.value = null
   closeMenu('channels')
 }
 
@@ -906,12 +1344,14 @@ const campaignDeselectAll = () => {
 }
 
 const campaignApply = () => {
+  selectedDirectionId.value = null
   filters.campaign_ids = [...pendingCampaignIds.value]
   openMenu.value = ''
   handlePeriodChange()
 }
 
 const campaignReset = () => {
+  selectedDirectionId.value = null
   pendingCampaignIds.value = []
   filters.campaign_ids = []
   openMenu.value = ''
@@ -1322,6 +1762,7 @@ const selectedFilterChannelLabel = computed(() => selectedChannel.value)
 const selectedCampaignLabel = computed(() => {
   if (!filters.client_id) return 'Сначала проект'
   if (loadingCampaigns.value) return 'Загрузка...'
+  if (selectedDirection.value) return selectedDirection.value.name
   const ids = filters.campaign_ids
   if (!ids?.length) return 'Кампании'
   if (ids.length === 1) {
@@ -1345,6 +1786,9 @@ const dateRangeLabel = computed(() => {
 })
 
 const dashboardTitle = computed(() => {
+  if (selectedDirection.value) {
+    return `Отчет: ${selectedDirection.value.name}`
+  }
   if (filters.campaign_ids?.length) {
     const campaign = allCampaigns.value.find((item) => item.id === filters.campaign_ids[0])
     return campaign ? `Отчет по кампании: ${campaign.name}` : `Отчет по кампаниям (${filters.campaign_ids.length})`
@@ -2300,12 +2744,22 @@ watch(currentProjectId, (newId) => {
 
 watch(() => filters.client_id, (newId) => {
   if (currentProjectId.value !== newId) setCurrentProject(newId)
+  selectedDirectionId.value = null
   fetchIntegrations()
+  refreshDirections()
 }, { immediate: true })
 
 watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
   fetchReportGoals()
   fetchTopAds()
+}, { deep: true })
+
+watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel], () => {
+  if (filters.client_id) refreshDirections()
+}, { deep: true })
+
+watch(() => [directionEditor.value.name, directionEditor.value.masks, directionModalOpen.value], () => {
+  fetchDirectionPreview()
 }, { deep: true })
 
 watch(() => filters.period, (period) => {
@@ -3603,6 +4057,30 @@ onMounted(() => {
   height: 1.6rem;
 }
 
+.directions-menu {
+  min-width: 25rem;
+}
+
+.direction-option {
+  justify-content: space-between;
+}
+
+.direction-option small {
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+.directions-menu__divider {
+  height: 1px;
+  margin: 0.6rem 0;
+  background: #eef2f7;
+}
+
+.direction-action {
+  color: #2563eb !important;
+  font-weight: 600;
+}
+
 .campaigns {
   min-width: 36rem;
 }
@@ -3638,6 +4116,163 @@ onMounted(() => {
   grid-auto-rows: 10.4rem;
   gap: 2rem;
   margin-top: 2.4rem;
+}
+
+.directions-panel {
+  margin-top: 2rem;
+  padding: 2.2rem;
+}
+
+.directions-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  align-items: center;
+  margin-bottom: 1.6rem;
+}
+
+.directions-kicker {
+  margin: 0 0 0.35rem;
+  color: #94a3b8;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.directions-head h2 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #172033;
+}
+
+.directions-manage-btn,
+.direction-secondary,
+.direction-primary {
+  min-height: 3.6rem;
+  border-radius: 0.9rem;
+  padding: 0 1.4rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.directions-manage-btn,
+.direction-secondary {
+  border: 1px solid #dbe2ee;
+  background: #fff;
+  color: #475569;
+}
+
+.direction-primary {
+  border: 0;
+  background: linear-gradient(135deg, #2563eb, #18b7c8);
+  color: #fff;
+}
+
+.direction-primary:disabled,
+.direction-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.directions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 1.2rem;
+}
+
+.direction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-height: 13.4rem;
+  padding: 1.45rem;
+  border: 1px solid #eef2f7;
+  border-radius: 1.1rem;
+  background: #f8fafc;
+  color: #182033;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+
+.direction-card:hover,
+.direction-table-row:hover {
+  transform: translateY(-1px);
+  border-color: #bfdbfe;
+  box-shadow: 0 1.2rem 2.6rem rgba(37, 99, 235, 0.08);
+}
+
+.direction-card--unassigned {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.direction-card__top,
+.direction-card__bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.direction-card__top strong {
+  font-size: 1.45rem;
+}
+
+.direction-card__top span,
+.direction-card__bottom span {
+  color: #94a3b8;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.direction-card__money {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.direction-share {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #e8eef7;
+  overflow: hidden;
+}
+
+.direction-share span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #18b7c8);
+}
+
+.direction-card__bottom strong {
+  color: #334155;
+  font-size: 1.12rem;
+  text-align: right;
+}
+
+.directions-table {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.direction-table-row {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) repeat(4, minmax(8rem, auto));
+  gap: 1rem;
+  align-items: center;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid #eef2f7;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+}
+
+.direction-table-name {
+  color: #111827;
+  font-weight: 800;
 }
 
 .metric-card {
@@ -7224,6 +7859,263 @@ onMounted(() => {
   padding: 0;
 }
 .campaign-filter-banner__reset:hover { color: #1d4ed8; }
+
+.direction-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(5px);
+}
+
+.direction-modal {
+  position: relative;
+  width: min(64rem, 96vw);
+  max-height: min(82vh, 72rem);
+  overflow: auto;
+  padding: 2.4rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.6rem;
+  background: #fff;
+  box-shadow: 0 2.5rem 8rem rgba(15, 23, 42, 0.24);
+}
+
+.direction-modal--manager {
+  width: min(76rem, 96vw);
+}
+
+.direction-modal__close {
+  position: absolute;
+  top: 1.4rem;
+  right: 1.4rem;
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  background: #fff;
+  color: #64748b;
+}
+
+.direction-modal__close svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.direction-modal__head {
+  margin-bottom: 1.8rem;
+  padding-right: 4rem;
+}
+
+.direction-modal__head p {
+  margin: 0 0 0.4rem;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.direction-modal__head h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.direction-field {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1.2rem;
+  color: #64748b;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.direction-field input {
+  height: 4.4rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 1rem;
+  padding: 0 1.2rem;
+  color: #172033;
+  font-size: 1.35rem;
+  outline: none;
+}
+
+.direction-field input:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.direction-mask-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-height: 2.8rem;
+  margin-bottom: 1.2rem;
+}
+
+.direction-mask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: #eef5ff;
+  color: #1d4ed8;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.direction-mask-chip svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.direction-preview {
+  border-radius: 1.1rem;
+  background: #f8fafc;
+  padding: 1.2rem;
+}
+
+.direction-preview__summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: #64748b;
+  font-size: 1.2rem;
+}
+
+.direction-preview__summary strong {
+  color: #111827;
+  font-size: 2rem;
+}
+
+.direction-preview__warning {
+  margin: 0.7rem 0 0;
+  color: #b45309;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.direction-preview__list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 18rem;
+  overflow: auto;
+  margin-top: 1rem;
+}
+
+.direction-preview__row,
+.direction-manager-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 0.8rem 1rem;
+  color: #334155;
+  font-size: 1.15rem;
+}
+
+.direction-preview__row small {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.direction-preview__empty {
+  padding: 1.4rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.direction-modal__actions,
+.direction-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+
+.direction-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.8rem;
+  margin-top: 1.2rem;
+}
+
+.direction-suggestion {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid #dbeafe;
+  border-radius: 1rem;
+  background: #eff6ff;
+  padding: 1rem;
+  color: #1e3a8a;
+  text-align: left;
+}
+
+.direction-suggestion span {
+  color: #64748b;
+  font-size: 1.05rem;
+}
+
+.direction-manager-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.direction-manager-row > div:first-child {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.direction-manager-row span {
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+.direction-manager-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.direction-manager-row__actions button {
+  min-height: 3rem;
+  border: 1px solid #dbe2ee;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #475569;
+  padding: 0 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.direction-manager-row__actions .danger {
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.direction-unassigned-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.2rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: #fff7ed;
+  color: #9a3412;
+}
 
 /* Dark mode for campaign multiselect */
 :global(.dark) .campaigns-multiselect,

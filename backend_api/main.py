@@ -43,6 +43,7 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS interface_language VARCHAR(8) NOT NULL DEFAULT 'ru'"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_email VARCHAR"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS direction_label VARCHAR(32) NOT NULL DEFAULT 'directions'"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:
@@ -72,6 +73,7 @@ from backend_api.max_report_link import link_router as max_reports_link_router, 
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
+from backend_api.directions import router as directions_router
 from backend_api.campaigns import router as campaigns_router
 from backend_api.phone_projects import router as phone_projects_router
 from backend_api.phone_leads import router as phone_leads_router
@@ -194,6 +196,7 @@ app.include_router(telegram_webhook_router, prefix="/api")
 app.include_router(max_reports_link_router, prefix="/api")
 app.include_router(max_reports_webhook_router, prefix="/api")
 app.include_router(clients_router, prefix="/api")
+app.include_router(directions_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")

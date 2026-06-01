@@ -222,6 +222,7 @@ class Client(Base):
     spreadsheet_id = Column(String)
     avatar_url = Column(String)
     site_url = Column(String, nullable=True)
+    direction_label = Column(String(32), nullable=False, default="directions", server_default="directions")
     status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="ACTIVE")
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     actual_start_date = Column(Date, nullable=True)
@@ -229,6 +230,7 @@ class Client(Base):
 
     owner = relationship("User", back_populates="clients")
     integrations = relationship("Integration", back_populates="client")
+    directions = relationship("ProjectDirection", back_populates="client", cascade="all, delete-orphan")
     budgets = relationship("ProjectBudget", back_populates="client", cascade="all, delete-orphan")
     target_cpas = relationship("ProjectTargetCPA", back_populates="client", cascade="all, delete-orphan")
     yandex_stats = relationship("YandexStats", back_populates="client")
@@ -366,6 +368,32 @@ class Campaign(Base):
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
+
+
+class ProjectDirection(Base):
+    __tablename__ = "project_directions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    client = relationship("Client", back_populates="directions")
+    masks = relationship("ProjectDirectionMask", back_populates="direction", cascade="all, delete-orphan")
+
+
+class ProjectDirectionMask(Base):
+    __tablename__ = "project_direction_masks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    direction_id = Column(UUID(as_uuid=True), ForeignKey("project_directions.id", ondelete="CASCADE"), nullable=False, index=True)
+    mask = Column(String, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
+    direction = relationship("ProjectDirection", back_populates="masks")
 
 
 class TariffPlan(Base):

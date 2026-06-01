@@ -13,6 +13,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from backend_api.stats_service import StatsService
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.project_settings import get_detector_state, get_integration_state
+from backend_api.services.directions import normalize_label
 from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.history import log_history_event
 from automation.google_sheets import GoogleSheetsService, extract_spreadsheet_id
@@ -333,6 +334,9 @@ def update_client(
         if old_status == "PAUSED" and raw_status == "ACTIVE":
             _check_can_resume_project(db, current_user, client)
         update_data["status"] = models.ClientStatus(raw_status)
+
+    if "direction_label" in update_data:
+        update_data["direction_label"] = normalize_label(update_data["direction_label"])
 
     for key, value in update_data.items():
         setattr(client, key, value)
