@@ -67,27 +67,28 @@
         </Transition>
       </div>
 
-      <!-- Subscription info (xxl+) — вся зона кликабельна -->
-      <button
-        @click="router.push('/settings?tab=tariff')"
-        class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 2xl:flex 2xl:gap-4 2xl:pl-4 cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-0"
-      >
-        <div class="text-left">
+      <!-- Subscription info (xxl+) -->
+      <div class="hidden items-center gap-1.5 border-l border-black/5 pl-1.5 dark:border-white/10 2xl:flex 2xl:gap-4 2xl:pl-4">
+        <button
+          @click="router.push('/settings?tab=tariff')"
+          class="text-left bg-transparent border-0 p-0 cursor-pointer transition-opacity hover:opacity-80"
+        >
           <div class="whitespace-nowrap text-[0.6944rem] font-medium text-gray-500 dark:text-white/55 2xl:text-[0.9028rem]">
             Ваш тариф: <b class="font-bold text-gray-800 dark:text-gray-100">{{ subscription.planName }}</b>
           </div>
           <div v-if="subscription.expiresAtLabel" class="hidden text-[0.7639rem] text-gray-400 2xl:block">
             Действует до {{ subscription.expiresAtLabel }}
           </div>
-        </div>
-        <span
-          class="flex min-h-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] border border-[#e1e1e1] dark:border-white/20 px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
+        </button>
+        <button
+          @click="router.push('/settings?tab=tariff')"
+          class="flex min-h-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] border border-[#e1e1e1] dark:border-white/20 dark:hover:border-white/40 px-[0.625rem] py-2 text-[0.6944rem] font-medium leading-none transition-all duration-500 hover:border-[#2563eb] 2xl:px-[1.1806rem] 2xl:text-[0.9028rem]"
         >
           <span class="bg-[linear-gradient(270deg,#06b5d4_0.35%,#1f9de4_32.08%,#2563eb_96.51%)] bg-clip-text text-transparent">
             Продлить
           </span>
-        </span>
-      </button>
+        </button>
+      </div>
 
       <!-- Usage chip -->
       <div
@@ -681,16 +682,16 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0;
-  min-height: 3.0556rem;
+  min-height: 2.75rem;
   padding: 0;
-  border-radius: 0.9722rem;
+  border-radius: 0.875rem;
   background: #fff;
   border: 1px solid rgba(120, 120, 120, 0.24);
   cursor: pointer;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   white-space: nowrap;
-  font-size: 0.8333rem;
+  font-size: 0.75rem;
   box-shadow: 0 0.2778rem 0.8333rem rgba(15, 23, 42, 0.03);
 }
 .usage-chip:hover {
@@ -714,9 +715,9 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4861rem;
-  min-height: 3.0556rem;
-  padding: 0 1.1111rem;
+  gap: 0.4375rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
   color: #6b7280;
   transition: background-color 0.2s, color 0.2s;
 }
@@ -737,8 +738,8 @@ watch(
 }
 
 .usage-icon {
-  width: 1.1111rem;
-  height: 1.1111rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
   color: currentColor;
 }
@@ -751,7 +752,7 @@ watch(
 .usage-num {
   color: #111827;
   font-weight: 800;
-  font-size: 1.1111rem;
+  font-size: 1rem;
   line-height: 1;
 }
 :global(.dark) .usage-num { color: rgba(255,255,255,0.92); }
@@ -759,7 +760,7 @@ watch(
 .usage-label {
   color: #6b7280;
   font-weight: 700;
-  font-size: 0.9028rem;
+  font-size: 0.8125rem;
 }
 :global(.dark) .usage-label { color: rgba(255,255,255,0.58); }
 .usage-gauge--amber .usage-label { color: #a16207; }

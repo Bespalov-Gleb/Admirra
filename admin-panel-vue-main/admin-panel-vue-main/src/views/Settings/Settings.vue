@@ -85,9 +85,14 @@
 
           <!-- Unlocked state -->
           <template v-else>
-            <div class="flex items-center gap-[0.6944rem] mb-[1.7361rem]">
-              <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
-              <span class="wl-active-badge">Активно</span>
+            <div class="wl-config-head">
+              <div>
+                <div class="flex items-center gap-[0.6944rem] mb-[0.4861rem]">
+                  <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
+                  <span class="wl-active-badge">Активно</span>
+                </div>
+                <p>Настройте логотип, фирменный цвет и подписи для клиентских материалов.</p>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-[1.0417rem]">
@@ -153,23 +158,20 @@
                 <button class="settings-link mt-[0.6944rem]" @click="openPdfModal">Редактировать</button>
               </div>
 
-              <!-- Custom domain -->
-              <div class="settings-card">
-                <div class="settings-card-title">Свой домен для отчётов</div>
-                <div v-if="brand.brand_custom_domain" class="flex items-center gap-[0.6944rem] mb-[0.6944rem]">
-                  <span class="text-[0.9722rem] font-medium text-[#171717] dark:text-white/85">{{ brand.brand_custom_domain }}</span>
-                  <span v-if="brand.brand_domain_status === 'verified'" class="domain-badge domain-badge--verified">Подтверждён</span>
-                  <span v-else-if="brand.brand_domain_status === 'pending'" class="domain-badge domain-badge--pending">Ожидает проверки</span>
-                  <span v-else-if="brand.brand_domain_status === 'error'" class="domain-badge domain-badge--error">Ошибка DNS</span>
+              <!-- Preview -->
+              <div class="settings-card settings-card--preview">
+                <div class="settings-card-title">Предпросмотр</div>
+                <div class="brand-preview">
+                  <div class="brand-preview__logo">
+                    <img v-if="brand.brand_logo_url" :src="brand.brand_logo_url" alt="Logo preview" />
+                    <span v-else>WL</span>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="brand-preview__name">{{ brand.brand_pdf_header || 'Ваш бренд' }}</div>
+                    <div class="brand-preview__line" :style="{ backgroundColor: brand.brand_color || '#2563EB' }"></div>
+                  </div>
                 </div>
-                <input
-                  v-model="brand.brand_custom_domain"
-                  type="text"
-                  class="settings-input w-full"
-                  placeholder="reports.вашдомен.ru"
-                  @blur="saveBrand"
-                />
-                <p class="text-[0.7639rem] text-[#696969]/40 dark:text-white/25 mt-[0.4861rem]">Добавьте CNAME-запись на ваш домен, указывающую на reports.admirra.ru</p>
+                <p class="brand-preview__hint">Такой стиль будет использоваться в отчётах и PDF-документах. Собственная ссылка будет подключаться отдельно позже.</p>
               </div>
             </div>
           </template>
@@ -256,14 +258,14 @@ const wlFeatures = [
   'Логотип агентства в отчётах',
   'Фирменный цвет в PDF',
   'Шапка и подпись в документах',
-  'Собственный домен для ссылок',
+  'Премиальный вид клиентских материалов',
 ]
 
 const brandFields = [
   { title: 'Логотип агентства', placeholder: 'Загрузите изображение' },
   { title: 'Фирменный цвет', placeholder: 'Выберите цвет или введите HEX' },
   { title: 'Шапка и подпись PDF', placeholder: 'Название, контакты, подпись' },
-  { title: 'Свой домен для отчётов', placeholder: 'reports.вашдомен.ru' },
+  { title: 'Предпросмотр', placeholder: 'Проверьте внешний вид материалов' },
 ]
 
 const presetColors = ['#2563EB', '#06B5D4', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#171717']
@@ -289,7 +291,6 @@ async function saveBrand() {
       brand_color: brand.brand_color,
       brand_pdf_header: brand.brand_pdf_header,
       brand_pdf_signature: brand.brand_pdf_signature,
-      brand_custom_domain: brand.brand_custom_domain,
     })
     Object.assign(brand, data)
   } catch (e) {
@@ -383,11 +384,18 @@ async function savePdf() {
   border: 1px solid rgba(0,0,0,0.05);
   border-radius: 1.0417rem;
   padding: 1.3889rem;
+  box-shadow: 0 0.6944rem 1.9444rem rgba(15, 23, 42, 0.035);
 }
 :global(.dark) .settings-card {
   background: #2C2F3D;
   border-color: rgba(255,255,255,0.08);
   box-shadow: 0 4px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.settings-card--preview {
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+:global(.dark) .settings-card--preview {
+  background: linear-gradient(180deg, #2C2F3D, rgba(74,122,255,0.08));
 }
 
 .settings-card-title {
@@ -496,6 +504,22 @@ async function savePdf() {
 }
 :global(.dark) .wl-active-badge { background: rgba(0,255,78,0.15); color: #5ee886; }
 
+.wl-config-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.7361rem;
+}
+.wl-config-head p {
+  margin: 0;
+  color: rgba(105,105,105,0.56);
+  font-size: 0.9722rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+:global(.dark) .wl-config-head p { color: rgba(255,255,255,0.48); }
+
 .wl-upsell-card {
   position: relative;
   overflow: hidden;
@@ -557,6 +581,64 @@ async function savePdf() {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor;
 }
 :global(.dark) .color-swatch--selected { border-color: #fff; box-shadow: 0 0 0 2px #2C2F3D, 0 0 0 4px currentColor; }
+
+.brand-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.9722rem;
+  min-height: 5.5556rem;
+  padding: 1.0417rem;
+  border-radius: 0.8333rem;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+:global(.dark) .brand-preview {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.08);
+}
+.brand-preview__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.1667rem;
+  height: 4.1667rem;
+  flex-shrink: 0;
+  border-radius: 0.8333rem;
+  background: #f5f7f9;
+  color: #2563eb;
+  font-size: 1.1111rem;
+  font-weight: 900;
+  overflow: hidden;
+}
+.brand-preview__logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.brand-preview__name {
+  color: #171717;
+  font-size: 1.1111rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:global(.dark) .brand-preview__name { color: rgba(255,255,255,0.9); }
+.brand-preview__line {
+  width: 8.3333rem;
+  height: 0.4167rem;
+  max-width: 100%;
+  margin-top: 0.6944rem;
+  border-radius: 2.7778rem;
+}
+.brand-preview__hint {
+  margin: 0.8333rem 0 0;
+  color: rgba(105,105,105,0.48);
+  font-size: 0.8333rem;
+  line-height: 1.45;
+}
+:global(.dark) .brand-preview__hint { color: rgba(255,255,255,0.36); }
 
 .domain-badge {
   display: inline-flex;

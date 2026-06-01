@@ -400,16 +400,6 @@
             <li v-for="id in selectedProjectIdList" :key="id">{{ projectNameById(id) }}</li>
           </ul>
 
-          <!-- Action: description -->
-          <template v-if="massAction === 'description'">
-            <textarea
-              v-model="massEditDescription"
-              class="w-full min-h-[6.6667rem] px-4 py-3 rounded-xl border border-black/10 dark:border-white/15 bg-transparent text-[0.9722rem] text-gray-700 dark:text-gray-200 placeholder-gray-400 resize-y outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/15 mb-4"
-              rows="4"
-              placeholder="Описание проекта"
-            />
-          </template>
-
           <!-- Action: delete warning -->
           <template v-if="massAction === 'delete'">
             <div class="mb-4 rounded-xl bg-red-50 dark:bg-red-500/10 px-4 py-3 text-[0.9028rem] text-red-600 dark:text-red-300">
@@ -432,7 +422,7 @@
                 ? 'bg-red-600 hover:bg-red-700'
                 : 'bg-[#2563eb] hover:bg-[#1d4ed8]'"
               type="button"
-              :disabled="massSaving || (massAction === 'description' && !massEditDescription.trim()) || (massAction === 'unlink' && massIntegrationsCount === 0)"
+              :disabled="massSaving || (massAction === 'unlink' && massIntegrationsCount === 0)"
               @click="executeMassAction"
             >{{ massSaving ? 'Выполнение...' : massActionButtonLabel }}</button>
             <button
@@ -522,7 +512,6 @@ const deleteTarget = ref(null)
 const metricsByProjectId = ref({})
 const selectedProjectIds = ref([])
 const massEditOpen = ref(false)
-const massEditDescription = ref('')
 const massSaving = ref(false)
 const activeActionProjectId = ref(null)
 const activeActionProject = ref(null)
@@ -707,10 +696,9 @@ const toggleSelectAllRows = () => {
   }
 }
 
-const massAction = ref('description')
+const massAction = ref('delete')
 
 const massActions = [
-  { value: 'description', label: 'Изменить описание', hint: 'Записать общее описание во все выбранные проекты' },
   { value: 'delete', label: 'Удалить выбранные', hint: 'Безвозвратно удалить проекты и все их данные' },
   { value: 'unlink', label: 'Отвязать интеграции', hint: 'Удалить все интеграции у выбранных проектов' },
 ]
@@ -723,7 +711,6 @@ const massIntegrationsCount = computed(() => {
 })
 
 const massActionButtonLabel = computed(() => {
-  if (massAction.value === 'description') return 'Применить описание'
   if (massAction.value === 'delete') return `Удалить (${selectedProjectIds.value.length})`
   if (massAction.value === 'unlink') return `Отвязать (${massIntegrationsCount.value})`
   return 'Выполнить'
@@ -734,13 +721,11 @@ const openMassEdit = () => {
     toaster.warning('Отметьте один или несколько проектов в таблице.')
     return
   }
-  massEditDescription.value = ''
-  massAction.value = 'description'
+  massAction.value = 'delete'
   massEditOpen.value = true
 }
 
 const executeMassAction = async () => {
-  if (massAction.value === 'description') return applyMassDescription()
   if (massAction.value === 'delete') return applyMassDelete()
   if (massAction.value === 'unlink') return applyMassUnlink()
 }
@@ -750,37 +735,6 @@ const failedBulkResult = (results) => results.find((result) => result.status ===
 const syncSelectedProjects = () => {
   const existingIds = new Set(projects.value.map((project) => project.id))
   selectedProjectIds.value = selectedProjectIds.value.filter((id) => existingIds.has(id))
-}
-
-const applyMassDescription = async () => {
-  if (!selectedProjectIds.value.length) return
-  const desc = massEditDescription.value.trim()
-  if (!desc) {
-    toaster.warning('Введите текст описания — он будет записан во все выбранные проекты.')
-    return
-  }
-  massSaving.value = true
-  const ids = [...selectedProjectIds.value]
-  try {
-    const results = await Promise.allSettled(
-      ids.map((id) => api.put(`clients/${id}`, { description: desc }))
-    )
-    const failed = failedBulkResult(results)
-    const successCount = results.length - results.filter((result) => result.status === 'rejected').length
-    if (failed) {
-      toaster.error(failed.reason?.response?.data?.detail || `Описание обновлено частично: ${successCount} из ${ids.length}.`)
-    } else {
-      toaster.success(`Описание обновлено для ${ids.length} проектов.`)
-      massEditOpen.value = false
-    }
-  } catch (err) {
-    console.error(err)
-    toaster.error(err.response?.data?.detail || 'Не удалось сохранить изменения.')
-  } finally {
-    await fetchProjects()
-    await loadProjectMetrics()
-    massSaving.value = false
-  }
 }
 
 const applyMassDelete = async () => {

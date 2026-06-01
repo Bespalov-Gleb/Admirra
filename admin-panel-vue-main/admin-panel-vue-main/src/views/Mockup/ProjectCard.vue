@@ -96,16 +96,6 @@
           {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизировать' }}
         </button>
 
-        <button class="bulk-btn" @click="openMassEdit">
-          <span>Массовое редактирование</span>
-          <span class="bulk-btn__icon">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M9.7 3.2 12.8 6.3M2.8 13.2l3.1-.6 7.25-7.25a2.17 2.17 0 0 0-3.07-3.07L2.8 9.55v3.65Z" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2.8 13.2h3.4" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
-            </svg>
-          </span>
-        </button>
-
         <div class="flex">
           <button class="view-btn _active dark:!bg-[#33405f] dark:!text-[#67a8ff]" aria-label="Карточки">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -304,7 +294,6 @@
                 :class="`balance-chip--${balance.code}`"
               >
                 <img :src="balance.icon" :alt="balance.name" />
-                <span>{{ balance.name }}</span>
                 <strong>{{ balance.value }}</strong>
               </div>
             </div>
@@ -816,11 +805,6 @@ function handleAvatarSaved(updatedProject) {
   toaster.success('Аватарка проекта обновлена.')
 }
 
-const openMassEdit = () => {
-  toaster.info('Массовое редактирование доступно в табличном виде.')
-  router.push('/project-rows')
-}
-
 const handleSyncProjects = async () => {
   if (syncingIntegrations.value) return
 
@@ -1154,41 +1138,6 @@ onMounted(async () => {
   to {
     transform: rotate(360deg);
   }
-}
-
-.bulk-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6944rem;
-  min-height: 3.1944rem;
-  padding: 0.5556rem 1.1806rem;
-  font-size: 0.9028rem;
-  font-weight: 500;
-  color: #fff;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  border: none;
-  border-radius: 1.0417rem;
-  cursor: pointer;
-  transition: transform 0.75s;
-  white-space: nowrap;
-}
-.bulk-btn:hover { transform: scale(1.02); }
-.bulk-btn:active { transform: scale(0.97); transition: transform 0s; }
-.bulk-btn__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5278rem;
-  height: 1.5278rem;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 0.4167rem;
-  flex-shrink: 0;
-  color: #fff;
-}
-.bulk-btn__icon svg {
-  display: block;
-  width: 0.9722rem;
-  height: 0.9722rem;
 }
 
 /* ---- View toggle ---- */

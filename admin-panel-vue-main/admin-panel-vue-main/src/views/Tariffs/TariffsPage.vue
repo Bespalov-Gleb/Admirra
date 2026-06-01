@@ -250,25 +250,56 @@
       </div>
       </Transition>
 
-      <section class="wl-upsell-banner" :class="{ 'wl-upsell-banner--unlocked': subscription.whitelabel_available }">
-        <div class="wl-upsell-banner__pattern"></div>
-        <div class="wl-upsell-banner__content">
-          <div class="wl-upsell-banner__copy">
-            <div class="wl-upsell-banner__badge">
-              <svg v-if="!subscription.whitelabel_available" class="w-[0.8333rem] h-[0.8333rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              {{ subscription.whitelabel_available ? 'White Label подключён' : 'White Label' }}
+      <!-- White Label -->
+      <div class="wl-card bg-white rounded-[2.0833rem] p-[2.0833rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div class="pr-[2.0833rem] flex flex-col gap-[1.3889rem]">
+            <div class="flex items-start gap-[1.1806rem]">
+              <span class="two-circles" style="margin-top:0.2778rem"></span>
+              <div>
+                <div class="wl-card__badge" :class="{ 'wl-card__badge--active': subscription.whitelabel_available }">
+                  {{ subscription.whitelabel_available ? 'White Label подключён' : 'White Label' }}
+                </div>
+                <h4 class="text-[1.3889rem] font-semibold leading-[1.3] text-[#171717] dark:!text-white/90">
+                  Персонализация<br />
+                  кабинета и&nbsp;отчётности
+                </h4>
+              </div>
             </div>
-            <h4>Отчёты и ссылки под брендом вашего агентства</h4>
-            <p>Логотип, фирменный цвет, подпись PDF и собственный домен. Конфигурация находится в отдельной вкладке «Бренд / White Label».</p>
+            <ul class="font-medium">
+              <li v-for="item in wlFeatures" :key="item" class="feature-row">
+                <span class="feature-dot"></span>
+                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
+              </li>
+            </ul>
           </div>
-          <div class="wl-upsell-banner__features">
-            <span v-for="item in wlFeatures" :key="item">{{ item }}</span>
+
+          <div class="flex items-center justify-center" style="margin:-0.6944rem 0 0 -1.3889rem">
+            <img
+              src="/admirra/img/white-label/ui.png"
+              alt="White Label UI"
+              class="block"
+              style="width:27.7778rem;height:24.3056rem;object-fit:contain"
+            />
           </div>
-          <button class="wl-upsell-banner__button" type="button" @click="router.push('/settings')">
-            {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Открыть White Label' }}
-          </button>
+
+          <div class="flex flex-col" style="padding:0.5556rem 0 0 2.7778rem">
+            <div class="mb-[1.1111rem]">
+              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
+              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
+            </div>
+            <p class="text-[1.0417rem] text-[rgba(105,105,105,0.56)] max-w-[13.8889rem] pt-[0.6944rem] mb-[3.125rem] dark:!text-white/55">
+              При покупке на год — возможны&nbsp;персональные скидки.
+              Оставьте заявку, чтобы обсудить детали использования WL.
+            </p>
+            <div class="mt-auto">
+              <button class="plan-btn w-full" @click="onContactWl">
+                <span class="relative z-[1]">{{ subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
 
     </template>
   </div>
@@ -493,7 +524,7 @@ function planBullets(plan) {
 const wlFeatures = [
   'Логотип агентства в отчётах',
   'Фирменный цвет и подпись PDF',
-  'Собственный домен для ссылок',
+  'Отчёты без логотипа сервиса',
   'Премиальный вид клиентских материалов',
 ]
 
@@ -552,6 +583,14 @@ async function onSubscribe(planCode, bp = 'month') {
   } finally {
     paying.value = null
   }
+}
+
+function onContactWl() {
+  if (subscription.value?.whitelabel_available) {
+    router.push('/settings?tab=brand')
+    return
+  }
+  router.push('/contact')
 }
 
 </script>
@@ -1209,101 +1248,35 @@ async function onSubscribe(planCode, bp = 'month') {
   background-color: rgba(255,255,255,0.92);
 }
 
-.wl-upsell-banner {
-  position: relative;
-  overflow: hidden;
-  padding: 1.7361rem;
-  border-radius: 1.3889rem;
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 36%, #1f9de4 72%, #06b5d4 100%);
-  box-shadow: 0 1rem 2.5rem rgba(37,99,235,0.16);
-}
-.wl-upsell-banner--unlocked {
-  background: linear-gradient(135deg, #0f766e 0%, #2563eb 52%, #1f9de4 100%);
-}
-.wl-upsell-banner__pattern {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.12;
-  background: url('/admirra/img/pattern.png') center/5.3472rem;
-}
-.wl-upsell-banner__content {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.95fr) auto;
-  align-items: center;
-  gap: 1.3889rem;
-}
-.wl-upsell-banner__badge {
+.wl-card__badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.4167rem;
-  min-height: 1.9444rem;
-  padding: 0 0.7639rem;
+  min-height: 1.8056rem;
+  padding: 0 0.6944rem;
   border-radius: 2.7778rem;
-  background: rgba(255,255,255,0.18);
-  color: #fff;
+  background: rgba(37,99,235,0.08);
+  color: #2563eb;
   font-size: 0.7639rem;
   font-weight: 800;
   margin-bottom: 0.6944rem;
 }
-.wl-upsell-banner__copy h4 {
-  margin: 0;
-  color: #fff;
-  font-size: 1.5278rem;
-  font-weight: 800;
-  line-height: 1.2;
+.wl-card__badge--active {
+  background: rgba(0,255,78,0.10);
+  color: #16a34a;
 }
-.wl-upsell-banner__copy p {
-  margin: 0.5556rem 0 0;
-  max-width: 40rem;
-  color: rgba(255,255,255,0.78);
-  font-size: 0.9722rem;
-  line-height: 1.45;
+:global(.dark) .wl-card__badge,
+:global(.darkmode) .wl-card__badge {
+  background: rgba(74,122,255,0.14);
+  color: #8fb0ff;
 }
-.wl-upsell-banner__features {
-  display: grid;
-  gap: 0.5556rem;
-}
-.wl-upsell-banner__features span {
-  position: relative;
-  padding-left: 1.1111rem;
-  color: rgba(255,255,255,0.9);
-  font-size: 0.9028rem;
-  font-weight: 700;
-}
-.wl-upsell-banner__features span::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.45em;
-  width: 0.4167rem;
-  height: 0.4167rem;
-  border-radius: 50%;
-  background: #fff;
-}
-.wl-upsell-banner__button {
-  min-height: 3.0556rem;
-  padding: 0 1.25rem;
-  border: 0;
-  border-radius: 0.8333rem;
-  background: #fff;
-  color: #2563eb;
-  font-size: 0.9028rem;
-  font-weight: 800;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-.wl-upsell-banner__button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0.6944rem 2.0833rem rgba(0,0,0,0.15);
+:global(.dark) .wl-card__badge--active,
+:global(.darkmode) .wl-card__badge--active {
+  background: rgba(0,255,78,0.13);
+  color: #5ee886;
 }
 
 @media (max-width: 1024px) {
-  .usage-grid,
-  .wl-upsell-banner__content {
+  .usage-grid {
     grid-template-columns: 1fr;
   }
   .subscription-head,
