@@ -253,7 +253,7 @@ const showLogoutModal = ref(false)
 
 const logoSrc = computed(() => {
   if (isCollapsed.value) return '/admirra/img/favicon/favicon-96x96.png'
-  return isDarkMode.value ? '/admirra/img/logo-white.png' : '/admirra/img/logo.png'
+  return isDarkMode.value ? '/admirra/img/newlogotest.png' : '/admirra/img/newlogotest.png'
 })
 
 const menuItems = computed(() => [
