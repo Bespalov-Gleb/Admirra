@@ -27,7 +27,7 @@
         <img
           :src="logoSrc"
           alt="AdMirra"
-          :class="isCollapsed ? 'h-8 w-8 object-contain' : 'h-[2.1528rem] w-[10rem] object-contain object-left'"
+          :class="isCollapsed ? 'h-8 w-8 object-contain' : 'h-[5.4rem] object-contain'"
         />
       </div>
     </div>
