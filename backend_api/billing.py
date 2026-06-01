@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend_api.services.cloudpayments import CloudPaymentsService
@@ -103,6 +104,21 @@ def _billing_period_days(plan, billing_period: str) -> int:
     return int(plan.period_days or 30)
 
 
+def _cabinet_limit_for_plan(plan_code: str) -> int:
+    code = str(plan_code or "").lower()
+    if code == "standard":
+        return 30
+    if code == "basic":
+        return 10
+    return 3
+
+
+def _plan_has_whitelabel(plan) -> bool:
+    if getattr(plan, "whitelabel_included", False):
+        return True
+    return str(getattr(plan, "code", "") or "").lower() == "standard"
+
+
 def _build_cloudpayments_receipt(
     *,
     amount: int,
@@ -142,9 +158,11 @@ def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
         name=plan.name,
         price_rub=plan.price_rub,
         max_projects=plan.max_projects,
+        max_cabinets=getattr(plan, "max_cabinets", None) or _cabinet_limit_for_plan(plan.code),
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         period_days=plan.period_days,
         trial_days=plan.trial_days,
+        whitelabel_included=_plan_has_whitelabel(plan),
         is_default=plan.is_default,
         is_active=plan.is_active,
     )
@@ -175,7 +193,23 @@ def get_my_subscription(
     SubscriptionService._ensure_ai_period(current_user, plan)
     used = int(current_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
-    projects_used = db.query(models.Client).filter(models.Client.owner_id == current_user.id).count()
+    active_status = getattr(models.ClientStatus, "ACTIVE", None)
+    paused_status = getattr(models.ClientStatus, "PAUSED", None)
+    projects_used = db.query(models.Client).filter(
+        models.Client.owner_id == current_user.id,
+        models.Client.status == active_status,
+    ).count()
+    paused_projects = db.query(models.Client).filter(
+        models.Client.owner_id == current_user.id,
+        models.Client.status == paused_status,
+    ).count()
+    cabinets_used = (
+        db.query(func.count(models.Integration.id))
+        .join(models.Client, models.Client.id == models.Integration.client_id)
+        .filter(models.Client.owner_id == current_user.id)
+        .scalar()
+        or 0
+    )
     ai_reset_date = None
     if current_user.ai_requests_period_started_at:
         reset_dt = current_user.ai_requests_period_started_at + timedelta(days=int(plan.period_days or 30))
@@ -189,14 +223,20 @@ def get_my_subscription(
         plan_name=plan.name,
         status=sub.status.value,
         is_subscribed=is_active,
+        billing_period="year" if sub.current_period_start and sub.current_period_end and (sub.current_period_end - sub.current_period_start).days >= 330 else "month",
         subscription_expires_at=current_user.subscription_expires_at,
         max_projects=plan.max_projects,
         projects_used=projects_used,
+        paused_projects=paused_projects,
+        max_cabinets=_cabinet_limit_for_plan(plan.code),
+        cabinets_used=int(cabinets_used),
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         ai_requests_used=used,
         ai_requests_remaining=remaining,
         ai_reset_date=ai_reset_date,
         period_days=plan.period_days,
+        autorenew=not bool(sub.cancel_at_period_end),
+        whitelabel_available=_plan_has_whitelabel(plan),
     )
 
 
@@ -347,4 +387,3 @@ async def cloudpayments_webhook(
     db.flush()
     db.commit()
     return schemas.CloudPaymentsWebhookResponse(code=0)
-

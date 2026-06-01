@@ -463,10 +463,12 @@ def read_users_me(
         .first()
     )
     wl = False
-    if sub and sub.plan_id:
-        plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
-        if plan and getattr(plan, "whitelabel_included", False):
-            wl = True
+    if sub:
+        if sub.plan_id:
+            plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
+            wl = bool(plan and getattr(plan, "whitelabel_included", False))
+        if not wl:
+            wl = SubscriptionService.get_user_plan(db, current_user).code == "standard"
     resp = schemas.UserResponse.model_validate(current_user)
     resp.whitelabel_available = wl
     return resp

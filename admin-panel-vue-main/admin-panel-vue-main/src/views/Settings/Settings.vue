@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-[1.7361rem] py-[2.0833rem]">
 
     <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[1.3889rem]">
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Настройки</h3>
@@ -280,6 +280,10 @@ async function loadBrand() {
 }
 
 async function saveBrand() {
+  if (brand.brand_color && !/^#[0-9A-Fa-f]{6}$/.test(brand.brand_color)) {
+    toaster.error('Введите цвет в формате #2563EB')
+    return
+  }
   try {
     const { data } = await api.put('brand', {
       brand_color: brand.brand_color,

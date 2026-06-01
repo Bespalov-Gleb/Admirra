@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from core import models, security
 from core.database import get_db
+from backend_api.services.subscription import SubscriptionService
 
 logger = logging.getLogger("api.brand")
 
@@ -21,6 +23,7 @@ BRAND_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg"}
 MAX_LOGO_SIZE = 2 * 1024 * 1024
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 class BrandSettingsResponse(BaseModel):
@@ -53,10 +56,14 @@ def _check_wl(user: models.User, db: Session) -> bool:
         .order_by(models.Subscription.created_at.desc())
         .first()
     )
-    if not sub or not sub.plan_id:
+    if not sub:
         return False
-    plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
-    return bool(plan and getattr(plan, "whitelabel_included", False))
+    if sub.plan_id:
+        plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
+        if plan:
+            return bool(getattr(plan, "whitelabel_included", False))
+    plan = SubscriptionService.get_user_plan(db, user)
+    return str(plan.code or "").lower() == "standard"
 
 
 @router.get("", response_model=BrandSettingsResponse)
@@ -86,6 +93,8 @@ def update_brand(
         raise HTTPException(status_code=403, detail="White Label недоступен на вашем тарифе")
 
     if body.brand_color is not None:
+        if body.brand_color and not HEX_COLOR_RE.match(body.brand_color):
+            raise HTTPException(status_code=400, detail="Некорректный HEX-цвет")
         current_user.brand_color = body.brand_color
     if body.brand_pdf_header is not None:
         current_user.brand_pdf_header = body.brand_pdf_header
@@ -155,6 +164,10 @@ def delete_logo(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
+    wl = _check_wl(current_user, db)
+    if not wl:
+        raise HTTPException(status_code=403, detail="White Label недоступен на вашем тарифе")
+
     if current_user.brand_logo_url:
         old_path = UPLOADS_DIR.parent / current_user.brand_logo_url.lstrip("/")
         if old_path.is_file():
@@ -170,5 +183,5 @@ def delete_logo(
         brand_pdf_signature=current_user.brand_pdf_signature,
         brand_custom_domain=current_user.brand_custom_domain,
         brand_domain_status=current_user.brand_domain_status or "none",
-        whitelabel_available=_check_wl(current_user, db),
+        whitelabel_available=wl,
     )

@@ -635,9 +635,11 @@ class BillingPlanResponse(BaseModel):
     name: str
     price_rub: int
     max_projects: int
+    max_cabinets: int = 0
     max_ai_requests_per_period: int
     period_days: int
     trial_days: int
+    whitelabel_included: bool = False
     is_default: bool
     is_active: bool
 
@@ -647,14 +649,20 @@ class BillingSubscriptionResponse(BaseModel):
     plan_name: str
     status: str
     is_subscribed: bool
+    billing_period: str = "month"
     subscription_expires_at: Optional[datetime] = None
     max_projects: int
     projects_used: int = 0
+    paused_projects: int = 0
+    max_cabinets: int = 0
+    cabinets_used: int = 0
     max_ai_requests_per_period: int
     ai_requests_used: int
     ai_requests_remaining: int
     ai_reset_date: Optional[str] = None
     period_days: int
+    autorenew: bool = True
+    whitelabel_available: bool = False
 
 
 class BillingSubscribeRequest(BaseModel):
