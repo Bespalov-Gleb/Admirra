@@ -2,14 +2,6 @@
   <header class="h-[5.2778rem] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]">
     <div class="flex-1 flex items-center px-[0.5556rem] py-[0.3472rem] gap-1.5 min-w-0 2xl:px-[1.7361rem] 2xl:gap-4">
 
-      <!-- Logo -->
-      <img
-        src="/admirra/img/logo.png"
-        alt="АдМирра"
-        class="hidden h-[2.5rem] w-auto object-contain flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity min-[1024px]:block"
-        @click="router.push('/project-card')"
-      />
-
       <!-- Left: Project selector -->
       <div class="relative flex-shrink-0" ref="projectMenuRef">
         <button
