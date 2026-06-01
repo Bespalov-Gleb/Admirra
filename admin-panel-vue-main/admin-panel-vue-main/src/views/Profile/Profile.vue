@@ -102,7 +102,10 @@
               class="oauth-row"
               :class="`oauth-row--${provider.provider}`"
             >
-              <div class="oauth-mark">{{ provider.short }}</div>
+              <div class="oauth-mark">
+                <img v-if="provider.icon" :src="provider.icon" :alt="provider.label" />
+                <span v-else>{{ provider.short }}</span>
+              </div>
               <div class="oauth-main">
                 <strong>{{ provider.label }}</strong>
                 <span>{{ provider.connected ? 'Привязан' : 'Не привязан' }}</span>
@@ -146,6 +149,9 @@
         </div>
 
         <div class="notification-box">
+          <div class="notification-icon">
+            <img src="/admirra/img/icons/telegram.png" alt="Telegram" />
+          </div>
           <div>
             <strong>Telegram</strong>
             <span v-if="form.telegramChatId">Подключён. Уведомления будут приходить в привязанный чат.</span>
@@ -173,7 +179,7 @@
           <h2>Удалить аккаунт</h2>
           <p>Необратимое действие. Будут удалены профиль, проекты и данные агентства.</p>
         </div>
-        <button type="button" @click="deleteOpen = true">Удалить аккаунт</button>
+        <button class="danger-outline-btn" type="button" @click="deleteOpen = true">Удалить аккаунт</button>
       </section>
     </main>
 
@@ -261,9 +267,9 @@ const passwordForm = reactive({
 })
 
 const providerMeta = {
-  yandex: { label: 'Яндекс ID', short: 'Я' },
-  vk: { label: 'ВКонтакте', short: 'VK' },
-  max: { label: 'Max', short: 'M' },
+  yandex: { label: 'Яндекс ID', short: 'Я', icon: '/admirra/img/icons/yandex.png' },
+  vk: { label: 'ВКонтакте', short: 'VK', icon: '/admirra/img/icons/vk.png' },
+  max: { label: 'Max', short: 'M', icon: '/admirra/img/icons/max.png' },
 }
 
 const displayName = computed(() => {
@@ -515,7 +521,7 @@ onMounted(loadProfile)
   border: 1px solid rgba(0,0,0,0.05);
   border-radius: 1.0417rem;
   background: #fff;
-  padding: 1.3889rem;
+  padding: 1.5278rem;
   box-shadow: 0 0.6944rem 1.9444rem rgba(15, 23, 42, 0.035);
 }
 .profile-hero {
@@ -608,7 +614,7 @@ onMounted(loadProfile)
 .field {
   display: grid;
   gap: 0.4167rem;
-  margin-top: 1.0417rem;
+  margin-top: 0.9028rem;
 }
 .field span {
   color: #696969;
@@ -623,14 +629,14 @@ onMounted(loadProfile)
 .field input,
 .field select {
   width: 100%;
-  min-height: 3.0556rem;
-  padding: 0 0.9722rem;
+  min-height: 2.7083rem;
+  padding: 0 0.9028rem;
   border: 1px solid transparent;
   border-radius: 0.6944rem;
   outline: none;
   background: #f5f7f9;
   color: #171717;
-  font-size: 0.9722rem;
+  font-size: 0.9028rem;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .field input:focus,
@@ -645,12 +651,13 @@ onMounted(loadProfile)
 .actions-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 1.0417rem;
+  margin-top: 1.25rem;
 }
 .primary-btn,
 .ghost-btn,
 .telegram-btn,
-.danger-btn {
+.danger-btn,
+.danger-outline-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -674,14 +681,24 @@ onMounted(loadProfile)
 }
 .telegram-btn {
   border: 0;
-  background: #0088cc;
+  background: linear-gradient(135deg, #1f9de4, #06b5d4);
   color: #fff;
+  box-shadow: 0 0.4167rem 1.25rem rgba(31,157,228,0.18);
 }
-.danger-btn,
-.danger-card button {
+.danger-btn {
   border: 0;
   background: #ef4444;
   color: #fff;
+}
+.danger-outline-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(239,68,68,0.24);
+  background: #fff;
+  color: #dc2626;
+}
+.danger-outline-btn:hover {
+  border-color: rgba(239,68,68,0.38);
+  background: rgba(239,68,68,0.06);
 }
 button:disabled {
   opacity: 0.5;
@@ -699,7 +716,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9722rem;
+  padding: 0.9722rem 1.0417rem;
   border-radius: 0.8333rem;
   background: #f8fafc;
 }
@@ -728,8 +745,8 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.6389rem;
+  height: 2.6389rem;
   flex-shrink: 0;
   border-radius: 0.6944rem;
   background: #fff3db;
@@ -737,8 +754,14 @@ button:disabled {
   font-size: 0.9028rem;
   font-weight: 900;
 }
-.oauth-row--vk .oauth-mark { background: #e6f2ff; color: #1f5f9f; }
-.oauth-row--max .oauth-mark { background: #edf7f1; color: #167147; }
+.oauth-mark img,
+.notification-icon img {
+  width: 1.6667rem;
+  height: 1.6667rem;
+  object-fit: contain;
+}
+.oauth-row--vk .oauth-mark { background: #eef6ff; color: #1f5f9f; }
+.oauth-row--max .oauth-mark { background: #eef8f4; color: #167147; }
 .oauth-main {
   min-width: 0;
   flex: 1;
@@ -772,12 +795,34 @@ button:disabled {
   justify-content: flex-end;
   gap: 0.5556rem;
 }
+.notification-box {
+  justify-content: flex-start;
+}
+.notification-box > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+.notification-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.7778rem;
+  height: 2.7778rem;
+  flex-shrink: 0;
+  border-radius: 0.8333rem;
+  background: #eef8ff;
+}
 .danger-card {
-  border-color: rgba(239,68,68,0.18);
-  background: #fff8f8;
+  align-items: center;
+  border-color: rgba(239,68,68,0.16);
+  background: linear-gradient(180deg, #fff, #fffafa);
 }
 .danger-card h2 {
   color: #b91c1c;
+  font-size: 1.25rem;
+}
+.danger-card p {
+  max-width: 32rem;
 }
 .modal-layer {
   position: fixed;
@@ -846,6 +891,17 @@ button:disabled {
   border-color: rgba(255,255,255,0.10);
   color: rgba(255,255,255,0.76);
 }
+:global(.dark) .danger-card,
+:global(.darkmode) .danger-card {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.22);
+}
+:global(.dark) .danger-outline-btn,
+:global(.darkmode) .danger-outline-btn {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.28);
+  color: #fca5a5;
+}
 
 @media (max-width: 680px) {
   .profile-page {
@@ -864,6 +920,12 @@ button:disabled {
   }
   .notification-actions {
     justify-content: flex-start;
+  }
+  .danger-outline-btn,
+  .primary-btn,
+  .telegram-btn,
+  .ghost-btn {
+    width: 100%;
   }
 }
 </style>
