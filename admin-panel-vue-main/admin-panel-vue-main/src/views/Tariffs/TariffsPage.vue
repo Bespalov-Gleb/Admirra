@@ -640,7 +640,7 @@ function onContactWl() {
   border-radius: 1.1111rem;
 }
 
-.usage-tile--projects { background: #fff3df; color: #78622d; }
+.usage-tile--projects { background: #FFF2E4; color: #71663E; }
 .usage-tile--cabinets { background: #edf6ff; color: #1f5388; }
 .usage-tile--ai { background: #fff0f2; color: #702332; }
 .usage-tile--users { background: #f4e7ff; color: #70419b; }
@@ -708,7 +708,7 @@ function onContactWl() {
   border-radius: inherit;
 }
 
-.usage-tile--projects .usage-tile__bar i { background: #ffb15d; }
+.usage-tile--projects .usage-tile__bar i { background: #FFC07B; }
 .usage-tile--cabinets .usage-tile__bar i { background: #6da7e6; }
 .usage-tile--ai .usage-tile__bar i { background: #e9a4ad; }
 .usage-tile--users .usage-tile__bar i { background: #aa8ac5; }
