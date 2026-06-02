@@ -287,7 +287,7 @@ const renewalText = computed(() => {
   const days = daysLeft.value ?? 13
   if (subscriptionStatusKey.value === 'past_due') return 'Не удалось списать оплату. Обновите способ оплаты.'
   if (subscriptionStatusKey.value === 'canceled') return `Доступ сохранится до ${date}`
-  return `Продлится ${date} - <strong style="color:#171717">осталось ${days} дней</strong>`
+  return `Продлится ${date} - <span style="color:#171717;font-weight:500">осталось ${days} дней</span>`
 })
 
 const planMetaLine = computed(() => {
@@ -628,14 +628,14 @@ function onContactWl() {
 
 .usage-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.6667rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8333rem;
   padding: 1.8056rem 1.875rem 1.5972rem;
 }
 
 .usage-tile {
-  min-height: 10.1389rem;
-  padding: 1.5972rem 1.875rem;
+  min-height: 9.0278rem;
+  padding: 1.25rem 1.25rem;
   border-radius: 1.1111rem;
 }
 
@@ -1291,7 +1291,7 @@ function onContactWl() {
 .tab-fade-enter-from,
 .tab-fade-leave-to { opacity: 0; }
 
-@media (max-width: 1480px) {
+@media (max-width: 1100px) {
   .usage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
