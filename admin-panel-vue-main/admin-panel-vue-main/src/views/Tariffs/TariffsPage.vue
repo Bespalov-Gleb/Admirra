@@ -67,8 +67,7 @@
         <div class="subscription-footer">
           <div class="payment-line" :class="{ 'payment-line--empty': !hasPaymentMethod }">
             <div class="payment-method">
-              <svg v-if="!hasPaymentMethod" width="21" height="11" viewBox="0 0 21 11" fill="none" class="flex-shrink-0"><rect x="0.35" y="0.35" width="20.3" height="10.3" rx="5.15" fill="#F5F7F9" stroke="#CDDAFF" stroke-width="0.7"/></svg>
-              <span v-else class="payment-toggle"></span>
+              <svg width="21" height="11" viewBox="0 0 21 11" fill="none" class="flex-shrink-0"><rect x="0.35" y="0.35" width="20.3" height="10.3" rx="5.15" fill="#F5F7F9" stroke="#CDDAFF" stroke-width="0.7"/><circle v-if="hasPaymentMethod" cx="15.5" cy="5.5" r="5.5" fill="#9AB2FB"/><circle v-else cx="5.5" cy="5.5" r="5.5" fill="#9AB2FB"/></svg>
               <strong>{{ hasPaymentMethod ? 'Карта привязана' : 'Карта не привязана' }}</strong>
               <template v-if="hasPaymentMethod">
                 <span class="payment-brand">{{ cardBrandLabel }}</span>
