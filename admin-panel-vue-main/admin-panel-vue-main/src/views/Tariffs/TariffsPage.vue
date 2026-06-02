@@ -641,7 +641,7 @@ function onContactWl() {
 }
 
 .usage-tile--projects { background: #FFF2E4; color: #71663E; }
-.usage-tile--cabinets { background: #edf6ff; color: #1f5388; }
+.usage-tile--cabinets { background: #F0F7FF; color: #254B78; }
 .usage-tile--ai { background: #fff0f2; color: #702332; }
 .usage-tile--users { background: #f4e7ff; color: #70419b; }
 
@@ -664,7 +664,7 @@ function onContactWl() {
 }
 
 .usage-tile--projects .usage-tile__head i { background: #FFE9D1; }
-.usage-tile--cabinets .usage-tile__head i { background: #D6EAFF; }
+.usage-tile--cabinets .usage-tile__head i { background: #E3F0FF; }
 .usage-tile--ai .usage-tile__head i { background: #FFE0E4; }
 .usage-tile--users .usage-tile__head i { background: #EDE0F7; }
 
@@ -709,7 +709,7 @@ function onContactWl() {
 }
 
 .usage-tile--projects .usage-tile__bar i { background: #FFC07B; }
-.usage-tile--cabinets .usage-tile__bar i { background: #6da7e6; }
+.usage-tile--cabinets .usage-tile__bar i { background: #7BADE8; }
 .usage-tile--ai .usage-tile__bar i { background: #e9a4ad; }
 .usage-tile--users .usage-tile__bar i { background: #aa8ac5; }
 
@@ -720,6 +720,8 @@ function onContactWl() {
   font-weight: 500;
   opacity: 0.74;
 }
+
+.usage-tile--cabinets p { color: #71A0D7; opacity: 1; }
 
 .subscription-channel-row {
   display: grid;
