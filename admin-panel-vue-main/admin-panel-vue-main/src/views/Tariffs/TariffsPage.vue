@@ -957,8 +957,8 @@ function onContactWl() {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2.0833rem;
+  grid-template-columns: repeat(3, minmax(14rem, 1fr));
+  gap: 1.6667rem;
   align-items: stretch;
 }
 

@@ -4,9 +4,9 @@
     <div class="flex flex-col lg:flex-row gap-[2.2222rem] flex-1">
       <!-- Left: title + vertical tabs -->
       <aside class="lg:w-[20.1389rem] flex-shrink-0">
-        <div class="pt-[1.0417rem] pb-[1.3889rem]">
-          <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Настройки</h3>
-          <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mt-[0.6944rem]">Конфигурация уровня аккаунта.</p>
+        <div class="settings-page-head">
+          <h3>Настройки</h3>
+          <p>Конфигурация уровня аккаунта.</p>
         </div>
         <div class="settings-sidebar">
           <nav class="flex flex-col gap-[0.2083rem]">
@@ -337,6 +337,25 @@ async function savePdf() {
 </script>
 
 <style scoped>
+.settings-page-head {
+  margin: 0 0 1.875rem;
+}
+.settings-page-head h3 {
+  margin: 0;
+  color: #171717;
+  font-size: 2.0833rem;
+  font-weight: 700;
+  line-height: 1;
+}
+:global(.dark) .settings-page-head h3 { color: #fff; }
+.settings-page-head p {
+  margin: 0.8333rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
+}
+:global(.dark) .settings-page-head p { color: rgba(255,255,255,0.55); }
+
 .settings-sidebar {
   background: #fff;
   border-radius: 1.0417rem;
