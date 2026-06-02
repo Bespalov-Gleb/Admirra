@@ -204,6 +204,12 @@ const routes = [
     meta: { layout: 'mockup' }
   },
   {
+    path: '/integrations/:id/edit',
+    name: 'IntegrationEdit',
+    component: () => import('../views/Mockup/IntegrationEdit.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
     path: '/integrations/wizard',
     name: 'AddIntegration',
     component: () => import('../views/Mockup/IntegrationWizard.vue'),
@@ -322,8 +328,9 @@ router.beforeEach(async (to, from, next) => {
   } else if (isAuth) {
     const restrictedForMember = new Set(['/team', '/tariffs'])
     const restrictedForClient = new Set(['/team', '/tariffs', '/integrations', '/integrations/wizard', '/history'])
+    const isClientRestrictedPath = restrictedForClient.has(normalizedPath) || normalizedPath.startsWith('/integrations/')
     const token = getToken()
-    if (token && (restrictedForMember.has(normalizedPath) || restrictedForClient.has(normalizedPath))) {
+    if (token && (restrictedForMember.has(normalizedPath) || isClientRestrictedPath)) {
       try {
         const resp = await fetch('/api/team/me-context', {
           headers: { Authorization: `Bearer ${token}` }
@@ -333,7 +340,7 @@ router.beforeEach(async (to, from, next) => {
           const role = ctx.team_role || ctx.teamRole
           const isOwner = ctx.is_owner ?? ctx.isOwner
           if (!isOwner && role) {
-            if ((role === 'client' && restrictedForClient.has(normalizedPath)) || (role === 'member' && restrictedForMember.has(normalizedPath))) {
+            if ((role === 'client' && isClientRestrictedPath) || (role === 'member' && restrictedForMember.has(normalizedPath))) {
               return next(DEFAULT_DASHBOARD_PATH)
             }
           }

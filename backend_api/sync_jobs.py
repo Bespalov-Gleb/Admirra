@@ -8,8 +8,10 @@ from typing import Optional
 import uuid
 
 from core import models
+from core import security
 from core.database import SessionLocal
 from automation.sync import sync_integration
+from automation.yandex_metrica import YandexMetricaAPI
 from backend_api.services.project_settings import is_project_paused, update_actual_start_date
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,53 @@ logger = logging.getLogger(__name__)
 _worker_lock = threading.Lock()
 _worker_started = False
 _poll_interval_sec = 2.0
+
+
+def _parse_json_list(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+async def _refresh_goal_snapshot(db, integration: models.Integration) -> None:
+    if integration.platform != models.IntegrationPlatform.YANDEX_DIRECT:
+        return
+    counter_ids = [str(item) for item in _parse_json_list(integration.selected_counters) if str(item).strip()]
+    if not counter_ids or not integration.access_token:
+        return
+    access_token = security.decrypt_token(integration.access_token)
+    metrica_api = YandexMetricaAPI(access_token)
+    tasks = [metrica_api.get_counter_goals(counter_id) for counter_id in counter_ids]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    snapshot = []
+    seen = set()
+    for counter_id, result in zip(counter_ids, results):
+        if isinstance(result, Exception):
+            logger.warning("Failed to refresh goals snapshot for counter %s: %s", counter_id, result)
+            continue
+        for goal in result or []:
+            goal_id = str(goal.get("id") or "").strip()
+            if not goal_id or goal_id in seen:
+                continue
+            seen.add(goal_id)
+            snapshot.append({
+                "id": goal_id,
+                "name": goal.get("name") or f"Цель {goal_id}",
+                "type": goal.get("type"),
+                "counter_id": counter_id,
+            })
+    if snapshot:
+        integration.goals_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        integration.goals_snapshot_at = datetime.utcnow()
+        if integration.known_goal_ids is None:
+            integration.known_goal_ids = json.dumps(sorted({item["id"] for item in snapshot}), ensure_ascii=False)
+        db.add(integration)
 
 
 def _run_job_sync(job_id: uuid.UUID) -> None:
@@ -29,6 +78,13 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         if not integration:
             job.status = models.SyncJobStatus.FAILED
             job.error = "Integration not found"
+            job.finished_at = datetime.utcnow()
+            db.commit()
+            return
+        if getattr(integration, "is_archived", False):
+            job.status = models.SyncJobStatus.CANCELLED
+            job.stage = "skipped"
+            job.error = "Интеграция в архиве: синхронизация остановлена"
             job.finished_at = datetime.utcnow()
             db.commit()
             return
@@ -66,6 +122,7 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
             try:
                 async def _run():
                     await sync_integration(db, integration, date_from, date_to)
+                    await _refresh_goal_snapshot(db, integration)
                 asyncio.run(_run())
                 last_error = None
                 break

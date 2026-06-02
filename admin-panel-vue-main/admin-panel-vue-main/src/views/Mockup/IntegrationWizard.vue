@@ -18,7 +18,7 @@
           @click="goToVisibleStep(1)"
         >
           <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">1</span>
-          <span class="wizard-step__label">Проект</span>
+          <span class="wizard-step__label">Канал и проект</span>
         </button>
 
         <Transition name="step-expand">
@@ -51,11 +51,14 @@
 
             <div class="field-block">
               <div class="field-label dark:!text-white/65">Проект</div>
-              <div class="custom-select" :class="{ open: openSelect === 'project', disabled: isNewProject }">
+              <div v-if="isProjectLocked" class="locked-project">
+                <span>Проект</span>
+                <strong>{{ projectSelectLabel }}</strong>
+              </div>
+              <div v-else class="custom-select" :class="{ open: openSelect === 'project' }">
                 <button
                   type="button"
                   class="cs-head dark:!bg-[#2C2F3D] dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
-                  :disabled="isNewProject"
                   @click="toggleProjectSelect"
                 >
                   <span class="cs-current">{{ projectSelectLabel }}</span>
@@ -66,6 +69,9 @@
                   </span>
                 </button>
                 <div class="cs-list dark:!bg-[#2C2F3D] dark:!shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+                  <div class="cs-search">
+                    <input v-model="projectSearch" type="text" placeholder="Поиск проекта" />
+                  </div>
                   <button
                     type="button"
                     class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
@@ -75,7 +81,7 @@
                     Выберите проект
                   </button>
                   <button
-                    v-for="p in projects"
+                    v-for="p in filteredProjects"
                     :key="p.id"
                     type="button"
                     class="cs-option dark:!text-white/70 dark:hover:!bg-white/5"
@@ -84,23 +90,13 @@
                   >
                     {{ p.name }}
                   </button>
+                  <button v-if="filteredProjects.length === 0" type="button" class="cs-option cs-option--muted">
+                    Проекты не найдены
+                  </button>
                 </div>
               </div>
+              <button class="create-project-link" type="button" @click="router.push('/create')">Создать проект</button>
             </div>
-
-            <label class="switch-row dark:!text-white/70">
-              <input v-model="isNewProject" type="checkbox" />
-              <span class="switch-row__control dark:!bg-white/10"></span>
-              <span>Создать новый проект</span>
-            </label>
-
-            <input
-              v-if="isNewProject"
-              v-model="form.client_name"
-              class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-              type="text"
-              placeholder="Название нового проекта"
-            />
 
             <button
               type="button"
@@ -121,7 +117,7 @@
             <p>Автоматический сбор кампаний, ключевых слов и статистики</p>
             <div class="channel-card__status">
               <span></span>
-              API: СОЕДИНЕНО
+              Интеграция доступна
             </div>
           </div>
           </div>
@@ -137,7 +133,7 @@
           @click="goToVisibleStep(2)"
         >
           <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">2</span>
-          <span class="wizard-step__label">Профиль</span>
+          <span class="wizard-step__label">Рекламный кабинет</span>
         </button>
 
         <Transition name="step-expand">
@@ -145,18 +141,24 @@
         <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <h4 class="dark:!text-white/90">Выберите рекламный кабинет для интеграции</h4>
-            <div class="search-wrap">
-              <input
-                v-model="profileSearch"
-                type="text"
-                class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
-                placeholder="Поиск по кабинетам"
-              />
-              <div class="search-icon-circle dark:!bg-white/10">
-                <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
-                  <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
-                  <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
-                </svg>
+            <div class="profile-tools">
+              <div class="sort-tabs">
+                <button type="button" :class="{ active: profileSort === 'recent' }" @click="profileSort = 'recent'">Недавние</button>
+                <button type="button" :class="{ active: profileSort === 'alpha' }" @click="profileSort = 'alpha'">А-Я</button>
+              </div>
+              <div class="search-wrap">
+                <input
+                  v-model="profileSearch"
+                  type="text"
+                  class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
+                  placeholder="Поиск по кабинетам"
+                />
+                <div class="search-icon-circle dark:!bg-white/10">
+                  <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
+                    <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
+                    <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -170,12 +172,13 @@
               v-for="cabinet in filteredProfiles"
               :key="cabinet.login"
               class="select-tile dark:!border-white/10 dark:!bg-white/5"
-              :class="{ 'select-tile--active': form.account_id === cabinet.login }"
+              :class="{ 'select-tile--active': form.account_id === cabinet.login, 'select-tile--disabled': isCabinetConnectedElsewhere(cabinet) }"
             >
               <input
                 type="radio"
                 name="card-ads"
                 :value="cabinet.login"
+                :disabled="isCabinetConnectedElsewhere(cabinet)"
                 :checked="form.account_id === cabinet.login"
                 @change="selectProfile(cabinet)"
               />
@@ -187,7 +190,17 @@
               </span>
               <span class="select-tile__title dark:!text-white/85">{{ cabinet.name || cabinet.login }}</span>
               <span class="select-tile__meta dark:!text-white/50">{{ cabinet.login }}</span>
-              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ cabinet.type || 'Рекламный кабинет' }}</span>
+              <span class="select-tile__footer">
+                <span
+                  class="select-tile__caption dark:!bg-white/10 dark:!text-white/55"
+                  :title="cabinetTypeHint(cabinet)"
+                >
+                  {{ cabinetTypeLabel(cabinet) }}
+                </span>
+                <span v-if="isCabinetConnectedElsewhere(cabinet)" class="connected-badge">
+                  Уже подключён к {{ connectedProjectName(cabinet) }}
+                </span>
+              </span>
             </label>
           </div>
 
@@ -235,7 +248,7 @@
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Счетчики метрики</h4>
-              <p class="dark:!text-white/55">Выберите счетчики для отслеживания целей</p>
+              <p class="dark:!text-white/55">Несколько счётчиков объединяются — цели сложатся в аналитике.</p>
             </div>
             <button
               type="button"
@@ -276,7 +289,7 @@
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
-              <p class="dark:!text-white/55">Выберите основную цель и дополнительные цели</p>
+              <p class="dark:!text-white/55">Звезда — основная цель: по ней считается ключевое действие во всей аналитике.</p>
             </div>
             <button
               type="button"
@@ -286,6 +299,13 @@
             >
               {{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}
             </button>
+          </div>
+
+          <div class="source-note">
+            Данные берутся из Яндекс.Метрики и используются как есть. Корректность аналитики зависит от того, как настроены цели в вашей Метрике.
+          </div>
+          <div v-if="selectedGoalIds.length > 1" class="overlap-note">
+            Проверьте, не пересекаются ли выбранные цели. Если одна цель уже включает другую, одно действие может засчитаться дважды.
           </div>
 
           <div v-if="loadingStates.goals" class="empty-line dark:!text-white/55">Загрузка целей...</div>
@@ -323,6 +343,7 @@
               </span>
             </label>
           </div>
+          <RouterLink class="guide-link" to="/help">Подробный гайд по подключению</RouterLink>
         </div>
 
         <div class="wizard-actions mt-[1.3889rem]">
@@ -395,12 +416,8 @@
         <div class="final-card mt-[1.3889rem]">
           <div>
             <div class="final-card__caption">Автосинхронизация</div>
-            <h4>Данные будут обновляться каждые 24 часа</h4>
-            <label class="final-switch">
-              <input type="checkbox" checked />
-              <span></span>
-              Включить автосинхронизацию
-            </label>
+            <h4>Данные будут обновляться автоматически раз в сутки</h4>
+            <p class="final-card__text">Ночной прогон забирает данные за предыдущий день, время отображается в МСК.</p>
           </div>
           <div class="ready-badge">
             <span></span>
@@ -430,15 +447,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
 import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
 
 const router = useRouter()
-const { projects, fetchProjects } = useProjects()
+const route = useRoute()
+const { projects, currentProjectId, fetchProjects } = useProjects()
 const toaster = useToaster()
 
 const {
@@ -469,6 +487,10 @@ const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const openSelect = ref(null)
 const profileSearch = ref('')
+const profileSort = ref('recent')
+const projectSearch = ref('')
+const existingIntegrations = ref([])
+const isProjectLocked = computed(() => Boolean(route.query.client_id))
 const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
 const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
 const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
@@ -479,6 +501,11 @@ const projectSelectLabel = computed(() => {
   if (!form.client_id) return 'Выберите проект'
   return projects.value.find((p) => String(p.id) === String(form.client_id))?.name || 'Выберите проект'
 })
+const filteredProjects = computed(() => {
+  const q = projectSearch.value.trim().toLowerCase()
+  if (!q) return projects.value
+  return projects.value.filter((project) => String(project.name || '').toLowerCase().includes(q))
+})
 const allCountersSelected = computed(() =>
   counters.value.length > 0 && selectedCounterIds.value.length === counters.value.length
 )
@@ -488,12 +515,21 @@ const allGoalsSelected = computed(() =>
 
 const filteredProfiles = computed(() => {
   const q = profileSearch.value.trim().toLowerCase()
-  if (!q) return profiles.value
-  return profiles.value.filter((cabinet) =>
+  const list = q ? profiles.value.filter((cabinet) =>
     String(cabinet.name || '').toLowerCase().includes(q) ||
     String(cabinet.login || '').toLowerCase().includes(q) ||
     String(cabinet.type || '').toLowerCase().includes(q)
-  )
+  ) : profiles.value
+  return [...list].sort((a, b) => {
+    if (profileSort.value === 'alpha') {
+      return String(a.name || a.login || '').localeCompare(String(b.name || b.login || ''), 'ru')
+    }
+    const aConnected = connectedIntegration(a)
+    const bConnected = connectedIntegration(b)
+    if (aConnected && !bConnected) return 1
+    if (!aConnected && bConnected) return -1
+    return String(a.name || a.login || '').localeCompare(String(b.name || b.login || ''), 'ru')
+  })
 })
 
 const summaryCounterLines = computed(() =>
@@ -524,22 +560,26 @@ watch(
 )
 
 onMounted(async () => {
-  const platformQuery = router.currentRoute.value.query.platform
+  const platformQuery = route.query.platform
   if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS') {
     form.platform = platformQuery
   }
 
   await fetchProjects()
+  await fetchExistingIntegrations()
 
-  const clientIdQuery = router.currentRoute.value.query.client_id
+  const clientIdQuery = route.query.client_id
   if (clientIdQuery && projects.value.some((project) => String(project.id) === String(clientIdQuery))) {
     form.client_id = String(clientIdQuery)
+    isNewProject.value = false
+  } else if (currentProjectId.value && projects.value.some((project) => String(project.id) === String(currentProjectId.value))) {
+    form.client_id = String(currentProjectId.value)
     isNewProject.value = false
   }
 
   // Проверяем, есть ли resumption после OAuth-редиректа
-  const resumeId = router.currentRoute.value.query.resume_integration_id
-  const startStep = router.currentRoute.value.query.initial_step
+  const resumeId = route.query.resume_integration_id
+  const startStep = route.query.initial_step
 
   if (resumeId) {
     lastIntegrationId.value = resumeId
@@ -571,7 +611,7 @@ const goToVisibleStep = (idx) => {
 }
 
 const toggleProjectSelect = () => {
-  if (isNewProject.value) return
+  if (isProjectLocked.value) return
   openSelect.value = openSelect.value === 'project' ? null : 'project'
 }
 
@@ -583,6 +623,10 @@ const selectProject = (id) => {
 const isStepVisible = (idx) => step.value >= idx
 
 const selectProfile = (cabinet) => {
+  if (isCabinetConnectedElsewhere(cabinet)) {
+    toaster.warning(`Кабинет уже подключён к проекту «${connectedProjectName(cabinet)}».`)
+    return
+  }
   form.account_id = cabinet.login
   form.agency_client_login = cabinet.login
 }
@@ -617,9 +661,21 @@ const goToStep4 = async () => {
       return
     }
     await fetchGoals(lastIntegrationId.value)
+    if (!selectedGoalIds.value.length) {
+      error.value = 'Выберите хотя бы одну цель, иначе конверсии не будут отслеживаться'
+      toaster.warning(error.value)
+      return
+    }
+    if (!form.primary_goal_id || !selectedGoalIds.value.includes(form.primary_goal_id)) {
+      error.value = 'Выберите основную цель'
+      toaster.warning(error.value)
+      return
+    }
   }
   error.value = null
   step.value = 4
+  await nextTick()
+  document.querySelector('.wizard-step-section:nth-of-type(4)')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const handleCancel = async () => {
@@ -633,6 +689,54 @@ const handleCancel = async () => {
     resetStore()
     router.push('/integrations')
   }
+}
+
+const fetchExistingIntegrations = async () => {
+  try {
+    const { data } = await api.get('integrations/')
+    existingIntegrations.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    existingIntegrations.value = []
+  }
+}
+
+const cabinetKey = (cabinet) => String(cabinet?.login || '').toLowerCase()
+
+const connectedIntegration = (cabinet) => {
+  const login = cabinetKey(cabinet)
+  if (!login) return null
+  return existingIntegrations.value.find((item) => {
+    const samePlatform = String(item.platform || '').toUpperCase() === form.platform
+    const sameAccount = [item.account_id, item.agency_client_login]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase())
+      .includes(login)
+    return samePlatform && sameAccount
+  }) || null
+}
+
+const isCabinetConnectedElsewhere = (cabinet) => {
+  const item = connectedIntegration(cabinet)
+  return Boolean(item && String(item.client_id) !== String(form.client_id))
+}
+
+const connectedProjectName = (cabinet) => {
+  const item = connectedIntegration(cabinet)
+  return item?.client_name || 'другому проекту'
+}
+
+const cabinetTypeLabel = (cabinet) => {
+  const type = String(cabinet?.type || '').toLowerCase()
+  if (type === 'managed') return 'Клиентский кабинет'
+  if (type === 'personal') return 'Личный кабинет'
+  return cabinet?.type || 'Рекламный кабинет'
+}
+
+const cabinetTypeHint = (cabinet) => {
+  const type = String(cabinet?.type || '').toLowerCase()
+  if (type === 'managed') return 'Кабинет клиента, доступный через агентский аккаунт.'
+  if (type === 'personal') return 'Личный рекламный кабинет авторизованного пользователя.'
+  return 'Рекламный кабинет площадки.'
 }
 
 const initYandexAuth = async () => {
@@ -690,6 +794,20 @@ const initVKAuth = async () => {
 
 const doFinish = async () => {
   if (!lastIntegrationId.value) return
+  if (form.platform === 'YANDEX_DIRECT') {
+    if (!selectedCounterIds.value.length) {
+      error.value = 'Выберите хотя бы один счетчик'
+      return
+    }
+    if (!selectedGoalIds.value.length) {
+      error.value = 'Выберите хотя бы одну цель'
+      return
+    }
+    if (!form.primary_goal_id || !selectedGoalIds.value.includes(form.primary_goal_id)) {
+      error.value = 'Выберите основную цель'
+      return
+    }
+  }
   loadingStates.finish = true
   error.value = null
   try {
@@ -699,6 +817,7 @@ const doFinish = async () => {
       selected_counters: [...selectedCounterIds.value],
       primary_goal_id: form.primary_goal_id,
       selected_goals: [...selectedGoalIds.value],
+      known_goal_ids: goals.value.map((goal) => String(goal.id)),
       is_active: true
     })
     toaster.success('Интеграция успешно настроена!')
@@ -712,8 +831,13 @@ const doFinish = async () => {
 }
 
 const handleConnectClick = async () => {
-  if (!form.client_id && !form.client_name) {
-    error.value = 'Выберите проект или включите "Создать новый проект"'
+  if (!projects.value.length) {
+    error.value = 'Сначала создайте проект, чтобы подключить рекламный канал'
+    toaster.warning('Сначала создайте проект')
+    return
+  }
+  if (!form.client_id) {
+    error.value = 'Выберите проект'
     toaster.warning('Сначала выберите проект')
     return
   }
@@ -871,6 +995,36 @@ const toggleGoalSelection = (id) => {
   font-size: 0.9028rem;
   font-weight: 500;
 }
+.locked-project {
+  display: grid;
+  gap: 0.2778rem;
+  min-height: 3.1944rem;
+  padding: 0.625rem 1.1806rem;
+  border-radius: 1.0417rem;
+  background: #f5f7f9;
+  color: #696969;
+}
+.locked-project span {
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.6944rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.locked-project strong {
+  color: #2c2c2c;
+  font-size: 0.9028rem;
+  font-weight: 700;
+}
+.create-project-link,
+.guide-link {
+  width: max-content;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: 0.8333rem;
+  font-weight: 700;
+  cursor: pointer;
+}
 .platform-grid {
   display: grid;
   gap: 0.6944rem;
@@ -976,6 +1130,20 @@ const toggleGoalSelection = (id) => {
   pointer-events: auto;
   transform: scale(1) translateY(0);
 }
+.cs-search {
+  padding: 0.6944rem;
+}
+.cs-search input {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 0.8333rem;
+  border: 0;
+  border-radius: 0.6944rem;
+  background: #f5f7f9;
+  color: #2c2c2c;
+  font-size: 0.8333rem;
+  outline: none;
+}
 .cs-option {
   display: block;
   width: 100%;
@@ -994,6 +1162,10 @@ const toggleGoalSelection = (id) => {
 }
 .cs-option.selected {
   font-weight: 600;
+}
+.cs-option--muted {
+  color: rgba(105, 105, 105, 0.44);
+  cursor: default;
 }
 .wizard-input {
   width: 100%;
@@ -1106,6 +1278,20 @@ const toggleGoalSelection = (id) => {
   transform: none;
   cursor: not-allowed;
 }
+.source-note,
+.overlap-note {
+  padding: 0.8333rem 1.0417rem;
+  border-radius: 0.8333rem;
+  background: #f4f8ff;
+  color: #3463a8;
+  font-size: 0.8333rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.overlap-note {
+  background: #fff7dd;
+  color: #a16207;
+}
 .channel-card {
   width: min(100%, 29.8611rem);
   min-height: 22.9167rem;
@@ -1192,6 +1378,37 @@ const toggleGoalSelection = (id) => {
   position: relative;
   flex: 0 0 auto;
 }
+.profile-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sort-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2778rem;
+  padding: 0.2778rem;
+  border-radius: 0.8333rem;
+  background: #f3f6fb;
+}
+.sort-tabs button {
+  height: 2.5rem;
+  padding: 0 0.9722rem;
+  border: 0;
+  border-radius: 0.625rem;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 0.8333rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sort-tabs button.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.2778rem 1.0417rem rgba(37, 99, 235, 0.08);
+}
 .search-input {
   width: 24.5833rem;
   height: 3.1944rem;
@@ -1253,6 +1470,13 @@ const toggleGoalSelection = (id) => {
 .select-tile--active {
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+.select-tile--disabled {
+  opacity: 0.64;
+  cursor: not-allowed;
+}
+.select-tile--disabled:hover {
+  transform: none;
 }
 .select-tile__top {
   display: flex;
@@ -1320,6 +1544,17 @@ const toggleGoalSelection = (id) => {
   justify-content: space-between;
   gap: 0.8333rem;
   margin-top: auto;
+}
+.connected-badge {
+  max-width: 8.3333rem;
+  padding: 0.4167rem 0.6944rem;
+  border-radius: 0.5556rem;
+  background: rgba(255, 179, 71, 0.14);
+  color: #a76514;
+  font-size: 0.6944rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: right;
 }
 .favorite-btn {
   width: 2.2222rem;
@@ -1432,6 +1667,13 @@ const toggleGoalSelection = (id) => {
   margin-bottom: 0.8333rem;
   color: rgba(255, 255, 255, 0.58);
   font-size: 1.0417rem;
+}
+.final-card__text {
+  margin: 0.5556rem 0 0;
+  max-width: 34rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.9028rem;
+  font-weight: 500;
 }
 .final-switch {
   margin-top: 1.9444rem;

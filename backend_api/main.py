@@ -44,6 +44,11 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS interface_language VARCHAR(8) NOT NULL DEFAULT 'ru'"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_email VARCHAR"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS direction_label VARCHAR(32) NOT NULL DEFAULT 'directions'"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS known_goal_ids VARCHAR"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS goals_snapshot VARCHAR"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS goals_snapshot_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

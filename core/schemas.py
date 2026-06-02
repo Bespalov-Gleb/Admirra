@@ -267,14 +267,31 @@ class IntegrationBase(BaseModel):
     auto_sync: Optional[bool] = True
     sync_interval: Optional[int] = 1440
     selected_goals: Optional[List[str]] = None # List of goal IDs
+    selected_counters: Optional[List[str]] = None # List of Metrika counter IDs
+    known_goal_ids: Optional[List[str]] = None # Goal IDs already shown/acknowledged by user
     primary_goal_id: Optional[str] = None
 
-    @field_validator('selected_goals', mode='before')
+    @field_validator('selected_goals', 'known_goal_ids', mode='before')
     @classmethod
-    def parse_selected_goals(cls, v: Any) -> Any:
-        if isinstance(v, str) and v:
+    def parse_goal_list(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if not v:
+                return []
             try:
                 return json.loads(v)
+            except:
+                return []
+        return v
+
+    @field_validator('selected_counters', mode='before')
+    @classmethod
+    def parse_selected_counters(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if not v:
+                return []
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
             except:
                 return []
         return v
@@ -303,6 +320,12 @@ class IntegrationResponse(IntegrationBase):
     campaigns: List["CampaignResponse"] = []
     sync_status: Optional[str] = None  # SUCCESS | FAILED | PENDING | NEVER
     last_sync_at: Optional[datetime] = None
+    next_sync_at: Optional[datetime] = None
+    is_archived: Optional[bool] = False
+    archived_at: Optional[datetime] = None
+    known_goal_ids: Optional[List[str]] = None
+    new_goals_count: Optional[int] = 0
+    missing_goals_count: Optional[int] = 0
     error_message: Optional[str] = None
 
     class Config:

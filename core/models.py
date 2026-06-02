@@ -1,4 +1,6 @@
 import uuid
+import datetime
+import json
 from sqlalchemy import Column, String, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -336,6 +338,9 @@ class Integration(Base):
     # Goals Support
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)
+    known_goal_ids = Column(String, nullable=True) # JSON list of goal IDs acknowledged by user
+    goals_snapshot = Column(String, nullable=True) # JSON list of last goals seen in Metrika
+    goals_snapshot_at = Column(DateTime, nullable=True)
     
     # Metrika Counters Support (for Direct integrations)
     selected_counters = Column(String, nullable=True) # JSON list of counter IDs
@@ -343,6 +348,10 @@ class Integration(Base):
     # Balance Support
     balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
     currency = Column(String(3), default="RUB") # Currency code (RUB, USD, EUR, etc.)
+
+    # Archive Support
+    is_archived = Column(Boolean, nullable=False, default=False, server_default="false")
+    archived_at = Column(DateTime, nullable=True)
 
     client = relationship("Client", back_populates="integrations")
     campaigns = relationship("Campaign", back_populates="integration", cascade="all, delete-orphan")
@@ -352,6 +361,39 @@ class Integration(Base):
     def client_name(self):
         """Property to expose client name for API responses."""
         return self.client.name if self.client else None
+
+    @property
+    def next_sync_at(self):
+        """Computed next sync time for UI display; integrations refresh every sync_interval minutes."""
+        if not self.auto_sync or not self.last_sync_at:
+            return None
+        return self.last_sync_at + datetime.timedelta(minutes=int(self.sync_interval or 1440))
+
+    def _json_list(self, value):
+        if not value:
+            return []
+        if isinstance(value, list):
+            return value
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+
+    @property
+    def new_goals_count(self):
+        snapshot_ids = {str(item.get("id")) for item in self._json_list(self.goals_snapshot) if item.get("id") is not None}
+        known_ids = {str(item) for item in self._json_list(self.known_goal_ids)}
+        selected_ids = {str(item) for item in self._json_list(self.selected_goals)}
+        return len(snapshot_ids - known_ids - selected_ids)
+
+    @property
+    def missing_goals_count(self):
+        snapshot_ids = {str(item.get("id")) for item in self._json_list(self.goals_snapshot) if item.get("id") is not None}
+        selected_ids = {str(item) for item in self._json_list(self.selected_goals)}
+        if not snapshot_ids:
+            return 0
+        return len(selected_ids - snapshot_ids)
 
 class Campaign(Base):
     __tablename__ = "campaigns"

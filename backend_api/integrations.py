@@ -61,6 +61,87 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
+
+def _parse_json_list(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def _goal_snapshot_items(goals):
+    items = []
+    seen = set()
+    for goal in goals or []:
+        goal_id = str(goal.get("id") or "").strip()
+        if not goal_id or goal_id in seen:
+            continue
+        seen.add(goal_id)
+        items.append({
+            "id": goal_id,
+            "name": goal.get("name") or f"Цель {goal_id}",
+            "type": goal.get("type"),
+            "counter_id": str(goal.get("counter_id")) if goal.get("counter_id") is not None else None,
+        })
+    return items
+
+
+def _goals_payload(db: Session, integration: models.Integration, goals, persist_snapshot: bool = True):
+    selected_ids = {str(item) for item in _parse_json_list(integration.selected_goals)}
+    previous_snapshot = _goal_snapshot_items(_parse_json_list(integration.goals_snapshot))
+    previous_by_id = {item["id"]: item for item in previous_snapshot}
+
+    snapshot = _goal_snapshot_items(goals)
+    current_ids = {item["id"] for item in snapshot}
+    raw_known_ids = {str(item) for item in _parse_json_list(integration.known_goal_ids)}
+    bootstrap_known = integration.known_goal_ids is None
+    known_ids = current_ids if bootstrap_known else raw_known_ids
+    normalized = []
+    for goal in goals or []:
+        item = dict(goal)
+        goal_id = str(item.get("id") or "").strip()
+        if not goal_id:
+            continue
+        item["id"] = goal_id
+        if goal_id in selected_ids:
+            item["state"] = "tracked"
+        elif goal_id not in known_ids:
+            item["state"] = "new"
+        else:
+            item["state"] = "available"
+        normalized.append(item)
+
+    for missing_id in sorted(selected_ids - current_ids):
+        old = previous_by_id.get(missing_id, {})
+        normalized.append({
+            "id": missing_id,
+            "name": old.get("name") or f"Цель {missing_id}",
+            "type": old.get("type"),
+            "counter_id": old.get("counter_id"),
+            "state": "missing",
+        })
+
+    if persist_snapshot and integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        integration.goals_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        integration.goals_snapshot_at = datetime.utcnow()
+        if bootstrap_known:
+            integration.known_goal_ids = json.dumps(sorted(current_ids), ensure_ascii=False)
+        db.add(integration)
+        db.commit()
+        db.refresh(integration)
+
+    return {
+        "goals": normalized,
+        "new_goals_count": len(current_ids - known_ids - selected_ids),
+        "missing_goals_count": len(selected_ids - current_ids) if current_ids else 0,
+        "snapshot_at": integration.goals_snapshot_at.isoformat() if integration.goals_snapshot_at else None,
+    }
+
 @router.post("/remote-log")
 async def remote_log(payload: dict):
     """
@@ -82,7 +163,8 @@ def get_integrations(
     Optional client_id filters to a specific project.
     """
     q = db.query(models.Integration).join(models.Client).filter(
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     )
     if client_id:
         try:
@@ -1141,13 +1223,26 @@ async def trigger_sync(
     days = request_data.days if request_data else 7
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
     if is_project_paused(integration.client):
         raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
+    if integration.sync_status == models.IntegrationSyncStatus.PENDING:
+        raise HTTPException(status_code=409, detail="Синхронизация уже запущена. Дождитесь завершения текущего обновления.")
+
+    cooldown_until = None
+    if integration.last_sync_at:
+        cooldown_until = integration.last_sync_at + timedelta(hours=3)
+    if cooldown_until and cooldown_until > datetime.utcnow():
+        msk_until = cooldown_until + timedelta(hours=3)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Следующее ручное обновление доступно в {msk_until.strftime('%H:%M')} МСК.",
+        )
     
     job_id = enqueue_sync_job(integration_id, days)
     
@@ -1250,6 +1345,7 @@ async def get_integration_sync_status(
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
         models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
@@ -1285,7 +1381,8 @@ def get_integration(
         joinedload(models.Integration.client)
     ).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
@@ -1305,7 +1402,8 @@ async def get_integration_profiles(
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
@@ -1480,7 +1578,8 @@ async def get_integration_counters(
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
@@ -1679,7 +1778,8 @@ async def get_integration_goals(
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
@@ -1787,7 +1887,7 @@ async def get_integration_goals(
                     all_goals.append(goal_data)
             
             logger.info(f"✅ Returning {len(all_goals)} goals from {len(counter_ids_list)} selected counters")
-            return all_goals
+            return _goals_payload(db, integration, all_goals)
     
     # Priority 2: If campaign_ids provided, get goals по выбранным кампаниям, а не по всему профилю
     if campaign_ids:
@@ -1912,7 +2012,7 @@ async def get_integration_goals(
                             
                             all_goals.append(goal_data)
                     
-                    return all_goals
+                    return _goals_payload(db, integration, all_goals)
             
             # 2) Fallback: если не удалось получить CounterIds, пробуем старую логику PriorityGoals
             campaign_goals_map = {}
@@ -2030,7 +2130,7 @@ async def get_integration_goals(
                             logger.error(f"(fallback) Failed to fetch goals for counter {counter_id}: {goals_err}")
                     
                     logger.info(f"✅ (fallback PriorityGoals) Returning {len(all_goals)} goals from {len(campaign_ids_list)} selected campaigns")
-                    return all_goals
+                    return _goals_payload(db, integration, all_goals)
                 except Exception as e:
                     logger.error(f"(fallback PriorityGoals) Error fetching goals from Metrika: {e}")
             
@@ -2156,7 +2256,7 @@ async def get_integration_goals(
                         
                         if all_goals:
                             logger.info(f"✅ (domain fallback) Returning {len(all_goals)} goals from {len(matching_counters)} matching counters")
-                            return all_goals
+                            return _goals_payload(db, integration, all_goals)
                         else:
                             logger.warning("(domain fallback) No goals found in matching counters")
                     else:
@@ -2406,7 +2506,7 @@ async def get_integration_goals(
                 "warning_message": warning_message
             }
         
-        return all_goals
+        return _goals_payload(db, integration, all_goals)
     except Exception as e:
         logger.error(f"Error fetching real Metrica goals: {e}")
         return []
@@ -2423,7 +2523,8 @@ async def update_integration(
     """
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
+        models.Client.owner_id == current_user.id,
+        models.Integration.is_archived.is_(False),
     ).first()
     
     if not integration:
@@ -2463,14 +2564,30 @@ async def update_integration(
                 # Already in correct format, but ensure it's numeric
                 if not account_id_raw.isdigit():
                     logger.warning(f"⚠️ VK Ads account_id '{account_id_raw}' is not purely numeric, but using as-is")
+
+    next_account = integration_in.get("agency_client_login") or integration_in.get("account_id")
+    if next_account:
+        duplicate = db.query(models.Integration).join(models.Client).filter(
+            models.Integration.id != integration.id,
+            models.Integration.platform == integration.platform,
+            models.Integration.is_archived.is_(False),
+            models.Client.owner_id == current_user.id,
+            models.Integration.client_id != integration.client_id,
+        ).filter(
+            (models.Integration.account_id == str(next_account)) |
+            (models.Integration.agency_client_login == str(next_account))
+        ).first()
+        if duplicate:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Этот рекламный кабинет уже подключён к проекту «{duplicate.client.name if duplicate.client else 'другой проект'}».",
+            )
     
     # 1. Обновляем поля самой интеграции
     for key, value in integration_in.items():
         if hasattr(integration, key):
             # Special handling for JSON fields if they come as lists/dicts
-            if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
-                value = json.dumps(value)
-            elif key == 'selected_counters' and (isinstance(value, list) or isinstance(value, dict)):
+            if key in {'selected_goals', 'selected_counters', 'known_goal_ids'} and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
             logger.info(f"Set {key} = {value}")
@@ -3297,6 +3414,23 @@ async def delete_integration(
             # Не прерываем удаление интеграции, даже если отзыв токена не удался
             logger.error(f"❌ Error revoking VK Ads token for integration {integration_id}: {revoke_err}")
             logger.info(f"   Continuing with integration deletion despite token revocation error")
+
+    integration.is_archived = True
+    integration.archived_at = datetime.utcnow()
+    integration.auto_sync = False
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="integration",
+        action="integration_archived",
+        description=f"Интеграция {integration.platform.value} отправлена в архив, история сохранена",
+        client_id=integration.client_id,
+        target_type="integration",
+        target_id=str(integration.id),
+        meta={"platform": integration.platform.value, "archived": True},
+    )
+    db.commit()
+    return None
         
     # Get all campaigns for this integration to clean up related data
     campaigns = db.query(models.Campaign).filter(

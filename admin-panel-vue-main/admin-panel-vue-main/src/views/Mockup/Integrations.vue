@@ -1,45 +1,23 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]">
-
-    <!-- Platform quick-add buttons -->
-    <div class="flex flex-wrap gap-[0.6944rem] mb-[2.0833rem]">
-      <button
-        v-for="p in platforms"
-        :key="p.id"
-        class="platform-btn"
-        @click="$router.push('/integrations/wizard?platform=' + p.id)"
-      >
-        <div class="platform-btn__icon">
-          <img :src="p.icon" :alt="p.name" />
-        </div>
-        <span class="platform-btn__label" :style="{ color: p.color }">{{ p.name }}</span>
-        <span class="platform-btn__plus" aria-hidden="true">
-          <span></span>
-          <span></span>
-        </span>
-      </button>
-    </div>
-
-    <!-- Heading -->
-    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
-      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Активные интеграции</h3>
-    </div>
-
-    <!-- Toolbar -->
-    <div class="flex flex-wrap items-center gap-[0.6944rem] mb-[2.0833rem]">
-      <button class="add-btn" @click="$router.push('/integrations/wizard')">
+  <div class="integrations-page">
+    <div class="page-head">
+      <div>
+        <h3>Активные интеграции</h3>
+        <p>Подключения рекламных кабинетов по всем проектам агентства.</p>
+      </div>
+      <button class="add-btn" type="button" @click="openWizard()">
         <span>Добавить подключение</span>
-        <span class="icon-plus" aria-hidden="true">
-          <span></span>
-          <span></span>
-        </span>
+        <span class="icon-plus" aria-hidden="true"><span></span><span></span></span>
       </button>
+    </div>
+
+    <div class="toolbar">
       <div class="search-wrap">
         <input
           v-model="search"
           class="search-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/45"
           type="text"
-          placeholder="Поиск интеграций"
+          placeholder="Поиск по проекту, каналу или кабинету"
         />
         <div class="search-icon dark:!bg-white/10">
           <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
@@ -48,551 +26,610 @@
           </svg>
         </div>
       </div>
+      <div class="sync-note">Автообновление раз в сутки, время указано в МСК.</div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="isLoading" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
-      Загрузка…
-    </div>
-
-    <!-- Empty -->
-    <div v-else-if="filteredIntegrations.length === 0" class="flex items-center justify-center py-[4.1667rem] text-[0.9028rem] text-[rgba(105,105,105,0.56)] dark:text-white/55">
+    <div v-if="isLoading" class="empty-state">Загрузка…</div>
+    <div v-else-if="groupedIntegrations.length === 0" class="empty-state">
       {{ search ? 'Ничего не найдено' : 'Нет активных интеграций. Добавьте первое подключение.' }}
     </div>
 
-    <!-- Cards grid -->
-    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[1.0417rem]">
-      <div
-        v-for="item in filteredIntegrations"
-        :key="item.id"
-        class="int-card"
-      >
-        <!-- Card header -->
-        <div class="int-card__header">
-          <div class="flex items-center gap-[0.8333rem] min-w-0 flex-1">
-            <div class="proj-avatar flex-shrink-0">
-              <span>{{ projectName(item).slice(0, 2).toUpperCase() }}</span>
-            </div>
-            <div class="min-w-0">
-              <div class="text-[0.8333rem] text-[rgba(105,105,105,0.56)] font-medium leading-none mb-[0.3472rem]">Проект</div>
-              <div class="text-[1.0417rem] font-medium text-[#696969] leading-none truncate">{{ projectName(item) }}</div>
-            </div>
+    <div v-else class="project-groups">
+      <section v-for="group in groupedIntegrations" :key="group.projectId" class="project-group">
+        <div class="project-group__head">
+          <div class="project-avatar">{{ group.projectName.slice(0, 2).toUpperCase() }}</div>
+          <div>
+            <h4>{{ group.projectName }}</h4>
+            <p>{{ group.items.length }} {{ plural(group.items.length, ['канал', 'канала', 'каналов']) }}</p>
           </div>
-          <div class="channel-badge flex-shrink-0">{{ channelCount(item) }}&nbsp;КАНАЛ</div>
         </div>
 
-        <!-- Card body -->
-        <div class="int-card__body">
-          <div class="integration-body-row flex items-start gap-[1.0417rem]">
-            <!-- Left: platform info + ID -->
-            <div class="flex-1 min-w-0 flex flex-col gap-[1.1111rem]">
-              <div class="flex items-center gap-[0.8333rem] min-w-0">
-                <img
-                  :src="platformIcon(item.platform)"
-                  :alt="item.platform"
-                  width="33"
-                  height="33"
-                  class="rounded-full flex-shrink-0 object-cover"
-                />
-                <div class="min-w-0">
-                  <div class="text-[1.0417rem] text-[#696969] leading-none mb-[0.4167rem]">{{ platformLabel(item.platform) }}</div>
-                  <div class="flex items-center flex-wrap gap-x-[0.4167rem] gap-y-[0.1389rem]">
-                    <span class="sync-dot" :class="syncClass(item.sync_status)"></span>
-                    <span class="text-[0.7639rem] text-[rgba(105,105,105,0.56)] uppercase tracking-wide font-medium">
-                      {{ syncLabel(item.sync_status) }}
-                    </span>
-                    <template v-if="item.last_sync_at">
-                      <span class="text-[0.6944rem] text-[rgba(105,105,105,0.4)]">|</span>
-                      <time class="text-[0.7639rem] text-[rgba(44,44,44,0.4)]">Последняя: {{ formatDate(item.last_sync_at) }}</time>
-                    </template>
-                  </div>
-                </div>
+        <div class="integration-list">
+          <article v-for="item in group.items" :key="item.id" class="int-card">
+            <div class="int-card__main">
+              <img class="channel-icon" :src="platformIcon(item.platform)" :alt="platformLabel(item.platform)" />
+              <div class="int-card__title">
+                <h5>{{ platformLabel(item.platform) }}</h5>
+                <p>{{ item.account_name || item.account_id || 'Кабинет не выбран' }}</p>
               </div>
-              <div class="id-badge self-start">ID: {{ item.external_account_id || item.id }}</div>
             </div>
-            <!-- Right column: 24ч + Настроить — правые края совпадают -->
-            <div class="integration-actions flex flex-col items-stretch gap-[0.8333rem] flex-shrink-0">
-              <div class="sync-badge">
-                <span class="font-medium">24 часа</span>
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 8C2 11.31 4.69 14 8 14C11.31 14 14 11.31 14 8C14 4.69 11.31 2 8 2C5.8 2 3.85 3.1 2.75 4.75M2.75 4.75V2M2.75 4.75H5.25" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+
+            <div class="status-stack">
+              <span class="status-pill" :class="statusClass(item)">
+                <span></span>
+                {{ statusLabel(item) }}
+              </span>
+              <button
+                v-if="goalDriftLabel(item)"
+                class="goal-drift-chip"
+                type="button"
+                @click="openEdit(item.id)"
+              >
+                {{ goalDriftLabel(item) }}
+              </button>
+              <small>Обновляется раз в сутки</small>
+            </div>
+
+            <div class="sync-times">
+              <div>
+                <span>Последняя</span>
+                <strong>{{ formatDate(item.last_sync_at) || 'ещё не было' }}</strong>
               </div>
-              <button class="configure-btn" @click="$router.push('/integrations/wizard')">Настроить</button>
+              <div>
+                <span>Следующая</span>
+                <strong>{{ nextSyncLabel(item) }}</strong>
+              </div>
             </div>
-          </div>
+
+            <button
+              class="sync-btn"
+              type="button"
+              :disabled="syncingIds.has(item.id) || item.sync_status === 'PENDING'"
+              @click="syncNow(item)"
+            >
+              <svg :class="{ spinning: syncingIds.has(item.id) }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M20 12a8 8 0 0 1-14.5 4.7M4 12A8 8 0 0 1 18.5 7.3M18.5 3v4.3H14M5.5 21v-4.3H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              {{ syncingIds.has(item.id) || item.sync_status === 'PENDING' ? 'Синхронизируется…' : 'Синхронизировать сейчас' }}
+            </button>
+
+            <button class="configure-btn" type="button" @click="openEdit(item.id)">Настроить</button>
+
+            <button class="id-chip" type="button" title="Скопировать ID" @click="copyId(item.id)">
+              <span>ID {{ shortId(item.id) }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="8" y="8" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </article>
         </div>
-      </div>
+      </section>
     </div>
-
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
+import { useToaster } from '../../composables/useToaster'
 
+const router = useRouter()
+const toaster = useToaster()
 const { currentProjectId } = useProjects()
 
 const integrations = ref([])
-const isLoading    = ref(false)
-const search       = ref('')
+const isLoading = ref(false)
+const search = ref('')
+const syncingIds = ref(new Set())
 
-// ── Platform definitions ──
 const platformCatalog = [
-  { id: 'YANDEX_DIRECT', name: 'Yandex Direct', icon: '/admirra/img/icons/yandex-direct.png', color: '#71663e' },
-  { id: 'VK_ADS',        name: 'ВК Ads',         icon: '/admirra/img/icons/vk-ads.png',        color: '#254b78' },
-  { id: 'AVITO',         name: 'Avito',           icon: '/admirra/img/icons/avito.png',          color: '#579f75' },
-  { id: 'GOOGLE_ADS',    name: 'Google Ads',      icon: '/admirra/img/icons/google-ads.png',     color: '#5e82bc' },
-  { id: 'TELEGRAM',      name: 'Telegram',        icon: '/admirra/img/icons/telegram.png',        color: '#4d7c92' },
-  { id: 'GOOGLE_SHEETS', name: 'Google Sheets',   icon: '/admirra/img/icons/google-sheets.png',  color: '#46725d' },
+  { id: 'YANDEX_DIRECT', name: 'Yandex Direct', icon: '/admirra/img/icons/yandex-direct.png' },
+  { id: 'VK_ADS', name: 'VK Ads', icon: '/admirra/img/icons/vk-ads.png' },
+  { id: 'MYTARGET', name: 'MyTarget', icon: '/admirra/img/icons/target.png' },
 ]
-const visiblePlatformIds = new Set(['YANDEX_DIRECT', 'VK_ADS'])
-const platforms = platformCatalog.filter((platform) => visiblePlatformIds.has(platform.id))
 
-// ── API ──
-const fetchIntegrations = async () => {
+onMounted(fetchIntegrations)
+
+async function fetchIntegrations() {
   isLoading.value = true
   try {
-    const params = {}
-    if (currentProjectId.value) params.client_id = currentProjectId.value
-    const { data } = await api.get('integrations/', { params })
+    const { data } = await api.get('integrations/')
     integrations.value = normalizeIntegrations(data)
   } catch (err) {
     console.error('Failed to load integrations:', err)
     integrations.value = []
+    toaster.error('Не удалось загрузить интеграции.')
   } finally {
     isLoading.value = false
   }
 }
 
-onMounted(fetchIntegrations)
-
 const filteredIntegrations = computed(() => {
-  if (!search.value.trim()) return integrations.value
-  const q = search.value.toLowerCase()
-  return integrations.value.filter(i =>
-    i.client_name?.toLowerCase().includes(q) ||
-    i.client?.name?.toLowerCase().includes(q) ||
-    i.platform?.toLowerCase().includes(q)
+  const items = integrations.value
+  const q = search.value.trim().toLowerCase()
+  if (!q) return items
+  return items.filter((item) =>
+    projectName(item).toLowerCase().includes(q) ||
+    platformLabel(item.platform).toLowerCase().includes(q) ||
+    String(item.account_name || item.account_id || '').toLowerCase().includes(q)
   )
 })
 
-const normalizeIntegrations = (data) => {
+const groupedIntegrations = computed(() => {
+  const map = new Map()
+  filteredIntegrations.value.forEach((item) => {
+    const projectId = item.client_id || 'unknown'
+    if (!map.has(projectId)) {
+      map.set(projectId, {
+        projectId,
+        projectName: projectName(item),
+        items: [],
+      })
+    }
+    map.get(projectId).items.push(item)
+  })
+  return Array.from(map.values()).sort((a, b) => a.projectName.localeCompare(b.projectName, 'ru'))
+})
+
+function normalizeIntegrations(data) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.results)) return data.results
   if (Array.isArray(data?.items)) return data.items
   return []
 }
 
-const normalizePlatform = (platform) => {
-  const key = platform?.toUpperCase()
-  return ({
-    YANDEX: 'YANDEX_DIRECT',
-    VK: 'VK_ADS',
-    MYTARGET: 'MYTARGET',
-  }[key]) || key
+function normalizePlatform(platform) {
+  const key = String(platform || '').toUpperCase()
+  return ({ YANDEX: 'YANDEX_DIRECT', VK: 'VK_ADS', MYTARGET: 'MYTARGET' }[key]) || key
 }
 
-const projectName = (integration) => integration.client_name || integration.client?.name || '—'
-
-const channelCount = (integration) => {
-  if (typeof integration.channels === 'number') return integration.channels
-  if (Array.isArray(integration.channels)) return integration.channels.length
-  return 1
+function projectName(item) {
+  return item.client_name || item.client?.name || 'Без проекта'
 }
 
-const platformLabel = (platform) => {
-  const p = platformCatalog.find(x => x.id === normalizePlatform(platform))
-  if (normalizePlatform(platform) === 'MYTARGET') return 'MyTarget'
-  return p?.name || platform || '—'
+function platformLabel(platform) {
+  const item = platformCatalog.find((p) => p.id === normalizePlatform(platform))
+  return item?.name || platform || 'Интеграция'
 }
 
-const platformIcon = (platform) => {
-  const p = platformCatalog.find(x => x.id === normalizePlatform(platform))
-  if (normalizePlatform(platform) === 'MYTARGET') return '/admirra/img/icons/target.png'
-  return p?.icon || '/admirra/img/icons/yandex-direct.png'
+function platformIcon(platform) {
+  const item = platformCatalog.find((p) => p.id === normalizePlatform(platform))
+  return item?.icon || '/admirra/img/icons/yandex-direct.png'
 }
 
-const syncClass = (status) => ({
-  'sync-dot--success': status === 'SUCCESS',
-  'sync-dot--danger':  status === 'FAILED',
-  'sync-dot--warning': status === 'PENDING',
-})
+function statusLabel(item) {
+  const status = String(item.sync_status || '').toUpperCase()
+  if (status === 'SUCCESS') return 'Активно'
+  if (status === 'FAILED') return 'Ошибка'
+  if (status === 'PENDING') return 'Синхронизируется'
+  if (status === 'NEVER') return 'Не синхронизировано'
+  return 'Активно'
+}
 
-const syncLabel = (status) => ({
-  SUCCESS: 'Активно',
-  FAILED:  'Ошибка',
-  PENDING: 'В процессе',
-  NEVER:   'Не синхронизировано',
-}[status] || status || 'Неизвестно')
+function statusClass(item) {
+  const status = String(item.sync_status || '').toUpperCase()
+  return {
+    'status-pill--success': status === 'SUCCESS',
+    'status-pill--danger': status === 'FAILED',
+    'status-pill--warning': status === 'PENDING' || status === 'NEVER',
+  }
+}
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })
+function goalDriftLabel(item) {
+  const missing = Number(item.missing_goals_count || 0)
+  const fresh = Number(item.new_goals_count || 0)
+  if (missing > 0) return `${missing} ${plural(missing, ['цель не приходит', 'цели не приходят', 'целей не приходит'])}`
+  if (fresh > 0) return `${fresh} ${plural(fresh, ['новая цель', 'новые цели', 'новых целей'])}`
+  return ''
+}
+
+function formatDate(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Moscow',
+  }) + ' МСК'
+}
+
+function nextSyncLabel(item) {
+  if (!item.auto_sync) return 'выключена'
+  const value = item.next_sync_at || (item.last_sync_at ? new Date(new Date(item.last_sync_at).getTime() + Number(item.sync_interval || 1440) * 60000) : null)
+  if (!value) return 'сегодня ~04:00 МСК'
+  return formatDate(value)
+}
+
+async function syncNow(item) {
+  if (syncingIds.value.has(item.id)) return
+  syncingIds.value = new Set([...syncingIds.value, item.id])
+  try {
+    await api.post(`integrations/${item.id}/sync`, { days: 90 })
+    toaster.success('Синхронизация запущена.')
+    await fetchIntegrations()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию.')
+  } finally {
+    const next = new Set(syncingIds.value)
+    next.delete(item.id)
+    syncingIds.value = next
+  }
+}
+
+function openWizard() {
+  const query = currentProjectId.value ? { client_id: currentProjectId.value } : {}
+  router.push({ path: '/integrations/wizard', query })
+}
+
+function openEdit(id) {
+  router.push(`/integrations/${id}/edit`)
+}
+
+async function copyId(id) {
+  try {
+    await navigator.clipboard.writeText(String(id))
+    toaster.success('ID скопирован.')
+  } catch {
+    toaster.warning('Не удалось скопировать ID.')
+  }
+}
+
+function shortId(id) {
+  return String(id || '').slice(0, 8)
+}
+
+function plural(n, forms) {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1]
+  return forms[2]
 }
 </script>
 
 <style scoped>
-/* ── Platform buttons ── */
-.platform-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5556rem;
-  min-height: 2.7778rem;
-  padding: 0.4167rem 0.9028rem 0.4167rem 0.5556rem;
-  border-radius: 2.7778rem;
-  background-color: #fff;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.5s, transform 0.75s;
-  white-space: nowrap;
-}
-.platform-btn:hover  { background-color: #2563eb; transform: scale(1.03); }
-.platform-btn:hover .platform-btn__label { color: #fff !important; }
-.platform-btn:active { transform: scale(0.97); transition: transform 0s; }
-:global(.dark) .platform-btn,
-:global(.darkmode) .platform-btn {
-  background-color: #2C2F3D;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-}
-:global(.dark) .platform-btn__label,
-:global(.darkmode) .platform-btn__label {
-  color: rgba(255,255,255,0.78) !important;
-}
-:global(.dark) .platform-btn:hover,
-:global(.darkmode) .platform-btn:hover {
-  background-color: #2563eb;
-}
-
-.platform-btn__icon {
-  width: 0.9722rem;
-  height: 0.9722rem;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #eee;
-  flex-shrink: 0;
-}
-.platform-btn__icon img { width: 100%; height: 100%; object-fit: cover; }
-
-.platform-btn__label {
-  font-size: 0.9028rem;
-  font-weight: 400;
-}
-
-.platform-btn__plus {
+.integrations-page {
   position: relative;
-  display: inline-flex;
-  width: 1.0417rem;
-  height: 1.0417rem;
-  border-radius: 50%;
-  background-color: rgba(0,0,0,0.12);
-  flex-shrink: 0;
-  margin-left: 0.2778rem;
+  z-index: 2;
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 2.0833rem 1.7361rem;
 }
-.platform-btn__plus span {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border-radius: 69.375rem;
-  background: rgba(0,0,0,0.45);
-  transform: translate(-50%, -50%);
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.3889rem;
+  margin-bottom: 1.7361rem;
+  padding-top: 1.0417rem;
 }
-.platform-btn__plus span:first-child {
-  width: 0.3819rem;
-  height: 1px;
+.page-head h3 {
+  margin: 0;
+  color: #171717;
+  font-size: 2.0833rem;
+  font-weight: 600;
+  line-height: 1;
 }
-.platform-btn__plus span:last-child {
-  width: 1px;
-  height: 0.3819rem;
+.page-head p {
+  margin: 0.6944rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
 }
-:global(.dark) .platform-btn__plus,
-:global(.darkmode) .platform-btn__plus {
-  background-color: rgba(255,255,255,0.16);
-}
-:global(.dark) .platform-btn__plus span,
-:global(.darkmode) .platform-btn__plus span {
-  background: rgba(255,255,255,0.7);
-}
-
-/* ── Add button (стиль как bulk-btn в ProjectCard) ── */
-.add-btn {
+.add-btn,
+.configure-btn,
+.sync-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.6944rem;
+  justify-content: center;
+  gap: 0.5556rem;
   min-height: 3.1944rem;
-  padding: 0.5556rem 1.1806rem;
+  padding: 0.5556rem 1.3889rem;
+  border: 0;
   border-radius: 1.0417rem;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
   font-size: 0.9028rem;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
+  font-weight: 600;
   white-space: nowrap;
-  transition: transform 0.75s;
+  cursor: pointer;
+  transition: transform 0.3s, opacity 0.3s;
 }
-.add-btn:hover  { transform: scale(1.02); }
-.add-btn:active { transform: scale(0.97); transition: transform 0s; }
-
+.add-btn:hover,
+.configure-btn:hover,
+.sync-btn:hover {
+  transform: translateY(-1px);
+}
+.sync-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.sync-btn,
+.configure-btn {
+  min-height: 2.7778rem;
+  border-radius: 0.8333rem;
+  font-size: 0.8333rem;
+}
+.sync-btn {
+  background: #f5f7f9;
+  color: #2563eb;
+}
 .icon-plus {
   position: relative;
-  display: inline-flex;
-  width: 1.5278rem;
-  height: 1.5278rem;
-  border-radius: 0.4167rem;
-  background: rgba(255,255,255,0.2);
-  flex-shrink: 0;
+  width: 1.1111rem;
+  height: 1.1111rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
 }
 .icon-plus span {
   position: absolute;
   left: 50%;
   top: 50%;
-  border-radius: 69.375rem;
-  background: #fff;
+  width: 0.5556rem;
+  height: 1.5px;
+  border-radius: 99rem;
+  background: currentColor;
   transform: translate(-50%, -50%);
 }
-.icon-plus span:first-child {
-  width: 0.4861rem;
-  height: 1px;
-}
 .icon-plus span:last-child {
-  width: 1px;
-  height: 0.4861rem;
+  transform: translate(-50%, -50%) rotate(90deg);
 }
-
-/* ── Search (стиль как в ProjectCard) ── */
-.search-wrap {
-  position: relative;
-  max-width: 100%;
-}
-.search-input {
-  width: min(24.5833rem, 100%);
-  height: 3.1944rem;
-  padding: 0 3.125rem 0 1.1806rem;
-  font-size: 0.9028rem;
-  color: #2c2c2c;
-  background-color: #fff;
-  border: none;
-  border-radius: 0.8333rem;
-  outline: none;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
-  transition: box-shadow 0.5s;
-}
-.search-input:focus { box-shadow: inset 0 0 0 1px rgba(37,99,235,0.24), 0 0 0.6944rem rgba(37,99,235,0.15); }
-.search-input::placeholder { color: rgba(0,0,0,0.3); }
-:global(.dark) .search-input,
-:global(.darkmode) .search-input {
-  background-color: #2C2F3D;
-  color: rgba(255,255,255,0.86);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
-}
-:global(.dark) .search-input::placeholder,
-:global(.darkmode) .search-input::placeholder {
-  color: rgba(255,255,255,0.42);
-}
-.search-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1111rem;
-  height: 1.1111rem;
-  background-color: #f5f7f9;
-  border-radius: 50%;
-  position: absolute;
-  right: 1.1806rem;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-:global(.dark) .search-icon,
-:global(.darkmode) .search-icon {
-  background-color: rgba(255,255,255,0.08);
-}
-
-/* ── Integration card ── */
-.int-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2.0833rem;
-  padding: 2.0833rem;
-  background-color: #fff;
-  border-radius: 1.0417rem;
-}
-:global(.dark) .int-card,
-:global(.darkmode) .int-card {
-  background-color: #2C2F3D;
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-:global(.dark) .int-card .text-\[\#696969\],
-:global(.darkmode) .int-card .text-\[\#696969\] {
-  color: rgba(255,255,255,0.82) !important;
-}
-:global(.dark) .int-card .text-\[rgba\(105\,105\,105\,0\.56\)\],
-:global(.darkmode) .int-card .text-\[rgba\(105\,105\,105\,0\.56\)\],
-:global(.dark) .int-card .text-\[rgba\(44\,44\,44\,0\.4\)\],
-:global(.darkmode) .int-card .text-\[rgba\(44\,44\,44\,0\.4\)\] {
-  color: rgba(255,255,255,0.55) !important;
-}
-
-/* ── Card header ── */
-.int-card__header {
+.toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.0417rem;
+  margin-bottom: 1.7361rem;
 }
-
-.integration-body-row {
+.search-wrap {
+  position: relative;
+  width: min(100%, 30rem);
+}
+.search-input {
+  width: 100%;
+  height: 3.1944rem;
+  padding: 0 3.125rem 0 1.25rem;
+  border: 0;
+  border-radius: 1.0417rem;
+  background: #fff;
+  color: #2c2c2c;
+  font-size: 0.9028rem;
+  outline: none;
+}
+.search-icon {
+  position: absolute;
+  right: 0.6944rem;
+  top: 50%;
+  display: flex;
+  width: 1.8056rem;
+  height: 1.8056rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f5f7f9;
+  transform: translateY(-50%);
+}
+.sync-note {
+  color: rgba(105, 105, 105, 0.52);
+  font-size: 0.9028rem;
+  font-weight: 500;
+}
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14rem;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 0.9028rem;
+}
+.project-groups {
+  display: grid;
+  gap: 1.3889rem;
+}
+.project-group {
+  display: grid;
+  gap: 0.8333rem;
+}
+.project-group__head {
+  display: flex;
+  align-items: center;
+  gap: 0.8333rem;
+}
+.project-avatar {
+  display: flex;
+  width: 2.7778rem;
+  height: 2.7778rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eef4ff;
+  color: #2563eb;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+.project-group__head h4 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.1111rem;
+  font-weight: 700;
+}
+.project-group__head p {
+  margin: 0.2778rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 0.8333rem;
+  font-weight: 500;
+}
+.integration-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42rem, 1fr));
+  gap: 1.0417rem;
+}
+.int-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.2fr) minmax(11rem, 0.8fr) minmax(14rem, 1fr) auto auto;
+  align-items: center;
+  gap: 1.0417rem;
+  min-height: 8.3333rem;
+  padding: 1.3889rem;
+  border-radius: 1.25rem;
+  background: #fff;
+}
+.int-card__main {
+  display: flex;
+  align-items: center;
   min-width: 0;
+  gap: 0.8333rem;
 }
-
-/* ── Project avatar ── */
-.proj-avatar {
+.channel-icon {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: #e8eef9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
 }
-.proj-avatar span {
-  font-size: 0.8333rem;
+.int-card__title {
+  min-width: 0;
+}
+.int-card__title h5 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.0417rem;
   font-weight: 700;
-  color: #4b6fa0;
-  line-height: 1;
 }
-
-/* ── Channel badge (caption _light _md) ── */
-.channel-badge {
-  display: inline-block;
-  padding: 0.625rem 1.1806rem;
-  border-radius: 0.8333rem;
-  background-color: rgba(0,110,255,0.03);
-  border: 1px solid #adc7ff;
-  color: #2563eb;
-  font-size: 0.7639rem;
+.int-card__title p {
+  margin: 0.3472rem 0 0;
+  overflow: hidden;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 0.8333rem;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ── Card body ── */
-.int-card__body {
-  padding: 1.3889rem;
-  background-color: #f9fcff;
-  border-radius: 1.0417rem;
-  border: 1px solid #e9e9e9;
+.status-stack {
+  display: grid;
+  gap: 0.4167rem;
 }
-:global(.dark) .int-card__body,
-:global(.darkmode) .int-card__body {
-  background-color: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.10);
+.status-stack small {
+  color: rgba(105, 105, 105, 0.44);
+  font-size: 0.7639rem;
+  font-weight: 500;
 }
-
-/* ── Sync dot ── */
-.sync-dot {
-  flex-shrink: 0;
-  display: inline-block;
+.status-pill {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.4167rem;
+  min-height: 1.8056rem;
+  padding: 0 0.6944rem;
+  border-radius: 99rem;
+  background: #f5f7f9;
+  color: #696969;
+  font-size: 0.7639rem;
+  font-weight: 700;
+}
+.status-pill span {
   width: 0.4167rem;
   height: 0.4167rem;
   border-radius: 50%;
-  background-color: #2563eb;
+  background: currentColor;
 }
-.sync-dot--success { background-color: #5bff7c; }
-.sync-dot--danger  { background-color: #ef4444; }
-.sync-dot--warning { background-color: #f97316; }
-
-/* ── Sync badge (badge-text _md) — скругление как было у Настроить ── */
-.sync-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4861rem;
-  padding: 0.625rem 1.1806rem;
-  border-radius: 1.25rem;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  color: #fff;
-  font-size: 0.9028rem;
-  white-space: nowrap;
+.status-pill--success {
+  background: #e9fbf0;
+  color: #13a548;
 }
-
-/* ── ID badge (caption) ── */
-.id-badge {
-  display: inline-block;
-  padding: 0.5556rem 1.0417rem;
-  background-color: #f9fcff;
-  border: 1px solid #e9e9e9;
-  border-radius: 0.5556rem;
-  color: #c2c2c2;
+.status-pill--danger {
+  background: #fff1f1;
+  color: #ef4444;
+}
+.status-pill--warning {
+  background: #fff7dd;
+  color: #b45309;
+}
+.goal-drift-chip {
+  width: max-content;
+  max-width: 14rem;
+  min-height: 1.8056rem;
+  padding: 0 0.6944rem;
+  border: 0;
+  border-radius: 99rem;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
   font-size: 0.7639rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-:global(.dark) .id-badge,
-:global(.darkmode) .id-badge {
-  background-color: rgba(255,255,255,0.05);
-  border-color: rgba(255,255,255,0.10);
-  color: rgba(255,255,255,0.45);
-}
-
-/* ── Configure button — скругление как было у badge, hover синий ── */
-.configure-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.7778rem;
-  padding: 0.5556rem 1.5278rem;
-  border-radius: 0.8333rem;
-  background-color: #fff;
-  border: 1px solid rgba(105,105,105,0.15);
-  color: #71663e;
-  font-size: 0.9028rem;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
-  transition: background-color 0.5s, border-color 0.5s, color 0.5s, transform 0.75s;
+  text-align: left;
 }
-.configure-btn:hover  { background-color: #2563eb; border-color: #2563eb; color: #fff; transform: scale(1.03); }
-.configure-btn:active { transform: scale(0.97); transition: transform 0s; }
-:global(.dark) .configure-btn,
-:global(.darkmode) .configure-btn {
-  background-color: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.75);
+.goal-drift-chip:hover {
+  background: rgba(37, 99, 235, 0.14);
 }
-
-@media (max-width: 479.25px) {
-  .platform-btn,
-  .add-btn,
-  .search-wrap,
-  .search-input {
-    width: 100%;
-  }
-
+.sync-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6944rem;
+}
+.sync-times div {
+  min-height: 3.1944rem;
+  padding: 0.5556rem 0.6944rem;
+  border-radius: 0.8333rem;
+  background: #f8fafc;
+}
+.sync-times span {
+  display: block;
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.6944rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.sync-times strong {
+  display: block;
+  margin-top: 0.2778rem;
+  color: #2c2c2c;
+  font-size: 0.8333rem;
+  font-weight: 600;
+}
+.id-chip {
+  position: absolute;
+  right: 1.3889rem;
+  bottom: 0.8333rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.42);
+  font-size: 0.6944rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (max-width: 1180px) {
   .int-card {
-    padding: 1.3889rem;
-    gap: 1.3889rem;
-  }
-
-  .int-card__header,
-  .integration-body-row {
+    grid-template-columns: 1fr;
     align-items: stretch;
+  }
+  .sync-times {
+    grid-template-columns: 1fr;
+  }
+  .toolbar,
+  .page-head {
     flex-direction: column;
   }
-
-  .integration-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  .integration-actions > * {
-    flex: 1 1 9.7222rem;
+  .integration-list {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -129,7 +129,7 @@ export function useIntegrationWizard() {
       
       const { data } = await api.get(`/integrations/${integrationId}/counters?${accountIdParam}${campaignIdsParam}`)
       
-      counters.value = data.counters || []
+      counters.value = (data.counters || []).map((counter) => ({ ...counter, id: String(counter.id) }))
       
       // Auto-select all counters by default
       selectedCounterIds.value = counters.value.map(c => c.id)
@@ -167,17 +167,17 @@ export function useIntegrationWizard() {
 
       // CRITICAL: Handle both formats: array of goals OR object with goals and warning_message
       if (data && typeof data === 'object' && !Array.isArray(data) && data.goals) {
-        goals.value = data.goals
+        goals.value = data.goals.map((goal) => ({ ...goal, id: String(goal.id) }))
         if (data.warning_message) {
           toaster.warning(data.warning_message)
         }
       } else {
-        goals.value = Array.isArray(data) ? data : []
+        goals.value = (Array.isArray(data) ? data : []).map((goal) => ({ ...goal, id: String(goal.id) }))
       }
 
-      const goalIdSet = new Set(goals.value.map((g) => g.id))
-      selectedGoalIds.value = selectedGoalIds.value.filter((id) => goalIdSet.has(id))
-      if (form.primary_goal_id != null && !goalIdSet.has(form.primary_goal_id)) {
+      const goalIdSet = new Set(goals.value.map((g) => String(g.id)))
+      selectedGoalIds.value = selectedGoalIds.value.map(String).filter((id) => goalIdSet.has(id))
+      if (form.primary_goal_id != null && !goalIdSet.has(String(form.primary_goal_id))) {
         form.primary_goal_id = null
       }
 
@@ -274,6 +274,9 @@ export function useIntegrationWizard() {
     if (form.primary_goal_id === id) {
       form.primary_goal_id = null
     } else {
+      if (!selectedGoalIds.value.includes(id)) {
+        selectedGoalIds.value.push(id)
+      }
       form.primary_goal_id = id
     }
   }
@@ -287,6 +290,7 @@ export function useIntegrationWizard() {
         selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
+        known_goal_ids: goals.value.map((goal) => String(goal.id)),
         is_active: true
       })
       toaster.success("Интеграция успешно настроена!")
