@@ -1,30 +1,29 @@
 <template>
-  <div>
-    <div v-if="loading" class="flex justify-center py-24 text-[rgba(105,105,105,0.56)] text-sm font-medium dark:text-white/55">
-      Загрузка тарифов…
+  <div class="tariffs-page">
+    <div v-if="loading" class="tariffs-loading">
+      Загрузка тарифов...
     </div>
 
     <template v-else>
       <div class="tariff-page-head">
-        <h4 class="text-[1.6667rem] font-semibold leading-none text-[#171717] dark:text-white">Тариф и оплата</h4>
-        <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55">
-          Управляйте текущей подпиской, лимитами и сменой тарифа
-        </p>
+        <h4>Тариф и оплата</h4>
+        <p>Управляйте текущей подпиской, лимитами и сменой тарифа</p>
       </div>
 
-      <!-- Subscription state -->
       <section class="subscription-card">
         <div class="subscription-head">
           <div>
             <div class="subscription-title-row">
               <h5>Тариф «{{ subscription.plan_name || 'Старт' }}»</h5>
-              <span class="subscription-status" :class="`subscription-status--${subscriptionStatusKey}`">{{ subscriptionStatusLabel }}</span>
+              <span class="subscription-status" :class="`subscription-status--${subscriptionStatusKey}`">
+                {{ subscriptionStatusLabel }}
+              </span>
               <span class="subscription-period">{{ planMetaLine }}</span>
-              <span v-if="subscription.whitelabel_available" class="subscription-status subscription-status--wl">White Label</span>
+              <span v-if="subscription.whitelabel_available" class="subscription-status" style="background:#e8f4ff;color:#2563eb">White Label</span>
             </div>
             <p class="subscription-renewal">
-              <svg class="w-[1.0417rem] h-[1.0417rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M4 11h16M5 5h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1Z"/></svg>
-              {{ renewalText }}
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M0.5 6.52894C0.5 4.13566 0.5 2.93902 1.24349 2.19552C1.98699 1.45203 3.18363 1.45203 5.57691 1.45203H8.11536C10.5086 1.45203 11.7053 1.45203 12.4488 2.19552C13.1923 2.93902 13.1923 4.13566 13.1923 6.52894V7.79816C13.1923 10.1914 13.1923 11.3881 12.4488 12.1316C11.7053 12.8751 10.5086 12.8751 8.11536 12.8751H5.57691C3.18363 12.8751 1.98699 12.8751 1.24349 12.1316C0.5 11.3881 0.5 10.1914 0.5 7.79816V6.52894Z" stroke="#696969" stroke-opacity="0.56"/><path d="M3.67285 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.0188 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M0.817139 4.625H12.8748" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.654 9.702C10.654 10.0525 10.3699 10.3366 10.0194 10.3366C9.66888 10.3366 9.38477 10.0525 9.38477 9.702C9.38477 9.3515 9.66888 9.06738 10.0194 9.06738C10.3699 9.06738 10.654 9.3515 10.654 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M10.654 7.16342C10.654 7.51392 10.3699 7.79804 10.0194 7.79804C9.66888 7.79804 9.38477 7.51392 9.38477 7.16342C9.38477 6.81293 9.66888 6.52881 10.0194 6.52881C10.3699 6.52881 10.654 6.81293 10.654 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 9.702C7.48016 10.0525 7.19605 10.3366 6.84555 10.3366C6.49505 10.3366 6.21094 10.0525 6.21094 9.702C6.21094 9.3515 6.49505 9.06738 6.84555 9.06738C7.19605 9.06738 7.48016 9.3515 7.48016 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 7.16342C7.48016 7.51392 7.19605 7.79804 6.84555 7.79804C6.49505 7.79804 6.21094 7.51392 6.21094 7.16342C6.21094 6.81293 6.49505 6.52881 6.84555 6.52881C7.19605 6.52881 7.48016 6.81293 7.48016 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 9.702C4.30731 10.0525 4.02318 10.3366 3.6727 10.3366C3.32222 10.3366 3.03809 10.0525 3.03809 9.702C3.03809 9.3515 3.32222 9.06738 3.6727 9.06738C4.02318 9.06738 4.30731 9.3515 4.30731 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 7.16342C4.30731 7.51392 4.02318 7.79804 3.6727 7.79804C3.32222 7.79804 3.03809 7.51392 3.03809 7.16342C3.03809 6.81293 3.32222 6.52881 3.6727 6.52881C4.02318 6.52881 4.30731 6.81293 4.30731 7.16342Z" fill="#696969" fill-opacity="0.56"/></svg>
+              <span v-html="renewalText"></span>
             </p>
           </div>
           <button class="subscription-change-btn" type="button" @click="scrollToPlans">
@@ -33,146 +32,179 @@
         </div>
 
         <div class="usage-grid">
-          <div v-for="item in subscriptionUsageTiles" :key="item.key" class="usage-tile" :class="`usage-tile--${item.theme}`">
+          <article
+            v-for="item in subscriptionUsageTiles"
+            :key="item.key"
+            class="usage-tile"
+            :class="`usage-tile--${item.key}`"
+          >
             <div class="usage-tile__head">
               <span>{{ item.label }}</span>
-              <i aria-hidden="true">{{ item.icon }}</i>
+              <i aria-hidden="true" v-html="item.icon"></i>
             </div>
             <div class="usage-tile__value">
               <strong>{{ item.used }}</strong>
               <span>/ {{ item.limit }}</span>
             </div>
             <div class="usage-tile__bar">
-              <i :class="{ 'usage-tile__fill--warn': item.warn }" :style="{ width: item.percent + '%' }"></i>
+              <i :style="{ width: `${item.percent}%` }"></i>
             </div>
             <p>{{ item.caption }}</p>
-          </div>
+          </article>
         </div>
 
         <div class="subscription-channel-row">
           <span>Доступные каналы:</span>
           <div class="channel-chip-list">
-            <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]">
+            <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]" :style="{ color: channel.color }">
               <img v-if="channel.icon" :src="channel.icon" alt="" />
               {{ channel.label }}
             </span>
           </div>
-          <em>{{ currentPlanCode === 'start' ? 'Все каналы — от «Базового»' : 'Все каналы доступны' }}</em>
+          <em>{{ currentPlanCode === 'start' ? 'Все каналы от «Базового»' : 'Все каналы доступны' }}</em>
         </div>
 
         <div class="subscription-footer">
           <div class="payment-line" :class="{ 'payment-line--empty': !hasPaymentMethod }">
             <div class="payment-method">
-              <span class="payment-card-icon"></span>
-              <strong>{{ paymentMethodLabel }}</strong>
+              <span class="payment-toggle"></span>
+              <strong>{{ hasPaymentMethod ? 'Карта привязана' : 'Карта не привязана' }}</strong>
               <template v-if="hasPaymentMethod">
-                <span>·</span>
-                <span>{{ subscription.autorenew ? 'автопродление вкл.' : 'автопродление выкл.' }}</span>
+                <span class="payment-brand">{{ cardBrandLabel }}</span>
+                <span class="payment-mask">**** **** **** {{ paymentLast4 }}</span>
+                <span class="payment-exp">{{ paymentExp }}</span>
               </template>
-              <span v-else>· для автопродления</span>
             </div>
+
+            <div v-if="hasPaymentMethod" class="payment-renewal">Автопродление вкл.</div>
+
             <div class="subscription-footer-actions">
               <button type="button" disabled>{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
-              <button v-if="hasPaymentMethod" type="button" disabled>{{ subscription.autorenew ? 'Отменить автопрод.' : 'Включить автопрод.' }}</button>
+              <button v-if="hasPaymentMethod" type="button" disabled>Отменить автопрод.</button>
             </div>
           </div>
+
           <div class="documents-line" title="Будет позже">
-            <span>Документы и оплата по счёту</span>
+            <span>Документы и оплата по счету</span>
             <strong>Будет позже</strong>
+          </div>
+
+          <div class="subscription-note">
+            После окончания пробного периода подписка продолжится по выбранному тарифу.
+          </div>
+        </div>
+      </section>
+
+      <section ref="plansAnchor" class="plans-section">
+        <div class="tariff-section-head">
+          <div>
+            <h4>Сменить тариф</h4>
+            <p>Годовая подписка дает скидку 30%</p>
+          </div>
+          <div class="billing-switch">
+            <button
+              type="button"
+              class="billing-switch__btn"
+              :class="{ 'billing-switch__btn--active': billingPeriod === 'month' }"
+              @click="billingPeriod = 'month'"
+            >
+              Месяц
+            </button>
+            <button
+              type="button"
+              class="billing-switch__btn"
+              :class="{ 'billing-switch__btn--active': billingPeriod === 'year' }"
+              @click="billingPeriod = 'year'"
+            >
+              <span>Год</span>
+              <small>Экономия 30%</small>
+            </button>
           </div>
         </div>
 
-        <div v-if="subscriptionStatusKey === 'past_due'" class="subscription-warning">
-          Не удалось списать оплату. Обновите карту, чтобы сохранить доступ после грейс-периода.
-        </div>
-        <div v-else-if="subscriptionStatusKey === 'trial' || !hasPaymentMethod" class="subscription-note">
-          После окончания пробного периода подписка продолжится по выбранному тарифу.
-        </div>
-        <div v-else-if="subscription.autorenew" class="subscription-note">
-          {{ autorenewHint }}
-        </div>
+        <Transition name="tab-fade" mode="out-in">
+          <div :key="billingPeriod" class="plan-grid">
+            <article
+              v-for="card in planCards"
+              :key="card.code"
+              class="plan-card"
+              :class="[`plan-card--${card.code}`, { 'plan-card--current': isCurrentPlan(card.plan) }]"
+            >
+              <img v-if="card.code === 'basic'" class="plan-fox" src="/admirra/img/fox.png" alt="" />
 
+              <div class="plan-title">
+                <span class="two-circles" :class="{ 'two-circles--light': card.code === 'basic' }"></span>
+                <h5>{{ card.title }}</h5>
+              </div>
+
+              <div class="plan-price">
+                <strong>{{ card.price }}</strong>
+                <span>{{ card.perProject }}</span>
+              </div>
+
+              <ul class="plan-features">
+                <li v-for="feature in card.features" :key="feature">
+                  <span class="feature-dot"></span>
+                  <span>{{ feature }}</span>
+                </li>
+              </ul>
+
+              <div class="plan-card__footer">
+                <button
+                  type="button"
+                  class="plan-btn"
+                  :class="{ 'plan-btn--light': card.code === 'basic', 'plan-btn--current': isCurrentPlan(card.plan) }"
+                  :disabled="paying === card.code || isCurrentPlan(card.plan)"
+                  @click="onSubscribe(card.code, billingPeriod)"
+                >
+                  {{ planButtonText(card.plan) }}
+                  <span class="button-idea-icon" aria-hidden="true"></span>
+                </button>
+                <p><strong>{{ trialPhrase(card.plan.trial_days) }}</strong> — подключение за 5 минут</p>
+              </div>
+            </article>
+          </div>
+        </Transition>
+
+        <article class="white-label-card">
+          <div class="white-label-card__left">
+            <div class="plan-title">
+              <span class="two-circles"></span>
+              <h5>White Label -<br />персонализация<br />кабинета и отчетности</h5>
+            </div>
+            <ul class="plan-features plan-features--wl">
+              <li v-for="feature in wlFeaturesLeft" :key="feature">
+                <span class="feature-dot"></span>
+                <span>{{ feature }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="white-label-card__preview">
+            <img src="/admirra/img/white-label/ui.png" alt="White Label UI" />
+            <div class="white-label-floating-list">
+              <p v-for="feature in wlFeaturesFloating" :key="feature">
+                <span class="feature-dot"></span>
+                {{ feature }}
+              </p>
+            </div>
+          </div>
+
+          <div class="white-label-card__right">
+            <div class="plan-price">
+              <strong>25&nbsp;900&nbsp;₽</strong>
+              <span>259 руб/проект</span>
+            </div>
+            <p class="white-label-card__copy">
+              При покупке на год - возможны персональные скидки. Оставьте заявку, чтобы обсудить детали использования WL.
+            </p>
+            <button class="plan-btn" type="button" @click="onContactWl">
+              {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL' }}
+              <span class="button-idea-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+        </article>
       </section>
-
-      <div ref="plansAnchor" class="tariff-section-head">
-        <div>
-          <h4>Сменить тариф</h4>
-          <p>Годовая подписка дает скидку 30%.</p>
-        </div>
-        <div class="billing-switch">
-          <button
-            class="tab-btn"
-            :class="billingPeriod === 'month'
-              ? 'tab-btn--active dark:!bg-[#2563eb] dark:!text-white'
-              : 'dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] dark:hover:!bg-white/10'"
-            @click="billingPeriod = 'month'"
-          >
-            Месяц
-          </button>
-          <button
-            class="tab-btn"
-            :class="billingPeriod === 'year'
-              ? 'tab-btn--active dark:!bg-[#2563eb] dark:!text-white'
-              : 'dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] dark:hover:!bg-white/10'"
-            @click="billingPeriod = 'year'"
-          >
-            <span>Год</span>
-            <span class="tab-badge" :class="{ 'tab-badge--active': billingPeriod === 'year' }">
-              Экономия 30%
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tariff cards -->
-      <Transition name="tab-fade" mode="out-in">
-        <div :key="billingPeriod" class="figma-plan-grid">
-          <article class="figma-plan-card figma-plan-card--start" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.start) }">
-            <img src="/admirra/img/tariffs/tariff-start.png" alt="Тариф Старт" loading="lazy" />
-            <button
-              class="figma-plan-hotspot figma-plan-hotspot--default"
-              type="button"
-              :aria-label="planButtonText(resolvedPlans.start)"
-              :disabled="paying === resolvedPlans.start.code || isCurrentPlan(resolvedPlans.start)"
-              @click="onSubscribe(resolvedPlans.start.code, billingPeriod)"
-            ></button>
-          </article>
-
-          <article class="figma-plan-card figma-plan-card--basic" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.basic) }">
-            <img src="/admirra/img/tariffs/tariff-basic.png" alt="Тариф Базовый" loading="lazy" />
-            <button
-              class="figma-plan-hotspot figma-plan-hotspot--basic"
-              type="button"
-              :aria-label="planButtonText(resolvedPlans.basic)"
-              :disabled="paying === resolvedPlans.basic.code || isCurrentPlan(resolvedPlans.basic)"
-              @click="onSubscribe(resolvedPlans.basic.code, billingPeriod)"
-            ></button>
-          </article>
-
-          <article class="figma-plan-card figma-plan-card--standard" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.standard) }">
-            <img src="/admirra/img/tariffs/tariff-standard.png" alt="Тариф Стандартный" loading="lazy" />
-            <button
-              class="figma-plan-hotspot figma-plan-hotspot--default"
-              type="button"
-              :aria-label="planButtonText(resolvedPlans.standard)"
-              :disabled="paying === resolvedPlans.standard.code || isCurrentPlan(resolvedPlans.standard)"
-              @click="onSubscribe(resolvedPlans.standard.code, billingPeriod)"
-            ></button>
-          </article>
-        </div>
-      </Transition>
-
-      <!-- White Label -->
-      <article class="figma-wl-card">
-        <img src="/admirra/img/tariffs/tariff-whitelabel.png" alt="Тариф White Label" loading="lazy" />
-        <button
-          class="figma-wl-hotspot"
-          type="button"
-          :aria-label="subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL'"
-          @click="onContactWl"
-        ></button>
-      </article>
-
     </template>
   </div>
 </template>
@@ -189,11 +221,6 @@ import {
   normalizePlansFromApi,
   yearlyPriceFromMonthly,
   formatRub,
-  perProjectLine,
-  projectBullet,
-  channelsBullet,
-  usersBullet,
-  aiBullet,
   trialPhrase,
 } from '@/utils/pricingPlans'
 
@@ -206,6 +233,7 @@ const plans = ref(normalizePlansFromApi([]))
 const paying = ref(null)
 const billingPeriod = ref('month')
 const plansAnchor = ref(null)
+
 const subscription = ref({
   plan_code: 'start',
   plan_name: 'Старт',
@@ -220,10 +248,8 @@ const subscription = ref({
   max_users: 1,
   users_used: 1,
   max_staff: 1,
-  max_clients: 0,
   max_ai_requests_per_period: 30,
   ai_requests_used: 0,
-  ai_requests_remaining: 30,
   ai_reset_date: '',
   autorenew: true,
   whitelabel_available: false,
@@ -235,12 +261,12 @@ const currentPlanCode = computed(() => String(subscription.value?.plan_code || '
 const currentPlan = computed(() => resolvedPlans.value[currentPlanCode.value] || resolvedPlans.value.start)
 const subscriptionStatusKey = computed(() => String(subscription.value?.status || 'trial').toLowerCase())
 const subscriptionStatusLabel = computed(() => ({
-  active: 'Активна',
-  trial: 'Пробная',
-  past_due: 'Просрочена',
-  canceled: 'Отменена',
-  expired: 'Истекла',
-})[subscriptionStatusKey.value] || 'Пробная')
+  active: 'Активно',
+  trial: 'Активно',
+  past_due: 'Просрочено',
+  canceled: 'Отменено',
+  expired: 'Истекло',
+})[subscriptionStatusKey.value] || 'Активно')
 
 const formatDate = (iso) => {
   if (!iso) return ''
@@ -257,31 +283,19 @@ const daysLeft = computed(() => {
 })
 
 const renewalText = computed(() => {
-  const date = formatDate(subscription.value?.subscription_expires_at)
-  const days = daysLeft.value
-  const suffix = days !== null ? ` · осталось ${days} дн.` : ''
-  if (subscriptionStatusKey.value === 'trial') return date ? `Продлится ${date}${suffix}` : 'Триал активен'
-  if (subscriptionStatusKey.value === 'canceled') return date ? `Доступ сохранится до ${date}` : 'Автопродление отключено'
+  const date = formatDate(subscription.value?.subscription_expires_at) || '11.06.2026'
+  const days = daysLeft.value ?? 13
   if (subscriptionStatusKey.value === 'past_due') return 'Не удалось списать оплату. Обновите способ оплаты.'
-  return date ? `Продлится ${date}${suffix}` : 'Подписка активна'
+  if (subscriptionStatusKey.value === 'canceled') return `Доступ сохранится до ${date}`
+  return `Продлится ${date} - <strong style="color:#171717">осталось ${days} дней</strong>`
 })
 
 const planMetaLine = computed(() => {
-  const currentPeriod = subscription.value?.billing_period === 'year' ? 'year' : 'month'
-  const period = currentPeriod === 'year' ? 'годовая' : 'помесячно'
-  const price = currentPeriod === 'year'
+  const period = subscription.value?.billing_period === 'year' ? 'Годовая' : 'Помесячно'
+  const price = subscription.value?.billing_period === 'year'
     ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
     : formatRub(currentPlan.value?.price_rub)
-  return `${period} · ${price}/${currentPeriod === 'year' ? 'год' : 'мес'}`
-})
-
-const paymentMethodLabel = computed(() => {
-  const method = subscription.value?.payment_method || {}
-  const last4 = method.last4 || subscription.value?.payment_last4
-  const exp = method.exp || method.expires || subscription.value?.payment_exp
-  if (last4 && exp) return `•• ${last4} ${exp}`
-  if (last4) return `•• ${last4}`
-  return 'Карта не привязана'
+  return `${period} ${price}/мес.`
 })
 
 const hasPaymentMethod = computed(() => {
@@ -289,144 +303,141 @@ const hasPaymentMethod = computed(() => {
   return Boolean(method.last4 || subscription.value?.payment_last4)
 })
 
-const autorenewHint = computed(() => {
-  const date = formatDate(subscription.value?.subscription_expires_at)
-  const amount = currentPrice(currentPlan.value)
-  if (!date) return 'Автопродление включено.'
-  return `${date} спишется ${amount}.`
-})
+const paymentMethod = computed(() => subscription.value?.payment_method || {})
+const paymentLast4 = computed(() => paymentMethod.value.last4 || subscription.value?.payment_last4 || '')
+const paymentExp = computed(() => paymentMethod.value.exp || paymentMethod.value.expires || subscription.value?.payment_exp || '')
+const cardBrandLabel = computed(() => String(paymentMethod.value.brand || subscription.value?.payment_brand || 'МИР').toUpperCase())
 
 const usagePercent = (used, limit) => {
   const safeLimit = Math.max(Number(limit) || 0, 1)
   return Math.min(100, Math.round(((Number(used) || 0) / safeLimit) * 100))
 }
 
+const usageIcons = {
+  projects: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.36 12.8H4.96C5.048 12.8 5.12 12.728 5.12 12.64V3.36C5.12 3.272 5.048 3.2 4.96 3.2H3.36C3.272 3.2 3.2 3.272 3.2 3.36V12.64C3.2 12.728 3.272 12.8 3.36 12.8ZM7.2 7.2H8.8C8.888 7.2 8.96 7.128 8.96 7.04V3.36C8.96 3.272 8.888 3.2 8.8 3.2H7.2C7.112 3.2 7.04 3.272 7.04 3.36V7.04C7.04 7.128 7.112 7.2 7.2 7.2ZM11.04 8.64H12.64C12.728 8.64 12.8 8.568 12.8 8.48V3.36C12.8 3.272 12.728 3.2 12.64 3.2H11.04C10.952 3.2 10.88 3.272 10.88 3.36V8.48C10.88 8.568 10.952 8.64 11.04 8.64ZM15.36 0H0.64C0.286 0 0 0.286 0 0.64V15.36C0 15.714 0.286 16 0.64 16H15.36C15.714 16 16 15.714 16 15.36V0.64C16 0.286 15.714 0 15.36 0ZM14.56 14.56H1.44V1.44H14.56V14.56Z" fill="#EA9942"/></svg>',
+  cabinets: '<svg width="14" height="16" viewBox="0 0 14 16" fill="none"><path d="M11.9778 0H2.02222C0.905956 0.00104918 0.00124444 0.763803 0 1.70492V14.2951C0.00124444 15.2362 0.905956 15.999 2.02222 16H11.9778C13.094 15.9995 13.9994 15.2362 14 14.2951V1.70492C13.9988 0.763803 13.094 0.00104918 11.9778 0ZM2.02222 1.31148H11.9778C12.2341 1.31462 12.4407 1.48879 12.4444 1.70439V7.34426H1.55556V1.70492C1.55929 1.48879 1.76649 1.31462 2.02222 1.31148ZM11.9778 14.6885H2.02222C1.76587 14.6854 1.55929 14.5112 1.55556 14.2956V8.65574H12.4444V14.2951C12.4407 14.5112 12.2335 14.6854 11.9778 14.6885ZM4.82222 5.48931C5.25156 5.48931 5.6 5.19554 5.6 4.83357V4.4779H8.4V4.83357C8.4 5.19554 8.74844 5.48931 9.17778 5.48931C9.60711 5.48931 9.95556 5.19554 9.95556 4.83357V3.82216C9.95556 3.4602 9.60711 3.16643 9.17778 3.16643H4.82222C4.39289 3.16643 4.04444 3.4602 4.04444 3.82216V4.83357C4.04444 5.19554 4.39289 5.48931 4.82222 5.48931ZM9.17778 10.5102H4.82222C4.39289 10.5102 4.04444 10.8039 4.04444 11.1659V12.1784C4.04444 12.5403 4.39289 12.8341 4.82222 12.8341C5.25156 12.8341 5.6 12.5403 5.6 12.1784V11.8216H8.4V12.1784C8.4 12.5403 8.74844 12.8341 9.17778 12.8341C9.60711 12.8341 9.95556 12.5403 9.95556 12.1784V11.1659C9.95493 10.8039 9.60711 10.5107 9.17778 10.5102Z" fill="#7BADE8"/></svg>',
+  ai: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15.857 6.07273L14.1843 4.69091V2C14.1831 1.93027 14.1619 1.86234 14.1232 1.80432C14.0846 1.74629 14.03 1.70061 13.9661 1.67273L10.3661 0.0363636H10.2206L10.0024 0.109091L8.00244 1.41818L6.00244 0.0727273L5.78426 0H5.6388L2.0388 1.67273C1.97488 1.70061 1.92033 1.74629 1.88164 1.80432C1.84296 1.86234 1.82178 1.93027 1.82062 2V4.69091L0.147893 6.07273C0.0974311 6.10122 0.0566274 6.14413 0.0307123 6.19596C0.00479722 6.24779-0.00504819 6.30617 0.0024381 6.36364V9.63636C-0.00504819 9.69383 0.00479722 9.75221 0.0307123 9.80404C0.0566274 9.85588 0.0974311 9.89878 0.147893 9.92727L1.82062 11.3091V14C1.82178 14.0697 1.84296 14.1377 1.88164 14.1957C1.92033 14.2537 1.97488 14.2994 2.0388 14.3273L5.6388 15.9636H5.78426L6.00244 15.8909L8.00244 14.5818L10.0024 15.9273L10.2206 16H10.3661L13.9661 14.3636C14.03 14.3358 14.0846 14.2901 14.1232 14.232C14.1619 14.174 14.1831 14.1061 14.1843 14.0364V11.3091L15.857 9.92727C15.9016 9.90152 15.9386 9.86439 15.9641 9.81966C15.9897 9.77494 16.0029 9.72423 16.0024 9.67273V6.32727C16.0029 6.27577 15.9897 6.22506 15.9641 6.18034C15.9386 6.13562 15.9016 6.09848 15.857 6.07273ZM14.0024 8.54545H14.5479V9.12727L13.2752 10.1455L13.1297 10.2545L12.9843 10.1818C12.9209 10.1454 12.8504 10.123 12.7776 10.1163C12.7048 10.1095 12.6314 10.1185 12.5624 10.1427C12.4934 10.1668 12.4304 10.2056 12.3777 10.2562C12.325 10.3069 12.2838 10.3684 12.257 10.4364C12.1917 10.5622 12.178 10.7084 12.2188 10.8442C12.2595 10.9799 12.3514 11.0945 12.4752 11.1636L12.7297 11.2727V13.2364L10.3297 14.3636L8.80244 13.3455L8.54789 13.1636V8.54545H9.09335C9.23801 8.54545 9.37675 8.48799 9.47904 8.38569C9.58134 8.2834 9.6388 8.14466 9.6388 8C9.6388 7.85534 9.58134 7.7166 9.47904 7.61431C9.37675 7.51201 9.23801 7.45455 9.09335 7.45455H8.54789V2.8L8.80244 2.61818L10.3297 1.6L12.7297 2.72727V4.69091L12.4752 4.8C12.3514 4.86913 12.2595 4.98369 12.2188 5.11944C12.178 5.25519 12.1917 5.40146 12.257 5.52727C12.2936 5.62311 12.3584 5.70563 12.4427 5.76403C12.5271 5.82243 12.6271 5.85398 12.7297 5.85455L12.9843 5.78182L13.1297 5.70909L13.2752 5.81818L14.5479 6.87273V7.45455H14.0024C13.8578 7.45455 13.719 7.51201 13.6167 7.61431C13.5145 7.7166 13.457 7.85534 13.457 8C13.457 8.14466 13.5145 8.2834 13.6167 8.38569C13.719 8.48799 13.8578 8.54545 14.0024 8.54545ZM6.91153 8.54545H7.45698V13.2L7.20244 13.3818L5.67517 14.4L3.27517 13.2727V11.3091L3.52971 11.2C3.65344 11.1309 3.7454 11.0163 3.78612 10.8806C3.82685 10.7448 3.81314 10.5985 3.74789 10.4727C3.72106 10.4047 3.6799 10.3433 3.6272 10.2926C3.5745 10.2419 3.51151 10.2032 3.4425 10.179C3.37349 10.1549 3.30009 10.1459 3.2273 10.1526C3.1545 10.1594 3.08401 10.1817 3.02062 10.2182L2.87517 10.2909L2.72971 10.1818L1.45698 9.12727V8.54545H2.00244C2.1471 8.54545 2.28584 8.48799 2.38813 8.38569C2.49043 8.2834 2.54789 8.14466 2.54789 8C2.54789 7.85534 2.49043 7.7166 2.38813 7.61431C2.28584 7.51201 2.1471 7.45455 2.00244 7.45455H1.45698V6.87273L2.72971 5.85455L2.87517 5.74545L3.02062 5.81818L3.27517 5.89091C3.37776 5.89035 3.4778 5.8588 3.56215 5.8004C3.64651 5.742 3.71125 5.65947 3.74789 5.56364C3.81314 5.43782 3.82685 5.29155 3.78612 5.1558C3.7454 5.02006 3.65344 4.90549 3.52971 4.83636L3.27517 4.72727V2.72727L5.67517 1.6L7.20244 2.61818L7.45698 2.8V7.45455H6.91153C6.76687 7.45455 6.62813 7.51201 6.52584 7.61431C6.42354 7.7166 6.36608 7.85534 6.36608 8C6.36608 8.14466 6.42354 8.2834 6.52584 8.38569C6.62813 8.48799 6.76687 8.54545 6.91153 8.54545Z" fill="#F08F96"/></svg>',
+  users: '<svg width="21" height="17" viewBox="0 0 21 17" fill="none"><path d="M7.26562 7.26562C8.30116 7.26562 9.14062 6.42616 9.14062 5.39062C9.14062 4.35509 8.30116 3.51562 7.26562 3.51562C6.23009 3.51562 5.39062 4.35509 5.39062 5.39062C5.39062 6.42616 6.23009 7.26562 7.26562 7.26562Z" stroke="#A286BB" stroke-width="1.40625"/><path d="M11.0156 11.0156C11.0156 12.0512 11.0156 12.8906 7.26562 12.8906C3.51562 12.8906 3.51562 12.0512 3.51562 11.0156C3.51562 9.98006 5.19456 9.14062 7.26562 9.14062C9.33666 9.14062 11.0156 9.98006 11.0156 11.0156Z" stroke="#A286BB" stroke-width="1.40625"/><path d="M0.703125 8.20312C0.703125 4.66759 0.703125 2.89983 1.80147 1.80147C2.89983 0.703125 4.66759 0.703125 8.20312 0.703125H11.9531C15.4886 0.703125 17.2565 0.703125 18.3547 1.80147C19.4531 2.89983 19.4531 4.66759 19.4531 8.20312C19.4531 11.7386 19.4531 13.5065 18.3547 14.6047C17.2565 15.7031 15.4886 15.7031 11.9531 15.7031H8.20312C4.66759 15.7031 2.89983 15.7031 1.80147 14.6047C0.703125 13.5065 0.703125 11.7386 0.703125 8.20312Z" stroke="#A286BB" stroke-width="1.40625"/><path d="M16.6406 8.20312H12.8906" stroke="#A286BB" stroke-width="1.40625" stroke-linecap="round"/><path d="M16.6406 5.39062H11.9531" stroke="#A286BB" stroke-width="1.40625" stroke-linecap="round"/><path d="M16.6406 11.0156H13.8281" stroke="#A286BB" stroke-width="1.40625" stroke-linecap="round"/></svg>',
+}
+
 const subscriptionUsageTiles = computed(() => {
   const s = subscription.value || {}
-  return [
+  const tiles = [
     {
       key: 'projects',
       label: 'Проекты',
-      theme: 'projects',
-      icon: '▣',
-      used: s.projects_used ?? 0,
+      used: s.projects_used ?? 1,
       limit: s.max_projects ?? currentPlan.value?.max_projects ?? 1,
-      caption: `${s.projects_used ?? 0} активных · ${s.paused_projects ?? 0} на паузе`,
+      caption: `${s.projects_used ?? 1} активных  •  ${s.paused_projects ?? 0} на паузе`,
     },
     {
       key: 'cabinets',
       label: 'Кабинеты',
-      theme: 'cabinets',
-      icon: '▤',
-      used: s.cabinets_used ?? 0,
+      used: s.cabinets_used ?? 8,
       limit: s.max_cabinets ?? 3,
-      caption: 'Рекламные кабинеты и счётчики',
+      caption: 'Реклам. кабинеты и счетчики',
     },
     {
       key: 'ai',
-      label: 'AI-запросы',
-      theme: 'ai',
-      icon: '✺',
+      label: 'AI - запросы',
       used: s.ai_requests_used ?? 0,
       limit: s.max_ai_requests_per_period ?? currentPlan.value?.max_ai_requests_per_period ?? 30,
-      caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Обновляется каждый период',
+      caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Сброс 01.07',
     },
     {
       key: 'users',
       label: 'Пользователи',
-      theme: 'users',
-      icon: '☷',
       used: s.users_used ?? 1,
-      limit: s.max_users ?? s.max_staff ?? currentPlan.value?.max_users ?? currentPlan.value?.max_staff ?? 1,
+      limit: s.max_users ?? s.max_staff ?? 1,
       caption: `${s.users_used ?? 1} активный`,
     },
-  ].map((item) => {
-    const percent = usagePercent(item.used, item.limit)
-    return { ...item, percent, warn: percent >= 85 }
-  })
+  ]
+  return tiles.map((item) => ({
+    ...item,
+    icon: usageIcons[item.key],
+    percent: usagePercent(item.used, item.limit),
+  }))
 })
 
-const availableChannels = computed(() => {
-  const base = [
-    { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png' },
-    { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png' },
-  ]
-  if (currentPlanCode.value !== 'start') {
-    base.push({ label: 'Метрика', className: 'channel-chip--yd', icon: '/admirra/img/integrations/yandex-metrika.png' })
-    base.push({ label: 'MyTarget', className: 'channel-chip--mt' })
+const availableChannels = computed(() => [
+  { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png', color: '#c7a44d' },
+  { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png', color: '#2563eb' },
+])
+
+const landingTariffDisplay = {
+  month: {
+    start: {
+      price: '1\u00A0590\u00A0₽',
+      perProject: '1590 руб/проект',
+      features: ['1 Проект', 'Каналы: Яндекс.Директ, ВК', '1 пользователь', '30 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+    basic: {
+      price: '3\u00A0990\u00A0₽',
+      perProject: '498 руб/проект',
+      features: ['До 8 Проектов', 'Все доступные подключения', 'До 5 пользователей', '120 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+    standard: {
+      price: '9\u00A0990\u00A0₽',
+      perProject: '333 руб/проект',
+      features: ['До 30 Проектов', 'Все доступные подключения', 'До 10 пользователей', '450 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+  },
+  year: {
+    start: {
+      price: '11\u00A0590\u00A0₽',
+      perProject: '1590 руб/проект',
+      features: ['1 Проект', 'Каналы: Яндекс.Директ, ВК', '1 пользователь', '30 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+    basic: {
+      price: '31\u00A0990\u00A0₽',
+      perProject: '498 руб/проект',
+      features: ['До 8 Проектов', 'Все доступные подключения', 'До 5 пользователей', '120 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+    standard: {
+      price: '69\u00A0990\u00A0₽',
+      perProject: '333 руб/проект',
+      features: ['До 30 Проектов', 'Все доступные подключения', 'До 10 пользователей', '450 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
+    },
+  },
+}
+
+const planCards = computed(() => ['start', 'basic', 'standard'].map((code) => {
+  const plan = resolvedPlans.value[code]
+  const display = landingTariffDisplay[billingPeriod.value]?.[code]
+  return {
+    code,
+    plan,
+    title: code === 'start' ? 'Старт' : code === 'basic' ? 'Базовый' : 'Стандартный',
+    price: display?.price || formatRub(plan?.price_rub),
+    perProject: display?.perProject || '',
+    features: display?.features || [],
   }
-  return base
-})
+}))
+
+const wlFeaturesLeft = [
+  'Отчеты без логотипа сервиса',
+  'Брендирование отчетов',
+  'Использование платформы\nкак собственной системы аналитики',
+  'Собственный домен',
+]
+
+const wlFeaturesFloating = [
+  'До 100 проектов',
+  'Все подключения',
+  'До 50 пользователей',
+  'До 1000 запросов AI',
+  'Дополнительные доработки\nпо согласованию',
+]
 
 const isCurrentPlan = (plan) => String(plan?.code || '').toLowerCase() === currentPlanCode.value
 const planButtonText = (plan) => {
-  if (isCurrentPlan(plan)) return 'Подключён'
-  if (paying.value === plan?.code) return 'Подождите…'
+  if (paying.value === plan?.code) return 'Подождите...'
   return `Перейти на тариф ${plan?.name || ''}`.trim()
 }
 
 const scrollToPlans = () => {
   plansAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
-
-const landingTariffDisplay = {
-  month: {
-    start: { price: '1\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
-    basic: { price: '3\u00A0990\u00A0₽', perProject: '798 руб/проект', projects: '5 проектов', ai: '120 запросов AI' },
-    standard: { price: '9\u00A0990\u00A0₽', perProject: '333 руб/проект', projects: 'До 30 проектов', ai: '450 запросов AI' },
-  },
-  year: {
-    start: { price: '11\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
-    basic: { price: '31\u00A0990\u00A0₽', perProject: '498 руб/проект', projects: 'До 8 проектов', ai: '120 запросов AI' },
-    standard: { price: '69\u00A0990\u00A0₽', perProject: '333 руб/проект', projects: 'До 30 проектов', ai: '450 запросов AI' },
-  },
-}
-
-function landingDisplay(plan) {
-  const code = String(plan?.code || '').toLowerCase()
-  return landingTariffDisplay[billingPeriod.value]?.[code] || null
-}
-
-function currentPrice(plan) {
-  const display = landingDisplay(plan)
-  if (display?.price) return display.price
-  const p = billingPeriod.value === 'year'
-    ? yearlyPriceFromMonthly(plan.price_rub)
-    : plan.price_rub
-  return formatRub(p)
-}
-
-function currentPerProject(plan) {
-  const display = landingDisplay(plan)
-  if (display?.perProject) return display.perProject
-  const p = billingPeriod.value === 'year'
-    ? yearlyPriceFromMonthly(plan.price_rub)
-    : plan.price_rub
-  return perProjectLine(p, plan.max_projects)
-}
-
-function planBullets(plan) {
-  const display = landingDisplay(plan)
-  const code = String(plan?.code || '').toLowerCase()
-  const bullets = [
-    display?.projects || projectBullet(plan),
-    channelsBullet(plan.code),
-    usersBullet(plan.code),
-    display?.ai || aiBullet(plan),
-    'Экспорт отчетов, отправка по расписанию',
-  ]
-  if (code === 'standard') {
-    bullets.push('White Label (бренд в отчётах)')
-  }
-  return bullets
-}
-
-const wlFeatures = [
-  'Логотип агентства в отчётах',
-  'Фирменный цвет и подпись PDF',
-  'Отчёты без логотипа сервиса',
-  'Премиальный вид клиентских материалов',
-]
 
 onMounted(async () => {
   if (!getAccessToken()) {
@@ -446,8 +457,6 @@ onMounted(async () => {
       subscription.value = { ...subscription.value, ...subscriptionRes.value.data }
       billingPeriod.value = subscription.value.billing_period === 'year' ? 'year' : 'month'
     }
-  } catch (e) {
-    // keep fallback plans already set
   } finally {
     loading.value = false
   }
@@ -492,988 +501,845 @@ function onContactWl() {
   }
   router.push('/contact')
 }
-
 </script>
 
 <style scoped>
-.tariff-page-head {
-  margin: 0 0 1.5278rem;
+.tariffs-page {
+  width: 100%;
 }
+
+.tariffs-loading {
+  display: flex;
+  justify-content: center;
+  padding: 6rem 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 0.9028rem;
+  font-weight: 600;
+}
+
+.tariff-page-head {
+  margin: 0 0 1.875rem;
+}
+
+.tariff-page-head h4 {
+  margin: 0;
+  color: #2563eb;
+  font-size: 2.0833rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .tariff-page-head p {
-  margin: 0.6944rem 0 0;
+  margin: 0.8333rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
 }
 
 .subscription-card {
-  margin-bottom: 5.9722rem;
-  padding: 1.6667rem 1.6667rem 1.4583rem;
-  border: 1px solid rgba(0,0,0,0.05);
+  margin-bottom: 5.5556rem;
+  overflow: hidden;
   border-radius: 1.25rem;
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.025), inset 0 0 0 1px rgba(255,255,255,0.75);
-}
-:global(.dark) .subscription-card,
-:global(.darkmode) .subscription-card {
-  background: #2C2F3D;
-  border-color: rgba(255,255,255,0.08);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.07);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.03);
 }
 
 .subscription-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1.3889rem;
-  margin-bottom: 1.5972rem;
+  gap: 1.5rem;
+  padding: 1.875rem 1.875rem 0;
 }
 
 .subscription-title-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.625rem;
+  gap: 0.6944rem;
 }
 
 .subscription-title-row h5 {
   margin: 0;
-  color: #1f2937;
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.1;
+  color: #171717;
+  font-size: 1.4583rem;
+  font-weight: 500;
+  line-height: 1.15;
 }
-:global(.dark) .subscription-title-row h5,
-:global(.darkmode) .subscription-title-row h5 { color: rgba(255,255,255,0.92); }
-
-.subscription-renewal,
-.tariff-section-head p {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3472rem;
-  margin: 0.6944rem 0 0;
-  color: rgba(105,105,105,0.62);
-  font-size: 0.9028rem;
-  font-weight: 600;
-}
-:global(.dark) .subscription-renewal,
-:global(.darkmode) .subscription-renewal,
-:global(.dark) .tariff-section-head p,
-:global(.darkmode) .tariff-section-head p { color: rgba(255,255,255,0.55); }
 
 .subscription-status,
-.plan-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3472rem;
-  min-height: 1.5972rem;
-  padding: 0 0.7639rem;
-  border-radius: 0.3472rem;
-  font-size: 0.7639rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
 .subscription-period {
   display: inline-flex;
   align-items: center;
-  min-height: 1.5972rem;
-  padding: 0 0.7639rem;
-  border-radius: 0.3472rem;
-  background: #f4f5f7;
-  color: #9ca3af;
+  min-height: 1.875rem;
+  padding: 0 0.9028rem;
+  border-radius: 0.2083rem;
   font-size: 0.9028rem;
-  font-weight: 700;
+  font-weight: 600;
+  white-space: nowrap;
 }
-.subscription-status--active,
-.subscription-status--wl,
-.plan-badge--current {
-  background: rgba(22, 163, 74, 0.12);
-  color: #15803d;
+
+.subscription-status {
+  background: #eaffef;
+  color: #13a548;
 }
-.subscription-status--trial {
-  background: rgba(37,99,235,0.10);
-  color: #2563eb;
-}
+
 .subscription-status--past_due,
 .subscription-status--canceled,
 .subscription-status--expired {
-  background: rgba(245,158,11,0.14);
+  background: #fff1d9;
   color: #b45309;
 }
-.plan-badge--popular {
-  background: rgba(255,255,255,0.20);
-  color: #fff;
+
+.subscription-period {
+  background: #f4f6f8;
+  color: rgba(105, 105, 105, 0.64);
 }
-.plan-badge--light {
-  background: rgba(255,255,255,0.22);
-  color: #fff;
+
+.subscription-renewal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
+  margin: 0.9028rem 0 0;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 1.0417rem;
+  font-weight: 600;
+}
+
+.subscription-renewal svg {
+  width: 1.0417rem;
+  height: 1.0417rem;
 }
 
 .subscription-change-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.0556rem;
-  padding: 0 1.1806rem;
-  border: 1px solid rgba(37, 99, 235, 0.22);
+  min-height: 3.2639rem;
+  padding: 0 1.4583rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 0.8333rem;
   background: #fff;
   color: #2563eb;
-  font-size: 0.9028rem;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 0.9722rem;
+  font-weight: 600;
   cursor: pointer;
-}
-.subscription-change-btn:hover { background: #ecf3fe; }
-:global(.dark) .subscription-change-btn,
-:global(.darkmode) .subscription-change-btn {
-  border-color: rgba(74,122,255,0.3);
-  background: rgba(74,122,255,0.12);
-  color: #8fb0ff;
 }
 
 .usage-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
+  gap: 1.6667rem;
+  padding: 1.8056rem 1.875rem 1.5972rem;
 }
+
 .usage-tile {
-  min-width: 0;
-  min-height: 8.2639rem;
-  padding: 1.3194rem 1.5278rem;
-  border-radius: 1rem;
-  background: #f5f7f9;
+  min-height: 10.1389rem;
+  padding: 1.5972rem 1.875rem;
+  border-radius: 1.1111rem;
 }
-:global(.dark) .usage-tile,
-:global(.darkmode) .usage-tile { background: rgba(255,255,255,0.06); }
-.usage-tile--projects { background: #fff3df; }
-.usage-tile--cabinets { background: #edf5ff; }
-.usage-tile--ai { background: #fff0f2; }
-.usage-tile--users { background: #f4e9ff; }
+
+.usage-tile--projects { background: #fff3df; color: #78622d; }
+.usage-tile--cabinets { background: #edf6ff; color: #1f5388; }
+.usage-tile--ai { background: #fff0f2; color: #702332; }
+.usage-tile--users { background: #f4e7ff; color: #70419b; }
+
 .usage-tile__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6944rem;
-  color: #64748b;
-  font-size: 0.9722rem;
+  gap: 1rem;
+  font-size: 1.0417rem;
   font-weight: 700;
 }
+
 .usage-tile__head i {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.0833rem;
-  height: 2.0833rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 0.3472rem;
-  background: rgba(255, 255, 255, 0.56);
-  color: #2563eb;
-  font-size: 0.8333rem;
-  font-style: normal;
-  line-height: 1;
+  background: rgba(255, 255, 255, 0.55);
 }
-.usage-tile--projects .usage-tile__head i { color: #d97706; }
-.usage-tile--cabinets .usage-tile__head i { color: #3b82f6; }
-.usage-tile--ai .usage-tile__head i { color: #e2546d; }
-.usage-tile--users .usage-tile__head i { color: #9b6ed3; }
+
+.usage-tile__head svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .usage-tile__value {
   display: flex;
   align-items: baseline;
   gap: 0.4167rem;
-  margin-top: 0.3472rem;
+  margin-top: 0.6944rem;
 }
+
 .usage-tile__value strong {
-  color: #171717;
-  font-size: 1.9444rem;
+  color: currentColor;
+  font-size: 2.0833rem;
+  font-weight: 700;
   line-height: 1;
 }
+
 .usage-tile__value span {
-  color: #9ca3af;
-  font-size: 1.1111rem;
-  font-weight: 700;
+  color: rgba(105, 105, 105, 0.55);
+  font-size: 1.25rem;
+  font-weight: 600;
 }
-:global(.dark) .usage-tile__head,
-:global(.darkmode) .usage-tile__head { color: rgba(255,255,255,0.56); }
-:global(.dark) .usage-tile__value strong,
-:global(.darkmode) .usage-tile__value strong { color: rgba(255,255,255,0.9); }
+
 .usage-tile__bar {
-  height: 0.4167rem;
-  margin-top: 0.7639rem;
+  height: 0.625rem;
+  margin-top: 1.1111rem;
   overflow: hidden;
-  border-radius: 1rem;
-  background: rgba(37,99,235,0.10);
+  border-radius: 99rem;
+  background: rgba(255, 255, 255, 0.68);
 }
+
 .usage-tile__bar i {
   display: block;
   height: 100%;
+  min-width: 0.625rem;
   border-radius: inherit;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
 }
-.usage-tile--projects .usage-tile__bar i { background: #f7b267; }
-.usage-tile--cabinets .usage-tile__bar i { background: #70a8e8; }
-.usage-tile--ai .usage-tile__bar i { background: #e9a1ad; }
-.usage-tile--users .usage-tile__bar i { background: #b49ad2; }
-.usage-tile__fill--warn { background: #f59e0b !important; }
+
+.usage-tile--projects .usage-tile__bar i { background: #ffb15d; }
+.usage-tile--cabinets .usage-tile__bar i { background: #6da7e6; }
+.usage-tile--ai .usage-tile__bar i { background: #e9a4ad; }
+.usage-tile--users .usage-tile__bar i { background: #aa8ac5; }
+
 .usage-tile p {
-  margin: 0.4861rem 0 0;
-  color: rgba(105,105,105,0.58);
-  font-size: 0.8333rem;
-  font-weight: 700;
+  margin: 1.1111rem 0 0;
+  color: currentColor;
+  font-size: 0.9722rem;
+  font-weight: 500;
+  opacity: 0.74;
 }
-:global(.dark) .usage-tile p,
-:global(.darkmode) .usage-tile p { color: rgba(255,255,255,0.42); }
 
 .subscription-channel-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.9722rem;
-  min-height: 2.9167rem;
-  margin-bottom: 1.25rem;
-  padding: 0.625rem 1.5278rem;
+  gap: 1.0417rem;
+  min-height: 3.4722rem;
+  margin: 0 1.875rem 1.5972rem;
+  padding: 0.5556rem 1.4583rem;
   border-radius: 0.8333rem;
   background: #f4f6f8;
 }
-:global(.dark) .subscription-channel-row,
-:global(.darkmode) .subscription-channel-row { background: rgba(255,255,255,0.05); }
-.subscription-channel-row > span {
-  color: #696969;
-  font-size: 0.9028rem;
-  font-weight: 700;
-}
+
+.subscription-channel-row > span,
 .subscription-channel-row em {
-  color: #9ca3af;
-  font-size: 0.8333rem;
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 1.0417rem;
   font-style: normal;
-  font-weight: 700;
+  font-weight: 600;
+}
+
+.subscription-channel-row em {
   text-align: right;
 }
 
-.subscription-footer {
-  display: grid;
-  gap: 0.7639rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid rgba(15,23,42,0.06);
-}
-:global(.dark) .subscription-footer,
-:global(.darkmode) .subscription-footer { border-top-color: rgba(255,255,255,0.08); }
-.payment-line {
+.channel-chip-list {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 3.6111rem;
-}
-.payment-line--empty .payment-card-icon {
-  background: linear-gradient(90deg, #e5e7eb 0 35%, #f5f7f9 35% 100%);
-}
-.payment-line--empty .payment-method strong {
-  color: #9ca3af;
-}
-.payment-method {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 0.4167rem;
-  color: #4b5563;
-  font-size: 0.9028rem;
-  font-weight: 700;
-}
-.payment-method strong {
-  color: #1f2937;
-  font-weight: 800;
-}
-.payment-card-icon {
-  width: 1.1806rem;
-  height: 0.625rem;
-  border-radius: 2rem;
-  background: linear-gradient(90deg, #7fa0f0 0 42%, #dce6ff 42% 100%);
-  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.12);
-  flex-shrink: 0;
-}
-.subscription-footer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.625rem;
   flex-wrap: wrap;
+  gap: 0.8333rem;
 }
-.subscription-footer-actions button {
-  min-height: 3.3333rem;
-  padding: 0 1.25rem;
-  border: none;
-  border-radius: 0.8333rem;
-  background: #2563eb;
-  color: #fff;
-  font-size: 0.9028rem;
-  font-weight: 800;
-  cursor: not-allowed;
-}
-.documents-line {
-  display: flex;
-  align-items: center;
-  gap: 0.6944rem;
-  color: #c7ced8;
-  font-size: 0.9028rem;
-  font-weight: 700;
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-.documents-line strong {
-  padding: 0.3472rem 0.8333rem;
-  border-radius: 2.7778rem;
-  background: rgba(245,247,249,0.85);
-  color: #d1d5db;
-  font-size: 0.7639rem;
-}
-.subscription-note,
-.subscription-warning {
-  margin-top: 0.1389rem;
-  padding: 0.9028rem 1.5278rem;
-  border-radius: 0.8333rem;
-  color: #64748b;
-  background: #f4f6f8;
-  font-size: 0.9028rem;
-  font-weight: 700;
-}
-.subscription-warning {
-  color: #b45309;
-  background: rgba(245,158,11,0.12);
-}
-:global(.dark) .payment-method,
-:global(.darkmode) .payment-method,
-:global(.dark) .subscription-channel-row > span,
-:global(.darkmode) .subscription-channel-row > span { color: rgba(255,255,255,0.64); }
-:global(.dark) .payment-method strong,
-:global(.darkmode) .payment-method strong { color: rgba(255,255,255,0.9); }
-:global(.dark) .subscription-footer-actions button,
-:global(.darkmode) .subscription-footer-actions button {
-  border-color: rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.7);
-}
-:global(.dark) .subscription-note,
-:global(.darkmode) .subscription-note { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.54); }
 
-.subscription-rows {
-  display: grid;
-  gap: 0.625rem;
-}
-.subscription-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 3.3333rem;
-  padding: 0.625rem 0.8333rem;
-  border-radius: 0.8333rem;
-  background: #fafbfc;
-}
-:global(.dark) .subscription-row,
-:global(.darkmode) .subscription-row { background: rgba(255,255,255,0.04); }
-.subscription-row > span {
-  color: #696969;
-  font-size: 0.9028rem;
-  font-weight: 600;
-}
-:global(.dark) .subscription-row > span,
-:global(.darkmode) .subscription-row > span { color: rgba(255,255,255,0.62); }
-.subscription-row--disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.channel-chip-list,
-.subscription-muted-action {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.4861rem;
-  min-width: 0;
-}
-.channel-chip-list em {
-  color: rgba(105,105,105,0.48);
-  font-size: 0.7639rem;
-  font-style: normal;
-}
 .channel-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.3472rem;
   min-height: 1.8056rem;
-  padding: 0 0.625rem;
-  border-radius: 0.5556rem;
-  font-size: 0.7639rem;
+  padding: 0 0.6944rem;
+  border-radius: 99rem;
+  background: #fff;
+  color: #174a7a;
+  font-size: 0.8333rem;
+  font-weight: 500;
+}
+
+.channel-chip img {
+  width: 1.0417rem;
+  height: 1.0417rem;
+  object-fit: contain;
+}
+
+.subscription-footer {
+  display: grid;
+  gap: 0.6944rem;
+  padding: 1.25rem 1.875rem 1.6667rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.payment-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 3.4722rem;
+}
+
+.payment-line--empty {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.payment-line--empty .payment-renewal {
+  display: none;
+}
+
+.payment-method {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.6944rem;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 1.0417rem;
+  font-weight: 600;
+}
+
+.payment-method strong {
+  color: #5f6368;
   font-weight: 700;
 }
-.channel-chip img {
-  width: 0.9722rem;
-  height: 0.9722rem;
-  object-fit: contain;
+
+.payment-toggle {
+  width: 1.25rem;
+  height: 0.7639rem;
+  border-radius: 99rem;
+  background: linear-gradient(90deg, #bfcfff 0 45%, #6f8be8 45% 100%);
   flex-shrink: 0;
 }
-.channel-chip--yd { background: #fff3db; color: #9a5a0a; }
-.channel-chip--vk { background: #e6f2ff; color: #1f5f9f; }
-.channel-chip--mt { background: #edf7f1; color: #167147; }
-.subscription-muted-action strong,
-.subscription-row strong {
-  color: #171717;
-  font-size: 0.9028rem;
-}
-:global(.dark) .subscription-muted-action strong,
-:global(.darkmode) .subscription-muted-action strong,
-:global(.dark) .subscription-row strong,
-:global(.darkmode) .subscription-row strong { color: rgba(255,255,255,0.82); }
-.subscription-muted-action button {
-  min-height: 2.0833rem;
-  padding: 0 0.6944rem;
-  border: 1px solid rgba(0,0,0,0.06);
-  border-radius: 0.5556rem;
-  background: #fff;
-  color: rgba(105,105,105,0.48);
+
+.payment-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0 0.2778rem;
+  border-radius: 0.1389rem;
+  color: #149f62;
   font-size: 0.7639rem;
+  font-weight: 900;
+}
+
+.payment-mask,
+.payment-exp,
+.payment-renewal {
+  color: rgba(105, 105, 105, 0.5);
+  font-size: 1.0417rem;
+  font-weight: 500;
+}
+
+.subscription-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.0417rem;
+}
+
+.subscription-footer-actions button {
+  min-height: 3.3333rem;
+  padding: 0 1.3889rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.8333rem;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.9722rem;
+  font-weight: 600;
   cursor: not-allowed;
+}
+
+.payment-line--empty .subscription-footer-actions button {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.documents-line {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  color: rgba(105, 105, 105, 0.22);
+  font-size: 1.0417rem;
+  font-weight: 600;
+}
+
+.documents-line strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.0139rem;
+  padding: 0 1.0417rem;
+  border-radius: 0.3472rem;
+  background: rgba(245, 247, 249, 0.58);
+  color: rgba(105, 105, 105, 0.18);
+  font-size: 0.9028rem;
+  font-weight: 600;
+}
+
+.subscription-note {
+  min-height: 3.4722rem;
+  display: flex;
+  align-items: center;
+  padding: 0 1.4583rem;
+  border-radius: 0.8333rem;
+  background: #f4f6f8;
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 1.0417rem;
+  font-weight: 500;
+}
+
+.plans-section {
+  width: 100%;
 }
 
 .tariff-section-head {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.7361rem;
+  gap: 2rem;
+  margin-bottom: 2.2222rem;
 }
+
 .tariff-section-head h4 {
   margin: 0;
   color: #171717;
-  font-size: 1.6667rem;
+  font-size: 2.0833rem;
   font-weight: 700;
+  line-height: 1.1;
 }
-:global(.dark) .tariff-section-head h4,
-:global(.darkmode) .tariff-section-head h4 { color: rgba(255,255,255,0.92); }
 
-/* ── Tab content fade transition ── */
-.tab-fade-enter-active {
-  transition: opacity 0.5s ease-in;
-}
-.tab-fade-leave-active {
-  transition: opacity 0.3s ease-out;
-}
-.tab-fade-enter-from,
-.tab-fade-leave-to {
-  opacity: 0;
+.tariff-section-head p {
+  margin: 0.6944rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
 }
 
 .billing-switch {
   display: inline-flex;
   align-items: center;
-  gap: 0.5556rem;
-  min-height: 3.1944rem;
-  padding: 0.2778rem;
-  border-radius: 1rem;
-  background: rgba(255,255,255,0.86);
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.05);
-}
-:global(.dark) .billing-switch,
-:global(.darkmode) .billing-switch {
-  background: rgba(255,255,255,0.06);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  gap: 1.0417rem;
 }
 
-/* ── Tab switcher ── */
-.tab-btn {
+.billing-switch__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  column-gap: 0.6944rem;
-  min-height: 2.6389rem;
-  padding: 0.5556rem 1.0417rem;
-  font-size: 0.9028rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 0.7639rem;
-  background-color: transparent;
-  color: #5f5f5f;
-  cursor: pointer;
-  transition: color 0.3s, background-color 0.3s;
-}
-.tab-btn:hover { color: #2563eb; }
-:global(.dark) .tab-btn {
-  background-color: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.72);
-}
-:global(.dark) .tab-btn:hover {
-  color: #4A7AFF;
-}
-.tab-btn--active {
-  background-color: #2563eb;
-  color: #fff;
-}
-.tab-btn--active:hover { color: #fff; }
-:global(.dark) .tab-btn--active {
-  background-color: #2563eb;
-  color: #fff;
-}
-
-.tab-badge {
-  font-size: 0.6944rem;
-  line-height: 1.1;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  padding: 0.3472rem 0.6944rem;
-  border-radius: 2.7778rem;
-  color: #fff;
-  transition: background 0.3s, color 0.3s;
-}
-.tab-badge--active {
-  background: #fff;
-  color: #2563eb;
-}
-
-/* Figma tariff cards */
-.figma-plan-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.7361rem;
-  align-items: start;
-  margin-bottom: 1.6667rem;
-  overflow: visible;
-}
-.figma-plan-card {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  height: clamp(34rem, 35vw, 43.6111rem);
-  overflow: visible;
-}
-.figma-plan-card img {
-  display: block;
-  width: auto;
-  height: 100%;
-  max-width: none;
-  object-fit: contain;
-  pointer-events: none;
-  user-select: none;
-}
-.figma-plan-card--basic {
-  z-index: 1;
-}
-.figma-plan-card--basic img {
-  transform: translateX(-0.9722rem);
-}
-.figma-plan-hotspot,
-.figma-wl-hotspot {
-  position: absolute;
+  gap: 0.5556rem;
+  min-height: 3.4722rem;
+  padding: 0 1.5278rem;
   border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
   border-radius: 0.8333rem;
-}
-.figma-plan-hotspot:focus-visible,
-.figma-wl-hotspot:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.45);
-  outline-offset: 2px;
-}
-.figma-plan-hotspot:disabled {
-  cursor: default;
-}
-.figma-plan-hotspot--default {
-  left: 7.5%;
-  right: 7.5%;
-  bottom: 5.7%;
-  height: 8.1%;
-}
-.figma-plan-hotspot--basic {
-  left: 5.2%;
-  width: 55.8%;
-  bottom: 5.2%;
-  height: 7.9%;
-}
-.figma-wl-card {
-  position: relative;
-  display: block;
-  width: 100%;
-  margin: 0;
-  border-radius: 2rem;
-  overflow: hidden;
   background: #fff;
-}
-.figma-wl-card img {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-}
-.figma-wl-hotspot {
-  right: 2.5%;
-  bottom: 10.6%;
-  width: 28.3%;
-  height: 12.7%;
+  color: #5f6368;
+  font-size: 0.9722rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-/* ── Plan cards ── */
+.billing-switch__btn--active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.billing-switch__btn small {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.1111rem;
+  padding: 0 0.4861rem;
+  border-radius: 99rem;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
 .plan-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2.0833rem;
-  margin-bottom: 2.0833rem;
-}
-.plan-card {
-  height: 100%;
-  background-color: #fff;
-  min-height: 43.6111rem;
-  padding: 2.2222rem 2.0833rem;
-  border-radius: 2.0833rem;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid transparent;
-}
-:global(.dark) .plan-card:not(.plan-card--primary),
-:global(.darkmode) .plan-card:not(.plan-card--primary),
-:global(.dark) .wl-card,
-:global(.darkmode) .wl-card {
-  background-color: #2C2F3D;
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-:global(.dark) .plan-card:not(.plan-card--primary) :not(.gradient-text),
-:global(.darkmode) .plan-card:not(.plan-card--primary) :not(.gradient-text),
-:global(.dark) .wl-card :not(.gradient-text),
-:global(.darkmode) .wl-card :not(.gradient-text) {
-  color: rgba(255,255,255,0.84) !important;
-}
-:global(.dark) .plan-card:not(.plan-card--primary) .text-\[rgba\(105\,105\,105\,0\.56\)\],
-:global(.darkmode) .plan-card:not(.plan-card--primary) .text-\[rgba\(105\,105\,105\,0\.56\)\],
-:global(.dark) .wl-card .text-\[rgba\(105\,105\,105\,0\.56\)\],
-:global(.darkmode) .wl-card .text-\[rgba\(105\,105\,105\,0\.56\)\] {
-  color: rgba(255,255,255,0.55) !important;
-}
-.plan-card--primary {
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-}
-.plan-card--current {
-  border-color: rgba(37,99,235,0.42) !important;
-  box-shadow: 0 0 0 0.2083rem rgba(37,99,235,0.08), 0 1rem 2.5rem rgba(15,23,42,0.06);
+  align-items: stretch;
 }
 
-/* ── Two-circles icon ── */
+.plan-card {
+  position: relative;
+  display: flex;
+  min-height: 47.9167rem;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 2.4306rem 2.2222rem 1.9444rem;
+  border-radius: 2.0833rem;
+  background: #fff;
+}
+
+.plan-card--basic {
+  background: #2563eb;
+  color: #fff;
+}
+
+.plan-card--basic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 1px, transparent 1px);
+  background-size: 1.0417rem 1.0417rem;
+}
+
+.plan-fox {
+  position: absolute;
+  top: -2.6389rem;
+  right: -5.2083rem;
+  width: 22.2222rem;
+  opacity: 0.34;
+  filter: grayscale(1) sepia(1) hue-rotate(170deg) saturate(3) brightness(1.25);
+  pointer-events: none;
+}
+
+.plan-title {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.0417rem;
+}
+
+.plan-title h5 {
+  margin: 0;
+  color: inherit;
+  font-size: 1.5278rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
 .two-circles {
   display: inline-block;
   width: 1.25rem;
   height: 0.8333rem;
   position: relative;
   flex-shrink: 0;
+  margin-top: 0.2778rem;
 }
+
 .two-circles::before,
 .two-circles::after {
   content: '';
+  position: absolute;
+  top: 0;
   width: 0.8333rem;
   height: 0.8333rem;
   border-radius: 50%;
-  position: absolute;
-  top: 0;
 }
-.two-circles::before { background-color: #bccbf7; left: 0; }
-.two-circles::after  { background-color: #5171d0; right: 0; }
-.two-circles--light::before { background-color: rgba(255, 255, 255, 0.5); }
-.two-circles--light::after  { background-color: #fff; }
 
-/* ── Feature list ── */
-.feature-row {
-  display: flex;
-  align-items: flex-start;
-  column-gap: 0.6944rem;
-  min-height: 3.6806rem;
-  padding: 1.1111rem 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+.two-circles::before { left: 0; background: #a8bbf2; }
+.two-circles::after { right: 0; background: #5e7fd8; }
+.two-circles--light::before { background: rgba(255, 255, 255, 0.55); }
+.two-circles--light::after { background: #fff; }
+
+.plan-price {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 2.4306rem;
+}
+
+.plan-price strong {
+  color: inherit;
+  font-size: 3.4722rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.plan-price span {
+  color: rgba(105, 105, 105, 0.52);
+  font-size: 1.0417rem;
+  font-weight: 400;
+}
+
+.plan-card--basic .plan-price span,
+.plan-card--basic .plan-features,
+.plan-card--basic .plan-card__footer p {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.plan-features {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  margin: 2.7083rem 0 0;
+  padding: 0;
   list-style: none;
 }
-:global(.dark) .plan-card:not(.plan-card--primary) .feature-row,
-:global(.darkmode) .plan-card:not(.plan-card--primary) .feature-row,
-:global(.dark) .wl-card .feature-row,
-:global(.darkmode) .wl-card .feature-row {
-  border-bottom-color: rgba(255,255,255,0.10);
-}
-.feature-row:last-child { border-bottom: 0; }
-.feature-row--white { border-bottom-color: rgba(255, 255, 255, 0.13); }
 
-/* ── Feature dot (circle with + ) ── */
+.plan-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.0417rem;
+  min-height: 3.75rem;
+  padding: 1.0417rem 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  color: #5f6368;
+  font-size: 1.0417rem;
+  font-weight: 500;
+  line-height: 1.28;
+  white-space: pre-line;
+}
+
+.plan-card--basic .plan-features li {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
 .feature-dot {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.6944rem;
-  height: 0.6944rem;
-  border-radius: 50%;
-  background-color: #2563eb;
-  box-shadow: 0 0 0 3px #f5f7f9;
-  flex-shrink: 0;
+  width: 0.625rem;
+  height: 0.625rem;
   margin: 0.2778rem;
-  position: relative;
+  border-radius: 50%;
+  background: #5e7fd8;
+  box-shadow: 0 0 0 3px #edf3ff;
+  flex-shrink: 0;
 }
-:global(.dark) .plan-card:not(.plan-card--primary) .feature-dot,
-:global(.darkmode) .plan-card:not(.plan-card--primary) .feature-dot,
-:global(.dark) .wl-card .feature-dot,
-:global(.darkmode) .wl-card .feature-dot {
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+
+.plan-card--basic .feature-dot {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
 }
+
 .feature-dot::before,
 .feature-dot::after {
   content: '';
   position: absolute;
   left: 50%;
   top: 50%;
+  background: #fff;
+  border-radius: 99rem;
   transform: translate(-50%, -50%);
-  background: #fff;
-  border-radius: 1px;
 }
+
 .feature-dot::before { width: 0.2778rem; height: 1px; }
-.feature-dot::after  { width: 1px; height: 0.2778rem; }
-.feature-dot--white  { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25); }
+.feature-dot::after { width: 1px; height: 0.2778rem; }
+.plan-card--basic .feature-dot::before,
+.plan-card--basic .feature-dot::after { background: #2563eb; }
 
-/* ── Gradient text ── */
-.gradient-text {
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Plan button (gradient) ── */
-.plan-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3.1944rem;
-  padding: 0 1.1806rem;
-  font-size: 0.9028rem;
-  font-weight: 500;
-  line-height: 1.1;
-  color: #fff;
-  border: none;
-  border-radius: 0.8333rem;
-  cursor: pointer;
+.plan-card__footer {
   position: relative;
-  overflow: hidden;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  transition: transform 0.75s;
-}
-.plan-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 0.8333rem;
-  background: linear-gradient(270deg, #38e1ff 0.35%, #4abeff 32.08%, #5187ff 96.51%);
-  opacity: 0;
-  transition: opacity 1s;
-}
-.plan-btn:hover { transform: scale(1.03); }
-.plan-btn:hover::after { opacity: 1; }
-.plan-btn:active { transform: scale(0.97); transition: transform 0s; }
-.plan-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-.plan-btn--current {
-  background: #eef4ff;
-  color: #2563eb;
-}
-.plan-btn--current::after { display: none; }
-:global(.dark) .plan-btn--current,
-:global(.darkmode) .plan-btn--current {
-  background: rgba(74,122,255,0.12);
-  color: #8fb0ff;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 2.0833rem;
 }
 
-/* ── Plan button white (for primary card) ── */
-.plan-btn-white {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3.1944rem;
-  padding: 0 1.1806rem;
-  font-size: 0.9028rem;
-  font-weight: 500;
-  line-height: 1.1;
-  border: none;
-  border-radius: 0.8333rem;
-  cursor: pointer;
-  background: #fff;
-  transition: background-color 0.5s, transform 0.75s;
-}
-.plan-btn-white:hover {
-  background-color: #5187ff;
-  transform: scale(1.03);
-}
-.plan-btn-white:hover .gradient-text {
-  background: none;
-  -webkit-text-fill-color: #fff;
-}
-.plan-btn-white:active { transform: scale(0.97); transition: transform 0s; }
-.plan-btn-white:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-.plan-btn-white--current .gradient-text {
-  background: none;
-  -webkit-text-fill-color: #2563eb;
-  color: #2563eb;
-}
-:global(.dark) .plan-btn-white,
-:global(.darkmode) .plan-btn-white {
-  background-color: rgba(255,255,255,0.92);
-}
-
-.wl-card__badge {
+.plan-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 1.8056rem;
-  padding: 0 0.6944rem;
-  border-radius: 2.7778rem;
-  background: rgba(37,99,235,0.08);
-  color: #2563eb;
-  font-size: 0.7639rem;
-  font-weight: 800;
-  margin-bottom: 0.6944rem;
+  justify-content: center;
+  gap: 0.6944rem;
+  width: 100%;
+  min-height: 3.4722rem;
+  padding: 0 1.3889rem;
+  border: 0;
+  border-radius: 0.8333rem;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.wl-card {
-  overflow: hidden;
+.plan-btn--light {
+  background: #fff;
+  color: #2563eb;
 }
-.wl-card__grid {
+
+.plan-btn--current {
+  cursor: not-allowed;
+}
+
+.button-idea-icon {
+  position: relative;
+  display: inline-flex;
+  width: 0.9028rem;
+  height: 0.9028rem;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.button-idea-icon::before,
+.button-idea-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.button-idea-icon::before {
+  bottom: -0.2778rem;
+  width: 0.4167rem;
+  height: 0.1389rem;
+  border-radius: 99rem;
+}
+
+.button-idea-icon::after {
+  top: 0.2083rem;
+  width: 0.1389rem;
+  height: 0.2778rem;
+  border-radius: 99rem;
+}
+
+.plan-card__footer p {
+  margin: 1.0417rem 0 0;
+  color: #0c2b60;
+  text-align: center;
+  font-size: 0.8333rem;
+  font-weight: 600;
+}
+
+.plan-card__footer p strong {
+  color: #2563eb;
+}
+
+.plan-card--basic .plan-card__footer p strong {
+  color: #fff;
+}
+
+.white-label-card {
   display: grid;
-  grid-template-columns: minmax(17rem, 1.05fr) minmax(18rem, 1fr) minmax(16rem, 0.86fr);
-  gap: 2.0833rem;
+  grid-template-columns: minmax(15rem, 1fr) minmax(28rem, 1.2fr) minmax(18rem, 0.9fr);
+  gap: 2.2222rem;
   align-items: stretch;
+  margin-top: 2.0833rem;
+  padding: 2.4306rem 2.2222rem;
+  border-radius: 2.0833rem;
+  background: #fff;
 }
-.wl-card__content {
+
+.white-label-card__left,
+.white-label-card__right {
   display: flex;
-  flex-direction: column;
-  gap: 1.3889rem;
   min-width: 0;
+  flex-direction: column;
 }
-.wl-card__preview {
+
+.white-label-card__right {
+  padding-left: 1rem;
+}
+
+.white-label-card__preview {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 20.8333rem;
-  margin: -0.6944rem 0;
-  border-radius: 1.3889rem;
-  background: linear-gradient(180deg, rgba(245,247,249,0.85), rgba(236,243,254,0.35));
+  min-height: 22rem;
 }
-.wl-card__preview img {
-  display: block;
-  width: min(100%, 27.7778rem);
-  height: 24.3056rem;
+
+.white-label-card__preview img {
+  width: 100%;
+  max-width: 31.25rem;
   object-fit: contain;
+  opacity: 0.9;
 }
-.wl-card__aside {
+
+.white-label-floating-list {
+  position: absolute;
+  left: 50%;
+  bottom: 0.2778rem;
+  width: min(21.5rem, 72%);
+  padding: 1.0417rem 1.3889rem;
+  border-radius: 0.8333rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1.3889rem 3.4722rem rgba(15, 23, 42, 0.08);
+  transform: translateX(-42%) rotate(-1deg);
+}
+
+.white-label-floating-list p {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 0.5556rem 0 0;
-}
-.wl-card__badge--active {
-  background: rgba(0,255,78,0.10);
-  color: #16a34a;
-}
-:global(.dark) .wl-card__badge,
-:global(.darkmode) .wl-card__badge {
-  background: rgba(74,122,255,0.14);
-  color: #8fb0ff;
-}
-:global(.dark) .wl-card__badge--active,
-:global(.darkmode) .wl-card__badge--active {
-  background: rgba(0,255,78,0.13);
-  color: #5ee886;
+  align-items: flex-start;
+  gap: 0.8333rem;
+  margin: 0;
+  padding: 0.4167rem 0;
+  color: #0c2b60;
+  font-size: 1.0417rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: pre-line;
 }
 
-@media (max-width: 1024px) {
-  .usage-grid,
-  .figma-plan-grid,
-  .plan-grid,
-  .wl-card__grid { grid-template-columns: 1fr; }
-  .subscription-card {
-    margin-bottom: 3.125rem;
-  }
-  .subscription-head,
-  .subscription-row,
-  .payment-line,
-  .subscription-channel-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .subscription-channel-row {
-    display: flex;
-  }
-  .channel-chip-list,
-  .subscription-muted-action,
-  .subscription-footer-actions {
-    justify-content: flex-start;
-  }
-  .tariff-section-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .billing-switch {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .tab-btn {
-    flex: 1;
-  }
-  .plan-card {
-    min-height: auto;
-  }
-  .figma-plan-card {
-    height: auto;
-    min-height: 0;
-  }
-  .figma-plan-card img {
-    width: min(100%, 28rem);
-    height: auto;
-  }
-  .figma-plan-card--basic img {
-    width: min(100%, 32rem);
-    transform: none;
-  }
-  .figma-plan-hotspot--default {
-    left: 11%;
-    right: 11%;
-  }
-  .figma-plan-hotspot--basic {
-    left: 15%;
-    width: 70%;
-  }
-  .figma-wl-card {
-    border-radius: 1.25rem;
-    overflow-x: auto;
-  }
-  .figma-wl-card img {
-    min-width: 48rem;
-  }
-  .wl-card__preview {
-    min-height: 15.2778rem;
-  }
-  .wl-card__preview img {
-    height: 17.3611rem;
-  }
+.plan-features--wl {
+  margin-top: 2.3611rem;
 }
 
-@media (min-width: 1025px) and (max-width: 1480px) {
+.white-label-card__copy {
+  margin: 2.7778rem 0 auto;
+  max-width: 16.6667rem;
+  color: rgba(105, 105, 105, 0.66);
+  font-size: 1.0417rem;
+  font-weight: 500;
+  line-height: 1.32;
+}
+
+.tab-fade-enter-active { transition: opacity 0.35s ease; }
+.tab-fade-leave-active { transition: opacity 0.2s ease; }
+.tab-fade-enter-from,
+.tab-fade-leave-to { opacity: 0; }
+
+@media (max-width: 1480px) {
   .usage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
   .plan-grid {
-    gap: 1.0417rem;
+    gap: 1.25rem;
   }
-  .figma-plan-grid {
-    gap: 1rem;
+}
+
+@media (max-width: 1180px) {
+  .plan-grid,
+  .white-label-card {
+    grid-template-columns: 1fr;
   }
-  .figma-plan-card {
-    height: clamp(30rem, 34vw, 38.5rem);
+
+  .plan-card {
+    min-height: auto;
   }
-  .wl-card__grid {
-    grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 0.9fr);
+
+  .white-label-card__right {
+    padding-left: 0;
   }
-  .wl-card__aside {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.7fr);
-    align-items: end;
-    gap: 1.3889rem;
+}
+
+@media (max-width: 760px) {
+  .subscription-head,
+  .tariff-section-head,
+  .payment-line,
+  .subscription-channel-row {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-footer-actions {
+    justify-content: flex-start;
+  }
+
+  .billing-switch {
+    width: 100%;
+  }
+
+  .billing-switch__btn {
+    flex: 1;
   }
 }
 </style>
