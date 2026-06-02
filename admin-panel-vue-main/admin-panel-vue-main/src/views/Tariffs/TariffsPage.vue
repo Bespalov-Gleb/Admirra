@@ -33,10 +33,14 @@
         </div>
 
         <div class="usage-grid">
-          <div v-for="item in subscriptionUsageTiles" :key="item.key" class="usage-tile">
-            <div class="usage-tile__top">
+          <div v-for="item in subscriptionUsageTiles" :key="item.key" class="usage-tile" :class="`usage-tile--${item.theme}`">
+            <div class="usage-tile__head">
               <span>{{ item.label }}</span>
-              <strong>{{ item.used }} / {{ item.limit }}</strong>
+              <i aria-hidden="true">{{ item.icon }}</i>
+            </div>
+            <div class="usage-tile__value">
+              <strong>{{ item.used }}</strong>
+              <span>/ {{ item.limit }}</span>
             </div>
             <div class="usage-tile__bar">
               <i :class="{ 'usage-tile__fill--warn': item.warn }" :style="{ width: item.percent + '%' }"></i>
@@ -46,9 +50,12 @@
         </div>
 
         <div class="subscription-channel-row">
-          <span>Доступные каналы</span>
+          <span>Доступные каналы:</span>
           <div class="channel-chip-list">
-            <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]">{{ channel.label }}</span>
+            <span v-for="channel in availableChannels" :key="channel.label" :class="['channel-chip', channel.className]">
+              <img v-if="channel.icon" :src="channel.icon" alt="" />
+              {{ channel.label }}
+            </span>
           </div>
           <em>{{ currentPlanCode === 'start' ? 'Все каналы — от «Базового»' : 'Все каналы доступны' }}</em>
         </div>
@@ -65,20 +72,20 @@
               <span v-else>· для автопродления</span>
             </div>
             <div class="subscription-footer-actions">
-              <button type="button" disabled>{{ hasPaymentMethod ? 'Изменить карту' : 'Привязать карту' }}</button>
+              <button type="button" disabled>{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
               <button v-if="hasPaymentMethod" type="button" disabled>{{ subscription.autorenew ? 'Отменить автопрод.' : 'Включить автопрод.' }}</button>
             </div>
           </div>
           <div class="documents-line" title="Будет позже">
             <span>Документы и оплата по счёту</span>
-            <strong>будет позже</strong>
+            <strong>Будет позже</strong>
           </div>
         </div>
 
         <div v-if="subscriptionStatusKey === 'past_due'" class="subscription-warning">
           Не удалось списать оплату. Обновите карту, чтобы сохранить доступ после грейс-периода.
         </div>
-        <div v-else-if="subscriptionStatusKey === 'trial'" class="subscription-note">
+        <div v-else-if="subscriptionStatusKey === 'trial' || !hasPaymentMethod" class="subscription-note">
           После окончания пробного периода подписка продолжится по выбранному тарифу.
         </div>
         <div v-else-if="subscription.autorenew" class="subscription-note">
@@ -119,185 +126,52 @@
 
       <!-- Tariff cards -->
       <Transition name="tab-fade" mode="out-in">
-      <div :key="billingPeriod" class="plan-grid">
-        <!-- Старт -->
-        <div class="plan-card dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10" :class="{ 'plan-card--current': isCurrentPlan(resolvedPlans.start) }">
-          <div class="flex flex-col h-full" style="row-gap:1.7361rem">
-            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-[#171717] dark:!text-white/90">
-              <span class="two-circles"></span>
-              Старт
-              <span v-if="isCurrentPlan(resolvedPlans.start)" class="plan-badge plan-badge--current">Текущий</span>
-            </h4>
-            <div>
-              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">
-                {{ currentPrice(resolvedPlans.start) }}
-              </div>
-              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
-                {{ currentPerProject(resolvedPlans.start) }}
-              </div>
-            </div>
-            <ul class="flex-1">
-              <li v-for="item in planBullets(resolvedPlans.start)" :key="item" class="feature-row">
-                <span class="feature-dot"></span>
-                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
-              </li>
-            </ul>
-            <div>
-              <button
-                class="plan-btn w-full"
-                :class="{ 'plan-btn--current': isCurrentPlan(resolvedPlans.start) }"
-                :disabled="paying === resolvedPlans.start.code || isCurrentPlan(resolvedPlans.start)"
-                @click="onSubscribe(resolvedPlans.start.code, billingPeriod)"
-              >
-                <span class="relative z-[1]">
-                  {{ planButtonText(resolvedPlans.start) }}
-                </span>
-              </button>
-              <p class="text-[0.8333rem] text-center" style="padding:1.0417rem 0 0.8333rem">
-                <span class="gradient-text font-semibold">{{ trialPhrase(resolvedPlans.start.trial_days) }}</span>
-                &nbsp;— подключение за&nbsp;5&nbsp;минут
-              </p>
-            </div>
-          </div>
-        </div>
+        <div :key="billingPeriod" class="figma-plan-grid">
+          <article class="figma-plan-card figma-plan-card--start" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.start) }">
+            <img src="/admirra/img/tariffs/tariff-start.png" alt="Тариф Старт" loading="lazy" />
+            <button
+              class="figma-plan-hotspot figma-plan-hotspot--default"
+              type="button"
+              :aria-label="planButtonText(resolvedPlans.start)"
+              :disabled="paying === resolvedPlans.start.code || isCurrentPlan(resolvedPlans.start)"
+              @click="onSubscribe(resolvedPlans.start.code, billingPeriod)"
+            ></button>
+          </article>
 
-        <!-- Базовый (primary) -->
-        <div class="plan-card plan-card--primary" :class="{ 'plan-card--current': isCurrentPlan(resolvedPlans.basic) }">
-          <div
-            class="absolute inset-0 pointer-events-none z-0 opacity-25"
-            style="background:url('/admirra/img/pattern.png') center/5.3472rem"
-          ></div>
-          <div class="relative z-10 flex flex-col h-full" style="row-gap:1.7361rem">
-            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-white">
-              <span class="two-circles two-circles--light"></span>
-              Базовый
-              <span v-if="isCurrentPlan(resolvedPlans.basic)" class="plan-badge plan-badge--current plan-badge--light">Текущий</span>
-              <span v-else class="plan-badge plan-badge--popular">Популярный</span>
-            </h4>
-            <div>
-              <div class="text-[3.4722rem] font-semibold leading-none text-white mb-[0.6944rem]">
-                {{ currentPrice(resolvedPlans.basic) }}
-              </div>
-              <div class="text-[1.0417rem] font-light text-[#fbfbfb]">
-                {{ currentPerProject(resolvedPlans.basic) }}
-              </div>
-            </div>
-            <ul class="flex-1">
-              <li v-for="item in planBullets(resolvedPlans.basic)" :key="item" class="feature-row feature-row--white">
-                <span class="feature-dot feature-dot--white"></span>
-                <span class="text-[1.0417rem] text-white leading-[1.12]">{{ item }}</span>
-              </li>
-            </ul>
-            <div>
-              <button
-                class="plan-btn-white w-full"
-                :class="{ 'plan-btn-white--current': isCurrentPlan(resolvedPlans.basic) }"
-                :disabled="paying === resolvedPlans.basic.code || isCurrentPlan(resolvedPlans.basic)"
-                @click="onSubscribe(resolvedPlans.basic.code, billingPeriod)"
-              >
-                <span class="gradient-text">
-                  {{ planButtonText(resolvedPlans.basic) }}
-                </span>
-              </button>
-              <p class="text-[0.8333rem] text-center text-white font-semibold" style="padding:1.0417rem 0 0.8333rem">
-                14 дней бесплатно — подключение за&nbsp;5&nbsp;минут
-              </p>
-            </div>
-          </div>
-        </div>
+          <article class="figma-plan-card figma-plan-card--basic" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.basic) }">
+            <img src="/admirra/img/tariffs/tariff-basic.png" alt="Тариф Базовый" loading="lazy" />
+            <button
+              class="figma-plan-hotspot figma-plan-hotspot--basic"
+              type="button"
+              :aria-label="planButtonText(resolvedPlans.basic)"
+              :disabled="paying === resolvedPlans.basic.code || isCurrentPlan(resolvedPlans.basic)"
+              @click="onSubscribe(resolvedPlans.basic.code, billingPeriod)"
+            ></button>
+          </article>
 
-        <!-- Стандартный -->
-        <div class="plan-card dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10" :class="{ 'plan-card--current': isCurrentPlan(resolvedPlans.standard) }">
-          <div class="flex flex-col h-full" style="row-gap:1.7361rem">
-            <h4 class="flex items-center gap-[1.0417rem] text-[1.3889rem] font-semibold leading-none text-[#171717] dark:!text-white/90">
-              <span class="two-circles"></span>
-              Стандартный
-              <span v-if="isCurrentPlan(resolvedPlans.standard)" class="plan-badge plan-badge--current">Текущий</span>
-            </h4>
-            <div>
-              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">
-                {{ currentPrice(resolvedPlans.standard) }}
-              </div>
-              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">
-                {{ currentPerProject(resolvedPlans.standard) }}
-              </div>
-            </div>
-            <ul class="flex-1">
-              <li v-for="item in planBullets(resolvedPlans.standard)" :key="item" class="feature-row">
-                <span class="feature-dot"></span>
-                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
-              </li>
-            </ul>
-            <div>
-              <button
-                class="plan-btn w-full"
-                :class="{ 'plan-btn--current': isCurrentPlan(resolvedPlans.standard) }"
-                :disabled="paying === resolvedPlans.standard.code || isCurrentPlan(resolvedPlans.standard)"
-                @click="onSubscribe(resolvedPlans.standard.code, billingPeriod)"
-              >
-                <span class="relative z-[1]">
-                  {{ planButtonText(resolvedPlans.standard) }}
-                </span>
-              </button>
-              <p class="text-[0.8333rem] text-center" style="padding:1.0417rem 0 0.8333rem">
-                <span class="gradient-text font-semibold">{{ trialPhrase(resolvedPlans.standard.trial_days) }}</span>
-                &nbsp;— подключение за&nbsp;5&nbsp;минут
-              </p>
-            </div>
-          </div>
+          <article class="figma-plan-card figma-plan-card--standard" :class="{ 'figma-plan-card--current': isCurrentPlan(resolvedPlans.standard) }">
+            <img src="/admirra/img/tariffs/tariff-standard.png" alt="Тариф Стандартный" loading="lazy" />
+            <button
+              class="figma-plan-hotspot figma-plan-hotspot--default"
+              type="button"
+              :aria-label="planButtonText(resolvedPlans.standard)"
+              :disabled="paying === resolvedPlans.standard.code || isCurrentPlan(resolvedPlans.standard)"
+              @click="onSubscribe(resolvedPlans.standard.code, billingPeriod)"
+            ></button>
+          </article>
         </div>
-      </div>
       </Transition>
 
       <!-- White Label -->
-      <div class="wl-card bg-white rounded-[2.0833rem] p-[2.0833rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-        <div class="wl-card__grid">
-          <div class="wl-card__content">
-            <div class="flex items-start gap-[1.1806rem]">
-              <span class="two-circles" style="margin-top:0.2778rem"></span>
-              <div>
-                <div class="wl-card__badge" :class="{ 'wl-card__badge--active': subscription.whitelabel_available }">
-                  {{ subscription.whitelabel_available ? 'White Label подключён' : 'White Label' }}
-                </div>
-                <h4 class="text-[1.3889rem] font-semibold leading-[1.3] text-[#171717] dark:!text-white/90">
-                  Персонализация<br />
-                  кабинета и&nbsp;отчётности
-                </h4>
-              </div>
-            </div>
-            <ul class="font-medium">
-              <li v-for="item in wlFeatures" :key="item" class="feature-row">
-                <span class="feature-dot"></span>
-                <span class="text-[1.0417rem] text-[#5f5f5f] leading-[1.12] dark:!text-white/75">{{ item }}</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="wl-card__preview">
-            <img
-              src="/admirra/img/white-label/ui.png"
-              alt="White Label UI"
-              class="block"
-            />
-          </div>
-
-          <div class="wl-card__aside">
-            <div class="mb-[1.1111rem]">
-              <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
-              <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
-            </div>
-            <p class="text-[1.0417rem] text-[rgba(105,105,105,0.56)] max-w-[13.8889rem] pt-[0.6944rem] mb-[3.125rem] dark:!text-white/55">
-              При покупке на год — возможны&nbsp;персональные скидки.
-              Оставьте заявку, чтобы обсудить детали использования WL.
-            </p>
-            <div class="mt-auto">
-              <button class="plan-btn w-full" @click="onContactWl">
-                <span class="relative z-[1]">{{ subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL' }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <article class="figma-wl-card">
+        <img src="/admirra/img/tariffs/tariff-whitelabel.png" alt="Тариф White Label" loading="lazy" />
+        <button
+          class="figma-wl-hotspot"
+          type="button"
+          :aria-label="subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL'"
+          @click="onContactWl"
+        ></button>
+      </article>
 
     </template>
   </div>
@@ -433,6 +307,8 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'projects',
       label: 'Проекты',
+      theme: 'projects',
+      icon: '▣',
       used: s.projects_used ?? 0,
       limit: s.max_projects ?? currentPlan.value?.max_projects ?? 1,
       caption: `${s.projects_used ?? 0} активных · ${s.paused_projects ?? 0} на паузе`,
@@ -440,6 +316,8 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'cabinets',
       label: 'Кабинеты',
+      theme: 'cabinets',
+      icon: '▤',
       used: s.cabinets_used ?? 0,
       limit: s.max_cabinets ?? 3,
       caption: 'Рекламные кабинеты и счётчики',
@@ -447,6 +325,8 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'ai',
       label: 'AI-запросы',
+      theme: 'ai',
+      icon: '✺',
       used: s.ai_requests_used ?? 0,
       limit: s.max_ai_requests_per_period ?? currentPlan.value?.max_ai_requests_per_period ?? 30,
       caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Обновляется каждый период',
@@ -454,6 +334,8 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'users',
       label: 'Пользователи',
+      theme: 'users',
+      icon: '☷',
       used: s.users_used ?? 1,
       limit: s.max_users ?? s.max_staff ?? currentPlan.value?.max_users ?? currentPlan.value?.max_staff ?? 1,
       caption: `${s.users_used ?? 1} активный`,
@@ -466,11 +348,11 @@ const subscriptionUsageTiles = computed(() => {
 
 const availableChannels = computed(() => {
   const base = [
-    { label: 'Яндекс Директ', className: 'channel-chip--yd' },
-    { label: 'VK Реклама', className: 'channel-chip--vk' },
+    { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png' },
+    { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png' },
   ]
   if (currentPlanCode.value !== 'start') {
-    base.push({ label: 'Метрика', className: 'channel-chip--yd' })
+    base.push({ label: 'Метрика', className: 'channel-chip--yd', icon: '/admirra/img/integrations/yandex-metrika.png' })
     base.push({ label: 'MyTarget', className: 'channel-chip--mt' })
   }
   return base
@@ -615,19 +497,19 @@ function onContactWl() {
 
 <style scoped>
 .tariff-page-head {
-  margin: 0 0 1.3889rem;
+  margin: 0 0 1.5278rem;
 }
 .tariff-page-head p {
   margin: 0.6944rem 0 0;
 }
 
 .subscription-card {
-  margin-bottom: 2.0833rem;
-  padding: 1.6667rem;
+  margin-bottom: 5.9722rem;
+  padding: 1.6667rem 1.6667rem 1.4583rem;
   border: 1px solid rgba(0,0,0,0.05);
-  border-radius: 1.6667rem;
+  border-radius: 1.25rem;
   background: rgba(255,255,255,0.92);
-  box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.035), inset 0 0 0 1px rgba(255,255,255,0.75);
+  box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.025), inset 0 0 0 1px rgba(255,255,255,0.75);
 }
 :global(.dark) .subscription-card,
 :global(.darkmode) .subscription-card {
@@ -641,7 +523,7 @@ function onContactWl() {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.3889rem;
-  margin-bottom: 1.4583rem;
+  margin-bottom: 1.5972rem;
 }
 
 .subscription-title-row {
@@ -654,8 +536,8 @@ function onContactWl() {
 .subscription-title-row h5 {
   margin: 0;
   color: #1f2937;
-  font-size: 1.6667rem;
-  font-weight: 800;
+  font-size: 1.25rem;
+  font-weight: 700;
   line-height: 1.1;
 }
 :global(.dark) .subscription-title-row h5,
@@ -666,9 +548,9 @@ function onContactWl() {
   display: inline-flex;
   align-items: center;
   gap: 0.3472rem;
-  margin: 0.625rem 0 0;
+  margin: 0.6944rem 0 0;
   color: rgba(105,105,105,0.62);
-  font-size: 0.9722rem;
+  font-size: 0.9028rem;
   font-weight: 600;
 }
 :global(.dark) .subscription-renewal,
@@ -681,14 +563,20 @@ function onContactWl() {
   display: inline-flex;
   align-items: center;
   gap: 0.3472rem;
-  min-height: 1.7361rem;
-  padding: 0 0.6944rem;
-  border-radius: 2.7778rem;
+  min-height: 1.5972rem;
+  padding: 0 0.7639rem;
+  border-radius: 0.3472rem;
   font-size: 0.7639rem;
   font-weight: 700;
   white-space: nowrap;
 }
 .subscription-period {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5972rem;
+  padding: 0 0.7639rem;
+  border-radius: 0.3472rem;
+  background: #f4f5f7;
   color: #9ca3af;
   font-size: 0.9028rem;
   font-weight: 700;
@@ -724,9 +612,9 @@ function onContactWl() {
   justify-content: center;
   min-height: 3.0556rem;
   padding: 0 1.1806rem;
-  border: 1px solid #dbe5ff;
+  border: 1px solid rgba(37, 99, 235, 0.22);
   border-radius: 0.8333rem;
-  background: #f8fbff;
+  background: #fff;
   color: #2563eb;
   font-size: 0.9028rem;
   font-weight: 700;
@@ -744,34 +632,68 @@ function onContactWl() {
 .usage-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.0417rem;
+  gap: 1.25rem;
   margin-bottom: 1.25rem;
 }
 .usage-tile {
   min-width: 0;
-  min-height: 6.8056rem;
-  padding: 1.1111rem 1.25rem;
-  border-radius: 0.8333rem;
-  background: linear-gradient(180deg, rgba(255,250,240,0.76), rgba(245,247,249,0.94));
+  min-height: 8.2639rem;
+  padding: 1.3194rem 1.5278rem;
+  border-radius: 1rem;
+  background: #f5f7f9;
 }
 :global(.dark) .usage-tile,
 :global(.darkmode) .usage-tile { background: rgba(255,255,255,0.06); }
-.usage-tile__top {
-  display: grid;
-  gap: 0.5556rem;
-  color: #696969;
+.usage-tile--projects { background: #fff3df; }
+.usage-tile--cabinets { background: #edf5ff; }
+.usage-tile--ai { background: #fff0f2; }
+.usage-tile--users { background: #f4e9ff; }
+.usage-tile__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6944rem;
+  color: #64748b;
   font-size: 0.9722rem;
-  font-weight: 600;
+  font-weight: 700;
 }
-.usage-tile__top strong {
+.usage-tile__head i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.0833rem;
+  height: 2.0833rem;
+  border-radius: 0.3472rem;
+  background: rgba(255, 255, 255, 0.56);
+  color: #2563eb;
+  font-size: 0.8333rem;
+  font-style: normal;
+  line-height: 1;
+}
+.usage-tile--projects .usage-tile__head i { color: #d97706; }
+.usage-tile--cabinets .usage-tile__head i { color: #3b82f6; }
+.usage-tile--ai .usage-tile__head i { color: #e2546d; }
+.usage-tile--users .usage-tile__head i { color: #9b6ed3; }
+.usage-tile__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4167rem;
+  margin-top: 0.3472rem;
+}
+.usage-tile__value strong {
   color: #171717;
   font-size: 1.9444rem;
   line-height: 1;
 }
-:global(.dark) .usage-tile__top,
-:global(.darkmode) .usage-tile__top { color: rgba(255,255,255,0.56); }
-:global(.dark) .usage-tile__top strong,
-:global(.darkmode) .usage-tile__top strong { color: rgba(255,255,255,0.9); }
+.usage-tile__value span {
+  color: #9ca3af;
+  font-size: 1.1111rem;
+  font-weight: 700;
+}
+:global(.dark) .usage-tile__head,
+:global(.darkmode) .usage-tile__head { color: rgba(255,255,255,0.56); }
+:global(.dark) .usage-tile__value strong,
+:global(.darkmode) .usage-tile__value strong { color: rgba(255,255,255,0.9); }
 .usage-tile__bar {
   height: 0.4167rem;
   margin-top: 0.7639rem;
@@ -785,11 +707,16 @@ function onContactWl() {
   border-radius: inherit;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
 }
+.usage-tile--projects .usage-tile__bar i { background: #f7b267; }
+.usage-tile--cabinets .usage-tile__bar i { background: #70a8e8; }
+.usage-tile--ai .usage-tile__bar i { background: #e9a1ad; }
+.usage-tile--users .usage-tile__bar i { background: #b49ad2; }
 .usage-tile__fill--warn { background: #f59e0b !important; }
 .usage-tile p {
   margin: 0.4861rem 0 0;
   color: rgba(105,105,105,0.58);
   font-size: 0.8333rem;
+  font-weight: 700;
 }
 :global(.dark) .usage-tile p,
 :global(.darkmode) .usage-tile p { color: rgba(255,255,255,0.42); }
@@ -798,12 +725,12 @@ function onContactWl() {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.8333rem;
-  min-height: 3.0556rem;
-  margin-bottom: 1.0417rem;
-  padding: 0.625rem 0.8333rem;
+  gap: 0.9722rem;
+  min-height: 2.9167rem;
+  margin-bottom: 1.25rem;
+  padding: 0.625rem 1.5278rem;
   border-radius: 0.8333rem;
-  background: linear-gradient(90deg, rgba(255,243,219,0.72), rgba(246,248,252,0.9));
+  background: #f4f6f8;
 }
 :global(.dark) .subscription-channel-row,
 :global(.darkmode) .subscription-channel-row { background: rgba(255,255,255,0.05); }
@@ -822,8 +749,8 @@ function onContactWl() {
 
 .subscription-footer {
   display: grid;
-  gap: 0.6944rem;
-  padding-top: 1.0417rem;
+  gap: 0.7639rem;
+  padding-top: 1.25rem;
   border-top: 1px solid rgba(15,23,42,0.06);
 }
 :global(.dark) .subscription-footer,
@@ -833,7 +760,7 @@ function onContactWl() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 2.9167rem;
+  min-height: 3.6111rem;
 }
 .payment-line--empty .payment-card-icon {
   background: linear-gradient(90deg, #e5e7eb 0 35%, #f5f7f9 35% 100%);
@@ -855,11 +782,11 @@ function onContactWl() {
   font-weight: 800;
 }
 .payment-card-icon {
-  width: 1.25rem;
-  height: 0.8333rem;
-  border-radius: 0.1389rem;
-  background: linear-gradient(90deg, #d1a246 0 35%, #eef2f7 35% 100%);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  width: 1.1806rem;
+  height: 0.625rem;
+  border-radius: 2rem;
+  background: linear-gradient(90deg, #7fa0f0 0 42%, #dce6ff 42% 100%);
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.12);
   flex-shrink: 0;
 }
 .subscription-footer-actions {
@@ -870,12 +797,12 @@ function onContactWl() {
   flex-wrap: wrap;
 }
 .subscription-footer-actions button {
-  min-height: 2.6389rem;
-  padding: 0 0.9722rem;
-  border: 1px solid rgba(37,99,235,0.26);
-  border-radius: 0.6944rem;
-  background: #fff;
-  color: #344054;
+  min-height: 3.3333rem;
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: 0.8333rem;
+  background: #2563eb;
+  color: #fff;
   font-size: 0.9028rem;
   font-weight: 800;
   cursor: not-allowed;
@@ -899,12 +826,12 @@ function onContactWl() {
 }
 .subscription-note,
 .subscription-warning {
-  margin-top: 0.8333rem;
-  padding: 0.625rem 0.8333rem;
-  border-radius: 0.6944rem;
+  margin-top: 0.1389rem;
+  padding: 0.9028rem 1.5278rem;
+  border-radius: 0.8333rem;
   color: #64748b;
-  background: rgba(245,247,249,0.72);
-  font-size: 0.8333rem;
+  background: #f4f6f8;
+  font-size: 0.9028rem;
   font-weight: 700;
 }
 .subscription-warning {
@@ -970,11 +897,18 @@ function onContactWl() {
 .channel-chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.3472rem;
   min-height: 1.8056rem;
   padding: 0 0.625rem;
   border-radius: 0.5556rem;
   font-size: 0.7639rem;
   font-weight: 700;
+}
+.channel-chip img {
+  width: 0.9722rem;
+  height: 0.9722rem;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .channel-chip--yd { background: #fff3db; color: #9a5a0a; }
 .channel-chip--vk { background: #e6f2ff; color: #1f5f9f; }
@@ -1090,6 +1024,89 @@ function onContactWl() {
 .tab-badge--active {
   background: #fff;
   color: #2563eb;
+}
+
+/* Figma tariff cards */
+.figma-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.7361rem;
+  align-items: start;
+  margin-bottom: 1.6667rem;
+  overflow: visible;
+}
+.figma-plan-card {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  height: clamp(34rem, 35vw, 43.6111rem);
+  overflow: visible;
+}
+.figma-plan-card img {
+  display: block;
+  width: auto;
+  height: 100%;
+  max-width: none;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.figma-plan-card--basic {
+  z-index: 1;
+}
+.figma-plan-card--basic img {
+  transform: translateX(-0.9722rem);
+}
+.figma-plan-hotspot,
+.figma-wl-hotspot {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0.8333rem;
+}
+.figma-plan-hotspot:focus-visible,
+.figma-wl-hotspot:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+.figma-plan-hotspot:disabled {
+  cursor: default;
+}
+.figma-plan-hotspot--default {
+  left: 7.5%;
+  right: 7.5%;
+  bottom: 5.7%;
+  height: 8.1%;
+}
+.figma-plan-hotspot--basic {
+  left: 5.2%;
+  width: 55.8%;
+  bottom: 5.2%;
+  height: 7.9%;
+}
+.figma-wl-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  border-radius: 2rem;
+  overflow: hidden;
+  background: #fff;
+}
+.figma-wl-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.figma-wl-hotspot {
+  right: 2.5%;
+  bottom: 10.6%;
+  width: 28.3%;
+  height: 12.7%;
 }
 
 /* ── Plan cards ── */
@@ -1365,8 +1382,12 @@ function onContactWl() {
 
 @media (max-width: 1024px) {
   .usage-grid,
+  .figma-plan-grid,
   .plan-grid,
   .wl-card__grid { grid-template-columns: 1fr; }
+  .subscription-card {
+    margin-bottom: 3.125rem;
+  }
   .subscription-head,
   .subscription-row,
   .payment-line,
@@ -1396,6 +1417,33 @@ function onContactWl() {
   .plan-card {
     min-height: auto;
   }
+  .figma-plan-card {
+    height: auto;
+    min-height: 0;
+  }
+  .figma-plan-card img {
+    width: min(100%, 28rem);
+    height: auto;
+  }
+  .figma-plan-card--basic img {
+    width: min(100%, 32rem);
+    transform: none;
+  }
+  .figma-plan-hotspot--default {
+    left: 11%;
+    right: 11%;
+  }
+  .figma-plan-hotspot--basic {
+    left: 15%;
+    width: 70%;
+  }
+  .figma-wl-card {
+    border-radius: 1.25rem;
+    overflow-x: auto;
+  }
+  .figma-wl-card img {
+    min-width: 48rem;
+  }
   .wl-card__preview {
     min-height: 15.2778rem;
   }
@@ -1410,6 +1458,12 @@ function onContactWl() {
   }
   .plan-grid {
     gap: 1.0417rem;
+  }
+  .figma-plan-grid {
+    gap: 1rem;
+  }
+  .figma-plan-card {
+    height: clamp(30rem, 34vw, 38.5rem);
   }
   .wl-card__grid {
     grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 0.9fr);
