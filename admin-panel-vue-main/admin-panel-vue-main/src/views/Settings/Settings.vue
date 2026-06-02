@@ -1,14 +1,13 @@
 <template>
   <div class="relative z-[2] flex min-h-full flex-col overflow-x-hidden px-[1.875rem] py-[2.0833rem]">
 
-    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[1.3889rem]">
-      <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Настройки</h3>
-      <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mt-[0.6944rem]">Конфигурация уровня аккаунта.</p>
-    </div>
-
     <div class="flex flex-col lg:flex-row gap-[2.2222rem] flex-1">
-      <!-- Left: vertical tabs -->
+      <!-- Left: title + vertical tabs -->
       <aside class="lg:w-[20.1389rem] flex-shrink-0">
+        <div class="pt-[1.0417rem] pb-[1.3889rem]">
+          <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Настройки</h3>
+          <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mt-[0.6944rem]">Конфигурация уровня аккаунта.</p>
+        </div>
         <div class="settings-sidebar">
           <nav class="flex flex-col gap-[0.2083rem]">
             <button
