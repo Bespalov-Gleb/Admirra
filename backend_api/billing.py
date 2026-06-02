@@ -148,12 +148,19 @@ def _build_cloudpayments_receipt(
 
 
 def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
+    fallback = SubscriptionService.get_plan_from_config(getattr(plan, "code", "start"))
+    max_staff = getattr(plan, "max_staff", None) or fallback.max_staff
+    max_clients = getattr(plan, "max_clients", None) or fallback.max_clients
+    max_cabinets = getattr(plan, "max_cabinets", None) or fallback.max_cabinets
     return schemas.BillingPlanResponse(
         code=plan.code,
         name=plan.name,
         price_rub=plan.price_rub,
         max_projects=plan.max_projects,
-        max_cabinets=getattr(plan, "max_cabinets", None) or _cabinet_limit_for_plan(plan.code),
+        max_cabinets=max_cabinets,
+        max_users=max_staff,
+        max_staff=max_staff,
+        max_clients=max_clients,
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         period_days=plan.period_days,
         trial_days=plan.trial_days,
@@ -205,6 +212,15 @@ def get_my_subscription(
         .scalar()
         or 0
     )
+    users_used = 1 + (
+        db.query(func.count(models.TeamMember.id))
+        .filter(
+            models.TeamMember.account_id == current_user.id,
+            models.TeamMember.role == models.TeamMemberRole.MEMBER,
+        )
+        .scalar()
+        or 0
+    )
     ai_reset_date = None
     if current_user.ai_requests_period_started_at:
         reset_dt = current_user.ai_requests_period_started_at + timedelta(days=int(plan.period_days or 30))
@@ -223,8 +239,12 @@ def get_my_subscription(
         max_projects=plan.max_projects,
         projects_used=projects_used,
         paused_projects=paused_projects,
-        max_cabinets=getattr(plan, "max_cabinets", None) or _cabinet_limit_for_plan(plan.code),
+        max_cabinets=getattr(plan, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan.code),
         cabinets_used=int(cabinets_used),
+        max_users=getattr(plan, "max_staff", None) or 1,
+        users_used=int(users_used),
+        max_staff=getattr(plan, "max_staff", None) or 1,
+        max_clients=getattr(plan, "max_clients", None) or 0,
         max_ai_requests_per_period=plan.max_ai_requests_per_period,
         ai_requests_used=used,
         ai_requests_remaining=remaining,

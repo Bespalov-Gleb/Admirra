@@ -19,7 +19,7 @@ export const FALLBACK_PLANS = {
     code: 'standard',
     name: 'Стандартный',
     price_rub: 9990,
-    max_projects: 15,
+    max_projects: 30,
     max_ai_requests_per_period: 450,
     trial_days: 14,
   },

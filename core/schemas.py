@@ -763,6 +763,9 @@ class BillingPlanResponse(BaseModel):
     price_rub: int
     max_projects: int
     max_cabinets: int = 0
+    max_users: int = 1
+    max_staff: int = 1
+    max_clients: int = 0
     max_ai_requests_per_period: int
     period_days: int
     trial_days: int
@@ -783,6 +786,10 @@ class BillingSubscriptionResponse(BaseModel):
     paused_projects: int = 0
     max_cabinets: int = 0
     cabinets_used: int = 0
+    max_users: int = 1
+    users_used: int = 1
+    max_staff: int = 1
+    max_clients: int = 0
     max_ai_requests_per_period: int
     ai_requests_used: int
     ai_requests_remaining: int

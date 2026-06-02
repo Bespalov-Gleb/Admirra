@@ -144,6 +144,7 @@ class SubscriptionService:
             .first()
         )
         if plan_row:
+            fallback = SubscriptionService.get_plan_from_config(plan_row.code)
             return EffectivePlan(
                 code=plan_row.code,
                 name=plan_row.name,
@@ -152,9 +153,9 @@ class SubscriptionService:
                 max_ai_requests_per_period=plan_row.max_ai_requests_per_period,
                 period_days=plan_row.period_days,
                 trial_days=plan_row.trial_days,
-                max_cabinets=getattr(plan_row, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan_row.code),
-                max_staff=getattr(plan_row, "max_staff", get_config().billing.plan_start_max_staff),
-                max_clients=getattr(plan_row, "max_clients", get_config().billing.plan_start_max_clients),
+                max_cabinets=getattr(plan_row, "max_cabinets", None) or fallback.max_cabinets,
+                max_staff=getattr(plan_row, "max_staff", None) or fallback.max_staff,
+                max_clients=getattr(plan_row, "max_clients", None) or fallback.max_clients,
                 is_default=plan_row.is_default,
                 is_active=plan_row.is_active,
             )

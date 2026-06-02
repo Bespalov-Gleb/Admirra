@@ -54,16 +54,19 @@
         </div>
 
         <div class="subscription-footer">
-          <div class="payment-line">
+          <div class="payment-line" :class="{ 'payment-line--empty': !hasPaymentMethod }">
             <div class="payment-method">
               <span class="payment-card-icon"></span>
               <strong>{{ paymentMethodLabel }}</strong>
-              <span>·</span>
-              <span>{{ subscription.autorenew ? 'автопродление вкл.' : 'автопродление выкл.' }}</span>
+              <template v-if="hasPaymentMethod">
+                <span>·</span>
+                <span>{{ subscription.autorenew ? 'автопродление вкл.' : 'автопродление выкл.' }}</span>
+              </template>
+              <span v-else>· для автопродления</span>
             </div>
             <div class="subscription-footer-actions">
-              <button type="button" disabled>Изменить карту</button>
-              <button type="button" disabled>{{ subscription.autorenew ? 'Отменить автопрод.' : 'Включить автопрод.' }}</button>
+              <button type="button" disabled>{{ hasPaymentMethod ? 'Изменить карту' : 'Привязать карту' }}</button>
+              <button v-if="hasPaymentMethod" type="button" disabled>{{ subscription.autorenew ? 'Отменить автопрод.' : 'Включить автопрод.' }}</button>
             </div>
           </div>
           <div class="documents-line" title="Будет позже">
@@ -87,13 +90,9 @@
       <div ref="plansAnchor" class="tariff-section-head">
         <div>
           <h4>Сменить тариф</h4>
-          <p>Годовая оплата даёт скидку 30%.</p>
+          <p>Годовая подписка дает скидку 30%.</p>
         </div>
-      </div>
-
-      <!-- Billing period tabs -->
-      <div class="flex pb-[2.0833rem]">
-        <div class="flex gap-[1.3889rem]">
+        <div class="billing-switch">
           <button
             class="tab-btn"
             :class="billingPeriod === 'month'
@@ -120,7 +119,7 @@
 
       <!-- Tariff cards -->
       <Transition name="tab-fade" mode="out-in">
-      <div :key="billingPeriod" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-[2.0833rem]">
+      <div :key="billingPeriod" class="plan-grid">
         <!-- Старт -->
         <div class="plan-card dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10" :class="{ 'plan-card--current': isCurrentPlan(resolvedPlans.start) }">
           <div class="flex flex-col h-full" style="row-gap:1.7361rem">
@@ -252,8 +251,8 @@
 
       <!-- White Label -->
       <div class="wl-card bg-white rounded-[2.0833rem] p-[2.0833rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          <div class="pr-[2.0833rem] flex flex-col gap-[1.3889rem]">
+        <div class="wl-card__grid">
+          <div class="wl-card__content">
             <div class="flex items-start gap-[1.1806rem]">
               <span class="two-circles" style="margin-top:0.2778rem"></span>
               <div>
@@ -274,16 +273,15 @@
             </ul>
           </div>
 
-          <div class="flex items-center justify-center" style="margin:-0.6944rem 0 0 -1.3889rem">
+          <div class="wl-card__preview">
             <img
               src="/admirra/img/white-label/ui.png"
               alt="White Label UI"
               class="block"
-              style="width:27.7778rem;height:24.3056rem;object-fit:contain"
             />
           </div>
 
-          <div class="flex flex-col" style="padding:0.5556rem 0 0 2.7778rem">
+          <div class="wl-card__aside">
             <div class="mb-[1.1111rem]">
               <div class="text-[3.4722rem] font-semibold leading-none text-[#171717] mb-[0.6944rem] dark:!text-white/90">25&nbsp;900&nbsp;₽</div>
               <div class="text-[1.0417rem] font-light text-[rgba(105,105,105,0.56)] dark:!text-white/55">259 руб/проект</div>
@@ -345,6 +343,10 @@ const subscription = ref({
   paused_projects: 0,
   max_cabinets: 3,
   cabinets_used: 0,
+  max_users: 1,
+  users_used: 1,
+  max_staff: 1,
+  max_clients: 0,
   max_ai_requests_per_period: 30,
   ai_requests_used: 0,
   ai_requests_remaining: 30,
@@ -391,8 +393,12 @@ const renewalText = computed(() => {
 })
 
 const planMetaLine = computed(() => {
-  const period = billingPeriod.value === 'year' ? 'годовая' : 'помесячно'
-  return `${period} · ${currentPrice(currentPlan.value)}/${billingPeriod.value === 'year' ? 'год' : 'мес'}`
+  const currentPeriod = subscription.value?.billing_period === 'year' ? 'year' : 'month'
+  const period = currentPeriod === 'year' ? 'годовая' : 'помесячно'
+  const price = currentPeriod === 'year'
+    ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
+    : formatRub(currentPlan.value?.price_rub)
+  return `${period} · ${price}/${currentPeriod === 'year' ? 'год' : 'мес'}`
 })
 
 const paymentMethodLabel = computed(() => {
@@ -402,6 +408,11 @@ const paymentMethodLabel = computed(() => {
   if (last4 && exp) return `•• ${last4} ${exp}`
   if (last4) return `•• ${last4}`
   return 'Карта не привязана'
+})
+
+const hasPaymentMethod = computed(() => {
+  const method = subscription.value?.payment_method || {}
+  return Boolean(method.last4 || subscription.value?.payment_last4)
 })
 
 const autorenewHint = computed(() => {
@@ -440,6 +451,13 @@ const subscriptionUsageTiles = computed(() => {
       limit: s.max_ai_requests_per_period ?? currentPlan.value?.max_ai_requests_per_period ?? 30,
       caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Обновляется каждый период',
     },
+    {
+      key: 'users',
+      label: 'Пользователи',
+      used: s.users_used ?? 1,
+      limit: s.max_users ?? s.max_staff ?? currentPlan.value?.max_users ?? currentPlan.value?.max_staff ?? 1,
+      caption: `${s.users_used ?? 1} активный`,
+    },
   ].map((item) => {
     const percent = usagePercent(item.used, item.limit)
     return { ...item, percent, warn: percent >= 85 }
@@ -473,7 +491,7 @@ const landingTariffDisplay = {
   month: {
     start: { price: '1\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
     basic: { price: '3\u00A0990\u00A0₽', perProject: '798 руб/проект', projects: '5 проектов', ai: '120 запросов AI' },
-    standard: { price: '9\u00A0990\u00A0₽', perProject: '660 руб/проект', projects: '15 проектов', ai: '450 запросов AI' },
+    standard: { price: '9\u00A0990\u00A0₽', perProject: '333 руб/проект', projects: 'До 30 проектов', ai: '450 запросов AI' },
   },
   year: {
     start: { price: '11\u00A0590\u00A0₽', perProject: '1590 руб/проект', projects: '1 проект', ai: '30 запросов AI' },
@@ -597,7 +615,7 @@ function onContactWl() {
 
 <style scoped>
 .tariff-page-head {
-  margin: -0.2778rem 0 1.3889rem;
+  margin: 0 0 1.3889rem;
 }
 .tariff-page-head p {
   margin: 0.6944rem 0 0;
@@ -605,9 +623,9 @@ function onContactWl() {
 
 .subscription-card {
   margin-bottom: 2.0833rem;
-  padding: 1.5278rem;
+  padding: 1.6667rem;
   border: 1px solid rgba(0,0,0,0.05);
-  border-radius: 1.3889rem;
+  border-radius: 1.6667rem;
   background: rgba(255,255,255,0.92);
   box-shadow: 0 0.6944rem 2.0833rem rgba(15, 23, 42, 0.035), inset 0 0 0 1px rgba(255,255,255,0.75);
 }
@@ -623,7 +641,7 @@ function onContactWl() {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.3889rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.4583rem;
 }
 
 .subscription-title-row {
@@ -636,7 +654,7 @@ function onContactWl() {
 .subscription-title-row h5 {
   margin: 0;
   color: #1f2937;
-  font-size: 1.5278rem;
+  font-size: 1.6667rem;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -676,9 +694,12 @@ function onContactWl() {
   font-weight: 700;
 }
 .subscription-status--active,
-.subscription-status--trial,
 .subscription-status--wl,
 .plan-badge--current {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+.subscription-status--trial {
   background: rgba(37,99,235,0.10);
   color: #2563eb;
 }
@@ -722,30 +743,29 @@ function onContactWl() {
 
 .usage-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.8333rem;
-  margin-bottom: 1.0417rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.0417rem;
+  margin-bottom: 1.25rem;
 }
 .usage-tile {
   min-width: 0;
-  padding: 0.9028rem 1.0417rem;
+  min-height: 6.8056rem;
+  padding: 1.1111rem 1.25rem;
   border-radius: 0.8333rem;
   background: linear-gradient(180deg, rgba(255,250,240,0.76), rgba(245,247,249,0.94));
 }
 :global(.dark) .usage-tile,
 :global(.darkmode) .usage-tile { background: rgba(255,255,255,0.06); }
 .usage-tile__top {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.6944rem;
+  display: grid;
+  gap: 0.5556rem;
   color: #696969;
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   font-weight: 600;
 }
 .usage-tile__top strong {
   color: #171717;
-  font-size: 1.3889rem;
+  font-size: 1.9444rem;
   line-height: 1;
 }
 :global(.dark) .usage-tile__top,
@@ -765,7 +785,7 @@ function onContactWl() {
   border-radius: inherit;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
 }
-.usage-tile__bar .usage-tile__fill--warn { background: #f59e0b; }
+.usage-tile__fill--warn { background: #f59e0b !important; }
 .usage-tile p {
   margin: 0.4861rem 0 0;
   color: rgba(105,105,105,0.58);
@@ -813,6 +833,13 @@ function onContactWl() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  min-height: 2.9167rem;
+}
+.payment-line--empty .payment-card-icon {
+  background: linear-gradient(90deg, #e5e7eb 0 35%, #f5f7f9 35% 100%);
+}
+.payment-line--empty .payment-method strong {
+  color: #9ca3af;
 }
 .payment-method {
   display: flex;
@@ -977,12 +1004,12 @@ function onContactWl() {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.7361rem;
 }
 .tariff-section-head h4 {
   margin: 0;
   color: #171717;
-  font-size: 1.3889rem;
+  font-size: 1.6667rem;
   font-weight: 700;
 }
 :global(.dark) .tariff-section-head h4,
@@ -1000,19 +1027,35 @@ function onContactWl() {
   opacity: 0;
 }
 
+.billing-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5556rem;
+  min-height: 3.1944rem;
+  padding: 0.2778rem;
+  border-radius: 1rem;
+  background: rgba(255,255,255,0.86);
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.05);
+}
+:global(.dark) .billing-switch,
+:global(.darkmode) .billing-switch {
+  background: rgba(255,255,255,0.06);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
 /* ── Tab switcher ── */
 .tab-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   column-gap: 0.6944rem;
-  min-height: 3.1944rem;
-  padding: 0.6944rem 1.25rem;
+  min-height: 2.6389rem;
+  padding: 0.5556rem 1.0417rem;
   font-size: 0.9028rem;
   font-weight: 600;
   border: none;
-  border-radius: 0.8333rem;
-  background-color: #fff;
+  border-radius: 0.7639rem;
+  background-color: transparent;
   color: #5f5f5f;
   cursor: pointer;
   transition: color 0.3s, background-color 0.3s;
@@ -1050,9 +1093,16 @@ function onContactWl() {
 }
 
 /* ── Plan cards ── */
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2.0833rem;
+  margin-bottom: 2.0833rem;
+}
 .plan-card {
   height: 100%;
   background-color: #fff;
+  min-height: 43.6111rem;
   padding: 2.2222rem 2.0833rem;
   border-radius: 2.0833rem;
   position: relative;
@@ -1114,7 +1164,8 @@ function onContactWl() {
   display: flex;
   align-items: flex-start;
   column-gap: 0.6944rem;
-  padding: 1.1806rem 0 1.25rem;
+  min-height: 3.6806rem;
+  padding: 1.1111rem 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   list-style: none;
 }
@@ -1260,6 +1311,43 @@ function onContactWl() {
   font-weight: 800;
   margin-bottom: 0.6944rem;
 }
+
+.wl-card {
+  overflow: hidden;
+}
+.wl-card__grid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 1.05fr) minmax(18rem, 1fr) minmax(16rem, 0.86fr);
+  gap: 2.0833rem;
+  align-items: stretch;
+}
+.wl-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3889rem;
+  min-width: 0;
+}
+.wl-card__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20.8333rem;
+  margin: -0.6944rem 0;
+  border-radius: 1.3889rem;
+  background: linear-gradient(180deg, rgba(245,247,249,0.85), rgba(236,243,254,0.35));
+}
+.wl-card__preview img {
+  display: block;
+  width: min(100%, 27.7778rem);
+  height: 24.3056rem;
+  object-fit: contain;
+}
+.wl-card__aside {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.5556rem 0 0;
+}
 .wl-card__badge--active {
   background: rgba(0,255,78,0.10);
   color: #16a34a;
@@ -1276,9 +1364,9 @@ function onContactWl() {
 }
 
 @media (max-width: 1024px) {
-  .usage-grid {
-    grid-template-columns: 1fr;
-  }
+  .usage-grid,
+  .plan-grid,
+  .wl-card__grid { grid-template-columns: 1fr; }
   .subscription-head,
   .subscription-row,
   .payment-line,
@@ -1293,6 +1381,45 @@ function onContactWl() {
   .subscription-muted-action,
   .subscription-footer-actions {
     justify-content: flex-start;
+  }
+  .tariff-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .billing-switch {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .tab-btn {
+    flex: 1;
+  }
+  .plan-card {
+    min-height: auto;
+  }
+  .wl-card__preview {
+    min-height: 15.2778rem;
+  }
+  .wl-card__preview img {
+    height: 17.3611rem;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1480px) {
+  .usage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .plan-grid {
+    gap: 1.0417rem;
+  }
+  .wl-card__grid {
+    grid-template-columns: minmax(16rem, 1fr) minmax(15rem, 0.9fr);
+  }
+  .wl-card__aside {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.7fr);
+    align-items: end;
+    gap: 1.3889rem;
   }
 }
 </style>
