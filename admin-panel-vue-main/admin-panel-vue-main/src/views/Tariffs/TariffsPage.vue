@@ -642,8 +642,8 @@ function onContactWl() {
 
 .usage-tile--projects { background: #FFF2E4; color: #71663E; }
 .usage-tile--cabinets { background: #F0F7FF; color: #254B78; }
-.usage-tile--ai { background: #fff0f2; color: #702332; }
-.usage-tile--users { background: #f4e7ff; color: #70419b; }
+.usage-tile--ai { background: #FFF0F1; color: #662529; }
+.usage-tile--users { background: #F6ECFF; color: #643D87; }
 
 .usage-tile__head {
   display: flex;
@@ -665,8 +665,8 @@ function onContactWl() {
 
 .usage-tile--projects .usage-tile__head i { background: #FFE9D1; }
 .usage-tile--cabinets .usage-tile__head i { background: #E3F0FF; }
-.usage-tile--ai .usage-tile__head i { background: #FFE0E4; }
-.usage-tile--users .usage-tile__head i { background: #EDE0F7; }
+.usage-tile--ai .usage-tile__head i { background: #FFDEE0; }
+.usage-tile--users .usage-tile__head i { background: #F0DEFF; }
 
 .usage-tile__head svg {
   width: 1.25rem;
@@ -710,8 +710,8 @@ function onContactWl() {
 
 .usage-tile--projects .usage-tile__bar i { background: #FFC07B; }
 .usage-tile--cabinets .usage-tile__bar i { background: #7BADE8; }
-.usage-tile--ai .usage-tile__bar i { background: #e9a4ad; }
-.usage-tile--users .usage-tile__bar i { background: #aa8ac5; }
+.usage-tile--ai .usage-tile__bar i { background: #ECB2B6; }
+.usage-tile--users .usage-tile__bar i { background: #BCA6CE; }
 
 .usage-tile p {
   margin: 1.1111rem 0 0;
@@ -721,7 +721,14 @@ function onContactWl() {
   opacity: 0.74;
 }
 
+.usage-tile--projects p { color: #C0A86E; opacity: 1; }
+.usage-tile--projects .usage-tile__value span { color: #C0A86E; }
 .usage-tile--cabinets p { color: #71A0D7; opacity: 1; }
+.usage-tile--cabinets .usage-tile__value span { color: #71A0D7; }
+.usage-tile--ai p { color: #D69397; opacity: 1; }
+.usage-tile--ai .usage-tile__value span { color: #D69397; }
+.usage-tile--users p { color: #A987C7; opacity: 1; }
+.usage-tile--users .usage-tile__value span { color: #A987C7; }
 
 .subscription-channel-row {
   display: grid;
