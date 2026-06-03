@@ -1,6 +1,7 @@
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import api from '../api/axios'
 import { getAccessToken } from '@/utils/authToken'
+import { getProjectPeriodRange } from '@/utils/projectPeriods'
 
 const DEVICE_STATS_MOCK = [
   { name: 'Мобильные', value: '—', width: '0%', icon: 'mobile' },
@@ -84,12 +85,46 @@ export function useDashboardStats() {
   }
 
   const saved = loadFiltersFromStorage()
-  const validPeriods = ['7', '14', '30', '90', '180', '365', 'custom']
+  const projectPeriodValues = [
+    'today',
+    'yesterday',
+    'last_week',
+    'last_month',
+    'this_week',
+    'this_month',
+    'last_7_days',
+    'last_30_days',
+    'last_90_days',
+    'last_365_days',
+  ]
+  const periodDaysMap = {
+    '7': 7,
+    '14': 14,
+    '30': 30,
+    '90': 90,
+    '180': 180,
+    '365': 365,
+  }
+  const validPeriods = [...Object.keys(periodDaysMap), ...projectPeriodValues, 'custom']
+  const getCurrentPeriodRange = () => {
+    if (projectPeriodValues.includes(filters.period)) {
+      return getProjectPeriodRange(filters.period)
+    }
+
+    const end = new Date()
+    const start = new Date()
+    const periodDays = periodDaysMap[filters.period] || 7
+    start.setTime(end.getTime() - (periodDays - 1) * 24 * 60 * 60 * 1000)
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end.toISOString().split('T')[0],
+    }
+  }
 
   // Filters state — инициализация из localStorage
   const filters = reactive({
     channel: (saved && validChannels.includes(saved.channel)) ? saved.channel : 'all',
-    period: (saved && validPeriods.includes(saved.period)) ? saved.period : '14',
+    period: (saved && validPeriods.includes(saved.period)) ? saved.period : 'last_7_days',
     client_id: (saved && typeof saved.client_id === 'string' && saved.client_id.trim())
       ? saved.client_id
       : null,
@@ -109,12 +144,9 @@ export function useDashboardStats() {
     if (filters.period === 'custom' && filters.start_date && filters.end_date) {
       return // сохраняем выбранные даты для своего периода
     }
-    const end = new Date()
-    const start = new Date()
-    const periodDays = parseInt(filters.period) || 14
-    start.setTime(end.getTime() - periodDays * 24 * 60 * 60 * 1000)
-    filters.start_date = start.toISOString().split('T')[0]
-    filters.end_date = end.toISOString().split('T')[0]
+    const { startDate, endDate } = getCurrentPeriodRange()
+    filters.start_date = startDate
+    filters.end_date = endDate
   }
 
   const handlePeriodChange = async () => {
@@ -124,12 +156,7 @@ export function useDashboardStats() {
       }
       return
     }
-    const end = new Date()
-    const start = new Date()
-    const periodDays = parseInt(filters.period) || 14
-    start.setTime(end.getTime() - periodDays * 24 * 60 * 60 * 1000)
-    const newStartDate = start.toISOString().split('T')[0]
-    const newEndDate = end.toISOString().split('T')[0]
+    const { startDate: newStartDate, endDate: newEndDate } = getCurrentPeriodRange()
     
     // Only update if dates actually changed to avoid unnecessary API calls
     if (filters.start_date !== newStartDate || filters.end_date !== newEndDate) {

@@ -247,8 +247,9 @@ class StatsService:
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
             clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
             
-            # CRITICAL: Лиды и конверсии для Yandex — из Метрики (MetrikaGoals).
-            # Fallback на Direct если Metrika ещё не синхронизирована (пусто 0).
+            # CRITICAL: Лиды и конверсии для Yandex — только из Метрики (MetrikaGoals).
+            # Direct conversions не подставляем fallback-ом, иначе дашборд расходится
+            # со страницей проектов и выбранными целями.
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
             yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
@@ -262,10 +263,9 @@ class StatsService:
                 # the accurate campaign-scoped fallback.
                 convs = yandex_convs + vk_convs
             elif platform in ["all", "yandex"]:
-                # Yandex: Метрика приоритетна; если пусто — временно Direct (пока Metrika не синхронизирована)
-                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs
+                convs = metrica_convs + vk_convs
             else:
-                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs 
+                convs = metrica_convs + vk_convs 
             
             # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в VK)
             vk_clicks = int((v_s.total_clicks if v_s else 0) or 0)
@@ -278,9 +278,10 @@ class StatsService:
             # CPA для VK: все затраты / количество лидов (совпадает с интерфейсом VK)
             vk_avg_cpa = vk_cost / vk_conversions if vk_conversions > 0 else 0.0
             
-            # CPA для Yandex: Метрика приоритетна; fallback на Direct если Metrika пусто
-            yandex_convs_for_cpa = metrica_convs if metrica_convs > 0 else yandex_convs
-            # Для Yandex: CPC из Директа, CPA — из Метрики (fallback Direct)
+            # CPA для Yandex: по проекту — из Метрики; по выбранным кампаниям —
+            # из Direct, потому что MetrikaGoals не привязаны к campaign_id.
+            yandex_convs_for_cpa = yandex_convs if campaign_ids else metrica_convs
+            # Для Yandex: CPC из Директа, CPA — из целевых лидов.
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
             yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0

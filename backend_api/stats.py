@@ -528,7 +528,8 @@ async def get_dynamics(
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
         
-        # Лиды для Yandex — Метрика приоритетна; fallback на Direct если Metrika пусто
+        # Лиды для Yandex — только Метрика. Direct conversions не используем
+        # fallback-ом, чтобы график совпадал со страницей проектов и целями.
         metrika_le = int(m_s.leads if m_s else 0)
         yandex_le = int(y_s.leads if y_s else 0)
         vk_le = int(v_s.leads if v_s else 0)
@@ -540,12 +541,12 @@ async def get_dynamics(
             # scoped Direct conversions to avoid overcounting the whole cabinet.
             le = yandex_le + vk_le
         else:
-            le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
+            le = metrika_le + vk_le
         # #region agent log
         if le > 0:
             try:
                 with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a") as _f:
-                    _f.write(__import__("json").dumps({"location":"stats.py:leads_source","message":"Day with leads","data":{"date":str(d),"metrika_le":metrika_le,"yandex_le":yandex_le,"used":("metrika" if metrika_le > 0 else "yandex"),"le":le},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
+                    _f.write(__import__("json").dumps({"location":"stats.py:leads_source","message":"Day with leads","data":{"date":str(d),"metrika_le":metrika_le,"yandex_le":yandex_le,"used":("direct_campaign_scope" if u_campaign_ids else "metrika"),"le":le},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
             except Exception: pass
         # #endregion
         

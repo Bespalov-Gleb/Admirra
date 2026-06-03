@@ -1876,16 +1876,17 @@ const getChartSourceValues = (metricKey) => {
   const dynKey = chartDynamicsKeyMap[metricKey] || 'costs'
   const values = dynamics.value?.[dynKey] || []
   const isMoney = chartChipByKey.value[metricKey]?.money
-  return values.map((v) => isMoney ? withVat(v) : Number(v) || 0)
+  return values.map((v) => Math.max(0, isMoney ? withVat(v) : Number(v) || 0))
 }
 
 const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricKeys.value[0] || 'expenses'))
 
 const buildChartPoints = (values) => {
-  const max = Math.max(...values, 1)
-  const min = Math.min(...values, 0)
+  const normalizedValues = values.map((value) => Math.max(0, Number(value) || 0))
+  const max = Math.max(...normalizedValues, 1)
+  const min = 0
   const span = Math.max(max - min, 1)
-  return values.map((value, index) => ({
+  return normalizedValues.map((value, index) => ({
     x: values.length === 1 ? CHART_LEFT : CHART_LEFT + ((CHART_RIGHT - CHART_LEFT) / (values.length - 1)) * index,
     y: CHART_BOTTOM - ((value - min) / span) * (CHART_BOTTOM - CHART_TOP),
     value
@@ -2763,7 +2764,23 @@ watch(() => [directionEditor.value.name, directionEditor.value.masks, directionM
 }, { deep: true })
 
 watch(() => filters.period, (period) => {
-  const labelMap = { 7: 'Неделя', 14: 'Неделя', 30: 'Месяц', 90: 'Квартал', 365: 'Год' }
+  const labelMap = {
+    7: 'Неделя',
+    14: 'Неделя',
+    30: 'Месяц',
+    90: 'Квартал',
+    365: 'Год',
+    last_7_days: 'Неделя',
+    last_30_days: 'Месяц',
+    last_90_days: 'Квартал',
+    last_365_days: 'Год',
+    today: 'Неделя',
+    yesterday: 'Неделя',
+    this_week: 'Неделя',
+    last_week: 'Неделя',
+    this_month: 'Месяц',
+    last_month: 'Месяц',
+  }
   selectedChartPeriod.value = labelMap[period] || selectedChartPeriod.value
 }, { immediate: true })
 
