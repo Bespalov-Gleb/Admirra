@@ -182,12 +182,6 @@
 
           <div class="white-label-card__preview">
             <img src="/admirra/img/white-label/ui.png" alt="White Label UI" />
-            <div class="white-label-floating-list">
-              <p v-for="feature in wlFeaturesFloating" :key="feature">
-                <span class="feature-dot"></span>
-                {{ feature }}
-              </p>
-            </div>
           </div>
 
           <div class="white-label-card__right">
@@ -419,14 +413,6 @@ const wlFeaturesLeft = [
   'Брендирование отчетов',
   'Использование платформы\nкак собственной системы аналитики',
   'Собственный домен',
-]
-
-const wlFeaturesFloating = [
-  'До 100 проектов',
-  'Все подключения',
-  'До 50 пользователей',
-  'До 1000 запросов AI',
-  'Дополнительные доработки\nпо согласованию',
 ]
 
 const isCurrentPlan = (plan) => String(plan?.code || '').toLowerCase() === currentPlanCode.value
@@ -1259,31 +1245,6 @@ function onContactWl() {
   max-width: 31.25rem;
   object-fit: contain;
   opacity: 0.9;
-}
-
-.white-label-floating-list {
-  position: absolute;
-  left: 50%;
-  bottom: 0.2778rem;
-  width: min(21.5rem, 72%);
-  padding: 1.0417rem 1.3889rem;
-  border-radius: 0.8333rem;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 1.3889rem 3.4722rem rgba(15, 23, 42, 0.08);
-  transform: translateX(-42%) rotate(-1deg);
-}
-
-.white-label-floating-list p {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.8333rem;
-  margin: 0;
-  padding: 0.4167rem 0;
-  color: #0c2b60;
-  font-size: 1.0417rem;
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: pre-line;
 }
 
 .plan-features--wl {
