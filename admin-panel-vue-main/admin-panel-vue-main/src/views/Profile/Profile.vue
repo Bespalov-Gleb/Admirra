@@ -82,12 +82,13 @@
           <div class="security-row">
             <div>
               <strong>Двухфакторная аутентификация</strong>
-              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. При входе потребуется код из email.</span>
+              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. Код подтверждения отправляется на email при входе по паролю.</span>
             </div>
             <button
               class="toggle"
               type="button"
               :class="{ 'toggle--on': form.twoFactorEnabled }"
+              :disabled="twoFactorLoading"
               @click="toggleTwoFactor"
               :aria-pressed="form.twoFactorEnabled ? 'true' : 'false'"
             >
@@ -128,7 +129,7 @@
         <div class="card-head">
           <div>
             <h2>Предпочтения</h2>
-            <p>Тема оформления переключается в меню под аватаром справа вверху.</p>
+            <p>Настройки интерфейса сохраняются в профиле пользователя.</p>
           </div>
         </div>
         <label class="field">
@@ -137,14 +138,15 @@
             <option value="ru">Русский</option>
             <option value="en">English</option>
           </select>
+          <em>Полная локализация интерфейса будет подключена отдельным этапом.</em>
         </label>
       </section>
 
       <section class="profile-card">
         <div class="card-head">
           <div>
-            <h2>Уведомления</h2>
-            <p>Привязать Telegram, чтобы получать уведомления о важных изменениях в проектах.</p>
+            <h2>Отчёты и уведомления</h2>
+            <p>Привяжите Telegram, чтобы получать отчёты и рабочие сообщения в выбранный чат.</p>
           </div>
         </div>
 
@@ -154,7 +156,7 @@
           </div>
           <div>
             <strong>Telegram</strong>
-            <span v-if="form.telegramChatId">Подключён. Уведомления будут приходить в привязанный чат.</span>
+            <span v-if="form.telegramChatId">Подключён. Отчёты будут приходить в привязанный чат.</span>
             <span v-else>Откройте бота и нажмите Start. Chat ID вручную вводить не нужно.</span>
           </div>
           <div class="notification-actions">
@@ -205,6 +207,37 @@
       </div>
     </div>
 
+    <div v-if="twoFactorSetupOpen" class="modal-layer" @click.self="closeTwoFactorSetup">
+      <div class="profile-modal">
+        <h3>Подтвердить 2FA</h3>
+        <p class="modal-note">
+          Введите 6-значный код из письма<span v-if="twoFactorEmailMasked"> на {{ twoFactorEmailMasked }}</span>.
+        </p>
+        <label class="field">
+          <span>Код подтверждения</span>
+          <input
+            v-model="twoFactorCode"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="000000"
+            @input="handleTwoFactorCodeInput"
+          />
+        </label>
+        <div class="modal-actions">
+          <button class="ghost-btn" type="button" @click="closeTwoFactorSetup">Отмена</button>
+          <button
+            class="primary-btn"
+            type="button"
+            :disabled="twoFactorLoading || twoFactorCode.length !== 6"
+            @click="confirmTwoFactor"
+          >
+            {{ twoFactorLoading ? 'Проверка...' : 'Включить 2FA' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="deleteOpen" class="modal-layer" @click.self="deleteOpen = false">
       <div class="profile-modal">
         <h3>Удалить аккаунт?</h3>
@@ -243,6 +276,11 @@ const profile = ref({})
 const oauth = ref([])
 const savingProfile = ref(false)
 const savingPassword = ref(false)
+const twoFactorLoading = ref(false)
+const twoFactorSetupOpen = ref(false)
+const twoFactorChallengeId = ref('')
+const twoFactorCode = ref('')
+const twoFactorEmailMasked = ref('')
 const passwordOpen = ref(false)
 const deleteOpen = ref(false)
 const deleteConfirmation = ref('')
@@ -296,7 +334,7 @@ function fillProfile(data) {
   form.twoFactorEnabled = Boolean(data?.two_factor_enabled)
   form.interfaceLanguage = data?.interface_language || 'ru'
   form.telegramChatId = data?.report_telegram_chat_id || ''
-  form.notificationEmail = data?.notification_email || data?.email || ''
+  form.notificationEmail = data?.notification_email || ''
 }
 
 async function loadProfile() {
@@ -354,13 +392,62 @@ async function saveNotifications() {
 }
 
 async function toggleTwoFactor() {
-  const next = !form.twoFactorEnabled
+  if (twoFactorLoading.value) return
+  if (form.twoFactorEnabled) {
+    twoFactorLoading.value = true
+    try {
+      const { data } = await api.patch('auth/me', { two_factor_enabled: false })
+      fillProfile(data)
+      toaster.success('2FA отключена')
+    } catch (error) {
+      toaster.error(error.response?.data?.detail || 'Не удалось отключить 2FA')
+    } finally {
+      twoFactorLoading.value = false
+    }
+    return
+  }
+
+  twoFactorLoading.value = true
   try {
-    const { data } = await api.patch('auth/me', { two_factor_enabled: next })
-    fillProfile(data)
-    toaster.success(next ? '2FA включена' : '2FA отключена')
+    const { data } = await api.post('auth/me/2fa/start')
+    twoFactorChallengeId.value = data?.challenge_id || ''
+    twoFactorEmailMasked.value = data?.email_masked || ''
+    twoFactorCode.value = ''
+    twoFactorSetupOpen.value = true
+    toaster.success('Код подтверждения отправлен на email')
   } catch (error) {
-    toaster.error(error.response?.data?.detail || 'Не удалось изменить 2FA')
+    toaster.error(error.response?.data?.detail || 'Не удалось отправить код 2FA')
+  } finally {
+    twoFactorLoading.value = false
+  }
+}
+
+function closeTwoFactorSetup() {
+  twoFactorSetupOpen.value = false
+  twoFactorChallengeId.value = ''
+  twoFactorCode.value = ''
+  twoFactorEmailMasked.value = ''
+}
+
+function handleTwoFactorCodeInput(event) {
+  twoFactorCode.value = event.target.value.replace(/\D/g, '').slice(0, 6)
+}
+
+async function confirmTwoFactor() {
+  if (twoFactorCode.value.length !== 6 || !twoFactorChallengeId.value) return
+  twoFactorLoading.value = true
+  try {
+    const { data } = await api.post('auth/me/2fa/verify', {
+      challenge_id: twoFactorChallengeId.value,
+      code: twoFactorCode.value,
+    })
+    fillProfile(data)
+    closeTwoFactorSetup()
+    toaster.success('2FA включена')
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Неверный код подтверждения')
+  } finally {
+    twoFactorLoading.value = false
   }
 }
 
@@ -454,7 +541,7 @@ async function unlinkProvider(provider) {
 async function connectTelegram() {
   try {
     await openTelegramBotForLinking()
-    toaster.success('В Telegram нажмите Start, затем обновите статус')
+    toaster.success('В Telegram нажмите Start, затем обновите статус привязки')
   } catch (error) {
     toaster.error(error.response?.data?.detail || error.message || 'Не удалось открыть Telegram')
   }

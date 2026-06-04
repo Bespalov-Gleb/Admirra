@@ -28,7 +28,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import api from '@/api/axios'
+import api, { refreshAccessToken } from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { consumeVkPkceByState } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
@@ -83,6 +83,14 @@ onMounted(async () => {
     provider === 'yandex' ? 'auth/oauth/yandex/callback' : 'auth/oauth/vk/callback'
 
   try {
+    const profileLinkProvider = sessionStorage.getItem('oauth_profile_link')
+    if (profileLinkProvider === provider) {
+      try {
+        await refreshAccessToken()
+      } catch {
+        // Если refresh-cookie уже недействителен, backend вернёт обычную ошибку/логин-сценарий.
+      }
+    }
     const payload = {
       code: String(code),
       state: String(state),
@@ -107,7 +115,6 @@ onMounted(async () => {
     if (!userResult.success) {
       throw new Error('Не удалось загрузить профиль')
     }
-    const profileLinkProvider = sessionStorage.getItem('oauth_profile_link')
     if (profileLinkProvider === provider) {
       sessionStorage.removeItem('oauth_profile_link')
       router.push('/profile')

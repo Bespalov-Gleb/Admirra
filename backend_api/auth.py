@@ -82,6 +82,65 @@ def _decorate_user_response(resp: schemas.UserResponse, user: models.User) -> sc
     return resp
 
 
+def _create_otp_challenge(db: Session, user: models.User) -> tuple[models.LoginOtpChallenge, str]:
+    db.query(models.LoginOtpChallenge).filter(
+        models.LoginOtpChallenge.user_id == user.id,
+        models.LoginOtpChallenge.consumed.is_(False),
+    ).delete(synchronize_session=False)
+
+    code = generate_otp_digits()
+    challenge = models.LoginOtpChallenge(
+        id=uuid.uuid4(),
+        challenge_id=uuid.uuid4(),
+        user_id=user.id,
+        otp_hash=hash_login_otp(code),
+        expires_at=otp_expiry_minutes(10),
+        attempts=0,
+        consumed=False,
+    )
+    db.add(challenge)
+    db.commit()
+    return challenge, code
+
+
+def _verify_otp_challenge(
+    db: Session,
+    challenge_id: uuid.UUID,
+    code: str,
+    user_id: uuid.UUID | None = None,
+) -> models.LoginOtpChallenge:
+    normalized_code = (code or "").strip()
+    if len(normalized_code) != 6 or not normalized_code.isdigit():
+        raise HTTPException(status_code=400, detail="Invalid code format")
+
+    query = db.query(models.LoginOtpChallenge).filter(models.LoginOtpChallenge.challenge_id == challenge_id)
+    if user_id is not None:
+        query = query.filter(models.LoginOtpChallenge.user_id == user_id)
+    ch = query.first()
+    if not ch or ch.consumed:
+        raise HTTPException(status_code=401, detail="Invalid or expired challenge")
+
+    exp = ch.expires_at
+    if exp is not None:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp <= utcnow():
+            raise HTTPException(status_code=401, detail="Code expired")
+
+    if ch.attempts >= 5:
+        raise HTTPException(status_code=429, detail="Too many attempts")
+
+    if not verify_login_otp(normalized_code, ch.otp_hash):
+        ch.attempts += 1
+        db.add(ch)
+        db.commit()
+        raise HTTPException(status_code=401, detail="Invalid code")
+
+    ch.consumed = True
+    db.add(ch)
+    return ch
+
+
 def _issue_login_session(
     db: Session,
     user: models.User,
@@ -282,10 +341,10 @@ async def login_password_step(
     if security.AUTH_REQUIRE_EMAIL_VERIFIED and not user.email_verified:
         return schemas.LoginPasswordStepResponse(step="email_not_verified", email=user.email)
 
-    otp_required = AUTH_LOGIN_OTP_ENABLED or bool(getattr(user, "two_factor_enabled", False))
+    otp_required = bool(getattr(user, "two_factor_enabled", False))
 
     if not otp_required:
-        logger.info("AUTH_LOGIN_OTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
+        logger.info("2FA disabled for user, issuing JWT without OTP for %s", user.email)
         log_history_event(
             db,
             actor=user,
@@ -299,51 +358,19 @@ async def login_password_step(
         db.commit()
         return token
 
-    if not smtp_delivery_active():
-        if getattr(user, "two_factor_enabled", False):
-            raise HTTPException(
-                status_code=503,
-                detail="Двухфакторная аутентификация временно недоступна: email-доставка не настроена",
-            )
-        if smtp_enabled() and not smtp_configured():
-            logger.error("SMTP not configured; cannot send login OTP")
-            raise HTTPException(
-                status_code=503,
-                detail="Email delivery is not configured on server",
-            )
-        logger.warning("SMTP_ENABLED=false, issuing JWT without OTP for %s", user.email)
-        log_history_event(
-            db,
-            actor=user,
-            event_type="auth",
-            action="login_succeeded",
-            description="Успешный вход (fallback без OTP)",
-            target_type="user",
-            target_id=str(user.id),
+    if not AUTH_LOGIN_OTP_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Двухфакторная аутентификация временно недоступна на сервере",
         )
-        token = _issue_login_session(db, user, request, response, remember_me=login_data.remember_me)
-        db.commit()
-        return token
 
-    # Удаляем старые неиспользованные challenge этого пользователя
-    db.query(models.LoginOtpChallenge).filter(
-        models.LoginOtpChallenge.user_id == user.id,
-        models.LoginOtpChallenge.consumed.is_(False),
-    ).delete(synchronize_session=False)
+    if not smtp_delivery_active():
+        raise HTTPException(
+            status_code=503,
+            detail="Двухфакторная аутентификация временно недоступна: email-доставка не настроена",
+        )
 
-    code = generate_otp_digits()
-    ch_id = uuid.uuid4()
-    challenge = models.LoginOtpChallenge(
-        id=uuid.uuid4(),
-        challenge_id=ch_id,
-        user_id=user.id,
-        otp_hash=hash_login_otp(code),
-        expires_at=otp_expiry_minutes(10),
-        attempts=0,
-        consumed=False,
-    )
-    db.add(challenge)
-    db.commit()
+    challenge, code = _create_otp_challenge(db, user)
 
     sent = await send_login_otp_email(user.email, code)
     if not sent:
@@ -351,7 +378,7 @@ async def login_password_step(
 
     return schemas.LoginPasswordStepResponse(
         step="otp_required",
-        challenge_id=ch_id,
+        challenge_id=challenge.challenge_id,
         email_masked=mask_email(user.email),
     )
 
@@ -364,35 +391,7 @@ def login_verify_otp(
     db: Session = Depends(get_db),
 ):
     """Шаг 2 входа: проверка OTP, выдача JWT."""
-    code = (body.code or "").strip()
-    if len(code) != 6 or not code.isdigit():
-        raise HTTPException(status_code=400, detail="Invalid code format")
-
-    ch = (
-        db.query(models.LoginOtpChallenge)
-        .filter(models.LoginOtpChallenge.challenge_id == body.challenge_id)
-        .first()
-    )
-    if not ch or ch.consumed:
-        raise HTTPException(status_code=401, detail="Invalid or expired challenge")
-
-    exp = ch.expires_at
-    if exp is not None:
-        if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        if exp < utcnow():
-            raise HTTPException(status_code=401, detail="Challenge expired")
-
-    if ch.attempts >= 5:
-        raise HTTPException(status_code=429, detail="Too many attempts")
-
-    ch.attempts = ch.attempts + 1
-
-    if not verify_login_otp(code, ch.otp_hash):
-        db.commit()
-        raise HTTPException(status_code=401, detail="Invalid code")
-
-    ch.consumed = True
+    ch = _verify_otp_challenge(db, body.challenge_id, body.code)
     user = db.query(models.User).filter(models.User.id == ch.user_id).first()
     if not user:
         db.commit()
@@ -524,51 +523,61 @@ def read_users_me(
 
 def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):
     """Общая логика обновления настроек пользователя."""
-    if updates.username is not None:
-        existing = db.query(models.User).filter(
-            models.User.username == updates.username,
-            models.User.id != current_user.id,
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username already taken")
-        current_user.username = updates.username
-    if updates.first_name is not None:
+    fields = updates.model_fields_set
+    if "username" in fields:
+        if updates.username is None:
+            current_user.username = None
+        else:
+            existing = db.query(models.User).filter(
+                models.User.username == updates.username,
+                models.User.id != current_user.id,
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already taken")
+            current_user.username = updates.username
+    if "first_name" in fields:
         current_user.first_name = updates.first_name
-    if updates.last_name is not None:
+    if "last_name" in fields:
         current_user.last_name = updates.last_name
-    if updates.phone is not None:
+    if "phone" in fields:
         current_user.phone = updates.phone
-    if updates.notification_email is not None:
+    if "notification_email" in fields:
         current_user.notification_email = str(updates.notification_email) if updates.notification_email else None
-    if updates.interface_language is not None:
+    if "interface_language" in fields:
         if updates.interface_language not in {"ru", "en"}:
             raise HTTPException(status_code=400, detail="Unsupported interface language")
         current_user.interface_language = updates.interface_language
-    if updates.two_factor_enabled is not None:
-        current_user.two_factor_enabled = updates.two_factor_enabled
-    if updates.yandex_finance_token is not None:
+    if "two_factor_enabled" in fields:
+        next_two_factor = bool(updates.two_factor_enabled)
+        if next_two_factor and not current_user.two_factor_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Подтвердите email-код, чтобы включить двухфакторную аутентификацию",
+            )
+        current_user.two_factor_enabled = next_two_factor
+    if "yandex_finance_token" in fields:
         current_user.yandex_finance_token = updates.yandex_finance_token
-    if updates.report_telegram_chat_id is not None:
+    if "report_telegram_chat_id" in fields:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
-    if updates.report_max_chat_id is not None:
+    if "report_max_chat_id" in fields:
         current_user.report_max_chat_id = updates.report_max_chat_id
-    if updates.report_max_user_id is not None:
+    if "report_max_user_id" in fields:
         current_user.report_max_user_id = updates.report_max_user_id
-    if updates.report_max_username is not None:
+    if "report_max_username" in fields:
         current_user.report_max_username = updates.report_max_username
-    if updates.report_delivery_channels is not None:
+    if "report_delivery_channels" in fields:
         import json
 
         allowed_channels = {"telegram", "max", "email"}
-        channels = [ch for ch in updates.report_delivery_channels if ch in allowed_channels]
+        channels = [ch for ch in (updates.report_delivery_channels or []) if ch in allowed_channels]
         current_user.report_delivery_channels = json.dumps(channels)
-    if updates.report_email_recipients is not None:
+    if "report_email_recipients" in fields:
         import json
 
         current_user.report_email_recipients = (
             json.dumps(updates.report_email_recipients) if updates.report_email_recipients else None
         )
-    if updates.report_schedule is not None:
+    if "report_schedule" in fields:
         current_user.report_schedule = updates.report_schedule
     db.add(current_user)
     db.commit()
@@ -592,6 +601,45 @@ def patch_users_me(
     current_user: models.User = Depends(security.get_current_user),
 ):
     return _update_user_settings(updates, current_user, db)
+
+
+@router.post("/me/2fa/start", response_model=schemas.LoginPasswordStepResponse)
+async def start_users_me_two_factor(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    if current_user.two_factor_enabled:
+        return schemas.LoginPasswordStepResponse(step="otp_required", email_masked=mask_email(current_user.email))
+    if not _user_has_usable_password(current_user):
+        raise HTTPException(status_code=400, detail="Сначала задайте пароль для аккаунта")
+    if not AUTH_LOGIN_OTP_ENABLED:
+        raise HTTPException(status_code=503, detail="Двухфакторная аутентификация отключена на сервере")
+    if not smtp_delivery_active():
+        raise HTTPException(status_code=503, detail="Email-доставка не настроена на сервере")
+
+    challenge, code = _create_otp_challenge(db, current_user)
+    sent = await send_login_otp_email(current_user.email, code)
+    if not sent:
+        raise HTTPException(status_code=503, detail="Не удалось отправить код")
+    return schemas.LoginPasswordStepResponse(
+        step="otp_required",
+        challenge_id=challenge.challenge_id,
+        email_masked=mask_email(current_user.email),
+    )
+
+
+@router.post("/me/2fa/verify", response_model=schemas.UserResponse)
+def verify_users_me_two_factor(
+    body: schemas.TwoFactorSetupVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    _verify_otp_challenge(db, body.challenge_id, body.code, user_id=current_user.id)
+    current_user.two_factor_enabled = True
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return _decorate_user_response(schemas.UserResponse.model_validate(current_user), current_user)
 
 
 @router.post("/me/avatar", response_model=schemas.UserResponse)
@@ -730,6 +778,128 @@ def unlink_users_me_oauth_identity(
     return get_users_me_oauth_identities(current_user)
 
 
+def _ids(rows):
+    return [row[0] for row in rows]
+
+
+def _delete_user_account_data(db: Session, user_id: uuid.UUID) -> None:
+    client_ids = _ids(db.query(models.Client.id).filter(models.Client.owner_id == user_id).all())
+    phone_project_ids = _ids(db.query(models.PhoneProject.id).filter(models.PhoneProject.owner_id == user_id).all())
+    team_member_ids = _ids(db.query(models.TeamMember.id).filter(models.TeamMember.account_id == user_id).all())
+
+    if phone_project_ids:
+        db.query(models.Lead).filter(models.Lead.project_id.in_(phone_project_ids)).delete(synchronize_session=False)
+        db.query(models.PhoneProject).filter(models.PhoneProject.id.in_(phone_project_ids)).delete(synchronize_session=False)
+
+    if team_member_ids:
+        db.query(models.TeamMemberProject).filter(
+            models.TeamMemberProject.team_member_id.in_(team_member_ids)
+        ).delete(synchronize_session=False)
+        db.query(models.TeamMember).filter(models.TeamMember.id.in_(team_member_ids)).delete(synchronize_session=False)
+    db.query(models.TeamMember).filter(models.TeamMember.user_id == user_id).update(
+        {models.TeamMember.user_id: None},
+        synchronize_session=False,
+    )
+
+    db.query(models.HistoryEvent).filter(models.HistoryEvent.actor_user_id == user_id).update(
+        {models.HistoryEvent.actor_user_id: None},
+        synchronize_session=False,
+    )
+    db.query(models.HistoryEvent).filter(models.HistoryEvent.account_id == user_id).delete(synchronize_session=False)
+
+    if client_ids:
+        integration_ids = _ids(
+            db.query(models.Integration.id).filter(models.Integration.client_id.in_(client_ids)).all()
+        )
+        direction_ids = _ids(
+            db.query(models.ProjectDirection.id).filter(models.ProjectDirection.client_id.in_(client_ids)).all()
+        )
+
+        db.query(models.HistoryEvent).filter(models.HistoryEvent.client_id.in_(client_ids)).update(
+            {models.HistoryEvent.client_id: None},
+            synchronize_session=False,
+        )
+        db.query(models.PhoneProject).filter(models.PhoneProject.client_id.in_(client_ids)).update(
+            {models.PhoneProject.client_id: None},
+            synchronize_session=False,
+        )
+        db.query(models.TeamMemberProject).filter(
+            models.TeamMemberProject.project_id.in_(client_ids)
+        ).delete(synchronize_session=False)
+        db.query(models.DetectorAlert).filter(models.DetectorAlert.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.ProjectBudget).filter(models.ProjectBudget.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.ProjectTargetCPA).filter(models.ProjectTargetCPA.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.MetrikaGoals).filter(models.MetrikaGoals.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.WeeklyReport).filter(models.WeeklyReport.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.MonthlyReport).filter(models.MonthlyReport.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.YandexStats).filter(models.YandexStats.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.YandexKeywords).filter(models.YandexKeywords.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.YandexGroups).filter(models.YandexGroups.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(models.VKStats).filter(models.VKStats.client_id.in_(client_ids)).delete(synchronize_session=False)
+
+        if direction_ids:
+            db.query(models.ProjectDirectionMask).filter(
+                models.ProjectDirectionMask.direction_id.in_(direction_ids)
+            ).delete(synchronize_session=False)
+            db.query(models.ProjectDirection).filter(models.ProjectDirection.id.in_(direction_ids)).delete(
+                synchronize_session=False
+            )
+
+        if integration_ids:
+            db.query(models.SyncJob).filter(models.SyncJob.integration_id.in_(integration_ids)).delete(
+                synchronize_session=False
+            )
+            db.query(models.Campaign).filter(models.Campaign.integration_id.in_(integration_ids)).delete(
+                synchronize_session=False
+            )
+            db.query(models.Integration).filter(models.Integration.id.in_(integration_ids)).delete(
+                synchronize_session=False
+            )
+
+        db.query(models.Client).filter(models.Client.id.in_(client_ids)).delete(synchronize_session=False)
+
+    db.query(models.DetectorAlert).filter(models.DetectorAlert.owner_id == user_id).delete(synchronize_session=False)
+    db.query(models.MaxOAuthLoginAttempt).filter(models.MaxOAuthLoginAttempt.user_id == user_id).update(
+        {models.MaxOAuthLoginAttempt.user_id: None},
+        synchronize_session=False,
+    )
+    db.query(models.LoginOtpChallenge).filter(models.LoginOtpChallenge.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(models.AuthRefreshSession).filter(models.AuthRefreshSession.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(models.TelegramLinkToken).filter(models.TelegramLinkToken.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(models.MaxReportLinkToken).filter(models.MaxReportLinkToken.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(models.UserOAuthIdentity).filter(models.UserOAuthIdentity.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(models.Subscription).filter(models.Subscription.user_id == user_id).delete(synchronize_session=False)
+    db.query(models.Notification).filter(models.Notification.user_id == user_id).delete(synchronize_session=False)
+
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_users_me(
     confirmation: str,
@@ -739,6 +909,7 @@ def delete_users_me(
     if confirmation != "УДАЛИТЬ":
         raise HTTPException(status_code=400, detail="Введите УДАЛИТЬ для подтверждения")
     _remove_user_avatar(current_user.avatar_url)
+    _delete_user_account_data(db, current_user.id)
     db.delete(current_user)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

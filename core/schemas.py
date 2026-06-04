@@ -156,6 +156,11 @@ class LoginVerifyRequest(BaseModel):
     code: str
     remember_me: bool = False
 
+
+class TwoFactorSetupVerifyRequest(BaseModel):
+    challenge_id: UUID
+    code: str
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
