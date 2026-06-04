@@ -10,7 +10,7 @@
     </div>
 
     <div class="wizard-shell">
-      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 1, 'wizard-step-section--done': step > 1 }">
+      <section :ref="(el) => setStepRef(1, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 1, 'wizard-step-section--done': step > 1 }">
         <button
           type="button"
           class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
@@ -129,7 +129,7 @@
         </Transition>
       </section>
 
-      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
+      <section :ref="(el) => setStepRef(2, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
         <button
           type="button"
           class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
@@ -210,7 +210,7 @@
         </Transition>
       </section>
 
-      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 3, 'wizard-step-section--done': step > 3 }">
+      <section :ref="(el) => setStepRef(3, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 3, 'wizard-step-section--done': step > 3 }">
         <button
           type="button"
           class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
@@ -336,7 +336,7 @@
         </Transition>
       </section>
 
-      <section class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 4 }">
+      <section :ref="(el) => setStepRef(4, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 4 }">
         <button
           type="button"
           class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
@@ -430,7 +430,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
@@ -438,7 +438,7 @@ import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
 
 const router = useRouter()
-const { projects, fetchProjects } = useProjects()
+const { projects, currentProjectId, fetchProjects } = useProjects()
 const toaster = useToaster()
 
 const {
@@ -465,6 +465,7 @@ const {
 } = useIntegrationWizard()
 
 const step = ref(1)
+const stepRefs = ref({})
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const openSelect = ref(null)
@@ -535,6 +536,9 @@ onMounted(async () => {
   if (clientIdQuery && projects.value.some((project) => String(project.id) === String(clientIdQuery))) {
     form.client_id = String(clientIdQuery)
     isNewProject.value = false
+  } else if (currentProjectId.value && projects.value.some((project) => String(project.id) === String(currentProjectId.value))) {
+    form.client_id = String(currentProjectId.value)
+    isNewProject.value = false
   }
 
   // Проверяем, есть ли resumption после OAuth-редиректа
@@ -567,7 +571,17 @@ const goToVisibleStep = (idx) => {
   if (idx <= step.value) {
     error.value = null
     step.value = idx
+    scrollToStep(idx)
   }
+}
+
+const scrollToStep = async (idx) => {
+  await nextTick()
+  stepRefs.value[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const setStepRef = (idx, el) => {
+  if (el) stepRefs.value[idx] = el
 }
 
 const toggleProjectSelect = () => {
@@ -601,6 +615,7 @@ const goToStep3 = async () => {
     return
   }
   step.value = 3
+  scrollToStep(3)
   await fetchCampaigns(lastIntegrationId.value)
   allFromProfile.value = true
   if (form.platform === 'YANDEX_DIRECT') {
@@ -620,6 +635,7 @@ const goToStep4 = async () => {
   }
   error.value = null
   step.value = 4
+  scrollToStep(4)
 }
 
 const handleCancel = async () => {
