@@ -5,7 +5,7 @@
       <p>Личные данные, безопасность и рабочие уведомления пользователя.</p>
     </header>
 
-    <main class="profile-stack">
+    <main class="profile-grid">
       <section class="profile-card profile-hero">
         <div class="avatar-wrap">
           <div class="avatar">
@@ -20,47 +20,11 @@
         <div class="hero-info">
           <h2>{{ displayName }}</h2>
           <p>{{ form.email }}</p>
-          <span v-if="form.role" class="role-badge">{{ form.role }}</span>
-        </div>
-        <button v-if="form.avatarUrl" class="ghost-btn" type="button" @click="deleteAvatar">Удалить аватар</button>
-      </section>
-
-      <section class="profile-card">
-        <div class="card-head">
-          <div>
-            <h2>Личная информация</h2>
-            <p>Email используется как логин. Смена email будет отдельной процедурой подтверждения.</p>
-          </div>
-          <button class="ghost-btn" type="button" @click="resetProfile">Сбросить</button>
-        </div>
-
-        <div class="field-grid">
-          <label class="field">
-            <span>Имя</span>
-            <input v-model.trim="form.firstName" type="text" placeholder="Введите имя" />
-          </label>
-          <label class="field">
-            <span>Фамилия</span>
-            <input v-model.trim="form.lastName" type="text" placeholder="Введите фамилию" />
-          </label>
-          <label class="field">
-            <span>Email <em>он же логин</em></span>
-            <input v-model="form.email" type="email" readonly />
-          </label>
-          <label class="field">
-            <span>Телефон</span>
-            <input v-model.trim="form.phone" type="tel" placeholder="+7 999 000-00-00" />
-          </label>
-        </div>
-
-        <div class="actions-row">
-          <button class="primary-btn" type="button" :disabled="savingProfile" @click="saveProfile">
-            {{ savingProfile ? 'Сохранение...' : 'Сохранить изменения' }}
-          </button>
+          <span class="role-badge">{{ form.isActive ? 'Активно' : 'Неактивно' }}</span>
         </div>
       </section>
 
-      <section class="profile-card">
+      <section class="profile-card profile-card--security">
         <div class="card-head">
           <div>
             <h2>Безопасность</h2>
@@ -70,19 +34,19 @@
 
         <div class="security-list">
           <div class="security-row">
-            <div>
+            <div class="security-copy">
               <strong>Пароль</strong>
               <span>{{ passwordSubtitle }}</span>
             </div>
             <button class="ghost-btn" type="button" @click="passwordOpen = true">
-              {{ profile.has_password ? 'Изменить' : 'Задать пароль' }}
+              Изменить
             </button>
           </div>
 
           <div class="security-row">
-            <div>
+            <div class="security-copy">
               <strong>Двухфакторная аутентификация</strong>
-              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. Код подтверждения отправляется на email при входе по паролю.</span>
+              <span>{{ form.twoFactorEnabled ? 'Включена' : 'Отключена' }}. При входе потребуется код из email.</span>
             </div>
             <button
               class="toggle"
@@ -96,87 +60,116 @@
             </button>
           </div>
 
-          <div class="oauth-list">
-            <div
-              v-for="provider in oauthProviders"
-              :key="provider.provider"
-              class="oauth-row"
-              :class="`oauth-row--${provider.provider}`"
+          <div
+            v-for="provider in oauthProviders"
+            :key="provider.provider"
+            class="oauth-row"
+            :class="`oauth-row--${provider.provider}`"
+          >
+            <div class="oauth-mark">
+              <img v-if="provider.icon_url" :src="provider.icon_url" :alt="provider.label" />
+              <span v-else>{{ provider.short }}</span>
+            </div>
+            <div class="oauth-main">
+              <strong>{{ provider.label }}</strong>
+              <span v-if="provider.connected && provider.hint">{{ provider.hint }}</span>
+            </div>
+            <span class="oauth-status" :class="{ 'oauth-status--connected': provider.connected }">
+              {{ provider.connected ? 'Привязано' : 'Не привязан' }}
+            </span>
+            <button
+              class="ghost-btn"
+              type="button"
+              :disabled="provider.connected && !provider.can_unlink"
+              @click="provider.connected ? unlinkProvider(provider.provider) : linkProvider(provider.provider)"
             >
-              <div class="oauth-mark">
-                <img v-if="provider.icon_url" :src="provider.icon_url" :alt="provider.label" />
-                <span v-else>{{ provider.short }}</span>
+              {{ provider.connected ? 'Отвязать' : 'Привязать' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-card profile-card--info">
+        <div class="card-head">
+          <div>
+            <h2>Личная информация</h2>
+            <p>Email используется как логин. Смена email будет отдельной процедурой подтверждения.</p>
+          </div>
+          <button class="ghost-btn ghost-btn--compact" type="button" @click="resetProfile">Сбросить</button>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Имя</span>
+            <input v-model.trim="form.firstName" type="text" placeholder="Введите имя" />
+          </label>
+          <label class="field">
+            <span>Фамилия</span>
+            <input v-model.trim="form.lastName" type="text" placeholder="Введите фамилию" />
+          </label>
+          <label class="field">
+            <span>Email он же логин</span>
+            <input v-model="form.email" type="email" readonly />
+          </label>
+          <label class="field">
+            <span>Телефон</span>
+            <input v-model.trim="form.phone" type="tel" placeholder="+7 999 000-00-00" />
+          </label>
+        </div>
+
+        <div class="actions-row">
+          <button class="primary-btn primary-btn--wide" type="button" :disabled="savingProfile" @click="saveProfile">
+            {{ savingProfile ? 'Сохранение...' : 'Сохранить изменения' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="profile-card profile-card--wide">
+        <div class="card-head">
+          <div>
+            <h2>Уведомления</h2>
+            <p>Привязать Telegram, чтобы получать уведомления о важных изменениях в проектах.</p>
+          </div>
+        </div>
+
+        <div class="notifications-grid">
+          <div class="notification-box">
+            <div class="notification-icon notification-icon--telegram">
+              <img src="/admirra/img/icons/telegram.png" alt="Telegram" />
+            </div>
+            <div class="notification-main">
+              <strong>Telegram</strong>
+              <span v-if="form.telegramChatId">Подключён. Уведомления будут приходить в привязанный чат.</span>
+              <span v-else>Откройте бота и нажмите Start. Chat ID вручную вводить не нужно.</span>
+              <div class="notification-actions">
+                <button class="telegram-btn" type="button" @click="connectTelegram">Подключить Telegram</button>
+                <button class="ghost-btn" type="button" @click="loadProfile">Обновить статус</button>
               </div>
-              <div class="oauth-main">
-                <strong>{{ provider.label }}</strong>
-                <span>{{ provider.connected ? 'Привязан' : 'Не привязан' }}</span>
-                <em v-if="provider.hint">{{ provider.hint }}</em>
+            </div>
+          </div>
+
+          <div class="notification-box">
+            <div class="notification-icon notification-icon--email">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2.667 4.667C2.667 4.299 2.965 4 3.333 4h9.334c.368 0 .666.299.666.667v6.666a.667.667 0 0 1-.666.667H3.333a.667.667 0 0 1-.666-.667V4.667Z" fill="#2563EB" opacity=".12"/>
+                <path d="m3.333 5 4.334 3.25c.237.178.563.178.8 0L12.667 5" stroke="#2563EB" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="notification-main">
+              <strong>Email для уведомлений</strong>
+              <span>Введите вашу почту:</span>
+              <div class="email-actions">
+                <input v-model.trim="form.notificationEmail" type="email" placeholder="email@example.com" />
+                <button class="primary-btn" type="button" :disabled="savingProfile" @click="saveNotifications">
+                  Сохранить уведомления
+                </button>
               </div>
-              <button
-                class="ghost-btn"
-                type="button"
-                :disabled="provider.connected && !provider.can_unlink"
-                @click="provider.connected ? unlinkProvider(provider.provider) : linkProvider(provider.provider)"
-              >
-                {{ provider.connected ? 'Отвязать' : 'Привязать' }}
-              </button>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="profile-card">
-        <div class="card-head">
-          <div>
-            <h2>Предпочтения</h2>
-            <p>Настройки интерфейса сохраняются в профиле пользователя.</p>
-          </div>
-        </div>
-        <label class="field">
-          <span>Язык интерфейса</span>
-          <select v-model="form.interfaceLanguage" @change="savePreferences">
-            <option value="ru">Русский</option>
-            <option value="en">English</option>
-          </select>
-          <em>Полная локализация интерфейса будет подключена отдельным этапом.</em>
-        </label>
-      </section>
-
-      <section class="profile-card">
-        <div class="card-head">
-          <div>
-            <h2>Отчёты и уведомления</h2>
-            <p>Привяжите Telegram, чтобы получать отчёты и рабочие сообщения в выбранный чат.</p>
-          </div>
-        </div>
-
-        <div class="notification-box">
-          <div class="notification-icon">
-            <img src="/admirra/img/icons/telegram.png" alt="Telegram" />
-          </div>
-          <div>
-            <strong>Telegram</strong>
-            <span v-if="form.telegramChatId">Подключён. Отчёты будут приходить в привязанный чат.</span>
-            <span v-else>Откройте бота и нажмите Start. Chat ID вручную вводить не нужно.</span>
-          </div>
-          <div class="notification-actions">
-            <button class="telegram-btn" type="button" @click="connectTelegram">Подключить Telegram</button>
-            <button class="ghost-btn" type="button" @click="loadProfile">Обновить статус</button>
-          </div>
-        </div>
-
-        <label class="field">
-          <span>Email для уведомлений</span>
-          <input v-model.trim="form.notificationEmail" type="email" placeholder="email@example.com" />
-        </label>
-        <div class="actions-row">
-          <button class="primary-btn" type="button" :disabled="savingProfile" @click="saveNotifications">
-            Сохранить уведомления
-          </button>
-        </div>
-      </section>
-
-      <section class="danger-card">
+      <section class="danger-card profile-card--wide">
         <div>
           <h2>Удалить аккаунт</h2>
           <p>Необратимое действие. Будут удалены профиль, проекты и данные агентства.</p>
@@ -291,6 +284,7 @@ const form = reactive({
   email: '',
   phone: '',
   role: '',
+  isActive: true,
   avatarUrl: '',
   twoFactorEnabled: false,
   interfaceLanguage: 'ru',
@@ -303,6 +297,27 @@ const passwordForm = reactive({
   next: '',
   repeat: '',
 })
+
+const oauthProviderDefaults = [
+  {
+    provider: 'yandex',
+    label: 'Яндекс ID',
+    short: 'Я',
+    icon_url: '/admirra/img/icons/yandex.png',
+  },
+  {
+    provider: 'vk',
+    label: 'ВКонтакте',
+    short: 'VK',
+    icon_url: '/admirra/img/icons/vk.png',
+  },
+  {
+    provider: 'max',
+    label: 'Max',
+    short: 'M',
+    icon_url: '/admirra/img/icons/max.png',
+  },
+]
 
 const displayName = computed(() => {
   return [form.firstName, form.lastName].filter(Boolean).join(' ').trim() || form.email || 'Пользователь'
@@ -320,7 +335,16 @@ const passwordSubtitle = computed(() => {
 })
 
 const oauthProviders = computed(() => {
-  return oauth.value.filter((item) => item?.provider)
+  const connectedByProvider = new Map((oauth.value || []).filter((item) => item?.provider).map((item) => [item.provider, item]))
+  return oauthProviderDefaults.map((provider) => {
+    const connected = connectedByProvider.get(provider.provider)
+    return {
+      ...provider,
+      ...connected,
+      connected: Boolean(connected?.connected),
+      can_unlink: Boolean(connected?.can_unlink),
+    }
+  })
 })
 
 function fillProfile(data) {
@@ -330,6 +354,7 @@ function fillProfile(data) {
   form.email = data?.email || ''
   form.phone = data?.phone || ''
   form.role = data?.role || ''
+  form.isActive = data?.is_active !== false
   form.avatarUrl = data?.avatar_url || ''
   form.twoFactorEnabled = Boolean(data?.two_factor_enabled)
   form.interfaceLanguage = data?.interface_language || 'ru'
@@ -997,6 +1022,526 @@ button:disabled {
   .notification-actions {
     justify-content: flex-start;
   }
+  .danger-outline-btn,
+  .primary-btn,
+  .telegram-btn,
+  .ghost-btn {
+    width: 100%;
+  }
+}
+
+/* Figma profile redesign */
+.profile-page {
+  width: min(100%, 91.6667rem);
+  max-width: none;
+  margin: 0;
+  padding: 2.2222rem 1.1111rem 3.3333rem;
+}
+
+.profile-head {
+  margin-bottom: 1.6667rem;
+}
+
+.profile-head h1 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.8056rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.profile-head p {
+  margin: 0.4861rem 0 0;
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.8333rem;
+  font-weight: 600;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 1.6667rem;
+}
+
+.profile-card,
+.danger-card {
+  border: 0;
+  border-radius: 1.1111rem;
+  background: #fff;
+  padding: 1.6667rem;
+  box-shadow: none;
+}
+
+.profile-card--wide,
+.danger-card.profile-card--wide {
+  grid-column: 1 / -1;
+}
+
+.profile-card--security {
+  grid-row: span 2;
+}
+
+.profile-hero {
+  min-height: 7.7083rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5972rem;
+  padding: 1.6667rem;
+}
+
+.avatar {
+  width: 4.8611rem;
+  height: 4.8611rem;
+  background: #eef4ff;
+  color: #2563eb;
+  font-size: 1.8056rem;
+  font-weight: 700;
+}
+
+.avatar-btn {
+  right: -0.2083rem;
+  bottom: 0.2083rem;
+  width: 1.7361rem;
+  height: 1.7361rem;
+  background: #2563eb;
+  box-shadow: 0 0.4167rem 0.9028rem rgba(37, 99, 235, 0.28);
+}
+
+.avatar-btn svg {
+  width: 0.8333rem;
+  height: 0.8333rem;
+}
+
+.hero-info h2,
+.card-head h2,
+.danger-card h2,
+.profile-modal h3 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.18;
+}
+
+.hero-info p {
+  margin: 0.2778rem 0 0;
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 0.8333rem;
+  font-weight: 600;
+}
+
+.role-badge {
+  min-height: 1.3889rem;
+  margin-top: 0.5556rem;
+  padding: 0 0.6944rem;
+  border-radius: 0.2083rem;
+  background: #e8fff0;
+  color: #2abd58;
+  font-size: 0.7639rem;
+  font-weight: 700;
+}
+
+.card-head,
+.danger-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.1111rem;
+}
+
+.card-head p,
+.danger-card p,
+.modal-note {
+  margin: 0.625rem 0 0;
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.9028rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.profile-card--info {
+  padding: 1.6667rem;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.3194rem 1.1111rem;
+  margin-top: 1.5972rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.625rem;
+  margin: 0;
+}
+
+.field span {
+  color: #4d4d4d;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+
+.field em {
+  display: block;
+  margin-top: 0.3472rem;
+  color: rgba(105, 105, 105, 0.45);
+  font-size: 0.7639rem;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 2.6389rem;
+  padding: 0 0.9722rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  outline: none;
+  background: #f5f7f9;
+  color: #171717;
+  font-size: 0.8333rem;
+  font-weight: 600;
+}
+
+.email-actions input {
+  width: 100%;
+  min-height: 2.7778rem;
+  padding: 0 1.1111rem;
+  border: 0;
+  border-radius: 0.625rem;
+  outline: none;
+  background: #fff;
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 600;
+}
+
+.profile-page input[type="email"],
+.profile-page input[type="password"],
+.profile-page input[type="tel"],
+.profile-page input[type="text"],
+.profile-page textarea {
+  height: 3rem;
+}
+
+.field input::placeholder,
+.email-actions input::placeholder {
+  color: rgba(105, 105, 105, 0.42);
+}
+
+.field input[readonly] {
+  color: rgba(105, 105, 105, 0.52);
+  cursor: not-allowed;
+}
+
+.field input:focus,
+.field select:focus,
+.email-actions input:focus {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.actions-row {
+  margin-top: 1.9444rem;
+}
+
+.primary-btn,
+.ghost-btn,
+.telegram-btn,
+.danger-btn,
+.danger-outline-btn {
+  min-height: 2.7778rem;
+  padding: 0 1.3889rem;
+  border-radius: 0.625rem;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+
+.primary-btn,
+.telegram-btn {
+  border: 0;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+}
+
+.primary-btn--wide {
+  width: 100%;
+  min-height: 3.2639rem;
+}
+
+.profile-card--info .primary-btn--wide {
+  background: #2563eb;
+}
+
+.ghost-btn {
+  border: 1px solid rgba(23, 23, 23, 0.09);
+  background: #fff;
+  color: #2563eb;
+}
+
+.ghost-btn--compact {
+  min-width: 6.7361rem;
+  min-height: 2.8472rem;
+}
+
+.security-list {
+  display: grid;
+  gap: 0.9722rem;
+  margin-top: 1.5972rem;
+}
+
+.security-row,
+.oauth-row,
+.notification-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.5139rem;
+  padding: 0.9722rem 1.25rem;
+  border-radius: 0.625rem;
+  background: #f5f7f9;
+}
+
+.security-row {
+  justify-content: space-between;
+}
+
+.security-copy {
+  min-width: 0;
+}
+
+.security-copy strong,
+.oauth-main strong,
+.notification-box strong {
+  display: block;
+  color: #696969;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+
+.security-copy span,
+.oauth-main span,
+.notification-box span {
+  display: block;
+  margin-top: 0.2778rem;
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.8333rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.oauth-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(6.6667rem, auto) minmax(6.9444rem, auto);
+  min-height: 4.5139rem;
+}
+
+.oauth-mark {
+  width: 1.5278rem;
+  height: 1.5278rem;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.oauth-mark img,
+.notification-icon img {
+  width: 1.5278rem;
+  height: 1.5278rem;
+}
+
+.oauth-main strong {
+  color: #696969;
+}
+
+.oauth-status {
+  min-width: 6.1111rem;
+  padding: 0.2778rem 0.625rem;
+  border-radius: 0.1389rem;
+  background: #fff;
+  color: rgba(105, 105, 105, 0.44);
+  font-size: 0.8333rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.security-row .ghost-btn,
+.oauth-row .ghost-btn {
+  min-width: 6.6667rem;
+  min-height: 2.7778rem;
+}
+
+.oauth-status--connected {
+  background: #e8fff0;
+  color: #2abd58;
+}
+
+.toggle {
+  width: 3.125rem;
+  height: 1.7361rem;
+  padding: 0.2083rem;
+  border: 0;
+  border-radius: 99rem;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.1);
+}
+
+.toggle--on {
+  background: #fff;
+}
+
+.toggle i {
+  display: block;
+  width: 1.3194rem;
+  height: 1.3194rem;
+  border-radius: 50%;
+  background: #d1d5db;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle--on i {
+  background: #6bdd62;
+  transform: translateX(1.3889rem);
+}
+
+.profile-card--wide {
+  padding: 1.6667rem;
+}
+
+.notifications-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1111rem;
+  margin-top: 1.5278rem;
+}
+
+.notification-box {
+  align-items: flex-start;
+  min-height: 6.6667rem;
+  padding: 1.3194rem 1.5278rem;
+}
+
+.notification-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5278rem;
+  height: 1.5278rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.notification-icon--telegram {
+  background: #e7f6ff;
+}
+
+.notification-icon--email {
+  background: #fff;
+}
+
+.notification-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.notification-actions,
+.email-actions {
+  display: grid;
+  gap: 1.1111rem;
+  margin-top: 1.25rem;
+}
+
+.notification-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.email-actions {
+  grid-template-columns: minmax(13.3333rem, 1fr) minmax(11.8056rem, 0.85fr);
+}
+
+.email-actions input {
+  background: #fff;
+  min-height: 2.7778rem;
+}
+
+.danger-card {
+  align-items: center;
+  min-height: 5.8333rem;
+  border: 1px solid rgba(255, 98, 98, 0.3);
+  background: #fff0f0;
+  padding: 1.6667rem;
+}
+
+.danger-card h2 {
+  color: #ff5d62;
+  font-size: 1.25rem;
+}
+
+.danger-card p {
+  color: rgba(255, 93, 98, 0.62);
+}
+
+.danger-outline-btn {
+  min-width: 13.8889rem;
+  min-height: 2.8472rem;
+  border: 1px solid #ff5d62;
+  background: transparent;
+  color: #ff5d62;
+}
+
+.danger-outline-btn:hover {
+  background: rgba(255, 93, 98, 0.06);
+}
+
+@media (max-width: 980px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-card--security,
+  .profile-card--wide,
+  .danger-card.profile-card--wide {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .notifications-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .profile-page {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .profile-hero,
+  .card-head,
+  .security-row,
+  .danger-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .field-grid,
+  .notification-actions,
+  .email-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .oauth-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .oauth-status,
+  .oauth-row .ghost-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .danger-outline-btn,
   .primary-btn,
   .telegram-btn,
