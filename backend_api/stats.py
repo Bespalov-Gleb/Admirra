@@ -404,11 +404,6 @@ async def get_dynamics(
                 y_stats = y_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     y_stats = y_stats.group_by(models.YandexStats.date).all()
 
-    # #region agent log
-    _ys = [{"date": str(s.date), "cost": float(s.cost or 0), "clicks": s.clicks, "impressions": s.impressions, "leads": s.leads} for s in (y_stats or [])[:5]]
-    logger.info(f"[DEBUG stats] YandexStats count={len(y_stats or [])} sample={_ys} client_ids={[str(c) for c in effective_client_ids]} period={d_start}..{d_end}")
-    # #endregion
-
     v_stats = db.query(
         models.VKStats.date,
         func.sum(models.VKStats.cost).label("cost"),
@@ -491,29 +486,6 @@ async def get_dynamics(
             m_query = m_query.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
         
         m_stats = m_query.group_by(models.MetrikaGoals.date).all()
-
-        # #region agent log
-        _ms = [{"date": str(s.date), "leads": s.leads} for s in (m_stats or [])[:5]]
-        _m_total = sum(int(s.leads or 0) for s in (m_stats or []))
-        _y_total = sum(int(s.leads or 0) for s in (y_stats or []))
-        _raw_q = db.query(models.MetrikaGoals.goal_id, func.sum(models.MetrikaGoals.conversion_count).label("cnt")).filter(
-            models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.goal_id != "all",
-            models.MetrikaGoals.date >= d_start,
-            models.MetrikaGoals.date <= d_end
-        )
-        if selected_goal_ids:
-            _raw_q = _raw_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
-        if m_integration_ids:
-            _raw_q = _raw_q.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
-        _raw_m = _raw_q.group_by(models.MetrikaGoals.goal_id).all()
-        _raw_total = sum(int(r.cnt or 0) for r in _raw_m)
-        logger.info(f"[DEBUG stats] MetrikaGoals count={len(m_stats or [])} sample={_ms} m_total={_m_total} y_total={_y_total} raw_by_goal={[(r.goal_id, r.cnt) for r in _raw_m[:5]]}")
-        try:
-            with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a") as _f:
-                _f.write(__import__("json").dumps({"location":"stats.py:get_dynamics","message":"Metrika vs Yandex totals","data":{"m_total":_m_total,"y_total":_y_total,"raw_total":_raw_total,"raw_by_goal":[(r.goal_id, int(r.cnt or 0)) for r in _raw_m],"m_integration_ids":str(m_integration_ids),"period":f"{d_start}..{d_end}","m_sample":_ms[:5]},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
-        except Exception: pass
-        # #endregion
 
     selected_platforms = [
         row[0]
@@ -975,14 +947,6 @@ async def get_goals(
     Cost is calculated by distributing total ad spend proportionally to conversions.
     """
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
-    # #region agent log
-    try:
-        import json, os
-        _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
-        with open(_log, "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({"id":"get_goals_entry","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals called","data":{"client_id":str(client_id) if client_id else None,"date_from":date_from,"date_to":date_to,"effective_client_ids":[str(x) for x in (effective_client_ids or [])],"effective_count":len(effective_client_ids or [])},"hypothesisId":"B","runId":"post-fix"}) + "\n")
-    except Exception: pass
-    # #endregion
     if not effective_client_ids: return []
 
     # Default date range: last 14 days if not specified
@@ -1212,20 +1176,6 @@ async def get_goals(
                 sync_metrika_goals_background(integration.id, str(date_from_obj), str(date_to_obj))
                 logger.info(f"📊 get_goals: triggered goals-only sync for integration {integration.id}")
                 break
-
-    # #region agent log
-    try:
-        import json, os
-        _db_total = db.query(func.count(models.MetrikaGoals.id)).filter(
-            models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.date >= date_from_obj,
-            models.MetrikaGoals.date <= date_to_obj
-        ).scalar() or 0
-        _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
-        with open(_log, "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goal_ids_to_show),"result_len":len(goal_ids_to_show),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E","runId":"post-fix"}) + "\n")
-    except Exception: pass
-    # #endregion
 
     period_days = (date_to_obj - date_from_obj).days + 1
     prev_date_from = date_from_obj - timedelta(days=period_days)
