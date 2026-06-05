@@ -16,6 +16,9 @@
             <CameraIcon class="w-[1.1111rem] h-[1.1111rem]" />
             <input type="file" accept="image/png,image/jpeg,image/webp" @change="uploadAvatar" />
           </label>
+          <button v-if="form.avatarUrl" class="avatar-remove-btn" type="button" @click="deleteAvatar">
+            Удалить
+          </button>
         </div>
         <div class="hero-info">
           <h2>{{ displayName }}</h2>
@@ -95,17 +98,24 @@
             <h2>Личная информация</h2>
             <p>Email используется как логин. Смена email будет отдельной процедурой подтверждения.</p>
           </div>
-          <button class="ghost-btn ghost-btn--compact" type="button" @click="resetProfile">Сбросить</button>
+          <button
+            v-if="!profileEditOpen"
+            class="ghost-btn ghost-btn--compact"
+            type="button"
+            @click="openProfileEdit"
+          >
+            Изменить
+          </button>
         </div>
 
         <div class="field-grid">
           <label class="field">
             <span>Имя</span>
-            <input v-model.trim="form.firstName" type="text" placeholder="Введите имя" />
+            <input v-model.trim="form.firstName" type="text" placeholder="Введите имя" :readonly="!profileEditOpen" />
           </label>
           <label class="field">
             <span>Фамилия</span>
-            <input v-model.trim="form.lastName" type="text" placeholder="Введите фамилию" />
+            <input v-model.trim="form.lastName" type="text" placeholder="Введите фамилию" :readonly="!profileEditOpen" />
           </label>
           <label class="field">
             <span>Email он же логин</span>
@@ -113,11 +123,14 @@
           </label>
           <label class="field">
             <span>Телефон</span>
-            <input v-model.trim="form.phone" type="tel" placeholder="+7 999 000-00-00" />
+            <input v-model.trim="form.phone" type="tel" placeholder="+7 999 000-00-00" :readonly="!profileEditOpen" />
           </label>
         </div>
 
-        <div class="actions-row">
+        <div v-if="profileEditOpen" class="actions-row actions-row--split">
+          <button class="ghost-btn" type="button" :disabled="savingProfile" @click="cancelProfileEdit">
+            Отмена
+          </button>
           <button class="primary-btn primary-btn--wide" type="button" :disabled="savingProfile" @click="saveProfile">
             {{ savingProfile ? 'Сохранение...' : 'Сохранить изменения' }}
           </button>
@@ -274,6 +287,7 @@ const twoFactorSetupOpen = ref(false)
 const twoFactorChallengeId = ref('')
 const twoFactorCode = ref('')
 const twoFactorEmailMasked = ref('')
+const profileEditOpen = ref(false)
 const passwordOpen = ref(false)
 const deleteOpen = ref(false)
 const deleteConfirmation = ref('')
@@ -371,8 +385,17 @@ async function loadProfile() {
   oauth.value = oauthRes.data || []
 }
 
-function resetProfile() {
+function resetProfileForm() {
   fillProfile(profile.value)
+}
+
+function openProfileEdit() {
+  profileEditOpen.value = true
+}
+
+function cancelProfileEdit() {
+  resetProfileForm()
+  profileEditOpen.value = false
 }
 
 async function saveProfile() {
@@ -384,22 +407,13 @@ async function saveProfile() {
       phone: form.phone || null,
     })
     fillProfile(data)
+    profileEditOpen.value = false
     await fetchCurrentUser()
     toaster.success('Профиль обновлён')
   } catch (error) {
     toaster.error(error.response?.data?.detail || 'Не удалось сохранить профиль')
   } finally {
     savingProfile.value = false
-  }
-}
-
-async function savePreferences() {
-  try {
-    const { data } = await api.patch('auth/me', { interface_language: form.interfaceLanguage })
-    fillProfile(data)
-    toaster.success('Язык интерфейса сохранён')
-  } catch (error) {
-    toaster.error(error.response?.data?.detail || 'Не удалось сохранить язык')
   }
 }
 
@@ -1035,7 +1049,7 @@ button:disabled {
   width: min(100%, 91.6667rem);
   max-width: none;
   margin: 0;
-  padding: 2.2222rem 1.1111rem 3.3333rem;
+  padding: 2.0833rem 1.875rem 3.3333rem;
 }
 
 .profile-head {
@@ -1112,6 +1126,20 @@ button:disabled {
 .avatar-btn svg {
   width: 0.8333rem;
   height: 0.8333rem;
+}
+
+.avatar-remove-btn {
+  margin-top: 0.4861rem;
+  border: 0;
+  background: transparent;
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 0.6944rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.avatar-remove-btn:hover {
+  color: #ff5d62;
 }
 
 .hero-info h2,
@@ -1238,6 +1266,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.profile-card--info .field input[readonly] {
+  background: #f5f7f9;
+}
+
 .field input:focus,
 .field select:focus,
 .email-actions input:focus {
@@ -1246,6 +1278,12 @@ button:disabled {
 
 .actions-row {
   margin-top: 1.9444rem;
+}
+
+.actions-row--split {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.34fr) minmax(0, 1fr);
+  gap: 0.8333rem;
 }
 
 .primary-btn,
@@ -1528,7 +1566,8 @@ button:disabled {
 
   .field-grid,
   .notification-actions,
-  .email-actions {
+  .email-actions,
+  .actions-row--split {
     grid-template-columns: 1fr;
   }
 
