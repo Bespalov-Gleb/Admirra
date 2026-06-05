@@ -558,13 +558,6 @@ async def get_dynamics(
             le = 0
         else:
             le = metrika_le + vk_le
-        # #region agent log
-        if le > 0:
-            try:
-                with open(r"c:\Users\ArdorPC\PycharmProjects\TraficAgent\.cursor\debug.log", "a") as _f:
-                    _f.write(__import__("json").dumps({"location":"stats.py:leads_source","message":"Day with leads","data":{"date":str(d),"metrika_le":metrika_le,"yandex_le":yandex_le,"used":("direct_campaign_scope" if u_campaign_ids else "metrika"),"le":le},"timestamp":__import__("time").time()*1000,"hypothesisId":"H4"}) + "\n")
-            except Exception: pass
-        # #endregion
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
