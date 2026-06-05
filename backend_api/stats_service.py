@@ -164,7 +164,6 @@ class StatsService:
             integration_ids = None
             
             if campaign_ids:
-                print(f"DEBUG: StatsService.get_data - FILTERING by {len(campaign_ids)} campaigns: {campaign_ids}")
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
                 
@@ -175,7 +174,6 @@ class StatsService:
                 integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
                 
                 if integration_ids:
-                    print(f"DEBUG: StatsService.get_data - FILTERING by {len(integration_ids)} integrations from selected campaigns: {integration_ids}")
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
