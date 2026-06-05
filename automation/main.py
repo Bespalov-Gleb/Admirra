@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 MSK = pytz.timezone("Europe/Moscow")
 
-SYNC_HOURS_MSK = [1, 7, 13, 19]  # 01:00, 07:00, 13:00, 19:00 МСК
+SYNC_HOURS_MSK = [3]  # 03:00 МСК, один ночной автосинк в сутки
 
 async def sync_with_log():
     now_msk = datetime.now(MSK).strftime("%Y-%m-%d %H:%M МСК")
@@ -44,10 +44,6 @@ async def main():
 
     next_runs = ", ".join(f"{h:02d}:00" for h in SYNC_HOURS_MSK)
     logger.info(f"✅ Планировщик запущен. Синхронизация по МСК: {next_runs}")
-
-    # Запускаем синхронизацию сразу при старте
-    logger.info("🔄 Запуск первичной синхронизации при старте...")
-    asyncio.create_task(sync_with_log())
 
     scheduler.start()
 

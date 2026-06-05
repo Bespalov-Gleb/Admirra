@@ -223,7 +223,7 @@
                 class="border-b border-[rgba(0,0,0,0.05)] px-[0.6944rem] py-[2.0833rem] align-middle dark:border-white/10"
               >
                 <div :class="['mb-[0.3472rem] text-[1.0417rem] leading-[130%]', cell.bold ? 'font-bold' : 'font-normal']">{{ cell.value }}</div>
-                <div :class="trendBadgeClass(getProjectMetric(project.id), cell.key)">
+                <div v-if="cell.trendAvailable !== false" :class="trendBadgeClass(getProjectMetric(project.id), cell.key)">
                   <svg :class="trendArrowClass(getProjectMetric(project.id), cell.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
                     <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -851,13 +851,16 @@ const trendText = (metric, key) => {
 
 const metricCells = (project) => {
   const m = getProjectMetric(project.id)
+  const leadsAvailable = m.leads_available !== false
+  const cpaAvailable = m.cpa_available !== false
+  const goalsSyncing = Boolean(m.goals_syncing)
   return [
     { key: 'impressions', value: formatNumber(m.impressions) },
     { key: 'clicks', value: formatNumber(m.clicks) },
     { key: 'expenses', value: formatMoney(withVat(m.expenses)), bold: true },
-    { key: 'leads', value: formatNumber(m.leads) },
+    { key: 'leads', value: leadsAvailable ? (goalsSyncing ? 'синхр.' : formatNumber(m.leads)) : '—', trendAvailable: leadsAvailable && !goalsSyncing },
     { key: 'cpc', value: formatMoney(withVat(m.cpc)) },
-    { key: 'cpa', value: formatMoney(withVat(m.cpa)) }
+    { key: 'cpa', value: cpaAvailable && !goalsSyncing ? formatMoney(withVat(m.cpa)) : '—', trendAvailable: cpaAvailable && !goalsSyncing }
   ]
 }
 

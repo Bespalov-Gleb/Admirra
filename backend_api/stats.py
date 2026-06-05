@@ -515,6 +515,20 @@ async def get_dynamics(
         except Exception: pass
         # #endregion
 
+    selected_platforms = [
+        row[0]
+        for row in db.query(models.Integration.platform)
+        .filter(models.Integration.client_id.in_(effective_client_ids))
+        .distinct()
+        .all()
+    ]
+    mixed_goal_types = (
+        platform == "all"
+        and not u_campaign_ids
+        and models.IntegrationPlatform.VK_ADS in selected_platforms
+        and any(p in [models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.YANDEX_METRIKA] for p in selected_platforms)
+    )
+
     labels, costs, clicks, impressions, leads, cpc, cpa = [], [], [], [], [], [], []
     for i in range((d_end - d_start).days + 1):
         d = d_start + timedelta(days=i)
@@ -540,6 +554,8 @@ async def get_dynamics(
             # selected campaign set (also used by directions), use campaign-
             # scoped Direct conversions to avoid overcounting the whole cabinet.
             le = yandex_le + vk_le
+        elif mixed_goal_types:
+            le = 0
         else:
             le = metrika_le + vk_le
         # #region agent log
@@ -552,7 +568,7 @@ async def get_dynamics(
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
-        cpa.append(round(c/le, 2) if le > 0 else 0)
+        cpa.append(round(c/le, 2) if le > 0 and not mixed_goal_types else 0)
 
     return {
         "labels": labels, 
@@ -1004,7 +1020,6 @@ async def get_goals(
             models.VKStats.client_id.in_(effective_client_ids),
             models.VKStats.date >= date_from_obj,
             models.VKStats.date <= date_to_obj,
-            models.Campaign.is_active.is_(True),
             models.Campaign.vk_goal_action_id.isnot(None),
             models.Campaign.vk_goal_action_id != "",
         )
@@ -1027,7 +1042,6 @@ async def get_goals(
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(effective_client_ids),
                 models.Campaign.vk_goal_action_id == row.vk_goal_action_id,
-                models.Campaign.is_active.is_(True),
                 models.VKStats.date >= prev_date_from,
                 models.VKStats.date <= prev_date_to,
             )
@@ -1060,63 +1074,107 @@ async def get_goals(
         return result
 
     # ——— Yandex / all: Metrika goals ———
-
-    query = db.query(
-        models.MetrikaGoals.goal_id,
-        models.MetrikaGoals.goal_name,
-        func.sum(models.MetrikaGoals.conversion_count).label("count")
-    ).filter(
-        models.MetrikaGoals.client_id.in_(effective_client_ids),
-        models.MetrikaGoals.date >= date_from_obj,
-        models.MetrikaGoals.date <= date_to_obj
-    )
-    
-    if integration_id:
-        query = query.filter(models.MetrikaGoals.integration_id == integration_id)
-    
-    # Individual goals (goal_id != "all")
-    query_indiv = query.filter(models.MetrikaGoals.goal_id != "all")
-    goals = query_indiv.group_by(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).all()
-
-    # Фильтр по selected_goals: показывать только цели, выбранные пользователем при интеграции
-    selected_goal_ids = set()
-    for i in db.query(models.Integration).filter(
+    yandex_integrations_query = db.query(models.Integration).filter(
         models.Integration.client_id.in_(effective_client_ids),
         models.Integration.platform.in_([
             models.IntegrationPlatform.YANDEX_DIRECT,
             models.IntegrationPlatform.YANDEX_METRIKA,
         ]),
-    ).all():
-        if i.selected_goals:
+    )
+    if integration_id:
+        yandex_integrations_query = yandex_integrations_query.filter(models.Integration.id == integration_id)
+    yandex_integrations = yandex_integrations_query.all()
+
+    selected_goal_ids = []
+    for integration in yandex_integrations:
+        if integration.selected_goals:
             try:
-                sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
-                selected_goal_ids.update(str(g) for g in (sg or []))
+                sg = json.loads(integration.selected_goals) if isinstance(integration.selected_goals, str) else integration.selected_goals
+                for goal_id in sg or []:
+                    goal_id = str(goal_id)
+                    if goal_id and goal_id not in selected_goal_ids:
+                        selected_goal_ids.append(goal_id)
             except Exception:
                 pass
-        if i.primary_goal_id:
-            selected_goal_ids.add(str(i.primary_goal_id))
-    if selected_goal_ids:
-        goals = [g for g in goals if str(g.goal_id) in selected_goal_ids]
+        if integration.primary_goal_id:
+            primary_goal = str(integration.primary_goal_id)
+            if primary_goal not in selected_goal_ids:
+                selected_goal_ids.append(primary_goal)
 
-    # Если нет индивидуальных целей — НЕ возвращаем агрегат (goal_id="all"). Агрегат с именем
-    # "Selected Goals" — техническая запись из sync; показывать её как цель было бы некорректно.
-    # Пустой список = синк ещё идёт или цели не настроены. Триггерим sync при необходимости.
-    if not goals:
-        any_count = db.query(func.count(models.MetrikaGoals.id)).filter(
-            models.MetrikaGoals.client_id.in_(effective_client_ids),
+    query = db.query(
+        models.MetrikaGoals.goal_id,
+        func.sum(models.MetrikaGoals.conversion_count).label("count")
+    ).filter(
+        models.MetrikaGoals.client_id.in_(effective_client_ids),
+        models.MetrikaGoals.date >= date_from_obj,
+        models.MetrikaGoals.date <= date_to_obj,
+        models.MetrikaGoals.goal_id != "all",
+    )
+    if integration_id:
+        query = query.filter(models.MetrikaGoals.integration_id == integration_id)
+    if selected_goal_ids:
+        query = query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+    current_counts = {
+        str(row.goal_id): int(row.count or 0)
+        for row in query.group_by(models.MetrikaGoals.goal_id).all()
+    }
+
+    latest_name_rows = db.query(
+        models.MetrikaGoals.goal_id,
+        models.MetrikaGoals.goal_name,
+    ).filter(
+        models.MetrikaGoals.client_id.in_(effective_client_ids),
+        models.MetrikaGoals.goal_id != "all",
+    )
+    if integration_id:
+        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id == integration_id)
+    if selected_goal_ids:
+        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+    latest_names = {}
+    for row in latest_name_rows.order_by(models.MetrikaGoals.date.desc()).all():
+        goal_id = str(row.goal_id)
+        if goal_id not in latest_names and row.goal_name:
+            latest_names[goal_id] = row.goal_name
+
+    goal_ids_to_show = selected_goal_ids or list(current_counts.keys())
+
+    has_any_period_goal_rows = db.query(func.count(models.MetrikaGoals.id)).filter(
+        models.MetrikaGoals.client_id.in_(effective_client_ids),
+        models.MetrikaGoals.date >= date_from_obj,
+        models.MetrikaGoals.date <= date_to_obj,
+        models.MetrikaGoals.goal_id != "all",
+    )
+    if selected_goal_ids:
+        has_any_period_goal_rows = has_any_period_goal_rows.filter(
+            models.MetrikaGoals.goal_id.in_(selected_goal_ids)
+        )
+    has_any_period_goal_rows = has_any_period_goal_rows.scalar() or 0
+    if integration_id:
+        has_any_period_goal_rows = db.query(func.count(models.MetrikaGoals.id)).filter(
+            models.MetrikaGoals.integration_id == integration_id,
             models.MetrikaGoals.date >= date_from_obj,
-            models.MetrikaGoals.date <= date_to_obj
-        ).scalar() or 0
-        logger.info(f"📊 get_goals: 0 goals for client {effective_client_ids}, period {date_from_obj}–{date_to_obj}. Total MetrikaGoals rows: {any_count}")
-        # Запускаем sync целей по требованию — данные появятся после retry на фронте
-        for i in db.query(models.Integration).filter(
-            models.Integration.client_id.in_(effective_client_ids),
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
-        ).all():
-            if (i.selected_goals or i.primary_goal_id) and i.selected_counters:
-                sync_metrika_goals_background(i.id, str(date_from_obj), str(date_to_obj))
-                logger.info(f"📊 get_goals: triggered goals-only sync for integration {i.id}")
-                break  # один sync достаточно
+            models.MetrikaGoals.date <= date_to_obj,
+            models.MetrikaGoals.goal_id != "all",
+        )
+        if selected_goal_ids:
+            has_any_period_goal_rows = has_any_period_goal_rows.filter(
+                models.MetrikaGoals.goal_id.in_(selected_goal_ids)
+            )
+        has_any_period_goal_rows = has_any_period_goal_rows.scalar() or 0
+
+    goals_syncing = bool(selected_goal_ids and not has_any_period_goal_rows)
+    if goals_syncing:
+        logger.info(
+            "📊 get_goals: selected goals exist but no period rows for client=%s period=%s..%s",
+            effective_client_ids,
+            date_from_obj,
+            date_to_obj,
+        )
+        for integration in yandex_integrations:
+            if (integration.selected_goals or integration.primary_goal_id) and integration.selected_counters:
+                sync_metrika_goals_background(integration.id, str(date_from_obj), str(date_to_obj))
+                logger.info(f"📊 get_goals: triggered goals-only sync for integration {integration.id}")
+                break
 
     # #region agent log
     try:
@@ -1128,7 +1186,7 @@ async def get_goals(
         ).scalar() or 0
         _log = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", ".cursor", "debug.log"))
         with open(_log, "a", encoding="utf-8") as _f:
-            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goals),"result_len":len([g for g in goals]),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E","runId":"post-fix"}) + "\n")
+            _f.write(json.dumps({"id":"get_goals_result","timestamp":__import__("time").time()*1000,"location":"stats.py:get_goals","message":"get_goals result","data":{"goals_count":len(goal_ids_to_show),"result_len":len(goal_ids_to_show),"db_total_rows":_db_total,"date_from":str(date_from_obj),"date_to":str(date_to_obj)},"hypothesisId":"E","runId":"post-fix"}) + "\n")
     except Exception: pass
     # #endregion
 
@@ -1140,27 +1198,32 @@ async def get_goals(
     # campaign-goal attribution, assigning spend per individual goal would make
     # every goal's CPL identical. Return no per-goal cost instead of fake CPL.
     result = []
-    for g in goals:
+    for goal_id in goal_ids_to_show:
         prev_count = db.query(
             func.sum(models.MetrikaGoals.conversion_count)
         ).filter(
             models.MetrikaGoals.client_id.in_(effective_client_ids),
-            models.MetrikaGoals.goal_id == g.goal_id,
+            models.MetrikaGoals.goal_id == goal_id,
             models.MetrikaGoals.date >= prev_date_from,
             models.MetrikaGoals.date <= prev_date_to
-        ).scalar() or 0
+        )
+        if integration_id:
+            prev_count = prev_count.filter(models.MetrikaGoals.integration_id == integration_id)
+        prev_count = prev_count.scalar() or 0
 
-        current_count = int(g.count or 0)
+        current_count = int(current_counts.get(str(goal_id), 0) or 0)
         count_trend = 0.0
         if prev_count > 0:
             count_trend = round(((current_count - int(prev_count)) / int(prev_count)) * 100, 1)
 
         result.append({
-            "id": g.goal_id,
-            "name": g.goal_name or f"Goal {g.goal_id}",
+            "id": str(goal_id),
+            "name": latest_names.get(str(goal_id)) or f"Goal {goal_id}",
             "count": current_count,
             "trend": count_trend,
             "cost": None,
+            "syncing": goals_syncing,
+            "missing_in_metrika": bool(selected_goal_ids and str(goal_id) not in latest_names and not goals_syncing),
         })
     
     return result

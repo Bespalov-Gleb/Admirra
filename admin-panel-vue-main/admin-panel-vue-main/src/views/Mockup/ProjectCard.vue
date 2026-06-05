@@ -231,8 +231,7 @@
                   </span>
                   <div class="project-channel-main">
                     <strong>{{ channel.name }}</strong>
-                    <span v-if="!channel.goalTotal">нет целей за период</span>
-                    <span v-else>{{ channel.goalNoun }} за период</span>
+                    <span>{{ channel.summaryText || 'нет целей за период' }}</span>
                   </div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
@@ -599,9 +598,10 @@ const normalizeGoalRows = (goals = []) => goals
       hasCost,
       cost,
       cpl: hasCost && count > 0 ? cost / count : null,
+      syncing: Boolean(goal.syncing),
+      missingInMetrika: Boolean(goal.missing_in_metrika),
     }
   })
-  .filter((goal) => goal.count > 0)
 
 const goalNoun = (count) => {
   const value = Math.abs(Number(count || 0))
@@ -619,6 +619,14 @@ const capitalizeFirst = (value) => {
 }
 
 const topGoalSummary = (goals, platformCode, expenses) => {
+  if (goals.some((goal) => goal.syncing)) {
+    return {
+      total: 0,
+      noun: 'заявок',
+      avgCpl: null,
+      text: 'цели синхронизируются',
+    }
+  }
   const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
   const noun = goalNoun(total)
   const avgCpl = platformCode === 'yandex' && total > 0 ? Number(expenses || 0) / total : null

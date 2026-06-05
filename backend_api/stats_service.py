@@ -100,8 +100,41 @@ class StatsService:
                 "cr": 0,
                 "balance": 0,
                 "currency": "RUB",
+                "leads_available": True,
+                "cpa_available": True,
+                "goals_syncing": False,
+                "goals_sync_message": None,
                 "trends": None
             }
+
+        selected_platforms = [
+            row[0]
+            for row in db.query(models.Integration.platform)
+            .filter(models.Integration.client_id.in_(client_ids))
+            .distinct()
+            .all()
+        ]
+        has_yandex_platform = any(
+            p in [models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.YANDEX_METRIKA]
+            for p in selected_platforms
+        )
+        has_vk_platform = models.IntegrationPlatform.VK_ADS in selected_platforms
+        selected_goal_ids_for_summary = set()
+        for integration in db.query(models.Integration).filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.platform.in_([
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.YANDEX_METRIKA,
+            ]),
+        ).all():
+            if integration.selected_goals:
+                try:
+                    parsed = json.loads(integration.selected_goals) if isinstance(integration.selected_goals, str) else integration.selected_goals
+                    selected_goal_ids_for_summary.update(str(goal_id) for goal_id in (parsed or []))
+                except Exception:
+                    pass
+            if integration.primary_goal_id:
+                selected_goal_ids_for_summary.add(str(integration.primary_goal_id))
 
         def get_data(start, end):
             y_q = db.query(
@@ -146,12 +179,9 @@ class StatsService:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
-                # When "all campaigns" option is selected on the dashboard,
-                # we должны учитывать только кампании, которые пользователь включил в проект (is_active = True).
-                y_q = y_q.filter(models.Campaign.is_active.is_(True))
-                v_q = v_q.filter(models.Campaign.is_active.is_(True))
-
-                # integration_ids только для MetrikaGoals (m_q), НЕ для y_q/v_q — иначе ломается получение данных
+                # При "все кампании" считаем все кампании, где были данные в
+                # выбранном периоде. Остановленные/архивные кампании не должны
+                # исчезать из исторической статистики.
                 if len(client_ids) == 1:
                     client_int = db.query(models.Integration.id).filter(
                         models.Integration.client_id.in_(client_ids)
@@ -176,22 +206,7 @@ class StatsService:
                 models.MetrikaGoals.client_id.in_(client_ids),
                 models.MetrikaGoals.goal_id != "all"
             )
-            selected_goal_ids = set()
-            for i in db.query(models.Integration).filter(
-                models.Integration.client_id.in_(client_ids),
-                models.Integration.platform.in_([
-                    models.IntegrationPlatform.YANDEX_DIRECT,
-                    models.IntegrationPlatform.YANDEX_METRIKA,
-                ]),
-            ).all():
-                if i.selected_goals:
-                    try:
-                        sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
-                        selected_goal_ids.update(str(g) for g in (sg or []))
-                    except Exception:
-                        pass
-                if i.primary_goal_id:
-                    selected_goal_ids.add(str(i.primary_goal_id))
+            selected_goal_ids = set(selected_goal_ids_for_summary)
             if selected_goal_ids:
                 m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
             
@@ -253,19 +268,39 @@ class StatsService:
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
             yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
+            mixed_goal_types = platform == "all" and not campaign_ids and has_yandex_platform and has_vk_platform
             
             if platform == "vk":
                 convs = vk_convs
+                leads_available = True
+                cpa_available = True
             elif campaign_ids:
                 # MetrikaGoals are currently stored by integration, not by
                 # campaign. For campaign/direction filters, using integration-
                 # level Metrika would overcount; Direct campaign conversions are
                 # the accurate campaign-scoped fallback.
                 convs = yandex_convs + vk_convs
-            elif platform in ["all", "yandex"]:
-                convs = metrica_convs + vk_convs
+                leads_available = True
+                cpa_available = True
+            elif platform == "yandex":
+                convs = metrica_convs
+                leads_available = True
+                cpa_available = True
+            elif mixed_goal_types:
+                # Яндекс и VK используют разные источники/типы целевых действий.
+                # Показы, клики и расход можно суммировать; лиды/CPL показываем
+                # отдельно по каналам, без фейкового общего числа.
+                convs = metrica_convs
+                leads_available = False
+                cpa_available = False
+            elif platform == "all":
+                convs = metrica_convs if has_yandex_platform else vk_convs
+                leads_available = True
+                cpa_available = True
             else:
-                convs = metrica_convs + vk_convs 
+                convs = metrica_convs
+                leads_available = True
+                cpa_available = True
             
             # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в VK)
             vk_clicks = int((v_s.total_clicks if v_s else 0) or 0)
@@ -307,7 +342,9 @@ class StatsService:
             
             total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions
             
-            if total_platform_conversions_for_cpa > 0:
+            if not cpa_available:
+                avg_cpa = 0.0
+            elif total_platform_conversions_for_cpa > 0:
                 if yandex_convs_for_cpa > 0 and vk_conversions > 0:
                     avg_cpa = (yandex_avg_cpa * yandex_convs_for_cpa + vk_avg_cpa * vk_conversions) / total_platform_conversions_for_cpa
                 elif yandex_convs_for_cpa > 0:
@@ -325,11 +362,28 @@ class StatsService:
                 "clks": clks, 
                 "convs": convs,
                 "avg_cpc": avg_cpc,  # Взвешенное среднее CPC
-                "avg_cpa": avg_cpa   # Взвешенное среднее CPA
+                "avg_cpa": avg_cpa,  # Взвешенное среднее CPA
+                "leads_available": leads_available,
+                "cpa_available": cpa_available,
             }
 
         # Current period data
         curr = get_data(d_start, d_end)
+        goals_syncing = False
+        if (
+            selected_goal_ids_for_summary
+            and platform in ["all", "yandex"]
+            and not campaign_ids
+            and d_start
+            and d_end
+        ):
+            metrika_rows_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id.in_(selected_goal_ids_for_summary),
+                models.MetrikaGoals.date >= d_start,
+                models.MetrikaGoals.date <= d_end,
+            ).scalar() or 0
+            goals_syncing = metrika_rows_count == 0
         
         # Previous period data for trends
         trends = None
@@ -371,9 +425,9 @@ class StatsService:
         # CRITICAL: Используем CPC и CPA из get_data
         # VK: CPC — взвешенное среднее, CPA — затраты/лиды. Yandex: costs/clicks, costs/conversions
         cpc = curr.get("avg_cpc", 0) if curr.get("avg_cpc", 0) > 0 else (curr["costs"] / curr["clks"] if curr["clks"] > 0 else 0)
-        cpa = curr.get("avg_cpa", 0) if curr.get("avg_cpa", 0) > 0 else (curr["costs"] / curr["convs"] if curr["convs"] > 0 else 0)
+        cpa = curr.get("avg_cpa", 0) if curr.get("cpa_available", True) and curr.get("avg_cpa", 0) > 0 else 0
         ctr = (curr["clks"] / curr["imps"] * 100) if curr["imps"] > 0 else 0
-        cr = (curr["convs"] / curr["clks"] * 100) if curr["clks"] > 0 else 0
+        cr = (curr["convs"] / curr["clks"] * 100) if curr.get("leads_available", True) and curr["clks"] > 0 else 0
 
         # Агрегируем балансы из интеграций для выбранных клиентов
         # CRITICAL: Всегда фильтруем балансы по интеграциям активных кампаний
@@ -432,6 +486,10 @@ class StatsService:
                 "cr": round(cr, 2),
                 "balance": None,
                 "currency": None,
+                "leads_available": bool(curr.get("leads_available", True)),
+                "cpa_available": bool(curr.get("cpa_available", True)),
+                "goals_syncing": goals_syncing,
+                "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
                 "revenue": 0.0,
                 "profit": -round(curr["costs"], 2),
                 "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -507,6 +565,10 @@ class StatsService:
             "cr": round(cr, 2),
             "balance": round(total_balance, 2) if total_balance is not None else None,
             "currency": balance_currency,
+            "leads_available": bool(curr.get("leads_available", True)),
+            "cpa_available": bool(curr.get("cpa_available", True)),
+            "goals_syncing": goals_syncing,
+            "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -539,17 +601,15 @@ class StatsService:
             prev_start = d_start - timedelta(days=delta)
             prev_end = d_start - timedelta(days=1)
 
-        # CRITICAL: When no campaign_ids, filter by integrations with is_active campaigns
-        # to avoid mixing stats from different profiles
+        # При "все кампании" фильтруем по интеграциям проекта, но не по
+        # Campaign.is_active: остановленные/архивные кампании должны оставаться
+        # в исторической статистике выбранного периода.
         integration_ids_filter = None
         if not campaign_ids and len(client_ids) == 1:
-            active_int = db.query(models.Campaign.integration_id).join(
-                models.Integration
-            ).filter(
-                models.Integration.client_id.in_(client_ids),
-                models.Campaign.is_active.is_(True)
+            project_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(client_ids)
             ).distinct().all()
-            aid_list = [r[0] for r in active_int if r[0]]
+            aid_list = [r[0] for r in project_integrations if r[0]]
             if aid_list:
                 integration_ids_filter = aid_list
 
@@ -788,13 +848,10 @@ class StatsService:
 
         integration_ids_filter = None
         if not campaign_ids and len(client_ids) == 1:
-            active_int = db.query(models.Campaign.integration_id).join(
-                models.Integration
-            ).filter(
-                models.Integration.client_id.in_(client_ids),
-                models.Campaign.is_active.is_(True)
+            project_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(client_ids)
             ).distinct().all()
-            aid_list = [r[0] for r in active_int if r[0]]
+            aid_list = [r[0] for r in project_integrations if r[0]]
             if aid_list:
                 integration_ids_filter = aid_list
 
@@ -833,8 +890,7 @@ class StatsService:
                 extract('dow', models.YandexStats.date).label('dow'),
                 func.sum(models.YandexStats.clicks).label('clicks')
             ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
-                models.YandexStats.client_id.in_(client_ids),
-                models.Campaign.is_active.is_(True)
+                models.YandexStats.client_id.in_(client_ids)
             )
             if campaign_ids:
                 y_rows = y_rows.filter(models.Campaign.id.in_(campaign_ids))

@@ -455,6 +455,8 @@ def delete_client(
 ):
     assert_project_access(db, current_user, client_id, write=True)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Project not found")
 
     log_history_event(
         db,
@@ -466,8 +468,70 @@ def delete_client(
         target_type="client",
         target_id=str(client.id),
     )
+
+    integration_ids = [
+        row[0]
+        for row in db.query(models.Integration.id).filter(models.Integration.client_id == client_id).all()
+    ]
+    campaign_rows = db.query(models.Campaign.id, models.Campaign.name).filter(
+        models.Campaign.integration_id.in_(integration_ids)
+    ).all() if integration_ids else []
+    campaign_ids = [row[0] for row in campaign_rows]
+    campaign_names = [row[1] for row in campaign_rows if row[1]]
+    direction_ids = [
+        row[0]
+        for row in db.query(models.ProjectDirection.id).filter(models.ProjectDirection.client_id == client_id).all()
+    ]
+
+    if campaign_ids:
+        db.query(models.YandexStats).filter(models.YandexStats.campaign_id.in_(campaign_ids)).delete(synchronize_session=False)
+        db.query(models.VKStats).filter(models.VKStats.campaign_id.in_(campaign_ids)).delete(synchronize_session=False)
+    if campaign_names:
+        db.query(models.YandexKeywords).filter(
+            models.YandexKeywords.client_id == client_id,
+            models.YandexKeywords.campaign_name.in_(campaign_names),
+        ).delete(synchronize_session=False)
+        db.query(models.YandexGroups).filter(
+            models.YandexGroups.client_id == client_id,
+            models.YandexGroups.group_name.isnot(None),
+        ).delete(synchronize_session=False)
+
+    # Старые данные могли быть записаны без campaign_id или без корректных FK.
+    db.query(models.YandexStats).filter(models.YandexStats.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.VKStats).filter(models.VKStats.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.YandexKeywords).filter(models.YandexKeywords.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.YandexGroups).filter(models.YandexGroups.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.MetrikaGoals).filter(models.MetrikaGoals.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.WeeklyReport).filter(models.WeeklyReport.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.MonthlyReport).filter(models.MonthlyReport.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.ProjectBudget).filter(models.ProjectBudget.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.ProjectTargetCPA).filter(models.ProjectTargetCPA.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.DetectorAlert).filter(models.DetectorAlert.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.TeamMemberProject).filter(models.TeamMemberProject.project_id == client_id).delete(synchronize_session=False)
+    db.query(models.PhoneProject).filter(models.PhoneProject.client_id == client_id).update(
+        {models.PhoneProject.client_id: None},
+        synchronize_session=False,
+    )
+    db.query(models.HistoryEvent).filter(models.HistoryEvent.client_id == client_id).update(
+        {models.HistoryEvent.client_id: None},
+        synchronize_session=False,
+    )
+
+    if direction_ids:
+        db.query(models.ProjectDirectionMask).filter(
+            models.ProjectDirectionMask.direction_id.in_(direction_ids)
+        ).delete(synchronize_session=False)
+    db.query(models.ProjectDirection).filter(models.ProjectDirection.client_id == client_id).delete(synchronize_session=False)
+    if integration_ids:
+        db.query(models.SyncJob).filter(models.SyncJob.integration_id.in_(integration_ids)).delete(synchronize_session=False)
+        db.query(models.Campaign).filter(models.Campaign.integration_id.in_(integration_ids)).delete(synchronize_session=False)
+        db.query(models.Integration).filter(models.Integration.id.in_(integration_ids)).delete(synchronize_session=False)
+
     db.delete(client)
     db.commit()
+
+    from backend_api.cache_service import CacheService
+    CacheService.invalidate_client(str(client_id))
     return None
 
 

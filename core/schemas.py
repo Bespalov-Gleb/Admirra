@@ -362,6 +362,10 @@ class StatsSummary(BaseModel):
     # CRITICAL: balance can be None if not available for the selected profile
     balance: Optional[float] = None
     currency: Optional[str] = None
+    leads_available: bool = True
+    cpa_available: bool = True
+    goals_syncing: bool = False
+    goals_sync_message: Optional[str] = None
     trends: Optional[StatsTrend] = None
 
 # Client Schemas
@@ -727,6 +731,8 @@ class GoalStat(BaseModel):
     count: int
     trend: float
     cost: Optional[float] = 0.0  # Cost for this goal (proportional to conversions)
+    syncing: bool = False
+    missing_in_metrika: bool = False
 
 class IntegrationStatus(BaseModel):
     platform: str

@@ -1805,21 +1805,28 @@ const metrics = computed(() => {
   const data = summary.value || {}
   const trends = data.trends || {}
   const hasData = !!summary.value
+  const leadsAvailable = data.leads_available !== false
+  const cpaAvailable = data.cpa_available !== false
+  const goalsSyncing = Boolean(data.goals_syncing)
   const values = {
     expenses:    hasData ? formatMoney(withVat(data.expenses))                    : '—',
     impressions: hasData ? formatNumber(data.impressions)                         : '—',
     clicks:      hasData ? formatNumber(data.clicks)                              : '—',
     cpc:         hasData ? formatMoney(withVat(data.cpc))                        : '—',
-    leads:       hasData ? `${formatNumber(data.leads)} шт.`                     : '—',
-    cpa:         hasData ? formatMoney(withVat(data.cpa))                        : '—',
+    leads:       hasData && leadsAvailable ? (goalsSyncing ? 'синхр.' : `${formatNumber(data.leads)} шт.`) : '—',
+    cpa:         hasData && cpaAvailable && !goalsSyncing ? formatMoney(withVat(data.cpa)) : '—',
   }
   return METRIC_CONFIG.map((metric) => {
     const rawTrend = Number(trends[metric.key] ?? 0)
     const trendRaw = Number.isFinite(rawTrend) ? rawTrend : 0
+    const trendAvailable = !(
+      (metric.key === 'leads' && (!leadsAvailable || goalsSyncing))
+      || (metric.key === 'cpa' && (!cpaAvailable || goalsSyncing))
+    )
     return {
       ...metric,
       value: values[metric.key],
-      trend: hasData ? formatTrend(trendRaw) : null,
+      trend: hasData && trendAvailable ? formatTrend(trendRaw) : null,
       trendUp: trendRaw >= 0,
       negative: metric.costMetric ? trendRaw > 0 : trendRaw < 0,
       icon: metricIcons[metric.icon] || ChartBarIcon
@@ -2125,7 +2132,8 @@ const goalsTotalLabel = computed(() => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
-  return `${formatNumber(total || summary.value?.leads || 0)} шт.`
+  const fallback = summary.value?.leads_available === false ? 0 : (summary.value?.leads || 0)
+  return `${formatNumber(total || fallback)} шт.`
 })
 
 const goalBars = computed(() => {

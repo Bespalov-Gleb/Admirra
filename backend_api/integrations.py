@@ -3341,7 +3341,13 @@ async def delete_integration(
         ).delete(synchronize_session=False)
         logger.info(f"🗑️ Deleted {deleted_keywords} YandexKeywords and {deleted_groups} YandexGroups for integration {integration_id}")
     
-    # MetrikaGoals — CASCADE при удалении integration. Campaigns — CASCADE при удалении integration.
+    deleted_goals = db.query(models.MetrikaGoals).filter(
+        models.MetrikaGoals.integration_id == integration_id
+    ).delete(synchronize_session=False)
+    if deleted_goals:
+        logger.info(f"🗑️ Deleted {deleted_goals} MetrikaGoals for integration {integration_id}")
+
+    # Campaigns — CASCADE при удалении integration, но статистика выше уже удалена явно.
     
     # Delete the integration (this will cascade delete campaigns and metrika_goals)
     log_history_event(
