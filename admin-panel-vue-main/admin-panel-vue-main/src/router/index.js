@@ -282,12 +282,8 @@ const router = createRouter({
 
 // Проверка аутентификации перед переходом
 router.beforeEach(async (to, from, next) => {
-  const { checkAuth, isAuthenticated, getToken } = useAuth()
-  let isAuth = Boolean(isAuthenticated.value && getToken())
-  if (!isAuth) {
-    isAuth = await checkAuth()
-  }
-  
+  const { checkAuth, isAuthenticated, getToken, markAuthIdle } = useAuth()
+
   // Normalize path
   const normalizedPath = to.path.replace(/\/$/, '') || '/'
   const isOAuthCallback =
@@ -310,11 +306,25 @@ router.beforeEach(async (to, from, next) => {
     normalizedPath === '/preview-banner'
   const isLandingPage = normalizedPath === '/'
 
-  console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
-
   // OAuth callbacks должны открываться без токена (обмен code → JWT на странице)
   const isPublicPage = isLoginPage || isLandingPage || isOAuthCallback
   const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
+  let isAuth = Boolean(isAuthenticated.value && getToken())
+
+  if (isPublicPage && !verifyEmailWithToken) {
+    markAuthIdle()
+  } else if (!isAuth) {
+    try {
+      isAuth = await Promise.race([
+        checkAuth(),
+        new Promise((resolve) => setTimeout(() => resolve(false), 8000)),
+      ])
+    } catch {
+      isAuth = false
+    }
+  }
+
+  console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
   if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')

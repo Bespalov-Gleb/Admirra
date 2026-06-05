@@ -285,6 +285,13 @@ export function useAuth() {
     initialCheckDone = false
   }
 
+  const markAuthIdle = () => {
+    if (!initialCheckDone) {
+      isLoading.value = false
+      initialCheckDone = true
+    }
+  }
+
   const logout = async () => {
     try {
       await api.post('auth/logout', null, { skipAuthRefresh: true })
@@ -309,6 +316,7 @@ export function useAuth() {
     setToken,
     getToken,
     forceLogout,
+    markAuthIdle,
     logout,
     getErrorMessage
   }
