@@ -558,6 +558,7 @@
       <div class="campaign-table">
         <div class="campaign-row header">
           <span>Название кампании</span>
+          <span>Направление</span>
           <span>Расход</span>
           <span>Показы</span>
           <span>Клики</span>
@@ -567,6 +568,7 @@
         </div>
         <div v-for="(campaign, index) in campaignRows" :key="index" class="campaign-row" :class="campaign.tint">
           <span>{{ campaign.name }}</span>
+          <span><em class="campaign-direction-pill">{{ campaign.direction }}</em></span>
           <span>{{ campaign.cost }} <b :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
           <span>{{ campaign.impressions }} <b :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
           <span>{{ campaign.clicks }} <b :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
@@ -744,7 +746,12 @@
             <div class="direction-preview__list">
               <div v-for="campaign in directionPreview.campaigns" :key="campaign.id" class="direction-preview__row">
                 <span>{{ campaign.name }}</span>
-                <small>{{ campaign.matched_mask }}</small>
+                <small :class="{ 'direction-preview__conflict': campaign.conflict_direction_name }">
+                  <template v-if="campaign.conflict_direction_name">
+                    уже в «{{ campaign.conflict_direction_name }}»
+                  </template>
+                  <template v-else>{{ campaign.matched_mask }}</template>
+                </small>
               </div>
               <div v-if="!directionPreview.campaigns?.length" class="direction-preview__empty">Добавьте маску для предпросмотра</div>
             </div>
@@ -773,9 +780,28 @@
             <p>Управление</p>
             <h3>{{ directionStats.label }}</h3>
           </div>
+          <div class="direction-label-setting">
+            <div>
+              <strong>Название блока</strong>
+              <span>Можно адаптировать термин под проект: товары, услуги, бренды или регионы.</span>
+            </div>
+            <select v-model="selectedDirectionLabelKey" aria-label="Название блока направлений">
+              <option v-for="option in directionLabelOptions" :key="option.key" :value="option.key">
+                {{ option.label }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="direction-secondary"
+              :disabled="directionLabelSaving || selectedDirectionLabelKey === directionStats.label_key"
+              @click="saveDirectionLabel"
+            >
+              {{ directionLabelSaving ? 'Сохраняем...' : 'Применить' }}
+            </button>
+          </div>
           <div class="direction-manager-actions">
             <button type="button" class="direction-primary" @click="openDirectionEditor()">Создать</button>
-            <button type="button" class="direction-secondary" :disabled="directionSuggestionsLoading" @click="loadDirectionSuggestions">
+            <button type="button" class="direction-secondary" :disabled="directionSuggestionsLoading" @click="loadDirectionSuggestions()">
               {{ directionSuggestionsLoading ? 'Анализируем...' : 'Предложить автоматически' }}
             </button>
           </div>
@@ -807,8 +833,13 @@
             <div v-if="!directions.length" class="direction-preview__empty">Направления пока не созданы</div>
           </div>
           <div v-if="unassignedDirection" class="direction-unassigned-note">
-            <strong>{{ unassignedDirection.name }}</strong>
-            <span>{{ unassignedDirection.campaign_count }} кампаний не попали ни под одну маску</span>
+            <div>
+              <strong>{{ unassignedDirection.name }}</strong>
+              <span>{{ unassignedDirection.campaign_count }} кампаний не попали ни под одну маску</span>
+            </div>
+            <button type="button" class="direction-unassigned-action" :disabled="directionSuggestionsLoading" @click="loadDirectionSuggestions(true)">
+              Распределить
+            </button>
           </div>
         </div>
       </div>
@@ -1070,6 +1101,8 @@ const directionMaskInput = ref('')
 const directionPreview = ref({ total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] })
 const directionSuggestions = ref([])
 const directionSuggestionsLoading = ref(false)
+const directionLabelSaving = ref(false)
+const selectedDirectionLabelKey = ref('directions')
 const directionEditor = ref({ id: null, name: '', masks: [] })
 
 const directionLabels = {
@@ -1081,6 +1114,10 @@ const directionLabels = {
   branches: { plural: 'Филиалы', lower: 'филиалы', singular: 'филиал' },
   regions: { plural: 'Регионы', lower: 'регионы', singular: 'регион' },
 }
+const directionLabelOptions = Object.entries(directionLabels).map(([key, meta]) => ({
+  key,
+  label: meta.plural,
+}))
 
 const directionLabelMeta = computed(() => directionLabels[directionStats.value.label_key] || directionLabels.directions)
 const directionLabelLower = computed(() => directionLabelMeta.value.lower)
@@ -1089,6 +1126,15 @@ const directionsEnabled = computed(() => Boolean(filters.client_id))
 const unassignedDirection = computed(() => directionStats.value.items?.find((item) => item.is_unassigned) || null)
 const selectedDirection = computed(() => directionStats.value.items?.find((item) => item.id === selectedDirectionId.value) || null)
 const selectedDirectionLabel = computed(() => selectedDirection.value?.name || `Все ${directionLabelLower.value}`)
+const directionNameByCampaignId = computed(() => {
+  const map = new Map()
+  for (const item of directionStats.value.items || []) {
+    for (const campaignId of item.campaign_ids || []) {
+      map.set(String(campaignId), item.name)
+    }
+  }
+  return map
+})
 
 const fetchDirections = async () => {
   if (!filters.client_id) {
@@ -1126,10 +1172,14 @@ const fetchDirectionStats = async () => {
       total_expenses: Number(data?.total_expenses || 0),
       items: Array.isArray(data?.items) ? data.items : []
     }
+    selectedDirectionLabelKey.value = directionStats.value.label_key
     if (selectedDirectionId.value) {
       const current = directionStats.value.items.find((item) => item.id === selectedDirectionId.value)
       if (current) filters.campaign_ids = [...current.campaign_ids]
-      else selectedDirectionId.value = null
+      else {
+        selectedDirectionId.value = null
+        filters.campaign_ids = []
+      }
     }
   } catch (err) {
     console.error('[Directions] stats failed:', err)
@@ -1139,6 +1189,27 @@ const fetchDirectionStats = async () => {
 
 const refreshDirections = async () => {
   await Promise.all([fetchDirections(), fetchDirectionStats()])
+}
+
+const saveDirectionLabel = async () => {
+  if (!filters.client_id || selectedDirectionLabelKey.value === directionStats.value.label_key) return
+  directionLabelSaving.value = true
+  try {
+    const { data } = await api.put(`clients/${filters.client_id}/directions/label`, {
+      label: selectedDirectionLabelKey.value,
+    })
+    directionStats.value = {
+      ...directionStats.value,
+      label: data?.label || directionLabels[selectedDirectionLabelKey.value]?.plural || 'Направления',
+      label_key: data?.label_key || selectedDirectionLabelKey.value,
+    }
+    toaster.success('Название блока обновлено')
+    await refreshDirections()
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось обновить название блока')
+  } finally {
+    directionLabelSaving.value = false
+  }
 }
 
 const selectDirection = (item) => {
@@ -1225,6 +1296,7 @@ const saveDirection = async () => {
 
 const openDirectionManager = async () => {
   closeMenu('directions')
+  selectedDirectionLabelKey.value = directionStats.value.label_key || 'directions'
   directionManagerOpen.value = true
   await fetchDirections()
 }
@@ -1263,15 +1335,17 @@ const moveDirection = async (direction, delta) => {
   }
 }
 
-const loadDirectionSuggestions = async () => {
+const loadDirectionSuggestions = async (unassignedOnly = false) => {
   if (!filters.client_id) return
   directionSuggestionsLoading.value = true
   try {
     const { data } = await api.get(`clients/${filters.client_id}/directions/suggestions`, {
-      params: { platform: filters.channel }
+      params: { platform: filters.channel, unassigned_only: Boolean(unassignedOnly) }
     })
     directionSuggestions.value = Array.isArray(data) ? data : []
-    if (!directionSuggestions.value.length) toaster.info('Автопредложения не найдены')
+    if (!directionSuggestions.value.length) {
+      toaster.info(unassignedOnly ? 'Для нераспределённых кампаний автопредложения не найдены' : 'Автопредложения не найдены')
+    }
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось получить предложения')
   } finally {
@@ -2178,6 +2252,7 @@ const campaignRows = computed(() => {
   const tints = ['orange', 'green', 'blue']
   return rows.slice(0, 5).map((campaign, index) => ({
     name: campaign.name || `Кампания ${index + 1}`,
+    direction: directionNameByCampaignId.value.get(String(campaign.id)) || '—',
     tint: tints[index % tints.length],
     cost: formatMoney(withVat(campaign.cost)),
     impressions: formatNumber(campaign.impressions),
@@ -5097,9 +5172,9 @@ onMounted(() => {
 
 .campaign-row {
   display: grid;
-  grid-template-columns: minmax(28rem, 2.3fr) repeat(6, minmax(10rem, 1fr));
+  grid-template-columns: minmax(26rem, 2.2fr) minmax(13rem, 0.9fr) repeat(6, minmax(9.5rem, 1fr));
   align-items: center;
-  min-width: 128rem;
+  min-width: 138rem;
   min-height: 5.6rem;
   padding: 0 2.5rem;
   border-radius: 1rem;
@@ -5147,6 +5222,23 @@ onMounted(() => {
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
+}
+
+.campaign-direction-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-style: normal;
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bottom-grid {
@@ -5600,7 +5692,7 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 120rem;
+    min-width: 132rem;
   }
 }
 
@@ -5982,8 +6074,8 @@ onMounted(() => {
 }
 
 .campaign-row {
-  grid-template-columns: minmax(18.0556rem, 2.1fr) repeat(6, minmax(7.2917rem, 1fr));
-  min-width: 77.7778rem;
+  grid-template-columns: minmax(18.0556rem, 2.1fr) minmax(9.0278rem, 0.9fr) repeat(6, minmax(6.9444rem, 1fr));
+  min-width: 86.1111rem;
   min-height: 3.4722rem;
   padding: 0 1.3889rem;
   border-radius: 0.6944rem;
@@ -5999,6 +6091,12 @@ onMounted(() => {
 .campaign-row b svg {
   width: 0.6944rem;
   height: 0.6944rem;
+}
+
+.campaign-direction-pill {
+  min-height: 1.8056rem;
+  padding: 0.2778rem 0.5208rem;
+  font-size: 0.7292rem;
 }
 
 .bottom-grid {
@@ -6181,7 +6279,7 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 73.6111rem;
+    min-width: 83.3333rem;
   }
 }
 
@@ -7953,6 +8051,45 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.direction-label-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem) auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.4rem;
+  padding: 1rem;
+  border: 1px solid #e8eef7;
+  border-radius: 1.1rem;
+  background: #f8fafc;
+}
+
+.direction-label-setting > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.direction-label-setting strong {
+  color: #172033;
+  font-size: 1.25rem;
+}
+
+.direction-label-setting span {
+  color: #94a3b8;
+  font-size: 1.05rem;
+}
+
+.direction-label-setting select {
+  height: 3.8rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 0.9rem;
+  padding: 0 1rem;
+  background: #fff;
+  color: #172033;
+  font-size: 1.2rem;
+  font-weight: 700;
+  outline: none;
+}
+
 .direction-field {
   display: grid;
   gap: 0.65rem;
@@ -8055,6 +8192,10 @@ onMounted(() => {
   font-weight: 800;
 }
 
+.direction-preview__row small.direction-preview__conflict {
+  color: #b45309;
+}
+
 .direction-preview__empty {
   padding: 1.4rem;
   color: #94a3b8;
@@ -8134,12 +8275,35 @@ onMounted(() => {
 .direction-unassigned-note {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   margin-top: 1.2rem;
   padding: 1rem;
   border-radius: 1rem;
   background: #fff7ed;
   color: #9a3412;
+}
+
+.direction-unassigned-note > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.direction-unassigned-action {
+  min-height: 3.2rem;
+  border: 1px solid #fed7aa;
+  border-radius: 0.85rem;
+  background: #fff;
+  color: #c2410c;
+  padding: 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.direction-unassigned-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Dark mode for campaign multiselect */

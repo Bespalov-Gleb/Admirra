@@ -211,11 +211,17 @@ def preview_direction(
 def suggest_directions(
     client_id: uuid.UUID,
     platform: str = Query("all"),
+    unassigned_only: bool = Query(False),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
     assert_project_access(db, current_user, client_id, write=False)
-    return direction_service.suggest_directions(db, client_id, platform=platform)
+    return direction_service.suggest_directions(
+        db,
+        client_id,
+        platform=platform,
+        only_unassigned=unassigned_only,
+    )
 
 
 @router.get("/stats", response_model=schemas.DirectionStatsResponse)

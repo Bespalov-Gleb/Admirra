@@ -1003,14 +1003,58 @@ async def get_goals(
     else:
         date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
 
+    u_campaign_ids = None
+    if campaign_ids:
+        try:
+            u_campaign_ids = [uuid.UUID(x.strip()) for x in campaign_ids.split(",") if x.strip()]
+        except ValueError:
+            u_campaign_ids = None
+
+    platform_key = (platform or "all").lower()
+
+    if u_campaign_ids and platform_key != "vk":
+        current_rows = StatsService.get_campaign_stats(
+            db,
+            effective_client_ids,
+            date_from_obj,
+            date_to_obj,
+            platform_key,
+            u_campaign_ids,
+            None,
+        )
+        period_days = (date_to_obj - date_from_obj).days + 1
+        prev_date_from = date_from_obj - timedelta(days=period_days)
+        prev_date_to = date_from_obj - timedelta(days=1)
+        prev_rows = StatsService.get_campaign_stats(
+            db,
+            effective_client_ids,
+            prev_date_from,
+            prev_date_to,
+            platform_key,
+            u_campaign_ids,
+            None,
+        )
+
+        current_count = sum(int(row.get("conversions") or 0) for row in current_rows)
+        current_cost = sum(float(row.get("cost") or 0) for row in current_rows)
+        prev_count = sum(int(row.get("conversions") or 0) for row in prev_rows)
+        prev_cost = sum(float(row.get("cost") or 0) for row in prev_rows)
+        trend = 0.0
+        current_cpl = current_cost / current_count if current_count > 0 else 0
+        prev_cpl = prev_cost / prev_count if prev_count > 0 else 0
+        if current_cpl > 0 and prev_cpl > 0:
+            trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
+
+        return [{
+            "id": "selected_campaigns",
+            "name": "Конверсии выбранных кампаний",
+            "count": current_count,
+            "trend": trend,
+            "cost": current_cost,
+        }]
+
     # ——— VK: разбивка по типам целевых действий (подписчики, трафик, лид-формы и т.д.) ———
-    if (platform or "").lower() == "vk":
-        u_campaign_ids = None
-        if campaign_ids:
-            try:
-                u_campaign_ids = [uuid.UUID(x.strip()) for x in campaign_ids.split(",") if x.strip()]
-            except ValueError:
-                pass
+    if platform_key == "vk":
         vk_q = db.query(
             models.Campaign.vk_goal_action_id,
             models.Campaign.vk_goal_action_name,

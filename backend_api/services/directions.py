@@ -192,8 +192,20 @@ def preview_masks(
     }
 
 
-def suggest_directions(db: Session, client_id: uuid.UUID, platform: str = "all", limit: int = 8) -> list[dict]:
-    campaigns = campaign_query(db, client_id, platform=platform, only_active=True).all()
+def suggest_directions(
+    db: Session,
+    client_id: uuid.UUID,
+    platform: str = "all",
+    limit: int = 8,
+    only_unassigned: bool = False,
+) -> list[dict]:
+    if only_unassigned:
+        matches = build_direction_matches(db, client_id, platform=platform)
+        unassigned_ids = set(matches["unassigned"])
+        campaigns = [campaign for campaign in matches["campaigns"] if str(campaign.id) in unassigned_ids]
+    else:
+        campaigns = campaign_query(db, client_id, platform=platform, only_active=True).all()
+
     if len(campaigns) < 2:
         return []
 
@@ -240,11 +252,22 @@ def direction_stats(
     platform: str = "all",
 ) -> dict:
     matches = build_direction_matches(db, client.id, platform=platform)
+    label_key = normalize_label(client.direction_label)
+    label = LABELS.get(label_key, "Направления")
+    if not matches["directions"]:
+        return {
+            "label": label,
+            "label_key": label_key,
+            "mode": "cards",
+            "total_expenses": 0,
+            "items": [],
+        }
+
     all_campaign_ids = [str(campaign.id) for campaign in matches["campaigns"]]
     if not all_campaign_ids:
         return {
-            "label": LABELS.get(normalize_label(client.direction_label), "Направления"),
-            "label_key": normalize_label(client.direction_label),
+            "label": label,
+            "label_key": label_key,
             "mode": "cards",
             "total_expenses": 0,
             "items": [],
@@ -304,8 +327,8 @@ def direction_stats(
         })
 
     return {
-        "label": LABELS.get(normalize_label(client.direction_label), "Направления"),
-        "label_key": normalize_label(client.direction_label),
+        "label": label,
+        "label_key": label_key,
         "mode": "table" if len(items) >= 10 else "cards",
         "total_expenses": round(total_expenses, 2),
         "items": items,
