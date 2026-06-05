@@ -94,6 +94,7 @@ class AlertCandidate:
     baseline_value: float
     actual_value: float
     direction: str  # "up" or "down"
+    consecutive_days: int = 1
     pattern_key: Optional[str] = None
     hypothesis_text: Optional[str] = None
 
@@ -101,7 +102,7 @@ class AlertCandidate:
 # ── Thresholds ────────────────────────────────────────────────────
 
 def get_thresholds(cfg: DetectorCfg) -> dict:
-    thresholds = dict(DEFAULT_THRESHOLDS)
+    thresholds = {metric: values.copy() for metric, values in DEFAULT_THRESHOLDS.items()}
     if cfg.thresholds_json:
         try:
             overrides = json.loads(cfg.thresholds_json)
@@ -373,6 +374,7 @@ def check_mode1(
             baseline_value=round(bv_avg, 2),
             actual_value=round(av_avg, 2),
             direction=run[-1]["direction"],
+            consecutive_days=len(run),
         ))
 
     return candidates
@@ -385,6 +387,7 @@ def check_mode2a_spend(
     client_id: uuid.UUID,
     channel: models.IntegrationPlatform,
     reference_date: date,
+    cfg: DetectorCfg,
 ) -> Optional[AlertCandidate]:
     """Compare actual spend vs expected pace within budget period."""
     budget = (
@@ -431,9 +434,10 @@ def check_mode2a_spend(
     abs_dev = abs(dev)
     direction = "up" if dev > 0 else "down"
 
-    if abs_dev < 0.25:
+    th = get_thresholds(cfg).get("expenses", DEFAULT_THRESHOLDS["expenses"])
+    if abs_dev < th["warning"]:
         return None
-    severity = "problem" if abs_dev >= 0.40 else "warning"
+    severity = "problem" if abs_dev >= th["problem"] else "warning"
 
     return AlertCandidate(
         metric="expenses",
@@ -474,6 +478,7 @@ def check_mode2b_cpa(
     if not targets:
         return []
 
+    th = get_thresholds(cfg).get("cpa", DEFAULT_THRESHOLDS["cpa"])
     candidates = []
     for target in targets:
         target_val = float(target.target_cpa or 0)
@@ -526,10 +531,10 @@ def check_mode2b_cpa(
             continue
         abs_dev = abs(dev)
 
-        if abs_dev < 0.25:
+        if abs_dev < th["warning"]:
             continue
 
-        severity = "problem" if abs_dev >= 0.40 else "warning"
+        severity = "problem" if abs_dev >= th["problem"] else "warning"
         if total_conv < cfg.min_conversions_warning_only:
             severity = "warning"
 
@@ -544,6 +549,7 @@ def check_mode2b_cpa(
             baseline_value=round(target_val, 2),
             actual_value=round(actual_cpa, 2),
             direction="up" if dev > 0 else "down",
+            consecutive_days=1,
         ))
 
     return candidates
@@ -629,7 +635,7 @@ def upsert_alerts(
             existing.deviation_pct = Decimal(str(c.deviation_pct))
             existing.baseline_value = Decimal(str(c.baseline_value))
             existing.actual_value = Decimal(str(c.actual_value))
-            existing.consecutive_days = (existing.consecutive_days or 0) + 1
+            existing.consecutive_days = max(existing.consecutive_days or 1, c.consecutive_days)
             existing.pattern_key = c.pattern_key
             existing.hypothesis_text = c.hypothesis_text
             existing.last_checked_at = now
@@ -642,7 +648,7 @@ def upsert_alerts(
                 alert.deviation_pct = Decimal(str(c.deviation_pct))
                 alert.baseline_value = Decimal(str(c.baseline_value))
                 alert.actual_value = Decimal(str(c.actual_value))
-                alert.consecutive_days = 1
+                alert.consecutive_days = c.consecutive_days
                 alert.pattern_key = c.pattern_key
                 alert.hypothesis_text = c.hypothesis_text
                 alert.status = "open"
@@ -664,7 +670,7 @@ def upsert_alerts(
                     deviation_pct=Decimal(str(c.deviation_pct)),
                     baseline_value=Decimal(str(c.baseline_value)),
                     actual_value=Decimal(str(c.actual_value)),
-                    consecutive_days=1,
+                    consecutive_days=c.consecutive_days,
                     pattern_key=c.pattern_key,
                     hypothesis_text=c.hypothesis_text,
                     status="open",
@@ -751,7 +757,7 @@ def run_detector_for_client(
                     c.channel = channel
                 all_candidates.extend(m1)
 
-        m2a = check_mode2a_spend(db, client_id, channel, ref)
+        m2a = check_mode2a_spend(db, client_id, channel, ref, cfg)
         if m2a:
             all_candidates.append(m2a)
 

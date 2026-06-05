@@ -140,12 +140,21 @@ export function useDetector() {
     return summary.value.alerts.find(a => a.metric === dbKey) || null
   }
 
+  function getAlertForEntity(level, entityId) {
+    if (!summary.value?.alerts || !level || entityId === null || entityId === undefined) return null
+    return summary.value.alerts.find(a =>
+      a.detection_level === level &&
+      String(a.entity_id ?? '') === String(entityId)
+    ) || null
+  }
+
   return {
     summary: readonly(summary),
     loading: readonly(loading),
     fetchSummary,
     dismissAlert,
     getAlertForMetric,
+    getAlertForEntity,
   }
 }
 

@@ -597,7 +597,7 @@ class ProjectDetectorState(BaseModel):
     status: str
     actual_start_date: Optional[str] = None
     days_since_start: Optional[int] = None
-    warmup_days: int = 14
+    warmup_days: int = 21
     message: str
 
 

@@ -331,6 +331,8 @@
       :hypothesis="detectorBannerHypothesis"
       :warmup-status="detectorSummary?.warmup_status"
       :warmup-days-left="detectorSummary?.warmup_days_left"
+      :dismissible="Boolean(detectorBannerAlert)"
+      @dismiss="handleDismissBanner"
       class="detector-banner-slot"
     />
 
@@ -523,9 +525,18 @@
             <span class="goals-channel-expense">{{ formatMoney(withVat(summary?.expenses || 0)) }}</span>
           </div>
           <div v-if="goalBars.length" class="goals-bar-list">
-            <div v-for="bar in goalBars" :key="bar.id" class="goals-bar-row">
+            <div
+              v-for="bar in goalBars"
+              :key="bar.id"
+              class="goals-bar-row"
+              :class="bar.alertClass"
+              :title="bar.alertTitle"
+            >
               <div class="goals-bar-left">
-                <span class="goals-bar-name">{{ bar.name }}</span>
+                <span class="goals-bar-name">
+                  {{ bar.name }}
+                  <span v-if="bar.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${bar.alert.severity}`"></span>
+                </span>
                 <div class="goals-bar-meta">
                   <strong class="goals-bar-count">{{ bar.countText }}</strong>
                   <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
@@ -566,8 +577,11 @@
           <span>Лиды</span>
           <span>CPL</span>
         </div>
-        <div v-for="(campaign, index) in campaignRows" :key="index" class="campaign-row" :class="campaign.tint">
-          <span>{{ campaign.name }}</span>
+        <div v-for="(campaign, index) in campaignRows" :key="campaign.id || index" class="campaign-row" :class="[campaign.tint, campaign.alertClass]" :title="campaign.alertTitle">
+          <span>
+            {{ campaign.name }}
+            <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
+          </span>
           <span><em class="campaign-direction-pill">{{ campaign.direction }}</em></span>
           <span>{{ campaign.cost }} <b :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
           <span>{{ campaign.impressions }} <b :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
@@ -1007,6 +1021,7 @@ const {
   fetchSummary: fetchDetectorSummary,
   dismissAlert: dismissDetectorAlert,
   getAlertForMetric,
+  getAlertForEntity,
 } = useDetector()
 
 const openMenu = ref('')
@@ -2218,12 +2233,17 @@ const goalBars = computed(() => {
     const safeCount = Number.isFinite(count) ? count : 0
     const trendRaw = parseOptionalNumber(goal.trend ?? goal.trend_pct)
     const trend = Number.isFinite(trendRaw) ? trendRaw : null
+    const id = goal.id || goal.goal_id || goal.external_id || `goal-${index}`
+    const alert = getAlertForEntity('goal', id)
     return {
-      id: goal.id || goal.goal_id || goal.external_id || `goal-${index}`,
+      id,
       name: goal.name || goal.goal_name || `Цель ${index + 1}`,
       count: safeCount,
       color: goal.color || colors[index % colors.length],
       trend,
+      alert,
+      alertClass: alert ? `goals-bar-row--anomaly-${alert.severity}` : '',
+      alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
     }
   }).sort((a, b) => b.count - a.count)
   const maxCount = Math.max(...items.map(i => i.count), 1)
@@ -2250,23 +2270,30 @@ const campaignRows = computed(() => {
   const rows = campaigns.value?.length ? campaigns.value : []
   if (!rows.length) return []
   const tints = ['orange', 'green', 'blue']
-  return rows.slice(0, 5).map((campaign, index) => ({
-    name: campaign.name || `Кампания ${index + 1}`,
-    direction: directionNameByCampaignId.value.get(String(campaign.id)) || '—',
-    tint: tints[index % tints.length],
-    cost: formatMoney(withVat(campaign.cost)),
-    impressions: formatNumber(campaign.impressions),
-    clicks: formatNumber(campaign.clicks),
-    cpc: formatMoney(withVat(campaign.cpc)),
-    leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
-    cpa: formatMoney(withVat(campaign.cpa)),
-    trendCost: campaignTrend(campaign.trend_cost, 'cost'),
-    trendImpressions: campaignTrend(campaign.trend_impressions, 'impressions'),
-    trendClicks: campaignTrend(campaign.trend_clicks, 'clicks'),
-    trendCpc: campaignTrend(campaign.trend_cpc, 'cpc'),
-    trendLeads: campaignTrend(campaign.trend_conversions, 'leads'),
-    trendCpa: campaignTrend(campaign.trend_cpa, 'cpa')
-  }))
+  return rows.slice(0, 5).map((campaign, index) => {
+    const alert = getAlertForEntity('campaign', campaign.id)
+    return {
+      id: campaign.id,
+      name: campaign.name || `Кампания ${index + 1}`,
+      direction: directionNameByCampaignId.value.get(String(campaign.id)) || '—',
+      tint: tints[index % tints.length],
+      alert,
+      alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
+      alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
+      cost: formatMoney(withVat(campaign.cost)),
+      impressions: formatNumber(campaign.impressions),
+      clicks: formatNumber(campaign.clicks),
+      cpc: formatMoney(withVat(campaign.cpc)),
+      leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
+      cpa: formatMoney(withVat(campaign.cpa)),
+      trendCost: campaignTrend(campaign.trend_cost, 'cost'),
+      trendImpressions: campaignTrend(campaign.trend_impressions, 'impressions'),
+      trendClicks: campaignTrend(campaign.trend_clicks, 'clicks'),
+      trendCpc: campaignTrend(campaign.trend_cpc, 'cpc'),
+      trendLeads: campaignTrend(campaign.trend_conversions, 'leads'),
+      trendCpa: campaignTrend(campaign.trend_cpa, 'cpa')
+    }
+  })
 })
 
 const AD_TYPE_TAB_MAP = {
@@ -2880,6 +2907,16 @@ const detectorBannerHypothesis = computed(() => {
   return detectorSummary.value.alerts[0]?.hypothesis_text || ''
 })
 
+const detectorBannerAlert = computed(() => detectorSummary.value?.alerts?.[0] || null)
+
+const formatDetectorAlertTitle = (alert) => {
+  if (!alert) return ''
+  const deviation = alert.deviation_pct > 0 ? `+${alert.deviation_pct}%` : `${alert.deviation_pct}%`
+  const days = alert.consecutive_days || 1
+  const hypothesis = alert.hypothesis_text ? `\n${alert.hypothesis_text}` : ''
+  return `Отклонение ${deviation}, ${days} дн. подряд${hypothesis}`
+}
+
 const metricAnomalyClass = (key) => {
   const alert = getAlertForMetric(key)
   if (!alert) return ''
@@ -2891,16 +2928,19 @@ const getMetricAnomaly = (key) => getAlertForMetric(key)
 const getMetricAnomalyTooltip = (key) => {
   const alert = getAlertForMetric(key)
   if (!alert) return ''
-  const deviation = alert.deviation_pct > 0 ? `+${alert.deviation_pct}%` : `${alert.deviation_pct}%`
-  const days = alert.consecutive_days
-  const hypothesis = alert.hypothesis_text ? `\n${alert.hypothesis_text}` : ''
-  return `Отклонение ${deviation}, ${days} дн. подряд${hypothesis}\nКликните чтобы скрыть`
+  return `${formatDetectorAlertTitle(alert)}\nКликните чтобы скрыть`
 }
 
 const handleDismissAnomaly = async (key) => {
   const alert = getAlertForMetric(key)
   if (!alert) return
   const ok = await dismissDetectorAlert(alert.id)
+  if (ok) toaster.success('Алерт скрыт')
+}
+
+const handleDismissBanner = async () => {
+  if (!detectorBannerAlert.value) return
+  const ok = await dismissDetectorAlert(detectorBannerAlert.value.id)
   if (ok) toaster.success('Алерт скрыт')
 }
 
@@ -5037,6 +5077,16 @@ onMounted(() => {
   background: #f8f9fb;
 }
 
+.goals-bar-row--anomaly-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: #fffbeb;
+}
+
+.goals-bar-row--anomaly-problem {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: #fef2f2;
+}
+
 .goals-bar-left {
   display: flex;
   align-items: baseline;
@@ -5198,6 +5248,35 @@ onMounted(() => {
 
 .campaign-row.blue {
   background: #e8eefc;
+}
+
+.campaign-row--anomaly-warning {
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.45);
+}
+
+.campaign-row--anomaly-problem {
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.row-anomaly-dot {
+  display: inline-block;
+  width: 0.58rem;
+  height: 0.58rem;
+  margin-left: 0.5rem;
+  border-radius: 999px;
+  vertical-align: middle;
+  box-shadow: 0 0 0 0.22rem currentColor;
+  opacity: 0.22;
+}
+
+.row-anomaly-dot--warning {
+  color: #f59e0b;
+  background: #f59e0b;
+}
+
+.row-anomaly-dot--problem {
+  color: #ef4444;
+  background: #ef4444;
 }
 
 .campaign-row b {
@@ -7416,6 +7495,16 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.08);
 }
 
+.figma-dashboard.is-dark .goals-bar-row--anomaly-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.figma-dashboard.is-dark .goals-bar-row--anomaly-problem {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .figma-dashboard.is-dark .campaign-row.orange {
   background: rgba(242, 169, 136, 0.1);
 }
@@ -7426,6 +7515,14 @@ onMounted(() => {
 
 .figma-dashboard.is-dark .campaign-row.blue {
   background: rgba(74, 122, 255, 0.08);
+}
+
+.figma-dashboard.is-dark .campaign-row--anomaly-warning {
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.45);
+}
+
+.figma-dashboard.is-dark .campaign-row--anomaly-problem {
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
 }
 
 .figma-dashboard.is-dark .progress-line div {

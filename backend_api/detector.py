@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -42,7 +43,10 @@ def get_detector_summary(
             models.DetectorAlert.client_id == client_id,
             models.DetectorAlert.status == "open",
         )
-        .order_by(models.DetectorAlert.severity.desc(), models.DetectorAlert.opened_at.desc())
+        .order_by(
+            case((models.DetectorAlert.severity == "problem", 0), else_=1),
+            models.DetectorAlert.opened_at.desc(),
+        )
         .all()
     )
 
