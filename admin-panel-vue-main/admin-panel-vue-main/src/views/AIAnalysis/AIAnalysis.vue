@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]" style="font-size:132%">
+  <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]" style="zoom:1.15">
 
     <!-- Header -->
     <div class="flex items-start justify-between gap-[1.0417rem] mb-[1.3889rem]">
