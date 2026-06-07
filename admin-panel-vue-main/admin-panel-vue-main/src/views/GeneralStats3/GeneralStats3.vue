@@ -332,6 +332,8 @@
       :warmup-status="detectorSummary?.warmup_status"
       :warmup-days-left="detectorSummary?.warmup_days_left"
       :dismissible="Boolean(detectorBannerAlert)"
+      :action-label="detectorBannerAlert ? 'Спросить AI' : ''"
+      @action="openAssistantForDetectorAlert"
       @dismiss="handleDismissBanner"
       class="detector-banner-slot"
     />
@@ -957,6 +959,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -997,6 +1000,7 @@ import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
 
 const { isDarkMode } = useTheme()
+const router = useRouter()
 const toaster = useToaster()
 const { currentProjectId, setCurrentProject } = useProjects()
 const { openTelegramBotForLinking } = useTelegramReportLink()
@@ -2942,6 +2946,24 @@ const handleDismissBanner = async () => {
   if (!detectorBannerAlert.value) return
   const ok = await dismissDetectorAlert(detectorBannerAlert.value.id)
   if (ok) toaster.success('Алерт скрыт')
+}
+
+const openAssistantForDetectorAlert = () => {
+  const alert = detectorBannerAlert.value
+  if (!alert || !filters.client_id) return
+  const metric = String(alert.metric || 'метрику').toUpperCase()
+  const deviation = Number(alert.deviation_pct || 0)
+  const hypothesis = alert.hypothesis_text ? ` Гипотеза: ${alert.hypothesis_text}` : ''
+  const question = `Разбери отклонение ${metric} ${deviation > 0 ? '+' : ''}${deviation.toFixed(0)}% за выбранный период.${hypothesis}`
+  router.push({
+    path: '/ai-analysis',
+    query: {
+      project: filters.client_id,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      question,
+    },
+  })
 }
 
 onMounted(() => {

@@ -66,6 +66,7 @@ class PublicDomainConfig:
 class OpenAIConfig:
     api_key: str
     model: str
+    base_url: str
 
 
 @dataclass
@@ -244,6 +245,7 @@ def get_config() -> Config:
         openai=OpenAIConfig(
             api_key=_env("OPENAI_API_KEY"),
             model=_env("OPENAI_MODEL", "gpt-4o-mini"),
+            base_url=_env("OPENAI_BASE_URL"),
         ),
         billing=BillingConfig(
             billing_enabled=_bool("BILLING_ENABLED", False),

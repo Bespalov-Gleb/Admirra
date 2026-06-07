@@ -1,495 +1,1128 @@
 <template>
-  <div class="flex flex-col overflow-x-hidden w-full h-full pb-6 px-8 pt-8" style="min-height: calc(100vh - 5.5556rem); font-size: 1.1111rem">
-    <!-- Заголовок -->
-    <div class="flex-shrink-0 mb-4">
-      <h1 :style="`font-size:1.9444rem; font-weight:700; color:${c.titleColor}; margin-bottom:0.2778rem`">AI Анализ</h1>
-      <p :style="`font-size:0.9722rem; color:${c.subtitleColor}`">Аналитика и рекомендации на основе данных рекламных кампаний</p>
-    </div>
-
-    <!-- Проект + период + кнопки -->
-    <div class="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
-      <select
-        v-model="selectedProjectId"
-        :style="`font-size:0.9722rem; padding:0.6944rem 0.9722rem; border:1px solid ${c.inputBorder}; border-radius:0.8333rem; background:${c.inputBg}; color:${c.inputColor}; outline:none; cursor:pointer; min-width:9.7222rem`"
-      >
-        <option value="">Все проекты</option>
-        <option v-for="client in clients" :key="client.id" :value="client.id">
-          {{ client.name }}
-        </option>
-      </select>
-      <input
-        v-model="startDate"
-        type="date"
-        :style="`font-size:0.9722rem; padding:0.6944rem 0.9722rem; border:1px solid ${c.inputBorder}; border-radius:0.8333rem; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
-      />
-      <span :style="`color:${c.subtitleColor}; font-size:1.1111rem`">—</span>
-      <input
-        v-model="endDate"
-        type="date"
-        :style="`font-size:0.9722rem; padding:0.6944rem 0.9722rem; border:1px solid ${c.inputBorder}; border-radius:0.8333rem; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
-      />
-      <button
-        style="display:inline-flex; align-items:center; gap:0.5556rem; padding:0.8333rem 1.6667rem; background:linear-gradient(to right,#8b5cf6,#9333ea); color:#fff; font-size:1.0417rem; font-weight:500; border-radius:1.1111rem; border:none; cursor:pointer; box-shadow:0 4px 15px rgba(139,92,246,.3)"
-        :disabled="generatingReport"
-        :style="generatingReport ? 'opacity:.6;cursor:not-allowed' : ''"
-        @click="handleGenerateReport">
-        <span v-if="generatingReport" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        <DocumentTextIcon v-else style="width:1.3889rem;height:1.3889rem" />
-        {{ generatingReport ? 'Генерация...' : 'Сформировать отчёт' }}
-      </button>
-      <button
-        style="display:inline-flex; align-items:center; gap:0.5556rem; padding:0.8333rem 1.6667rem; background:linear-gradient(to right,#3b82f6,#06b6d4); color:#fff; font-size:1.0417rem; font-weight:500; border-radius:1.1111rem; border:none; cursor:pointer; box-shadow:0 4px 15px rgba(59,130,246,.3)"
-        :disabled="generatingRecommendations"
-        :style="generatingRecommendations ? 'opacity:.6;cursor:not-allowed' : ''"
-        @click="handleGetRecommendations">
-        <span v-if="generatingRecommendations" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        <LightBulbIcon v-else style="width:1.3889rem;height:1.3889rem" />
-        {{ generatingRecommendations ? 'Генерация...' : 'Получить рекомендации' }}
-      </button>
-      <!-- Отправка AI-отчёта -->
-      <div :style="`display:flex; align-items:center; gap:0.5556rem; margin-left:0.5556rem; padding-left:1.1111rem; border-left:1px solid ${c.dividerColor}`">
-        <span :style="`font-size:0.9028rem; color:${c.dividerText}`">Отправить:</span>
-        <button
-          type="button"
-          :disabled="sendingTg"
-          :style="`padding:0.6944rem; border-radius:0.8333rem; background:${c.sendBtnBg}; border:none; cursor:pointer; color:${c.sendBtnColor}; display:flex`"
-          title="Отправить в Telegram"
-          @click="handleTelegramSendClick"
-        >
-          <PaperAirplaneIcon style="width:1.3889rem;height:1.3889rem" />
-        </button>
-        <button
-          type="button"
-          :disabled="sendingEmail"
-          :style="`padding:0.6944rem; border-radius:0.8333rem; background:${c.sendBtnBg}; border:none; cursor:pointer; color:${c.sendBtnColor}; display:flex`"
-          title="Отправить на Email"
-          @click="showEmailModal = true"
-        >
-          <EnvelopeIcon style="width:1.3889rem;height:1.3889rem" />
-        </button>
+  <main class="assistant-page">
+    <header class="assistant-header">
+      <div>
+        <h1>Ассистент</h1>
+        <p>Задавайте вопросы по выбранному проекту, периоду, целям, бюджетам и алертам.</p>
       </div>
-    </div>
 
-    <!-- Модалки отправки -->
-    <div v-if="showTgLinkModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showTgLinkModal = false">
-      <div :style="`background:${c.modalBg}; border-radius:1.6667rem; padding:1.6667rem; width:100%; max-width:31.1111rem; margin:0 1.1111rem; box-shadow:0 25px 50px rgba(0,0,0,0.35)`">
-        <h3 :style="`font-size:1.25rem; font-weight:600; color:${c.modalText}; margin-bottom:0.5556rem`">Подключите Telegram</h3>
-        <p :style="`font-size:0.9722rem; color:${c.modalSubText}; margin-bottom:1.1111rem`">
-          В Telegram нажмите <strong>Start</strong> у бота, затем «Готово» — отчёт отправится автоматически.
-        </p>
-        <div style="display:flex; gap:0.8333rem">
-          <button type="button" :style="`flex:1; padding:0.6944rem; border-radius:0.8333rem; background:${isDarkMode?'rgba(255,255,255,0.08)':'#f3f4f6'}; color:${c.modalText}; border:none; cursor:pointer; font-size:0.9722rem`" @click="closeTgLinkModal">Отмена</button>
+      <div class="assistant-controls">
+        <label class="control-field control-field--project">
+          <span>Проект</span>
+          <select v-model="selectedProjectId" :disabled="projectsLoading">
+            <option v-if="!projects.length" value="">Нет проектов</option>
+            <option v-for="project in projects" :key="project.id" :value="project.id">
+              {{ project.name || project.title || 'Без названия' }}
+            </option>
+          </select>
+        </label>
+
+        <label class="control-field">
+          <span>Период</span>
+          <input v-model="startDate" type="date" />
+        </label>
+        <label class="control-field control-field--compact">
+          <span>&nbsp;</span>
+          <input v-model="endDate" type="date" />
+        </label>
+
+        <div class="quota-chip" :class="{ 'quota-chip--empty': quota.remaining <= 0 }">
+          <SparklesIcon />
+          <div>
+            <strong>{{ quota.remaining }}</strong>
+            <span>из {{ quota.limit }} AI</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="assistant-shell">
+      <aside class="assistant-rail">
+        <div class="rail-section">
+          <div class="rail-title-row">
+            <div>
+              <h2>История</h2>
+              <p>{{ currentProjectName }}</p>
+            </div>
+            <button type="button" class="icon-button" title="Новый диалог" @click="startNewDialog">
+              <PlusIcon />
+            </button>
+          </div>
+
+          <div v-if="loadingDialogs" class="rail-empty">Загружаем диалоги...</div>
           <button
+            v-for="dialog in dialogs"
+            :key="dialog.id"
             type="button"
-            style="flex:1; padding:0.6944rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
-            :disabled="tgLinkChecking"
-            @click="confirmTgLinked"
+            class="dialog-item"
+            :class="{ 'dialog-item--active': dialog.id === activeDialogId }"
+            @click="openDialog(dialog.id)"
           >
-            {{ tgLinkChecking ? 'Проверка...' : 'Готово' }}
+            <span>{{ dialog.title }}</span>
+            <small>{{ formatDateTime(dialog.updated_at) }}</small>
           </button>
+          <div v-if="!loadingDialogs && !dialogs.length" class="rail-empty">Диалогов по проекту пока нет</div>
         </div>
-      </div>
-    </div>
-    <div v-if="showEmailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEmailModal = false">
-      <div :style="`background:${c.modalBg}; border-radius:1.6667rem; padding:1.6667rem; width:100%; max-width:31.1111rem; margin:0 1.1111rem; box-shadow:0 25px 50px rgba(0,0,0,0.35)`">
-        <h3 :style="`font-size:1.25rem; font-weight:600; color:${c.modalText}; margin-bottom:0.8333rem`">Отправить на Email</h3>
-        <p :style="`font-size:0.9722rem; color:${c.modalSubText}; margin-bottom:1.1111rem`">AI-отчёт будет сгенерирован и отправлен на указанные адреса.</p>
-        <input
-          v-model="emailRecipients"
-          type="text"
-          placeholder="email1@example.com, email2@example.com"
-          :style="`width:100%; padding:0.6944rem 1.1111rem; border:1px solid ${c.inputBorder}; border-radius:0.8333rem; font-size:0.9722rem; background:${c.inputBg}; color:${c.inputColor}; margin-bottom:1.1111rem; box-sizing:border-box`"
-        />
-        <div style="display:flex; gap:0.8333rem">
-          <button :style="`flex:1; padding:0.6944rem; border-radius:0.8333rem; background:${isDarkMode?'rgba(255,255,255,0.08)':'#f3f4f6'}; color:${c.modalText}; border:none; cursor:pointer; font-size:0.9722rem`" @click="showEmailModal = false">Отмена</button>
-          <button
-            style="flex:1; padding:0.6944rem; border-radius:0.8333rem; background:#2563eb; color:#fff; border:none; cursor:pointer; font-size:0.9722rem"
-            :disabled="sendingEmail || !emailRecipients.trim()"
-            @click="submitEmail"
-          >
-            {{ sendingEmail ? 'Отправка...' : 'Отправить' }}
-          </button>
-        </div>
-      </div>
-    </div>
 
-    <!-- Чат — растягивается до низа страницы с отступом -->
-    <div class="flex-1 flex flex-col" style="min-height: 27.7778rem">
-      <div
-        class="h-full flex flex-col overflow-hidden min-h-0"
-        :style="`min-height:27.7778rem; border-radius:1.6667rem; background:${c.chatBg}; border:1px solid ${c.chatBorder}; backdrop-filter:blur(1.3889rem); box-shadow:0 4px 24px rgba(0,0,0,${isDarkMode?'.25':'.07'})`"
-      >
-        <!-- Шапка чата -->
-        <div :style="`padding:1.1111rem 1.6667rem; border-bottom:1px solid ${c.chatHeaderBorder}; background:${c.chatHeaderBg}; flex-shrink:0`">
-          <div style="display:flex; align-items:center; gap:0.8333rem">
-            <div style="width:2.5rem;height:2.5rem;border-radius:0.8333rem;background:linear-gradient(135deg,#8b5cf6,#9333ea);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <SparklesIcon style="width:1.25rem;height:1.25rem;color:#fff" />
+        <div class="rail-section rail-section--prompts">
+          <div class="rail-title-row">
+            <div>
+              <h2>Мои промпты</h2>
+              <p>Сохраняются для аккаунта</p>
+            </div>
+            <button type="button" class="icon-button" title="Добавить промпт" @click="openPromptModal()">
+              <PlusIcon />
+            </button>
+          </div>
+
+          <article v-for="prompt in prompts" :key="prompt.id" class="prompt-item">
+            <button type="button" class="prompt-main" @click="sendPrompt(prompt)">
+              <span>{{ prompt.title }}</span>
+              <small>{{ prompt.text }}</small>
+            </button>
+            <div class="prompt-actions">
+              <button type="button" title="Редактировать" @click="openPromptModal(prompt)">
+                <PencilSquareIcon />
+              </button>
+              <button type="button" title="Удалить" @click="deletePrompt(prompt.id)">
+                <TrashIcon />
+              </button>
+            </div>
+          </article>
+          <div v-if="!prompts.length" class="rail-empty">Сохранённых промптов нет</div>
+        </div>
+      </aside>
+
+      <section class="assistant-chat">
+        <div ref="messagesContainer" class="messages">
+          <div v-if="contextError" class="state-card state-card--warning">
+            {{ contextError }}
+          </div>
+
+          <div v-if="!activeDialogId && !messages.length" class="intro-card">
+            <div class="assistant-avatar">
+              <SparklesIcon />
             </div>
             <div>
-              <div :style="`font-size:1.0417rem; font-weight:700; color:${c.titleColor}`">AI Ассистент</div>
-              <div :style="`font-size:0.9028rem; color:${c.subtitleColor}`">Задайте вопрос или выберите действие выше</div>
+              <h2>Смотрю проект за период {{ displayPeriod }}</h2>
+              <p>
+                Можно спросить про расходы, CPC, CPL/CPA, цели, план-факт бюджета и открытые алерты.
+                Если нужен отчёт или аудит, я отправлю в соответствующий раздел.
+              </p>
+              <p v-if="!contextState.has_integrations" class="intro-note">
+                У проекта пока нет подключенных каналов. Ответы будут ограничены настройками проекта.
+              </p>
+              <p v-else-if="!contextState.has_data" class="intro-note">
+                За выбранный период мало данных. Я буду явно отмечать, где не хватает статистики.
+              </p>
             </div>
           </div>
-        </div>
 
-        <!-- Область сообщений -->
-        <div ref="messagesContainer" style="flex:1; padding:1.6667rem; overflow-y:auto; min-height:0">
-          <div v-if="messages.length === 0 && !sendingMessage" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:11.1111rem;text-align:center">
-            <div :style="`width:3.8889rem;height:3.8889rem;border-radius:1.1111rem;background:${c.emptyIconBg};display:flex;align-items:center;justify-content:center;margin-bottom:0.8333rem`">
-              <ChatBubbleLeftRightIcon :style="`width:1.9444rem;height:1.9444rem;color:${c.emptyTextColor}`" />
-            </div>
-            <p :style="`font-size:0.9722rem; color:${c.emptyTextColor}; max-width:19.4444rem; line-height:1.5`">
-              Задайте вопрос в поле ниже или используйте кнопки выше для формирования отчёта или рекомендаций.
-            </p>
-          </div>
-          <div v-else style="display:flex;flex-direction:column;gap:1.1111rem">
-            <div v-if="aiError" style="padding:1.1111rem;border-radius:0.8333rem;background:#fef2f2;color:#dc2626;font-size:0.9722rem">
-              {{ aiError }}
-            </div>
-            <div
-              v-for="(msg, idx) in messages"
-              :key="idx"
-              :style="msg.role === 'user'
-                ? `margin-left:10%;padding:1.1111rem;border-radius:0.8333rem;background:${c.msgUserBg};color:${c.msgUserColor};font-size:0.9722rem;line-height:1.6`
-                : `margin-right:10%;padding:1.1111rem;border-radius:0.8333rem;background:${c.msgAiBg};color:${c.msgAiColor};font-size:0.9722rem;line-height:1.6;white-space:pre-wrap`"
+          <div v-if="!messages.length" class="suggestions">
+            <button
+              v-for="suggestion in suggestions"
+              :key="suggestion"
+              type="button"
+              @click="inputMessage = suggestion"
             >
-              {{ msg.content }}
-            </div>
-            <div v-if="sendingMessage" :style="`padding:1.1111rem;border-radius:0.8333rem;background:${c.msgAiBg};color:${c.emptyTextColor};font-size:0.9722rem;display:flex;align-items:center;gap:0.5556rem`">
-              <span class="w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-              Ответ генерируется...
-            </div>
+              {{ suggestion }}
+            </button>
           </div>
+
+          <article
+            v-for="message in messages"
+            :key="message.id || message.localId"
+            class="message"
+            :class="message.role === 'user' ? 'message--user' : 'message--assistant'"
+          >
+            <div class="message-bubble">
+              <p>{{ message.content }}</p>
+              <RouterLink
+                v-if="message.redirect_target"
+                class="redirect-link"
+                :to="redirectPath(message.redirect_target)"
+              >
+                {{ redirectLabel(message.redirect_target) }}
+                <ArrowUpRightIcon />
+              </RouterLink>
+            </div>
+          </article>
+
+          <article v-if="sending" class="message message--assistant">
+            <div class="message-bubble typing-bubble">
+              <span />
+              <span />
+              <span />
+            </div>
+          </article>
         </div>
 
-        <!-- Поле ввода -->
-        <div :style="`padding:1.1111rem; border-top:1px solid ${c.chatFooterBorder}; background:${c.chatFooterBg}; flex-shrink:0`">
-          <form @submit.prevent="handleSendMessage" style="display:flex; gap:0.8333rem">
-            <input
+        <footer class="composer">
+          <div v-if="quota.remaining <= 0" class="limit-card">
+            <div>
+              <strong>Лимит AI-запросов закончился</strong>
+              <span>Обновите тариф или дождитесь следующего периода.</span>
+            </div>
+            <RouterLink to="/settings?tab=billing">Перейти к тарифу</RouterLink>
+          </div>
+
+          <form v-else class="composer-form" @submit.prevent="sendMessage()">
+            <textarea
               v-model="inputMessage"
-              type="text"
-              placeholder="Введите сообщение..."
-              :disabled="sendingMessage"
-              :style="`flex:1; font-size:0.9722rem; padding:0.9722rem 1.1111rem; border-radius:0.8333rem; border:1px solid ${c.inputBorder}; background:${c.inputBg}; color:${c.inputColor}; outline:none`"
+              rows="1"
+              :disabled="sending || !selectedProjectId"
+              placeholder="Спросите, например: почему вырос CPL по заявкам?"
+              @keydown.enter.exact.prevent="sendMessage()"
             />
             <button
-              type="submit"
-              :disabled="sendingMessage || !inputMessage.trim()"
-              :style="`padding:0.9722rem 1.3889rem; border-radius:0.8333rem; background:#7c3aed; color:#fff; font-size:1.0417rem; font-weight:500; border:none; cursor:pointer; opacity:${(sendingMessage || !inputMessage.trim()) ? '.5' : '1'}`"
+              type="button"
+              class="save-prompt-button"
+              :disabled="!inputMessage.trim()"
+              @click="openPromptModal(null, inputMessage)"
             >
-              Отправить
+              Сохранить как промпт
+            </button>
+            <button type="submit" class="send-button" :disabled="sending || !inputMessage.trim() || !selectedProjectId">
+              <PaperAirplaneIcon />
             </button>
           </form>
+          <p class="composer-hint">1 запрос из лимита тарифа за каждое отправленное сообщение.</p>
+        </footer>
+      </section>
+    </section>
+
+    <div v-if="promptModalOpen" class="modal-backdrop" @click.self="closePromptModal">
+      <form class="prompt-modal" @submit.prevent="savePrompt">
+        <h2>{{ editingPromptId ? 'Редактировать промпт' : 'Новый промпт' }}</h2>
+        <p>Проект и период добавляются автоматически, переменные в тексте не нужны.</p>
+        <label>
+          <span>Название</span>
+          <input v-model="promptForm.title" type="text" maxlength="120" placeholder="Например: Проверить CPL" />
+        </label>
+        <label>
+          <span>Текст промпта</span>
+          <textarea v-model="promptForm.text" rows="6" placeholder="Что нужно спросить у ассистента" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" @click="closePromptModal">Отмена</button>
+          <button type="submit" :disabled="savingPrompt || !promptForm.title.trim() || !promptForm.text.trim()">
+            {{ savingPrompt ? 'Сохраняем...' : 'Сохранить' }}
+          </button>
         </div>
-      </div>
+      </form>
     </div>
-  </div>
+  </main>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import {
-  DocumentTextIcon,
-  LightBulbIcon,
-  SparklesIcon,
-  ChatBubbleLeftRightIcon,
+  ArrowUpRightIcon,
   PaperAirplaneIcon,
-  EnvelopeIcon
+  PencilSquareIcon,
+  PlusIcon,
+  SparklesIcon,
+  TrashIcon,
 } from '@heroicons/vue/24/outline'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
-import { useTelegramReportLink } from '../../composables/useTelegramReportLink'
-import { useTheme } from '../../composables/useTheme'
 
-const { isDarkMode } = useTheme()
+const route = useRoute()
+const toaster = useToaster()
+const { projects, currentProjectId, fetchProjects, setCurrentProject, isLoading: projectsLoading } = useProjects()
 
-// Цветовые токены для тёмной/светлой темы
-const c = computed(() => isDarkMode.value ? {
-  pageBg: 'transparent',
-  titleColor: '#ffffff',
-  subtitleColor: 'rgba(255,255,255,0.6)',
-  inputBg: 'rgba(255,255,255,0.07)',
-  inputBorder: 'rgba(255,255,255,0.15)',
-  inputColor: '#ffffff',
-  chatBg: 'rgba(255,255,255,0.04)',
-  chatBorder: 'rgba(255,255,255,0.08)',
-  chatHeaderBg: 'rgba(255,255,255,0.06)',
-  chatHeaderBorder: 'rgba(255,255,255,0.08)',
-  chatFooterBg: 'rgba(255,255,255,0.03)',
-  chatFooterBorder: 'rgba(255,255,255,0.08)',
-  msgUserBg: 'rgba(139,92,246,0.18)',
-  msgUserColor: '#e5d9ff',
-  msgAiBg: 'rgba(255,255,255,0.06)',
-  msgAiColor: 'rgba(255,255,255,0.85)',
-  emptyIconBg: 'rgba(255,255,255,0.08)',
-  emptyTextColor: 'rgba(255,255,255,0.45)',
-  sendBtnBg: '#f1f5f9',
-  sendBtnColor: '#475569',
-  dividerColor: 'rgba(255,255,255,0.08)',
-  dividerText: 'rgba(255,255,255,0.45)',
-  modalBg: '#2a2b38',
-  modalText: '#ffffff',
-  modalSubText: 'rgba(255,255,255,0.55)',
-} : {
-  pageBg: 'transparent',
-  titleColor: '#171717',
-  subtitleColor: '#696969',
-  inputBg: '#ffffff',
-  inputBorder: '#d1d5db',
-  inputColor: '#374151',
-  chatBg: 'rgba(255,255,255,0.8)',
-  chatBorder: 'rgba(255,255,255,0.8)',
-  chatHeaderBg: 'linear-gradient(to right,rgba(249,250,251,.8),rgba(255,255,255,.8))',
-  chatHeaderBorder: '#f3f4f6',
-  chatFooterBg: 'rgba(249,250,251,.5)',
-  chatFooterBorder: '#f3f4f6',
-  msgUserBg: '#f5f3ff',
-  msgUserColor: '#111827',
-  msgAiBg: '#f9fafb',
-  msgAiColor: '#1f2937',
-  emptyIconBg: '#f3f4f6',
-  emptyTextColor: '#6b7280',
-  sendBtnBg: '#f1f5f9',
-  sendBtnColor: '#475569',
-  dividerColor: '#e5e7eb',
-  dividerText: '#6b7280',
-  modalBg: '#ffffff',
-  modalText: '#111827',
-  modalSubText: '#6b7280',
+const selectedProjectId = ref(currentProjectId.value || '')
+const startDate = ref('')
+const endDate = ref('')
+const dialogs = ref([])
+const prompts = ref([])
+const messages = ref([])
+const suggestions = ref([])
+const activeDialogId = ref(null)
+const inputMessage = ref('')
+const sending = ref(false)
+const loadingDialogs = ref(false)
+const contextError = ref('')
+const messagesContainer = ref(null)
+const promptModalOpen = ref(false)
+const editingPromptId = ref(null)
+const savingPrompt = ref(false)
+
+const quota = reactive({ used: 0, limit: 0, remaining: 0, reset_date: null })
+const contextState = reactive({ has_data: true, has_integrations: true, alerts: [] })
+const promptForm = reactive({ title: '', text: '' })
+
+const currentProjectName = computed(() => {
+  const project = projects.value.find((item) => item.id === selectedProjectId.value)
+  return project?.name || project?.title || 'Проект не выбран'
 })
 
-const toaster = useToaster()
-const { openTelegramBotForLinking } = useTelegramReportLink()
+const displayPeriod = computed(() => `${formatDate(startDate.value)} — ${formatDate(endDate.value)}`)
 
-const clients = ref([])
-const selectedProjectId = ref('')
-const { currentProjectId, setCurrentProject } = useProjects()
-
-function getDefaultDates() {
+const setDefaultDates = () => {
   const end = new Date()
   const start = new Date()
-  start.setDate(start.getDate() - 13)
-  return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10)
-  }
+  start.setDate(end.getDate() - 29)
+  startDate.value = toInputDate(start)
+  endDate.value = toInputDate(end)
 }
 
-const defaults = getDefaultDates()
-const endDate = ref(defaults.end)
-const startDate = ref(defaults.start)
+const toInputDate = (date) => date.toISOString().slice(0, 10)
 
-const generatingReport = ref(false)
-const generatingRecommendations = ref(false)
-const sendingMessage = ref(false)
-const messages = ref([])
-const inputMessage = ref('')
-const aiError = ref('')
-const messagesContainer = ref(null)
-
-const showTgLinkModal = ref(false)
-const tgLinkChecking = ref(false)
-const pendingTgSend = ref(false)
-const reportTelegramChatId = ref('')
-const showEmailModal = ref(false)
-const emailRecipients = ref('')
-const sendingTg = ref(false)
-const sendingEmail = ref(false)
-
-function scrollToBottom() {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
+const formatDate = (value) => {
+  if (!value) return '—'
+  const date = new Date(`${value}T00:00:00`)
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-onMounted(async () => {
+const formatDateTime = (value) => {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
+}
+
+const applyQuota = (data) => {
+  quota.used = Number(data?.used || 0)
+  quota.limit = Number(data?.limit || 0)
+  quota.remaining = Number(data?.remaining || 0)
+  quota.reset_date = data?.reset_date || null
+}
+
+const loadContext = async () => {
+  if (!selectedProjectId.value || !startDate.value || !endDate.value) return
+  contextError.value = ''
   try {
-    const [clientsRes, meRes] = await Promise.all([
-      api.get('clients/'),
-      api.get('/auth/me').catch(() => ({ data: {} }))
-    ])
-    clients.value = clientsRes.data || []
-    reportTelegramChatId.value = meRes.data?.report_telegram_chat_id || ''
-    emailRecipients.value = (meRes.data?.report_email_recipients || []).join(', ')
-  } catch {
-    clients.value = []
-  }
-  selectedProjectId.value = currentProjectId.value || ''
-})
-
-watch(currentProjectId, (id) => {
-  if (id && selectedProjectId.value !== id) selectedProjectId.value = id
-}, { immediate: true })
-
-watch(selectedProjectId, (id) => {
-  if (currentProjectId.value !== id) setCurrentProject(id || null)
-})
-
-function addMessage(role, content) {
-  messages.value.push({ role, content })
-  aiError.value = ''
-  scrollToBottom()
-}
-
-async function callGenerateReport(reportType) {
-  aiError.value = ''
-  const loading = reportType === 'full' ? generatingReport : generatingRecommendations
-  loading.value = true
-  try {
-    const { data } = await api.post('ai/generate-report', {
-      client_id: selectedProjectId.value || null,
-      start_date: startDate.value,
-      end_date: endDate.value,
-      report_type: reportType
+    const { data } = await api.get('ai/context', {
+      params: {
+        client_id: selectedProjectId.value,
+        start_date: startDate.value,
+        end_date: endDate.value,
+      },
     })
-    const text = data.text || ''
-    addMessage('assistant', text)
-  } catch (err) {
-    aiError.value = err.response?.data?.detail || err.message || 'Ошибка при генерации отчёта'
-  } finally {
-    loading.value = false
+    applyQuota(data.quota)
+    suggestions.value = data.suggestions || []
+    contextState.has_data = Boolean(data.has_data)
+    contextState.has_integrations = Boolean(data.has_integrations)
+    contextState.alerts = data.alerts || []
+  } catch (error) {
+    contextError.value = error.response?.data?.detail || 'Не удалось загрузить контекст ассистента.'
   }
 }
 
-function handleGenerateReport() {
-  callGenerateReport('full')
+const loadDialogs = async () => {
+  if (!selectedProjectId.value) return
+  loadingDialogs.value = true
+  try {
+    const { data } = await api.get('ai/dialogs', { params: { client_id: selectedProjectId.value } })
+    dialogs.value = data || []
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось загрузить историю AI.')
+  } finally {
+    loadingDialogs.value = false
+  }
 }
 
-function handleGetRecommendations() {
-  callGenerateReport('recommendations')
+const loadPrompts = async () => {
+  try {
+    const { data } = await api.get('ai/prompts')
+    prompts.value = data || []
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось загрузить промпты.')
+  }
 }
 
-async function handleSendMessage() {
-  const text = inputMessage.value.trim()
-  if (!text || sendingMessage.value) return
+const openDialog = async (id) => {
+  try {
+    const { data } = await api.get(`ai/dialogs/${id}`)
+    activeDialogId.value = data.id
+    messages.value = data.messages || []
+    if (data.period_start) startDate.value = data.period_start
+    if (data.period_end) endDate.value = data.period_end
+    await scrollToBottom()
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось открыть диалог.')
+  }
+}
 
-  addMessage('user', text)
+const startNewDialog = () => {
+  activeDialogId.value = null
+  messages.value = []
   inputMessage.value = ''
-  sendingMessage.value = true
-  aiError.value = ''
+}
 
-  const history = messages.value
-    .slice(0, -1)
-    .map(m => ({ role: m.role, content: m.content }))
+const sendPrompt = (prompt) => {
+  inputMessage.value = prompt.text
+  sendMessage()
+}
+
+const sendMessage = async () => {
+  const text = inputMessage.value.trim()
+  if (!text || sending.value || !selectedProjectId.value || quota.remaining <= 0) return
+
+  sending.value = true
+  contextError.value = ''
+  inputMessage.value = ''
+  const optimistic = {
+    localId: `local-${Date.now()}`,
+    role: 'user',
+    content: text,
+  }
+  messages.value.push(optimistic)
+  await scrollToBottom()
 
   try {
     const { data } = await api.post('ai/chat', {
-      client_id: selectedProjectId.value || null,
+      client_id: selectedProjectId.value,
       start_date: startDate.value,
       end_date: endDate.value,
+      dialog_id: activeDialogId.value,
       message: text,
-      history
     })
-    addMessage('assistant', data.text || '')
-  } catch (err) {
-    aiError.value = err.response?.data?.detail || err.message || 'Ошибка при отправке сообщения'
-    messages.value.pop()
+    activeDialogId.value = data.dialog_id
+    const index = messages.value.findIndex((item) => item.localId === optimistic.localId)
+    if (index >= 0) messages.value.splice(index, 1, data.user_message)
+    messages.value.push(data.assistant_message)
+    applyQuota(data.quota)
+    await loadDialogs()
+  } catch (error) {
+    messages.value = messages.value.filter((item) => item.localId !== optimistic.localId)
+    const message = error.response?.data?.detail || 'Не удалось получить ответ ассистента.'
+    contextError.value = message
+    toaster.error(message)
   } finally {
-    sendingMessage.value = false
+    sending.value = false
+    await scrollToBottom()
   }
 }
 
-async function refreshTelegramChatFromServer() {
+const openPromptModal = (prompt = null, text = '') => {
+  editingPromptId.value = prompt?.id || null
+  promptForm.title = prompt?.title || (text ? text.slice(0, 48) : '')
+  promptForm.text = prompt?.text || text || ''
+  promptModalOpen.value = true
+}
+
+const closePromptModal = () => {
+  promptModalOpen.value = false
+  editingPromptId.value = null
+  promptForm.title = ''
+  promptForm.text = ''
+}
+
+const savePrompt = async () => {
+  if (!promptForm.title.trim() || !promptForm.text.trim()) return
+  savingPrompt.value = true
+  const payload = { title: promptForm.title.trim(), text: promptForm.text.trim() }
   try {
-    const { data } = await api.get('/auth/me')
-    reportTelegramChatId.value = data?.report_telegram_chat_id || ''
-  } catch {
-    /* ignore */
-  }
-}
-
-async function submitTelegramWithChatId(chatId) {
-  if (!chatId || sendingTg.value) return
-  sendingTg.value = true
-  try {
-    await api.post('reports/send', {
-      report_type: 'ai',
-      channels: ['telegram'],
-      telegram_chat_id: chatId,
-      client_id: selectedProjectId.value || null,
-      start_date: startDate.value,
-      end_date: endDate.value
-    })
-    toaster.success('AI-отчёт отправлен в Telegram')
-  } catch (err) {
-    aiError.value = err.response?.data?.detail || 'Ошибка отправки в Telegram'
-    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
-  } finally {
-    sendingTg.value = false
-  }
-}
-
-function closeTgLinkModal() {
-  showTgLinkModal.value = false
-  pendingTgSend.value = false
-}
-
-async function confirmTgLinked() {
-  tgLinkChecking.value = true
-  try {
-    await refreshTelegramChatFromServer()
-    const chatId = reportTelegramChatId.value.trim()
-    if (!chatId) {
-      toaster.error('Сначала нажмите Start в чате с ботом в Telegram')
-      return
-    }
-    showTgLinkModal.value = false
-    const sendNow = pendingTgSend.value
-    pendingTgSend.value = false
-    if (sendNow) {
-      await submitTelegramWithChatId(chatId)
-    }
-  } finally {
-    tgLinkChecking.value = false
-  }
-}
-
-async function handleTelegramSendClick() {
-  await refreshTelegramChatFromServer()
-  const chatId = reportTelegramChatId.value.trim()
-  if (chatId) {
-    await submitTelegramWithChatId(chatId)
-    return
-  }
-  try {
-    await openTelegramBotForLinking()
-    pendingTgSend.value = true
-    showTgLinkModal.value = true
-  } catch (err) {
-    const d = err.response?.data?.detail
-    toaster.error(typeof d === 'string' ? d : 'Не удалось открыть Telegram')
-  }
-}
-
-async function submitEmail() {
-  const emails = emailRecipients.value.split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
-  if (!emails.length || sendingEmail.value) return
-  sendingEmail.value = true
-  try {
-    const { data } = await api.post('reports/send', {
-      report_type: 'ai',
-      channels: ['email'],
-      email_recipients: emails,
-      client_id: selectedProjectId.value || null,
-      start_date: startDate.value,
-      end_date: endDate.value
-    })
-    if (data?.results?.email) {
-      toaster.success('AI-отчёт отправлен на email')
-      showEmailModal.value = false
+    if (editingPromptId.value) {
+      await api.put(`ai/prompts/${editingPromptId.value}`, payload)
     } else {
-      const msg = data?.results?.email_error || 'Не удалось отправить email'
-      aiError.value = msg
-      toaster.error(msg)
+      await api.post('ai/prompts', payload)
     }
-  } catch (err) {
-    aiError.value = err.response?.data?.detail || 'Ошибка отправки на Email'
-    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+    await loadPrompts()
+    closePromptModal()
+    toaster.success('Промпт сохранён')
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось сохранить промпт.')
   } finally {
-    sendingEmail.value = false
+    savingPrompt.value = false
   }
 }
+
+const deletePrompt = async (id) => {
+  try {
+    await api.delete(`ai/prompts/${id}`)
+    prompts.value = prompts.value.filter((item) => item.id !== id)
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось удалить промпт.')
+  }
+}
+
+const redirectPath = (target) => {
+  if (target === 'audit') return '/ai-audit'
+  if (target === 'reports') return '/reports'
+  return '/ai-analysis'
+}
+
+const redirectLabel = (target) => {
+  if (target === 'audit') return 'Открыть AI-аудит'
+  if (target === 'reports') return 'Открыть отчёты'
+  return 'Открыть раздел'
+}
+
+const scrollToBottom = async () => {
+  await nextTick()
+  const el = messagesContainer.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+watch(selectedProjectId, async (value, oldValue) => {
+  if (!value || value === oldValue) return
+  setCurrentProject(value)
+  startNewDialog()
+  await Promise.all([loadContext(), loadDialogs()])
+})
+
+watch([startDate, endDate], async () => {
+  await loadContext()
+})
+
+onMounted(async () => {
+  setDefaultDates()
+  await fetchProjects()
+  if (typeof route.query.project === 'string') {
+    selectedProjectId.value = route.query.project
+  }
+  if (typeof route.query.start_date === 'string') {
+    startDate.value = route.query.start_date
+  }
+  if (typeof route.query.end_date === 'string') {
+    endDate.value = route.query.end_date
+  }
+  const selectedExists = projects.value.some((project) => project.id === selectedProjectId.value)
+  if ((!selectedProjectId.value || !selectedExists) && projects.value.length) {
+    selectedProjectId.value = projects.value[0].id
+    setCurrentProject(selectedProjectId.value)
+  }
+  inputMessage.value = typeof route.query.question === 'string' ? route.query.question : ''
+  await Promise.all([loadContext(), loadDialogs(), loadPrompts()])
+})
 </script>
+
+<style scoped>
+.assistant-page {
+  min-height: calc(100vh - 5.5556rem);
+  padding: 2rem;
+  background: #f4f7fb;
+  color: #1f2937;
+}
+
+.assistant-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.assistant-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 750;
+  color: #202124;
+}
+
+.assistant-header p {
+  margin: 0.45rem 0 0;
+  color: #9a9a9a;
+  font-size: 1rem;
+}
+
+.assistant-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 9.25rem;
+}
+
+.control-field--project {
+  min-width: 15rem;
+}
+
+.control-field--compact {
+  min-width: 8.8rem;
+}
+
+.control-field span {
+  color: #9a9a9a;
+  font-weight: 650;
+  font-size: 0.78rem;
+}
+
+.control-field select,
+.control-field input {
+  height: 2.8rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 0.9rem;
+  background: #fff;
+  color: #202124;
+  padding: 0 0.9rem;
+  outline: none;
+  font-weight: 650;
+}
+
+.quota-chip {
+  height: 2.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.9rem;
+  padding: 0 0.9rem;
+  background: linear-gradient(90deg, #2f67f2, #12b6c8);
+  color: #fff;
+  box-shadow: 0 0.75rem 1.8rem rgba(47, 103, 242, 0.18);
+}
+
+.quota-chip svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.quota-chip div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+
+.quota-chip strong {
+  font-size: 1rem;
+}
+
+.quota-chip span {
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
+.quota-chip--empty {
+  background: #ef4444;
+}
+
+.assistant-shell {
+  display: grid;
+  grid-template-columns: 19rem minmax(0, 1fr);
+  gap: 1.25rem;
+  min-height: calc(100vh - 12rem);
+}
+
+.assistant-rail,
+.assistant-chat {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 1.35rem;
+  box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.04);
+}
+
+.assistant-rail {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  overflow: hidden;
+}
+
+.rail-section {
+  min-height: 0;
+}
+
+.rail-section--prompts {
+  border-top: 1px solid #edf0f5;
+  padding-top: 1rem;
+}
+
+.rail-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.rail-title-row h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+  color: #202124;
+}
+
+.rail-title-row p {
+  margin: 0.2rem 0 0;
+  color: #a1a1aa;
+  font-size: 0.78rem;
+}
+
+.icon-button,
+.prompt-actions button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.65rem;
+  border: 1px solid #e4e7ec;
+  background: #f8fafc;
+  color: #2f67f2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.icon-button svg,
+.prompt-actions svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.dialog-item {
+  width: 100%;
+  border: 0;
+  border-radius: 0.9rem;
+  background: transparent;
+  padding: 0.8rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+  color: #52525b;
+}
+
+.dialog-item:hover,
+.dialog-item--active {
+  background: #eef5ff;
+  color: #2f67f2;
+}
+
+.dialog-item span {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-item small {
+  color: #a1a1aa;
+}
+
+.prompt-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem;
+  border-radius: 0.9rem;
+}
+
+.prompt-item:hover {
+  background: #f8fafc;
+}
+
+.prompt-main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prompt-main span {
+  display: block;
+  color: #202124;
+  font-weight: 750;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-main small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #a1a1aa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.prompt-actions button {
+  width: 1.75rem;
+  height: 1.75rem;
+  background: #fff;
+}
+
+.rail-empty {
+  padding: 0.75rem;
+  border-radius: 0.8rem;
+  color: #a1a1aa;
+  background: #f8fafc;
+  font-size: 0.86rem;
+}
+
+.assistant-chat {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.messages {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.intro-card,
+.state-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: 1.1rem;
+  background: linear-gradient(135deg, #eef5ff, #f6fbff);
+  border: 1px solid #dcecff;
+}
+
+.state-card {
+  display: block;
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.assistant-avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #2f67f2, #12b6c8);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.assistant-avatar svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.intro-card h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.intro-card p {
+  margin: 0.45rem 0 0;
+  color: #74747a;
+  line-height: 1.55;
+}
+
+.intro-note {
+  font-weight: 700;
+  color: #2f67f2 !important;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.suggestions button {
+  border: 1px solid #dcecff;
+  background: #fff;
+  color: #2f67f2;
+  border-radius: 999px;
+  padding: 0.7rem 0.9rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.message {
+  display: flex;
+}
+
+.message--user {
+  justify-content: flex-end;
+}
+
+.message--assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: min(46rem, 78%);
+  border-radius: 1.1rem;
+  padding: 0.95rem 1rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.message-bubble p {
+  margin: 0;
+}
+
+.message--user .message-bubble {
+  background: linear-gradient(90deg, #2f67f2, #12b6c8);
+  color: #fff;
+  border-bottom-right-radius: 0.35rem;
+}
+
+.message--assistant .message-bubble {
+  background: #f5f7fb;
+  color: #202124;
+  border-bottom-left-radius: 0.35rem;
+}
+
+.redirect-link {
+  margin-top: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #2f67f2;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.redirect-link svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.typing-bubble {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.typing-bubble span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #2f67f2;
+  animation: pulse 1s infinite ease-in-out;
+}
+
+.typing-bubble span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-bubble span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.composer {
+  border-top: 1px solid #edf0f5;
+  padding: 1rem;
+  background: #fff;
+}
+
+.composer-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.composer textarea {
+  min-height: 3rem;
+  max-height: 8rem;
+  resize: vertical;
+  border: 1px solid #e4e7ec;
+  border-radius: 1rem;
+  background: #f8fafc;
+  color: #202124;
+  padding: 0.9rem 1rem;
+  outline: none;
+  font: inherit;
+}
+
+.save-prompt-button,
+.send-button,
+.limit-card a,
+.modal-actions button:last-child {
+  border: 0;
+  background: linear-gradient(90deg, #2f67f2, #12b6c8);
+  color: #fff;
+  border-radius: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.save-prompt-button {
+  height: 3rem;
+  padding: 0 1rem;
+}
+
+.send-button {
+  width: 3rem;
+  height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.send-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.save-prompt-button:disabled,
+.send-button:disabled,
+.modal-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer-hint {
+  margin: 0.65rem 0 0;
+  color: #a1a1aa;
+  font-size: 0.83rem;
+}
+
+.limit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.limit-card strong,
+.limit-card span {
+  display: block;
+}
+
+.limit-card a {
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.prompt-modal {
+  width: min(34rem, 100%);
+  background: #fff;
+  border-radius: 1.35rem;
+  padding: 1.4rem;
+  box-shadow: 0 2rem 4rem rgba(15, 23, 42, 0.18);
+}
+
+.prompt-modal h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 850;
+}
+
+.prompt-modal p {
+  margin: 0.4rem 0 1rem;
+  color: #9a9a9a;
+}
+
+.prompt-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+  color: #74747a;
+  font-weight: 750;
+}
+
+.prompt-modal input,
+.prompt-modal textarea {
+  border: 1px solid #e4e7ec;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  padding: 0.85rem 1rem;
+  color: #202124;
+  font: inherit;
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+}
+
+.modal-actions button {
+  height: 2.8rem;
+  padding: 0 1.2rem;
+  border-radius: 0.9rem;
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  color: #52525b;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.75);
+    opacity: 0.45;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1180px) {
+  .assistant-header {
+    flex-direction: column;
+  }
+
+  .assistant-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 980px) {
+  .assistant-page {
+    padding: 1rem;
+  }
+
+  .assistant-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-rail {
+    max-height: 28rem;
+  }
+
+  .composer-form {
+    grid-template-columns: 1fr;
+  }
+
+  .save-prompt-button,
+  .send-button {
+    width: 100%;
+  }
+
+  .message-bubble {
+    max-width: 92%;
+  }
+}
+</style>

@@ -260,7 +260,7 @@ const menuItems = computed(() => [
   { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon, sectionLabel: 'Работа' },
   { name: 'Аналитика', path: '/dashboard/general-3', icon: Squares2X2Icon },
   {
-    name: 'AI анализ',
+    name: 'AI',
     icon: SparklesIcon,
     submenuKey: 'ai',
     children: [

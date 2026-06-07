@@ -602,6 +602,56 @@ class DetectorAlert(Base):
     )
 
 
+class AIAssistantDialog(Base):
+    __tablename__ = "ai_assistant_dialogs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(160), nullable=False, default="Новый диалог")
+    period_start = Column(Date, nullable=True)
+    period_end = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User")
+    client = relationship("Client")
+    messages = relationship(
+        "AIAssistantMessage",
+        back_populates="dialog",
+        cascade="all, delete-orphan",
+        order_by="AIAssistantMessage.created_at",
+    )
+
+
+class AIAssistantMessage(Base):
+    __tablename__ = "ai_assistant_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dialog_id = Column(UUID(as_uuid=True), ForeignKey("ai_assistant_dialogs.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)
+    content = Column(String, nullable=False)
+    cost_requests = Column(Integer, nullable=False, default=0)
+    redirect_target = Column(String(32), nullable=True)
+    meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    dialog = relationship("AIAssistantDialog", back_populates="messages")
+
+
+class AIAssistantPrompt(Base):
+    __tablename__ = "ai_assistant_prompts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(120), nullable=False)
+    text = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User")
+
+
 class WeeklyReport(Base):
     __tablename__ = "weekly_reports"
     

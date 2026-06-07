@@ -13,6 +13,9 @@
         <span class="detector-banner__title">{{ title }}</span>
         <span v-if="hypothesis" class="detector-banner__hypothesis">{{ hypothesis }}</span>
       </div>
+      <button v-if="actionLabel" type="button" class="detector-banner__action" @click="$emit('action')">
+        {{ actionLabel }}
+      </button>
       <button v-if="dismissible" type="button" class="detector-banner__close" @click="$emit('dismiss')">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       </button>
@@ -31,9 +34,10 @@ const props = defineProps({
   warmupStatus: { type: String, default: null },
   warmupDaysLeft: { type: Number, default: null },
   dismissible: { type: Boolean, default: false },
+  actionLabel: { type: String, default: '' },
 })
 
-defineEmits(['dismiss'])
+defineEmits(['dismiss', 'action'])
 
 const visible = computed(() => {
   if (props.warmupStatus === 'warming_up') return true
@@ -111,8 +115,25 @@ const bannerClass = computed(() => {
   opacity: 0.75;
 }
 
-.detector-banner__close {
+.detector-banner__action {
   margin-left: auto;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: currentColor;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.detector-banner__action:hover {
+  background: #ffffff;
+}
+
+.detector-banner__close {
   flex-shrink: 0;
   display: flex;
   align-items: center;
