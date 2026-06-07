@@ -33,147 +33,117 @@
       <div class="flex-1 min-w-0">
 
         <!-- ===== Tab: Бренд / White Label ===== -->
-        <div v-if="activeTab === 'brand'">
+        <div v-if="activeTab === 'brand'" class="wl-page">
+          <div class="wl-page-head">
+            <h4>Бренд / White Label</h4>
+            <p>Оформите свой бренд через тех. панель</p>
+          </div>
 
-          <!-- Locked state -->
-          <template v-if="!brand.whitelabel_available">
-            <div class="flex items-center gap-[0.6944rem] mb-[1.7361rem]">
-              <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
-              <span class="wl-lock-badge">
-                <svg class="w-[0.7639rem] h-[0.7639rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                Доступно на старшем тарифе
-              </span>
+          <section v-if="!brand.whitelabel_available" class="wl-feature-panel">
+            <h5>Брендируйте отчеты под свое агентство</h5>
+            <p>Клиент видит ваш бренд, а не AdMirra. Доступно на тарифе Профи и выше.</p>
+            <div class="wl-feature-grid">
+              <article v-for="item in wlFeatures" :key="item" class="wl-feature-tile">
+                <span class="wl-feature-check">
+                  <svg viewBox="0 0 12 10" aria-hidden="true">
+                    <path d="M4.2 9.2.4 5.4l1.4-1.4 2.4 2.4L10.2.3l1.4 1.4-7.4 7.5Z" />
+                  </svg>
+                </span>
+                <strong>{{ item }}</strong>
+              </article>
             </div>
+            <button type="button" class="wl-upgrade-button" @click="selectTab('tariff')">
+              Перейти на тариф «Профи»
+            </button>
+          </section>
 
-            <!-- Upsell card -->
-            <div class="wl-upsell-card">
-              <div class="absolute inset-0 pointer-events-none opacity-[0.12]" style="background: url('/admirra/img/pattern.png') center/5.3472rem"></div>
-              <div class="relative z-10 flex flex-col lg:flex-row lg:items-center gap-[2.0833rem]">
-                <div class="flex-1">
-                  <h4 class="text-[1.5278rem] font-bold text-white mb-[0.6944rem] leading-[1.25]">Персонализируйте отчёты<br>под ваш бренд</h4>
-                  <p class="text-[1.0417rem] text-white/75 mb-[1.3889rem] max-w-[31.9444rem] leading-[1.45]">
-                    Клиенты видят ваш бренд, а не AdMirra — в PDF-отчётах, КП и сообщениях. Полный контроль над визуалом.
-                  </p>
-                  <div class="grid grid-cols-2 gap-x-[1.3889rem] gap-y-[0.6944rem] mb-[1.7361rem]">
-                    <div v-for="item in wlFeatures" :key="item" class="flex items-center gap-[0.5556rem] text-[0.9722rem] text-white/90">
-                      <span class="w-[1.25rem] h-[1.25rem] rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                        <svg class="w-[0.625rem] h-[0.625rem] text-white" viewBox="0 0 12 10" fill="currentColor"><path d="M4.2 9.2.4 5.4l1.4-1.4 2.4 2.4L10.2.3l1.4 1.4-7.4 7.5Z"/></svg>
-                      </span>
-                      {{ item }}
-                    </div>
-                  </div>
-                  <button @click="selectTab('tariff')" class="wl-upsell-btn">
-                    Перейти на старший тариф
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                  </button>
-                </div>
+          <p v-if="!brand.whitelabel_available" class="wl-preview-title">Как это будет выглядеть — превью:</p>
+
+          <div class="wl-tools" :class="{ 'wl-tools--locked': !brand.whitelabel_available }">
+            <section class="wl-tool-card wl-tool-card--logo">
+              <h5>Логотип агентства</h5>
+              <p>Подставляется в PDF-отчеты, КП и сообщения клиентам.</p>
+              <div v-if="brand.brand_logo_url" class="wl-logo-preview">
+                <img :src="brand.brand_logo_url" alt="Logo" />
               </div>
-            </div>
-
-            <!-- Dimmed preview -->
-            <div class="mt-[2.0833rem] opacity-[0.35] pointer-events-none select-none" style="filter: grayscale(0.3) blur(0.3px)">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-[1.0417rem]">
-                <div v-for="field in brandFields" :key="field.title" class="settings-card">
-                  <div class="text-[0.9722rem] font-semibold text-[#171717] dark:text-white/80 mb-[0.6944rem]">{{ field.title }}</div>
-                  <div class="h-[3.4722rem] rounded-[0.6944rem] bg-[#f5f7f9] dark:bg-white/5"></div>
-                  <div class="text-[0.8333rem] text-[#696969]/40 dark:text-white/25 mt-[0.4861rem]">{{ field.placeholder }}</div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- Unlocked state -->
-          <template v-else>
-            <div class="wl-config-head">
-              <div>
-                <div class="flex items-center gap-[0.6944rem] mb-[0.4861rem]">
-                  <h4 class="text-[1.6667rem] font-semibold text-[#171717] dark:text-white">Бренд / White Label</h4>
-                  <span class="wl-active-badge">Активно</span>
-                </div>
-                <p>Настройте логотип, фирменный цвет и подписи для клиентских материалов.</p>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-[1.0417rem]">
-              <!-- Logo -->
-              <div class="settings-card">
-                <div class="settings-card-title">Логотип агентства</div>
-                <div v-if="brand.brand_logo_url" class="flex items-center gap-[1.0417rem] mb-[0.6944rem]">
-                  <div class="w-[6.9444rem] h-[4.1667rem] rounded-[0.6944rem] border border-black/5 dark:border-white/10 flex items-center justify-center bg-[#f9fafb] dark:bg-white/5 overflow-hidden">
-                    <img :src="brand.brand_logo_url" alt="Logo" class="max-h-full max-w-full object-contain" />
-                  </div>
-                  <div class="flex flex-col gap-[0.3472rem]">
-                    <label class="settings-link cursor-pointer">
-                      Заменить
-                      <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
-                    </label>
-                    <button class="settings-link settings-link--danger" @click="deleteLogo">Удалить</button>
-                  </div>
-                </div>
-                <label v-else class="logo-upload-zone">
-                  <svg class="w-[1.6667rem] h-[1.6667rem] text-[#b0b0b0] dark:text-white/30 mb-[0.3472rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-                  <span class="text-[0.9028rem] text-[#696969]/50 dark:text-white/35">PNG, SVG или JPG · до 2 МБ</span>
-                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" class="hidden" @change="uploadLogo" />
+              <label v-else class="wl-logo-drop">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4.5 18.75h15A1.25 1.25 0 0 0 20.75 17.5v-11A1.25 1.25 0 0 0 19.5 5.25h-15A1.25 1.25 0 0 0 3.25 6.5v11a1.25 1.25 0 0 0 1.25 1.25Z" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="m7 15 3.05-3.05a1 1 0 0 1 1.41 0L14 14.5l1.05-1.05a1 1 0 0 1 1.41 0L19 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="8.25" cy="8.75" r="1.25" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <input
+                  v-if="brand.whitelabel_available"
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  @change="uploadLogo"
+                />
+              </label>
+              <div class="wl-logo-actions">
+                <label v-if="brand.whitelabel_available" class="wl-primary-button">
+                  {{ brand.brand_logo_url ? 'Заменить логотип' : 'Загрузить логотип' }}
+                  <span>+</span>
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" @change="uploadLogo" />
                 </label>
+                <button v-else class="wl-primary-button" type="button" disabled>
+                  Загрузить логотип
+                  <span>+</span>
+                </button>
+                <button v-if="brand.whitelabel_available && brand.brand_logo_url" class="wl-text-danger" type="button" @click="deleteLogo">
+                  Удалить
+                </button>
               </div>
+            </section>
 
-              <!-- Brand color -->
-              <div class="settings-card">
-                <div class="settings-card-title">Фирменный цвет</div>
-                <div class="flex items-center gap-[0.4861rem] flex-wrap mb-[0.8333rem]">
-                  <button
-                    v-for="color in presetColors"
-                    :key="color"
-                    class="color-swatch"
-                    :style="{ backgroundColor: color }"
-                    :class="{ 'color-swatch--selected': brand.brand_color === color }"
-                    @click="brand.brand_color = color; saveBrand()"
-                  />
-                </div>
-                <div class="flex items-center gap-[0.6944rem]">
-                  <span class="text-[0.8333rem] text-[#696969]/50 dark:text-white/40 font-medium">HEX</span>
-                  <div class="flex items-center gap-[0.4861rem] flex-1">
-                    <input
-                      v-model="brand.brand_color"
-                      type="text"
-                      maxlength="7"
-                      class="settings-input w-[6.9444rem]"
-                      placeholder="#2563EB"
-                      @blur="saveBrand"
-                    />
-                    <span class="w-[2.0833rem] h-[2.0833rem] rounded-[0.4861rem] border border-black/10 dark:border-white/15 flex-shrink-0" :style="{ backgroundColor: brand.brand_color || '#ccc' }"></span>
-                  </div>
-                </div>
+            <section class="wl-tool-card wl-tool-card--color">
+              <h5>Фирменный цвет</h5>
+              <p>Акцент в отчетах и брендированных документах.</p>
+              <div class="wl-color-row">
+                <button
+                  v-for="color in presetColors"
+                  :key="color"
+                  type="button"
+                  class="wl-color-dot"
+                  :class="{ 'wl-color-dot--selected': brand.brand_color === color }"
+                  :style="{ backgroundColor: color }"
+                  :disabled="!brand.whitelabel_available"
+                  @click="brand.brand_color = color; saveBrand()"
+                />
               </div>
+              <input
+                v-model="brand.brand_color"
+                class="wl-hex-input"
+                type="text"
+                maxlength="7"
+                placeholder="#171717"
+                :readonly="!brand.whitelabel_available"
+                @blur="brand.whitelabel_available && saveBrand()"
+              />
+            </section>
+          </div>
 
-              <!-- PDF header/footer -->
-              <div class="settings-card">
-                <div class="settings-card-title">Шапка и подпись PDF</div>
-                <div v-if="brand.brand_pdf_header || brand.brand_pdf_signature">
-                  <div class="text-[0.9028rem] text-[#444] dark:text-white/70 leading-[1.4]">{{ brand.brand_pdf_header }}</div>
-                  <div v-if="brand.brand_pdf_signature" class="text-[0.8333rem] text-[#696969]/50 dark:text-white/35 mt-[0.2778rem] leading-[1.4]">{{ brand.brand_pdf_signature }}</div>
-                </div>
-                <div v-else class="text-[0.9028rem] text-[#696969]/40 dark:text-white/30 italic">Не заполнено</div>
-                <button class="settings-link mt-[0.6944rem]" @click="openPdfModal">Редактировать</button>
-              </div>
-
-              <!-- Preview -->
-              <div class="settings-card settings-card--preview">
-                <div class="settings-card-title">Предпросмотр</div>
-                <div class="brand-preview">
-                  <div class="brand-preview__logo">
-                    <img v-if="brand.brand_logo_url" :src="brand.brand_logo_url" alt="Logo preview" />
-                    <span v-else>WL</span>
-                  </div>
-                  <div class="min-w-0">
-                    <div class="brand-preview__name">{{ brand.brand_pdf_header || 'Ваш бренд' }}</div>
-                    <div class="brand-preview__line" :style="{ backgroundColor: brand.brand_color || '#2563EB' }"></div>
-                  </div>
-                </div>
-                <p class="brand-preview__hint">Такой стиль будет использоваться в отчётах и PDF-документах. Собственная ссылка будет подключаться отдельно позже.</p>
-              </div>
+          <section class="wl-wide-card" :class="{ 'wl-wide-card--locked': !brand.whitelabel_available }">
+            <div>
+              <h5>Шапка и подпись PDF</h5>
+              <p>{{ brand.brand_pdf_header || 'Название агентства, контакты,подпись внизу отчета.' }}</p>
             </div>
-          </template>
+            <button
+              type="button"
+              class="wl-secondary-button"
+              :disabled="!brand.whitelabel_available"
+              @click="openPdfModal"
+            >
+              Редактировать
+            </button>
+          </section>
+
+          <section class="wl-wide-card" :class="{ 'wl-wide-card--locked': !brand.whitelabel_available }">
+            <div>
+              <h5>Свой домен для ссылок на отчеты</h5>
+              <p>{{ brand.brand_custom_domain || 'reports.ваше-агентство.ru вместо домена AdMirra.' }}</p>
+            </div>
+            <button type="button" class="wl-plan-button" disabled>По тарифу</button>
+          </section>
         </div>
 
         <!-- ===== Tab: Тариф и оплата ===== -->
@@ -254,10 +224,10 @@ const brand = reactive({
 })
 
 const wlFeatures = [
-  'Логотип агентства в отчётах',
-  'Фирменный цвет в PDF',
-  'Шапка и подпись в документах',
-  'Премиальный вид клиентских материалов',
+  'Свой логотип в PDF и сообщениях',
+  'Фирменный стиль отчетов',
+  'Шапка и подпись в PDF',
+  'Свой домен для ссылок',
 ]
 
 const brandFields = [
@@ -267,7 +237,7 @@ const brandFields = [
   { title: 'Предпросмотр', placeholder: 'Проверьте внешний вид материалов' },
 ]
 
-const presetColors = ['#2563EB', '#06B5D4', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#171717']
+const presetColors = ['#CE633C', '#5189D7', '#4FA37D', '#7C70D6']
 
 const pdfModalOpen = ref(false)
 const pdfHeaderDraft = ref('')
@@ -495,6 +465,383 @@ async function savePdf() {
   background: rgba(255,255,255,0.05);
   border-color: rgba(255,255,255,0.15);
   color: rgba(255,255,255,0.7);
+}
+
+.wl-page {
+  width: 100%;
+  max-width: 95rem;
+}
+
+.wl-page-head {
+  margin: 0 0 1.7361rem;
+}
+
+.wl-page-head h4 {
+  margin: 0;
+  color: #2563eb;
+  font-size: 2.0833rem;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.wl-page-head p {
+  margin: 0.6944rem 0 0;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.wl-feature-panel {
+  position: relative;
+  min-height: 23.6111rem;
+  padding: 1.8056rem 1.8056rem 1.875rem;
+  overflow: hidden;
+  border: 1.5px dashed rgba(37, 99, 235, 0.36);
+  border-radius: 0.8333rem;
+  background: #d7e8fb;
+}
+
+.wl-feature-panel h5 {
+  margin: 0;
+  color: #2d70ca;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.wl-feature-panel p {
+  margin: 0.7639rem 0 1.3889rem;
+  color: rgba(37, 99, 235, 0.58);
+  font-size: 0.9722rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.wl-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5278rem;
+  max-width: 58.8889rem;
+}
+
+.wl-feature-tile {
+  min-height: 8.4722rem;
+  padding: 1.25rem 1.1111rem 0.9028rem;
+  border-radius: 0.5556rem;
+  background: #fff;
+}
+
+.wl-feature-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1111rem;
+  height: 1.1111rem;
+  margin-bottom: 1.7361rem;
+  border-radius: 0.1389rem;
+  background: #2563eb;
+  color: #fff;
+}
+
+.wl-feature-check svg {
+  width: 0.625rem;
+  height: 0.5208rem;
+  fill: currentColor;
+}
+
+.wl-feature-tile strong {
+  display: block;
+  color: #4f8ce8;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  line-height: 1.18;
+}
+
+.wl-upgrade-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 12.9861rem;
+  min-height: 2.7778rem;
+  margin-top: 2.2222rem;
+  padding: 0 1.1111rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
+  color: #fff;
+  font-size: 0.8333rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wl-preview-title {
+  margin: 3.8889rem 0 1.7361rem;
+  color: rgba(105, 105, 105, 0.56);
+  font-size: 1.0417rem;
+  font-weight: 500;
+}
+
+.wl-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.875rem;
+  margin-bottom: 1.875rem;
+}
+
+.wl-tools--locked {
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wl-tool-card,
+.wl-wide-card {
+  background: #fff;
+  border: 1px solid rgba(23, 23, 23, 0.03);
+  border-radius: 0.8333rem;
+  box-shadow: none;
+}
+
+.wl-tool-card {
+  min-height: 22rem;
+  padding: 1.8056rem 2.0833rem 1.7361rem;
+}
+
+.wl-tool-card h5,
+.wl-wide-card h5 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.3889rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.wl-tool-card p,
+.wl-wide-card p {
+  margin: 0.8333rem 0 0;
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 1.0417rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.wl-logo-preview,
+.wl-logo-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 8.4722rem;
+  margin-top: 1.7361rem;
+  border: 1px dashed rgba(23, 23, 23, 0.15);
+  border-radius: 0.6944rem;
+  background: #fff;
+  color: rgba(105, 105, 105, 0.24);
+}
+
+.wl-logo-preview img {
+  max-width: 80%;
+  max-height: 80%;
+  object-fit: contain;
+}
+
+.wl-logo-drop svg {
+  width: 2.3611rem;
+  height: 2.3611rem;
+}
+
+.wl-logo-drop input,
+.wl-primary-button input {
+  display: none;
+}
+
+.wl-logo-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8333rem;
+  margin-top: 1.25rem;
+}
+
+.wl-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6944rem;
+  width: 100%;
+  min-height: 3.2639rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wl-primary-button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9028rem;
+  height: 0.9028rem;
+  border-radius: 50%;
+  background: rgba(23, 23, 23, 0.2);
+  font-size: 0.8333rem;
+  line-height: 1;
+}
+
+.wl-text-danger {
+  border: 0;
+  background: transparent;
+  color: #ef4444;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wl-color-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9028rem;
+  margin-top: 2.4306rem;
+}
+
+.wl-color-dot {
+  width: 5.4167rem;
+  height: 5.4167rem;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.wl-color-dot:not(:disabled):hover,
+.wl-color-dot--selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  transform: translateY(-1px);
+}
+
+.wl-hex-input {
+  width: 10.4167rem;
+  height: 3.8194rem;
+  margin-top: 1.875rem;
+  padding: 0 1.25rem;
+  border: 1px solid rgba(23, 23, 23, 0.08);
+  border-radius: 0.6944rem;
+  outline: none;
+  background: #fff;
+  color: #171717;
+  font-size: 1.3889rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.wl-hex-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.wl-wide-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.3889rem;
+  min-height: 7.9167rem;
+  margin-top: 1.875rem;
+  padding: 1.7361rem 1.7361rem 1.7361rem 2.0833rem;
+}
+
+.wl-wide-card--locked {
+  opacity: 0.35;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wl-secondary-button,
+.wl-plan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 12.2222rem;
+  min-height: 2.7778rem;
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 0.5556rem;
+  font-size: 0.9028rem;
+  font-weight: 500;
+}
+
+.wl-secondary-button {
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.wl-plan-button {
+  background: rgba(34, 197, 94, 0.10);
+  color: #59bd6a;
+}
+
+.wl-secondary-button:disabled,
+.wl-primary-button:disabled {
+  cursor: default;
+}
+
+:global(.dark) .wl-page-head h4,
+:global(.dark) .wl-tool-card h5,
+:global(.dark) .wl-wide-card h5 {
+  color: #fff;
+}
+
+:global(.dark) .wl-tool-card,
+:global(.dark) .wl-wide-card {
+  background: #2c2f3d;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .wl-logo-preview,
+:global(.dark) .wl-logo-drop,
+:global(.dark) .wl-hex-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@media (max-width: 1024px) {
+  .wl-page {
+    width: 100%;
+  }
+  .wl-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wl-tools {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .wl-page-head h4 {
+    font-size: 1.7361rem;
+  }
+  .wl-feature-panel,
+  .wl-tool-card,
+  .wl-wide-card {
+    padding: 1.25rem;
+  }
+  .wl-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .wl-wide-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .wl-secondary-button,
+  .wl-plan-button {
+    width: 100%;
+  }
 }
 
 .wl-lock-badge {
