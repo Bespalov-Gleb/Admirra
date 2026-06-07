@@ -155,8 +155,25 @@
               <span v-if="form.telegramChatId">Подключён. Уведомления будут приходить в привязанный чат.</span>
               <span v-else>Откройте бота и нажмите Start. Chat ID вручную вводить не нужно.</span>
               <div class="notification-actions">
-                <button class="telegram-btn" type="button" @click="connectTelegram">Подключить Telegram</button>
-                <button class="ghost-btn" type="button" @click="loadProfile">Обновить статус</button>
+                <button
+                  v-if="form.telegramChatId"
+                  class="telegram-connected-btn"
+                  type="button"
+                  disabled
+                >
+                  Подключен
+                </button>
+                <button v-else class="telegram-btn" type="button" @click="connectTelegram">
+                  Подключить Telegram
+                </button>
+                <button
+                  class="ghost-btn"
+                  type="button"
+                  :disabled="savingProfile"
+                  @click="form.telegramChatId ? disconnectTelegram() : loadProfile()"
+                >
+                  {{ form.telegramChatId ? 'Отвязать' : 'Обновить статус' }}
+                </button>
               </div>
             </div>
           </div>
@@ -586,6 +603,25 @@ async function connectTelegram() {
   }
 }
 
+async function disconnectTelegram() {
+  savingProfile.value = true
+  try {
+    const payload = { report_telegram_chat_id: '' }
+    if (Array.isArray(profile.value?.report_delivery_channels)) {
+      payload.report_delivery_channels = profile.value.report_delivery_channels.filter(
+        (channel) => channel !== 'telegram'
+      )
+    }
+    const { data } = await api.patch('auth/me', payload)
+    fillProfile(data)
+    toaster.success('Telegram отвязан')
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось отвязать Telegram')
+  } finally {
+    savingProfile.value = false
+  }
+}
+
 async function deleteAccount() {
   try {
     await api.delete('auth/me', { params: { confirmation: deleteConfirmation.value } })
@@ -768,6 +804,7 @@ onMounted(loadProfile)
 .primary-btn,
 .ghost-btn,
 .telegram-btn,
+.telegram-connected-btn,
 .danger-btn,
 .danger-outline-btn {
   display: inline-flex;
@@ -796,6 +833,17 @@ onMounted(loadProfile)
   background: linear-gradient(135deg, #1f9de4, #06b5d4);
   color: #fff;
   box-shadow: 0 0.4167rem 1.25rem rgba(31,157,228,0.18);
+}
+.telegram-connected-btn {
+  border: 1px solid rgba(34, 197, 94, 0.42);
+  background: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+  box-shadow: none;
+  cursor: default;
+}
+.telegram-connected-btn:disabled {
+  opacity: 1;
+  cursor: default;
 }
 .danger-btn {
   border: 0;
@@ -1039,6 +1087,7 @@ button:disabled {
   .danger-outline-btn,
   .primary-btn,
   .telegram-btn,
+  .telegram-connected-btn,
   .ghost-btn {
     width: 100%;
   }
@@ -1289,6 +1338,7 @@ button:disabled {
 .primary-btn,
 .ghost-btn,
 .telegram-btn,
+.telegram-connected-btn,
 .danger-btn,
 .danger-outline-btn {
   min-height: 2.7778rem;
@@ -1303,6 +1353,19 @@ button:disabled {
   border: 0;
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
+}
+
+.telegram-connected-btn {
+  border: 1px solid rgba(34, 197, 94, 0.42);
+  background: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+  box-shadow: none;
+  cursor: default;
+}
+
+.telegram-connected-btn:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .primary-btn--wide {
@@ -1584,6 +1647,7 @@ button:disabled {
   .danger-outline-btn,
   .primary-btn,
   .telegram-btn,
+  .telegram-connected-btn,
   .ghost-btn {
     width: 100%;
   }
