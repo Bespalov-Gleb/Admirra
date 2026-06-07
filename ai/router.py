@@ -131,7 +131,7 @@ def _quota_payload(db: Session, user: models.User) -> AIQuotaResponse:
     if quota_user.ai_requests_period_started_at:
         from datetime import timedelta
 
-        reset_date = quota_user.ai_requests_period_started_at + timedelta(days=plan.ai_period_days)
+        reset_date = quota_user.ai_requests_period_started_at + timedelta(days=getattr(plan, 'ai_period_days', None) or plan.period_days)
     return AIQuotaResponse(used=used, limit=limit, remaining=max(limit - used, 0), reset_date=reset_date)
 
 
