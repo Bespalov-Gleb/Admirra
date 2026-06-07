@@ -469,7 +469,7 @@ async function savePdf() {
 
 .wl-page {
   width: 100%;
-  max-width: 95rem;
+  max-width: 70.625rem;
 }
 
 .wl-page-head {
@@ -686,9 +686,11 @@ async function savePdf() {
   justify-content: center;
   width: 0.9028rem;
   height: 0.9028rem;
+  padding-bottom: 0.0694rem;
   border-radius: 50%;
   background: rgba(23, 23, 23, 0.2);
   font-size: 0.8333rem;
+  font-weight: 700;
   line-height: 1;
 }
 
