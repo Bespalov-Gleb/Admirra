@@ -245,7 +245,6 @@ def build_assistant_context(
     integrations = (
         db.query(models.Integration)
         .filter(models.Integration.client_id == client_id)
-        .order_by(models.Integration.created_at.desc())
         .all()
     )
 
