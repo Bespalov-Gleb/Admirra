@@ -32,8 +32,7 @@ async def _create_openai_client():
     except ImportError:
         raise ImportError("Установите openai: pip install openai")
 
-    proxy = (settings.AI_PROXY_URL or "").strip() or None
-    http_client = httpx.AsyncClient(proxy=proxy, timeout=60.0)
+    http_client = httpx.AsyncClient(timeout=60.0)
     kwargs = {
         "api_key": settings.OPENAI_API_KEY,
         "http_client": http_client,
