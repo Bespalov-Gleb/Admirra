@@ -118,7 +118,10 @@
                   <path d="M2 8C2 11.31 4.69 14 8 14C11.31 14 14 11.31 14 8C14 4.69 11.31 2 8 2C5.8 2 3.85 3.1 2.75 4.75M2.75 4.75V2M2.75 4.75H5.25" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </div>
-              <button class="configure-btn" @click="$router.push('/integrations/wizard')">Настроить</button>
+              <button
+                class="configure-btn"
+                @click="$router.push({ path: '/integrations/wizard', query: { resume_integration_id: item.id, initial_step: 2 } })"
+              >Настроить</button>
             </div>
           </div>
         </div>
@@ -143,7 +146,7 @@ const search       = ref('')
 const platforms = [
   { id: 'YANDEX_DIRECT', name: 'Yandex Direct', icon: '/admirra/img/icons/yandex-direct.png', color: '#71663e' },
   { id: 'VK_ADS',        name: 'ВК Ads',         icon: '/admirra/img/icons/vk-ads.png',        color: '#254b78' },
-  { id: 'AVITO',         name: 'Avito',           icon: '/admirra/img/icons/avito.png',          color: '#579f75' },
+  { id: 'AVITO_ADS',     name: 'Avito',           icon: '/admirra/img/icons/avito.png',          color: '#579f75' },
   { id: 'GOOGLE_ADS',    name: 'Google Ads',      icon: '/admirra/img/icons/google-ads.png',     color: '#5e82bc' },
   { id: 'TELEGRAM',      name: 'Telegram',        icon: '/admirra/img/icons/telegram.png',        color: '#4d7c92' },
   { id: 'GOOGLE_SHEETS', name: 'Google Sheets',   icon: '/admirra/img/icons/google-sheets.png',  color: '#46725d' },
@@ -189,6 +192,7 @@ const normalizePlatform = (platform) => {
   return ({
     YANDEX: 'YANDEX_DIRECT',
     VK: 'VK_ADS',
+    AVITO: 'AVITO_ADS',
     MYTARGET: 'MYTARGET',
   }[key]) || key
 }

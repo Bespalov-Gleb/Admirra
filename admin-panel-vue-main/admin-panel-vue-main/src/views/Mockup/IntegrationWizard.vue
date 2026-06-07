@@ -46,6 +46,15 @@
                   <img src="/admirra/img/icons/vk-ads.png" alt="VK Ads" />
                   <span>VK Ads</span>
                 </button>
+                <button
+                  type="button"
+                  class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
+                  :class="{ 'platform-choice--active': form.platform === 'AVITO_ADS' }"
+                  @click="form.platform = 'AVITO_ADS'"
+                >
+                  <img src="/admirra/img/icons/avito.png" alt="Avito Ads" />
+                  <span>Avito Ads</span>
+                </button>
               </div>
             </div>
 
@@ -101,6 +110,58 @@
               type="text"
               placeholder="Название нового проекта"
             />
+
+            <template v-if="form.platform === 'AVITO_ADS'">
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">Тип авторизации Avito</div>
+                <div class="platform-grid">
+                  <button
+                    type="button"
+                    class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
+                    :class="{ 'platform-choice--active': form.avito_credential_type === 'single_api_key' }"
+                    @click="form.avito_credential_type = 'single_api_key'"
+                  >
+                    <span>API Key</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
+                    :class="{ 'platform-choice--active': form.avito_credential_type === 'client_credentials' }"
+                    @click="form.avito_credential_type = 'client_credentials'"
+                  >
+                    <span>Client ID + Client Secret</span>
+                  </button>
+                </div>
+              </div>
+
+              <label class="switch-row dark:!text-white/70">
+                <input v-model="form.use_profile_credentials" type="checkbox" />
+                <span class="switch-row__control dark:!bg-white/10"></span>
+                <span>Подставлять из профиля</span>
+              </label>
+
+              <input
+                v-if="form.avito_credential_type === 'single_api_key'"
+                v-model="form.avito_api_key"
+                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                type="password"
+                placeholder="Avito API key"
+              />
+              <template v-else>
+                <input
+                  v-model="form.avito_client_id"
+                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  placeholder="Avito Client ID"
+                />
+                <input
+                  v-model="form.avito_client_secret"
+                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="password"
+                  placeholder="Avito Client Secret"
+                />
+              </template>
+            </template>
 
             <button
               type="button"
@@ -469,12 +530,26 @@ const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const openSelect = ref(null)
 const profileSearch = ref('')
-const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
-const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
-const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
-const connectButtonText = computed(() =>
-  form.platform === 'YANDEX_DIRECT' ? 'Подключить Яндекс Директ' : 'Подключить VK Ads'
-)
+const platformName = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Yandex Direct'
+  if (form.platform === 'VK_ADS') return 'VK Ads'
+  return 'Avito Ads'
+})
+const platformTitle = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Интеграция с Яндекс.Директ'
+  if (form.platform === 'VK_ADS') return 'Интеграция с VK Ads'
+  return 'Интеграция с Avito Ads'
+})
+const platformIcon = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return '/admirra/img/icons/yandex-direct.png'
+  if (form.platform === 'VK_ADS') return '/admirra/img/icons/vk-ads.png'
+  return '/admirra/img/icons/avito.png'
+})
+const connectButtonText = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
+  if (form.platform === 'VK_ADS') return 'Подключить VK Ads'
+  return 'Подключить Avito Ads'
+})
 const projectSelectLabel = computed(() => {
   if (!form.client_id) return 'Выберите проект'
   return projects.value.find((p) => String(p.id) === String(form.client_id))?.name || 'Выберите проект'
@@ -525,11 +600,12 @@ watch(
 
 onMounted(async () => {
   const platformQuery = router.currentRoute.value.query.platform
-  if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS') {
+  if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS' || platformQuery === 'AVITO_ADS') {
     form.platform = platformQuery
   }
 
   await fetchProjects()
+  await preloadAvitoCredentials()
 
   // Проверяем, есть ли resumption после OAuth-редиректа
   const resumeId = router.currentRoute.value.query.resume_integration_id
@@ -547,6 +623,15 @@ onMounted(async () => {
   }
 
 })
+
+watch(
+  () => form.use_profile_credentials,
+  async (enabled) => {
+    if (enabled && form.platform === 'AVITO_ADS') {
+      await preloadAvitoCredentials()
+    }
+  }
+)
 
 watch(isNewProject, (val) => {
   if (val) {
@@ -682,6 +767,73 @@ const initVKAuth = async () => {
   }
 }
 
+const preloadAvitoCredentials = async () => {
+  try {
+    const { data } = await api.get('/auth/me')
+    if (!form.use_profile_credentials) return
+    if (data.avito_credential_type) {
+      form.avito_credential_type = data.avito_credential_type
+    }
+    if (data.avito_api_key && String(data.avito_api_key).includes('*')) {
+      form.avito_api_key = ''
+    } else if (data.avito_api_key) {
+      form.avito_api_key = data.avito_api_key
+    }
+    if (data.avito_client_id && String(data.avito_client_id).includes('*')) {
+      form.avito_client_id = ''
+    } else if (data.avito_client_id) {
+      form.avito_client_id = data.avito_client_id
+    }
+    if (data.avito_client_secret && String(data.avito_client_secret).includes('*')) {
+      form.avito_client_secret = ''
+    } else if (data.avito_client_secret) {
+      form.avito_client_secret = data.avito_client_secret
+    }
+  } catch (e) {
+    console.warn('Failed to preload Avito credentials', e)
+  }
+}
+
+const initAvitoConnect = async () => {
+  if (loadingAuth.value) return
+  loadingAuth.value = true
+  error.value = null
+  try {
+    if (form.avito_credential_type === 'single_api_key' && !form.use_profile_credentials && !form.avito_api_key) {
+      throw new Error('Введите API key Avito')
+    }
+    if (form.avito_credential_type === 'client_credentials' && !form.use_profile_credentials) {
+      if (!form.avito_client_id || !form.avito_client_secret) {
+        throw new Error('Введите Client ID и Client Secret Avito')
+      }
+    }
+    const payload = {
+      client_id: form.client_id,
+      credential_type: form.avito_credential_type,
+      use_profile_credentials: form.use_profile_credentials
+    }
+    if (form.avito_credential_type === 'single_api_key') {
+      payload.api_key = form.avito_api_key
+    } else {
+      payload.avito_client_id = form.avito_client_id
+      payload.avito_client_secret = form.avito_client_secret
+    }
+    const { data } = await api.post('integrations/avito/connect', payload)
+    if (!data?.integration_id) {
+      throw new Error('integrations/avito/connect did not return integration_id')
+    }
+    lastIntegrationId.value = data.integration_id
+    await fetchIntegration(data.integration_id)
+    await fetchProfiles(data.integration_id)
+    toaster.success('Avito Ads подключен')
+    step.value = 2
+  } catch (err) {
+    error.value = err.response?.data?.detail || err.message || 'Не удалось подключить Avito Ads'
+  } finally {
+    loadingAuth.value = false
+  }
+}
+
 const doFinish = async () => {
   if (!lastIntegrationId.value) return
   loadingStates.finish = true
@@ -713,8 +865,10 @@ const handleConnectClick = async () => {
   }
   if (form.platform === 'YANDEX_DIRECT') {
     await initYandexAuth()
-  } else {
+  } else if (form.platform === 'VK_ADS') {
     await initVKAuth()
+  } else {
+    await initAvitoConnect()
   }
 }
 

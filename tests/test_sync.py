@@ -191,6 +191,49 @@ class TestSyncIntegration:
             mock_service.refresh_yandex_token.assert_called_once()
             assert mock_api_class.call_count == 2
 
+    @pytest.mark.asyncio
+    async def test_sync_avito_ads(self):
+        mock_db = _mock_db_for_sync()
+        mock_integration = Mock()
+        mock_integration.id = "test-avito-integration-id"
+        mock_integration.platform = models.IntegrationPlatform.AVITO_ADS
+        mock_integration.client_id = "test-client"
+        mock_integration.access_token = "encrypted_key"
+        mock_integration.platform_client_id = None
+        mock_integration.platform_client_secret = None
+        mock_integration.account_id = "123"
+        mock_integration.balance = None
+        mock_integration.currency = None
+        mock_integration.error_message = None
+
+        mock_campaign = Mock()
+        mock_campaign.id = "camp1"
+        mock_campaign.external_id = "1001"
+        mock_campaign.is_active = True
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_campaign]
+
+        mock_api = Mock()
+        mock_api.get_balance = AsyncMock(return_value={"balance": 321.5, "currency": "RUB"})
+        mock_api.get_statistics = AsyncMock(return_value=[{
+            "campaign_id": "1001",
+            "campaign_name": "Avito Campaign",
+            "date": "2024-01-01",
+            "impressions": 1000,
+            "clicks": 40,
+            "cost": 200.0,
+            "conversions": 5,
+            "cpc": 5.0,
+            "cpa": 40.0,
+        }])
+
+        with patch("automation.sync.security.decrypt_token", return_value="decrypted_api_key"), \
+             patch("automation.sync.AvitoAdsAPI", return_value=mock_api), \
+             patch("backend_api.cache_service.CacheService.invalidate_client"):
+            await sync_integration(mock_db, mock_integration, "2024-01-01", "2024-01-31")
+            assert mock_integration.sync_status == models.IntegrationSyncStatus.SUCCESS
+            assert mock_api.get_balance.await_count == 1
+            assert mock_api.get_statistics.await_count == 1
+
 
 class TestSyncData:
     """Test parallel synchronization of multiple integrations"""

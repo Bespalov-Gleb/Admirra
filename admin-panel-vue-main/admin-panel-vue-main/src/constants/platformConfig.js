@@ -17,6 +17,16 @@ export const PLATFORMS = {
     tokenLink: 'https://ads.vk.com/hq/settings',
     isDynamic: false
   },
+  AVITO_ADS: {
+    label: 'Avito Ads',
+    description: 'Реклама Авито для бизнеса.',
+    initials: 'AV',
+    className: 'bg-emerald-600 text-white border-emerald-700',
+    iconColor: 'text-emerald-500',
+    tokenLink: 'https://developers.avito.ru/api-catalog/ads/documentation#ApiDescriptionBlock',
+    authType: 'api_key',
+    isDynamic: false
+  },
   GOOGLE_ADS: {
     label: 'Google Ads',
     description: 'Контекстная реклама в поиске и на сайтах партнеров.',

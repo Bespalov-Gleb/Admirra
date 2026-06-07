@@ -2,6 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -40,6 +41,37 @@ FRONTEND_URL = resolve_frontend_url()
 cfg = get_config()
 RESEND_COOLDOWN_SEC = cfg.auth.resend_cooldown_sec
 AUTH_LOGIN_OTP_ENABLED = cfg.auth.auth_login_otp_enabled
+
+
+def _mask_secret(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    if len(value) <= 4:
+        return "*" * len(value)
+    return f"{value[:2]}{'*' * max(len(value) - 4, 2)}{value[-2:]}"
+
+
+def _serialize_user_response(user: models.User) -> dict:
+    response = schemas.UserResponse.model_validate(user).model_dump()
+    response["avito_api_key"] = None
+    response["avito_client_id"] = None
+    response["avito_client_secret"] = None
+    try:
+        if user.avito_api_key:
+            response["avito_api_key"] = _mask_secret(security.decrypt_token(user.avito_api_key))
+    except Exception:
+        response["avito_api_key"] = "***"
+    try:
+        if user.avito_client_id:
+            response["avito_client_id"] = _mask_secret(security.decrypt_token(user.avito_client_id))
+    except Exception:
+        response["avito_client_id"] = "***"
+    try:
+        if user.avito_client_secret:
+            response["avito_client_secret"] = _mask_secret(security.decrypt_token(user.avito_client_secret))
+    except Exception:
+        response["avito_client_secret"] = "***"
+    return response
 
 
 def _activate_pending_team_invites(db: Session, user: models.User) -> None:
@@ -411,7 +443,7 @@ def reset_password_confirm(body: schemas.PasswordResetConfirmBody, db: Session =
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(security.get_current_user)):
-    return current_user
+    return _serialize_user_response(current_user)
 
 
 def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):
@@ -430,6 +462,17 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
         current_user.last_name = updates.last_name
     if updates.yandex_finance_token is not None:
         current_user.yandex_finance_token = updates.yandex_finance_token
+    if updates.avito_credential_type is not None:
+        normalized = updates.avito_credential_type.strip().lower() if updates.avito_credential_type else None
+        if normalized not in {None, "", "single_api_key", "client_credentials"}:
+            raise HTTPException(status_code=400, detail="avito_credential_type must be single_api_key or client_credentials")
+        current_user.avito_credential_type = normalized
+    if updates.avito_api_key is not None:
+        current_user.avito_api_key = security.encrypt_token(updates.avito_api_key) if updates.avito_api_key else None
+    if updates.avito_client_id is not None:
+        current_user.avito_client_id = security.encrypt_token(updates.avito_client_id) if updates.avito_client_id else None
+    if updates.avito_client_secret is not None:
+        current_user.avito_client_secret = security.encrypt_token(updates.avito_client_secret) if updates.avito_client_secret else None
     if updates.report_telegram_chat_id is not None:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
     if updates.report_email_recipients is not None:
@@ -443,7 +486,7 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
-    return current_user
+    return _serialize_user_response(current_user)
 
 
 @router.put("/me", response_model=schemas.UserResponse)

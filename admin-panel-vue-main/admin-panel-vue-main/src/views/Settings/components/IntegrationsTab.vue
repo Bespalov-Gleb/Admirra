@@ -85,6 +85,7 @@
                 <div class="w-12 h-12 flex-shrink-0 bg-white rounded-xl flex items-center justify-center border border-gray-100 overflow-hidden group-hover:scale-105 transition-transform shadow-sm">
                   <img v-if="item.platform === 'YANDEX_DIRECT' || item.platform === 'YANDEX_METRIKA'" src="https://favicon.yandex.net/favicon/v2/yandex.ru?size=32&stub=1" class="w-8 h-8 object-contain" />
                   <img v-else-if="item.platform === 'VK_ADS'" :src="vkAdsIcon" alt="VK Ads" class="w-8 h-8 object-contain" />
+                  <img v-else-if="item.platform === 'AVITO_ADS'" :src="avitoIcon" alt="Avito Ads" class="w-8 h-8 object-contain" />
                   <div v-else class="w-full h-full bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-400">{{ item.platform.split('_')[0] }}</div>
                 </div>
                 
@@ -215,6 +216,7 @@ import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
 import { useProjects } from '../../../composables/useProjects'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+import avitoIcon from '@/assets/icons/avito.png'
 
 const { currentProjectId } = useProjects()
 
@@ -226,6 +228,7 @@ const searchQuery = ref('')
 const platformLabels = {
   'YANDEX_DIRECT': 'Яндекс.Директ',
   'VK_ADS': 'VK Ads',
+  'AVITO_ADS': 'Avito Ads',
   'YANDEX_METRIKA': 'Яндекс.Метрика'
 }
 

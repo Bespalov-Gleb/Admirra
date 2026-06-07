@@ -10,6 +10,7 @@ from automation.vk_ads import (
     vk_campaigns_error_needs_agency_client_retry,
 )
 from automation.mytarget import MyTargetAPI
+from automation.avito_ads import AvitoAdsAPI
 from typing import List, Optional
 import uuid
 import httpx
@@ -64,6 +65,44 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
+
+def _resolve_avito_credentials(
+    *,
+    credential_type: str,
+    api_key: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
+    normalized = (credential_type or "").strip().lower()
+    if normalized not in {"single_api_key", "client_credentials"}:
+        raise HTTPException(
+            status_code=400,
+            detail="credential_type должен быть single_api_key или client_credentials",
+        )
+    if normalized == "single_api_key":
+        if not (api_key or "").strip():
+            raise HTTPException(status_code=400, detail="api_key обязателен")
+        return normalized, (api_key or "").strip(), None, None
+    if not (client_id or "").strip() or not (client_secret or "").strip():
+        raise HTTPException(status_code=400, detail="client_id и client_secret обязательны")
+    return normalized, None, (client_id or "").strip(), (client_secret or "").strip()
+
+
+def _integration_has_avito_credentials(integration: models.Integration) -> bool:
+    if integration.platform != models.IntegrationPlatform.AVITO_ADS:
+        return False
+    return bool(integration.access_token or (integration.platform_client_id and integration.platform_client_secret))
+
+
+def _sanitize_secret_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return payload
+    sanitized = dict(payload)
+    for key in ("api_key", "avito_client_secret", "client_secret", "access_token", "refresh_token"):
+        if key in sanitized and sanitized[key]:
+            sanitized[key] = "***"
+    return sanitized
+
 @router.post("/remote-log")
 async def remote_log(payload: dict):
     """
@@ -98,7 +137,12 @@ def get_integrations(
             q = q.filter(models.Integration.client_id == u)
         except ValueError:
             pass
-    return q.all()
+    items = q.all()
+    for item in items:
+        if item.platform == models.IntegrationPlatform.AVITO_ADS:
+            setattr(item, "credential_type", "client_credentials" if (item.platform_client_id and item.platform_client_secret) else "single_api_key")
+            setattr(item, "has_stored_credentials", _integration_has_avito_credentials(item))
+    return items
 
 @router.get("/yandex/auth-url")
 def get_yandex_auth_url(redirect_uri: str):
@@ -962,7 +1006,7 @@ async def exchange_mytarget_token(
         models.Integration.platform == models.IntegrationPlatform.MYTARGET
     ).first()
     
-    encrypted_access = security.encrypt_token(access_token)
+    encrypted_access = security.encrypt_token(access_token or "__avito_client_credentials__")
     encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
     
     if db_integration:
@@ -993,6 +1037,120 @@ async def exchange_mytarget_token(
         "is_agency": False
     }
 
+
+@router.post("/avito/connect")
+async def connect_avito_ads(
+    payload: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    ensure_integrations_allowed(db, current_user)
+    SubscriptionService.require_active_subscription(db, current_user)
+
+    client_id_raw = payload.get("client_id")
+    if not client_id_raw:
+        raise HTTPException(status_code=400, detail="client_id обязателен")
+    try:
+        client_uuid = uuid.UUID(str(client_id_raw))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Некорректный client_id")
+
+    db_client = db.query(models.Client).filter(
+        models.Client.id == client_uuid,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not db_client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    use_profile_credentials = bool(payload.get("use_profile_credentials"))
+    raw_credential_type = payload.get("credential_type") or current_user.avito_credential_type or "single_api_key"
+    raw_api_key = payload.get("api_key")
+    raw_avito_client_id = payload.get("avito_client_id") or payload.get("client_id_value")
+    raw_avito_client_secret = payload.get("avito_client_secret") or payload.get("client_secret_value")
+    if use_profile_credentials:
+        try:
+            if current_user.avito_api_key:
+                raw_api_key = security.decrypt_token(current_user.avito_api_key)
+        except Exception:
+            raw_api_key = None
+        try:
+            if current_user.avito_client_id:
+                raw_avito_client_id = security.decrypt_token(current_user.avito_client_id)
+        except Exception:
+            raw_avito_client_id = None
+        try:
+            if current_user.avito_client_secret:
+                raw_avito_client_secret = security.decrypt_token(current_user.avito_client_secret)
+        except Exception:
+            raw_avito_client_secret = None
+
+    credential_type, api_key, avito_client_id, avito_client_secret = _resolve_avito_credentials(
+        credential_type=raw_credential_type,
+        api_key=raw_api_key,
+        client_id=raw_avito_client_id,
+        client_secret=raw_avito_client_secret,
+    )
+
+    avito_api = AvitoAdsAPI(
+        credential_type=credential_type,
+        api_key=api_key,
+        client_id=avito_client_id,
+        client_secret=avito_client_secret,
+    )
+    validation = await avito_api.validate_credentials()
+    profiles = await avito_api.get_profiles_or_accounts()
+    inferred_account_id = (
+        payload.get("account_id")
+        or (profiles[0].get("id") if profiles else None)
+        or (validation.get("id") if isinstance(validation, dict) else None)
+    )
+    inferred_account_name = (
+        payload.get("account_name")
+        or (profiles[0].get("name") if profiles else None)
+        or (validation.get("name") if isinstance(validation, dict) else None)
+    )
+
+    db_integration = db.query(models.Integration).filter(
+        models.Integration.client_id == db_client.id,
+        models.Integration.platform == models.IntegrationPlatform.AVITO_ADS,
+    ).first()
+
+    encrypted_api_key = security.encrypt_token(api_key) if api_key else None
+    encrypted_client_id = security.encrypt_token(avito_client_id) if avito_client_id else None
+    encrypted_client_secret = security.encrypt_token(avito_client_secret) if avito_client_secret else None
+
+    if db_integration:
+        db_integration.access_token = encrypted_api_key or ""
+        db_integration.refresh_token = None
+        db_integration.platform_client_id = encrypted_client_id
+        db_integration.platform_client_secret = encrypted_client_secret
+        db_integration.account_id = str(inferred_account_id) if inferred_account_id else None
+        db_integration.account_name = inferred_account_name or credential_type
+        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        db_integration.error_message = None
+    else:
+        db_integration = models.Integration(
+            client_id=db_client.id,
+            platform=models.IntegrationPlatform.AVITO_ADS,
+            access_token=encrypted_api_key or "",
+            refresh_token=None,
+            platform_client_id=encrypted_client_id,
+            platform_client_secret=encrypted_client_secret,
+            account_id=str(inferred_account_id) if inferred_account_id else None,
+            account_name=inferred_account_name or credential_type,
+            sync_status=models.IntegrationSyncStatus.NEVER,
+        )
+        db.add(db_integration)
+
+    db.commit()
+    db.refresh(db_integration)
+    return {
+        "status": "success",
+        "integration_id": str(db_integration.id),
+        "account_id": db_integration.account_id,
+        "account_name": db_integration.account_name,
+    }
+
 from .services import IntegrationService
 from .services.subscription import SubscriptionService
 
@@ -1020,8 +1178,24 @@ async def create_integration(
         )
         access_token = vk_data["access_token"]
         refresh_token = vk_data["refresh_token"]
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        resolved_type, resolved_api_key, resolved_client_id, resolved_client_secret = _resolve_avito_credentials(
+            credential_type=integration.credential_type or "single_api_key",
+            api_key=integration.access_token,
+            client_id=integration.client_id,
+            client_secret=integration.client_secret,
+        )
+        avito_api = AvitoAdsAPI(
+            credential_type=resolved_type,
+            api_key=resolved_api_key,
+            client_id=resolved_client_id,
+            client_secret=resolved_client_secret,
+        )
+        await avito_api.validate_credentials()
+        access_token = resolved_api_key
+        refresh_token = None
 
-    if not access_token:
+    if integration.platform != models.IntegrationPlatform.AVITO_ADS and not access_token:
         raise HTTPException(status_code=400, detail="Access token is required for this platform")
 
     # 2. Check if client exists or create one
@@ -1049,6 +1223,9 @@ async def create_integration(
     encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
     encrypted_platform_client_id = security.encrypt_token(integration.client_id) if integration.client_id else None
     encrypted_platform_client_secret = security.encrypt_token(integration.client_secret) if integration.client_secret else None
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        encrypted_platform_client_id = security.encrypt_token(resolved_client_id) if resolved_client_id else None
+        encrypted_platform_client_secret = security.encrypt_token(resolved_client_secret) if resolved_client_secret else None
 
     # NEW: Automatically fetch Yandex login if account_id is missing
     final_account_id = integration.account_id
@@ -1073,6 +1250,8 @@ async def create_integration(
         db_integration.refresh_token = encrypted_refresh
         db_integration.platform_client_id = encrypted_platform_client_id
         db_integration.platform_client_secret = encrypted_platform_client_secret
+        if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+            db_integration.account_name = resolved_type
         db_integration.account_id = final_account_id # ENSURE UPDATED
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         log_history_event(
@@ -1097,6 +1276,7 @@ async def create_integration(
         refresh_token=encrypted_refresh,
         platform_client_id=encrypted_platform_client_id,
         platform_client_secret=encrypted_platform_client_secret,
+        account_name=resolved_type if integration.platform == models.IntegrationPlatform.AVITO_ADS else None,
         account_id=final_account_id,
         sync_status=models.IntegrationSyncStatus.NEVER
     )
@@ -1281,6 +1461,9 @@ def get_integration(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
         
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        setattr(integration, "credential_type", "client_credentials" if (integration.platform_client_id and integration.platform_client_secret) else "single_api_key")
+        setattr(integration, "has_stored_credentials", _integration_has_avito_credentials(integration))
     return integration
 
 @router.get("/{integration_id}/profiles")
@@ -1452,6 +1635,38 @@ async def get_integration_profiles(
                     "name": f"Аккаунт ({integration.account_id})"
                 }]
             return []
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        has_client_credentials = bool(
+            integration.platform_client_id and integration.platform_client_secret
+        )
+        credential_type = "client_credentials" if has_client_credentials else "single_api_key"
+        api_kwargs = {"credential_type": credential_type}
+        if credential_type == "single_api_key":
+            api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
+        else:
+            api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
+            api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
+        avito_api = AvitoAdsAPI(**api_kwargs)
+        profiles = await avito_api.get_profiles_or_accounts()
+        if profiles:
+            return [
+                {
+                    "id": str(p.get("id") or ""),
+                    "login": str(p.get("id") or ""),
+                    "name": p.get("name") or p.get("title") or f"Аккаунт {p.get('id')}",
+                    "type": p.get("type") or "avito_account",
+                }
+                for p in profiles
+                if p.get("id") is not None
+            ]
+        if integration.account_id:
+            return [{
+                "id": str(integration.account_id),
+                "login": str(integration.account_id),
+                "name": integration.account_name or f"Аккаунт ({integration.account_id})",
+                "type": "avito_account",
+            }]
+        return []
     
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
     return [] # Return empty list for other platforms or if no specific logic
@@ -1491,6 +1706,8 @@ async def get_integration_counters(
     # VK Ads doesn't use Yandex Metrika counters
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
+        return {"counters": []}
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
         return {"counters": []}
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
@@ -1684,8 +1901,8 @@ async def get_integration_goals(
     # Флаг, надо ли вообще считать конверсии (DB + Metrika API).
     include_stats = bool(date_from and date_to and with_stats)
     
-    # VK Ads doesn't use Yandex Metrika goals
-    if integration.platform == models.IntegrationPlatform.VK_ADS:
+    # VK/Avito don't use Yandex Metrika goals
+    if integration.platform in [models.IntegrationPlatform.VK_ADS, models.IntegrationPlatform.AVITO_ADS]:
         logger.info(f"ℹ️ VK Ads integration - Yandex Metrika goals are not applicable. Returning empty list.")
         return []
     
@@ -2511,7 +2728,7 @@ async def update_integration(
     
     logger.info(f"After update (before commit): agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
-    log_event("backend", f"updated integration {integration_id}", integration_in)
+    log_event("backend", f"updated integration {integration_id}", _sanitize_secret_payload(integration_in))
     log_history_event(
         db,
         actor=current_user,
@@ -2791,6 +3008,20 @@ async def discover_campaigns(
             logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns (no cabinet filter applied)")
         
         log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        has_client_credentials = bool(
+            integration.platform_client_id and integration.platform_client_secret
+        )
+        credential_type = "client_credentials" if has_client_credentials else "single_api_key"
+        api_kwargs = {"credential_type": credential_type}
+        if credential_type == "single_api_key":
+            api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
+        else:
+            api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
+            api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
+        api = AvitoAdsAPI(**api_kwargs)
+        discovered_campaigns = await api.get_campaigns(integration.account_id)
+        log_event("avito", f"discovered {len(discovered_campaigns)} campaigns")
         
     # Save to DB
     logger.info(f"💾 Saving {len(discovered_campaigns)} campaigns to database for integration {integration_id}")
@@ -3150,6 +3381,20 @@ async def test_integration_connection(
              except Exception as e:
                  status_info["status"] = "failed"
                  status_info["details"].append(f"VK Ads: {str(e)}")
+        elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+            has_client_credentials = bool(
+                integration.platform_client_id and integration.platform_client_secret
+            )
+            credential_type = "client_credentials" if has_client_credentials else "single_api_key"
+            api_kwargs = {"credential_type": credential_type}
+            if credential_type == "single_api_key":
+                api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
+            else:
+                api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
+                api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
+            avito_api = AvitoAdsAPI(**api_kwargs)
+            await avito_api.validate_credentials()
+            status_info["details"].append("Avito Ads: OK")
 
         # Update integration status in DB
         integration.last_sync_at = datetime.utcnow()

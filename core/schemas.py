@@ -11,6 +11,10 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     yandex_finance_token: Optional[str] = None
+    avito_credential_type: Optional[str] = None
+    avito_api_key: Optional[str] = None
+    avito_client_id: Optional[str] = None
+    avito_client_secret: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_email_recipients: Optional[List[str]] = None  # Массив email для отчётов
     report_schedule: Optional[str] = None  # mon_10, tue_10, wed_10, thu_10, fri_10, daily_10
@@ -135,6 +139,10 @@ class UserUpdateSettings(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     yandex_finance_token: Optional[str] = None
+    avito_credential_type: Optional[str] = None
+    avito_api_key: Optional[str] = None
+    avito_client_id: Optional[str] = None
+    avito_client_secret: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_email_recipients: Optional[List[str]] = None
     report_schedule: Optional[str] = None
@@ -245,6 +253,7 @@ class IntegrationCreate(IntegrationBase):
     refresh_token: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
+    credential_type: Optional[str] = None
     client_name: Optional[str] = None # Make optional to avoid 422 if not provided
 
 class IntegrationResponse(IntegrationBase):
@@ -258,6 +267,8 @@ class IntegrationResponse(IntegrationBase):
     sync_status: Optional[str] = None  # SUCCESS | FAILED | PENDING | NEVER
     last_sync_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    credential_type: Optional[str] = None
+    has_stored_credentials: Optional[bool] = None
 
     class Config:
         from_attributes = True

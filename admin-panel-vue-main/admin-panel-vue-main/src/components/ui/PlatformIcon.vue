@@ -9,6 +9,9 @@
   <div v-else-if="platform === 'VK_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
     <img :src="vkAdsIcon" alt="VK Ads" class="w-full h-full object-contain" />
   </div>
+  <div v-else-if="platform === 'AVITO_ADS'" :class="sizeClass" class="rounded-xl flex items-center justify-center overflow-hidden">
+    <img :src="avitoIcon" alt="Avito Ads" class="w-full h-full object-contain" />
+  </div>
   <div v-else :class="sizeClass" class="bg-gray-100 rounded-xl flex items-center justify-center text-[10px] font-black text-gray-400 uppercase border border-gray-200">
     ?
   </div>
@@ -17,6 +20,7 @@
 <script setup>
 import { computed } from 'vue'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+import avitoIcon from '@/assets/icons/avito.png'
 
 const props = defineProps({
   platform: String,
