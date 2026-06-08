@@ -1660,6 +1660,35 @@ async def get_integration_counters(
     logger.info(f"✅ Returning {len(counters_list)} counters for integration {integration_id}")
     return {"counters": counters_list}
 
+@router.get("/{integration_id}/goal-names")
+def get_goal_names(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    integration = db.query(models.Integration).join(models.Client).filter(
+        models.Integration.id == integration_id,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    from sqlalchemy import func as sa_func
+    rows = (
+        db.query(
+            models.MetrikaGoals.goal_id,
+            sa_func.max(models.MetrikaGoals.goal_name).label("goal_name"),
+        )
+        .filter(
+            models.MetrikaGoals.integration_id == integration_id,
+            models.MetrikaGoals.goal_id != "all",
+            models.MetrikaGoals.goal_name.isnot(None),
+        )
+        .group_by(models.MetrikaGoals.goal_id)
+        .all()
+    )
+    return {str(r.goal_id): r.goal_name for r in rows if r.goal_name}
+
+
 @router.get("/{integration_id}/goals")
 async def get_integration_goals(
     integration_id: uuid.UUID,

@@ -716,10 +716,11 @@ async function loadGoals() {
   const goalNameCache = {}
   await Promise.all(integrations.map(async (intg) => {
     try {
-      const { data } = await api.get(`integrations/${intg.id}/goals`)
-      const goals = Array.isArray(data) ? data : data?.goals || []
-      for (const g of goals) {
-        goalNameCache[`${intg.id}-${String(g.id)}`] = g.name || g.goal_name || null
+      const { data } = await api.get(`integrations/${intg.id}/goal-names`)
+      if (data && typeof data === 'object') {
+        for (const [gid, gname] of Object.entries(data)) {
+          goalNameCache[`${intg.id}-${String(gid)}`] = gname
+        }
       }
     } catch { /* ignore — will fall back to ID */ }
   }))
