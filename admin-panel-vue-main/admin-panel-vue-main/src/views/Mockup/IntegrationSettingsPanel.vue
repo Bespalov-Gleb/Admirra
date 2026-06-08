@@ -545,6 +545,22 @@ onMounted(() => {
   flex-direction: column;
   gap: 0.4167rem;
   margin-bottom: 1.0417rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding-right: 0.2778rem;
+}
+.ip-goals::-webkit-scrollbar {
+  width: 4px;
+}
+.ip-goals::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ip-goals::-webkit-scrollbar-thumb {
+  background: rgba(105, 105, 105, 0.2);
+  border-radius: 2px;
+}
+.ip-goals::-webkit-scrollbar-thumb:hover {
+  background: rgba(105, 105, 105, 0.4);
 }
 .ip-goal {
   display: flex;
