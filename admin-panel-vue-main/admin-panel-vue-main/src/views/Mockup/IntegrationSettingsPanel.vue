@@ -49,8 +49,8 @@
           </div>
         </div>
 
-        <!-- ── New goal notice ── -->
-        <div class="ip-notice">
+        <!-- ── New goal notice (only when new goals exist) ── -->
+        <div v-if="hasNewGoals" class="ip-notice">
           В Метрике появилась новая цель, ещё не отслеживается. Отметьте, если нужна.
         </div>
 
@@ -76,7 +76,8 @@
           </p>
 
           <!-- Goals list -->
-          <div class="ip-goals">
+          <div v-if="loadingGoals" class="ip-goals-loading">Загрузка целей…</div>
+          <div v-else class="ip-goals">
             <div
               v-for="goal in goals"
               :key="goal.id"
@@ -155,12 +156,12 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import api from '../../api/axios'
 
 const panelEl = ref(null)
-
-onMounted(() => {
-  panelEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-})
+const counters = ref([])
+const goals = ref([])
+const loadingGoals = ref(false)
 
 const props = defineProps({
   integration: {
@@ -171,20 +172,18 @@ const props = defineProps({
 
 defineEmits(['close', 'save', 'delete'])
 
-const formattedSync = computed(() => {
-  if (!props.integration?.last_sync_at) return '—'
-  return new Date(props.integration.last_sync_at).toLocaleString('ru-RU', {
-    day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
-  })
-})
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const parseJsonList = (raw) => {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+// ── Context: channel / project / cabinet ─────────────────────────────────────
 
 const platformLabels = {
-  yandex: 'Yandex Direct',
-  YANDEX: 'Yandex Direct',
-  YANDEX_DIRECT: 'Yandex Direct',
-  vk: 'ВК Ads',
-  VK: 'ВК Ads',
-  VK_ADS: 'ВК Ads',
+  yandex: 'Yandex Direct', YANDEX: 'Yandex Direct', YANDEX_DIRECT: 'Yandex Direct',
+  vk: 'ВК Ads', VK: 'ВК Ads', VK_ADS: 'ВК Ads',
   MYTARGET: 'MyTarget',
 }
 
@@ -197,25 +196,91 @@ const projectName = computed(() =>
   props.integration?.client_name || props.integration?.client?.name || '—'
 )
 
-const cabinetName = computed(() =>
-  props.integration?.external_account_id || '—'
-)
+const cabinetName = computed(() => {
+  const login = props.integration?.agency_client_login
+  const name  = props.integration?.account_name
+  const id    = props.integration?.account_id || props.integration?.external_account_id
+  if (login && name && login !== name) return `${login} • ${name}`
+  return name || login || id || '—'
+})
 
-const counterDomain = computed(() =>
-  props.integration?.counter_domain || '—'
-)
+// ── Sync chip ─────────────────────────────────────────────────────────────────
 
-const counterId = computed(() =>
-  props.integration?.counter_id || props.integration?.metrika_counter_id || '—'
-)
+const formattedSync = computed(() => {
+  if (!props.integration?.last_sync_at) return '—'
+  return new Date(props.integration.last_sync_at).toLocaleString('ru-RU', {
+    day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
+  })
+})
 
-// Static mock goals — replaced with real API data later
-const goals = [
-  { id: '562803237', name: 'Заявка / Все формы', type: 'form', state: 'checked', primary: true },
-  { id: '182986105', name: 'Клик по телефону',   type: 'phone', state: 'checked', primary: false },
-  { id: '496579568', name: 'Начало оформления заказа', type: null, state: 'new',  primary: false },
-  { id: '190019980', name: 'Квиз пройден',        type: null, state: 'error', primary: false },
-]
+// ── Counter (from fetched data) ───────────────────────────────────────────────
+
+const counterDomain = computed(() => counters.value[0]?.site || '—')
+const counterId     = computed(() => counters.value[0]?.id   || '—')
+
+// ── New-goal notice ───────────────────────────────────────────────────────────
+
+const hasNewGoals = computed(() => goals.value.some(g => g.state === 'new'))
+
+// ── Data fetching ─────────────────────────────────────────────────────────────
+
+const fetchData = async () => {
+  const integrationId = props.integration?.id
+  if (!integrationId) return
+
+  loadingGoals.value = true
+  try {
+    const selectedCounterIds = parseJsonList(props.integration?.selected_counters)
+    const selectedGoalIds    = parseJsonList(props.integration?.selected_goals).map(String)
+    const primaryGoalId      = String(props.integration?.primary_goal_id || '')
+
+    // 1. Fetch counters
+    const counterParams = selectedCounterIds.length
+      ? { counter_ids: selectedCounterIds.join(',') }
+      : {}
+    const { data: cData } = await api.get(`integrations/${integrationId}/counters`, { params: counterParams })
+    counters.value = cData?.counters || (Array.isArray(cData) ? cData : [])
+
+    // 2. Fetch all available goals (no heavy stats needed here)
+    const goalParams = {
+      with_stats: false,
+      ...(selectedCounterIds.length && { counter_ids: selectedCounterIds.join(',') }),
+    }
+    const { data: gData } = await api.get(`integrations/${integrationId}/goals`, { params: goalParams })
+    const apiGoals   = Array.isArray(gData) ? gData : []
+    const apiGoalMap = new Map(apiGoals.map(g => [String(g.id), g]))
+    const selSet     = new Set(selectedGoalIds)
+
+    const result = []
+
+    // Selected goals first
+    for (const gid of selectedGoalIds) {
+      const ag = apiGoalMap.get(gid)
+      result.push(ag
+        ? { id: gid, name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'checked', primary: gid === primaryGoalId }
+        : { id: gid, name: `Цель ID ${gid}`, type: null, state: 'error', primary: false }
+      )
+    }
+
+    // New goals (in API but not selected)
+    for (const ag of apiGoals) {
+      if (!selSet.has(String(ag.id))) {
+        result.push({ id: String(ag.id), name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'new', primary: false })
+      }
+    }
+
+    goals.value = result
+  } catch (err) {
+    console.error('[IntegrationSettingsPanel] fetch error:', err)
+  } finally {
+    loadingGoals.value = false
+  }
+}
+
+onMounted(() => {
+  panelEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  fetchData()
+})
 </script>
 
 <style scoped>
@@ -461,6 +526,14 @@ const goals = [
 }
 .ip-star-hint {
   color: #b07d1a;
+}
+
+/* ── Goals loading ── */
+.ip-goals-loading {
+  font-size: 0.8333rem;
+  color: rgba(105, 105, 105, 0.6);
+  padding: 0.6944rem 0;
+  margin-bottom: 1.0417rem;
 }
 
 /* ── Goals list ── */
