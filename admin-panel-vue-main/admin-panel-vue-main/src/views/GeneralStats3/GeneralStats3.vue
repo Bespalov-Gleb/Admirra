@@ -8402,14 +8402,14 @@ onMounted(() => {
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 0.6944rem;
   background: #fff;
-  padding: 0.5556rem 0.6944rem;
+  padding: 0.2778rem 0.6944rem;
   color: rgba(105,105,105,0.4);
 }
 :global(.dark) .direction-campaign-search { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
 
 .direction-campaign-search svg {
-  width: 0.9028rem;
-  height: 0.9028rem;
+  width: 0.8333rem;
+  height: 0.8333rem;
   flex: 0 0 auto;
 }
 
@@ -8419,7 +8419,7 @@ onMounted(() => {
   outline: 0;
   background: transparent;
   color: #171717;
-  font-size: 0.9028rem;
+  font-size: 0.8333rem;
 }
 :global(.dark) .direction-campaign-search input { color: rgba(255,255,255,0.88); }
 
