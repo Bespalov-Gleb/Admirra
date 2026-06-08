@@ -123,16 +123,19 @@
           </div>
         </div>
       </div>
+      <!-- Panel inside grid, positioned below the clicked card -->
+      <div
+        v-if="settingsOpen && selectedIntegration"
+        :style="panelWrapperStyle"
+      >
+        <IntegrationSettingsPanel
+          :integration="selectedIntegration"
+          @close="settingsOpen = false"
+          @save="settingsOpen = false"
+          @delete="settingsOpen = false"
+        />
+      </div>
     </div>
-
-    <!-- Panel below the grid, full width -->
-    <IntegrationSettingsPanel
-      v-if="settingsOpen && selectedIntegration"
-      :integration="selectedIntegration"
-      @close="settingsOpen = false"
-      @save="settingsOpen = false"
-      @delete="settingsOpen = false"
-    />
 
   </div>
 </template>
@@ -150,11 +153,25 @@ const isLoading    = ref(false)
 const search       = ref('')
 const settingsOpen = ref(false)
 const selectedIntegration = ref(null)
+const selectedIndex = ref(-1)
 
 const openSettings = (item) => {
   selectedIntegration.value = item
+  selectedIndex.value = filteredIntegrations.value.indexOf(item)
   settingsOpen.value = true
 }
+
+// Place the panel in the same column as the clicked card, row below it.
+// Grid is 1-col on mobile and 2-col on xl (1280px+).
+const isXl = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches
+const panelWrapperStyle = computed(() => {
+  const idx = selectedIndex.value
+  if (idx < 0) return {}
+  const cols = isXl ? 2 : 1
+  const col  = (idx % cols) + 1
+  const row  = Math.floor(idx / cols) + 2
+  return { gridColumn: String(col), gridRow: String(row) }
+})
 
 // ── Platform definitions ──
 const platformCatalog = [
