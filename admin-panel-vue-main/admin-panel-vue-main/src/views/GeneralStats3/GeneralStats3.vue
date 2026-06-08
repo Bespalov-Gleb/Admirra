@@ -2020,7 +2020,7 @@ const CHART_LEFT = 44
 const CHART_RIGHT = 868
 const CHART_TOP = 10
 const CHART_BOTTOM = 264
-const CHART_BASELINE = 266
+const CHART_BASELINE = CHART_BOTTOM
 const CHART_GRID_LEFT = 34
 const CHART_GRID_RIGHT = 876
 const CHART_Y_LABEL_X = 30
@@ -2073,20 +2073,54 @@ const buildChartPoints = (values) => {
 
 const chartPoints = computed(() => chartSeries.value[0]?.points || [])
 
+const clampChartY = (value, min = CHART_TOP, max = CHART_BOTTOM) => Math.min(max, Math.max(min, value))
+
 const buildSmoothChartPath = (pts) => {
   if (!pts.length) return ''
   if (pts.length < 2) return `M ${pts[0].x} ${pts[0].y}`
-  const tension = 0.3
+
+  const slopes = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = pts[i + 1].x - pts[i].x
+    slopes[i] = dx === 0 ? 0 : (pts[i + 1].y - pts[i].y) / dx
+  }
+
+  const tangents = pts.map((_, index) => {
+    if (index === 0) return slopes[0] || 0
+    if (index === pts.length - 1) return slopes[slopes.length - 1] || 0
+    const prev = slopes[index - 1] || 0
+    const next = slopes[index] || 0
+    return prev * next <= 0 ? 0 : (prev + next) / 2
+  })
+
+  for (let i = 0; i < slopes.length; i++) {
+    const slope = slopes[i] || 0
+    if (slope === 0) {
+      tangents[i] = 0
+      tangents[i + 1] = 0
+      continue
+    }
+    const a = tangents[i] / slope
+    const b = tangents[i + 1] / slope
+    const scale = Math.hypot(a, b)
+    if (scale > 3) {
+      const limit = 3 / scale
+      tangents[i] = limit * a * slope
+      tangents[i + 1] = limit * b * slope
+    }
+  }
+
   let d = `M ${pts[0].x} ${pts[0].y}`
   for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(i - 1, 0)]
     const p1 = pts[i]
     const p2 = pts[i + 1]
-    const p3 = pts[Math.min(i + 2, pts.length - 1)]
-    const cp1x = p1.x + (p2.x - p0.x) * tension
-    const cp1y = p1.y + (p2.y - p0.y) * tension
-    const cp2x = p2.x - (p3.x - p1.x) * tension
-    const cp2y = p2.y - (p3.y - p1.y) * tension
+    const dx = p2.x - p1.x
+    const segmentTop = Math.min(p1.y, p2.y)
+    const segmentBottom = Math.max(p1.y, p2.y)
+    const cp1x = p1.x + dx / 3
+    const cp1y = clampChartY(p1.y + (tangents[i] * dx) / 3, segmentTop, segmentBottom)
+    const cp2x = p2.x - dx / 3
+    const cp2y = clampChartY(p2.y - (tangents[i + 1] * dx) / 3, segmentTop, segmentBottom)
     d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
   }
   return d
@@ -2222,8 +2256,6 @@ const chartYLabels = computed(() => {
   const values = chartSourceValues.value
   const rawMax = Math.max(...values, 0)
   if (rawMax === 0) return ['0', '0', '0', '0', '0']
-  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)))
-  const niceMax = Math.ceil(rawMax / magnitude) * magnitude
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
@@ -2231,10 +2263,10 @@ const chartYLabels = computed(() => {
     return String(Math.round(v))
   }
   return [
-    fmt(niceMax),
-    fmt(niceMax * 0.75),
-    fmt(niceMax * 0.5),
-    fmt(niceMax * 0.25),
+    fmt(rawMax),
+    fmt(rawMax * 0.75),
+    fmt(rawMax * 0.5),
+    fmt(rawMax * 0.25),
     '0'
   ]
 })
