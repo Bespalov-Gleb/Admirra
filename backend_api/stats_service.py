@@ -222,6 +222,22 @@ class StatsService:
                 v_q = v_q.filter(models.VKStats.date <= end)
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
 
+            def get_yandex_scope_cost():
+                if not campaign_ids:
+                    return float((y_s.total_cost if y_s else 0) or 0)
+                scope_q = db.query(
+                    func.sum(models.YandexStats.cost)
+                ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                    models.YandexStats.client_id.in_(client_ids)
+                )
+                if integration_ids:
+                    scope_q = scope_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                if start:
+                    scope_q = scope_q.filter(models.YandexStats.date >= start)
+                if end:
+                    scope_q = scope_q.filter(models.YandexStats.date <= end)
+                return float((scope_q.scalar() or 0) or 0)
+
             # CRITICAL: Log the date range and integration filter for debugging
             import logging
             debug_logger = logging.getLogger(__name__)
@@ -264,20 +280,28 @@ class StatsService:
             # Direct conversions не подставляем fallback-ом, иначе дашборд расходится
             # со страницей проектов и выбранными целями.
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
-            yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
             mixed_goal_types = platform == "all" and not campaign_ids and has_yandex_platform and has_vk_platform
+            yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
+            yandex_scope_cost = get_yandex_scope_cost()
+            if campaign_ids:
+                yandex_metrika_convs = (
+                    int(round(metrica_convs * (yandex_cost / yandex_scope_cost)))
+                    if metrica_convs > 0 and yandex_cost > 0 and yandex_scope_cost > 0
+                    else 0
+                )
+            else:
+                yandex_metrika_convs = metrica_convs
             
             if platform == "vk":
                 convs = vk_convs
                 leads_available = True
                 cpa_available = True
             elif campaign_ids:
-                # MetrikaGoals are currently stored by integration, not by
-                # campaign. For campaign/direction filters, using integration-
-                # level Metrika would overcount; Direct campaign conversions are
-                # the accurate campaign-scoped fallback.
-                convs = yandex_convs + vk_convs
+                # Yandex-лиды берём только из Метрики по selected_goals. Так как
+                # MetrikaGoals пока не хранит campaign_id, для направления
+                # распределяем лиды по доле расхода выбранных кампаний.
+                convs = yandex_metrika_convs + vk_convs
                 leads_available = True
                 cpa_available = True
             elif platform == "yandex":
@@ -311,12 +335,11 @@ class StatsService:
             # CPA для VK: все затраты / количество лидов (совпадает с интерфейсом VK)
             vk_avg_cpa = vk_cost / vk_conversions if vk_conversions > 0 else 0.0
             
-            # CPA для Yandex: по проекту — из Метрики; по выбранным кампаниям —
-            # из Direct, потому что MetrikaGoals не привязаны к campaign_id.
-            yandex_convs_for_cpa = yandex_convs if campaign_ids else metrica_convs
+            # CPA для Yandex: всегда из Метрики (selected_goals); по выбранным
+            # кампаниям используем ту же пропорциональную оценку, что и для лидов.
+            yandex_convs_for_cpa = yandex_metrika_convs
             # Для Yandex: CPC из Директа, CPA — из целевых лидов.
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
-            yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0
             yandex_avg_cpa = yandex_cost / yandex_convs_for_cpa if yandex_convs_for_cpa > 0 else 0.0
             
@@ -603,7 +626,14 @@ class StatsService:
         # Campaign.is_active: остановленные/архивные кампании должны оставаться
         # в исторической статистике выбранного периода.
         integration_ids_filter = None
-        if not campaign_ids and len(client_ids) == 1:
+        if campaign_ids:
+            campaign_integrations = db.query(models.Campaign.integration_id).filter(
+                models.Campaign.id.in_(campaign_ids)
+            ).distinct().all()
+            aid_list = [r[0] for r in campaign_integrations if r[0]]
+            if aid_list:
+                integration_ids_filter = aid_list
+        elif len(client_ids) == 1:
             project_integrations = db.query(models.Integration.id).filter(
                 models.Integration.client_id.in_(client_ids)
             ).distinct().all()
@@ -631,6 +661,20 @@ class StatsService:
             if end:
                 q = q.filter(models.YandexStats.date <= end)
             return q.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
+
+        def get_yandex_scope_cost(start, end):
+            q = db.query(
+                func.sum(models.YandexStats.cost)
+            ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+                models.YandexStats.client_id.in_(client_ids)
+            )
+            if integration_ids_filter:
+                q = q.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if start:
+                q = q.filter(models.YandexStats.date >= start)
+            if end:
+                q = q.filter(models.YandexStats.date <= end)
+            return float((q.scalar() or 0) or 0)
 
         def run_vk_query(start, end):
             q = db.query(
@@ -710,7 +754,7 @@ class StatsService:
         if platform in ["all", "yandex"]:
             y_results = run_yandex_query(d_start, d_end)
             total_metrika_convs = get_metrika_convs(d_start, d_end)
-            total_yandex_cost = sum(float(r.cost or 0) for r in y_results)
+            total_yandex_cost = get_yandex_scope_cost(d_start, d_end)
 
             # Previous period Yandex data keyed by campaign_id
             prev_y_rows = {}
@@ -720,17 +764,17 @@ class StatsService:
                 prev_y_list = run_yandex_query(prev_start, prev_end)
                 prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
                 prev_total_metrika_convs = get_metrika_convs(prev_start, prev_end)
-                prev_total_yandex_cost = sum(float(r.cost or 0) for r in prev_y_list)
+                prev_total_yandex_cost = get_yandex_scope_cost(prev_start, prev_end)
 
             for r in y_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
                 imps = int(r.impressions or 0)
-                # CRITICAL: Конверсии — из Метрики (пропорционально); fallback — Direct
+                # CRITICAL: Конверсии Yandex — только из Метрики (пропорционально).
                 if total_metrika_convs > 0 and total_yandex_cost > 0:
                     convs = round(total_metrika_convs * (cost / total_yandex_cost))
                 else:
-                    convs = int(r.conversions or 0)
+                    convs = 0
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0
 
@@ -744,7 +788,7 @@ class StatsService:
                     if prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
                         prev_convs = round(prev_total_metrika_convs * (prev_cost / prev_total_yandex_cost))
                     else:
-                        prev_convs = int(p.conversions or 0)
+                        prev_convs = 0
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:

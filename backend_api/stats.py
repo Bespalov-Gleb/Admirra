@@ -484,6 +484,26 @@ async def get_dynamics(
         
         m_stats = m_query.group_by(models.MetrikaGoals.date).all()
 
+    y_scope_cost_by_date = {}
+    if u_campaign_ids and platform in ["all", "yandex"]:
+        # Для фильтра по направлению MetrikaGoals не имеют campaign_id.
+        # Поэтому дневные лиды Метрики распределяем по доле расхода выбранных
+        # кампаний от общего расхода тех же интеграций за этот день.
+        y_scope_q = db.query(
+            models.YandexStats.date,
+            func.sum(models.YandexStats.cost).label("cost")
+        ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
+            models.YandexStats.client_id.in_(effective_client_ids),
+            models.YandexStats.date >= d_start,
+            models.YandexStats.date <= d_end
+        )
+        if m_integration_ids:
+            y_scope_q = y_scope_q.filter(models.Campaign.integration_id.in_(m_integration_ids))
+        y_scope_cost_by_date = {
+            row.date: float((row.cost or 0) or 0)
+            for row in y_scope_q.group_by(models.YandexStats.date).all()
+        }
+
     selected_platforms = [
         row[0]
         for row in db.query(models.Integration.platform)
@@ -514,15 +534,18 @@ async def get_dynamics(
         # Лиды для Yandex — только Метрика. Direct conversions не используем
         # fallback-ом, чтобы график совпадал со страницей проектов и целями.
         metrika_le = int(m_s.leads if m_s else 0)
-        yandex_le = int(y_s.leads if y_s else 0)
         vk_le = int(v_s.leads if v_s else 0)
         if platform == "vk":
             le = vk_le
         elif u_campaign_ids:
-            # MetrikaGoals are integration-scoped in the current schema. For a
-            # selected campaign set (also used by directions), use campaign-
-            # scoped Direct conversions to avoid overcounting the whole cabinet.
-            le = yandex_le + vk_le
+            selected_yandex_cost = float((y_s.cost if y_s else 0) or 0)
+            yandex_scope_cost = y_scope_cost_by_date.get(d, selected_yandex_cost)
+            yandex_metrika_le = (
+                int(round(metrika_le * (selected_yandex_cost / yandex_scope_cost)))
+                if metrika_le > 0 and selected_yandex_cost > 0 and yandex_scope_cost > 0
+                else 0
+            )
+            le = yandex_metrika_le + vk_le
         elif mixed_goal_types:
             le = 0
         else:
