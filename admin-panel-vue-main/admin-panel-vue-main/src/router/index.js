@@ -311,8 +311,8 @@ router.beforeEach(async (to, from, next) => {
   const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
   let isAuth = Boolean(isAuthenticated.value && getToken())
 
-  if (isPublicPage && !verifyEmailWithToken) {
-    markAuthIdle()
+  if (isOAuthCallback || isLandingPage) {
+    if (!verifyEmailWithToken) markAuthIdle()
   } else if (!isAuth) {
     try {
       isAuth = await Promise.race([
@@ -325,6 +325,11 @@ router.beforeEach(async (to, from, next) => {
   }
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
+
+  if (isAuth && isLoginPage) {
+    next(DEFAULT_DASHBOARD_PATH)
+    return
+  }
 
   if (!isAuth && !isPublicPage) {
     console.warn('Router: Unauthorized access attempt, redirecting to login...')
