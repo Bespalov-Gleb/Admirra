@@ -24,6 +24,7 @@ from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
+from core.campaign_status import apply_platform_status
 
 cfg = get_config()
 
@@ -2858,6 +2859,7 @@ async def discover_campaigns(
                 campaign.name = incoming_name
             updated_count += 1
             logger.info(f"   💾 Updated existing campaign: ID={dc['id']}, Name='{dc['name']}'")
+        apply_platform_status(campaign, dc)
             
     db.commit()
     logger.info(f"💾 Saved {saved_count} new campaigns, updated {updated_count} existing campaigns")
@@ -2968,8 +2970,10 @@ async def discover_campaigns(
             "id": str(campaign.id),
             "external_id": campaign.external_id,
             "name": campaign.name,
-            "status": api_campaign.get("status", "UNKNOWN") if api_campaign else "UNKNOWN",
+            "status": campaign.platform_status or (api_campaign.get("status", "UNKNOWN") if api_campaign else "UNKNOWN"),
             "state": campaign_state,  # Mapped state for frontend filtering
+            "platform_state": campaign.platform_state,
+            "display_status": campaign.display_status or "unknown",
             "type": campaign_type  # Campaign type for filtering
         }
         

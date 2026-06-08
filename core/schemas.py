@@ -318,6 +318,10 @@ class CampaignBase(BaseModel):
     external_id: str
     name: str
     is_active: bool = True
+    platform_status: Optional[str] = None
+    platform_state: Optional[str] = None
+    display_status: Optional[str] = None
+    status_synced_at: Optional[datetime] = None
 
 class CampaignCreate(CampaignBase):
     integration_id: UUID

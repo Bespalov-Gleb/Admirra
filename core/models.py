@@ -361,6 +361,10 @@ class Campaign(Base):
     external_id = Column(String, nullable=False) # Campaign ID from the platform
     name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    platform_status = Column(String, nullable=True)
+    platform_state = Column(String, nullable=True)
+    display_status = Column(String, nullable=True)
+    status_synced_at = Column(DateTime(timezone=True), nullable=True)
     vk_goal_action_id = Column(String, nullable=True)  # VK Ads goal/action identifier
     vk_goal_action_name = Column(String, nullable=True)  # VK Ads goal/action display name
     created_at = Column(DateTime(timezone=True), server_default=func.now())

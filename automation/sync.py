@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from core.database import SessionLocal
 from core import models, security
+from core.campaign_status import apply_platform_status
 from core.logging_utils import log_event
 from automation.yandex_direct import YandexDirectAPI
 from automation.yandex_metrica import YandexMetricaAPI
@@ -29,6 +30,50 @@ YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _upsert_campaign_catalog(
+    db: Session,
+    integration: models.Integration,
+    campaigns_data: list[dict],
+    *,
+    create_missing: bool = True,
+) -> dict[str, models.Campaign]:
+    external_ids = [str(item.get("id")) for item in campaigns_data if item.get("id")]
+    if not external_ids:
+        return {}
+
+    existing = db.query(models.Campaign).filter(
+        models.Campaign.integration_id == integration.id,
+        models.Campaign.external_id.in_(external_ids),
+    ).all()
+    campaign_map = {campaign.external_id: campaign for campaign in existing}
+
+    for item in campaigns_data:
+        external_id = str(item.get("id") or "")
+        if not external_id:
+            continue
+
+        incoming_name = item.get("name")
+        campaign = campaign_map.get(external_id)
+        if not campaign:
+            if not create_missing:
+                continue
+            campaign = models.Campaign(
+                integration_id=integration.id,
+                external_id=external_id,
+                name=incoming_name or f"Campaign {external_id}",
+                is_active=False,
+            )
+            db.add(campaign)
+            db.flush()
+            campaign_map[external_id] = campaign
+        elif incoming_name and not str(incoming_name).startswith("Campaign ") and campaign.name != incoming_name:
+            campaign.name = incoming_name
+
+        apply_platform_status(campaign, item)
+
+    return campaign_map
 
 def _update_or_create_stats(db: Session, model, filters: dict, data: dict, verbose: bool = True):
     """
@@ -536,17 +581,27 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
             api = YandexDirectAPI(access_token, client_login=selected_profile, finance_token=finance_token)
             
-            # Параллельно получаем баланс и статистику кампаний
-            log_event("sync", f"fetching yandex report and balance for {integration.id}")
+            # Параллельно получаем каталог кампаний, баланс и статистику.
+            # Каталог нужен для реальных статусов кампаний в направлениях.
+            log_event("sync", f"fetching yandex campaigns, report and balance for {integration.id}")
+            campaigns_task = api.get_campaigns()
             balance_task = api.get_balance()
             stats_task = api.get_report(date_from, date_to)
             
-            # Ждем оба запроса параллельно
-            balance_data, stats = await asyncio.gather(
+            # Ждем запросы параллельно
+            yandex_campaigns, balance_data, stats = await asyncio.gather(
+                campaigns_task,
                 balance_task,
                 stats_task,
                 return_exceptions=True
             )
+
+            if isinstance(yandex_campaigns, Exception):
+                logger.warning(f"⚠️ Failed to fetch Yandex campaign statuses for integration {integration.id}: {yandex_campaigns}")
+            else:
+                _upsert_campaign_catalog(db, integration, yandex_campaigns)
+                db.commit()
+                logger.info(f"✅ Synced Yandex campaign statuses: {len(yandex_campaigns)} campaigns")
             
             # Обрабатываем баланс
             if isinstance(balance_data, Exception):
@@ -896,6 +951,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
             try:
                 vk_campaigns = await _vk_get_campaigns_with_agency_fallback()
+                campaign_catalog = _upsert_campaign_catalog(db, integration, vk_campaigns)
                 campaign_ids = [str(c.get("id")) for c in vk_campaigns if c.get("id")]
                 
                 # Пытаемся получить целевые действия из статистики
@@ -923,23 +979,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     external_id = str(c.get("id") or "")
                     if not external_id:
                         continue
-                    campaign = db.query(models.Campaign).filter_by(
-                        integration_id=integration.id,
-                        external_id=external_id
-                    ).first()
-                    incoming_name = c.get("name")
+                    campaign = campaign_catalog.get(external_id)
                     if not campaign:
-                        campaign = models.Campaign(
-                            integration_id=integration.id,
-                            external_id=external_id,
-                            name=incoming_name or f"Campaign {external_id}",
-                            is_active=True
-                        )
-                        db.add(campaign)
-                        db.flush()
-                    else:
-                        if incoming_name and not str(incoming_name).startswith("Campaign ") and campaign.name != incoming_name:
-                            campaign.name = incoming_name
+                        continue
 
                     # Пробуем получить целевое действие из статистики
                     goal_action_id, goal_action_name = goal_actions_map.get(external_id, (None, None))

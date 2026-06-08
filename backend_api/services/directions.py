@@ -7,6 +7,7 @@ from typing import Iterable
 from sqlalchemy.orm import Session
 
 from core import models
+from core.campaign_status import status_label
 from backend_api.stats_service import StatsService
 
 
@@ -67,6 +68,9 @@ def campaign_query(db: Session, client_id: uuid.UUID, platform: str = "all", onl
 
 
 def campaign_status(campaign: models.Campaign) -> tuple[str, str]:
+    display_status = str(getattr(campaign, "display_status", "") or "").strip().lower()
+    if display_status:
+        return display_status, status_label(display_status)
     if getattr(campaign, "is_active", False):
         return "active", "Активна"
     return "archived", "Архив"
