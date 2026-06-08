@@ -309,11 +309,11 @@
 
           <template v-else>
             <div v-for="group in goalsGroupedByCounter" :key="group.counterId">
-              <div v-if="goalsGroupedByCounter.length > 1" class="flex items-center gap-[0.4861rem] px-[0.3472rem] pt-[1.0417rem] pb-[0.4861rem]">
-                <span class="w-[0.4167rem] h-[0.4167rem] rounded-full bg-[#2563eb]"></span>
-                <span class="text-[0.8333rem] font-semibold text-[#171717] dark:text-white/80">{{ group.counterName }}</span>
-                <span class="text-[0.7639rem] text-[rgba(105,105,105,0.4)] dark:text-white/30">ID: {{ group.counterId }}</span>
-                <span class="text-[0.7639rem] text-[rgba(105,105,105,0.4)] dark:text-white/30">· {{ group.goals.length }} {{ group.goals.length === 1 ? 'цель' : group.goals.length < 5 ? 'цели' : 'целей' }}</span>
+              <div v-if="goalsGroupedByCounter.length > 1" class="flex items-center gap-[0.6944rem] px-[0.3472rem] pt-[1.3889rem] pb-[0.6944rem]">
+                <span class="w-[0.5556rem] h-[0.5556rem] rounded-full bg-[#2563eb]"></span>
+                <span class="text-[1.1111rem] font-bold text-[#171717] dark:text-white/85">{{ group.counterName }}</span>
+                <span class="text-[0.9028rem] text-[rgba(105,105,105,0.45)] dark:text-white/35">ID: {{ group.counterId }}</span>
+                <span class="text-[0.9028rem] text-[rgba(105,105,105,0.45)] dark:text-white/35">· {{ group.goals.length }} {{ group.goals.length === 1 ? 'цель' : group.goals.length < 5 ? 'цели' : 'целей' }}</span>
               </div>
               <div class="cards-grid">
                 <label
