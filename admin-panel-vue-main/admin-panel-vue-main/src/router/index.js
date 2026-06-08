@@ -311,7 +311,7 @@ router.beforeEach(async (to, from, next) => {
   const verifyEmailWithToken = normalizedPath === '/verify-email' && to.query.token
   let isAuth = Boolean(isAuthenticated.value && getToken())
 
-  if (isOAuthCallback || isLandingPage) {
+  if (isOAuthCallback) {
     if (!verifyEmailWithToken) markAuthIdle()
   } else if (!isAuth) {
     try {
@@ -326,7 +326,7 @@ router.beforeEach(async (to, from, next) => {
 
   console.log(`Router: Navigating to ${to.path} (normalized: ${normalizedPath}), Auth: ${isAuth}`)
 
-  if (isAuth && isLoginPage) {
+  if (isAuth && (isLoginPage || isLandingPage)) {
     next(DEFAULT_DASHBOARD_PATH)
     return
   }
