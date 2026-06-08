@@ -307,7 +307,8 @@
                         </div>
                         <div class="min-w-0">
                           <div class="psm-goal-name truncate">{{ goal.name }}</div>
-                          <div v-if="goal.hint" class="psm-hint">{{ goal.hint }}</div>
+                          <div v-if="goal.goalId && goal.goalId !== '__summary__'" class="psm-hint" style="font-size:0.7639rem;color:rgba(105,105,105,0.4)">ID: {{ goal.goalId }}</div>
+                          <div v-else-if="goal.hint" class="psm-hint">{{ goal.hint }}</div>
                         </div>
                         <div>
                           <div class="psm-input-with-suffix">
@@ -718,7 +719,7 @@ async function loadGoals() {
       const { data } = await api.get(`integrations/${intg.id}/goals`)
       const goals = Array.isArray(data) ? data : data?.goals || []
       for (const g of goals) {
-        goalNameCache[`${intg.id}-${g.id}`] = g.name || g.goal_name || null
+        goalNameCache[`${intg.id}-${String(g.id)}`] = g.name || g.goal_name || null
       }
     } catch { /* ignore — will fall back to ID */ }
   }))
@@ -728,7 +729,7 @@ async function loadGoals() {
     const goals = normalizeSelectedGoals(intg.selected_goals)
 
     for (const g of goals) {
-      const gid = g.id || g
+      const gid = String(g.id || g)
       rows.push({
         id: `${intg.id}-${gid}`,
         integrationId: intg.id,
