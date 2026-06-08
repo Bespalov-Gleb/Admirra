@@ -754,6 +754,7 @@ class DashboardIntegrationStatus(BaseModel):
     is_connected: bool
     balance: Optional[float] = None
     currency: Optional[str] = None
+    last_sync_at: Optional[datetime] = None
 
 class SyncRequest(BaseModel):
     days: int = 7

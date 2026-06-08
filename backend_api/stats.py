@@ -1250,11 +1250,12 @@ def get_integrations_status(
     effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
 
-    # Get integrations with balance for connected platforms
+    # Get integrations with balance and last_sync_at for connected platforms
     integrations = db.query(
         models.Integration.platform,
         models.Integration.balance,
-        models.Integration.currency
+        models.Integration.currency,
+        models.Integration.last_sync_at
     ).filter(models.Integration.client_id.in_(effective_client_ids)).all()
 
     platform_data = {}
@@ -1263,14 +1264,19 @@ def get_integrations_status(
         p = raw.lower().replace("-", "_")  # YANDEX_DIRECT -> yandex_direct
         if p not in platform_data or (row.balance is not None and platform_data[p].get("balance") is None):
             platform_data[p] = {
-                "platform": p,  # lowercase для совместимости с фронтом
+                "platform": p,
                 "is_connected": True,
                 "balance": float(row.balance) if row.balance is not None else None,
-                "currency": row.currency
+                "currency": row.currency,
+                "last_sync_at": row.last_sync_at,
             }
-        elif p in platform_data and row.balance is not None and platform_data[p].get("balance") is not None:
-            # Sum balance if multiple integrations for same platform
-            platform_data[p]["balance"] = (platform_data[p]["balance"] or 0) + float(row.balance)
+        else:
+            # Keep the most recent last_sync_at across multiple integrations for same platform
+            existing = platform_data[p].get("last_sync_at")
+            if row.last_sync_at and (not existing or row.last_sync_at > existing):
+                platform_data[p]["last_sync_at"] = row.last_sync_at
+            if row.balance is not None and platform_data[p].get("balance") is not None:
+                platform_data[p]["balance"] = (platform_data[p]["balance"] or 0) + float(row.balance)
 
     all_platforms = ["yandex_direct", "vk_ads", "google_ads", "facebook_ads", "instagram", "telegram"]
     return [
