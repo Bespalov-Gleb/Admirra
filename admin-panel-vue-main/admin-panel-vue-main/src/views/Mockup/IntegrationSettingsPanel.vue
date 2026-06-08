@@ -1,12 +1,8 @@
 <template>
-  <Teleport to="body">
-    <!-- Backdrop -->
-    <div class="ip-backdrop" @click.self="$emit('close')" />
-
     <!-- Panel -->
-    <div class="ip-panel">
+    <div class="ip-panel" ref="panelEl">
 
-      <!-- Scrollable area -->
+      <!-- Content area -->
       <div class="ip-scroll">
 
         <!-- ── Header ── -->
@@ -155,11 +151,16 @@
       </div>
 
     </div>
-  </Teleport>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+
+const panelEl = ref(null)
+
+onMounted(() => {
+  panelEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+})
 
 const props = defineProps({
   integration: {
@@ -218,44 +219,31 @@ const goals = [
 </script>
 
 <style scoped>
-/* ── Backdrop ── */
-.ip-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 90;
-}
-
-/* ── Panel ── */
+/* ── Panel (inline, appears below cards) ── */
 .ip-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 91;
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
   background: #fff;
-  border-radius: 1.3889rem 1.3889rem 0 0;
-  box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.14);
-  animation: ip-slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+  border-radius: 1.3889rem;
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9e9e9;
+  animation: ip-fade-in 0.22s ease both;
+  margin-top: 1.3889rem;
 }
 :global(.dark) .ip-panel,
 :global(.darkmode) .ip-panel {
   background: #1e2130;
-  box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.4);
 }
 
-@keyframes ip-slide-up {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+@keyframes ip-fade-in {
+  from { opacity: 0; transform: translateY(0.8333rem); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Scroll area ── */
+/* ── Content area ── */
 .ip-scroll {
-  flex: 1;
-  overflow-y: auto;
   padding: 2.0833rem 2.0833rem 1.3889rem;
 }
 
@@ -593,19 +581,17 @@ const goals = [
 
 /* ── Footer ── */
 .ip-footer {
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6944rem;
-  padding: 1.1111rem 2.0833rem 1.3889rem;
+  padding: 1.1111rem 2.0833rem 1.6667rem;
   border-top: 1px solid #e9e9e9;
-  background: #fff;
+  border-radius: 0 0 1.3889rem 1.3889rem;
 }
 :global(.dark) .ip-footer,
 :global(.darkmode) .ip-footer {
   border-top-color: rgba(255, 255, 255, 0.1);
-  background: #1e2130;
 }
 .ip-delete-btn {
   padding: 0.6944rem 1.1806rem;
