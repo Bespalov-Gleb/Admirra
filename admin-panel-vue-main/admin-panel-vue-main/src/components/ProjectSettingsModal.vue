@@ -885,7 +885,7 @@ function normalizeSelectedGoals(value) {
       selectedGoals = []
     }
   }
-  return selectedGoals.map((g) => (typeof g === 'object' ? g : { id: g, name: `Цель ${g}` }))
+  return selectedGoals.map((g) => (typeof g === 'object' ? g : { id: g, name: null }))
 }
 
 function validateUrl() {
