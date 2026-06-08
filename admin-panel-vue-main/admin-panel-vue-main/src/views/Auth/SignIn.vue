@@ -260,7 +260,7 @@ const handleMaxLogin = async () => {
 const loginForm = reactive({
   email: '',
   password: '',
-  remember: false
+  remember: true
 })
 
 const togglePasswordVisibility = () => {

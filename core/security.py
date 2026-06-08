@@ -21,7 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 hours
 AUTH_REQUIRE_EMAIL_VERIFIED = cfg.auth.auth_require_email_verified
 REFRESH_COOKIE_NAME = "admirra_refresh_token"
 REFRESH_TOKEN_REMEMBER_DAYS = 30
-REFRESH_TOKEN_SESSION_DAYS = 1
+REFRESH_TOKEN_SESSION_DAYS = 7
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -75,7 +75,7 @@ def _refresh_cookie_secure(request: Request) -> bool:
 
 
 def set_refresh_cookie(response: Response, request: Request, token: str, remember_me: bool) -> None:
-    max_age = REFRESH_TOKEN_REMEMBER_DAYS * 24 * 60 * 60 if remember_me else None
+    max_age = REFRESH_TOKEN_REMEMBER_DAYS * 86400 if remember_me else REFRESH_TOKEN_SESSION_DAYS * 86400
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=token,
