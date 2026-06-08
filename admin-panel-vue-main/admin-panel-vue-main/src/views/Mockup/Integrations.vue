@@ -118,12 +118,21 @@
                   <path d="M2 8C2 11.31 4.69 14 8 14C11.31 14 14 11.31 14 8C14 4.69 11.31 2 8 2C5.8 2 3.85 3.1 2.75 4.75M2.75 4.75V2M2.75 4.75H5.25" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </div>
-              <button class="configure-btn" @click="$router.push('/integrations/wizard')">Настроить</button>
+              <button class="configure-btn" @click="openSettings(item)">Настроить</button>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+  <!-- Integration settings panel -->
+  <IntegrationSettingsPanel
+    v-if="settingsOpen && selectedIntegration"
+    :integration="selectedIntegration"
+    @close="settingsOpen = false"
+    @save="settingsOpen = false"
+    @delete="settingsOpen = false"
+  />
 
   </div>
 </template>
@@ -132,12 +141,20 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
+import IntegrationSettingsPanel from './IntegrationSettingsPanel.vue'
 
 const { currentProjectId } = useProjects()
 
 const integrations = ref([])
 const isLoading    = ref(false)
 const search       = ref('')
+const settingsOpen = ref(false)
+const selectedIntegration = ref(null)
+
+const openSettings = (item) => {
+  selectedIntegration.value = item
+  settingsOpen.value = true
+}
 
 // ── Platform definitions ──
 const platformCatalog = [
