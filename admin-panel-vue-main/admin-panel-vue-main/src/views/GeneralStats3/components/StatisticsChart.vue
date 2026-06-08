@@ -143,7 +143,7 @@ const chartData = computed(() => {
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1,
       fill: false,
-      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
       yAxisID: Y_AXIS_IDS[METRIC_KEYS.indexOf(metricKey)] || 'y'
     }
   })
@@ -167,14 +167,12 @@ const chartOptions = computed(() => {
 
   METRIC_KEYS.forEach((key, idx) => {
     const axisId = Y_AXIS_IDS[idx]
-    const data = getDataByMetric(key)
-    const max = Math.max(...data, 1)
     scales[axisId] = {
       type: 'linear',
       position: 'left',
       display: false,
       beginAtZero: true,
-      max: max * 1.1,
+      min: 0,
       grid: { display: false, drawBorder: false },
       ticks: { display: false }
     }
