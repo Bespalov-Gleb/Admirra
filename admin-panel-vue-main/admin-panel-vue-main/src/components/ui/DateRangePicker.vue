@@ -294,23 +294,25 @@ function getDayClasses(day) {
   if (!day.inMonth) {
     return 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
   }
-  
-  if (!selectedStart.value) {
-    return 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
-  }
-  
-  // Ensure day.date is a Date object
+
   const dayDate = day.date instanceof Date ? day.date : new Date(day.date)
   if (isNaN(dayDate.getTime())) {
     return 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
   }
-  
+
+  const now = new Date()
+  const isToday = dayDate.getDate() === now.getDate() && dayDate.getMonth() === now.getMonth() && dayDate.getFullYear() === now.getFullYear()
+  const todayRing = isToday ? ' ring-2 ring-blue-400 dark:ring-[#4A7AFF] ring-offset-1 dark:ring-offset-[#2C2F3D]' : ''
+
+  if (!selectedStart.value) {
+    return 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5' + todayRing
+  }
+
   const dateStr = formatDate(dayDate)
   const startStr = formatDate(selectedStart.value)
   const isStart = startStr === dateStr
   const isEnd = selectedEnd.value && formatDate(selectedEnd.value) === dateStr
-  
-  // Check if date is in range (between start and end)
+
   let isInRange = false
   if (selectedStart.value && selectedEnd.value) {
     const dayTime = dayDate.getTime()
@@ -318,18 +320,18 @@ function getDayClasses(day) {
     const endTime = selectedEnd.value instanceof Date ? selectedEnd.value.getTime() : new Date(selectedEnd.value).getTime()
     isInRange = dayTime > startTime && dayTime < endTime
   }
-  
+
   if (isStart) {
-    return 'bg-blue-600 text-white rounded-full hover:bg-blue-700'
+    return 'bg-blue-600 text-white rounded-full hover:bg-blue-700' + todayRing
   }
   if (isEnd) {
-    return 'bg-red-500 text-white rounded-full hover:bg-red-600'
+    return 'bg-red-500 text-white rounded-full hover:bg-red-600' + todayRing
   }
   if (isInRange) {
-    return 'bg-blue-100 dark:bg-[#4A7AFF]/15 text-blue-700 dark:text-[#8BB7FF]'
+    return 'bg-blue-100 dark:bg-[#4A7AFF]/15 text-blue-700 dark:text-[#8BB7FF]' + todayRing
   }
-  
-  return 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
+
+  return 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5' + todayRing
 }
 
 function selectDate(date) {
