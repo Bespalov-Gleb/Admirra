@@ -236,7 +236,7 @@
                     <img width="18" :src="balancePlatform(project).icon" :alt="balancePlatform(project).label" />
                     <div :class="['px-[0.6944rem] text-[0.9028rem]', balancePlatform(project).textClass]">{{ balancePlatform(project).label }}</div>
                     <div :class="['inline-flex min-h-[1.5278rem] items-center rounded-full bg-white px-[0.5556rem] text-center text-[0.7639rem] dark:bg-white/10', balancePlatform(project).textClass]">
-                      {{ formatMoney(getProjectMetric(project.id).balance) }}
+                      {{ formatMoney(withVat(getProjectMetric(project.id).balance)) }}
                     </div>
                   </div>
                 </div>

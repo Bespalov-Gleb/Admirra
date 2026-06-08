@@ -681,7 +681,7 @@ const projectBalances = (project) => {
     return {
       ...platform,
       name: platform.balanceName,
-      value: formatMoney(value),
+      value: formatMoney(withVat(value)),
     }
   })
 }
