@@ -17,6 +17,41 @@ logger = logging.getLogger(__name__)
 _worker_lock = threading.Lock()
 _worker_started = False
 _poll_interval_sec = 2.0
+_stale_job_timeout = timedelta(hours=2)
+
+
+def _as_naive_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if not value:
+        return None
+    return value.replace(tzinfo=None)
+
+
+def _fail_stale_job(db, job: models.SyncJob) -> None:
+    job.status = models.SyncJobStatus.FAILED
+    job.stage = "stale"
+    job.progress = job.progress or 0
+    job.error = "Sync job was marked failed because it exceeded the stale timeout"
+    job.finished_at = datetime.utcnow()
+    integration = db.query(models.Integration).filter(models.Integration.id == job.integration_id).first()
+    if integration and integration.sync_status == models.IntegrationSyncStatus.PENDING:
+        integration.sync_status = models.IntegrationSyncStatus.FAILED
+        integration.error_message = job.error
+
+
+def _mark_stale_running_jobs(db) -> int:
+    now = datetime.utcnow()
+    stale_count = 0
+    running_jobs = db.query(models.SyncJob).filter(
+        models.SyncJob.status == models.SyncJobStatus.RUNNING
+    ).all()
+    for job in running_jobs:
+        started_at = _as_naive_utc(job.started_at or job.created_at)
+        if started_at and now - started_at > _stale_job_timeout:
+            _fail_stale_job(db, job)
+            stale_count += 1
+    if stale_count:
+        db.commit()
+    return stale_count
 
 
 def _run_job_sync(job_id: uuid.UUID) -> None:
@@ -98,6 +133,10 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                 job.status = models.SyncJobStatus.FAILED
                 job.error = str(e)[:1000]
                 job.finished_at = datetime.utcnow()
+                integration = db.query(models.Integration).filter(models.Integration.id == job.integration_id).first()
+                if integration and integration.sync_status == models.IntegrationSyncStatus.PENDING:
+                    integration.sync_status = models.IntegrationSyncStatus.FAILED
+                    integration.error_message = str(e)[:1000]
                 db.commit()
         except Exception:
             db.rollback()
@@ -110,6 +149,10 @@ def _worker_loop() -> None:
     while True:
         db = SessionLocal()
         try:
+            stale_count = _mark_stale_running_jobs(db)
+            if stale_count:
+                logger.warning("Marked %s stale sync job(s) as failed", stale_count)
+
             queued = db.query(models.SyncJob).filter(
                 models.SyncJob.status == models.SyncJobStatus.QUEUED
             ).order_by(models.SyncJob.created_at.asc()).first()
@@ -154,6 +197,23 @@ def ensure_sync_worker_started() -> None:
 def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7) -> uuid.UUID:
     db = SessionLocal()
     try:
+        existing = db.query(models.SyncJob).filter(
+            models.SyncJob.integration_id == integration_id,
+            models.SyncJob.status.in_([models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING]),
+        ).order_by(models.SyncJob.created_at.desc()).first()
+        if existing:
+            stale_started_at = _as_naive_utc(existing.started_at or existing.created_at)
+            if (
+                existing.status == models.SyncJobStatus.RUNNING
+                and stale_started_at
+                and datetime.utcnow() - stale_started_at > _stale_job_timeout
+            ):
+                _fail_stale_job(db, existing)
+                db.commit()
+            else:
+                ensure_sync_worker_started()
+                return existing.id
+
         existing = db.query(models.SyncJob).filter(
             models.SyncJob.integration_id == integration_id,
             models.SyncJob.status.in_([models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING]),

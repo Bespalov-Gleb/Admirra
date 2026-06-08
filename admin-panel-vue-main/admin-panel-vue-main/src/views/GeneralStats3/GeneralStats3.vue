@@ -284,9 +284,9 @@
           </Teleport>
         </div>
 
-        <span class="sync-status-label">
-          <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
-          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизация: сегодня, 10:30' }}
+        <span class="sync-status-label" :class="{ active: dashboardSyncInProgress }">
+          <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
+          {{ syncStatusLabel }}
         </span>
 
         <div class="filter-right-group">
@@ -295,9 +295,9 @@
             <span class="nds-label">НДС 22%</span>
           </label>
 
-          <button class="sync-btn sync-btn-ghost" type="button" :disabled="syncingIntegrations" @click="handleSyncIntegrations">
-            <ArrowPathIcon :class="{ spinning: syncingIntegrations }" />
-            {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизация' }}
+          <button class="sync-btn sync-btn-ghost" type="button" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
+            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
+            {{ dashboardSyncInProgress ? 'Синхронизация...' : 'Синхронизация' }}
           </button>
 
           <div class="filter-wrap custom-select dashboard-select export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
@@ -323,6 +323,16 @@
       <button type="button" class="campaign-filter-banner__reset" @click="campaignReset">сбросить</button>
     </div>
 
+    <div v-if="dashboardSyncInProgress" class="dashboard-sync-banner">
+      <span class="dashboard-sync-banner__icon">
+        <ArrowPathIcon class="spinning" />
+      </span>
+      <div>
+        <strong>Выполняется синхронизация</strong>
+        <p>{{ syncProgressLabel }}</p>
+      </div>
+    </div>
+
     <DetectorBanner
       v-if="filters.client_id && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
       :warning-count="detectorSummary?.warning_count || 0"
@@ -338,7 +348,19 @@
       class="detector-banner-slot"
     />
 
+    <div v-if="dashboardSyncInProgress" class="kpi-grid kpi-grid--sync">
+      <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
+        <span class="metric-skeleton-icon"></span>
+        <div class="metric-skeleton-lines">
+          <span></span>
+          <strong></strong>
+        </div>
+        <em></em>
+      </article>
+    </div>
+
     <VueDraggable
+      v-else
       v-model="visibleSlots"
       tag="section"
       class="kpi-grid"
@@ -392,7 +414,11 @@
       </div>
     </VueDraggable>
 
-    <section v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length" class="directions-panel panel">
+    <section
+      v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length"
+      class="directions-panel panel"
+      :class="{ 'panel--syncing': dashboardSyncInProgress }"
+    >
       <div class="directions-head">
         <div>
           <p class="directions-kicker">Разбивка кампаний</p>
@@ -440,10 +466,16 @@
           </div>
         </button>
       </div>
+      <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+        <ArrowPathIcon class="spinning" />
+        <strong>Выполняется синхронизация</strong>
+        <span>Направления обновятся автоматически.</span>
+        <i></i><i></i><i></i>
+      </div>
     </section>
 
     <section class="chart-goals-grid">
-      <article class="panel chart-panel">
+      <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="panel-title-row">
           <h2>Эффективность кампаний</h2>
         </div>
@@ -507,9 +539,15 @@
             </div>
           </div>
         </div>
+        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+          <ArrowPathIcon class="spinning" />
+          <strong>Выполняется синхронизация</strong>
+          <span>График обновится сразу после завершения.</span>
+          <i></i><i></i><i></i>
+        </div>
       </article>
 
-      <article class="panel goals-panel">
+      <article class="panel goals-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="goals-panel__header">
           <h2>
             Целевые действия
@@ -561,10 +599,16 @@
             </div>
           </div>
         </div>
+        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+          <ArrowPathIcon class="spinning" />
+          <strong>Выполняется синхронизация</strong>
+          <span>Цели и CPL обновятся автоматически.</span>
+          <i></i><i></i><i></i>
+        </div>
       </article>
     </section>
 
-    <section class="panel campaigns-panel">
+    <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
       <div class="panel-title-row">
         <h2>Лучшие рекламные компании</h2>
       </div>
@@ -593,10 +637,16 @@
           <span>{{ campaign.cpa }} <b :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b></span>
         </div>
       </div>
+      <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+        <ArrowPathIcon class="spinning" />
+        <strong>Выполняется синхронизация</strong>
+        <span>Кампании обновятся автоматически.</span>
+        <i></i><i></i><i></i>
+      </div>
     </section>
 
     <section class="bottom-grid">
-      <article class="panel creatives-panel">
+      <article class="panel creatives-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <h2>Топ креативы</h2>
         <div v-if="topAdsLoading" class="creatives-row" aria-label="Загрузка креативов">
           <div v-for="item in 3" :key="item" class="creative-card creative-card--skeleton">
@@ -655,9 +705,15 @@
           </div>
         </template>
         <div v-else class="creative-empty"></div>
+        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+          <ArrowPathIcon class="spinning" />
+          <strong>Выполняется синхронизация</strong>
+          <span>Топ креативы подтянутся заново.</span>
+          <i></i><i></i><i></i>
+        </div>
       </article>
 
-      <article class="panel ai-panel">
+      <article class="panel ai-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
@@ -667,19 +723,30 @@
         </ul>
         <div v-else class="ai-empty"></div>
         <p v-if="aiComments.length">Комментарий сгенерирован AI на основе данных за период {{ dateRangeLabel }}</p>
+        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+          <ArrowPathIcon class="spinning" />
+          <strong>Выполняется синхронизация</strong>
+          <span>Комментарии обновятся после пересчета данных.</span>
+          <i></i><i></i><i></i>
+        </div>
       </article>
 
       <div class="side-stat-stack">
-        <article class="panel mini-stat-panel">
+        <article class="panel mini-stat-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
           <h2>Типы устройств</h2>
           <div v-for="item in deviceStats" :key="item.name" class="progress-line">
             <span><component :is="item.icon" />{{ item.name }}</span>
             <div><i :style="{ width: item.width }"></i></div>
             <b>{{ item.value }}</b>
           </div>
+          <div v-if="dashboardSyncInProgress" class="sync-panel-overlay sync-panel-overlay--compact">
+            <ArrowPathIcon class="spinning" />
+            <strong>Синхронизация</strong>
+            <i></i><i></i>
+          </div>
         </article>
 
-        <article class="panel mini-stat-panel">
+        <article class="panel mini-stat-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
           <h2>Плейсменты</h2>
           <div v-for="item in placements" :key="item.name" class="progress-line placement-line">
             <span>
@@ -691,6 +758,11 @@
             </span>
             <div><i :style="{ width: item.width }"></i></div>
             <b>{{ item.value }}</b>
+          </div>
+          <div v-if="dashboardSyncInProgress" class="sync-panel-overlay sync-panel-overlay--compact">
+            <ArrowPathIcon class="spinning" />
+            <strong>Синхронизация</strong>
+            <i></i><i></i>
           </div>
         </article>
       </div>
@@ -1042,6 +1114,7 @@ const {
   filters,
   handlePeriodChange,
   fetchStats,
+  fetchCampaignPool,
   fetchAllCampaignsForGoalsTab,
   loadingCampaigns,
   deviceStats: deviceStatsRaw,
@@ -1114,7 +1187,11 @@ const customPeriodRange = ref({ start: null, end: null })
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const includeVat = ref(true)
-const syncingIntegrations = ref(false)
+const manualSyncActive = ref(false)
+const syncRefreshInProgress = ref(false)
+const activeSyncJobIds = ref([])
+const syncJobStatuses = ref({})
+const lastSyncCompletedAt = ref(null)
 const sendingExport = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
@@ -1166,6 +1243,74 @@ const directionLabelOptions = Object.entries(directionLabels).map(([key, meta]) 
   key,
   label: meta.plural,
 }))
+
+const SYNC_JOB_POLL_MS = 4000
+const SYNC_INTEGRATION_POLL_MS = 5000
+const SYNC_ACTIVE_STATUSES = new Set(['PENDING', 'QUEUED', 'RUNNING'])
+const SYNC_TERMINAL_STATUSES = new Set(['SUCCESS', 'FAILED'])
+let syncJobPollTimer = null
+let integrationStatusPollTimer = null
+
+const normalizeSyncStatus = (status) => String(status || '').trim().toUpperCase()
+
+const dashboardIntegrationsSyncing = computed(() => (
+  integrations.value.some((integration) => SYNC_ACTIVE_STATUSES.has(normalizeSyncStatus(integration.sync_status)))
+))
+
+const activeSyncJobCount = computed(() => (
+  activeSyncJobIds.value.filter((jobId) => {
+    const status = normalizeSyncStatus(syncJobStatuses.value[jobId]?.status)
+    return !status || !SYNC_TERMINAL_STATUSES.has(status)
+  }).length
+))
+
+const dashboardSyncInProgress = computed(() => (
+  manualSyncActive.value
+  || syncRefreshInProgress.value
+  || activeSyncJobCount.value > 0
+  || dashboardIntegrationsSyncing.value
+))
+
+const lastIntegrationSyncAt = computed(() => {
+  const timestamps = integrations.value
+    .map((integration) => Date.parse(integration.last_sync_at || ''))
+    .filter((timestamp) => Number.isFinite(timestamp))
+  return timestamps.length ? Math.max(...timestamps) : null
+})
+
+const formatSyncDateTime = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (!Number.isFinite(date.getTime())) return ''
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  if (sameDay) return `сегодня, ${time}`
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const syncProgressLabel = computed(() => {
+  if (syncRefreshInProgress.value) return 'Синхронизация завершена. Обновляем статистику, цели, направления и топ креативы.'
+  const jobsCount = activeSyncJobCount.value
+  if (jobsCount > 0) return `Обрабатывается ${jobsCount} ${jobsCount === 1 ? 'канал' : 'канала'}. Данные обновятся автоматически.`
+  if (dashboardIntegrationsSyncing.value) return 'Канал еще синхронизируется на сервере. Пожалуйста, подождите.'
+  return 'Пожалуйста, подождите. Данные обновятся автоматически.'
+})
+
+const syncStatusLabel = computed(() => {
+  if (syncRefreshInProgress.value) return 'Обновляем данные...'
+  if (dashboardSyncInProgress.value) return 'Выполняется синхронизация'
+  const completedAt = lastSyncCompletedAt.value ? Date.parse(lastSyncCompletedAt.value) : null
+  const lastAt = completedAt || lastIntegrationSyncAt.value
+  const formatted = formatSyncDateTime(lastAt)
+  return formatted ? `Синхронизация: ${formatted}` : 'Синхронизация не запускалась'
+})
 
 const directionLabelMeta = computed(() => directionLabels[directionStats.value.label_key] || directionLabels.directions)
 const directionLabelLower = computed(() => directionLabelMeta.value.lower)
@@ -1586,7 +1731,11 @@ watch(() => openMenu.value, (val) => {
     _periodScrollCleanup = null
   }
 })
-onBeforeUnmount(() => { if (_periodScrollCleanup) _periodScrollCleanup() })
+onBeforeUnmount(() => {
+  if (_periodScrollCleanup) _periodScrollCleanup()
+  clearSyncJobPolling()
+  clearIntegrationStatusPolling()
+})
 
 const applyPeriodRange = () => {
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
@@ -2584,9 +2733,106 @@ const fetchIntegrations = async () => {
   }
 }
 
+const clearSyncJobPolling = () => {
+  if (syncJobPollTimer) {
+    clearInterval(syncJobPollTimer)
+    syncJobPollTimer = null
+  }
+}
+
+const clearIntegrationStatusPolling = () => {
+  if (integrationStatusPollTimer) {
+    clearInterval(integrationStatusPollTimer)
+    integrationStatusPollTimer = null
+  }
+}
+
+const refreshDashboardAfterSync = async ({ showToast = false, failedCount = 0 } = {}) => {
+  if (syncRefreshInProgress.value) return
+  syncRefreshInProgress.value = true
+  try {
+    await Promise.allSettled([
+      fetchStats(),
+      fetchCampaignPool(),
+      fetchReportGoals(),
+      fetchTopAds(),
+      refreshDirections(),
+      fetchIntegrations(),
+      filters.channel === 'vk' ? fetchAllCampaignsForGoalsTab() : Promise.resolve(),
+      filters.client_id ? fetchDetectorSummary(filters.client_id) : Promise.resolve()
+    ])
+    lastSyncCompletedAt.value = new Date().toISOString()
+    if (showToast) {
+      if (failedCount > 0) toaster.warning(`Синхронизация завершена с ошибками: ${failedCount}`)
+      else toaster.success('Синхронизация завершена. Данные обновлены')
+    }
+  } finally {
+    syncRefreshInProgress.value = false
+  }
+}
+
+const pollSyncJobs = async () => {
+  const jobIds = [...activeSyncJobIds.value]
+  if (!jobIds.length) {
+    clearSyncJobPolling()
+    manualSyncActive.value = false
+    return
+  }
+
+  const results = await Promise.allSettled(
+    jobIds.map((jobId) => api.get(`integrations/sync/jobs/${jobId}`))
+  )
+  const nextStatuses = { ...syncJobStatuses.value }
+  results.forEach((result, index) => {
+    const jobId = jobIds[index]
+    if (result.status === 'fulfilled') nextStatuses[jobId] = result.value.data || {}
+  })
+  syncJobStatuses.value = nextStatuses
+
+  const statuses = jobIds.map((jobId) => normalizeSyncStatus(nextStatuses[jobId]?.status))
+  const allKnown = statuses.every(Boolean)
+  const allFinished = allKnown && statuses.every((status) => SYNC_TERMINAL_STATUSES.has(status))
+  if (!allFinished) return
+
+  const failedCount = statuses.filter((status) => status === 'FAILED').length
+  clearSyncJobPolling()
+  activeSyncJobIds.value = []
+  manualSyncActive.value = false
+  await refreshDashboardAfterSync({ showToast: true, failedCount })
+}
+
+const startSyncJobPolling = () => {
+  clearSyncJobPolling()
+  syncJobPollTimer = setInterval(() => {
+    pollSyncJobs().catch((err) => console.error('[DashboardSync] job polling failed:', err))
+  }, SYNC_JOB_POLL_MS)
+  pollSyncJobs().catch((err) => console.error('[DashboardSync] initial job polling failed:', err))
+}
+
+const pollIntegrationStatuses = async () => {
+  const wasSyncing = dashboardIntegrationsSyncing.value
+  await fetchIntegrations()
+  if (
+    wasSyncing
+    && !dashboardIntegrationsSyncing.value
+    && !manualSyncActive.value
+    && activeSyncJobCount.value === 0
+  ) {
+    clearIntegrationStatusPolling()
+    await refreshDashboardAfterSync()
+  }
+}
+
+const startIntegrationStatusPolling = () => {
+  if (integrationStatusPollTimer) return
+  integrationStatusPollTimer = setInterval(() => {
+    pollIntegrationStatuses().catch((err) => console.error('[DashboardSync] integration polling failed:', err))
+  }, SYNC_INTEGRATION_POLL_MS)
+}
+
 const handleSyncIntegrations = async () => {
-  if (syncingIntegrations.value) return
-  syncingIntegrations.value = true
+  if (dashboardSyncInProgress.value) return
+  manualSyncActive.value = true
   try {
     const params = filters.client_id ? { client_id: filters.client_id } : {}
     const { data: list } = await api.get('integrations/', { params })
@@ -2594,17 +2840,46 @@ const handleSyncIntegrations = async () => {
       toaster.info('Нет подключенных интеграций для синхронизации')
       return
     }
-    for (const integration of list) {
-      await api.post(`integrations/${integration.id}/sync`, { days: 90 })
+    const results = await Promise.allSettled(
+      list.map((integration) => api.post(`integrations/${integration.id}/sync`, { days: 90 }))
+    )
+    const jobIds = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value.data?.job_id)
+      .filter(Boolean)
+
+    const failedToQueue = results.length - jobIds.length
+    if (failedToQueue > 0) {
+      toaster.warning(`Не удалось запустить синхронизацию для ${failedToQueue} каналов`)
     }
-    toaster.info(`Синхронизация запущена для ${list.length} каналов`)
-    fetchIntegrations()
+    if (!jobIds.length) {
+      toaster.error('Не удалось запустить синхронизацию')
+      return
+    }
+    activeSyncJobIds.value = [...new Set(jobIds)]
+    syncJobStatuses.value = Object.fromEntries(activeSyncJobIds.value.map((jobId) => [jobId, { status: 'QUEUED' }]))
+    toaster.info(`Синхронизация запущена для ${activeSyncJobIds.value.length} каналов`)
+    await fetchIntegrations()
+    startSyncJobPolling()
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию')
   } finally {
-    syncingIntegrations.value = false
+    if (!activeSyncJobIds.value.length) {
+      manualSyncActive.value = false
+    }
   }
 }
+
+watch(dashboardIntegrationsSyncing, (isSyncing, wasSyncing) => {
+  if (isSyncing) {
+    startIntegrationStatusPolling()
+    return
+  }
+  clearIntegrationStatusPolling()
+  if (wasSyncing && !manualSyncActive.value && activeSyncJobCount.value === 0) {
+    refreshDashboardAfterSync().catch((err) => console.error('[DashboardSync] post-sync refresh failed:', err))
+  }
+})
 
 const refreshUserReportSettings = async () => {
   try {
@@ -4274,6 +4549,201 @@ onMounted(() => {
 @keyframes dashboard-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.sync-status-label.active {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.dashboard-sync-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  margin: 1.4rem 0 1.8rem;
+  padding: 1.25rem 1.45rem;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 1.2rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(20, 184, 213, 0.08) 100%);
+  color: #1e3a8a;
+}
+
+.dashboard-sync-banner__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.dashboard-sync-banner__icon svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.dashboard-sync-banner strong {
+  display: block;
+  color: #1d4ed8;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.dashboard-sync-banner p {
+  margin: 0.25rem 0 0;
+  color: rgba(30, 64, 175, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.kpi-grid--sync {
+  pointer-events: none;
+}
+
+.metric-card--skeleton {
+  display: grid;
+  grid-template-columns: 3.1rem minmax(0, 1fr) 5.4rem;
+  align-items: center;
+  gap: 1rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.metric-card--skeleton::after,
+.sync-panel-overlay i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.64), transparent);
+  animation: sync-shimmer 1.35s infinite;
+}
+
+.metric-skeleton-icon,
+.metric-skeleton-lines span,
+.metric-skeleton-lines strong,
+.metric-card--skeleton em {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.metric-skeleton-icon {
+  width: 3.1rem;
+  height: 3.1rem;
+}
+
+.metric-skeleton-lines {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.metric-skeleton-lines span {
+  width: 58%;
+  height: 0.8rem;
+}
+
+.metric-skeleton-lines strong {
+  width: 82%;
+  height: 1.55rem;
+}
+
+.metric-card--skeleton em {
+  width: 5.2rem;
+  height: 1.6rem;
+}
+
+.panel--syncing {
+  position: relative;
+  overflow: hidden;
+}
+
+.panel--syncing > :not(.sync-panel-overlay) {
+  opacity: 0.36;
+}
+
+.sync-panel-overlay {
+  position: absolute;
+  inset: 0.9rem;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1.35rem;
+  border: 1px solid rgba(37, 99, 235, 0.13);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(6px);
+  color: #1f2937;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.sync-panel-overlay svg {
+  width: 1.65rem;
+  height: 1.65rem;
+  color: #2563eb;
+}
+
+.sync-panel-overlay strong {
+  color: #111827;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.sync-panel-overlay span {
+  max-width: 26rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.sync-panel-overlay i {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  width: min(22rem, 82%);
+  height: 0.75rem;
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.sync-panel-overlay i:nth-of-type(2) {
+  width: min(17rem, 64%);
+}
+
+.sync-panel-overlay i:nth-of-type(3) {
+  width: min(12rem, 46%);
+}
+
+.sync-panel-overlay--compact {
+  align-items: center;
+  text-align: center;
+}
+
+.sync-panel-overlay--compact span {
+  display: none;
+}
+
+.sync-panel-overlay--compact i {
+  width: 70%;
+}
+
+@keyframes sync-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 
