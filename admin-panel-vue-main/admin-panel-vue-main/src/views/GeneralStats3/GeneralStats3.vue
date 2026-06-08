@@ -759,17 +759,45 @@
             <p v-if="directionPreview.conflict_count" class="direction-preview__warning">
               {{ directionPreview.conflict_count }} камп. уже попадают в направление выше по списку
             </p>
+            <label class="direction-campaign-search">
+              <MagnifyingGlassIcon />
+              <input v-model="directionCampaignQuery" type="text" placeholder="Найти кампанию" />
+            </label>
             <div class="direction-preview__list">
-              <div v-for="campaign in directionPreview.campaigns" :key="campaign.id" class="direction-preview__row">
-                <span>{{ campaign.name }}</span>
-                <small :class="{ 'direction-preview__conflict': campaign.conflict_direction_name }">
-                  <template v-if="campaign.conflict_direction_name">
-                    уже в «{{ campaign.conflict_direction_name }}»
-                  </template>
-                  <template v-else>{{ campaign.matched_mask }}</template>
-                </small>
+              <button
+                v-for="campaign in filteredDirectionPreviewCampaigns"
+                :key="campaign.id"
+                type="button"
+                class="direction-preview__row direction-campaign-option"
+                :class="{
+                  'direction-campaign-option--selected': campaign.selected,
+                  'direction-campaign-option--conflict': campaign.conflict_direction_name
+                }"
+                @click="toggleDirectionCampaign(campaign)"
+              >
+                <span class="direction-campaign-option__check">{{ campaign.selected ? '✓' : '+' }}</span>
+                <span class="direction-campaign-option__body">
+                  <strong>{{ campaign.name }}</strong>
+                  <small :class="{ 'direction-preview__conflict': campaign.conflict_direction_name }">
+                    <template v-if="campaign.conflict_direction_name">
+                      уже в «{{ campaign.conflict_direction_name }}»
+                    </template>
+                    <template v-else-if="campaign.matched_mask">
+                      выбрано по «{{ campaign.matched_mask }}»
+                    </template>
+                    <template v-else>{{ platformLabel(campaign.platform) }}</template>
+                  </small>
+                </span>
+                <span class="direction-campaign-option__meta">
+                  <span class="direction-campaign-platform">{{ platformShortLabel(campaign.platform) }}</span>
+                  <span class="direction-campaign-status" :class="`direction-campaign-status--${campaign.status || 'active'}`">
+                    {{ campaign.status_label || 'Активна' }}
+                  </span>
+                </span>
+              </button>
+              <div v-if="!filteredDirectionPreviewCampaigns.length" class="direction-preview__empty">
+                Кампании не найдены
               </div>
-              <div v-if="!directionPreview.campaigns?.length" class="direction-preview__empty">Добавьте маску для предпросмотра</div>
             </div>
           </div>
           <div class="direction-modal__actions">
@@ -1117,6 +1145,7 @@ const directionModalOpen = ref(false)
 const directionManagerOpen = ref(false)
 const directionSaving = ref(false)
 const directionMaskInput = ref('')
+const directionCampaignQuery = ref('')
 const directionPreview = ref({ total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] })
 const directionSuggestions = ref([])
 const directionSuggestionsLoading = ref(false)
@@ -1142,6 +1171,21 @@ const directionLabelMeta = computed(() => directionLabels[directionStats.value.l
 const directionLabelLower = computed(() => directionLabelMeta.value.lower)
 const directionLabelSingular = computed(() => directionLabelMeta.value.singular)
 const directionsEnabled = computed(() => Boolean(filters.client_id))
+const filteredDirectionPreviewCampaigns = computed(() => {
+  const query = directionCampaignQuery.value.trim().toLowerCase()
+  const campaigns = directionPreview.value.campaigns || []
+  if (!query) return campaigns
+  return campaigns.filter((campaign) => {
+    const values = [
+      campaign.name,
+      campaign.platform,
+      campaign.status_label,
+      campaign.conflict_direction_name,
+      campaign.matched_mask
+    ]
+    return values.some((value) => String(value || '').toLowerCase().includes(query))
+  })
+})
 const unassignedDirection = computed(() => directionStats.value.items?.find((item) => item.is_unassigned) || null)
 const selectedDirection = computed(() => directionStats.value.items?.find((item) => item.id === selectedDirectionId.value) || null)
 const selectedDirectionLabel = computed(() => selectedDirection.value?.name || `Все ${directionLabelLower.value}`)
@@ -1154,6 +1198,20 @@ const directionNameByCampaignId = computed(() => {
   }
   return map
 })
+
+const platformLabel = (platform) => {
+  const value = String(platform || '').toLowerCase()
+  if (value.includes('vk')) return 'VK Ads'
+  if (value.includes('yandex')) return 'Яндекс Директ'
+  return 'Канал'
+}
+
+const platformShortLabel = (platform) => {
+  const value = String(platform || '').toLowerCase()
+  if (value.includes('vk')) return 'VK'
+  if (value.includes('yandex')) return 'Я'
+  return '—'
+}
 
 const fetchDirections = async () => {
   if (!filters.client_id) {
@@ -1242,6 +1300,7 @@ const openDirectionEditor = (direction = null) => {
   directionManagerOpen.value = false
   directionModalOpen.value = true
   directionMaskInput.value = ''
+  directionCampaignQuery.value = ''
   directionPreview.value = { total_campaigns: 0, matched_count: 0, conflict_count: 0, campaigns: [] }
   if (direction) {
     directionEditor.value = {
@@ -1259,6 +1318,7 @@ const closeDirectionModal = () => {
   directionModalOpen.value = false
   directionEditor.value = { id: null, name: '', masks: [] }
   directionMaskInput.value = ''
+  directionCampaignQuery.value = ''
 }
 
 const addDirectionMask = () => {
@@ -1272,8 +1332,25 @@ const removeDirectionMask = (mask) => {
   directionEditor.value.masks = directionEditor.value.masks.filter((item) => item !== mask)
 }
 
+const campaignExactMask = (campaign) => String(campaign?.name || '').trim().toLowerCase()
+
+const toggleDirectionCampaign = (campaign) => {
+  const exactMask = campaignExactMask(campaign)
+  if (!exactMask) return
+  const masks = directionEditor.value.masks || []
+  if (masks.includes(exactMask)) {
+    directionEditor.value.masks = masks.filter((item) => item !== exactMask)
+    return
+  }
+  if (campaign.selected && campaign.matched_mask && masks.includes(campaign.matched_mask)) {
+    directionEditor.value.masks = masks.filter((item) => item !== campaign.matched_mask)
+    return
+  }
+  directionEditor.value.masks = [...masks, exactMask]
+}
+
 const fetchDirectionPreview = async () => {
-  if (!directionModalOpen.value || !filters.client_id || !directionEditor.value.masks.length) {
+  if (!directionModalOpen.value || !filters.client_id) {
     directionPreview.value = { total_campaigns: allCampaigns.value.length, matched_count: 0, conflict_count: 0, campaigns: [] }
     return
   }
@@ -1375,6 +1452,7 @@ const loadDirectionSuggestions = async (unassignedOnly = false) => {
 const applyDirectionSuggestion = (suggestion) => {
   directionManagerOpen.value = false
   directionModalOpen.value = true
+  directionCampaignQuery.value = ''
   directionEditor.value = {
     id: null,
     name: suggestion.name,
@@ -8285,10 +8363,37 @@ onMounted(() => {
   font-weight: 700;
 }
 
+.direction-campaign-search {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.95rem;
+  background: #fff;
+  padding: 0.75rem 0.95rem;
+  color: #94a3b8;
+}
+
+.direction-campaign-search svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+}
+
+.direction-campaign-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #111827;
+  font-size: 1.15rem;
+}
+
 .direction-preview__list {
   display: grid;
   gap: 0.45rem;
-  max-height: 18rem;
+  max-height: 22rem;
   overflow: auto;
   margin-top: 1rem;
 }
@@ -8304,6 +8409,103 @@ onMounted(() => {
   padding: 0.8rem 1rem;
   color: #334155;
   font-size: 1.15rem;
+}
+
+.direction-campaign-option {
+  width: 100%;
+  border: 1px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.direction-campaign-option:hover {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.direction-campaign-option--selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.direction-campaign-option--conflict {
+  border-color: #fed7aa;
+}
+
+.direction-campaign-option__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: #e0edff;
+  color: #2563eb;
+  font-size: 1rem;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.direction-campaign-option--selected .direction-campaign-option__check {
+  background: #2563eb;
+  color: #fff;
+}
+
+.direction-campaign-option__body {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.direction-campaign-option__body strong {
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.direction-campaign-option__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.direction-campaign-platform,
+.direction-campaign-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.direction-campaign-platform {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.direction-campaign-status--active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.direction-campaign-status--paused {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.direction-campaign-status--archived,
+.direction-campaign-status--archive {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .direction-preview__row small {

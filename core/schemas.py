@@ -474,6 +474,10 @@ class DirectionPreviewCampaign(BaseModel):
     id: str
     name: str
     platform: str
+    status: str = "active"
+    status_label: str = "Активна"
+    selected: bool = False
+    is_active: bool = True
     matched_mask: Optional[str] = None
     conflict_direction_id: Optional[str] = None
     conflict_direction_name: Optional[str] = None
@@ -503,6 +507,7 @@ class DirectionStatsItem(BaseModel):
     is_unassigned: bool = False
     campaign_ids: List[str] = []
     campaign_count: int = 0
+    impressions: int = 0
     expenses: float = 0
     budget_share: float = 0
     leads: int = 0

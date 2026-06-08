@@ -36,7 +36,7 @@ def list_directions(
     db: Session = Depends(get_db),
 ):
     assert_project_access(db, current_user, client_id, write=False)
-    matches = direction_service.build_direction_matches(db, client_id, platform=platform)
+    matches = direction_service.build_direction_matches(db, client_id, platform=platform, include_inactive=True)
     return [
         direction_service.serialize_direction(
             direction,
@@ -90,7 +90,7 @@ def create_direction(
     )
     db.commit()
     db.refresh(direction)
-    matches = direction_service.build_direction_matches(db, client_id)
+    matches = direction_service.build_direction_matches(db, client_id, include_inactive=True)
     return direction_service.serialize_direction(direction, matches["direction_to_campaigns"].get(str(direction.id), []))
 
 
@@ -124,7 +124,7 @@ def update_direction(
         _set_masks(db, direction, masks)
     db.commit()
     db.refresh(direction)
-    matches = direction_service.build_direction_matches(db, client_id)
+    matches = direction_service.build_direction_matches(db, client_id, include_inactive=True)
     return direction_service.serialize_direction(direction, matches["direction_to_campaigns"].get(str(direction.id), []))
 
 
@@ -166,7 +166,7 @@ def reorder_directions(
         if direction_id in by_id:
             by_id[direction_id].position = index
     db.commit()
-    matches = direction_service.build_direction_matches(db, client_id)
+    matches = direction_service.build_direction_matches(db, client_id, include_inactive=True)
     return [
         direction_service.serialize_direction(direction, matches["direction_to_campaigns"].get(str(direction.id), []))
         for direction in matches["directions"]

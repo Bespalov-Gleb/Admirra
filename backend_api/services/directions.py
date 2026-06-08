@@ -66,6 +66,12 @@ def campaign_query(db: Session, client_id: uuid.UUID, platform: str = "all", onl
     return query.order_by(models.Campaign.name.asc())
 
 
+def campaign_status(campaign: models.Campaign) -> tuple[str, str]:
+    if getattr(campaign, "is_active", False):
+        return "active", "Активна"
+    return "archived", "Архив"
+
+
 def get_active_directions(db: Session, client_id: uuid.UUID):
     return (
         db.query(models.ProjectDirection)
@@ -99,8 +105,13 @@ def match_campaign_to_masks(campaign_name: str, masks: Iterable[str]) -> tuple[b
     return False, None
 
 
-def build_direction_matches(db: Session, client_id: uuid.UUID, platform: str = "all"):
-    campaigns = campaign_query(db, client_id, platform=platform, only_active=True).all()
+def build_direction_matches(
+    db: Session,
+    client_id: uuid.UUID,
+    platform: str = "all",
+    include_inactive: bool = False,
+):
+    campaigns = campaign_query(db, client_id, platform=platform, only_active=not include_inactive).all()
     directions = get_active_directions(db, client_id)
     direction_masks = {
         str(direction.id): [m.mask for m in sorted(direction.masks, key=lambda item: item.position)]
@@ -159,7 +170,7 @@ def preview_masks(
     exclude_direction_id: uuid.UUID | None = None,
 ) -> dict:
     cleaned = clean_masks(masks)
-    existing = build_direction_matches(db, client_id, platform=platform)
+    existing = build_direction_matches(db, client_id, platform=platform, include_inactive=True)
     excluded = str(exclude_direction_id) if exclude_direction_id else None
     directions_by_id = {str(d.id): d for d in existing["directions"]}
     campaigns = []
@@ -167,28 +178,32 @@ def preview_masks(
 
     for campaign in existing["campaigns"]:
         matched, mask = match_campaign_to_masks(campaign.name, cleaned)
-        if not matched:
-            continue
         existing_did = existing["campaign_to_direction"].get(str(campaign.id))
         if excluded and existing_did == excluded:
             existing_did = None
         conflict = directions_by_id.get(existing_did) if existing_did else None
-        if conflict:
+        if matched and conflict:
             conflict_count += 1
+        status, status_label = campaign_status(campaign)
         campaigns.append({
             "id": str(campaign.id),
             "name": campaign.name,
             "platform": platform_key(campaign.integration.platform if campaign.integration else None),
+            "status": status,
+            "status_label": status_label,
+            "selected": matched,
+            "is_active": bool(getattr(campaign, "is_active", False)),
             "matched_mask": mask,
             "conflict_direction_id": str(conflict.id) if conflict else None,
             "conflict_direction_name": conflict.name if conflict else None,
         })
+    campaigns.sort(key=lambda item: (not item["selected"], item["status"] != "active", item["name"].lower()))
 
     return {
         "total_campaigns": len(existing["campaigns"]),
-        "matched_count": len(campaigns),
+        "matched_count": sum(1 for campaign in campaigns if campaign["selected"]),
         "conflict_count": conflict_count,
-        "campaigns": campaigns[:80],
+        "campaigns": campaigns,
     }
 
 
@@ -251,7 +266,7 @@ def direction_stats(
     d_end: date,
     platform: str = "all",
 ) -> dict:
-    matches = build_direction_matches(db, client.id, platform=platform)
+    matches = build_direction_matches(db, client.id, platform=platform, include_inactive=True)
     label_key = normalize_label(client.direction_label)
     label = LABELS.get(label_key, "Направления")
     if not matches["directions"]:
@@ -286,6 +301,7 @@ def direction_stats(
 
     def aggregate(ids: list[str]) -> dict:
         rows = [stat_by_id[cid] for cid in ids if cid in stat_by_id]
+        impressions = sum(int(row.get("impressions") or 0) for row in rows)
         expenses = sum(float(row.get("cost") or 0) for row in rows)
         leads = sum(int(row.get("conversions") or 0) for row in rows)
         cpl = round(expenses / leads, 2) if leads > 0 else 0
@@ -294,6 +310,7 @@ def direction_stats(
             weights = sum(abs(float(row.get("cost") or 0)) for row in rows) or len(rows)
             weighted_trend = sum(float(row.get("trend_cpa") or 0) * (abs(float(row.get("cost") or 0)) or 1) for row in rows) / weights
         return {
+            "impressions": impressions,
             "expenses": round(expenses, 2),
             "budget_share": round((expenses / total_expenses) * 100, 1) if total_expenses > 0 else 0,
             "leads": leads,
@@ -317,14 +334,16 @@ def direction_stats(
 
     if matches["unassigned"]:
         ids = matches["unassigned"]
-        items.append({
-            "id": "unassigned",
-            "name": "Без направления",
-            "is_unassigned": True,
-            "campaign_ids": ids,
-            "campaign_count": len(ids),
-            **aggregate(ids),
-        })
+        unassigned_stats = aggregate(ids)
+        if unassigned_stats["impressions"] > 0 or unassigned_stats["expenses"] > 0:
+            items.append({
+                "id": "unassigned",
+                "name": "Без направления",
+                "is_unassigned": True,
+                "campaign_ids": ids,
+                "campaign_count": len(ids),
+                **unassigned_stats,
+            })
 
     return {
         "label": label,
