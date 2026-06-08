@@ -278,51 +278,78 @@
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
               <p class="dark:!text-white/55">Выберите основную цель и дополнительные цели</p>
             </div>
-            <button
-              type="button"
-              class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
-              :disabled="loadingStates.goals || goals.length === 0"
-              @click="toggleAllGoals"
-            >
-              {{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}
-            </button>
+            <div class="flex items-center gap-[0.6944rem]">
+              <div class="search-wrap">
+                <input
+                  v-model="goalSearch"
+                  type="text"
+                  class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
+                  placeholder="Поиск по целям"
+                />
+                <div class="search-icon-circle dark:!bg-white/10">
+                  <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
+                    <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
+                    <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
+                :disabled="loadingStates.goals || goals.length === 0"
+                @click="toggleAllGoals"
+              >
+                {{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}
+              </button>
+            </div>
           </div>
 
           <div v-if="loadingStates.goals" class="empty-line dark:!text-white/55">Загрузка целей...</div>
           <div v-else-if="goals.length === 0" class="empty-line dark:!text-white/55">Нет доступных целей.</div>
 
-          <div v-else class="cards-grid">
-            <label
-              v-for="goal in goals"
-              :key="goal.id"
-              class="select-tile dark:!border-white/10 dark:!bg-white/5"
-              :class="{ 'select-tile--active': selectedGoalIds.includes(goal.id) }"
-            >
-              <input
-                type="checkbox"
-                :checked="selectedGoalIds.includes(goal.id)"
-                @change="toggleGoalSelection(goal.id)"
-              />
-              <span class="select-tile__top">
-                <span class="select-tile__avatar select-tile__avatar--text dark:!bg-white/10 dark:!text-white/65">{{ (goal.name || '?').slice(0, 2).toUpperCase() }}</span>
-                <span class="select-tile__check dark:!bg-white/10">✓</span>
-              </span>
-              <span class="select-tile__title dark:!text-white/85">{{ goal.name }}</span>
-              <span class="select-tile__meta dark:!text-white/50">ID: {{ goal.id }}</span>
-              <span class="select-tile__footer">
-                <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ goal.type || 'Цель' }}</span>
-                <button
-                  type="button"
-                  class="favorite-btn dark:!bg-white/10 dark:!text-white/45"
-                  :class="{ 'favorite-btn--active': form.primary_goal_id === goal.id }"
-                  :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной'"
-                  @click.stop.prevent="selectPrimaryGoal(goal.id)"
+          <template v-else>
+            <div v-for="group in goalsGroupedByCounter" :key="group.counterId">
+              <div v-if="goalsGroupedByCounter.length > 1" class="flex items-center gap-[0.4861rem] px-[0.3472rem] pt-[1.0417rem] pb-[0.4861rem]">
+                <span class="w-[0.4167rem] h-[0.4167rem] rounded-full bg-[#2563eb]"></span>
+                <span class="text-[0.8333rem] font-semibold text-[#171717] dark:text-white/80">{{ group.counterName }}</span>
+                <span class="text-[0.7639rem] text-[rgba(105,105,105,0.4)] dark:text-white/30">ID: {{ group.counterId }}</span>
+                <span class="text-[0.7639rem] text-[rgba(105,105,105,0.4)] dark:text-white/30">· {{ group.goals.length }} {{ group.goals.length === 1 ? 'цель' : group.goals.length < 5 ? 'цели' : 'целей' }}</span>
+              </div>
+              <div class="cards-grid">
+                <label
+                  v-for="goal in group.goals"
+                  :key="goal.id"
+                  class="select-tile dark:!border-white/10 dark:!bg-white/5"
+                  :class="{ 'select-tile--active': selectedGoalIds.includes(goal.id) }"
                 >
-                  ★
-                </button>
-              </span>
-            </label>
-          </div>
+                  <input
+                    type="checkbox"
+                    :checked="selectedGoalIds.includes(goal.id)"
+                    @change="toggleGoalSelection(goal.id)"
+                  />
+                  <span class="select-tile__top">
+                    <span class="select-tile__avatar select-tile__avatar--text dark:!bg-white/10 dark:!text-white/65">{{ (goal.name || '?').slice(0, 2).toUpperCase() }}</span>
+                    <span class="select-tile__check dark:!bg-white/10">✓</span>
+                  </span>
+                  <span class="select-tile__title dark:!text-white/85">{{ goal.name }}</span>
+                  <span class="select-tile__meta dark:!text-white/50">ID: {{ goal.id }}</span>
+                  <span class="select-tile__footer">
+                    <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ goal.type || 'Цель' }}</span>
+                    <button
+                      type="button"
+                      class="favorite-btn dark:!bg-white/10 dark:!text-white/45"
+                      :class="{ 'favorite-btn--active': form.primary_goal_id === goal.id }"
+                      :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной'"
+                      @click.stop.prevent="selectPrimaryGoal(goal.id)"
+                    >
+                      ★
+                    </button>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div v-if="goalSearch && filteredGoals.length === 0" class="empty-line dark:!text-white/55">Ничего не найдено по «{{ goalSearch }}»</div>
+          </template>
         </div>
 
         <div class="wizard-actions mt-[1.3889rem]">
@@ -470,6 +497,35 @@ const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const openSelect = ref(null)
 const profileSearch = ref('')
+const goalSearch = ref('')
+
+const filteredGoals = computed(() => {
+  const q = goalSearch.value.trim().toLowerCase()
+  if (!q) return goals.value
+  return goals.value.filter(g =>
+    (g.name || '').toLowerCase().includes(q) ||
+    String(g.id || '').includes(q) ||
+    (g.type || '').toLowerCase().includes(q)
+  )
+})
+
+const goalsGroupedByCounter = computed(() => {
+  const list = filteredGoals.value
+  const counterMap = {}
+  for (const c of counters.value) {
+    counterMap[String(c.id)] = c.name || `Счётчик ${c.id}`
+  }
+  const groups = new Map()
+  for (const goal of list) {
+    const cid = String(goal.counter_id || 'unknown')
+    if (!groups.has(cid)) {
+      groups.set(cid, { counterId: cid, counterName: counterMap[cid] || `Счётчик ${cid}`, goals: [] })
+    }
+    groups.get(cid).goals.push(goal)
+  }
+  return Array.from(groups.values())
+})
+
 const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
 const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
 const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
