@@ -123,16 +123,15 @@
           </div>
         </div>
       </div>
+      <!-- Panel inside grid — same column width as a card -->
+      <IntegrationSettingsPanel
+        v-if="settingsOpen && selectedIntegration"
+        :integration="selectedIntegration"
+        @close="settingsOpen = false"
+        @save="settingsOpen = false"
+        @delete="settingsOpen = false"
+      />
     </div>
-
-  <!-- Integration settings panel -->
-  <IntegrationSettingsPanel
-    v-if="settingsOpen && selectedIntegration"
-    :integration="selectedIntegration"
-    @close="settingsOpen = false"
-    @save="settingsOpen = false"
-    @delete="settingsOpen = false"
-  />
 
   </div>
 </template>

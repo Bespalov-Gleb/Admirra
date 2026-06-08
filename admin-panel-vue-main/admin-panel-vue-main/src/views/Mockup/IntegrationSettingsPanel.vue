@@ -176,6 +176,7 @@ defineEmits(['close', 'save', 'delete'])
 
 const parseJsonList = (raw) => {
   if (!raw) return []
+  if (Array.isArray(raw)) return raw.map(String)
   try { return JSON.parse(raw) } catch { return [] }
 }
 
@@ -228,41 +229,44 @@ const fetchData = async () => {
   const integrationId = props.integration?.id
   if (!integrationId) return
 
+  // selected_goals comes as List[str] from the API (already parsed)
+  const selectedGoalIds = parseJsonList(props.integration?.selected_goals)
+  const primaryGoalId   = String(props.integration?.primary_goal_id || '')
+  // account_id is used to scope Metrika counters to the right profile
+  const accountId = props.integration?.account_id || null
+
   loadingGoals.value = true
   try {
-    const selectedCounterIds = parseJsonList(props.integration?.selected_counters)
-    const selectedGoalIds    = parseJsonList(props.integration?.selected_goals).map(String)
-    const primaryGoalId      = String(props.integration?.primary_goal_id || '')
-
-    // 1. Fetch counters
-    const counterParams = selectedCounterIds.length
-      ? { counter_ids: selectedCounterIds.join(',') }
-      : {}
+    // 1. Fetch counters scoped to the integration's account
+    const counterParams = accountId ? { account_id: accountId } : {}
     const { data: cData } = await api.get(`integrations/${integrationId}/counters`, { params: counterParams })
     counters.value = cData?.counters || (Array.isArray(cData) ? cData : [])
 
-    // 2. Fetch all available goals (no heavy stats needed here)
+    // 2. Fetch all available goals — pass account_id + counter_ids if we got them
+    const counterIds = counters.value.map(c => c.id)
     const goalParams = {
       with_stats: false,
-      ...(selectedCounterIds.length && { counter_ids: selectedCounterIds.join(',') }),
+      ...(accountId && { account_id: accountId }),
+      ...(counterIds.length && { counter_ids: counterIds.join(',') }),
     }
     const { data: gData } = await api.get(`integrations/${integrationId}/goals`, { params: goalParams })
-    const apiGoals   = Array.isArray(gData) ? gData : []
+    const apiGoals   = Array.isArray(gData) ? gData : (gData?.goals ?? [])
     const apiGoalMap = new Map(apiGoals.map(g => [String(g.id), g]))
-    const selSet     = new Set(selectedGoalIds)
+    const selSet     = new Set(selectedGoalIds.map(String))
 
     const result = []
 
-    // Selected goals first
+    // Selected goals first (checked or error if missing from API)
     for (const gid of selectedGoalIds) {
-      const ag = apiGoalMap.get(gid)
+      const sid = String(gid)
+      const ag  = apiGoalMap.get(sid)
       result.push(ag
-        ? { id: gid, name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'checked', primary: gid === primaryGoalId }
-        : { id: gid, name: `Цель ID ${gid}`, type: null, state: 'error', primary: false }
+        ? { id: sid, name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'checked', primary: sid === primaryGoalId }
+        : { id: sid, name: `Цель ID ${sid}`, type: null, state: 'error', primary: false }
       )
     }
 
-    // New goals (in API but not selected)
+    // New goals (returned by API but not yet in selected_goals)
     for (const ag of apiGoals) {
       if (!selSet.has(String(ag.id))) {
         result.push({ id: String(ag.id), name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'new', primary: false })
@@ -293,7 +297,6 @@ onMounted(() => {
   box-shadow: 0 2px 24px rgba(0, 0, 0, 0.08);
   border: 1px solid #e9e9e9;
   animation: ip-fade-in 0.22s ease both;
-  margin-top: 1.3889rem;
 }
 :global(.dark) .ip-panel,
 :global(.darkmode) .ip-panel {
