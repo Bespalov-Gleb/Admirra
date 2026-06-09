@@ -22,6 +22,7 @@ class YandexDirectAPI:
         self.campaigns_url = "https://api.direct.yandex.com/json/v5/campaigns"
         self.ads_url = "https://api.direct.yandex.com/json/v5/ads"
         self.ads_url_v501 = "https://api.direct.yandex.com/json/v501/ads"  # для Smart/Единая перфоманс
+        self.adgroups_url = "https://api.direct.yandex.com/json/v5/adgroups"
         self.adgroups_url_v501 = "https://api.direct.yandex.com/json/v501/adgroups"
         self.campaigns_url_v501 = "https://api.direct.yandex.com/json/v501/campaigns"
         self.creatives_url_v501 = "https://api.direct.yandex.com/json/v501/creatives"
@@ -1413,21 +1414,24 @@ class YandexDirectAPI:
         }
         async with httpx.AsyncClient() as client:
             try:
-                r = await client.post(
-                    self.adgroups_url_v501, json=payload_ag, headers=self.headers, timeout=30.0
-                )
-                if r.status_code != 200:
-                    return []
-                d = r.json()
-                if "error" in d:
-                    logger.debug(f"AdGroups.get error: {d['error']}")
-                    return []
-                groups = d.get("result", {}).get("AdGroups", [])
-                ad_group_ids = [g["Id"] for g in groups if g.get("Id")][:1000]
+                ad_group_ids = []
+                for adgroups_url in [self.adgroups_url_v501, self.adgroups_url]:
+                    r = await client.post(adgroups_url, json=payload_ag, headers=self.headers, timeout=30.0)
+                    if r.status_code != 200:
+                        continue
+                    d = r.json()
+                    if "error" in d:
+                        logger.debug(f"AdGroups.get error ({adgroups_url}): {d['error']}")
+                        continue
+                    groups = d.get("result", {}).get("AdGroups", [])
+                    if groups:
+                        ad_group_ids = [g["Id"] for g in groups if g.get("Id")][:1000]
+                        logger.info(f"AdGroups.get ({adgroups_url}): got {len(ad_group_ids)} groups")
+                        break
+                    logger.info(f"AdGroups.get ({adgroups_url}): groups_count=0, trying next")
                 if not ad_group_ids:
-                    logger.info(f"AdGroups.get: campaign_ids={campaign_ids[:5]}, groups_count=0 (Smart/Мастер без групп)")
+                    logger.info(f"AdGroups.get: campaign_ids={campaign_ids[:5]}, no groups found in v501 or v5")
                     return []
-                logger.info(f"AdGroups.get: got {len(ad_group_ids)} groups, calling Ads.get by AdGroupIds")
                 return await self.get_ads_with_titles_and_images(ad_group_ids=ad_group_ids)
             except Exception as e:
                 logger.debug(f"_get_ads_via_adgroups: {e}")
@@ -1471,7 +1475,8 @@ class YandexDirectAPI:
 
         async with httpx.AsyncClient() as client:
             try:
-                # Для Smart/Единая перфоманс — v501 (campaign_ids или ad_group_ids)
+                # Для Smart/Единая перфоманс пробуем v501, затем v5.
+                # Мастер кампаний (UNIFIED_CAMPAIGN) может быть доступен только через v5.
                 use_v501 = bool(campaign_ids or ad_group_ids)
                 urls_to_try = [self.ads_url_v501, self.ads_url] if use_v501 else [self.ads_url]
                 data = None
@@ -1486,6 +1491,10 @@ class YandexDirectAPI:
                             continue
                         logger.warning(f"Ads.get API error: {data['error']}")
                         return []
+                    # Если v501 вернул пустой результат — пробуем v5 (Мастер кампаний)
+                    if url == self.ads_url_v501 and not data.get("result", {}).get("Ads"):
+                        logger.info("Ads.get v501 returned 0 ads, trying v5 (Мастер кампаний / UNIFIED_CAMPAIGN)")
+                        continue
                     break
                 if data is None:
                     logger.warning("Ads.get failed for all endpoints")
