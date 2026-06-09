@@ -221,13 +221,12 @@ class TestSyncIntegration:
             "impressions": 1000,
             "clicks": 40,
             "cost": 200.0,
-            "conversions": 5,
             "cpc": 5.0,
-            "cpa": 40.0,
         }])
 
         with patch("automation.sync.security.decrypt_token", return_value="decrypted_api_key"), \
-             patch("automation.sync.AvitoAdsAPI", return_value=mock_api), \
+             patch("automation.avito_integration_helpers.build_avito_api_from_integration", return_value=mock_api), \
+             patch("automation.avito_integration_helpers.get_metrika_integration_for_client", return_value=None), \
              patch("backend_api.cache_service.CacheService.invalidate_client"):
             await sync_integration(mock_db, mock_integration, "2024-01-01", "2024-01-31")
             assert mock_integration.sync_status == models.IntegrationSyncStatus.SUCCESS

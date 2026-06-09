@@ -204,6 +204,7 @@ const fetchGoals = async () => {
   try {
     const params = { client_id: props.clientId, date_from: props.startDate, date_to: props.endDate }
     if (props.channel === 'vk') params.platform = 'vk'
+    else if (props.channel === 'avito') params.platform = 'avito'
     if (props.campaignIds?.length > 0) params.campaign_ids = props.campaignIds.join(',')
     const { data } = await api.get('dashboard/goals', { params })
     return data || []

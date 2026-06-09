@@ -268,17 +268,14 @@ class StatsService:
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
             yandex_convs = int((y_s.total_conversions if y_s else 0) or 0)
             vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
-            avito_convs = int((a_s.total_conversions if a_s else 0) or 0)
-            
             if platform == "vk":
                 convs = vk_convs
             elif platform == "avito":
-                convs = avito_convs
+                convs = metrica_convs
             elif platform in ["all", "yandex"]:
-                # Yandex: Метрика приоритетна; если пусто — временно Direct (пока Metrika не синхронизирована)
-                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs + avito_convs
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs
             else:
-                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs + avito_convs 
+                convs = (metrica_convs if metrica_convs > 0 else yandex_convs) + vk_convs 
             
             # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в VK)
             vk_clicks = int((v_s.total_clicks if v_s else 0) or 0)

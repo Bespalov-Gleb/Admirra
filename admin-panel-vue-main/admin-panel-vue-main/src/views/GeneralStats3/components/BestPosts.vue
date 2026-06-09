@@ -18,7 +18,7 @@
           <img v-if="post.image_url" :src="post.image_url" :alt="post.title" class="absolute inset-0 w-full h-full object-cover opacity-80" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           <div class="relative z-10 text-center px-4">
-            <span class="text-xs font-bold text-white/90 uppercase tracking-wider">{{ post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads') }}</span>
+            <span class="text-xs font-bold text-white/90 uppercase tracking-wider">{{ post.subtitle || platformLabel(post.platform) }}</span>
             <p class="text-base font-black text-white leading-tight mt-1.5 line-clamp-2">{{ post.title }}</p>
           </div>
         </div>
@@ -50,6 +50,13 @@ const props = defineProps({
 
 const posts = ref([])
 const loading = ref(false)
+
+const platformLabel = (platform) => {
+  if (platform === 'yandex') return 'Яндекс.Директ'
+  if (platform === 'avito') return 'Avito Ads'
+  if (platform === 'vk') return 'VK Ads'
+  return 'Реклама'
+}
 
 const fetchPosts = async () => {
   loading.value = true

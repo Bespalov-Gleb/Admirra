@@ -541,7 +541,8 @@ const vClickOutside = {
 
 const channels = [
   { name: 'Yandex Direct', value: 'yandex', color: '#ffd426', bg: '#fff8e7', darkBg: 'rgba(255, 212, 38, 0.14)', asset: yandexDirectIcon, icon: CursorArrowRippleIcon },
-  { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon }
+  { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon },
+  { name: 'Avito Ads', value: 'avito', color: '#579f75', bg: '#eef8f1', darkBg: 'rgba(87, 159, 117, 0.14)', asset: '/admirra/img/integrations/avito.png', imageClass: 'avito', icon: CursorArrowRippleIcon }
 ]
 
 const reportChannels = [
@@ -782,7 +783,7 @@ const creatives = computed(() => {
   const classes = ['city', 'blue', 'house']
   return topAds.value.slice(0, 3).map((post, index) => ({
     id: post.id || `${post.title}-${index}`,
-    badge: post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : 'VK Ads'),
+    badge: post.subtitle || (post.platform === 'yandex' ? 'Яндекс.Директ' : post.platform === 'avito' ? 'Avito Ads' : 'VK Ads'),
     title: post.title || 'Креатив',
     heading: post.heading || post.title || '—',
     text: post.text || post.description || `${formatNumber(post.impressions)} показов, ${formatNumber(post.clicks)} кликов, CTR ${post.ctr ?? '—'}%`,

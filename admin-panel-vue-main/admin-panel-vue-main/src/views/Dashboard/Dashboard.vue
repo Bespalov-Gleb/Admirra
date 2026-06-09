@@ -52,6 +52,7 @@
           <option value="facebook" disabled>Facebook Ads</option>
           <option value="instagram" disabled>Instagram</option>
           <option value="vk">ВКонтакте</option>
+          <option value="avito">Avito Ads</option>
         </select>
 
          <!-- Period Filter (Added from old logic to keep functionality) -->

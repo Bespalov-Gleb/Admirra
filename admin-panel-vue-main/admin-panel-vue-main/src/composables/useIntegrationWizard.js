@@ -16,6 +16,7 @@ const form = reactive({
   avito_api_key: '',
   avito_client_id: '',
   avito_client_secret: '',
+  avito_account_id: '',
   use_profile_credentials: true,
   account_id: null,
   agency_client_login: '',
@@ -58,6 +59,7 @@ export function useIntegrationWizard() {
     form.avito_api_key = ''
     form.avito_client_id = ''
     form.avito_client_secret = ''
+    form.avito_account_id = ''
     form.use_profile_credentials = true
     form.account_id = null
     form.agency_client_login = ''

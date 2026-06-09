@@ -591,13 +591,12 @@ async def get_dynamics(
         metrika_le = int(m_s.leads if m_s else 0)
         yandex_le = int(y_s.leads if y_s else 0)
         vk_le = int(v_s.leads if v_s else 0)
-        avito_le = int(a_s.leads if a_s else 0)
         if platform == "vk":
             le = vk_le
         elif platform == "avito":
-            le = avito_le
+            le = metrika_le
         else:
-            le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le + avito_le
+            le = (metrika_le if metrika_le > 0 else yandex_le) + vk_le
         # #region agent log
         if le > 0:
             try:
@@ -1010,7 +1009,7 @@ async def get_goals(
     integration_id: Optional[uuid.UUID] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    platform: Optional[str] = Query("all", description="yandex | vk | all"),
+    platform: Optional[str] = Query("all", description="yandex | vk | avito | all"),
     campaign_ids: Optional[str] = Query(None, description="comma-separated campaign UUIDs (для VK)"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -1109,8 +1108,10 @@ async def get_goals(
 
         return result
 
-    # ——— Yandex / all: Metrika goals ———
-    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, "all", None)
+    # ——— Yandex / Avito / all: Metrika goals (лиды Avito тоже из Метрики) ———
+    goals_platform = (platform or "all").lower()
+    cost_platform = "avito" if goals_platform == "avito" else "all"
+    summary = StatsService.aggregate_summary(db, effective_client_ids, date_from_obj, date_to_obj, cost_platform, None)
     total_cost = float(summary.get("expenses", 0) or 0)
 
     query = db.query(
@@ -1163,7 +1164,10 @@ async def get_goals(
         # Запускаем sync целей по требованию — данные появятся после retry на фронте
         for i in db.query(models.Integration).filter(
             models.Integration.client_id.in_(effective_client_ids),
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+            models.Integration.platform.in_([
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.YANDEX_METRIKA,
+            ]),
         ).all():
             if (i.selected_goals or i.primary_goal_id) and i.selected_counters:
                 sync_metrika_goals_background(i.id, str(date_from_obj), str(date_to_obj))

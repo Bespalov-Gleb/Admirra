@@ -11,6 +11,10 @@ from automation.vk_ads import (
 )
 from automation.mytarget import MyTargetAPI
 from automation.avito_ads import AvitoAdsAPI
+from automation.avito_integration_helpers import (
+    build_avito_api_from_integration as _build_avito_api_from_integration,
+    get_metrika_integration_for_client as _get_metrika_integration_for_client,
+)
 from typing import List, Optional
 import uuid
 import httpx
@@ -366,6 +370,14 @@ async def exchange_yandex_token(
     redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
     client_name_input = payload.get("client_name")
     client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
+    platform_input = (payload.get("platform") or "YANDEX_DIRECT").strip().upper()
+    if platform_input not in {"YANDEX_DIRECT", "YANDEX_METRIKA"}:
+        raise HTTPException(status_code=400, detail="platform должен быть YANDEX_DIRECT или YANDEX_METRIKA")
+    target_platform = (
+        models.IntegrationPlatform.YANDEX_METRIKA
+        if platform_input == "YANDEX_METRIKA"
+        else models.IntegrationPlatform.YANDEX_DIRECT
+    )
     
     if not auth_code or not redirect_uri:
         log_event("backend", "Failed to exchange Yandex token: missing code or redirect_uri")
@@ -411,9 +423,16 @@ async def exchange_yandex_token(
         if client_name_input:
              client_name = client_name_input
         elif yandex_login:
-             client_name = f"Yandex Direct ({yandex_login})"
+             if target_platform == models.IntegrationPlatform.YANDEX_METRIKA:
+                 client_name = f"Yandex Metrika ({yandex_login})"
+             else:
+                 client_name = f"Yandex Direct ({yandex_login})"
         else:
-             client_name = "Yandex Direct Main"
+             client_name = (
+                 "Yandex Metrika Main"
+                 if target_platform == models.IntegrationPlatform.YANDEX_METRIKA
+                 else "Yandex Direct Main"
+             )
         
         # 3. Create/Get Client
         # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
@@ -454,7 +473,7 @@ async def exchange_yandex_token(
         # 4. Save Integration
         db_integration = db.query(models.Integration).filter(
             models.Integration.client_id == client.id,
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+            models.Integration.platform == target_platform,
         ).first()
 
         encrypted_access = security.encrypt_token(access_token)
@@ -474,7 +493,7 @@ async def exchange_yandex_token(
         else:
             db_integration = models.Integration(
                 client_id=client.id,
-                platform=models.IntegrationPlatform.YANDEX_DIRECT,
+                platform=target_platform,
                 access_token=encrypted_access,
                 refresh_token=encrypted_refresh,
                 account_id=final_account_id,
@@ -486,21 +505,21 @@ async def exchange_yandex_token(
         db.commit()
         db.refresh(db_integration)
         
-        # SILENT AUTOMATION: Removed auto_discover_agency_bg to allow user selection
-        # Instead, we check if it's an agency account and return it
         is_agency = False
-        try:
-             agency_clients = await get_agency_clients(access_token)
-             if agency_clients:
-                 is_agency = True
-        except:
-             pass
+        if target_platform == models.IntegrationPlatform.YANDEX_DIRECT:
+            try:
+                agency_clients = await get_agency_clients(access_token)
+                if agency_clients:
+                    is_agency = True
+            except Exception:
+                pass
 
         return {
             "status": "success", 
             "integration_id": str(db_integration.id), 
             "access_token": access_token,
-            "is_agency": is_agency
+            "is_agency": is_agency,
+            "platform": target_platform.value,
         }
 
 @router.post("/vk/exchange")
@@ -1048,19 +1067,40 @@ async def connect_avito_ads(
     SubscriptionService.require_active_subscription(db, current_user)
 
     client_id_raw = payload.get("client_id")
-    if not client_id_raw:
-        raise HTTPException(status_code=400, detail="client_id обязателен")
-    try:
-        client_uuid = uuid.UUID(str(client_id_raw))
-    except Exception:
-        raise HTTPException(status_code=400, detail="Некорректный client_id")
+    client_name_input = (payload.get("client_name") or "").strip()
+    db_client = None
+    if client_id_raw:
+        try:
+            client_uuid = uuid.UUID(str(client_id_raw))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Некорректный client_id")
+        db_client = db.query(models.Client).filter(
+            models.Client.id == client_uuid,
+            models.Client.owner_id == current_user.id,
+        ).first()
+        if not db_client:
+            raise HTTPException(status_code=404, detail="Проект не найден")
+    elif client_name_input:
+        db_client = models.Client(owner_id=current_user.id, name=client_name_input)
+        db.add(db_client)
+        db.flush()
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите проект (client_id) или название нового проекта (client_name)",
+        )
 
-    db_client = db.query(models.Client).filter(
-        models.Client.id == client_uuid,
-        models.Client.owner_id == current_user.id,
-    ).first()
-    if not db_client:
-        raise HTTPException(status_code=404, detail="Проект не найден")
+    avito_account_id = (
+        payload.get("avito_account_id")
+        or payload.get("account_id")
+    )
+    if avito_account_id is not None:
+        avito_account_id = str(avito_account_id).strip()
+    if not avito_account_id or not str(avito_account_id).isdigit():
+        raise HTTPException(
+            status_code=400,
+            detail="avito_account_id обязателен (числовой ID рекламного аккаунта из кабинета Avito Рекламы)",
+        )
 
     use_profile_credentials = bool(payload.get("use_profile_credentials"))
     raw_credential_type = payload.get("credential_type") or current_user.avito_credential_type or "single_api_key"
@@ -1096,18 +1136,19 @@ async def connect_avito_ads(
         api_key=api_key,
         client_id=avito_client_id,
         client_secret=avito_client_secret,
+        account_id=avito_account_id,
     )
-    validation = await avito_api.validate_credentials()
-    profiles = await avito_api.get_profiles_or_accounts()
-    inferred_account_id = (
-        payload.get("account_id")
-        or (profiles[0].get("id") if profiles else None)
-        or (validation.get("id") if isinstance(validation, dict) else None)
+    await avito_api.validate_credentials(avito_account_id)
+    profiles = await avito_api.get_profiles_or_accounts(avito_account_id)
+    profile_match = next(
+        (p for p in profiles if str(p.get("id")) == str(avito_account_id)),
+        profiles[0] if profiles else None,
     )
+    inferred_account_id = str(avito_account_id)
     inferred_account_name = (
         payload.get("account_name")
-        or (profiles[0].get("name") if profiles else None)
-        or (validation.get("name") if isinstance(validation, dict) else None)
+        or (profile_match.get("name") if profile_match else None)
+        or f"Avito {avito_account_id}"
     )
 
     db_integration = db.query(models.Integration).filter(
@@ -1147,6 +1188,7 @@ async def connect_avito_ads(
     return {
         "status": "success",
         "integration_id": str(db_integration.id),
+        "client_id": str(db_client.id),
         "account_id": db_integration.account_id,
         "account_name": db_integration.account_name,
     }
@@ -1190,8 +1232,9 @@ async def create_integration(
             api_key=resolved_api_key,
             client_id=resolved_client_id,
             client_secret=resolved_client_secret,
+            account_id=integration.account_id,
         )
-        await avito_api.validate_credentials()
+        await avito_api.validate_credentials(integration.account_id)
         access_token = resolved_api_key
         refresh_token = None
 
@@ -1498,7 +1541,6 @@ async def get_integration_profiles(
             # ARCHITECTURE: One Yandex account (email) can have access to multiple advertising profiles
             # 1. Personal advertising account
             # 2. Agency clients (if this is an agency account)
-            # 3. Managed accounts (accounts where user has Editor/Manager role)
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -1548,32 +1590,11 @@ async def get_integration_profiles(
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
 
-            # 3. Try to get managed logins (accounts with shared access)
-            # For each managed login, fetch ClientInfo (human-readable cabinet name) via Clients.get
-            try:
-                direct_api = YandexDirectAPI(access_token)
-                clients_info_managed = await direct_api.get_clients() or []
-                managed_logins_to_fetch = []
-                for c_info in clients_info_managed:
-                    managed = c_info.get("ManagedLogins", [])
-                    for m_login in managed:
-                        if m_login and m_login.lower() not in seen_logins:
-                            managed_logins_to_fetch.append(m_login)
-                            seen_logins.add(m_login.lower())
-
-                # Fetch ClientInfo for each managed login (human-readable cabinet name)
-                for m_login in managed_logins_to_fetch:
-                    info = await direct_api.get_client_info_for_login(m_login)
-                    cabinet_name = info.get("ClientInfo", "").strip() if info else ""
-                    display_name = cabinet_name if cabinet_name else f"Доступный аккаунт ({m_login})"
-                    profiles.append({
-                        "login": m_login,
-                        "name": display_name,
-                        "type": "managed"
-                    })
-                    logger.info(f"Added managed login: {m_login} ({display_name})")
-            except Exception as managed_err:
-                logger.warning(f"Error fetching managed logins: {managed_err}")
+            # NOTE:
+            # Earlier implementation relied on non-documented ManagedLogins field in Clients.get.
+            # Yandex Direct API documentation does not expose this field for Clients.get,
+            # therefore shared access discovery should be based on agency/representative access
+            # via AgencyClients.get and explicit profile selection.
 
             # Fallback if nothing found
             if not profiles:
@@ -1636,18 +1657,10 @@ async def get_integration_profiles(
                 }]
             return []
     elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        has_client_credentials = bool(
-            integration.platform_client_id and integration.platform_client_secret
-        )
-        credential_type = "client_credentials" if has_client_credentials else "single_api_key"
-        api_kwargs = {"credential_type": credential_type}
-        if credential_type == "single_api_key":
-            api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
-        else:
-            api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
-            api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
-        avito_api = AvitoAdsAPI(**api_kwargs)
-        profiles = await avito_api.get_profiles_or_accounts()
+        if not integration.account_id:
+            return []
+        avito_api = _build_avito_api_from_integration(integration)
+        profiles = await avito_api.get_profiles_or_accounts(integration.account_id)
         if profiles:
             return [
                 {
@@ -1707,13 +1720,29 @@ async def get_integration_counters(
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
         return {"counters": []}
+    metrika_source = integration
     if integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        return {"counters": []}
+        metrika_source = _get_metrika_integration_for_client(db, integration.client_id)
+        if not metrika_source:
+            return {
+                "counters": [],
+                "warning": "Подключите Яндекс Метрику (OAuth) для выбора счётчиков лидов",
+            }
+        access_token = security.decrypt_token(metrika_source.access_token)
+        if account_id:
+            target_account = account_id
+        elif metrika_source.agency_client_login and metrika_source.agency_client_login.lower() != "unknown":
+            target_account = metrika_source.agency_client_login
+        else:
+            target_account = metrika_source.account_id
     
-    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        # Priority 1: Get counters from selected campaigns via CounterIds
+    if integration.platform in (
+        models.IntegrationPlatform.YANDEX_DIRECT,
+        models.IntegrationPlatform.AVITO_ADS,
+    ):
+        # Priority 1: CounterIds из кампаний Яндекс.Директа (для Avito не применимо)
         logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
-        if campaign_ids:
+        if campaign_ids and integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
             logger.info(f"🔵 Parsed {len(campaign_ids_list)} campaign IDs: {campaign_ids_list}")
             
@@ -1901,17 +1930,25 @@ async def get_integration_goals(
     # Флаг, надо ли вообще считать конверсии (DB + Metrika API).
     include_stats = bool(date_from and date_to and with_stats)
     
-    # VK/Avito don't use Yandex Metrika goals
-    if integration.platform in [models.IntegrationPlatform.VK_ADS, models.IntegrationPlatform.AVITO_ADS]:
-        logger.info(f"ℹ️ VK Ads integration - Yandex Metrika goals are not applicable. Returning empty list.")
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        logger.info("ℹ️ VK Ads — цели Метрики не применимы")
         return []
+
+    goals_integration = integration
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        goals_integration = _get_metrika_integration_for_client(db, integration.client_id)
+        if not goals_integration:
+            return []
+        access_token = security.decrypt_token(goals_integration.access_token)
+
+    stats_integration_id = goals_integration.id
     
     # Determine target_account for profile filtering (used in both paths)
     if account_id:
         target_account = account_id
         logger.info(f"Using account_id from query param: {target_account}")
-    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
-        target_account = integration.agency_client_login
+    elif goals_integration.agency_client_login and goals_integration.agency_client_login.lower() != "unknown":
+        target_account = goals_integration.agency_client_login
         logger.info(f"Using agency_client_login (selected profile): {target_account}")
     else:
         target_account = None
@@ -1926,7 +1963,11 @@ async def get_integration_goals(
     if counter_ids:
         counter_ids_list = [cid.strip() for cid in counter_ids.split(',') if cid.strip()]
         
-        if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        if goals_integration.platform in (
+            models.IntegrationPlatform.YANDEX_DIRECT,
+            models.IntegrationPlatform.YANDEX_METRIKA,
+            models.IntegrationPlatform.AVITO_ADS,
+        ):
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token)
             
@@ -1962,7 +2003,7 @@ async def get_integration_goals(
                         db_stats = db.query(
                             func.sum(models.MetrikaGoals.conversion_count).label("total_conversions")
                         ).filter(
-                            models.MetrikaGoals.integration_id == integration_id,
+                            models.MetrikaGoals.integration_id == stats_integration_id,
                             models.MetrikaGoals.goal_id == goal_id,
                             models.MetrikaGoals.date >= datetime.strptime(date_from, "%Y-%m-%d").date(),
                             models.MetrikaGoals.date <= datetime.strptime(date_to, "%Y-%m-%d").date()
@@ -3009,17 +3050,7 @@ async def discover_campaigns(
         
         log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        has_client_credentials = bool(
-            integration.platform_client_id and integration.platform_client_secret
-        )
-        credential_type = "client_credentials" if has_client_credentials else "single_api_key"
-        api_kwargs = {"credential_type": credential_type}
-        if credential_type == "single_api_key":
-            api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
-        else:
-            api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
-            api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
-        api = AvitoAdsAPI(**api_kwargs)
+        api = _build_avito_api_from_integration(integration)
         discovered_campaigns = await api.get_campaigns(integration.account_id)
         log_event("avito", f"discovered {len(discovered_campaigns)} campaigns")
         
@@ -3382,18 +3413,8 @@ async def test_integration_connection(
                  status_info["status"] = "failed"
                  status_info["details"].append(f"VK Ads: {str(e)}")
         elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
-            has_client_credentials = bool(
-                integration.platform_client_id and integration.platform_client_secret
-            )
-            credential_type = "client_credentials" if has_client_credentials else "single_api_key"
-            api_kwargs = {"credential_type": credential_type}
-            if credential_type == "single_api_key":
-                api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
-            else:
-                api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
-                api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
-            avito_api = AvitoAdsAPI(**api_kwargs)
-            await avito_api.validate_credentials()
+            avito_api = _build_avito_api_from_integration(integration)
+            await avito_api.validate_credentials(integration.account_id)
             status_info["details"].append("Avito Ads: OK")
 
         # Update integration status in DB
@@ -3614,14 +3635,14 @@ async def get_agency_clients(access_token: str) -> List[dict]:
         "Accept-Language": "ru"
     }
     
-    # Request all clients
+    # Request all active agency clients using documented AgencyClients.get fields
     payload = {
         "method": "get",
         "params": {
             "SelectionCriteria": {
                 "Archived": "NO" # Only active clients
             },
-            "FieldNames": ["Login", "ClientInfo", "RepresentedBy"],
+            "FieldNames": ["Login", "ClientInfo", "Type", "Representatives"],
             "Page": {
                 "Limit": 10000 
             }
@@ -3633,18 +3654,49 @@ async def get_agency_clients(access_token: str) -> List[dict]:
             response = await client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
                 data = response.json()
+                if "error" in data:
+                    err = data.get("error", {})
+                    err_code = err.get("error_code")
+                    err_detail = err.get("error_detail", "")
+                    diagnostic = {
+                        54: "Нет прав: логин не клиент агентства или у токена только read-only права",
+                        513: "Логин не подключен к Яндекс Директу",
+                        3000: "Нет доступа к API Директа (или ограничение по IP/правам приложения)",
+                        8800: "Client-Login/логин клиента не существует или не принадлежит агентству",
+                    }.get(err_code, "Неизвестная ошибка AgencyClients.get")
+                    logger.error(
+                        "AgencyClients.get API error: code=%s detail=%s diagnostic=%s",
+                        err_code,
+                        err_detail,
+                        diagnostic,
+                    )
+                    return []
                 if "result" in data and "Clients" in data["result"]:
-                    return [
-                        {
-                            "login": c["Login"],
-                            "name": c.get("ClientInfo", c["Login"]).strip() or c["Login"],
-                            "fio": c.get("RepresentedBy", {}).get("Agency", ""),
-                            "type": "agency_client"
-                        }
-                        for c in data["result"]["Clients"]
-                    ]
+                    clients = []
+                    for c in data["result"]["Clients"]:
+                        login = c.get("Login")
+                        if not login:
+                            continue
+                        representatives = c.get("Representatives") or []
+                        chief_login = ""
+                        for rep in representatives:
+                            if rep.get("Role") == "CHIEF":
+                                chief_login = rep.get("Login", "")
+                                break
+                        clients.append({
+                            "login": login,
+                            "name": c.get("ClientInfo", login).strip() or login,
+                            "chief_login": chief_login,
+                            "direct_type": c.get("Type", ""),
+                            "type": "agency_client",
+                        })
+                    return clients
             else:
-                logger.error(f"AgencyClients Error: {response.text}")
+                logger.error(
+                    "AgencyClients HTTP error: status=%s body=%s",
+                    response.status_code,
+                    response.text[:500],
+                )
         except Exception as e:
             logger.error(f"Failed to fetch agency clients: {e}")
             

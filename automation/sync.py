@@ -1191,20 +1191,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     ))
 
         elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
-            has_client_credentials = bool(
-                integration.platform_client_id and integration.platform_client_secret
+            from automation.avito_integration_helpers import (
+                build_avito_api_from_integration,
+                get_metrika_integration_for_client,
             )
-            credential_type = "client_credentials" if has_client_credentials else "single_api_key"
-            api_kwargs = {"credential_type": credential_type}
-            if credential_type == "single_api_key":
-                api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
-            else:
-                client_id = security.decrypt_token(integration.platform_client_id) if integration.platform_client_id else None
-                client_secret = security.decrypt_token(integration.platform_client_secret) if integration.platform_client_secret else None
-                api_kwargs["client_id"] = client_id
-                api_kwargs["client_secret"] = client_secret
 
-            api = AvitoAdsAPI(**api_kwargs)
+            api = build_avito_api_from_integration(integration)
 
             # Update balance first so dashboard can show it quickly.
             try:
@@ -1240,12 +1232,36 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "impressions": s["impressions"],
                     "clicks": s["clicks"],
                     "cost": s["cost"],
-                    "conversions": s["conversions"],
+                    "conversions": 0,
                     "cpc": s.get("cpc"),
-                    "cpa": s.get("cpa"),
+                    "cpa": None,
                 })
             _bulk_upsert_stats_by_key(db, models.AvitoStats, avito_rows)
             db.commit()
+
+            metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
+            if metrika_integration:
+                try:
+                    metrika_token = security.decrypt_token(metrika_integration.access_token)
+                    selected_profile = (
+                        metrika_integration.agency_client_login
+                        if metrika_integration.agency_client_login
+                        and metrika_integration.agency_client_login.lower() != "unknown"
+                        else None
+                    )
+                    await _sync_metrika_goals_for_direct(
+                        db,
+                        metrika_integration,
+                        date_from,
+                        date_to,
+                        metrika_token,
+                        selected_profile,
+                    )
+                except Exception as metrika_err:
+                    logger.warning(
+                        f"Metrika goals sync after Avito failed for client {integration.client_id}: {metrika_err}"
+                    )
+
             from backend_api.cache_service import CacheService
             CacheService.invalidate_client(str(integration.client_id))
 
