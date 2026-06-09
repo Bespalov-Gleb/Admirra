@@ -227,7 +227,7 @@
               </span>
               <span class="select-tile__title dark:!text-white/85">{{ cabinet.name || cabinet.login }}</span>
               <span class="select-tile__meta dark:!text-white/50">{{ cabinet.login }}</span>
-              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ cabinet.type || 'Рекламный кабинет' }}</span>
+              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ profileTypeLabel(cabinet.type) }}</span>
             </label>
           </div>
 
@@ -681,6 +681,13 @@ const selectProject = (id) => {
 }
 
 const isStepVisible = (idx) => step.value >= idx
+
+const profileTypeLabel = (type) => {
+  if (type === 'personal') return 'Личный'
+  if (type === 'managed') return 'Организация'
+  if (type === 'agency_client') return 'Клиент агентства'
+  return 'Рекламный кабинет'
+}
 
 const selectProfile = (cabinet) => {
   form.account_id = cabinet.login

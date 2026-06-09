@@ -1571,11 +1571,54 @@ async def get_integration_profiles(
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
 
-            # NOTE:
-            # Earlier implementation relied on non-documented ManagedLogins field in Clients.get.
-            # Yandex Direct API documentation does not expose this field for Clients.get,
-            # therefore shared access discovery should be based on agency/representative access
-            # via AgencyClients.get and explicit profile selection.
+            # 3. ManagedLogins — кабинеты по управляющему доступу (Директ Про / представитель).
+            # Clients.get возвращает их для не-агентских аккаунтов, когда AgencyClients.get недоступен (код 54).
+            if clients_info:
+                managed_logins = clients_info[0].get("ManagedLogins") or []
+                if managed_logins:
+                    logger.info(f"🔵 Clients.get ManagedLogins: {len(managed_logins)} managed account(s)")
+                    new_managed = []
+                    for raw_login in managed_logins:
+                        login = str(raw_login).strip()
+                        if not login or login.lower() in seen_logins:
+                            continue
+                        new_managed.append(login)
+                        profiles.append({
+                            "login": login,
+                            "name": login,
+                            "type": "managed",
+                        })
+                        seen_logins.add(login.lower())
+                    if new_managed:
+                        import asyncio
+
+                        async def _managed_client_info(login: str):
+                            try:
+                                return await direct_api.get_client_info_for_login(login)
+                            except Exception as err:
+                                logger.debug(f"ClientInfo for managed login {login}: {err}")
+                                return None
+
+                        info_results = await asyncio.gather(
+                            *[_managed_client_info(login) for login in new_managed],
+                            return_exceptions=True,
+                        )
+                        info_by_login = {}
+                        for login, result in zip(new_managed, info_results):
+                            if isinstance(result, dict):
+                                name = (result.get("ClientInfo") or "").strip()
+                                if name:
+                                    info_by_login[login] = name
+                        for profile in profiles:
+                            if profile.get("type") == "managed":
+                                profile["name"] = info_by_login.get(
+                                    profile["login"], profile["name"]
+                                )
+                        logger.info(
+                            "✅ Added %s managed profile(s): %s",
+                            len(new_managed),
+                            new_managed[:15],
+                        )
 
             # Fallback if nothing found
             if not profiles:
