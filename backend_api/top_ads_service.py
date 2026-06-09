@@ -313,6 +313,7 @@ async def _get_yandex_ads_via_campaigns_get(
     if not our_campaign_ids:
         return []
 
+    # Статистика кампаний (может быть пустой для новых/несинканных кампаний — это нормально)
     campaigns = StatsService.get_campaign_stats(
         db, client_ids, d_start, d_end, "yandex", our_campaign_ids, None
     )
@@ -322,13 +323,21 @@ async def _get_yandex_ads_via_campaigns_get(
         if our_id in id_to_stats:
             campaign_by_ext[ext] = id_to_stats[our_id]
 
-    # Топ кампаний по conversions, cost
-    sorted_campaigns = sorted(
-        campaign_by_ext.values(),
-        key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
-        reverse=True,
-    )[:limit]
-    top_ext_ids = [int(x) for x in campaign_by_ext.keys() if campaign_by_ext[x] in sorted_campaigns]
+    # Топ кампаний по conversions, cost; если статистики нет — берём все campaign_ids
+    if campaign_by_ext:
+        sorted_campaigns = sorted(
+            campaign_by_ext.values(),
+            key=lambda x: (x.get("conversions", 0) or 0, x.get("cost", 0) or 0),
+            reverse=True,
+        )[:limit]
+        top_ext_ids = [
+            int(ext) for ext, stats in campaign_by_ext.items()
+            if stats in sorted_campaigns
+        ]
+    else:
+        sorted_campaigns = []
+        top_ext_ids = yandex_campaign_ids[:limit * 2]
+
     if not top_ext_ids:
         return []
 
@@ -349,17 +358,21 @@ async def _get_yandex_ads_via_campaigns_get(
     hash_to_url = await api.get_ad_images_preview_urls(hashes) if hashes else {}
 
     result = []
-    for stats in sorted_campaigns:
-        ext = next((e for e in campaign_by_ext if campaign_by_ext[e] == stats), None)
-        if not ext or ext not in ad_by_campaign:
+    # Строим результат: если есть статистика — сортируем по ней, иначе просто по порядку
+    items_to_process = (
+        [(next((e for e in campaign_by_ext if campaign_by_ext[e] is stats), None), stats) for stats in sorted_campaigns]
+        if sorted_campaigns
+        else [(str(cid), {}) for cid in top_ext_ids]
+    )
+    for ext, stats in items_to_process:
+        if not ext or str(ext) not in ad_by_campaign:
             continue
-        ad = ad_by_campaign[ext]
+        ad = ad_by_campaign[str(ext)]
         imps = stats.get("impressions", 0) or 0
         clicks = stats.get("clicks", 0) or 0
         cost = stats.get("cost", 0) or 0
         convs = stats.get("conversions", 0) or 0
         title = (ad.get("Title") or stats.get("name", "") or "Объявление").replace("[ЯД] ", "")
-        # SmartAdBuilderAd возвращает PreviewUrl напрямую; иначе AdImages.get по хешу
         image_url = ad.get("PreviewUrl") or ((hash_to_url.get(ad.get("AdImageHash")) or "") if ad.get("AdImageHash") else None)
         result.append({
             "id": f"yd_{ad['Id']}",
