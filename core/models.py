@@ -284,6 +284,7 @@ class IntegrationPlatform(enum.Enum):
     VK_ADS = "VK_ADS"
     YANDEX_METRIKA = "YANDEX_METRIKA"
     MYTARGET = "MYTARGET"
+    AVITO_ADS = "AVITO_ADS"
 
 class IntegrationSyncStatus(enum.Enum):
     SUCCESS = "SUCCESS"
