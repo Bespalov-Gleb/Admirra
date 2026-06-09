@@ -146,7 +146,7 @@ const search       = ref('')
 const platforms = [
   { id: 'YANDEX_DIRECT', name: 'Yandex Direct', icon: '/admirra/img/icons/yandex-direct.png', color: '#71663e' },
   { id: 'VK_ADS',        name: 'ВК Ads',         icon: '/admirra/img/icons/vk-ads.png',        color: '#254b78' },
-  { id: 'AVITO_ADS',     name: 'Avito',           icon: '/admirra/img/icons/avito.png',          color: '#579f75' },
+  { id: 'AVITO_ADS',     name: 'Avito',           icon: '/admirra/img/icons/avito.svg',          color: '#579f75' },
   { id: 'GOOGLE_ADS',    name: 'Google Ads',      icon: '/admirra/img/icons/google-ads.png',     color: '#5e82bc' },
   { id: 'TELEGRAM',      name: 'Telegram',        icon: '/admirra/img/icons/telegram.png',        color: '#4d7c92' },
   { id: 'GOOGLE_SHEETS', name: 'Google Sheets',   icon: '/admirra/img/icons/google-sheets.png',  color: '#46725d' },

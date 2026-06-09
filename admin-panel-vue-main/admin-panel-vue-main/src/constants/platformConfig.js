@@ -24,7 +24,7 @@ export const PLATFORMS = {
     className: 'bg-emerald-600 text-white border-emerald-700',
     iconColor: 'text-emerald-500',
     tokenLink: 'https://developers.avito.ru/api-catalog/ads/documentation#ApiDescriptionBlock',
-    authType: 'api_key',
+    authType: 'client_credentials',
     isDynamic: false
   },
   GOOGLE_ADS: {

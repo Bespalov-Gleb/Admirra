@@ -462,17 +462,12 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
         current_user.last_name = updates.last_name
     if updates.yandex_finance_token is not None:
         current_user.yandex_finance_token = updates.yandex_finance_token
-    if updates.avito_credential_type is not None:
-        normalized = updates.avito_credential_type.strip().lower() if updates.avito_credential_type else None
-        if normalized not in {None, "", "single_api_key", "client_credentials"}:
-            raise HTTPException(status_code=400, detail="avito_credential_type must be single_api_key or client_credentials")
-        current_user.avito_credential_type = normalized
-    if updates.avito_api_key is not None:
-        current_user.avito_api_key = security.encrypt_token(updates.avito_api_key) if updates.avito_api_key else None
     if updates.avito_client_id is not None:
         current_user.avito_client_id = security.encrypt_token(updates.avito_client_id) if updates.avito_client_id else None
     if updates.avito_client_secret is not None:
         current_user.avito_client_secret = security.encrypt_token(updates.avito_client_secret) if updates.avito_client_secret else None
+    if updates.avito_client_id is not None or updates.avito_client_secret is not None:
+        current_user.avito_credential_type = "client_credentials"
     if updates.report_telegram_chat_id is not None:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
     if updates.report_email_recipients is not None:

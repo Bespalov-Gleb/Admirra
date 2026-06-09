@@ -112,25 +112,12 @@
             </div>
 
             <div>
-              <label class="block text-base font-medium text-gray-700 mb-2">Avito Ads: тип авторизации</label>
-              <select
-                v-model="userData.avitoCredentialType"
-                :disabled="!isEditMode"
-                class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-base"
-                :class="isEditMode ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white' : 'border-gray-300 bg-gray-100 cursor-not-allowed'"
-              >
-                <option value="single_api_key">API key</option>
-                <option value="client_credentials">Client ID + Client Secret</option>
-              </select>
-            </div>
-
-            <div v-if="userData.avitoCredentialType === 'single_api_key'">
-              <label class="block text-base font-medium text-gray-700 mb-2">Avito API key</label>
+              <label class="block text-base font-medium text-gray-700 mb-2">Avito Ads: Client ID</label>
               <input
-                v-model="userData.avitoApiKey"
+                v-model="userData.avitoClientId"
                 :readonly="!isEditMode"
-                type="password"
-                placeholder="Вставьте API key"
+                type="text"
+                placeholder="Введите Client ID"
                 :class="[
                   'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono text-sm',
                   isEditMode
@@ -139,39 +126,21 @@
                 ]"
               />
             </div>
-
-            <template v-else>
-              <div>
-                <label class="block text-base font-medium text-gray-700 mb-2">Avito Client ID</label>
-                <input
-                  v-model="userData.avitoClientId"
-                  :readonly="!isEditMode"
-                  type="text"
-                  placeholder="Введите Client ID"
-                  :class="[
-                    'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono text-sm',
-                    isEditMode
-                      ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
-                      : 'border-gray-300 bg-gray-100 cursor-not-allowed'
-                  ]"
-                />
-              </div>
-              <div>
-                <label class="block text-base font-medium text-gray-700 mb-2">Avito Client Secret</label>
-                <input
-                  v-model="userData.avitoClientSecret"
-                  :readonly="!isEditMode"
-                  type="password"
-                  placeholder="Введите Client Secret"
-                  :class="[
-                    'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono text-sm',
-                    isEditMode
-                      ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
-                      : 'border-gray-300 bg-gray-100 cursor-not-allowed'
-                  ]"
-                />
-              </div>
-            </template>
+            <div>
+              <label class="block text-base font-medium text-gray-700 mb-2">Avito Ads: Client Secret</label>
+              <input
+                v-model="userData.avitoClientSecret"
+                :readonly="!isEditMode"
+                type="password"
+                placeholder="Введите Client Secret"
+                :class="[
+                  'w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono text-sm',
+                  isEditMode
+                    ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white'
+                    : 'border-gray-300 bg-gray-100 cursor-not-allowed'
+                ]"
+              />
+            </div>
           </div>
 
           <div v-if="isEditMode" class="mt-6 flex justify-end gap-3">
@@ -473,8 +442,6 @@ const userData = ref({
   email: '',
   role: '',
   yandexFinanceToken: '',
-  avitoCredentialType: 'single_api_key',
-  avitoApiKey: '',
   avitoClientId: '',
   avitoClientSecret: '',
   reportTelegramChatId: '',
@@ -545,8 +512,6 @@ const saveChanges = async () => {
       first_name: userData.value.firstName || null,
       last_name: userData.value.lastName || null,
       yandex_finance_token: userData.value.yandexFinanceToken || null,
-      avito_credential_type: userData.value.avitoCredentialType || null,
-      avito_api_key: userData.value.avitoApiKey || null,
       avito_client_id: userData.value.avitoClientId || null,
       avito_client_secret: userData.value.avitoClientSecret || null,
     }
@@ -558,8 +523,6 @@ const saveChanges = async () => {
     userData.value.email = data.email
     userData.value.role = data.role
     userData.value.yandexFinanceToken = data.yandex_finance_token || ''
-    userData.value.avitoCredentialType = data.avito_credential_type || 'single_api_key'
-    userData.value.avitoApiKey = data.avito_api_key || ''
     userData.value.avitoClientId = data.avito_client_id || ''
     userData.value.avitoClientSecret = data.avito_client_secret || ''
     userData.value.reportTelegramChatId = data.report_telegram_chat_id || ''
@@ -657,8 +620,6 @@ const loadProfile = async () => {
     userData.value.email = data.email
     userData.value.role = data.role
     userData.value.yandexFinanceToken = data.yandex_finance_token || ''
-    userData.value.avitoCredentialType = data.avito_credential_type || 'single_api_key'
-    userData.value.avitoApiKey = data.avito_api_key || ''
     userData.value.avitoClientId = data.avito_client_id || ''
     userData.value.avitoClientSecret = data.avito_client_secret || ''
     userData.value.reportTelegramChatId = data.report_telegram_chat_id || ''

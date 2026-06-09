@@ -216,7 +216,7 @@ import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
 import { useProjects } from '../../../composables/useProjects'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
-import avitoIcon from '@/assets/icons/avito.png'
+import avitoIcon from '@/assets/icons/avito.svg'
 
 const { currentProjectId } = useProjects()
 

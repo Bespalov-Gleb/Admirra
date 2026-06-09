@@ -72,30 +72,18 @@ router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 def _resolve_avito_credentials(
     *,
-    credential_type: str,
-    api_key: Optional[str] = None,
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
-) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
-    normalized = (credential_type or "").strip().lower()
-    if normalized not in {"single_api_key", "client_credentials"}:
-        raise HTTPException(
-            status_code=400,
-            detail="credential_type должен быть single_api_key или client_credentials",
-        )
-    if normalized == "single_api_key":
-        if not (api_key or "").strip():
-            raise HTTPException(status_code=400, detail="api_key обязателен")
-        return normalized, (api_key or "").strip(), None, None
+) -> tuple[str, Optional[str], Optional[str]]:
     if not (client_id or "").strip() or not (client_secret or "").strip():
         raise HTTPException(status_code=400, detail="client_id и client_secret обязательны")
-    return normalized, None, (client_id or "").strip(), (client_secret or "").strip()
+    return "client_credentials", (client_id or "").strip(), (client_secret or "").strip()
 
 
 def _integration_has_avito_credentials(integration: models.Integration) -> bool:
     if integration.platform != models.IntegrationPlatform.AVITO_ADS:
         return False
-    return bool(integration.access_token or (integration.platform_client_id and integration.platform_client_secret))
+    return bool(integration.platform_client_id and integration.platform_client_secret)
 
 
 def _sanitize_secret_payload(payload: dict) -> dict:
@@ -144,7 +132,7 @@ def get_integrations(
     items = q.all()
     for item in items:
         if item.platform == models.IntegrationPlatform.AVITO_ADS:
-            setattr(item, "credential_type", "client_credentials" if (item.platform_client_id and item.platform_client_secret) else "single_api_key")
+            setattr(item, "credential_type", "client_credentials" if (item.platform_client_id and item.platform_client_secret) else None)
             setattr(item, "has_stored_credentials", _integration_has_avito_credentials(item))
     return items
 
@@ -1103,16 +1091,9 @@ async def connect_avito_ads(
         )
 
     use_profile_credentials = bool(payload.get("use_profile_credentials"))
-    raw_credential_type = payload.get("credential_type") or current_user.avito_credential_type or "single_api_key"
-    raw_api_key = payload.get("api_key")
     raw_avito_client_id = payload.get("avito_client_id") or payload.get("client_id_value")
     raw_avito_client_secret = payload.get("avito_client_secret") or payload.get("client_secret_value")
     if use_profile_credentials:
-        try:
-            if current_user.avito_api_key:
-                raw_api_key = security.decrypt_token(current_user.avito_api_key)
-        except Exception:
-            raw_api_key = None
         try:
             if current_user.avito_client_id:
                 raw_avito_client_id = security.decrypt_token(current_user.avito_client_id)
@@ -1124,16 +1105,13 @@ async def connect_avito_ads(
         except Exception:
             raw_avito_client_secret = None
 
-    credential_type, api_key, avito_client_id, avito_client_secret = _resolve_avito_credentials(
-        credential_type=raw_credential_type,
-        api_key=raw_api_key,
+    credential_type, avito_client_id, avito_client_secret = _resolve_avito_credentials(
         client_id=raw_avito_client_id,
         client_secret=raw_avito_client_secret,
     )
 
     avito_api = AvitoAdsAPI(
         credential_type=credential_type,
-        api_key=api_key,
         client_id=avito_client_id,
         client_secret=avito_client_secret,
         account_id=avito_account_id,
@@ -1156,12 +1134,11 @@ async def connect_avito_ads(
         models.Integration.platform == models.IntegrationPlatform.AVITO_ADS,
     ).first()
 
-    encrypted_api_key = security.encrypt_token(api_key) if api_key else None
     encrypted_client_id = security.encrypt_token(avito_client_id) if avito_client_id else None
     encrypted_client_secret = security.encrypt_token(avito_client_secret) if avito_client_secret else None
 
     if db_integration:
-        db_integration.access_token = encrypted_api_key or ""
+        db_integration.access_token = ""
         db_integration.refresh_token = None
         db_integration.platform_client_id = encrypted_client_id
         db_integration.platform_client_secret = encrypted_client_secret
@@ -1173,7 +1150,7 @@ async def connect_avito_ads(
         db_integration = models.Integration(
             client_id=db_client.id,
             platform=models.IntegrationPlatform.AVITO_ADS,
-            access_token=encrypted_api_key or "",
+            access_token="",
             refresh_token=None,
             platform_client_id=encrypted_client_id,
             platform_client_secret=encrypted_client_secret,
@@ -1221,21 +1198,18 @@ async def create_integration(
         access_token = vk_data["access_token"]
         refresh_token = vk_data["refresh_token"]
     elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        resolved_type, resolved_api_key, resolved_client_id, resolved_client_secret = _resolve_avito_credentials(
-            credential_type=integration.credential_type or "single_api_key",
-            api_key=integration.access_token,
+        resolved_type, resolved_client_id, resolved_client_secret = _resolve_avito_credentials(
             client_id=integration.client_id,
             client_secret=integration.client_secret,
         )
         avito_api = AvitoAdsAPI(
             credential_type=resolved_type,
-            api_key=resolved_api_key,
             client_id=resolved_client_id,
             client_secret=resolved_client_secret,
             account_id=integration.account_id,
         )
         await avito_api.validate_credentials(integration.account_id)
-        access_token = resolved_api_key
+        access_token = ""
         refresh_token = None
 
     if integration.platform != models.IntegrationPlatform.AVITO_ADS and not access_token:
@@ -1505,7 +1479,7 @@ def get_integration(
         raise HTTPException(status_code=404, detail="Integration not found")
         
     if integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        setattr(integration, "credential_type", "client_credentials" if (integration.platform_client_id and integration.platform_client_secret) else "single_api_key")
+        setattr(integration, "credential_type", "client_credentials" if (integration.platform_client_id and integration.platform_client_secret) else None)
         setattr(integration, "has_stored_credentials", _integration_has_avito_credentials(integration))
     return integration
 

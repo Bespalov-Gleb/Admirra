@@ -52,7 +52,7 @@
                   :class="{ 'platform-choice--active': form.platform === 'AVITO_ADS' }"
                   @click="form.platform = 'AVITO_ADS'"
                 >
-                  <img src="/admirra/img/icons/avito.png" alt="Avito Ads" />
+                  <img src="/admirra/img/icons/avito.svg" alt="Avito Ads" class="platform-icon-avito" />
                   <span>Avito Ads</span>
                 </button>
               </div>
@@ -112,28 +112,6 @@
             />
 
             <template v-if="form.platform === 'AVITO_ADS'">
-              <div class="field-block">
-                <div class="field-label dark:!text-white/65">Тип авторизации Avito</div>
-                <div class="platform-grid">
-                  <button
-                    type="button"
-                    class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
-                    :class="{ 'platform-choice--active': form.avito_credential_type === 'single_api_key' }"
-                    @click="form.avito_credential_type = 'single_api_key'"
-                  >
-                    <span>Bearer-токен</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
-                    :class="{ 'platform-choice--active': form.avito_credential_type === 'client_credentials' }"
-                    @click="form.avito_credential_type = 'client_credentials'"
-                  >
-                    <span>Client Key + Client Secret</span>
-                  </button>
-                </div>
-              </div>
-
               <input
                 v-model="form.avito_account_id"
                 class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
@@ -145,17 +123,10 @@
               <label class="switch-row dark:!text-white/70">
                 <input v-model="form.use_profile_credentials" type="checkbox" />
                 <span class="switch-row__control dark:!bg-white/10"></span>
-                <span>Подставлять из профиля</span>
+                <span>Подставлять Client ID и Secret из профиля</span>
               </label>
 
-              <input
-                v-if="form.avito_credential_type === 'single_api_key'"
-                v-model="form.avito_api_key"
-                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                type="password"
-                placeholder="Avito API key"
-              />
-              <template v-else>
+              <template v-if="!form.use_profile_credentials">
                 <input
                   v-model="form.avito_client_id"
                   class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
@@ -184,7 +155,7 @@
 
           <div class="channel-card">
             <div class="channel-card__icon">
-              <img :src="platformIcon" :alt="platformName" />
+              <img :src="platformIcon" :alt="platformName" :class="{ 'platform-icon-avito': form.platform === 'AVITO_ADS' }" />
             </div>
             <h4>{{ platformTitle }}</h4>
             <p>Автоматический сбор кампаний, ключевых слов и статистики</p>
@@ -580,7 +551,7 @@ const platformTitle = computed(() => {
 const platformIcon = computed(() => {
   if (form.platform === 'YANDEX_DIRECT') return '/admirra/img/icons/yandex-direct.png'
   if (form.platform === 'VK_ADS') return '/admirra/img/icons/vk-ads.png'
-  return '/admirra/img/icons/avito.png'
+  return '/admirra/img/icons/avito.svg'
 })
 const connectButtonText = computed(() => {
   if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
@@ -882,14 +853,6 @@ const preloadAvitoCredentials = async () => {
   try {
     const { data } = await api.get('/auth/me')
     if (!form.use_profile_credentials) return
-    if (data.avito_credential_type) {
-      form.avito_credential_type = data.avito_credential_type
-    }
-    if (data.avito_api_key && String(data.avito_api_key).includes('*')) {
-      form.avito_api_key = ''
-    } else if (data.avito_api_key) {
-      form.avito_api_key = data.avito_api_key
-    }
     if (data.avito_client_id && String(data.avito_client_id).includes('*')) {
       form.avito_client_id = ''
     } else if (data.avito_client_id) {
@@ -910,10 +873,7 @@ const initAvitoConnect = async () => {
   loadingAuth.value = true
   error.value = null
   try {
-    if (form.avito_credential_type === 'single_api_key' && !form.use_profile_credentials && !form.avito_api_key) {
-      throw new Error('Введите API key Avito')
-    }
-    if (form.avito_credential_type === 'client_credentials' && !form.use_profile_credentials) {
+    if (!form.use_profile_credentials) {
       if (!form.avito_client_id || !form.avito_client_secret) {
         throw new Error('Введите Client ID и Client Secret Avito')
       }
@@ -925,12 +885,10 @@ const initAvitoConnect = async () => {
       client_id: form.client_id || undefined,
       client_name: isNewProject.value ? form.client_name : undefined,
       avito_account_id: String(form.avito_account_id).trim(),
-      credential_type: form.avito_credential_type,
+      credential_type: 'client_credentials',
       use_profile_credentials: form.use_profile_credentials
     }
-    if (form.avito_credential_type === 'single_api_key') {
-      payload.api_key = form.avito_api_key
-    } else {
+    if (!form.use_profile_credentials) {
       payload.avito_client_id = form.avito_client_id
       payload.avito_client_secret = form.avito_client_secret
     }
@@ -1166,6 +1124,10 @@ const toggleGoalSelection = (id) => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
+  object-fit: contain;
+}
+.platform-choice img.platform-icon-avito {
+  border-radius: 0;
 }
 .platform-choice--active {
   border-color: transparent;

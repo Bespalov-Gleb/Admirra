@@ -20,7 +20,7 @@
 <script setup>
 import { computed } from 'vue'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
-import avitoIcon from '@/assets/icons/avito.png'
+import avitoIcon from '@/assets/icons/avito.svg'
 
 const props = defineProps({
   platform: String,

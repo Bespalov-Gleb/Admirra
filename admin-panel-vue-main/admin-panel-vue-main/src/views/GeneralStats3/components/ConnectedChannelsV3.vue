@@ -90,7 +90,7 @@ import { computed } from 'vue'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
 
-const avitoIcon = '/admirra/img/integrations/avito.png'
+const avitoIcon = '/admirra/img/integrations/avito.svg'
 
 const props = defineProps({
   integrations: {

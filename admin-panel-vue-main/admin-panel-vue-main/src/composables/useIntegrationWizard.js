@@ -12,8 +12,6 @@ const form = reactive({
   platform: 'YANDEX_DIRECT',
   client_id: null,
   client_name: '',
-  avito_credential_type: 'single_api_key',
-  avito_api_key: '',
   avito_client_id: '',
   avito_client_secret: '',
   avito_account_id: '',
@@ -55,8 +53,6 @@ export function useIntegrationWizard() {
     error.value = null
     form.client_id = null
     form.client_name = ''
-    form.avito_credential_type = 'single_api_key'
-    form.avito_api_key = ''
     form.avito_client_id = ''
     form.avito_client_secret = ''
     form.avito_account_id = ''

@@ -542,7 +542,7 @@ const vClickOutside = {
 const channels = [
   { name: 'Yandex Direct', value: 'yandex', color: '#ffd426', bg: '#fff8e7', darkBg: 'rgba(255, 212, 38, 0.14)', asset: yandexDirectIcon, icon: CursorArrowRippleIcon },
   { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon },
-  { name: 'Avito Ads', value: 'avito', color: '#579f75', bg: '#eef8f1', darkBg: 'rgba(87, 159, 117, 0.14)', asset: '/admirra/img/integrations/avito.png', imageClass: 'avito', icon: CursorArrowRippleIcon }
+  { name: 'Avito Ads', value: 'avito', color: '#579f75', bg: '#eef8f1', darkBg: 'rgba(87, 159, 117, 0.14)', asset: '/admirra/img/integrations/avito.svg', imageClass: 'avito', icon: CursorArrowRippleIcon }
 ]
 
 const reportChannels = [

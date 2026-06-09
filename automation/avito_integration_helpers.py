@@ -31,17 +31,11 @@ def build_avito_api_from_integration(
     *,
     account_id: Optional[str] = None,
 ) -> AvitoAdsAPI:
-    has_client_credentials = bool(
-        integration.platform_client_id and integration.platform_client_secret
+    if not (integration.platform_client_id and integration.platform_client_secret):
+        raise ValueError("Для Avito Ads нужны Client ID и Client Secret")
+    return AvitoAdsAPI(
+        credential_type="client_credentials",
+        client_id=security.decrypt_token(integration.platform_client_id),
+        client_secret=security.decrypt_token(integration.platform_client_secret),
+        account_id=account_id or integration.account_id,
     )
-    credential_type = "client_credentials" if has_client_credentials else "single_api_key"
-    api_kwargs: dict = {
-        "credential_type": credential_type,
-        "account_id": account_id or integration.account_id,
-    }
-    if credential_type == "single_api_key":
-        api_kwargs["api_key"] = security.decrypt_token(integration.access_token)
-    else:
-        api_kwargs["client_id"] = security.decrypt_token(integration.platform_client_id)
-        api_kwargs["client_secret"] = security.decrypt_token(integration.platform_client_secret)
-    return AvitoAdsAPI(**api_kwargs)
