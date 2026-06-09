@@ -510,7 +510,7 @@ async def get_dynamics(
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
     
     m_stats = []
-    if platform in ["all", "yandex"]:
+    if platform in ["all", "yandex", "avito"]:
         # Важно: используем тот же фильтр selected_goals, что и в summary,
         # чтобы суточные лиды на графике совпадали с итогом за период.
         selected_goal_ids = set()
@@ -542,7 +542,21 @@ async def get_dynamics(
         )
 
         if selected_goal_ids:
-            m_query = m_query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+            synced_goal_ids = {
+                row[0]
+                for row in db.query(models.MetrikaGoals.goal_id)
+                .filter(
+                    models.MetrikaGoals.client_id.in_(effective_client_ids),
+                    models.MetrikaGoals.goal_id != "all",
+                )
+                .distinct()
+                .all()
+            }
+            applicable = selected_goal_ids & synced_goal_ids
+            if applicable:
+                m_query = m_query.filter(models.MetrikaGoals.goal_id.in_(applicable))
+            elif synced_goal_ids:
+                m_query = m_query.filter(models.MetrikaGoals.goal_id.in_(synced_goal_ids))
         
         # CRITICAL: Filter MetrikaGoals by integration_id to match campaign selection
         if m_integration_ids:
@@ -1149,7 +1163,14 @@ async def get_goals(
         if i.primary_goal_id:
             selected_goal_ids.add(str(i.primary_goal_id))
     if selected_goal_ids:
-        goals = [g for g in goals if str(g.goal_id) in selected_goal_ids]
+        filtered = [g for g in goals if str(g.goal_id) in selected_goal_ids]
+        if filtered:
+            goals = filtered
+        elif goals:
+            logger.warning(
+                "get_goals: selected_goals %s do not match synced goals, showing all synced",
+                sorted(selected_goal_ids)[:10],
+            )
 
     # Если нет индивидуальных целей — НЕ возвращаем агрегат (goal_id="all"). Агрегат с именем
     # "Selected Goals" — техническая запись из sync; показывать её как цель было бы некорректно.

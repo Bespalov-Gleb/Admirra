@@ -88,13 +88,9 @@ def _integration_has_avito_credentials(integration: models.Integration) -> bool:
 
 def _metrika_profile_login(integration: models.Integration) -> Optional[str]:
     """Логин Яндекса для ulogin в Метрике (не числовой ID Avito и не unknown)."""
-    for candidate in (integration.agency_client_login, integration.account_id):
-        if not candidate or str(candidate).lower() == "unknown":
-            continue
-        if str(candidate).strip().isdigit():
-            continue
-        return str(candidate).strip()
-    return None
+    from automation.avito_integration_helpers import metrika_profile_login
+
+    return metrika_profile_login(integration)
 
 
 def _sanitize_secret_payload(payload: dict) -> dict:

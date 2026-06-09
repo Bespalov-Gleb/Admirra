@@ -26,6 +26,21 @@ def get_metrika_integration_for_client(db, client_id) -> Optional[models.Integra
     return None
 
 
+def metrika_profile_login(integration: models.Integration) -> Optional[str]:
+    """Логин Яндекса для ulogin в Метрике (не числовой ID и не домен счётчика)."""
+    for candidate in (integration.agency_client_login, integration.account_id):
+        if not candidate or str(candidate).lower() in ("unknown", "none", ""):
+            continue
+        s = str(candidate).strip()
+        if s.isdigit():
+            continue
+        # В account_id иногда ошибочно сохраняют site счётчика (например facebook.tim).
+        if "." in s and "@" not in s:
+            continue
+        return s
+    return None
+
+
 def build_avito_api_from_integration(
     integration: models.Integration,
     *,

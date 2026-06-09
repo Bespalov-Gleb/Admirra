@@ -75,6 +75,7 @@ class YandexMetricaAPI:
         metrics: str = "ym:s:anyGoalConversionRate,ym:s:sumGoalVisitsAny",
         goal_id: Optional[str] = None,
         filters: Optional[str] = None,
+        direct_traffic_only: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Fetches goal visits (целевые визиты) from Yandex Metrica.
@@ -92,10 +93,14 @@ class YandexMetricaAPI:
             # Для разбивки по дням добавляем ym:s:date. Порядок: date первым (основная группировка).
             "dimensions": "ym:s:date,ym:s:<attribution>TrafficSource",
             "attribution": "AUTOMATIC",
-            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
             "accuracy": "full",
             "limit": "1000",
         }
+        if filters is not None:
+            if filters:
+                params["filters"] = filters
+        elif direct_traffic_only:
+            params["filters"] = FILTER_YANDEX_DIRECT_VISITS
         if goal_id:
             params["goal_id"] = goal_id
         logger.info(f"📊 Metrika data API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to} dimensions=TrafficSource+date attribution=AUTOMATIC")
@@ -184,6 +189,7 @@ class YandexMetricaAPI:
                     metrics=metrics,
                     goal_id=goal_id,
                     filters=filters,
+                    direct_traffic_only=direct_traffic_only,
                 )
                 right = await self.get_goals_stats(
                     counter_id=counter_id,
@@ -192,6 +198,7 @@ class YandexMetricaAPI:
                     metrics=metrics,
                     goal_id=goal_id,
                     filters=filters,
+                    direct_traffic_only=direct_traffic_only,
                 )
                 return (left or []) + (right or [])
             else:
