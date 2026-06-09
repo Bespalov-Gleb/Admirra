@@ -266,7 +266,6 @@
         <div class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div>
             <h4 class="dark:!text-white/90">Рекламные кампании</h4>
-            <p class="dark:!text-white/55">Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
           </div>
           <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
           </div>
@@ -278,7 +277,6 @@
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Яндекс Метрика (лиды)</h4>
-              <p class="dark:!text-white/55">В Avito Ads API нет лидов — подключите Метрику для отслеживания конверсий</p>
             </div>
           </div>
           <div v-if="metrikaIntegrationId" class="status-pill dark:!bg-emerald-500/10 dark:!text-emerald-300">
@@ -612,12 +610,15 @@ onMounted(async () => {
     form.platform = platformQuery
   }
 
+  restoreAvitoWizardState()
+
   await fetchProjects()
   await preloadAvitoCredentials()
 
   // Проверяем, есть ли resumption после OAuth-редиректа
   const resumeId = router.currentRoute.value.query.resume_integration_id
   const startStep = router.currentRoute.value.query.initial_step
+  const metrikaConnected = router.currentRoute.value.query.metrika_connected === '1'
 
   if (localStorage.getItem('metrika_integration_id')) {
     metrikaIntegrationId.value = localStorage.getItem('metrika_integration_id')
@@ -632,7 +633,7 @@ onMounted(async () => {
     if (s >= 3) {
       step.value = 3
       await fetchCampaigns(resumeId)
-      if (usesMetrikaWizard.value && metrikaIntegrationId.value) {
+      if (usesMetrikaWizard.value && (metrikaIntegrationId.value || metrikaConnected)) {
         await fetchCounters(resumeId)
         await fetchGoals(resumeId)
       }
@@ -766,6 +767,46 @@ const resolveMetrikaIntegrationId = async () => {
   }
 }
 
+const AVITO_WIZARD_STATE_KEY = 'avito_wizard_state'
+
+const saveAvitoWizardState = () => {
+  localStorage.setItem(AVITO_WIZARD_STATE_KEY, JSON.stringify({
+    step: step.value,
+    platform: form.platform,
+    client_id: form.client_id,
+    client_name: form.client_name,
+    avito_account_id: form.avito_account_id,
+    account_id: form.account_id,
+    agency_client_login: form.agency_client_login,
+    use_profile_credentials: form.use_profile_credentials,
+    integration_id: lastIntegrationId.value
+  }))
+}
+
+const restoreAvitoWizardState = () => {
+  const raw = localStorage.getItem(AVITO_WIZARD_STATE_KEY)
+  if (!raw) return
+  try {
+    const state = JSON.parse(raw)
+    if (state.platform) form.platform = state.platform
+    if (state.client_id) form.client_id = state.client_id
+    if (state.client_name) form.client_name = state.client_name
+    if (state.avito_account_id) form.avito_account_id = state.avito_account_id
+    if (state.account_id) form.account_id = state.account_id
+    if (state.agency_client_login) form.agency_client_login = state.agency_client_login
+    if (typeof state.use_profile_credentials === 'boolean') {
+      form.use_profile_credentials = state.use_profile_credentials
+    }
+    if (state.integration_id && !lastIntegrationId.value) {
+      lastIntegrationId.value = state.integration_id
+    }
+  } catch (e) {
+    console.warn('Failed to restore Avito wizard state', e)
+  } finally {
+    localStorage.removeItem(AVITO_WIZARD_STATE_KEY)
+  }
+}
+
 const initYandexMetrikaAuth = async () => {
   if (loadingMetrikaAuth.value) return
   loadingMetrikaAuth.value = true
@@ -775,6 +816,7 @@ const initYandexMetrikaAuth = async () => {
     if (!lastIntegrationId.value) {
       throw new Error('Сначала подключите Avito Ads')
     }
+    saveAvitoWizardState()
     if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
     if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
     localStorage.setItem('yandex_auth_for_avito', 'true')
@@ -950,6 +992,9 @@ const handleConnectClick = async () => {
     await initYandexAuth()
   } else if (form.platform === 'VK_ADS') {
     await initVKAuth()
+  } else if (lastIntegrationId.value && form.account_id) {
+    step.value = 2
+    await fetchProfiles(lastIntegrationId.value)
   } else {
     await initAvitoConnect()
   }

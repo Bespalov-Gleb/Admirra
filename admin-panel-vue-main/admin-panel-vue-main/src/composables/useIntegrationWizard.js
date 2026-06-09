@@ -125,11 +125,16 @@ export function useIntegrationWizard() {
     }
   }
 
+  const metrikaAccountParam = () => {
+    if (form.platform === 'AVITO_ADS') return ''
+    const targetAccount = form.agency_client_login || form.account_id
+    return targetAccount ? `&account_id=${targetAccount}` : ''
+  }
+
   const fetchCounters = async (integrationId) => {
     loadingStates.counters = true
     try {
-      const targetAccount = form.agency_client_login || form.account_id
-      const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
+      const accountIdParam = metrikaAccountParam()
       
       const campaignIdsParam = selectedCampaignIds.value.length > 0
         ? `&campaign_ids=${selectedCampaignIds.value.join(',')}`
@@ -156,9 +161,8 @@ export function useIntegrationWizard() {
       const { date_from, date_to } = getDateRangeParams()
       // CRITICAL: Use agency_client_login if set, otherwise account_id
       // This ensures we filter Metrika counters by the selected profile
-      const targetAccount = form.agency_client_login || form.account_id
-      const accountIdParam = targetAccount ? `&account_id=${targetAccount}` : ''
-      
+      const accountIdParam = metrikaAccountParam()
+
       // CRITICAL: Priority 1: If counters are selected, use them
       // Priority 2: Otherwise, use selected campaign IDs
       let goalsUrl = `/integrations/${integrationId}/goals?date_from=${date_from}&date_to=${date_to}${accountIdParam}`
@@ -214,6 +218,9 @@ export function useIntegrationWizard() {
       // CRITICAL: agency_client_login is separate from account_id
       // It's set when user selects a profile on step 2
       form.agency_client_login = integration.agency_client_login || integration.account_id
+      if (integration.platform === 'AVITO_ADS' && integration.account_id) {
+        form.avito_account_id = integration.account_id
+      }
       // CRITICAL: client_name should be returned by backend via IntegrationResponse schema
       // If not present, try to get it from client object
       form.client_name = integration.client_name || (integration.client ? integration.client.name : null)

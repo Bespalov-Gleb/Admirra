@@ -86,6 +86,17 @@ def _integration_has_avito_credentials(integration: models.Integration) -> bool:
     return bool(integration.platform_client_id and integration.platform_client_secret)
 
 
+def _metrika_profile_login(integration: models.Integration) -> Optional[str]:
+    """Логин Яндекса для ulogin в Метрике (не числовой ID Avito и не unknown)."""
+    for candidate in (integration.agency_client_login, integration.account_id):
+        if not candidate or str(candidate).lower() == "unknown":
+            continue
+        if str(candidate).strip().isdigit():
+            continue
+        return str(candidate).strip()
+    return None
+
+
 def _sanitize_secret_payload(payload: dict) -> dict:
     if not isinstance(payload, dict):
         return payload
@@ -1679,17 +1690,10 @@ async def get_integration_counters(
         raise HTTPException(status_code=404, detail="Integration not found")
     
     access_token = security.decrypt_token(integration.access_token)
-    
-    # Determine target_account for profile filtering
-    if account_id:
-        target_account = account_id
-    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
-        target_account = integration.agency_client_login
-    else:
-        target_account = integration.account_id
-    
+    target_account: Optional[str] = None
+
     counters_list = []
-    
+
     # VK Ads doesn't use Yandex Metrika counters
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
@@ -1703,12 +1707,13 @@ async def get_integration_counters(
                 "warning": "Подключите Яндекс Метрику (OAuth) для выбора счётчиков лидов",
             }
         access_token = security.decrypt_token(metrika_source.access_token)
-        if account_id:
-            target_account = account_id
-        elif metrika_source.agency_client_login and metrika_source.agency_client_login.lower() != "unknown":
-            target_account = metrika_source.agency_client_login
-        else:
-            target_account = metrika_source.account_id
+        target_account = _metrika_profile_login(metrika_source)
+    elif account_id:
+        target_account = account_id
+    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+        target_account = integration.agency_client_login
+    else:
+        target_account = integration.account_id
     
     if integration.platform in (
         models.IntegrationPlatform.YANDEX_DIRECT,
@@ -1779,24 +1784,46 @@ async def get_integration_counters(
                     logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
             else:
                 logger.warning(f"⚠️ Priority 1: No valid external_ids extracted from campaigns")
+        elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+            logger.info("🔵 Priority 1 skipped for Avito Ads (counters only from Метрика OAuth)")
         else:
             logger.warning(f"⚠️ Priority 1: No campaign_ids provided in request")
         
         # Priority 2: Fallback to profile-based counters
         # Use fallback if no counters found from campaigns (either no campaign_ids or no CounterIds in campaigns)
-        if not counters_list and target_account:
-            logger.info(f"🔵 Priority 2: No counters from campaigns, falling back to profile-based counters")
+        if not counters_list:
+            logger.info(
+                f"🔵 Priority 2: fetching Metrika counters"
+                f"{f' for profile {target_account}' if target_account else ' (all accessible)'}"
+            )
             from automation.yandex_metrica import YandexMetricaAPI
-            metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
+            metrica_api = (
+                YandexMetricaAPI(access_token, client_login=target_account)
+                if target_account
+                else YandexMetricaAPI(access_token)
+            )
             
             try:
                 counters = await metrica_api.get_counters()
-                logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
+                logger.info(
+                    f"📊 Metrika API returned {len(counters)} counters"
+                    f"{f' for profile {target_account}' if target_account else ''}"
+                )
                 
+                # Avito: лиды только из Метрики — показываем все доступные счётчики OAuth-токена
+                if integration.platform == models.IntegrationPlatform.AVITO_ADS or not target_account:
+                    for counter in counters:
+                        counters_list.append({
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": counter.get('owner_login', ''),
+                            "source": "metrika_oauth",
+                        })
                 # CRITICAL: If campaign_ids were provided but no CounterIds found,
                 # return ALL counters without filtering by owner_login
                 # This is because campaigns might not have CounterIds configured, but user still needs to select counters
-                if campaign_ids:
+                elif campaign_ids:
                     logger.warning(f"⚠️ Campaigns don't have CounterIds, returning ALL {len(counters)} accessible counters")
                     for counter in counters:
                         counters_list.append({
@@ -1918,7 +1945,12 @@ async def get_integration_goals(
     stats_integration_id = goals_integration.id
     
     # Determine target_account for profile filtering (used in both paths)
-    if account_id:
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        target_account = _metrika_profile_login(goals_integration)
+        logger.info(
+            f"Avito leads: Metrika profile login={target_account or 'all accessible counters'}"
+        )
+    elif account_id:
         target_account = account_id
         logger.info(f"Using account_id from query param: {target_account}")
     elif goals_integration.agency_client_login and goals_integration.agency_client_login.lower() != "unknown":
