@@ -5,6 +5,7 @@ import uuid
 from io import BytesIO
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
