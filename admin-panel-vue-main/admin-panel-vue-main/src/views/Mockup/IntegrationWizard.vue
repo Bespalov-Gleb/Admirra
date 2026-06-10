@@ -308,6 +308,11 @@
           </div>
         </div>
 
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="disclaimer-banner disclaimer-banner--orange mt-[1.3889rem]">
+          <span class="disclaimer-banner__icon">ℹ</span>
+          <span>Не отмечайте пересекающиеся цели: если одна уже включает другую, одно действие засчитается дважды и цифры будут выше реальных.</span>
+        </div>
+
         <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
@@ -386,6 +391,11 @@
             </div>
             <div v-if="goalSearch && filteredGoals.length === 0" class="empty-line dark:!text-white/55">Ничего не найдено по «{{ goalSearch }}»</div>
           </template>
+        </div>
+
+        <div v-if="form.platform === 'YANDEX_DIRECT'" class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
+          <span class="disclaimer-banner__icon">ℹ</span>
+          <span>Проверьте, не пересекаются ли выбранные цели. Если одна уже включает другую (например, «Заявка / Все формы» содержит «Заявку с 1-го экрана») — оставьте только более широкую, иначе одно действие засчитается дважды и цифры будут выше реальных.</span>
         </div>
 
         <div class="wizard-actions mt-[1.3889rem]">
@@ -683,6 +693,7 @@ const goToVisibleStep = (idx) => {
 
 const scrollToStep = async (idx) => {
   await nextTick()
+  await new Promise(r => setTimeout(r, 350))
   stepRefs.value[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
@@ -1828,5 +1839,44 @@ const toggleGoalSelection = (id) => {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+.disclaimer-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8333rem;
+  padding: 1.1111rem 1.3889rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9028rem;
+  line-height: 1.5;
+}
+.disclaimer-banner__icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.8333rem;
+  font-weight: 700;
+}
+.disclaimer-banner--orange {
+  background: #fef3e2;
+  color: #a16207;
+  border: 1px solid #fde5b8;
+}
+.disclaimer-banner--orange .disclaimer-banner__icon {
+  background: #f59e0b;
+  color: #fff;
+}
+.disclaimer-banner--yellow {
+  background: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+.disclaimer-banner--yellow .disclaimer-banner__icon {
+  background: #eab308;
+  color: #fff;
 }
 </style>
