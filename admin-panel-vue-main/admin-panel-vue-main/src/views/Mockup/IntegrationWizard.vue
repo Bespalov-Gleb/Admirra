@@ -118,24 +118,32 @@
                   v-model="form.avito_account_id"
                   class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
                   type="text"
+                  inputmode="numeric"
                   placeholder="ID рекламного аккаунта Avito (из кабинета Рекламы)"
                 />
               </div>
-              <div class="field-block">
-                <div class="field-label dark:!text-white/65">API ключи Avito</div>
-                <input
-                  v-model="form.avito_client_id"
-                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                  type="text"
-                  placeholder="Avito Client ID"
-                />
-                <input
-                  v-model="form.avito_client_secret"
-                  class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                  type="password"
-                  placeholder="Avito Client Secret"
-                />
-              </div>
+              <label class="switch-row dark:!text-white/70">
+                <input v-model="form.use_profile_credentials" type="checkbox" />
+                <span class="switch-row__control dark:!bg-white/10"></span>
+                <span>Подставлять Client ID и Secret из профиля</span>
+              </label>
+              <template v-if="!form.use_profile_credentials">
+                <div class="field-block">
+                  <div class="field-label dark:!text-white/65">API ключи Avito</div>
+                  <input
+                    v-model="form.avito_client_id"
+                    class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                    type="text"
+                    placeholder="Avito Client ID"
+                  />
+                  <input
+                    v-model="form.avito_client_secret"
+                    class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                    type="password"
+                    placeholder="Avito Client Secret"
+                  />
+                </div>
+              </template>
             </template>
 
             <button
@@ -860,12 +868,12 @@ const handleConnectClick = async () => {
 }
 
 const connectAvito = async () => {
-  if (!form.avito_account_id) {
+  if (!form.avito_account_id || !String(form.avito_account_id).trim()) {
     error.value = 'Укажите ID рекламного аккаунта Avito'
     toaster.warning('Укажите ID аккаунта')
     return
   }
-  if (!form.avito_client_id || !form.avito_client_secret) {
+  if (!form.use_profile_credentials && (!form.avito_client_id || !form.avito_client_secret)) {
     error.value = 'Укажите Client ID и Client Secret Avito'
     toaster.warning('Укажите API ключи Avito')
     return
@@ -875,19 +883,26 @@ const connectAvito = async () => {
   try {
     const payload = {
       client_id: form.client_id || undefined,
-      client_name: form.client_name || undefined,
-      avito_account_id: form.avito_account_id,
-      avito_client_id: form.avito_client_id,
-      avito_client_secret: form.avito_client_secret,
+      client_name: isNewProject.value ? form.client_name : undefined,
+      avito_account_id: String(form.avito_account_id).trim(),
+      credential_type: 'client_credentials',
+      use_profile_credentials: form.use_profile_credentials,
+    }
+    if (!form.use_profile_credentials) {
+      payload.avito_client_id = form.avito_client_id
+      payload.avito_client_secret = form.avito_client_secret
     }
     const { data } = await api.post('/integrations/avito/connect', payload)
+    if (!data?.integration_id) {
+      throw new Error('Сервер не вернул integration_id')
+    }
     lastIntegrationId.value = data.integration_id
-    form.client_id = data.client_id
-    form.account_id = data.account_id
+    if (data.client_id) form.client_id = data.client_id
+    if (data.account_id) form.account_id = data.account_id
     toaster.success('Avito Ads подключён!')
-    currentStep.value = 2
+    step.value = 2
   } catch (err) {
-    const msg = err?.response?.data?.detail || 'Ошибка подключения Avito'
+    const msg = err?.response?.data?.detail || err.message || 'Ошибка подключения Avito'
     error.value = msg
     toaster.error(msg)
   } finally {
