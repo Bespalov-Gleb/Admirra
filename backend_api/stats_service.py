@@ -157,6 +157,15 @@ class StatsService:
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(client_ids)
             )
+            a_q = db.query(
+                func.sum(models.AvitoStats.cost).label("total_cost"),
+                func.sum(models.AvitoStats.impressions).label("total_impressions"),
+                func.sum(models.AvitoStats.clicks).label("total_clicks"),
+                func.sum(models.AvitoStats.conversions).label("total_conversions"),
+                func.sum(models.AvitoStats.cpc * models.AvitoStats.clicks).label("weighted_cpc_sum")
+            ).join(models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id).filter(
+                models.AvitoStats.client_id.in_(client_ids)
+            )
 
             # CRITICAL: Always filter by integration_id to prevent mixing data from different profiles
             # Even when campaigns are not selected, we should only show stats from campaigns
@@ -166,7 +175,8 @@ class StatsService:
             if campaign_ids:
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
-                
+                a_q = a_q.filter(models.Campaign.id.in_(campaign_ids))
+
                 # Get integration_ids for selected campaigns
                 campaign_integrations = db.query(models.Campaign.integration_id).filter(
                     models.Campaign.id.in_(campaign_ids)
@@ -176,6 +186,7 @@ class StatsService:
                 if integration_ids:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    a_q = a_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
                 # При "все кампании" считаем все кампании, где были данные в
                 # выбранном периоде. Остановленные/архивные кампании не должны
@@ -216,10 +227,12 @@ class StatsService:
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
                 v_q = v_q.filter(models.VKStats.date >= start)
+                a_q = a_q.filter(models.AvitoStats.date >= start)
                 m_q = m_q.filter(models.MetrikaGoals.date >= start)
             if end:
                 y_q = y_q.filter(models.YandexStats.date <= end)
                 v_q = v_q.filter(models.VKStats.date <= end)
+                a_q = a_q.filter(models.AvitoStats.date <= end)
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
 
             def get_yandex_scope_cost():
@@ -270,11 +283,12 @@ class StatsService:
 
             y_s = y_q.first() if platform in ["all", "yandex"] else None
             v_s = v_q.first() if platform in ["all", "vk"] else None
-            m_s = m_q.first() if platform in ["all", "yandex"] else None # Metrica is usually associated with Yandex
+            a_s = a_q.first() if platform in ["all", "avito"] else None
+            m_s = m_q.first() if platform in ["all", "yandex", "avito"] else None
 
-            costs = float((y_s.total_cost if y_s else 0) or 0) + float((v_s.total_cost if v_s else 0) or 0)
-            imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0)
-            clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0)
+            costs = float((y_s.total_cost if y_s else 0) or 0) + float((v_s.total_cost if v_s else 0) or 0) + float((a_s.total_cost if a_s else 0) or 0)
+            imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0) + int((a_s.total_impressions if a_s else 0) or 0)
+            clks = int((y_s.total_clicks if y_s else 0) or 0) + int((v_s.total_clicks if v_s else 0) or 0) + int((a_s.total_clicks if a_s else 0) or 0)
             
             # CRITICAL: Лиды и конверсии для Yandex — только из Метрики (MetrikaGoals).
             # Direct conversions не подставляем fallback-ом, иначе дашборд расходится
@@ -295,6 +309,10 @@ class StatsService:
             
             if platform == "vk":
                 convs = vk_convs
+                leads_available = True
+                cpa_available = True
+            elif platform == "avito":
+                convs = metrica_convs
                 leads_available = True
                 cpa_available = True
             elif campaign_ids:
@@ -329,11 +347,18 @@ class StatsService:
             vk_conversions = int((v_s.total_conversions if v_s else 0) or 0)
             vk_cost = float((v_s.total_cost if v_s else 0) or 0)
             vk_weighted_cpc_sum = float((v_s.weighted_cpc_sum if v_s and v_s.weighted_cpc_sum else 0) or 0)
-            
+            avito_clicks = int((a_s.total_clicks if a_s else 0) or 0)
+            avito_conversions = int((a_s.total_conversions if a_s else 0) or 0)
+            avito_cost = float((a_s.total_cost if a_s else 0) or 0)
+            avito_weighted_cpc_sum = float((a_s.weighted_cpc_sum if a_s and a_s.weighted_cpc_sum else 0) or 0)
+
             # Взвешенное среднее CPC для VK: sum(cpc * clicks) / sum(clicks)
             vk_avg_cpc = vk_weighted_cpc_sum / vk_clicks if vk_clicks > 0 else 0.0
             # CPA для VK: все затраты / количество лидов (совпадает с интерфейсом VK)
             vk_avg_cpa = vk_cost / vk_conversions if vk_conversions > 0 else 0.0
+            avito_avg_cpc = avito_weighted_cpc_sum / avito_clicks if avito_clicks > 0 else 0.0
+            avito_leads_for_cpa = metrica_convs if platform in ["all", "avito"] else avito_conversions
+            avito_avg_cpa = avito_cost / avito_leads_for_cpa if avito_leads_for_cpa > 0 else 0.0
             
             # CPA для Yandex: всегда из Метрики (selected_goals); по выбранным
             # кампаниям используем ту же пропорциональную оценку, что и для лидов.
@@ -349,31 +374,25 @@ class StatsService:
             total_conversions_for_cpa = convs
             
             if total_clicks_for_cpc > 0:
-                # Взвешенное среднее CPC: (yandex_cpc * yandex_clicks + vk_cpc * vk_clicks) / total_clicks
-                if yandex_clicks > 0 and vk_clicks > 0:
-                    avg_cpc = (yandex_avg_cpc * yandex_clicks + vk_avg_cpc * vk_clicks) / total_clicks_for_cpc
-                elif yandex_clicks > 0:
-                    avg_cpc = yandex_avg_cpc
-                elif vk_clicks > 0:
-                    avg_cpc = vk_avg_cpc
-                else:
-                    avg_cpc = 0.0
+                weighted_sum = (
+                    yandex_avg_cpc * yandex_clicks
+                    + vk_avg_cpc * vk_clicks
+                    + avito_avg_cpc * avito_clicks
+                )
+                avg_cpc = weighted_sum / total_clicks_for_cpc
             else:
                 avg_cpc = 0.0
-            
-            total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions
-            
+
+            total_platform_conversions_for_cpa = yandex_convs_for_cpa + vk_conversions + avito_leads_for_cpa
+
             if not cpa_available:
                 avg_cpa = 0.0
             elif total_platform_conversions_for_cpa > 0:
-                if yandex_convs_for_cpa > 0 and vk_conversions > 0:
-                    avg_cpa = (yandex_avg_cpa * yandex_convs_for_cpa + vk_avg_cpa * vk_conversions) / total_platform_conversions_for_cpa
-                elif yandex_convs_for_cpa > 0:
-                    avg_cpa = yandex_avg_cpa
-                elif vk_conversions > 0:
-                    avg_cpa = vk_avg_cpa
-                else:
-                    avg_cpa = 0.0
+                avg_cpa = (
+                    yandex_avg_cpa * yandex_convs_for_cpa
+                    + vk_avg_cpa * vk_conversions
+                    + avito_avg_cpa * avito_leads_for_cpa
+                ) / total_platform_conversions_for_cpa
             else:
                 avg_cpa = 0.0
             
@@ -475,11 +494,16 @@ class StatsService:
             active_campaigns_query = active_campaigns_query.filter(
                 models.Integration.platform == models.IntegrationPlatform.VK_ADS
             )
+        elif platform == "avito":
+            active_campaigns_query = active_campaigns_query.filter(
+                models.Integration.platform == models.IntegrationPlatform.AVITO_ADS
+            )
         elif platform == "all":
             active_campaigns_query = active_campaigns_query.filter(
                 models.Integration.platform.in_([
                     models.IntegrationPlatform.YANDEX_DIRECT,
                     models.IntegrationPlatform.VK_ADS,
+                    models.IntegrationPlatform.AVITO_ADS,
                 ])
             )
         
@@ -701,6 +725,29 @@ class StatsService:
                 q = q.filter(models.VKStats.date <= end)
             return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id, models.VKStats.campaign_name).all()
 
+        def run_avito_query(start, end):
+            q = db.query(
+                models.Campaign.id.label("campaign_id"),
+                models.Campaign.name.label("campaign_display_name"),
+                models.Campaign.external_id.label("campaign_external_id"),
+                models.AvitoStats.campaign_name,
+                func.sum(models.AvitoStats.impressions).label("impressions"),
+                func.sum(models.AvitoStats.clicks).label("clicks"),
+                func.sum(models.AvitoStats.cost).label("cost"),
+                func.sum(models.AvitoStats.conversions).label("conversions")
+            ).join(models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id).filter(
+                models.AvitoStats.client_id.in_(client_ids)
+            )
+            if campaign_ids:
+                q = q.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                q = q.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if start:
+                q = q.filter(models.AvitoStats.date >= start)
+            if end:
+                q = q.filter(models.AvitoStats.date <= end)
+            return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id, models.AvitoStats.campaign_name).all()
+
         def get_metrika_convs(start, end):
             m_q = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total")
@@ -865,6 +912,54 @@ class StatsService:
                     "trend_cpa": calc_trend(cpa, prev_cpa),
                 })
 
+        if platform in ["all", "avito"]:
+            av_results = run_avito_query(d_start, d_end)
+            prev_av_rows = {}
+            if prev_start is not None:
+                prev_av_rows = {str(r.campaign_id): r for r in run_avito_query(prev_start, prev_end)}
+            for r in av_results:
+                cost = float(r.cost or 0)
+                clicks = int(r.clicks or 0)
+                convs = int(r.conversions or 0)
+                imps = int(r.impressions or 0)
+                cpc = round(cost / clicks, 2) if clicks > 0 else 0
+                cpa = round(cost / convs, 2) if convs > 0 else 0
+                cid = str(r.campaign_id)
+                p = prev_av_rows.get(cid)
+                if p:
+                    prev_cost = float(p.cost or 0)
+                    prev_clicks = int(p.clicks or 0)
+                    prev_imps = int(p.impressions or 0)
+                    prev_convs = int(p.conversions or 0)
+                    prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
+                    prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
+                else:
+                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+                raw = (r.campaign_display_name or r.campaign_name or "").strip()
+                ext_id = getattr(r, "campaign_external_id", None) or ""
+                if raw and not (raw.startswith("Campaign ") and raw.replace("Campaign ", "").strip().isdigit()):
+                    disp_name = raw
+                elif ext_id:
+                    disp_name = f"Кампания (ID: {ext_id})"
+                else:
+                    disp_name = raw or "Без названия"
+                campaigns.append({
+                    "id": cid,
+                    "name": f"[Avito] {disp_name}",
+                    "impressions": imps,
+                    "clicks": clicks,
+                    "cost": round(cost, 2),
+                    "conversions": convs,
+                    "cpc": cpc,
+                    "cpa": cpa,
+                    "trend_cost": calc_trend(cost, prev_cost),
+                    "trend_impressions": calc_trend(imps, prev_imps),
+                    "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_conversions": calc_trend(convs, prev_convs),
+                    "trend_cpc": calc_trend(cpc, prev_cpc),
+                    "trend_cpa": calc_trend(cpa, prev_cpa),
+                })
+
         # Сортировка: сначала по лидам (заявкам) desc, затем по расходу desc
         campaigns.sort(key=lambda x: (x["conversions"], x["cost"]), reverse=True)
         return campaigns
@@ -991,6 +1086,29 @@ class StatsService:
                 v_rows = v_rows.filter(models.VKStats.date <= d_end)
             v_rows = v_rows.group_by(extract('dow', models.VKStats.date)).all()
             for r in v_rows:
+                dow = int(r.dow) if r.dow is not None else 0
+                clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
+                leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
+
+        if platform in ["all", "avito"]:
+            from sqlalchemy import extract
+            av_rows = db.query(
+                extract('dow', models.AvitoStats.date).label('dow'),
+                func.sum(models.AvitoStats.clicks).label('clicks'),
+                func.sum(models.AvitoStats.conversions).label('leads')
+            ).join(models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id).filter(
+                models.AvitoStats.client_id.in_(client_ids)
+            )
+            if campaign_ids:
+                av_rows = av_rows.filter(models.Campaign.id.in_(campaign_ids))
+            elif integration_ids_filter:
+                av_rows = av_rows.filter(models.Campaign.integration_id.in_(integration_ids_filter))
+            if d_start:
+                av_rows = av_rows.filter(models.AvitoStats.date >= d_start)
+            if d_end:
+                av_rows = av_rows.filter(models.AvitoStats.date <= d_end)
+            av_rows = av_rows.group_by(extract('dow', models.AvitoStats.date)).all()
+            for r in av_rows:
                 dow = int(r.dow) if r.dow is not None else 0
                 clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
                 leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)

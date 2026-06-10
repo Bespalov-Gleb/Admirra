@@ -46,6 +46,15 @@
                   <img src="/admirra/img/icons/vk-ads.png" alt="VK Ads" />
                   <span>VK Ads</span>
                 </button>
+                <button
+                  type="button"
+                  class="platform-choice dark:!border-white/10 dark:!bg-white/5 dark:!text-white/75"
+                  :class="{ 'platform-choice--active': form.platform === 'AVITO_ADS' }"
+                  @click="form.platform = 'AVITO_ADS'"
+                >
+                  <img src="/admirra/img/icons/avito.svg" alt="Avito Ads" class="platform-icon-avito" />
+                  <span>Avito Ads</span>
+                </button>
               </div>
             </div>
 
@@ -102,10 +111,37 @@
               placeholder="Название нового проекта"
             />
 
+            <template v-if="form.platform === 'AVITO_ADS'">
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
+                <input
+                  v-model="form.avito_account_id"
+                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  placeholder="ID рекламного аккаунта Avito (из кабинета Рекламы)"
+                />
+              </div>
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">API ключи Avito</div>
+                <input
+                  v-model="form.avito_client_id"
+                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  placeholder="Avito Client ID"
+                />
+                <input
+                  v-model="form.avito_client_secret"
+                  class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="password"
+                  placeholder="Avito Client Secret"
+                />
+              </div>
+            </template>
+
             <button
               type="button"
               class="primary-btn mt-auto"
-              :class="{ 'primary-btn--vk': form.platform === 'VK_ADS' }"
+              :class="{ 'primary-btn--vk': form.platform === 'VK_ADS', 'primary-btn--avito': form.platform === 'AVITO_ADS' }"
               :disabled="loadingAuth"
               @click="handleConnectClick"
             >
@@ -526,12 +562,26 @@ const goalsGroupedByCounter = computed(() => {
   return Array.from(groups.values())
 })
 
-const platformName = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Yandex Direct' : 'VK Ads')
-const platformTitle = computed(() => form.platform === 'YANDEX_DIRECT' ? 'Интеграция с Яндекс.Директ' : 'Интеграция с VK Ads')
-const platformIcon = computed(() => form.platform === 'YANDEX_DIRECT' ? '/admirra/img/icons/yandex-direct.png' : '/admirra/img/icons/vk-ads.png')
-const connectButtonText = computed(() =>
-  form.platform === 'YANDEX_DIRECT' ? 'Подключить Яндекс Директ' : 'Подключить VK Ads'
-)
+const platformName = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Yandex Direct'
+  if (form.platform === 'AVITO_ADS') return 'Avito Ads'
+  return 'VK Ads'
+})
+const platformTitle = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Интеграция с Яндекс.Директ'
+  if (form.platform === 'AVITO_ADS') return 'Интеграция с Avito Ads'
+  return 'Интеграция с VK Ads'
+})
+const platformIcon = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return '/admirra/img/icons/yandex-direct.png'
+  if (form.platform === 'AVITO_ADS') return '/admirra/img/icons/avito.svg'
+  return '/admirra/img/icons/vk-ads.png'
+})
+const connectButtonText = computed(() => {
+  if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
+  if (form.platform === 'AVITO_ADS') return 'Подключить Avito Ads'
+  return 'Подключить VK Ads'
+})
 const projectSelectLabel = computed(() => {
   if (!form.client_id) return 'Выберите проект'
   return projects.value.find((p) => String(p.id) === String(form.client_id))?.name || 'Выберите проект'
@@ -582,7 +632,7 @@ watch(
 
 onMounted(async () => {
   const platformQuery = router.currentRoute.value.query.platform
-  if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS') {
+  if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS' || platformQuery === 'AVITO_ADS') {
     form.platform = platformQuery
   }
 
@@ -791,8 +841,46 @@ const handleConnectClick = async () => {
   }
   if (form.platform === 'YANDEX_DIRECT') {
     await initYandexAuth()
+  } else if (form.platform === 'AVITO_ADS') {
+    await connectAvito()
   } else {
     await initVKAuth()
+  }
+}
+
+const connectAvito = async () => {
+  if (!form.avito_account_id) {
+    error.value = 'Укажите ID рекламного аккаунта Avito'
+    toaster.warning('Укажите ID аккаунта')
+    return
+  }
+  if (!form.avito_client_id || !form.avito_client_secret) {
+    error.value = 'Укажите Client ID и Client Secret Avito'
+    toaster.warning('Укажите API ключи Avito')
+    return
+  }
+  loadingAuth.value = true
+  error.value = null
+  try {
+    const payload = {
+      client_id: form.client_id || undefined,
+      client_name: form.client_name || undefined,
+      avito_account_id: form.avito_account_id,
+      avito_client_id: form.avito_client_id,
+      avito_client_secret: form.avito_client_secret,
+    }
+    const { data } = await api.post('/integrations/avito/connect', payload)
+    lastIntegrationId.value = data.integration_id
+    form.client_id = data.client_id
+    form.account_id = data.account_id
+    toaster.success('Avito Ads подключён!')
+    currentStep.value = 2
+  } catch (err) {
+    const msg = err?.response?.data?.detail || 'Ошибка подключения Avito'
+    error.value = msg
+    toaster.error(msg)
+  } finally {
+    loadingAuth.value = false
   }
 }
 
@@ -1150,6 +1238,13 @@ const toggleGoalSelection = (id) => {
 }
 .primary-btn--vk {
   background: linear-gradient(135deg, #0077ff, #005fcc);
+}
+.primary-btn--avito {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+.platform-icon-avito {
+  width: 1.8rem !important;
+  height: 1.8rem !important;
 }
 .secondary-btn,
 .small-btn {

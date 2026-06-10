@@ -80,6 +80,38 @@ def check_data_availability(
                         return False
                     return True
         
+        if platform in ["all", "avito"]:
+            a_query = db.query(func.count(models.AvitoStats.id)).join(
+                models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id
+            ).filter(
+                models.AvitoStats.client_id.in_(client_ids),
+                models.AvitoStats.date >= d_start,
+                models.AvitoStats.date <= d_end
+            )
+            if campaign_ids:
+                a_query = a_query.filter(models.Campaign.id.in_(campaign_ids))
+            a_count = a_query.scalar() or 0
+            if a_count > 0:
+                a_date_range = db.query(
+                    func.min(models.AvitoStats.date).label('min_date'),
+                    func.max(models.AvitoStats.date).label('max_date')
+                ).join(
+                    models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id
+                ).filter(
+                    models.AvitoStats.client_id.in_(client_ids),
+                    models.AvitoStats.date >= d_start,
+                    models.AvitoStats.date <= d_end
+                )
+                if campaign_ids:
+                    a_date_range = a_date_range.filter(models.Campaign.id.in_(campaign_ids))
+                date_range = a_date_range.first()
+                if date_range and date_range.min_date and date_range.max_date:
+                    if date_range.min_date > d_start:
+                        return False
+                    if date_range.max_date < d_end:
+                        return False
+                    return True
+
         # Проверяем наличие данных для VK Ads
         if platform in ["all", "vk"]:
             v_query = db.query(func.count(models.VKStats.id)).join(
@@ -226,11 +258,14 @@ def ensure_data_synced_async(
         integrations = [i for i in integrations if i.platform == models.IntegrationPlatform.YANDEX_DIRECT]
     elif platform == "vk":
         integrations = [i for i in integrations if i.platform == models.IntegrationPlatform.VK_ADS]
+    elif platform == "avito":
+        integrations = [i for i in integrations if i.platform == models.IntegrationPlatform.AVITO_ADS]
     elif platform == "all":
         # Для "all" синхронизируем все платформы
         integrations = [i for i in integrations if i.platform in [
             models.IntegrationPlatform.YANDEX_DIRECT,
-            models.IntegrationPlatform.VK_ADS
+            models.IntegrationPlatform.VK_ADS,
+            models.IntegrationPlatform.AVITO_ADS,
         ]]
     
     if not integrations:
@@ -435,6 +470,35 @@ async def get_dynamics(
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
 
+    a_stats = db.query(
+        models.AvitoStats.date,
+        func.sum(models.AvitoStats.cost).label("cost"),
+        func.sum(models.AvitoStats.clicks).label("clicks"),
+        func.sum(models.AvitoStats.impressions).label("impressions"),
+        func.sum(models.AvitoStats.conversions).label("leads")
+    ).join(models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id).filter(
+        models.AvitoStats.client_id.in_(effective_client_ids),
+        models.AvitoStats.date >= d_start,
+        models.AvitoStats.date <= d_end
+    )
+    if u_campaign_ids:
+        a_stats = a_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+        campaign_integrations = db.query(models.Campaign.integration_id).filter(
+            models.Campaign.id.in_(u_campaign_ids)
+        ).distinct().all()
+        integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+        if integration_ids:
+            a_stats = a_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    else:
+        if len(effective_client_ids) == 1:
+            client_integrations = db.query(models.Integration.id).filter(
+                models.Integration.client_id.in_(effective_client_ids)
+            ).distinct().all()
+            integration_ids = [ci[0] for ci in client_integrations if ci[0]]
+            if integration_ids:
+                a_stats = a_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    a_stats = a_stats.group_by(models.AvitoStats.date).all()
+
     # Metrica Goals dynamics — при "все кампании" НЕ фильтруем по integration
     m_integration_ids = None
     if u_campaign_ids:
@@ -444,7 +508,7 @@ async def get_dynamics(
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
     
     m_stats = []
-    if platform in ["all", "yandex"]:
+    if platform in ["all", "yandex", "avito"]:
         # Важно: используем тот же фильтр selected_goals, что и в summary,
         # чтобы суточные лиды на графике совпадали с итогом за период.
         selected_goal_ids = set()
@@ -525,11 +589,12 @@ async def get_dynamics(
         
         y_s = next((s for s in y_stats if s.date == d), None) if platform in ["all", "yandex"] else None
         v_s = next((s for s in v_stats if s.date == d), None) if platform in ["all", "vk"] else None
+        a_s = next((s for s in a_stats if s.date == d), None) if platform in ["all", "avito"] else None
         m_s = next((s for s in m_stats if s.date == d), None) if m_stats else None
-        
-        c = float((y_s.cost if y_s else 0) + (v_s.cost if v_s else 0))
-        cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0))
-        im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0))
+
+        c = float((y_s.cost if y_s else 0) + (v_s.cost if v_s else 0) + (a_s.cost if a_s else 0))
+        cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0) + (a_s.clicks if a_s else 0))
+        im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0) + (a_s.impressions if a_s else 0))
         
         # Лиды для Yandex — только Метрика. Direct conversions не используем
         # fallback-ом, чтобы график совпадал со страницей проектов и целями.
@@ -537,6 +602,8 @@ async def get_dynamics(
         vk_le = int(v_s.leads if v_s else 0)
         if platform == "vk":
             le = vk_le
+        elif platform == "avito":
+            le = metrika_le
         elif u_campaign_ids:
             selected_yandex_cost = float((y_s.cost if y_s else 0) or 0)
             yandex_scope_cost = y_scope_cost_by_date.get(d, selected_yandex_cost)

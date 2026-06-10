@@ -10,6 +10,7 @@ from automation.vk_ads import (
     vk_campaigns_error_needs_agency_client_retry,
 )
 from automation.mytarget import MyTargetAPI
+from automation.avito_ads import AvitoAdsAPI
 from typing import List, Optional
 import uuid
 import httpx
@@ -61,6 +62,17 @@ MYTARGET_TOKEN_URL = cfg.oauth.mytarget_token_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+
+def _resolve_avito_credentials(
+    *,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+) -> tuple[str, Optional[str], Optional[str]]:
+    if not (client_id or "").strip() or not (client_secret or "").strip():
+        raise HTTPException(status_code=400, detail="client_id и client_secret обязательны")
+    return "client_credentials", (client_id or "").strip(), (client_secret or "").strip()
+
 
 @router.post("/remote-log")
 async def remote_log(payload: dict):
@@ -999,6 +1011,131 @@ async def exchange_mytarget_token(
         "integration_id": str(db_integration.id),
         "is_agency": False
     }
+
+@router.post("/avito/connect")
+async def connect_avito_ads(
+    payload: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    SubscriptionService.require_active_subscription(db, current_user)
+
+    client_id_raw = payload.get("client_id")
+    client_name_input = (payload.get("client_name") or "").strip()
+    db_client = None
+    if client_id_raw:
+        try:
+            client_uuid = uuid.UUID(str(client_id_raw))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Некорректный client_id")
+        db_client = db.query(models.Client).filter(
+            models.Client.id == client_uuid,
+            models.Client.owner_id == current_user.id,
+        ).first()
+        if not db_client:
+            raise HTTPException(status_code=404, detail="Проект не найден")
+    elif client_name_input:
+        db_client = models.Client(owner_id=current_user.id, name=client_name_input)
+        db.add(db_client)
+        db.flush()
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите проект (client_id) или название нового проекта (client_name)",
+        )
+
+    avito_account_id = (
+        payload.get("avito_account_id")
+        or payload.get("account_id")
+    )
+    if avito_account_id is not None:
+        avito_account_id = str(avito_account_id).strip()
+    if not avito_account_id or not str(avito_account_id).isdigit():
+        raise HTTPException(
+            status_code=400,
+            detail="avito_account_id обязателен (числовой ID рекламного аккаунта из кабинета Avito Рекламы)",
+        )
+
+    use_profile_credentials = bool(payload.get("use_profile_credentials"))
+    raw_avito_client_id = payload.get("avito_client_id") or payload.get("client_id_value")
+    raw_avito_client_secret = payload.get("avito_client_secret") or payload.get("client_secret_value")
+    if use_profile_credentials:
+        try:
+            if current_user.avito_client_id:
+                raw_avito_client_id = security.decrypt_token(current_user.avito_client_id)
+        except Exception:
+            raw_avito_client_id = None
+        try:
+            if current_user.avito_client_secret:
+                raw_avito_client_secret = security.decrypt_token(current_user.avito_client_secret)
+        except Exception:
+            raw_avito_client_secret = None
+
+    credential_type, avito_client_id, avito_client_secret = _resolve_avito_credentials(
+        client_id=raw_avito_client_id,
+        client_secret=raw_avito_client_secret,
+    )
+
+    avito_api = AvitoAdsAPI(
+        credential_type=credential_type,
+        client_id=avito_client_id,
+        client_secret=avito_client_secret,
+        account_id=avito_account_id,
+    )
+    await avito_api.validate_credentials(avito_account_id)
+    profiles = await avito_api.get_profiles_or_accounts(avito_account_id)
+    profile_match = next(
+        (p for p in profiles if str(p.get("id")) == str(avito_account_id)),
+        profiles[0] if profiles else None,
+    )
+    inferred_account_id = str(avito_account_id)
+    inferred_account_name = (
+        payload.get("account_name")
+        or (profile_match.get("name") if profile_match else None)
+        or f"Avito {avito_account_id}"
+    )
+
+    db_integration = db.query(models.Integration).filter(
+        models.Integration.client_id == db_client.id,
+        models.Integration.platform == models.IntegrationPlatform.AVITO_ADS,
+    ).first()
+
+    encrypted_client_id = security.encrypt_token(avito_client_id) if avito_client_id else None
+    encrypted_client_secret = security.encrypt_token(avito_client_secret) if avito_client_secret else None
+
+    if db_integration:
+        db_integration.access_token = ""
+        db_integration.refresh_token = None
+        db_integration.platform_client_id = encrypted_client_id
+        db_integration.platform_client_secret = encrypted_client_secret
+        db_integration.account_id = str(inferred_account_id) if inferred_account_id else None
+        db_integration.account_name = inferred_account_name or credential_type
+        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        db_integration.error_message = None
+    else:
+        db_integration = models.Integration(
+            client_id=db_client.id,
+            platform=models.IntegrationPlatform.AVITO_ADS,
+            access_token="",
+            refresh_token=None,
+            platform_client_id=encrypted_client_id,
+            platform_client_secret=encrypted_client_secret,
+            account_id=str(inferred_account_id) if inferred_account_id else None,
+            account_name=inferred_account_name or credential_type,
+            sync_status=models.IntegrationSyncStatus.NEVER,
+        )
+        db.add(db_integration)
+
+    db.commit()
+    db.refresh(db_integration)
+    return {
+        "status": "success",
+        "integration_id": str(db_integration.id),
+        "client_id": str(db_client.id),
+        "account_id": db_integration.account_id,
+        "account_name": db_integration.account_name,
+    }
+
 
 from .services import IntegrationService
 

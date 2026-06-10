@@ -1241,6 +1241,77 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     accumulate=True,
                 )
 
+        elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+            from automation.avito_integration_helpers import (
+                build_avito_api_from_integration,
+                get_metrika_integration_for_client,
+            )
+
+            api = build_avito_api_from_integration(integration)
+
+            try:
+                balance_data = await api.get_balance(integration.account_id)
+                if balance_data:
+                    integration.balance = balance_data.get("balance")
+                    integration.currency = balance_data.get("currency", "RUB")
+                    db.commit()
+                    from backend_api.cache_service import CacheService
+                    CacheService.invalidate_client(str(integration.client_id))
+            except Exception as balance_err:
+                logger.warning(f"Failed to fetch Avito balance for integration {integration.id}: {balance_err}")
+
+            campaigns = db.query(models.Campaign).filter(
+                models.Campaign.integration_id == integration.id,
+                models.Campaign.is_active.is_(True),
+            ).all()
+            external_ids = [str(c.external_id) for c in campaigns if c.external_id]
+            stats = await api.get_statistics(external_ids, date_from, date_to, integration.account_id)
+
+            campaign_map = {str(c.external_id): c for c in campaigns}
+            avito_rows = []
+            for s in stats:
+                campaign_external_id = str(s.get("campaign_id", ""))
+                campaign = campaign_map.get(campaign_external_id)
+                if not campaign:
+                    continue
+                avito_rows.append({
+                    "client_id": integration.client_id,
+                    "campaign_id": campaign.id,
+                    "date": datetime.strptime(s["date"], "%Y-%m-%d").date(),
+                    "campaign_name": s["campaign_name"],
+                    "impressions": s["impressions"],
+                    "clicks": s["clicks"],
+                    "cost": s["cost"],
+                    "conversions": 0,
+                    "cpc": s.get("cpc"),
+                    "cpa": None,
+                })
+            _bulk_upsert_stats_by_key(db, models.AvitoStats, avito_rows)
+            db.commit()
+
+            metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
+            if metrika_integration:
+                try:
+                    from automation.avito_integration_helpers import metrika_profile_login
+                    metrika_token = security.decrypt_token(metrika_integration.access_token)
+                    selected_profile = metrika_profile_login(metrika_integration)
+                    await _sync_metrika_goals_for_direct(
+                        db,
+                        metrika_integration,
+                        date_from,
+                        date_to,
+                        metrika_token,
+                        selected_profile,
+                        direct_traffic_only=False,
+                    )
+                except Exception as metrika_err:
+                    logger.warning(
+                        f"Metrika goals sync after Avito failed for client {integration.client_id}: {metrika_err}"
+                    )
+
+            from backend_api.cache_service import CacheService
+            CacheService.invalidate_client(str(integration.client_id))
+
         # Update status on success
         integration.sync_status = models.IntegrationSyncStatus.SUCCESS
         integration.error_message = None

@@ -237,6 +237,7 @@ class Client(Base):
     yandex_keywords = relationship("YandexKeywords", back_populates="client")
     yandex_groups = relationship("YandexGroups", back_populates="client")
     vk_stats = relationship("VKStats", back_populates="client")
+    avito_stats = relationship("AvitoStats", back_populates="client")
     weekly_reports = relationship("WeeklyReport", back_populates="client")
     monthly_reports = relationship("MonthlyReport", back_populates="client")
     team_accesses = relationship("TeamMemberProject", back_populates="project", cascade="all, delete-orphan")
@@ -373,6 +374,7 @@ class Campaign(Base):
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
+    avito_stats = relationship("AvitoStats", back_populates="campaign")
 
 
 class ProjectDirection(Base):
@@ -506,6 +508,25 @@ class YandexGroups(Base):
     conversions = Column(BigInteger, default=0)
 
     client = relationship("Client", back_populates="yandex_groups")
+
+class AvitoStats(Base):
+    __tablename__ = "avito_stats"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+    cpc = Column(Numeric(20, 2), nullable=True)
+    cpa = Column(Numeric(20, 2), nullable=True)
+
+    client = relationship("Client", back_populates="avito_stats")
+    campaign = relationship("Campaign", back_populates="avito_stats")
+
 
 class VKStats(Base):
     __tablename__ = "vk_stats"

@@ -52,7 +52,7 @@ export function useDashboardStats() {
   const vkGoalActions = ref([])
 
   const STORAGE_KEY = 'trafic_agent_dashboard_filters'
-  const validChannels = ['all', 'yandex', 'vk']
+  const validChannels = ['all', 'yandex', 'vk', 'avito']
 
   const loadFiltersFromStorage = () => {
     try {
