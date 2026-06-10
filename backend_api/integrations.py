@@ -11,6 +11,7 @@ from automation.vk_ads import (
 )
 from automation.mytarget import MyTargetAPI
 from automation.avito_ads import AvitoAdsAPI
+from automation.avito_integration_helpers import build_avito_api_from_integration as _build_avito_api_from_integration
 from typing import List, Optional
 import uuid
 import httpx
@@ -1601,8 +1602,34 @@ async def get_integration_profiles(
                 }]
             return []
     
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        if not integration.account_id:
+            return []
+        try:
+            avito_api = _build_avito_api_from_integration(integration)
+            profiles = await avito_api.get_profiles_or_accounts(integration.account_id)
+            if profiles:
+                return [
+                    {
+                        "id": str(p.get("id") or ""),
+                        "login": str(p.get("id") or ""),
+                        "name": p.get("name") or p.get("title") or f"Аккаунт {p.get('id')}",
+                        "type": p.get("type") or "avito_account",
+                    }
+                    for p in profiles
+                    if p.get("id") is not None
+                ]
+        except Exception as e:
+            logger.warning(f"Avito profiles fetch failed: {e}")
+        return [{
+            "id": str(integration.account_id),
+            "login": str(integration.account_id),
+            "name": integration.account_name or f"Аккаунт ({integration.account_id})",
+            "type": "avito_account",
+        }]
+
     log_event("get_integration_profiles", f"No specific profile fetching logic for platform {integration.platform}", level="info")
-    return [] # Return empty list for other platforms or if no specific logic
+    return []
 
 @router.get("/{integration_id}/counters")
 async def get_integration_counters(

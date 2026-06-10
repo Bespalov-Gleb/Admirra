@@ -900,6 +900,8 @@ const connectAvito = async () => {
     if (data.client_id) form.client_id = data.client_id
     if (data.account_id) form.account_id = data.account_id
     toaster.success('Avito Ads подключён!')
+    await fetchIntegration(data.integration_id)
+    await fetchProfiles(data.integration_id)
     step.value = 2
   } catch (err) {
     const msg = err?.response?.data?.detail || err.message || 'Ошибка подключения Avito'
