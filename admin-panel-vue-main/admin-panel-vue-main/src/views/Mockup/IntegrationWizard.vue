@@ -275,7 +275,27 @@
           <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
           </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+          <div class="panel-head">
+            <div>
+              <h4 class="dark:!text-white/90">Яндекс Метрика (лиды)</h4>
+            </div>
+          </div>
+          <div v-if="metrikaIntegrationId" class="status-pill dark:!bg-emerald-500/10 dark:!text-emerald-300">
+            Метрика подключена
+          </div>
+          <button
+            v-else
+            type="button"
+            class="primary-btn"
+            :disabled="loadingMetrikaAuth || !lastIntegrationId"
+            @click="initYandexMetrikaAuth"
+          >
+            {{ loadingMetrikaAuth ? 'Перенаправление...' : 'Подключить Яндекс Метрику' }}
+          </button>
+        </div>
+
+        <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Счетчики метрики</h4>
@@ -316,12 +336,12 @@
           </div>
         </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="disclaimer-banner disclaimer-banner--orange mt-[1.3889rem]">
+        <div v-if="usesMetrikaWizard" class="disclaimer-banner disclaimer-banner--orange mt-[1.3889rem]">
           <span class="disclaimer-banner__icon">ℹ</span>
           <span>Не отмечайте пересекающиеся цели: если одна уже включает другую, одно действие засчитается дважды и цифры будут выше реальных.</span>
         </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
@@ -401,7 +421,7 @@
           </template>
         </div>
 
-        <div v-if="form.platform === 'YANDEX_DIRECT'" class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
+        <div v-if="usesMetrikaWizard" class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
           <span class="disclaimer-banner__icon">ℹ</span>
           <span>Проверьте, не пересекаются ли выбранные цели. Если одна уже включает другую (например, «Заявка / Все формы» содержит «Заявку с 1-го экрана») — оставьте только более широкую, иначе одно действие засчитается дважды и цифры будут выше реальных.</span>
         </div>
@@ -449,7 +469,7 @@
               <span class="summary-card__label dark:!text-white/50">Кампании</span>
               <strong class="dark:!text-white/85">{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--yellow dark:!bg-white/5">
+            <div v-if="usesMetrikaWizard" class="summary-card summary-card--yellow dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">#</span>
               <span class="summary-card__label dark:!text-white/50">Счетчики</span>
               <strong class="dark:!text-white/85">Выбрано: {{ selectedCounterIds.length }}</strong>
@@ -457,12 +477,12 @@
                 <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
               </ul>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT' && form.primary_goal_id" class="summary-card summary-card--cyan dark:!bg-white/5">
+            <div v-if="usesMetrikaWizard && form.primary_goal_id" class="summary-card summary-card--cyan dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">★</span>
               <span class="summary-card__label dark:!text-white/50">Основная цель</span>
               <strong class="dark:!text-white/85">{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
             </div>
-            <div v-if="form.platform === 'YANDEX_DIRECT'" class="summary-card summary-card--violet dark:!bg-white/5">
+            <div v-if="usesMetrikaWizard" class="summary-card summary-card--violet dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">+</span>
               <span class="summary-card__label dark:!text-white/50">Дополнительные цели</span>
               <strong class="dark:!text-white/85">Отмечено: {{ summaryAdditionalGoalLines.length }}</strong>
@@ -549,6 +569,8 @@ const step = ref(1)
 const stepRefs = ref({})
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
+const loadingMetrikaAuth = ref(false)
+const metrikaIntegrationId = ref(null)
 const openSelect = ref(null)
 const profileSearch = ref('')
 const goalSearch = ref('')
@@ -600,6 +622,10 @@ const connectButtonText = computed(() => {
   if (form.platform === 'AVITO_ADS') return 'Подключить Avito Ads'
   return 'Подключить VK Ads'
 })
+
+const usesMetrikaWizard = computed(() =>
+  form.platform === 'YANDEX_DIRECT' || form.platform === 'AVITO_ADS'
+)
 const projectSelectLabel = computed(() => {
   if (!form.client_id) return 'Выберите проект'
   return projects.value.find((p) => String(p.id) === String(form.client_id))?.name || 'Выберите проект'
@@ -639,7 +665,7 @@ let counterGoalsDebounce = null
 watch(
   selectedCounterIds,
   () => {
-    if (step.value !== 3 || !lastIntegrationId.value || form.platform !== 'YANDEX_DIRECT') return
+    if (step.value !== 3 || !lastIntegrationId.value || !usesMetrikaWizard.value) return
     clearTimeout(counterGoalsDebounce)
     counterGoalsDebounce = setTimeout(() => {
       fetchGoals(lastIntegrationId.value)
@@ -654,7 +680,10 @@ onMounted(async () => {
     form.platform = platformQuery
   }
 
+  restoreAvitoWizardState()
+
   await fetchProjects()
+  await preloadAvitoCredentials()
 
   const clientIdQuery = router.currentRoute.value.query.client_id
   if (clientIdQuery && projects.value.some((project) => String(project.id) === String(clientIdQuery))) {
@@ -665,21 +694,33 @@ onMounted(async () => {
     isNewProject.value = false
   }
 
+  if (localStorage.getItem('metrika_integration_id')) {
+    metrikaIntegrationId.value = localStorage.getItem('metrika_integration_id')
+  }
+
   // Проверяем, есть ли resumption после OAuth-редиректа
   const resumeId = router.currentRoute.value.query.resume_integration_id
   const startStep = router.currentRoute.value.query.initial_step
+  const metrikaConnected = router.currentRoute.value.query.metrika_connected === '1'
 
   if (resumeId) {
     lastIntegrationId.value = resumeId
     const s = parseInt(startStep) || 2
     await fetchIntegration(resumeId)
+    await resolveMetrikaIntegrationId()
 
-    if (s >= 2) {
+    if (s >= 3) {
+      step.value = 3
+      await fetchCampaigns(resumeId)
+      if (usesMetrikaWizard.value && (metrikaIntegrationId.value || metrikaConnected)) {
+        await fetchCounters(resumeId)
+        await fetchGoals(resumeId)
+      }
+    } else if (s >= 2) {
       step.value = 2
       fetchProfiles(resumeId)
     }
   }
-
 })
 
 watch(isNewProject, (val) => {
@@ -690,6 +731,15 @@ watch(isNewProject, (val) => {
     form.client_name = ''
   }
 })
+
+watch(
+  () => form.use_profile_credentials,
+  async (enabled) => {
+    if (enabled && form.platform === 'AVITO_ADS') {
+      await preloadAvitoCredentials()
+    }
+  }
+)
 
 const goToVisibleStep = (idx) => {
   if (idx <= step.value) {
@@ -743,15 +793,24 @@ const goToStep3 = async () => {
   scrollToStep(3)
   await fetchCampaigns(lastIntegrationId.value)
   allFromProfile.value = true
-  if (form.platform === 'YANDEX_DIRECT') {
-    await fetchCounters(lastIntegrationId.value)
-    await fetchGoals(lastIntegrationId.value)
+  if (usesMetrikaWizard.value) {
+    await resolveMetrikaIntegrationId()
+    if (form.platform === 'AVITO_ADS' && !metrikaIntegrationId.value) {
+      toaster.warning('Подключите Яндекс Метрику для отслеживания лидов')
+    }
+    if (metrikaIntegrationId.value || form.platform === 'YANDEX_DIRECT') {
+      await fetchCounters(lastIntegrationId.value)
+      await fetchGoals(lastIntegrationId.value)
+    }
   }
 }
 
 const goToStep4 = async () => {
-  // РК теперь выбираются автоматически (all_campaigns=true), поэтому валидация по кампаниям не нужна.
-  if (form.platform === 'YANDEX_DIRECT') {
+  if (usesMetrikaWizard.value) {
+    if (form.platform === 'AVITO_ADS' && !metrikaIntegrationId.value) {
+      error.value = 'Подключите Яндекс Метрику (OAuth) на шаге счётчиков'
+      return
+    }
     if (!selectedCounterIds.value.length) {
       error.value = 'Выберите хотя бы один счетчик'
       return
@@ -834,14 +893,25 @@ const doFinish = async () => {
   loadingStates.finish = true
   error.value = null
   try {
+    if (usesMetrikaWizard.value && metrikaIntegrationId.value) {
+      await api.patch(`/integrations/${metrikaIntegrationId.value}`, {
+        selected_counters: [...selectedCounterIds.value],
+        primary_goal_id: form.primary_goal_id,
+        selected_goals: [...selectedGoalIds.value],
+        is_active: true
+      })
+    }
     await api.patch(`/integrations/${lastIntegrationId.value}`, {
       selected_campaign_ids: [...selectedCampaignIds.value],
       all_campaigns: true,
-      selected_counters: [...selectedCounterIds.value],
-      primary_goal_id: form.primary_goal_id,
-      selected_goals: [...selectedGoalIds.value],
+      ...(form.platform !== 'AVITO_ADS' && {
+        selected_counters: [...selectedCounterIds.value],
+        primary_goal_id: form.primary_goal_id,
+        selected_goals: [...selectedGoalIds.value],
+      }),
       is_active: true
     })
+    localStorage.removeItem('metrika_integration_id')
     toaster.success('Интеграция успешно настроена!')
     resetStore()
     router.push('/integrations')
@@ -849,6 +919,111 @@ const doFinish = async () => {
     error.value = err.response?.data?.detail || 'Ошибка при завершении настройки'
   } finally {
     loadingStates.finish = false
+  }
+}
+
+const resolveMetrikaIntegrationId = async () => {
+  if (metrikaIntegrationId.value) return
+  const stored = localStorage.getItem('metrika_integration_id')
+  if (stored) {
+    metrikaIntegrationId.value = stored
+    return
+  }
+  try {
+    const { data } = await api.get('integrations/')
+    const metrika = data.find(i => i.platform === 'YANDEX_METRIKA' && i.client_id === form.client_id)
+    if (metrika) {
+      metrikaIntegrationId.value = metrika.id
+      localStorage.setItem('metrika_integration_id', metrika.id)
+    }
+  } catch (e) {
+    console.warn('Failed to resolve Metrika integration', e)
+  }
+}
+
+const AVITO_WIZARD_STATE_KEY = 'avito_wizard_state'
+
+const saveAvitoWizardState = () => {
+  localStorage.setItem(AVITO_WIZARD_STATE_KEY, JSON.stringify({
+    step: step.value,
+    platform: form.platform,
+    client_id: form.client_id,
+    client_name: form.client_name,
+    avito_account_id: form.avito_account_id,
+    account_id: form.account_id,
+    agency_client_login: form.agency_client_login,
+    use_profile_credentials: form.use_profile_credentials,
+    integration_id: lastIntegrationId.value
+  }))
+}
+
+const restoreAvitoWizardState = () => {
+  const raw = localStorage.getItem(AVITO_WIZARD_STATE_KEY)
+  if (!raw) return
+  try {
+    const state = JSON.parse(raw)
+    if (state.platform) form.platform = state.platform
+    if (state.client_id) form.client_id = state.client_id
+    if (state.client_name) form.client_name = state.client_name
+    if (state.avito_account_id) form.avito_account_id = state.avito_account_id
+    if (state.account_id) form.account_id = state.account_id
+    if (state.agency_client_login) form.agency_client_login = state.agency_client_login
+    if (typeof state.use_profile_credentials === 'boolean') {
+      form.use_profile_credentials = state.use_profile_credentials
+    }
+    if (state.integration_id && !lastIntegrationId.value) {
+      lastIntegrationId.value = state.integration_id
+    }
+  } catch (e) {
+    console.warn('Failed to restore Avito wizard state', e)
+  } finally {
+    localStorage.removeItem(AVITO_WIZARD_STATE_KEY)
+  }
+}
+
+const preloadAvitoCredentials = async () => {
+  if (form.platform !== 'AVITO_ADS' || !form.use_profile_credentials) return
+  try {
+    const { data } = await api.get('auth/me')
+    if (data.avito_client_id && !String(data.avito_client_id).includes('*')) {
+      form.avito_client_id = data.avito_client_id
+    }
+    if (data.avito_client_secret && !String(data.avito_client_secret).includes('*')) {
+      form.avito_client_secret = data.avito_client_secret
+    }
+  } catch (e) {
+    console.warn('Failed to preload Avito credentials', e)
+  }
+}
+
+const initYandexMetrikaAuth = async () => {
+  if (loadingMetrikaAuth.value) return
+  loadingMetrikaAuth.value = true
+  error.value = null
+  let redirected = false
+  try {
+    if (!lastIntegrationId.value) {
+      throw new Error('Сначала подключите Avito Ads')
+    }
+    saveAvitoWizardState()
+    if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
+    if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
+    localStorage.setItem('yandex_auth_for_avito', 'true')
+    localStorage.setItem('avito_integration_id', lastIntegrationId.value)
+
+    const redirectUri = `${window.location.origin}/auth/yandex/callback`
+    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    if (data?.url) {
+      redirected = true
+      toaster.info('Переходим в Яндекс OAuth для Метрики...')
+      window.location.assign(data.url)
+      return
+    }
+    throw new Error('OAuth URL не получен')
+  } catch (err) {
+    error.value = err.response?.data?.detail || err.message || 'Не удалось инициализировать OAuth Метрики'
+  } finally {
+    if (!redirected) loadingMetrikaAuth.value = false
   }
 }
 

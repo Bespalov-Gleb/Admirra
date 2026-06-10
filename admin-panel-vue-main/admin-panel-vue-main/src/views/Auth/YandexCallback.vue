@@ -126,12 +126,14 @@ onMounted(async () => {
   try {
     const clientName = localStorage.getItem('yandex_auth_client_name')
     const clientId = localStorage.getItem('yandex_auth_client_id')
+    const forAvito = localStorage.getItem('yandex_auth_for_avito') === 'true'
 
     const payload = {
       code,
       redirect_uri: redirectUri,
       client_name: clientName,
-      client_id: clientId
+      client_id: clientId,
+      platform: forAvito ? 'YANDEX_METRIKA' : 'YANDEX_DIRECT'
     }
 
     const response = await api.post('integrations/yandex/exchange', payload)
@@ -140,6 +142,25 @@ onMounted(async () => {
 
     localStorage.removeItem('yandex_auth_client_name')
     localStorage.removeItem('yandex_auth_client_id')
+    localStorage.removeItem('yandex_auth_for_avito')
+
+    if (forAvito) {
+      const avitoIntegrationId = localStorage.getItem('avito_integration_id')
+      localStorage.removeItem('avito_integration_id')
+      if (response.data.integration_id) {
+        localStorage.setItem('metrika_integration_id', response.data.integration_id)
+      }
+      toaster.success('Яндекс Метрика подключена для лидов Avito')
+      router.push({
+        path: '/integrations/wizard',
+        query: {
+          resume_integration_id: avitoIntegrationId,
+          initial_step: 3,
+          metrika_connected: '1'
+        }
+      })
+      return
+    }
 
     if (isAgency) {
       logger.info('Agency account detected, but proceeding to wizard')

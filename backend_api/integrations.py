@@ -331,12 +331,20 @@ async def exchange_yandex_token(
     redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
     client_name_input = payload.get("client_name")
     client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
-    
+    platform_input = (payload.get("platform") or "YANDEX_DIRECT").strip().upper()
+    if platform_input not in {"YANDEX_DIRECT", "YANDEX_METRIKA"}:
+        raise HTTPException(status_code=400, detail="platform должен быть YANDEX_DIRECT или YANDEX_METRIKA")
+    target_platform = (
+        models.IntegrationPlatform.YANDEX_METRIKA
+        if platform_input == "YANDEX_METRIKA"
+        else models.IntegrationPlatform.YANDEX_DIRECT
+    )
+
     if not auth_code or not redirect_uri:
         log_event("backend", "Failed to exchange Yandex token: missing code or redirect_uri")
         raise HTTPException(status_code=400, detail="Missing code or redirect_uri")
-    
-    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}, client_id: {client_id_input}")
+
+    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}, client_id: {client_id_input}, platform: {platform_input}")
 
     # 1. Exchange code for token
     async with httpx.AsyncClient() as client:
@@ -376,9 +384,12 @@ async def exchange_yandex_token(
         if client_name_input:
              client_name = client_name_input
         elif yandex_login:
-             client_name = f"Yandex Direct ({yandex_login})"
+             if target_platform == models.IntegrationPlatform.YANDEX_METRIKA:
+                 client_name = f"Yandex Metrika ({yandex_login})"
+             else:
+                 client_name = f"Yandex Direct ({yandex_login})"
         else:
-             client_name = "Yandex Direct Main"
+             client_name = "Yandex Metrika Main" if target_platform == models.IntegrationPlatform.YANDEX_METRIKA else "Yandex Direct Main"
         
         # 3. Create/Get Client
         # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
@@ -420,17 +431,17 @@ async def exchange_yandex_token(
         # 4. Save Integration
         db_integration = db.query(models.Integration).filter(
             models.Integration.client_id == client.id,
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT
+            models.Integration.platform == target_platform
         ).first()
 
         encrypted_access = security.encrypt_token(access_token)
         encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-        
+
         # Store Yandex Login as account_id for display
         final_account_id = yandex_login if yandex_login else "Unknown"
         # Store User ID as platform_client_id (optional, but good for reference)
         encrypted_platform_id = security.encrypt_token(yandex_user_id) if yandex_user_id else None
-        
+
         if db_integration:
             db_integration.access_token = encrypted_access
             db_integration.refresh_token = encrypted_refresh
@@ -441,7 +452,7 @@ async def exchange_yandex_token(
             SubscriptionService.ensure_can_create_cabinet(db, current_user)
             db_integration = models.Integration(
                 client_id=client.id,
-                platform=models.IntegrationPlatform.YANDEX_DIRECT,
+                platform=target_platform,
                 access_token=encrypted_access,
                 refresh_token=encrypted_refresh,
                 account_id=final_account_id,
