@@ -42,6 +42,11 @@ class User(Base):
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     # Используется при запросе баланса через AccountManagement API.
     yandex_finance_token = Column(String, nullable=True)
+    # Avito Ads credentials (encrypted)
+    avito_credential_type = Column(String(32), nullable=True)
+    avito_api_key = Column(String, nullable=True)
+    avito_client_id = Column(String, nullable=True)
+    avito_client_secret = Column(String, nullable=True)
     # Настройки доставки отчётов
     report_telegram_chat_id = Column(String, nullable=True)
     report_max_chat_id = Column(String, nullable=True)
