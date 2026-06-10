@@ -2995,7 +2995,20 @@ async def discover_campaigns(
             logger.info(f"✅ VK Ads: Discovered {len(discovered_campaigns)} campaigns (no cabinet filter applied)")
         
         log_event("vk", f"discovered {len(discovered_campaigns)} campaigns")
-        
+
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        try:
+            avito_api = _build_avito_api_from_integration(integration)
+            discovered_campaigns = await avito_api.get_campaigns(integration.account_id)
+            logger.info(f"✅ Avito Ads: discovered {len(discovered_campaigns)} campaigns for account {integration.account_id}")
+        except Exception as e:
+            logger.exception(f"Avito Ads discover_campaigns failed (integration {integration_id}): {e}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Не удалось получить кампании из Avito Рекламы: {str(e)[:300]}",
+            )
+        log_event("avito", f"discovered {len(discovered_campaigns)} campaigns")
+
     # Save to DB
     logger.info(f"💾 Saving {len(discovered_campaigns)} campaigns to database for integration {integration_id}")
     saved_count = 0
@@ -3250,7 +3263,36 @@ async def get_campaigns_stats(
                 "cost": float(stat.cost or 0),
                 "conversions": int(stat.conversions or 0)
             })
-    
+
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        stats_query = db.query(
+            models.Campaign.id,
+            models.Campaign.external_id,
+            models.Campaign.name,
+            func.sum(models.AvitoStats.impressions).label('impressions'),
+            func.sum(models.AvitoStats.clicks).label('clicks'),
+            func.sum(models.AvitoStats.cost).label('cost'),
+        ).join(
+            models.AvitoStats, models.Campaign.id == models.AvitoStats.campaign_id
+        ).filter(
+            models.Campaign.integration_id == integration_id,
+            models.AvitoStats.date >= date_from_obj,
+            models.AvitoStats.date <= date_to_obj
+        ).group_by(
+            models.Campaign.id, models.Campaign.external_id, models.Campaign.name
+        ).all()
+
+        for stat in stats_query:
+            campaigns_stats.append({
+                "id": str(stat.id),
+                "external_id": stat.external_id,
+                "name": stat.name,
+                "impressions": int(stat.impressions or 0),
+                "clicks": int(stat.clicks or 0),
+                "cost": float(stat.cost or 0),
+                "conversions": 0,
+            })
+
     # Also include campaigns without stats (newly discovered)
     # CRITICAL: Filter out campaigns that don't belong to this profile
     # Get list of valid campaign IDs from the most recent discover-campaigns call
