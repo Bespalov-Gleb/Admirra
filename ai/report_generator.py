@@ -25,17 +25,10 @@ def _num(value, digits: int = 2) -> float:
         return 0.0
 
 
-def _create_anthropic_client():
-    try:
-        from anthropic import AsyncAnthropic
-    except ImportError:
-        raise ImportError("Установите anthropic: pip install anthropic")
-
-    base_url = (getattr(settings, "OPENAI_BASE_URL", "") or "").strip().rstrip("/")
-    kwargs = {"api_key": settings.OPENAI_API_KEY}
-    if base_url:
-        kwargs["base_url"] = base_url
-    return AsyncAnthropic(**kwargs)
+def _create_openai_client():
+    from openai import AsyncOpenAI
+    base_url = (getattr(settings, "OPENAI_BASE_URL", "") or "").strip().rstrip("/") or None
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=base_url)
 
 
 async def generate_report(
@@ -81,7 +74,7 @@ async def generate_report(
 
     context = _build_context(summary, top_campaigns, start_date, end_date)
 
-    client = _create_anthropic_client()
+    client = _create_openai_client()
 
     system_prompt = """Ты — профессиональный аналитик рекламных кампаний с экспертизой в Яндекс Директ и ВК Реклама.
 
@@ -128,20 +121,22 @@ async def generate_report(
     user_message = f"Данные за период {start_date} — {end_date}:\n\n{context}"
 
     try:
-        logger.info("generate_report: calling Anthropic API (model=%s)", settings.OPENAI_MODEL)
-        response = await client.messages.create(
+        logger.info("generate_report: calling OpenAI-compatible API (model=%s)", settings.OPENAI_MODEL)
+        response = await client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
             temperature=1.0,
         )
-        text = response.content[0].text if response.content else ""
+        text = response.choices[0].message.content if response.choices else ""
         result = text.strip()
-        logger.info("generate_report: Anthropic returned %d chars", len(result))
+        logger.info("generate_report: API returned %d chars", len(result))
         return result
     except Exception as e:
-        logger.exception("Anthropic API error: %s", e)
+        logger.exception("OpenAI API error: %s", e)
         raise
 
 
@@ -370,7 +365,7 @@ async def chat(
         raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
 
     context = assistant_context_to_text(build_assistant_context(db, user_id, client_id, start_date, end_date))
-    client = _create_anthropic_client()
+    client = _create_openai_client()
 
     system_prompt = f"""Ты — аналитик рекламных кампаний. Отвечай на вопросы пользователя на основе данных дашборда.
 Данные за период {start_date} — {end_date}:
@@ -384,8 +379,7 @@ async def chat(
 - Не генерируй отчёты и аудиты в чате: для таких запросов скажи, что это отдельный раздел.
 - Отвечай кратко, на русском языке, с конкретными числами."""
 
-    # Anthropic: system — отдельный параметр, в messages только user/assistant
-    messages = []
+    messages = [{"role": "system", "content": system_prompt}]
     for h in (history or []):
         role = h.get("role")
         content = h.get("content") or ""
@@ -394,15 +388,14 @@ async def chat(
     messages.append({"role": "user", "content": user_message})
 
     try:
-        response = await client.messages.create(
+        response = await client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             max_tokens=2048,
-            system=system_prompt,
             messages=messages,
             temperature=1.0,
         )
-        text = response.content[0].text if response.content else ""
+        text = response.choices[0].message.content if response.choices else ""
         return text.strip()
     except Exception as e:
-        logger.exception("Anthropic API error: %s", e)
+        logger.exception("OpenAI API error: %s", e)
         raise
