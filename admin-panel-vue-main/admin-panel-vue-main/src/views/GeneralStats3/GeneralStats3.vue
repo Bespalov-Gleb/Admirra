@@ -4387,11 +4387,7 @@ onMounted(() => {
 .report-icon-btn.active .telegram-icon {
   background: #fff;
 }
-/* Telegram connected-not-active: soft teal hint like MAX's blue hint */
-.report-icon-btn.connected:not(.active) .report-icon-circle:has(.telegram-icon) {
-  background: #dcf4ff;
-  color: #1da1c8;
-}
+/* Telegram connected-not-active falls through to generic rule → same as MAX */
 
 .report-link-overlay {
   position: fixed;
