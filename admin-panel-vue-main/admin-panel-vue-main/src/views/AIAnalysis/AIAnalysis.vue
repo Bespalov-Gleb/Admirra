@@ -166,12 +166,15 @@
               placeholder="Спросите, например: почему вырос CPL по заявкам?"
               @keydown.enter.exact.prevent="sendMessage()"
             />
-            <button type="button" class="ai-save-prompt-btn" :disabled="!inputMessage.trim()" @click="openPromptModal(null, inputMessage)">
-              Сохранить как промпт
-            </button>
-            <button type="submit" class="ai-send-btn" :disabled="sending || !inputMessage.trim() || !selectedProjectId">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            </button>
+            <div class="ai-composer-toolbar">
+              <button type="button" class="ai-save-prompt-btn" :disabled="!inputMessage.trim()" @click="openPromptModal(null, inputMessage)" title="Сохранить как промпт">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              </button>
+              <span class="ai-composer-toolbar-spacer"></span>
+              <button type="submit" class="ai-send-btn" :disabled="sending || !inputMessage.trim() || !selectedProjectId">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
           </form>
           <p class="ai-composer-hint">1 запрос из лимита тарифа за каждое отправленное сообщение.</p>
         </div>
@@ -542,23 +545,32 @@ const vClickOutside = {
 .ai-composer { border-top: 1px solid rgba(0,0,0,0.06); padding: 0.8333rem 1.0417rem; }
 :global(.dark) .ai-composer { border-top-color: rgba(255,255,255,0.08); }
 
-.ai-composer-form { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 0.4861rem; align-items: end; }
-.ai-composer-form textarea { min-height: 3.1944rem; max-height: 6.9444rem; resize: vertical; border: 1px solid rgba(0,0,0,0.08); border-radius: 0.8333rem; background: #f5f7f9; color: #171717; padding: 0.6944rem 1.0417rem; outline: none; font: inherit; font-size: 0.9028rem; transition: border-color 0.2s; }
-.ai-composer-form textarea:focus { border-color: #2563eb; }
-:global(.dark) .ai-composer-form textarea { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.1); }
+.ai-composer-form { display: flex; flex-direction: column; border: 1.5px solid rgba(0,0,0,0.09); border-radius: 0.9722rem; background: #f8f9fb; overflow: hidden; transition: border-color 0.18s, box-shadow 0.18s; }
+.ai-composer-form:focus-within { border-color: rgba(37,99,235,0.38); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+:global(.dark) .ai-composer-form { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+:global(.dark) .ai-composer-form:focus-within { border-color: rgba(74,122,255,0.4); box-shadow: 0 0 0 3px rgba(74,122,255,0.1); }
 
-.ai-save-prompt-btn { height: 3.1944rem; padding: 0 1.0417rem; border: 0; border-radius: 0.8333rem; background: transparent; color: #2563eb; font-size: 0.8333rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.2s; }
-.ai-save-prompt-btn:hover { background: #ecf3fe; }
-.ai-save-prompt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-:global(.dark) .ai-save-prompt-btn { color: #4A7AFF; }
-:global(.dark) .ai-save-prompt-btn:hover { background: rgba(255,255,255,0.06); }
+.ai-composer-form textarea { flex: 1; min-height: 2.9167rem; max-height: 7.6389rem; resize: none; border: none; background: transparent; color: #171717; padding: 0.7639rem 0.9722rem; outline: none; font: inherit; font-size: 0.9028rem; line-height: 1.55; }
+:global(.dark) .ai-composer-form textarea { color: rgba(255,255,255,0.88); }
+.ai-composer-form textarea::placeholder { color: rgba(105,105,105,0.5); }
+:global(.dark) .ai-composer-form textarea::placeholder { color: rgba(255,255,255,0.3); }
 
-.ai-send-btn { width: 3.1944rem; height: 3.1944rem; border: 0; border-radius: 0.8333rem; background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.3s; }
-.ai-send-btn:hover { transform: scale(1.05); }
-.ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.ai-composer-toolbar { display: flex; align-items: center; gap: 0.3472rem; padding: 0.4167rem 0.5556rem; border-top: 1px solid rgba(0,0,0,0.06); }
+:global(.dark) .ai-composer-toolbar { border-top-color: rgba(255,255,255,0.07); }
+.ai-composer-toolbar-spacer { flex: 1; }
 
-.ai-composer-hint { margin: 0.4861rem 0 0; color: rgba(105,105,105,0.45); font-size: 0.7639rem; }
-:global(.dark) .ai-composer-hint { color: rgba(255,255,255,0.3); }
+.ai-save-prompt-btn { display: flex; align-items: center; justify-content: center; width: 2.0833rem; height: 2.0833rem; border: none; border-radius: 0.5556rem; background: transparent; color: rgba(105,105,105,0.6); cursor: pointer; transition: background 0.15s, color 0.15s; flex-shrink: 0; }
+.ai-save-prompt-btn:hover { background: rgba(37,99,235,0.08); color: #2563eb; }
+.ai-save-prompt-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+:global(.dark) .ai-save-prompt-btn { color: rgba(255,255,255,0.4); }
+:global(.dark) .ai-save-prompt-btn:hover { background: rgba(74,122,255,0.12); color: #4A7AFF; }
+
+.ai-send-btn { display: flex; align-items: center; justify-content: center; width: 2.3611rem; height: 2.3611rem; border: none; border-radius: 0.6944rem; background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%); color: #fff; cursor: pointer; transition: opacity 0.15s, transform 0.2s cubic-bezier(0.16,1,0.3,1); flex-shrink: 0; }
+.ai-send-btn:hover { opacity: 0.88; transform: scale(1.06); }
+.ai-send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.ai-composer-hint { margin: 0.4167rem 0 0; color: rgba(105,105,105,0.4); font-size: 0.7639rem; }
+:global(.dark) .ai-composer-hint { color: rgba(255,255,255,0.28); }
 
 .ai-limit-card { display: flex; align-items: center; justify-content: space-between; gap: 1.0417rem; border-radius: 0.8333rem; padding: 0.8333rem 1.0417rem; background: #fff7ed; color: #9a3412; }
 :global(.dark) .ai-limit-card { background: rgba(234,88,12,0.1); color: #fb923c; }
@@ -584,8 +596,7 @@ const vClickOutside = {
 @media (max-width: 980px) {
   .ai-shell { grid-template-columns: 1fr; }
   .ai-rail { max-height: 20.8333rem; }
-  .ai-composer-form { grid-template-columns: 1fr; }
-  .ai-save-prompt-btn, .ai-send-btn { width: 100%; }
+  .ai-composer-form { flex-direction: column; }
   .ai-msg-bubble { max-width: 92%; }
 }
 </style>
