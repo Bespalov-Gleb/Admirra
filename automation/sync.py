@@ -20,6 +20,7 @@ import logging
 import json
 import os
 import uuid
+from typing import Optional
 from core.config import get_config
 
 cfg = get_config()
@@ -246,6 +247,7 @@ async def _sync_metrika_goals_for_direct(
     date_to: str,
     access_token: str,
     selected_profile: str = None,
+    filters: Optional[str] = None,
 ):
     """
     Sync selected Metrika goals for a Yandex Direct integration.
@@ -368,6 +370,7 @@ async def _sync_metrika_goals_for_direct(
                         sync_date_from,
                         sync_date_to,
                         metrics=metrics,
+                        filters=filters,
                     )
                 except Exception as batch_err:
                     logger.warning(
@@ -1302,7 +1305,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         date_to,
                         metrika_token,
                         selected_profile,
-                        direct_traffic_only=False,
+                        filters="ym:s:UTMSource=='avito-ads'",
                     )
                 except Exception as metrika_err:
                     logger.warning(
