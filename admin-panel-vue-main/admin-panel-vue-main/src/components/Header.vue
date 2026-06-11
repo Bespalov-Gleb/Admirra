@@ -25,7 +25,7 @@
 
         <!-- Project dropdown -->
         <Transition name="dropdown">
-          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[17rem] -translate-x-1/2">
+          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[21rem] -translate-x-1/2">
             <div class="hd-panel">
               <div class="hd-section-label">Мои проекты</div>
               <ul class="hd-menu-list">
@@ -114,7 +114,7 @@
         <Transition name="dropdown">
           <div
             v-if="showUsagePopover"
-            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[20rem]"
+            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[23rem]"
           >
             <div class="usage-popover hd-panel" style="padding:1.3889rem 1.3889rem 1.1111rem;">
               <div class="usage-popover-header">
@@ -253,7 +253,7 @@
           </button>
 
           <Transition name="dropdown">
-            <div v-if="isProfileMenuOpen" class="absolute top-full right-0 z-50 w-[15.2778rem] mt-2">
+            <div v-if="isProfileMenuOpen" class="absolute top-full right-0 z-50 w-[18rem] mt-2">
               <div class="hd-panel">
                 <div class="hd-profile-header">
                   <div class="hd-profile-avatar">{{ displayName.charAt(0).toUpperCase() }}</div>
@@ -817,10 +817,10 @@ watch(
 /* ── Dropdown panel system ── */
 .hd-panel {
   background: #fff;
-  border-radius: 0.9722rem;
+  border-radius: 1.0417rem;
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
   overflow: hidden;
-  padding: 0.3472rem;
+  padding: 0.4167rem;
 }
 :global(.dark) .hd-panel {
   background: #2C2F3D;
@@ -828,8 +828,8 @@ watch(
 }
 
 .hd-section-label {
-  padding: 0.3472rem 0.5556rem 0.2083rem;
-  font-size: 0.7222rem;
+  padding: 0.5rem 0.75rem 0.3rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: rgba(105,105,105,0.5);
   letter-spacing: 0.015em;
@@ -841,14 +841,14 @@ watch(
 .hd-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.5556rem;
+  gap: 0.6944rem;
   width: 100%;
-  padding: 0.4861rem 0.5556rem;
+  padding: 0.6111rem 0.75rem;
   border: none;
-  border-radius: 0.6944rem;
+  border-radius: 0.75rem;
   background: transparent;
   text-align: left;
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   color: #374151;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
@@ -864,8 +864,8 @@ watch(
 :global(.dark) .hd-menu-item--danger:hover { background: rgba(248,113,113,0.08); color: #f87171; }
 
 .hd-menu-icon {
-  width: 1.5278rem;
-  height: 1.5278rem;
+  width: 1.7rem;
+  height: 1.7rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -879,8 +879,8 @@ watch(
 .hd-menu-item-label { min-width: 0; }
 
 .hd-project-avatar {
-  width: 1.6667rem;
-  height: 1.6667rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 50%;
   flex-shrink: 0;
   background: #e8eef9;
@@ -896,20 +896,20 @@ watch(
 .hd-divider {
   height: 1px;
   background: rgba(0,0,0,0.06);
-  margin: 0.2778rem 0.2083rem;
+  margin: 0.3333rem 0.25rem;
 }
 :global(.dark) .hd-divider { background: rgba(255,255,255,0.07); }
 
 .hd-create-item {
   display: flex;
   align-items: center;
-  gap: 0.5556rem;
+  gap: 0.6944rem;
   width: 100%;
-  padding: 0.4861rem 0.5556rem;
+  padding: 0.6111rem 0.75rem;
   border: none;
-  border-radius: 0.6944rem;
+  border-radius: 0.75rem;
   background: transparent;
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   font-weight: 500;
   color: #2563eb;
   cursor: pointer;
@@ -920,8 +920,8 @@ watch(
 :global(.dark) .hd-create-item:hover { background: rgba(74,122,255,0.1); }
 
 .hd-create-icon {
-  width: 1.5278rem;
-  height: 1.5278rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 50%;
   background: rgba(37,99,235,0.1);
   display: flex;
@@ -935,12 +935,12 @@ watch(
 .hd-profile-header {
   display: flex;
   align-items: center;
-  gap: 0.6944rem;
-  padding: 0.5556rem 0.5556rem 0.6944rem;
+  gap: 0.75rem;
+  padding: 0.75rem 0.75rem 0.8333rem;
 }
 .hd-profile-avatar {
-  width: 2.1528rem;
-  height: 2.1528rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
   display: flex;
@@ -952,7 +952,7 @@ watch(
   flex-shrink: 0;
 }
 .hd-profile-name {
-  font-size: 0.9028rem;
+  font-size: 0.9722rem;
   font-weight: 600;
   color: #111827;
   line-height: 1.3;

@@ -496,22 +496,36 @@
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
           <svg ref="chartSvgRef" :viewBox="`0 0 ${CHART_VIEWBOX_WIDTH} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
+            <defs>
+              <linearGradient
+                v-for="series in chartSeries"
+                :key="`grad-${series.key}`"
+                :id="`cg-${series.key}`"
+                x1="0" :y1="CHART_TOP" x2="0" :y2="CHART_BOTTOM"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" :stop-color="series.color" stop-opacity="0.22" />
+                <stop offset="85%" :stop-color="series.color" stop-opacity="0.03" />
+                <stop offset="100%" :stop-color="series.color" stop-opacity="0" />
+              </linearGradient>
+            </defs>
             <g class="grid-lines">
               <line v-for="y in chartGridLines" :key="y" :x1="CHART_GRID_LEFT" :y1="y" :x2="CHART_GRID_RIGHT" :y2="y" />
             </g>
+            <line class="axis-y-line" :x1="CHART_GRID_LEFT" :y1="CHART_TOP" :x2="CHART_GRID_LEFT" :y2="CHART_BOTTOM" />
             <path
-              v-for="series in chartSeries"
+              v-for="(series, si) in chartSeries"
               :key="`${series.key}-fill`"
               class="chart-fill"
               :d="series.fillPath"
-              :style="{ fill: toRgba(series.color, 0.14) }"
+              :style="{ fill: `url(#cg-${series.key})`, animationDelay: `${0.2 + si * 0.1}s` }"
             />
             <path
-              v-for="series in chartSeries"
+              v-for="(series, si) in chartSeries"
               :key="`${series.key}-line`"
               class="chart-line"
               :d="series.path"
-              :style="{ stroke: series.color }"
+              :style="{ stroke: series.color, animationDelay: `${si * 0.12}s` }"
             />
             <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="CHART_TOP" :x2="chartHoverX" :y2="CHART_BOTTOM" />
             <circle
@@ -520,7 +534,7 @@
               class="chart-hover-dot"
               :cx="series.point.x"
               :cy="series.point.y"
-              r="4.5"
+              r="5.5"
               :style="{ fill: series.color }"
             />
             <g class="axis-labels">
@@ -5571,32 +5585,51 @@ onMounted(() => {
 }
 
 .grid-lines line {
-  stroke: #f1f3f5;
-  stroke-width: 0.8;
+  stroke: rgba(0,0,0,0.05);
+  stroke-width: 1;
+}
+
+.axis-y-line {
+  stroke: rgba(0,0,0,0.08);
+  stroke-width: 1;
+}
+
+@keyframes chart-draw {
+  from { stroke-dashoffset: 5000; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes chart-fill-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .chart-fill {
   pointer-events: none;
+  animation: chart-fill-in 1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .chart-line {
   fill: none;
-  stroke-width: 2.4;
+  stroke-width: 2.6;
   stroke-linejoin: round;
   stroke-linecap: round;
-  filter: drop-shadow(0 0.4rem 0.8rem rgba(37, 99, 235, 0.06));
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.12));
+  stroke-dasharray: 5000;
+  animation: chart-draw 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .chart-area circle {
   fill: #2563eb;
   stroke: #fff;
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 
 .axis-labels text {
-  fill: rgba(43, 48, 52, 0.35);
-  font-size: 1rem;
+  fill: rgba(43, 48, 52, 0.45);
+  font-size: 1.4rem;
   font-family: Inter, system-ui, sans-serif;
+  font-weight: 500;
 }
 
 .axis-label--active {
@@ -5606,15 +5639,15 @@ onMounted(() => {
 
 .chart-hover-line {
   stroke: #94a3b8;
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-  opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
 }
 
 .chart-hover-dot {
   stroke: #fff;
-  stroke-width: 2.5;
-  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.25));
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.35));
 }
 
 .chart-tooltip {
@@ -6847,7 +6880,7 @@ onMounted(() => {
 }
 
 .axis-labels text {
-  font-size: 0.7639rem;
+  font-size: 1.15rem;
 }
 
 .goals-content {
@@ -8431,7 +8464,11 @@ onMounted(() => {
 }
 
 .figma-dashboard.is-dark .grid-lines line {
-  stroke: rgba(255, 255, 255, 0.08);
+  stroke: rgba(255, 255, 255, 0.07);
+}
+
+.figma-dashboard.is-dark .axis-y-line {
+  stroke: rgba(255, 255, 255, 0.1);
 }
 
 .figma-dashboard.is-dark .chart-area circle {
