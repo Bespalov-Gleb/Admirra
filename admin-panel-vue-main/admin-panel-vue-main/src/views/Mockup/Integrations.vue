@@ -61,7 +61,7 @@
     </div>
 
     <!-- Cards grid -->
-    <div v-else class="grid grid-cols-1 gap-[1.0417rem]">
+    <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-[1.0417rem]">
       <div
         v-for="item in filteredIntegrations"
         :key="item.id"
