@@ -501,32 +501,36 @@ async def get_dynamics(
 
     # Metrica Goals dynamics — при "все кампании" НЕ фильтруем по integration
     m_integration_ids = None
+    campaign_platforms = []
     if u_campaign_ids:
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
         ).distinct().all()
         m_integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+        campaign_platforms = [
+            row[0]
+            for row in db.query(models.Integration.platform)
+            .filter(models.Integration.id.in_(m_integration_ids))
+            .distinct()
+            .all()
+        ]
+        if campaign_platforms and all(p == models.IntegrationPlatform.AVITO_ADS for p in campaign_platforms):
+            m_integration_ids = None
+
+    metrika_goal_platform = platform
+    if platform == "all" and campaign_platforms:
+        if all(p == models.IntegrationPlatform.AVITO_ADS for p in campaign_platforms):
+            metrika_goal_platform = "avito"
+        elif all(p == models.IntegrationPlatform.YANDEX_DIRECT for p in campaign_platforms):
+            metrika_goal_platform = "yandex"
     
     m_stats = []
     if platform in ["all", "yandex", "avito"]:
         # Важно: используем тот же фильтр selected_goals, что и в summary,
         # чтобы суточные лиды на графике совпадали с итогом за период.
-        selected_goal_ids = set()
-        for i in db.query(models.Integration).filter(
-            models.Integration.client_id.in_(effective_client_ids),
-            models.Integration.platform.in_([
-                models.IntegrationPlatform.YANDEX_DIRECT,
-                models.IntegrationPlatform.YANDEX_METRIKA,
-            ]),
-        ).all():
-            if i.selected_goals:
-                try:
-                    sg = json.loads(i.selected_goals) if isinstance(i.selected_goals, str) else i.selected_goals
-                    selected_goal_ids.update(str(g) for g in (sg or []))
-                except Exception:
-                    pass
-            if i.primary_goal_id:
-                selected_goal_ids.add(str(i.primary_goal_id))
+        selected_goal_ids = set(
+            StatsService.get_selected_metrika_goal_ids(db, effective_client_ids, metrika_goal_platform)
+        )
 
         # Лиды по дням = сумма по всем целям (как в summary и на круговой диаграмме)
         m_query = db.query(
@@ -541,6 +545,8 @@ async def get_dynamics(
 
         if selected_goal_ids:
             m_query = m_query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+        elif metrika_goal_platform == "avito":
+            m_query = m_query.filter(models.MetrikaGoals.goal_id == "__no_avito_goal_selected__")
         
         # CRITICAL: Filter MetrikaGoals by integration_id to match campaign selection
         if m_integration_ids:
@@ -566,6 +572,31 @@ async def get_dynamics(
         y_scope_cost_by_date = {
             row.date: float((row.cost or 0) or 0)
             for row in y_scope_q.group_by(models.YandexStats.date).all()
+        }
+
+    avito_scope_cost_by_date = {}
+    if u_campaign_ids and platform in ["all", "avito"] and models.IntegrationPlatform.AVITO_ADS in campaign_platforms:
+        avito_integration_ids = [
+            row[0]
+            for row in db.query(models.Campaign.integration_id)
+            .filter(models.Campaign.id.in_(u_campaign_ids))
+            .distinct()
+            .all()
+            if row[0]
+        ]
+        avito_scope_q = db.query(
+            models.AvitoStats.date,
+            func.sum(models.AvitoStats.cost).label("cost")
+        ).join(models.Campaign, models.AvitoStats.campaign_id == models.Campaign.id).filter(
+            models.AvitoStats.client_id.in_(effective_client_ids),
+            models.AvitoStats.date >= d_start,
+            models.AvitoStats.date <= d_end
+        )
+        if avito_integration_ids:
+            avito_scope_q = avito_scope_q.filter(models.Campaign.integration_id.in_(avito_integration_ids))
+        avito_scope_cost_by_date = {
+            row.date: float((row.cost or 0) or 0)
+            for row in avito_scope_q.group_by(models.AvitoStats.date).all()
         }
 
     selected_platforms = [
@@ -603,7 +634,16 @@ async def get_dynamics(
         if platform == "vk":
             le = vk_le
         elif platform == "avito":
-            le = metrika_le
+            if u_campaign_ids:
+                selected_avito_cost = float((a_s.cost if a_s else 0) or 0)
+                avito_scope_cost = avito_scope_cost_by_date.get(d, selected_avito_cost)
+                le = (
+                    int(round(metrika_le * (selected_avito_cost / avito_scope_cost)))
+                    if metrika_le > 0 and selected_avito_cost > 0 and avito_scope_cost > 0
+                    else 0
+                )
+            else:
+                le = metrika_le
         elif u_campaign_ids:
             selected_yandex_cost = float((y_s.cost if y_s else 0) or 0)
             yandex_scope_cost = y_scope_cost_by_date.get(d, selected_yandex_cost)
@@ -612,7 +652,20 @@ async def get_dynamics(
                 if metrika_le > 0 and selected_yandex_cost > 0 and yandex_scope_cost > 0
                 else 0
             )
-            le = yandex_metrika_le + vk_le
+            selected_avito_cost = float((a_s.cost if a_s else 0) or 0)
+            avito_scope_cost = avito_scope_cost_by_date.get(d, selected_avito_cost)
+            avito_metrika_le = (
+                int(round(metrika_le * (selected_avito_cost / avito_scope_cost)))
+                if metrika_le > 0 and selected_avito_cost > 0 and avito_scope_cost > 0
+                else 0
+            )
+            selected_has_yandex = models.IntegrationPlatform.YANDEX_DIRECT in campaign_platforms
+            selected_has_avito = models.IntegrationPlatform.AVITO_ADS in campaign_platforms
+            le = (
+                (yandex_metrika_le if selected_has_yandex or not campaign_platforms else 0)
+                + vk_le
+                + (avito_metrika_le if selected_has_avito else 0)
+            )
         elif mixed_goal_types:
             le = 0
         else:
@@ -995,10 +1048,12 @@ async def get_top_clients(
 
     yandex_costs = db.query(models.YandexStats.client_id, func.sum(models.YandexStats.cost).label("total_cost")).filter(models.YandexStats.client_id.in_(client_ids)).group_by(models.YandexStats.client_id).all()
     vk_costs = db.query(models.VKStats.client_id, func.sum(models.VKStats.cost).label("total_cost")).filter(models.VKStats.client_id.in_(client_ids)).group_by(models.VKStats.client_id).all()
+    avito_costs = db.query(models.AvitoStats.client_id, func.sum(models.AvitoStats.cost).label("total_cost")).filter(models.AvitoStats.client_id.in_(client_ids)).group_by(models.AvitoStats.client_id).all()
 
     expenses_map = {cid: 0 for cid in client_ids}
     for cid, cost in yandex_costs: expenses_map[cid] += float(cost or 0)
     for cid, cost in vk_costs: expenses_map[cid] += float(cost or 0)
+    for cid, cost in avito_costs: expenses_map[cid] += float(cost or 0)
 
     results = []
     total_all = 0
@@ -1020,7 +1075,7 @@ async def get_goals(
     integration_id: Optional[uuid.UUID] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    platform: Optional[str] = Query("all", description="yandex | vk | all"),
+    platform: Optional[str] = Query("all", description="yandex | vk | avito | all"),
     campaign_ids: Optional[str] = Query(None, description="comma-separated campaign UUIDs (для VK)"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
@@ -1029,7 +1084,8 @@ async def get_goals(
     Get goals for the current client from database.
     - platform=yandex: Metrika goals (конверсии по целям Метрики)
     - platform=vk: VK goal actions (разбивка по типам ЦД: подписчики, трафик, лид-формы и т.д.)
-    - platform=all: Yandex only (Metrika). VK при all не показываем — разные метрики.
+    - platform=avito: лиды Avito из Яндекс.Метрики по выбранным целям
+    - platform=all: Metrika goals; VK при all не показываем — разные метрики.
     
     Cost is calculated by distributing total ad spend proportionally to conversions.
     """
@@ -1161,33 +1217,41 @@ async def get_goals(
 
         return result
 
-    # ——— Yandex / all: Metrika goals ———
-    yandex_integrations_query = db.query(models.Integration).filter(
-        models.Integration.client_id.in_(effective_client_ids),
-        models.Integration.platform.in_([
+    # ——— Yandex / Avito / all: Metrika goals ———
+    metrika_goal_integration_id = integration_id
+    if integration_id and platform_key == "avito":
+        source_integration = db.query(models.Integration).filter(
+            models.Integration.id == integration_id,
+            models.Integration.client_id.in_(effective_client_ids),
+        ).first()
+        if source_integration and source_integration.platform == models.IntegrationPlatform.AVITO_ADS:
+            metrika_goal_integration_id = None
+
+    if platform_key == "avito":
+        goal_platforms = [models.IntegrationPlatform.YANDEX_METRIKA]
+    elif platform_key == "yandex":
+        goal_platforms = [models.IntegrationPlatform.YANDEX_DIRECT]
+    else:
+        goal_platforms = [
             models.IntegrationPlatform.YANDEX_DIRECT,
             models.IntegrationPlatform.YANDEX_METRIKA,
-        ]),
+        ]
+
+    yandex_integrations_query = db.query(models.Integration).filter(
+        models.Integration.client_id.in_(effective_client_ids),
+        models.Integration.platform.in_(goal_platforms),
     )
-    if integration_id:
-        yandex_integrations_query = yandex_integrations_query.filter(models.Integration.id == integration_id)
+    if metrika_goal_integration_id:
+        yandex_integrations_query = yandex_integrations_query.filter(models.Integration.id == metrika_goal_integration_id)
     yandex_integrations = yandex_integrations_query.all()
 
-    selected_goal_ids = []
-    for integration in yandex_integrations:
-        if integration.selected_goals:
-            try:
-                sg = json.loads(integration.selected_goals) if isinstance(integration.selected_goals, str) else integration.selected_goals
-                for goal_id in sg or []:
-                    goal_id = str(goal_id)
-                    if goal_id and goal_id not in selected_goal_ids:
-                        selected_goal_ids.append(goal_id)
-            except Exception:
-                pass
-        if integration.primary_goal_id:
-            primary_goal = str(integration.primary_goal_id)
-            if primary_goal not in selected_goal_ids:
-                selected_goal_ids.append(primary_goal)
+    selected_goal_ids = StatsService.get_selected_metrika_goal_ids(
+        db,
+        effective_client_ids,
+        platform_key,
+    )
+    if platform_key == "avito" and not selected_goal_ids:
+        return []
 
     query = db.query(
         models.MetrikaGoals.goal_id,
@@ -1198,8 +1262,8 @@ async def get_goals(
         models.MetrikaGoals.date <= date_to_obj,
         models.MetrikaGoals.goal_id != "all",
     )
-    if integration_id:
-        query = query.filter(models.MetrikaGoals.integration_id == integration_id)
+    if metrika_goal_integration_id:
+        query = query.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
     if selected_goal_ids:
         query = query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
     current_counts = {
@@ -1214,8 +1278,8 @@ async def get_goals(
         models.MetrikaGoals.client_id.in_(effective_client_ids),
         models.MetrikaGoals.goal_id != "all",
     )
-    if integration_id:
-        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id == integration_id)
+    if metrika_goal_integration_id:
+        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
     if selected_goal_ids:
         latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
     latest_names = {}
@@ -1237,9 +1301,9 @@ async def get_goals(
             models.MetrikaGoals.goal_id.in_(selected_goal_ids)
         )
     has_any_period_goal_rows = has_any_period_goal_rows.scalar() or 0
-    if integration_id:
+    if metrika_goal_integration_id:
         has_any_period_goal_rows = db.query(func.count(models.MetrikaGoals.id)).filter(
-            models.MetrikaGoals.integration_id == integration_id,
+            models.MetrikaGoals.integration_id == metrika_goal_integration_id,
             models.MetrikaGoals.date >= date_from_obj,
             models.MetrikaGoals.date <= date_to_obj,
             models.MetrikaGoals.goal_id != "all",
@@ -1281,8 +1345,8 @@ async def get_goals(
             models.MetrikaGoals.date >= prev_date_from,
             models.MetrikaGoals.date <= prev_date_to
         )
-        if integration_id:
-            prev_count = prev_count.filter(models.MetrikaGoals.integration_id == integration_id)
+        if metrika_goal_integration_id:
+            prev_count = prev_count.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
         prev_count = prev_count.scalar() or 0
 
         current_count = int(current_counts.get(str(goal_id), 0) or 0)
@@ -1345,7 +1409,7 @@ def get_integrations_status(
             if row.balance is not None and platform_data[p].get("balance") is not None:
                 platform_data[p]["balance"] = (platform_data[p]["balance"] or 0) + float(row.balance)
 
-    all_platforms = ["yandex_direct", "vk_ads", "google_ads", "facebook_ads", "instagram", "telegram"]
+    all_platforms = ["yandex_direct", "vk_ads", "avito_ads", "google_ads", "facebook_ads", "instagram", "telegram"]
     return [
         platform_data.get(p, {"platform": p, "is_connected": False, "balance": None, "currency": None})
         for p in all_platforms

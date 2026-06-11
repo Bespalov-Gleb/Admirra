@@ -236,7 +236,7 @@
                     <img width="18" :src="balancePlatform(project).icon" :alt="balancePlatform(project).label" />
                     <div :class="['px-[0.6944rem] text-[0.9028rem]', balancePlatform(project).textClass]">{{ balancePlatform(project).label }}</div>
                     <div :class="['inline-flex min-h-[1.5278rem] items-center rounded-full bg-white px-[0.5556rem] text-center text-[0.7639rem] dark:bg-white/10', balancePlatform(project).textClass]">
-                      {{ formatMoney(withVat(getProjectMetric(project.id).balance)) }}
+                      {{ formatMoney(getProjectMetric(project.id).balance) }}
                     </div>
                   </div>
                 </div>
@@ -809,9 +809,17 @@ const emptyMetric = () => ({
 const getProjectMetric = (projectId) => metricsByProjectId.value[projectId] || emptyMetric()
 
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
-const visibleProjectPlatforms = (project) => projectPlatforms(project).filter((platform) => ['YANDEX', 'VK'].includes(platform))
-const platformIcon = (platform) => platform === 'VK' ? '/admirra/img/icons/vk-ads.png' : '/admirra/img/icons/yandex-direct.png'
-const platformLabel = (platform) => platform === 'VK' ? 'VK Ads' : 'Yandex Direct'
+const visibleProjectPlatforms = (project) => projectPlatforms(project).filter((platform) => ['YANDEX', 'VK', 'AVITO'].includes(platform))
+const platformIcon = (platform) => {
+  if (platform === 'VK') return '/admirra/img/icons/vk-ads.png'
+  if (platform === 'AVITO') return '/admirra/img/icons/avito.svg'
+  return '/admirra/img/icons/yandex-direct.png'
+}
+const platformLabel = (platform) => {
+  if (platform === 'VK') return 'VK Ads'
+  if (platform === 'AVITO') return 'Avito Ads'
+  return 'Yandex Direct'
+}
 
 const VAT_RATE = 1.22
 const includeVat = ref(true)
@@ -923,6 +931,15 @@ const balancePlatform = (project) => {
       cardClass: 'bg-[#f0f7ff]',
       darkCardClass: 'dark:bg-[#213652]',
       textClass: 'text-[#2563eb] dark:text-[#8bb7ff]'
+    }
+  }
+  if (hasPlatform(project, 'AVITO')) {
+    return {
+      label: 'Avito Ads',
+      icon: '/admirra/img/icons/avito.svg',
+      cardClass: 'bg-[#ecfdf5]',
+      darkCardClass: 'dark:bg-[#183629]',
+      textClass: 'text-[#047857] dark:text-[#7dd3a8]'
     }
   }
   return {

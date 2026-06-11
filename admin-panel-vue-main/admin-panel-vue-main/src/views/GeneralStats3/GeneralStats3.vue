@@ -1086,6 +1086,7 @@ import {
 import { BuildingOfficeIcon, ComputerDesktopIcon, CursorArrowRippleIcon, EyeIcon } from '@heroicons/vue/24/solid'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+import avitoAdsIcon from '@/assets/icons/avito.svg'
 import { useTheme } from '@/composables/useTheme'
 import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useProjects } from '@/composables/useProjects'
@@ -1785,7 +1786,8 @@ const vClickOutside = {
 
 const channels = [
   { name: 'Yandex Direct', value: 'yandex', color: '#ffd426', bg: '#fff8e7', darkBg: 'rgba(255, 212, 38, 0.14)', asset: yandexDirectIcon, icon: CursorArrowRippleIcon },
-  { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon }
+  { name: 'VK Ads Manager', value: 'vk', color: '#2563eb', bg: '#f3f7ff', darkBg: 'rgba(74, 122, 255, 0.14)', asset: vkAdsIcon, imageClass: 'vk', icon: EyeIcon },
+  { name: 'Avito Ads', value: 'avito', color: '#00a871', bg: '#ecfdf5', darkBg: 'rgba(16, 185, 129, 0.14)', asset: avitoAdsIcon, icon: EyeIcon }
 ]
 
 const balancePlatformMeta = {
@@ -1802,6 +1804,13 @@ const balancePlatformMeta = {
     asset: vkAdsIcon,
     bg: '#f0f7ff',
     color: '#254b78'
+  },
+  avito_ads: {
+    id: 'avito_ads',
+    name: 'Avito Ads',
+    asset: avitoAdsIcon,
+    bg: '#ecfdf5',
+    color: '#047857'
   }
 }
 
@@ -2583,7 +2592,9 @@ const allCreativeCards = computed(() => {
     const adType = post.ad_type || ''
     const tabKey = AD_TYPE_TAB_MAP[adType] || 'other'
     const isVideo = VIDEO_TABS.has(tabKey)
-    const platformLabel = post.subtitle || (platform.includes('vk') ? 'VK Ads' : 'Яндекс.Директ')
+    const isVk = platform.includes('vk')
+    const isAvito = platform.includes('avito')
+    const platformLabel = post.subtitle || (isAvito ? 'Avito Ads' : isVk ? 'VK Ads' : 'Яндекс.Директ')
     let formatBadge = null
     if (isVideo) formatBadge = 'Видео'
     else if (tabKey === 'smart') formatBadge = 'Смарт'
@@ -2596,8 +2607,8 @@ const allCreativeCards = computed(() => {
       text: post.text || '',
       imageUrl: post.image_url || post.preview_url || '',
       thumbnailUrl: post.thumbnail_url || '',
-      platformIcon: platform.includes('vk') ? vkAdsIcon : yandexDirectIcon,
-      platformClass: platform.includes('vk') ? 'creative-platform--vk' : 'creative-platform--yandex',
+      platformIcon: isAvito ? avitoAdsIcon : isVk ? vkAdsIcon : yandexDirectIcon,
+      platformClass: isAvito ? 'creative-platform--avito' : isVk ? 'creative-platform--vk' : 'creative-platform--yandex',
       isVideo,
       formatBadge,
       cost: post.cost || 0,
@@ -6080,6 +6091,7 @@ onMounted(() => {
 }
 .creative-platform--yandex { background: #fff7d8; }
 .creative-platform--vk { background: #e8f0ff; }
+.creative-platform--avito { background: #ecfdf5; }
 
 .creative-title {
   display: -webkit-box;

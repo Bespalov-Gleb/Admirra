@@ -122,28 +122,23 @@
                   placeholder="ID рекламного аккаунта Avito (из кабинета Рекламы)"
                 />
               </div>
-              <label class="switch-row dark:!text-white/70">
-                <input v-model="form.use_profile_credentials" type="checkbox" />
-                <span class="switch-row__control dark:!bg-white/10"></span>
-                <span>Подставлять Client ID и Secret из профиля</span>
-              </label>
-              <template v-if="!form.use_profile_credentials">
-                <div class="field-block">
-                  <div class="field-label dark:!text-white/65">API ключи Avito</div>
-                  <input
-                    v-model="form.avito_client_id"
-                    class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                    type="text"
-                    placeholder="Avito Client ID"
-                  />
-                  <input
-                    v-model="form.avito_client_secret"
-                    class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                    type="password"
-                    placeholder="Avito Client Secret"
-                  />
-                </div>
-              </template>
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">API ключи Avito</div>
+                <input
+                  v-model="form.avito_client_id"
+                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Avito Client ID"
+                />
+                <input
+                  v-model="form.avito_client_secret"
+                  class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="Avito Client Secret"
+                />
+              </div>
             </template>
 
             <button
@@ -683,7 +678,6 @@ onMounted(async () => {
   restoreAvitoWizardState()
 
   await fetchProjects()
-  await preloadAvitoCredentials()
 
   const clientIdQuery = router.currentRoute.value.query.client_id
   if (clientIdQuery && projects.value.some((project) => String(project.id) === String(clientIdQuery))) {
@@ -731,15 +725,6 @@ watch(isNewProject, (val) => {
     form.client_name = ''
   }
 })
-
-watch(
-  () => form.use_profile_credentials,
-  async (enabled) => {
-    if (enabled && form.platform === 'AVITO_ADS') {
-      await preloadAvitoCredentials()
-    }
-  }
-)
 
 const goToVisibleStep = (idx) => {
   if (idx <= step.value) {
@@ -952,7 +937,6 @@ const saveAvitoWizardState = () => {
     avito_account_id: form.avito_account_id,
     account_id: form.account_id,
     agency_client_login: form.agency_client_login,
-    use_profile_credentials: form.use_profile_credentials,
     integration_id: lastIntegrationId.value
   }))
 }
@@ -968,9 +952,6 @@ const restoreAvitoWizardState = () => {
     if (state.avito_account_id) form.avito_account_id = state.avito_account_id
     if (state.account_id) form.account_id = state.account_id
     if (state.agency_client_login) form.agency_client_login = state.agency_client_login
-    if (typeof state.use_profile_credentials === 'boolean') {
-      form.use_profile_credentials = state.use_profile_credentials
-    }
     if (state.integration_id && !lastIntegrationId.value) {
       lastIntegrationId.value = state.integration_id
     }
@@ -978,21 +959,6 @@ const restoreAvitoWizardState = () => {
     console.warn('Failed to restore Avito wizard state', e)
   } finally {
     localStorage.removeItem(AVITO_WIZARD_STATE_KEY)
-  }
-}
-
-const preloadAvitoCredentials = async () => {
-  if (form.platform !== 'AVITO_ADS' || !form.use_profile_credentials) return
-  try {
-    const { data } = await api.get('auth/me')
-    if (data.avito_client_id && !String(data.avito_client_id).includes('*')) {
-      form.avito_client_id = data.avito_client_id
-    }
-    if (data.avito_client_secret && !String(data.avito_client_secret).includes('*')) {
-      form.avito_client_secret = data.avito_client_secret
-    }
-  } catch (e) {
-    console.warn('Failed to preload Avito credentials', e)
   }
 }
 
@@ -1048,7 +1014,7 @@ const connectAvito = async () => {
     toaster.warning('Укажите ID аккаунта')
     return
   }
-  if (!form.use_profile_credentials && (!form.avito_client_id || !form.avito_client_secret)) {
+  if (!form.avito_client_id || !form.avito_client_secret) {
     error.value = 'Укажите Client ID и Client Secret Avito'
     toaster.warning('Укажите API ключи Avito')
     return
@@ -1061,11 +1027,8 @@ const connectAvito = async () => {
       client_name: isNewProject.value ? form.client_name : undefined,
       avito_account_id: String(form.avito_account_id).trim(),
       credential_type: 'client_credentials',
-      use_profile_credentials: form.use_profile_credentials,
-    }
-    if (!form.use_profile_credentials) {
-      payload.avito_client_id = form.avito_client_id
-      payload.avito_client_secret = form.avito_client_secret
+      avito_client_id: form.avito_client_id,
+      avito_client_secret: form.avito_client_secret,
     }
     const { data } = await api.post('/integrations/avito/connect', payload)
     if (!data?.integration_id) {

@@ -244,8 +244,8 @@ def get_config() -> Config:
         ),
         openai=OpenAIConfig(
             api_key=_env("OPENAI_API_KEY"),
-            model=_env("OPENAI_MODEL", "gpt-4o-mini"),
-            base_url=_env("OPENAI_BASE_URL"),
+            model=_env("OPENAI_MODEL", "claude-sonnet-4-6"),
+            base_url=_env("OPENAI_BASE_URL", "https://api.proxyapi.ru/anthropic"),
         ),
         billing=BillingConfig(
             billing_enabled=_bool("BILLING_ENABLED", False),

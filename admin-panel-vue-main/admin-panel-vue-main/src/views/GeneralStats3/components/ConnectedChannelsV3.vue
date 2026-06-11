@@ -23,7 +23,7 @@
         v-for="platform in displayPlatforms"
         :key="platform.id"
         class="grid grid-cols-[1fr_auto_auto] gap-3 items-center py-2.5 px-3 rounded-lg transition-colors"
-        :class="platform.id === 'yandex_direct' ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-blue-50 dark:bg-blue-500/10'"
+        :class="platform.rowClass"
       >
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -39,6 +39,12 @@
               alt="VK Ads"
               class="w-full h-full object-contain scale-[1.5] origin-center"
             />
+            <img
+              v-else-if="platform.id === 'avito_ads'"
+              :src="avitoAdsIcon"
+              alt="Avito Ads"
+              class="w-full h-full object-contain"
+            />
             <div
               v-else
               class="w-full h-full flex items-center justify-center font-normal text-[0.8333rem] bg-gray-200 text-gray-600"
@@ -52,7 +58,7 @@
           <span
             v-if="platform.connected && platform.balance != null"
             class="inline-flex items-baseline gap-0.5 px-2.5 py-1 rounded-full text-[1.0417rem] font-normal"
-            :class="platform.id === 'yandex_direct' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'"
+            :class="platform.balanceClass"
           >
             {{ formatBalance(platform.balance) }}<span class="text-[0.8333rem] font-normal">₽</span>
           </span>
@@ -83,6 +89,7 @@
 import { computed } from 'vue'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+import avitoAdsIcon from '@/assets/icons/avito.svg'
 
 const props = defineProps({
   integrations: {
@@ -94,8 +101,21 @@ const props = defineProps({
 defineEmits(['connect', 'toggle-channel'])
 
 const platformRegistry = {
-  yandex_direct: { name: 'Yandex Direct' },
-  vk_ads: { name: 'VK Ads Manager' }
+  yandex_direct: {
+    name: 'Yandex Direct',
+    rowClass: 'bg-orange-50 dark:bg-orange-500/10',
+    balanceClass: 'bg-orange-100 text-orange-700',
+  },
+  vk_ads: {
+    name: 'VK Ads Manager',
+    rowClass: 'bg-blue-50 dark:bg-blue-500/10',
+    balanceClass: 'bg-gray-100 text-gray-700',
+  },
+  avito_ads: {
+    name: 'Avito Ads',
+    rowClass: 'bg-emerald-50 dark:bg-emerald-500/10',
+    balanceClass: 'bg-emerald-100 text-emerald-700',
+  },
 }
 
 const displayPlatforms = computed(() => {

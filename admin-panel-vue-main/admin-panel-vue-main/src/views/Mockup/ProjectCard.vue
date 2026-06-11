@@ -576,12 +576,20 @@ const platformConfig = {
     balanceName: 'VK Ads',
     icon: '/admirra/img/icons/vk-ads.png',
   },
+  avito: {
+    code: 'avito',
+    short: 'A',
+    name: 'Avito Ads',
+    balanceName: 'Avito Ads',
+    icon: '/admirra/img/icons/avito.svg',
+  },
 }
 
 const projectPlatformCards = (project) => {
   const cards = []
   if (hasPlatform(project, 'YANDEX')) cards.push(platformConfig.yandex)
   if (hasPlatform(project, 'VK')) cards.push(platformConfig.vk)
+  if (hasPlatform(project, 'AVITO')) cards.push(platformConfig.avito)
   return cards
 }
 
@@ -629,7 +637,7 @@ const topGoalSummary = (goals, platformCode, expenses) => {
   }
   const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
   const noun = goalNoun(total)
-  const avgCpl = platformCode === 'yandex' && total > 0 ? Number(expenses || 0) / total : null
+  const avgCpl = ['yandex', 'avito'].includes(platformCode) && total > 0 ? Number(expenses || 0) / total : null
   if (!total) {
     return {
       total: 0,
@@ -681,7 +689,7 @@ const projectBalances = (project) => {
     return {
       ...platform,
       name: platform.balanceName,
-      value: formatMoney(withVat(value)),
+      value: formatMoney(value),
     }
   })
 }
@@ -745,21 +753,25 @@ const loadProjectInsight = async (projectId, startDate, endDate) => {
     date_to: endDate,
   })
 
-  const [all, yandex, vk, yandexGoals, vkGoals] = await Promise.all([
+  const [all, yandex, vk, avito, yandexGoals, vkGoals, avitoGoals] = await Promise.all([
     api.get('dashboard/summary', { params: summaryParams('all') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
     api.get('dashboard/summary', { params: summaryParams('yandex') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
     api.get('dashboard/summary', { params: summaryParams('vk') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
+    api.get('dashboard/summary', { params: summaryParams('avito') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
     api.get('dashboard/goals', { params: goalParams('yandex') }).then((res) => res.data || []).catch(() => []),
     api.get('dashboard/goals', { params: goalParams('vk') }).then((res) => res.data || []).catch(() => []),
+    api.get('dashboard/goals', { params: goalParams('avito') }).then((res) => res.data || []).catch(() => []),
   ])
 
   return {
     all,
     yandex,
     vk,
+    avito,
     goals: {
       yandex: yandexGoals,
       vk: vkGoals,
+      avito: avitoGoals,
     },
   }
 }
@@ -1812,6 +1824,11 @@ onMounted(async () => {
   color: #254b78;
 }
 
+.balance-chip--avito {
+  background: #ecfdf5;
+  color: #047857;
+}
+
 .balance-chip img {
   display: block;
   width: 1.25rem;
@@ -2501,6 +2518,12 @@ onMounted(async () => {
 :global(.darkmode) .balance-chip--vk {
   background: #213652;
   color: #8bb7ff;
+}
+
+:global(.dark) .balance-chip--avito,
+:global(.darkmode) .balance-chip--avito {
+  background: #183629;
+  color: #7dd3a8;
 }
 
 :global(.dark) .balance-chip strong,

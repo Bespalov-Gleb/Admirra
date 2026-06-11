@@ -88,18 +88,6 @@ def _mask_secret(value: Optional[str]) -> Optional[str]:
 
 def _decorate_user_response(resp: schemas.UserResponse, user: models.User) -> schemas.UserResponse:
     resp.has_password = _user_has_usable_password(user)
-    resp.avito_client_id = None
-    resp.avito_client_secret = None
-    try:
-        if user.avito_client_id:
-            resp.avito_client_id = _mask_secret(security.decrypt_token(user.avito_client_id))
-    except Exception:
-        resp.avito_client_id = "***"
-    try:
-        if user.avito_client_secret:
-            resp.avito_client_secret = _mask_secret(security.decrypt_token(user.avito_client_secret))
-    except Exception:
-        resp.avito_client_secret = "***"
     return resp
 
 
@@ -578,16 +566,6 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
         current_user.two_factor_enabled = next_two_factor
     if "yandex_finance_token" in fields:
         current_user.yandex_finance_token = updates.yandex_finance_token
-    if "avito_client_id" in fields:
-        current_user.avito_client_id = (
-            security.encrypt_token(updates.avito_client_id) if updates.avito_client_id else None
-        )
-    if "avito_client_secret" in fields:
-        current_user.avito_client_secret = (
-            security.encrypt_token(updates.avito_client_secret) if updates.avito_client_secret else None
-        )
-    if "avito_client_id" in fields or "avito_client_secret" in fields:
-        current_user.avito_credential_type = "client_credentials"
     if "report_telegram_chat_id" in fields:
         current_user.report_telegram_chat_id = updates.report_telegram_chat_id
     if "report_max_chat_id" in fields:

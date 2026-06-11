@@ -24,6 +24,7 @@ dadata
 dnspython
 redis[hiredis]
 openai
+anthropic
 weasyprint
 pymupdf
 python-docx

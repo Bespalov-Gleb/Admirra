@@ -140,34 +140,6 @@
       <section class="profile-card profile-card--wide">
         <div class="card-head">
           <div>
-            <h2>Avito Ads</h2>
-            <p>API ключи для подключения рекламного кабинета Авито.</p>
-          </div>
-          <button class="ghost-btn" type="button" @click="avitoEditOpen = !avitoEditOpen">
-            {{ avitoEditOpen ? 'Отмена' : 'Редактировать' }}
-          </button>
-        </div>
-        <div class="fields-grid fields-grid--wide">
-          <label class="field">
-            <span>Client ID</span>
-            <input v-model.trim="form.avitoClientId" type="text" placeholder="Введите Avito Client ID" :readonly="!avitoEditOpen" />
-          </label>
-          <label class="field">
-            <span>Client Secret</span>
-            <input v-model.trim="form.avitoClientSecret" type="password" placeholder="Введите Avito Client Secret" :readonly="!avitoEditOpen" />
-          </label>
-        </div>
-        <div v-if="avitoEditOpen" class="actions-row actions-row--split mt-4">
-          <button class="ghost-btn" type="button" :disabled="savingAvito" @click="avitoEditOpen = false">Отмена</button>
-          <button class="primary-btn primary-btn--wide" type="button" :disabled="savingAvito" @click="saveAvitoCredentials">
-            {{ savingAvito ? 'Сохранение...' : 'Сохранить' }}
-          </button>
-        </div>
-      </section>
-
-      <section class="profile-card profile-card--wide">
-        <div class="card-head">
-          <div>
             <h2>Уведомления</h2>
             <p>Привязать Telegram, чтобы получать уведомления о важных изменениях в проектах.</p>
           </div>
@@ -333,8 +305,6 @@ const twoFactorChallengeId = ref('')
 const twoFactorCode = ref('')
 const twoFactorEmailMasked = ref('')
 const profileEditOpen = ref(false)
-const avitoEditOpen = ref(false)
-const savingAvito = ref(false)
 const passwordOpen = ref(false)
 const deleteOpen = ref(false)
 const deleteConfirmation = ref('')
@@ -351,8 +321,6 @@ const form = reactive({
   interfaceLanguage: 'ru',
   telegramChatId: '',
   notificationEmail: '',
-  avitoClientId: '',
-  avitoClientSecret: '',
 })
 
 const passwordForm = reactive({
@@ -423,8 +391,6 @@ function fillProfile(data) {
   form.interfaceLanguage = data?.interface_language || 'ru'
   form.telegramChatId = data?.report_telegram_chat_id || ''
   form.notificationEmail = data?.notification_email || ''
-  form.avitoClientId = data?.avito_client_id || ''
-  form.avitoClientSecret = data?.avito_client_secret || ''
 }
 
 async function loadProfile() {
@@ -465,23 +431,6 @@ async function saveProfile() {
     toaster.error(error.response?.data?.detail || 'Не удалось сохранить профиль')
   } finally {
     savingProfile.value = false
-  }
-}
-
-async function saveAvitoCredentials() {
-  savingAvito.value = true
-  try {
-    const { data } = await api.patch('auth/me', {
-      avito_client_id: form.avitoClientId || null,
-      avito_client_secret: form.avitoClientSecret || null,
-    })
-    fillProfile(data)
-    avitoEditOpen.value = false
-    toaster.success('Avito credentials сохранены')
-  } catch (error) {
-    toaster.error(error.response?.data?.detail || 'Не удалось сохранить Avito credentials')
-  } finally {
-    savingAvito.value = false
   }
 }
 

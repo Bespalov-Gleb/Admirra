@@ -1072,20 +1072,8 @@ async def connect_avito_ads(
             detail="avito_account_id обязателен (числовой ID рекламного аккаунта из кабинета Avito Рекламы)",
         )
 
-    use_profile_credentials = bool(payload.get("use_profile_credentials"))
     raw_avito_client_id = payload.get("avito_client_id") or payload.get("client_id_value")
     raw_avito_client_secret = payload.get("avito_client_secret") or payload.get("client_secret_value")
-    if use_profile_credentials:
-        try:
-            if current_user.avito_client_id:
-                raw_avito_client_id = security.decrypt_token(current_user.avito_client_id)
-        except Exception:
-            raw_avito_client_id = None
-        try:
-            if current_user.avito_client_secret:
-                raw_avito_client_secret = security.decrypt_token(current_user.avito_client_secret)
-        except Exception:
-            raw_avito_client_secret = None
 
     credential_type, avito_client_id, avito_client_secret = _resolve_avito_credentials(
         client_id=raw_avito_client_id,
@@ -3332,6 +3320,11 @@ async def get_campaigns_stats(
     # Get list of valid campaign IDs from the most recent discover-campaigns call
     all_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
     logger.info(f"📋 Total campaigns in DB for this integration: {len(all_campaigns)}")
+    stats_model = models.YandexStats
+    if integration.platform == models.IntegrationPlatform.VK_ADS:
+        stats_model = models.VKStats
+    elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        stats_model = models.AvitoStats
     
     # Filter out template/invalid campaigns
     template_names = ["campaignname", "test campaign", "тест", "test", "шаблон", "template"]
@@ -3356,15 +3349,24 @@ async def get_campaigns_stats(
         campaign_id_str = str(campaign.id)  # Convert UUID to string for comparison
         if campaign_id_str not in existing_ids:
             # Check if this campaign has ANY stats records (for debugging)
-            stats_count = db.query(models.YandexStats).filter(
-                models.YandexStats.campaign_id == campaign.id
+            stats_count = db.query(stats_model).filter(
+                stats_model.campaign_id == campaign.id
             ).count()
-            stats_in_range = db.query(models.YandexStats).filter(
-                models.YandexStats.campaign_id == campaign.id,
-                models.YandexStats.date >= date_from_obj,
-                models.YandexStats.date <= date_to_obj
+            stats_in_range = db.query(stats_model).filter(
+                stats_model.campaign_id == campaign.id,
+                stats_model.date >= date_from_obj,
+                stats_model.date <= date_to_obj
             ).count()
-            logger.info(f"   Campaign '{campaign.name}' (ID: {campaign_id_str}): has {stats_count} total YandexStats records, {stats_in_range} in date range {date_from_obj} to {date_to_obj}")
+            logger.info(
+                "   Campaign '%s' (ID: %s): has %s total %s records, %s in date range %s to %s",
+                campaign.name,
+                campaign_id_str,
+                stats_count,
+                stats_model.__name__,
+                stats_in_range,
+                date_from_obj,
+                date_to_obj,
+            )
             
             campaigns_stats.append({
                 "id": campaign_id_str,  # Use string ID to match discover-campaigns format
@@ -3433,6 +3435,15 @@ async def test_integration_connection(
              except Exception as e:
                  status_info["status"] = "failed"
                  status_info["details"].append(f"VK Ads: {str(e)}")
+
+        elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
+             try:
+                 avito_api = _build_avito_api_from_integration(integration)
+                 await avito_api.validate_credentials(integration.account_id)
+                 status_info["details"].append("Avito Ads: OK")
+             except Exception as e:
+                 status_info["status"] = "failed"
+                 status_info["details"].append(f"Avito Ads: {str(e)}")
 
         # Update integration status in DB
         integration.last_sync_at = datetime.utcnow()

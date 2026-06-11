@@ -499,6 +499,7 @@ def delete_client(
     # Старые данные могли быть записаны без campaign_id или без корректных FK.
     db.query(models.YandexStats).filter(models.YandexStats.client_id == client_id).delete(synchronize_session=False)
     db.query(models.VKStats).filter(models.VKStats.client_id == client_id).delete(synchronize_session=False)
+    db.query(models.AvitoStats).filter(models.AvitoStats.client_id == client_id).delete(synchronize_session=False)
     db.query(models.YandexKeywords).filter(models.YandexKeywords.client_id == client_id).delete(synchronize_session=False)
     db.query(models.YandexGroups).filter(models.YandexGroups.client_id == client_id).delete(synchronize_session=False)
     db.query(models.MetrikaGoals).filter(models.MetrikaGoals.client_id == client_id).delete(synchronize_session=False)
