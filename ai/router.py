@@ -635,3 +635,37 @@ async def generate_report(
     except Exception as e:
         logger.exception("Report generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сгенерировать отчёт. Проверьте логи.")
+
+
+@router.get("/comment")
+async def get_ai_comment(
+    client_id: Optional[str] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return last saved AI comment for a client."""
+    if not client_id:
+        return {"text": None}
+    cid = _parse_uuid(client_id, "client_id")
+    client = _client_or_404(db, current_user, cid)
+    return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at}
+
+
+@router.post("/comment")
+async def save_ai_comment(
+    body: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save AI comment to client record."""
+    from datetime import datetime
+    client_id = body.get("client_id")
+    text = body.get("text", "")
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+    cid = _parse_uuid(client_id, "client_id")
+    client = _client_or_404(db, current_user, cid)
+    client.last_ai_comment = text
+    client.last_ai_comment_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}

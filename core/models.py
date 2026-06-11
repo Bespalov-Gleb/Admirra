@@ -232,6 +232,8 @@ class Client(Base):
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     actual_start_date = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_ai_comment = Column(Text, nullable=True)
+    last_ai_comment_at = Column(DateTime, nullable=True)
 
     owner = relationship("User", back_populates="clients")
     integrations = relationship("Integration", back_populates="client")

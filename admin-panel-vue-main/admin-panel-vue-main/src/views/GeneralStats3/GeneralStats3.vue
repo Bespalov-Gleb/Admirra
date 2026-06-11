@@ -1253,16 +1253,17 @@ const reportComment = ref('')
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
 
-const aiCommentKey = () => `ai_comment_${filters.client_id || 'all'}`
-
-const loadSavedComment = () => {
+const loadSavedComment = async () => {
+  if (!filters.client_id) return
   loadingInitialComment.value = true
-  // nextTick so skeleton renders before synchronous localStorage read
-  nextTick(() => {
-    const saved = localStorage.getItem(aiCommentKey())
-    if (saved) reportComment.value = saved
+  try {
+    const { data } = await api.get(`ai/comment?client_id=${filters.client_id}`)
+    if (data?.text) reportComment.value = data.text
+  } catch {
+    // не критично — просто не показываем сохранённый
+  } finally {
     loadingInitialComment.value = false
-  })
+  }
 }
 
 const renderMarkdown = (text) => {
@@ -3028,8 +3029,8 @@ const triggerAiComment = async () => {
   loadingAiComment.value = true
   try {
     await handleGenerateReport()
-    if (reportComment.value) {
-      localStorage.setItem(aiCommentKey(), reportComment.value)
+    if (reportComment.value && filters.client_id) {
+      await api.post('ai/comment', { client_id: filters.client_id, text: reportComment.value }).catch(() => {})
     }
   } finally {
     loadingAiComment.value = false
