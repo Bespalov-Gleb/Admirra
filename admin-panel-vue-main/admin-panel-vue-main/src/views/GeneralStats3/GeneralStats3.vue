@@ -717,6 +717,17 @@
         <div class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
+          <button
+            class="ai-generate-btn"
+            :disabled="loadingAiComment || dashboardSyncInProgress"
+            @click="triggerAiComment"
+          >
+            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
+            </svg>
+            <SparklesIcon v-else class="ai-generate-btn__icon" />
+            {{ loadingAiComment ? 'Генерирую...' : aiComments.length ? 'Обновить' : 'Сгенерировать' }}
+          </button>
         </div>
         <ul v-if="aiComments.length">
           <li v-for="comment in aiComments" :key="comment">{{ comment }}</li>
@@ -1211,6 +1222,7 @@ const userReportSettings = ref({
   delivery_channels: []
 })
 const reportComment = ref('')
+const loadingAiComment = ref(false)
 const reportGoals = ref([])
 const integrations = ref([])
 const topAds = ref([])
@@ -2929,6 +2941,16 @@ const handleGenerateReport = async () => {
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
     return ''
+  }
+}
+
+const triggerAiComment = async () => {
+  if (loadingAiComment.value) return
+  loadingAiComment.value = true
+  try {
+    await handleGenerateReport()
+  } finally {
+    loadingAiComment.value = false
   }
 }
 
@@ -6848,6 +6870,45 @@ onMounted(() => {
 
 .ai-title {
   gap: 1.1111rem;
+  align-items: center;
+}
+
+.ai-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  padding: 0.3611rem 0.8333rem;
+  border-radius: 0.5556rem;
+  border: 1.5px solid rgba(99, 91, 255, 0.35);
+  background: rgba(99, 91, 255, 0.07);
+  color: #635bff;
+  font-size: 0.7778rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ai-generate-btn:hover:not(:disabled) {
+  background: rgba(99, 91, 255, 0.14);
+  border-color: rgba(99, 91, 255, 0.6);
+}
+.ai-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ai-generate-btn__icon {
+  width: 0.8333rem;
+  height: 0.8333rem;
+}
+.ai-generate-btn__spinner {
+  width: 0.8333rem;
+  height: 0.8333rem;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .ai-title span {
