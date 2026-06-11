@@ -1240,8 +1240,15 @@ const chartSelectedMetricKeys = ref(['expenses'])
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
-const periodKey = ref('last_7_days')
-const customPeriodRange = ref({ start: null, end: null })
+const periodKey = ref(
+  filters.period === 'custom' ? 'custom'
+    : (filters.period || 'last_7_days')
+)
+const customPeriodRange = ref(
+  filters.period === 'custom' && filters.start_date && filters.end_date
+    ? { start: filters.start_date, end: filters.end_date }
+    : { start: null, end: null }
+)
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const includeVat = ref(true)
@@ -2506,7 +2513,20 @@ const chartTooltipStyle = computed(() => {
   }
 })
 
-const dateLabels = computed(() => dynamics.value?.labels || [])
+const dateLabels = computed(() => {
+  const start = filters.start_date
+  const end = filters.end_date
+  if (!start || !end) return dynamics.value?.labels || []
+  const startMs = new Date(start + 'T00:00:00').getTime()
+  const endMs = new Date(end + 'T00:00:00').getTime()
+  const DAY = 86400000
+  const labels = []
+  for (let ms = startMs; ms <= endMs; ms += DAY) {
+    const d = new Date(ms)
+    labels.push(d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }).replace(/\./g, '').trim())
+  }
+  return labels
+})
 
 const chartDateAxisLabels = computed(() => {
   const labels = dateLabels.value
