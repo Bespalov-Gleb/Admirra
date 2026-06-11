@@ -25,43 +25,35 @@
 
         <!-- Project dropdown -->
         <Transition name="dropdown">
-          <div
-            v-if="isProjectMenuOpen"
-            class="absolute left-1/2 top-full z-50 mt-2 min-w-[25rem] -translate-x-1/2 px-[2.0833rem] pb-[2.0833rem] pt-[0.6944rem]"
-          >
-            <div class="relative rounded-[0.8333rem] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:left-1/2 after:top-0 after:h-[0.9722rem] after:w-[0.9722rem] after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-white dark:bg-[#2C2F3D] dark:after:bg-[#2C2F3D]">
-              <div class="px-4 pb-2 pt-4 font-medium">
-                <div class="px-4 py-2 text-[0.8333rem] font-medium uppercase text-[rgba(105,105,105,0.56)] dark:text-white/55">Мои проекты</div>
-                <ul class="mb-2 text-[0.9722rem]">
-                  <li>
-                    <button
-                      @click="handleProjectSelect(null)"
-                      :class="['w-full rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', !currentProjectId ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
-                    >Все проекты</button>
-                  </li>
-                  <li v-for="project in projects" :key="project.id">
-                    <button
-                      @click="handleProjectSelect(project.id)"
-                      :class="['flex w-full items-center gap-3 rounded-[0.8333rem] px-4 py-2.5 text-left transition-colors', currentProjectId === project.id ? 'bg-[#ecf3fe] font-semibold text-[#2563eb] dark:bg-white/10 dark:text-[#4A7AFF]' : 'text-gray-700 hover:bg-[#f5f7f9] dark:text-white/75 dark:hover:bg-white/5']"
-                    >
-                      <span class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9] text-[0.6944rem] font-bold text-[#2563eb]">
-                        <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
-                        <span v-else>{{ projectInitials(project) }}</span>
-                      </span>
-                      <span class="min-w-0 truncate">{{ project.name }}</span>
-                    </button>
-                  </li>
-                </ul>
-                <button
-                  @click="router.push('/projects/create'); isProjectMenuOpen = false"
-                  class="flex w-full items-center gap-2 rounded-[0.8333rem] px-4 py-3 text-[0.9028rem] font-medium text-[#2563eb] transition-colors hover:bg-[#ecf3fe] dark:text-[#4A7AFF] dark:hover:bg-white/5"
-                >
-                  <svg class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-                  </svg>
-                  Создать новый проект
-                </button>
-              </div>
+          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[17rem] -translate-x-1/2">
+            <div class="hd-panel">
+              <div class="hd-section-label">Мои проекты</div>
+              <ul class="hd-menu-list">
+                <li>
+                  <button @click="handleProjectSelect(null)" :class="['hd-menu-item', !currentProjectId ? 'hd-menu-item--active' : '']">
+                    <span class="hd-project-avatar">
+                      <svg viewBox="0 0 16 16" fill="none" class="w-[0.8333rem] h-[0.8333rem]"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                    </span>
+                    <span class="hd-menu-item-label">Все проекты</span>
+                  </button>
+                </li>
+                <li v-for="project in projects" :key="project.id">
+                  <button @click="handleProjectSelect(project.id)" :class="['hd-menu-item', currentProjectId === project.id ? 'hd-menu-item--active' : '']">
+                    <span class="hd-project-avatar">
+                      <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
+                      <span v-else class="text-[0.625rem] font-bold">{{ projectInitials(project) }}</span>
+                    </span>
+                    <span class="hd-menu-item-label min-w-0 truncate">{{ project.name }}</span>
+                  </button>
+                </li>
+              </ul>
+              <div class="hd-divider"></div>
+              <button @click="router.push('/projects/create'); isProjectMenuOpen = false" class="hd-create-item">
+                <span class="hd-create-icon">
+                  <svg class="w-[0.75rem] h-[0.75rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                </span>
+                Создать проект
+              </button>
             </div>
           </div>
         </Transition>
@@ -122,18 +114,18 @@
         <Transition name="dropdown">
           <div
             v-if="showUsagePopover"
-            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[22.2222rem]"
+            class="absolute top-full left-1/2 -translate-x-1/2 z-50 mt-[0.6944rem] w-[20rem]"
           >
-            <div class="usage-popover">
+            <div class="usage-popover hd-panel" style="padding:1.3889rem 1.3889rem 1.1111rem;">
               <div class="usage-popover-header">
                 <span>Тариф «{{ subscription.planName }}»</span>
                 <span v-if="expiresShort" class="usage-popover-date">{{ expiresShort }}</span>
               </div>
 
               <div class="usage-popover-row">
-                <div class="flex items-center justify-between mb-[0.625rem]">
-                  <span class="text-[1.1111rem] font-semibold text-[#444] dark:text-white/80">Проекты</span>
-                  <span class="text-[1.1111rem] font-extrabold" :class="projectsAtLimit ? 'text-[#604810]' : 'text-[#111827] dark:text-white/90'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
+                <div class="flex items-center justify-between mb-[0.4167rem]">
+                  <span class="text-[0.9028rem] font-semibold text-[#444] dark:text-white/75">Проекты</span>
+                  <span class="text-[0.9028rem] font-bold" :class="projectsAtLimit ? 'text-[#d97706]' : 'text-[#111827] dark:text-white/88'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
                 </div>
                 <div class="usage-bar">
                   <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%' }"></div>
@@ -141,16 +133,16 @@
               </div>
 
               <div class="usage-popover-row">
-                <div class="flex items-center justify-between mb-[0.625rem]">
-                  <span class="text-[1.1111rem] font-semibold text-[#444] dark:text-white/80">AI-запросы</span>
-                  <span class="text-[1.1111rem] font-extrabold" :class="aiAtLimit ? 'text-[#604810]' : 'text-[#111827] dark:text-white/90'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
+                <div class="flex items-center justify-between mb-[0.4167rem]">
+                  <span class="text-[0.9028rem] font-semibold text-[#444] dark:text-white/75">AI-запросы</span>
+                  <span class="text-[0.9028rem] font-bold" :class="aiAtLimit ? 'text-[#d97706]' : 'text-[#111827] dark:text-white/88'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
                 </div>
                 <div class="usage-bar">
                   <div class="usage-bar-fill" :class="aiAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: aiPct + '%' }"></div>
                 </div>
-                <div class="flex items-center justify-between mt-[0.5556rem]">
-                  <span class="text-[0.9722rem] font-semibold text-[#696969]/75 dark:text-white/45">осталось {{ usage.aiRemaining }}</span>
-                  <span v-if="usage.aiResetDate" class="text-[0.9722rem] font-semibold text-[#696969]/75 dark:text-white/45">сброс {{ usage.aiResetDate }}</span>
+                <div class="flex items-center justify-between mt-[0.3472rem]">
+                  <span class="text-[0.7778rem] font-medium text-[#696969]/60 dark:text-white/38">осталось {{ usage.aiRemaining }}</span>
+                  <span v-if="usage.aiResetDate" class="text-[0.7778rem] font-medium text-[#696969]/60 dark:text-white/38">сброс {{ usage.aiResetDate }}</span>
                 </div>
               </div>
 
@@ -261,63 +253,42 @@
           </button>
 
           <Transition name="dropdown">
-            <div
-              v-if="isProfileMenuOpen"
-              class="absolute top-full z-50 min-w-[25rem] w-[calc(100%+5.5556rem)] right-[-2.0833rem] px-[2.0833rem] pb-[2.0833rem] pt-[0.6944rem]"
-            >
-              <div class="relative rounded-[0.8333rem] bg-white shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07),inset_0_1px_0_rgba(255,255,255,0.07)] after:absolute after:bottom-full after:right-8 after:border-x-[0.4861rem] after:border-b-[0.4861rem] after:border-x-transparent after:border-b-white dark:bg-[#2C2F3D] dark:after:border-b-[#2C2F3D]">
-                <div class="p-4">
-                  <div class="mb-1 text-[1.0417rem] font-semibold text-gray-800 dark:text-gray-100">{{ displayName }}</div>
-                  <div class="text-[0.8333rem] text-[rgba(105,105,105,0.75)] dark:text-white/55">{{ user?.email }}</div>
+            <div v-if="isProfileMenuOpen" class="absolute top-full right-0 z-50 w-[15.2778rem] mt-2">
+              <div class="hd-panel">
+                <div class="hd-profile-header">
+                  <div class="hd-profile-avatar">{{ displayName.charAt(0).toUpperCase() }}</div>
+                  <div class="min-w-0">
+                    <div class="hd-profile-name truncate">{{ displayName }}</div>
+                    <div class="hd-profile-email truncate">{{ user?.email }}</div>
+                  </div>
                 </div>
-                <hr class="border-black/5 dark:border-white/10" />
-                <div class="py-3">
-                  <button
-                    @click.prevent="toggleTheme"
-                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
-                  >
-                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
-                      <svg class="h-5 w-5 fill-[#afafaf]">
-                        <use href="/admirra/img/svg/sprite.svg#moon"></use>
-                      </svg>
+                <div class="hd-divider"></div>
+                <div>
+                  <button @click.prevent="toggleTheme" class="hd-menu-item">
+                    <span class="hd-menu-icon">
+                      <svg class="h-[1.0417rem] w-[1.0417rem] fill-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#moon"></use></svg>
                     </span>
-                    <span class="flex-1 pr-3 text-left">{{ isDarkMode ? 'Светлая тема' : 'Темная тема' }}</span>
-                    <span :class="['relative mr-4 inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-300', isDarkMode ? 'bg-[#2563eb]' : 'bg-gray-200']">
-                      <span :class="['absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-300', isDarkMode ? 'translate-x-4' : 'translate-x-0']" />
-                    </span>
+                    <span class="flex-1 text-left">{{ isDarkMode ? 'Светлая тема' : 'Темная тема' }}</span>
+                    <span :class="['hd-toggle', isDarkMode ? 'hd-toggle--on' : '']"></span>
                   </button>
-                  <button
-                    @click="router.push('/profile'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
-                  >
-                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
-                      <svg class="h-5 w-5 fill-none stroke-[#afafaf]">
-                        <use href="/admirra/img/svg/sprite.svg#user"></use>
-                      </svg>
+                  <button @click="router.push('/profile'); closeProfileMenu()" class="hd-menu-item">
+                    <span class="hd-menu-icon">
+                      <svg class="h-[1.0417rem] w-[1.0417rem] fill-none stroke-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#user"></use></svg>
                     </span>
-                    <span class="pr-3">Профиль</span>
+                    <span>Профиль</span>
                   </button>
-                  <button
-                    @click="router.push('/settings'); closeProfileMenu()"
-                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#696969] transition-colors hover:text-[#2563eb] dark:text-white/75 dark:hover:text-[#4A7AFF]"
-                  >
-                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
-                      <svg class="h-5 w-5 fill-[#afafaf]">
-                        <use href="/admirra/img/svg/sprite.svg#setting"></use>
-                      </svg>
+                  <button @click="router.push('/settings'); closeProfileMenu()" class="hd-menu-item">
+                    <span class="hd-menu-icon">
+                      <svg class="h-[1.0417rem] w-[1.0417rem] fill-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#setting"></use></svg>
                     </span>
-                    <span class="pr-3">Настройки</span>
+                    <span>Настройки</span>
                   </button>
-                  <button
-                    @click="handleLogoutClick"
-                    class="flex w-full items-center py-1 text-[0.9722rem] text-[#dc3545] transition-colors hover:text-[#2563eb]"
-                  >
-                    <span class="flex h-[3.0556rem] w-[3.0556rem] items-center justify-center">
-                      <svg class="h-5 w-5 fill-[#dc3545]">
-                        <use href="/admirra/img/svg/sprite.svg#exit"></use>
-                      </svg>
+                  <div class="hd-divider"></div>
+                  <button @click="handleLogoutClick" class="hd-menu-item hd-menu-item--danger">
+                    <span class="hd-menu-icon">
+                      <svg class="h-[1.0417rem] w-[1.0417rem] fill-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#exit"></use></svg>
                     </span>
-                    <span class="pr-3">Выход</span>
+                    <span>Выход</span>
                   </button>
                 </div>
               </div>
@@ -770,43 +741,40 @@ watch(
 .usage-popover {
   background: #fff;
   border-radius: 1.1111rem;
-  padding: 1.6667rem;
-  box-shadow: 0 1.6667rem 4.1667rem rgba(15,23,42,0.16), 0 0 0 1px rgba(68,68,68,0.08);
+  padding: 1.3889rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
 }
 :global(.dark) .usage-popover {
   background: #2C2F3D;
-  box-shadow: 0 1.3889rem 3.4722rem rgba(0,0,0,0.36), 0 0 0 1px rgba(255,255,255,0.08);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .usage-popover-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  font-size: 1.3889rem;
-  font-weight: 800;
+  gap: 0.6944rem;
+  font-size: 1.0417rem;
+  font-weight: 700;
   color: #111827;
-  margin-bottom: 1.5278rem;
+  margin-bottom: 1.1111rem;
 }
-:global(.dark) .usage-popover-header {
-  color: rgba(255,255,255,0.9);
-}
+:global(.dark) .usage-popover-header { color: rgba(255,255,255,0.9); }
 
 .usage-popover-date {
-  font-weight: 800;
-  font-size: 1.0417rem;
-  color: #737373;
+  font-weight: 600;
+  font-size: 0.8333rem;
+  color: #9ca3af;
+  white-space: nowrap;
 }
-:global(.dark) .usage-popover-date { color: rgba(255,255,255,0.45); }
+:global(.dark) .usage-popover-date { color: rgba(255,255,255,0.35); }
 
-.usage-popover-row {
-  margin-bottom: 1.25rem;
-}
+.usage-popover-row { margin-bottom: 1rem; }
 
 .usage-bar {
-  height: 0.625rem;
+  height: 0.4167rem;
   border-radius: 2.7778rem;
-  background: #dddddd;
+  background: rgba(0,0,0,0.07);
   overflow: hidden;
 }
 :global(.dark) .usage-bar { background: rgba(255,255,255,0.08); }
@@ -814,33 +782,207 @@ watch(
 .usage-bar-fill {
   height: 100%;
   border-radius: 2.7778rem;
-  background: #2f67bd;
+  background: linear-gradient(90deg, #2563eb 0%, #14b8d5 100%);
   transition: width 0.5s ease;
 }
-.usage-bar-fill--amber { background: #604810; }
+.usage-bar-fill--amber { background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%); }
 
 .usage-popover-link {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.4861rem;
+  gap: 0.4167rem;
   width: 100%;
-  padding: 1.1111rem 0 0;
-  margin-top: 1.3889rem;
-  border-top: 1px solid rgba(0,0,0,0.08);
+  padding: 0.8333rem 0 0;
+  margin-top: 0.8333rem;
+  border: none;
+  border-top: 1px solid rgba(0,0,0,0.06);
   border-radius: 0;
-  font-size: 1.1111rem;
-  font-weight: 800;
-  color: #2f67bd;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  color: #2563eb;
   background: transparent;
-  border-right: 0;
-  border-bottom: 0;
-  border-left: 0;
-  border-top: 1px solid rgba(0,0,0,0.08);
   cursor: pointer;
-  transition: color 0.2s;
+  transition: color 0.15s;
 }
 .usage-popover-link:hover { color: #1d4ed8; }
-:global(.dark) .usage-popover-link { color: #4A7AFF; }
-:global(.dark) .usage-popover-link { border-top-color: rgba(255,255,255,0.08); }
+:global(.dark) .usage-popover-link { color: #4A7AFF; border-top-color: rgba(255,255,255,0.07); }
+
+/* ── Dropdown panel system ── */
+.hd-panel {
+  background: #fff;
+  border-radius: 0.9722rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 12px 28px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+  overflow: hidden;
+  padding: 0.3472rem;
+}
+:global(.dark) .hd-panel {
+  background: #2C2F3D;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.hd-section-label {
+  padding: 0.3472rem 0.5556rem 0.2083rem;
+  font-size: 0.7222rem;
+  font-weight: 600;
+  color: rgba(105,105,105,0.5);
+  letter-spacing: 0.015em;
+}
+:global(.dark) .hd-section-label { color: rgba(255,255,255,0.3); }
+
+.hd-menu-list { list-style: none; padding: 0; margin: 0; }
+
+.hd-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5556rem;
+  width: 100%;
+  padding: 0.4861rem 0.5556rem;
+  border: none;
+  border-radius: 0.6944rem;
+  background: transparent;
+  text-align: left;
+  font-size: 0.9028rem;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.hd-menu-item:hover { background: rgba(37,99,235,0.06); color: #1d4ed8; }
+.hd-menu-item--active { background: rgba(37,99,235,0.08); color: #2563eb; font-weight: 600; }
+:global(.dark) .hd-menu-item { color: rgba(255,255,255,0.75); }
+:global(.dark) .hd-menu-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.95); }
+:global(.dark) .hd-menu-item--active { background: rgba(74,122,255,0.15); color: #4A7AFF; }
+.hd-menu-item--danger { color: #dc3545; }
+.hd-menu-item--danger:hover { background: rgba(220,53,69,0.06); color: #dc3545; }
+:global(.dark) .hd-menu-item--danger { color: #f87171; }
+:global(.dark) .hd-menu-item--danger:hover { background: rgba(248,113,113,0.08); color: #f87171; }
+
+.hd-menu-icon {
+  width: 1.5278rem;
+  height: 1.5278rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+:global(.dark) .hd-menu-icon { color: rgba(255,255,255,0.38); }
+.hd-menu-item:hover .hd-menu-icon,
+.hd-menu-item--active .hd-menu-icon { color: currentColor; opacity: 0.8; }
+
+.hd-menu-item-label { min-width: 0; }
+
+.hd-project-avatar {
+  width: 1.6667rem;
+  height: 1.6667rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #e8eef9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #2563eb;
+}
+.hd-menu-item--active .hd-project-avatar { background: rgba(37,99,235,0.12); }
+:global(.dark) .hd-project-avatar { background: rgba(255,255,255,0.1); color: #4A7AFF; }
+
+.hd-divider {
+  height: 1px;
+  background: rgba(0,0,0,0.06);
+  margin: 0.2778rem 0.2083rem;
+}
+:global(.dark) .hd-divider { background: rgba(255,255,255,0.07); }
+
+.hd-create-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5556rem;
+  width: 100%;
+  padding: 0.4861rem 0.5556rem;
+  border: none;
+  border-radius: 0.6944rem;
+  background: transparent;
+  font-size: 0.9028rem;
+  font-weight: 500;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.hd-create-item:hover { background: rgba(37,99,235,0.06); }
+:global(.dark) .hd-create-item { color: #4A7AFF; }
+:global(.dark) .hd-create-item:hover { background: rgba(74,122,255,0.1); }
+
+.hd-create-icon {
+  width: 1.5278rem;
+  height: 1.5278rem;
+  border-radius: 50%;
+  background: rgba(37,99,235,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+:global(.dark) .hd-create-icon { background: rgba(74,122,255,0.15); color: #4A7AFF; }
+
+.hd-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  padding: 0.5556rem 0.5556rem 0.6944rem;
+}
+.hd-profile-avatar {
+  width: 2.1528rem;
+  height: 2.1528rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.hd-profile-name {
+  font-size: 0.9028rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.3;
+}
+:global(.dark) .hd-profile-name { color: rgba(255,255,255,0.92); }
+.hd-profile-email {
+  font-size: 0.75rem;
+  color: rgba(105,105,105,0.6);
+  margin-top: 0.1111rem;
+}
+:global(.dark) .hd-profile-email { color: rgba(255,255,255,0.38); }
+
+.hd-toggle {
+  position: relative;
+  display: inline-flex;
+  width: 2.0833rem;
+  height: 1.1111rem;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  flex-shrink: 0;
+  transition: background 0.25s;
+}
+.hd-toggle::after {
+  content: '';
+  position: absolute;
+  left: 0.1389rem;
+  top: 0.1389rem;
+  width: 0.8333rem;
+  height: 0.8333rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.hd-toggle--on { background: #2563eb; }
+.hd-toggle--on::after { transform: translateX(0.9444rem); }
+:global(.dark) .hd-toggle { background: rgba(255,255,255,0.12); }
+:global(.dark) .hd-toggle--on { background: #2563eb; }
 </style>
