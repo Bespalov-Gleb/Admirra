@@ -128,7 +128,7 @@
                   <span class="text-[0.9028rem] font-bold" :class="projectsAtLimit ? 'text-[#d97706]' : 'text-[#111827] dark:text-white/88'">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
                 </div>
                 <div class="usage-bar">
-                  <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%' }"></div>
+                  <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%', animationDelay: '0.05s' }"></div>
                 </div>
               </div>
 
@@ -138,7 +138,7 @@
                   <span class="text-[0.9028rem] font-bold" :class="aiAtLimit ? 'text-[#d97706]' : 'text-[#111827] dark:text-white/88'">{{ usage.aiUsed }} / {{ usage.aiLimit }}</span>
                 </div>
                 <div class="usage-bar">
-                  <div class="usage-bar-fill" :class="aiAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: aiPct + '%' }"></div>
+                  <div class="usage-bar-fill" :class="aiAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: aiPct + '%', animationDelay: '0.18s' }"></div>
                 </div>
                 <div class="flex items-center justify-between mt-[0.3472rem]">
                   <span class="text-[0.7778rem] font-medium text-[#696969]/60 dark:text-white/38">осталось {{ usage.aiRemaining }}</span>
@@ -779,11 +779,17 @@ watch(
 }
 :global(.dark) .usage-bar { background: rgba(255,255,255,0.08); }
 
+@keyframes usage-bar-grow {
+  from { transform: scaleX(0); }
+}
+
 .usage-bar-fill {
   height: 100%;
   border-radius: 2.7778rem;
   background: linear-gradient(90deg, #2563eb 0%, #14b8d5 100%);
-  transition: width 0.5s ease;
+  transform-origin: left center;
+  animation: usage-bar-grow 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .usage-bar-fill--amber { background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%); }
 

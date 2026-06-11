@@ -550,24 +550,17 @@
 
       <article class="panel goals-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="goals-panel__header">
-          <h2>
-            Целевые действия
-            <span
-              class="goals-info-icon"
-              title="CPA по отдельным целям не показывается — расход кампании не делится между разными целями одной сессии. Общий CPL по Яндексу считается как сумма расхода / сумма всех конверсий — это корректный сводный показатель."
-              @click.stop
-            >i</span>
-          </h2>
+          <h2>Целевые действия</h2>
         </div>
         <div class="goals-channel-block">
           <div class="goals-channel-header">
-            <img :src="yandexDirectIcon" alt="Яндекс" class="goals-channel-icon" />
-            <strong>Яндекс Директ</strong>
+            <img :src="yandexMetrikaIcon" alt="Яндекс Метрика" class="goals-channel-icon" />
+            <strong class="goals-channel-name">Яндекс Метрика</strong>
             <span class="goals-channel-expense">{{ formatMoney(withVat(summary?.expenses || 0)) }}</span>
           </div>
           <div v-if="goalBars.length" class="goals-bar-list">
             <div
-              v-for="bar in goalBars"
+              v-for="(bar, barIdx) in goalBars"
               :key="bar.id"
               class="goals-bar-row"
               :class="bar.alertClass"
@@ -584,7 +577,7 @@
                 </div>
               </div>
               <div class="goals-bar-track">
-                <div class="goals-bar-fill" :style="{ width: bar.pct + '%', minWidth: bar.count > 0 ? '3px' : '0', background: bar.color }"></div>
+                <div class="goals-bar-fill" :style="{ width: bar.pct + '%', minWidth: bar.count > 0 ? '3px' : '0', background: bar.color, animationDelay: `${0.05 + barIdx * 0.07}s` }"></div>
               </div>
             </div>
           </div>
@@ -1134,6 +1127,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { BuildingOfficeIcon, ComputerDesktopIcon, CursorArrowRippleIcon, EyeIcon } from '@heroicons/vue/24/solid'
 import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
+import yandexMetrikaIcon from '@/assets/icons/yandex-metrika.png'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
 import avitoAdsIcon from '@/assets/icons/avito.svg'
 import { useTheme } from '@/composables/useTheme'
@@ -5758,35 +5752,12 @@ onMounted(() => {
 }
 
 .goals-panel__header {
-  margin-bottom: 0.6rem;
+  margin-bottom: 1rem;
 }
 
 .goals-panel__header h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   font-size: 1.5rem;
-}
-
-.goals-info-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: #f1f5f9;
-  color: #94a3b8;
-  font-size: 0.8rem;
   font-weight: 700;
-  font-style: italic;
-  cursor: help;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.goals-info-icon:hover {
-  background: #e2e8f0;
 }
 
 .goals-channel-block {
@@ -5799,22 +5770,31 @@ onMounted(() => {
 .goals-channel-header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #f8f9fb;
+  border: 1px solid #eef0f3;
+  border-radius: 0.9rem;
+  margin-bottom: 1.1rem;
 }
 
 .goals-channel-icon {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 2rem;
+  height: 2rem;
   object-fit: contain;
+  border-radius: 0.4rem;
+  flex-shrink: 0;
+}
+
+.goals-channel-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
 }
 
 .goals-channel-expense {
   margin-left: auto;
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 1.05rem;
   font-weight: 500;
 }
@@ -5822,7 +5802,7 @@ onMounted(() => {
 .goals-bar-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.6rem;
   flex: 1;
   min-width: 0;
 }
@@ -5830,27 +5810,27 @@ onMounted(() => {
 .goals-bar-row {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.55rem;
   min-width: 0;
-  padding: 0.7rem 1rem;
-  border-radius: 0.7rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
   background: #fafbfc;
-  border: 1px solid #f1f3f5;
+  border: 1px solid #f0f2f5;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .goals-bar-row:hover {
-  border-color: #e2e8f0;
-  background: #f8f9fb;
+  border-color: #dde1e8;
+  background: #f5f7fa;
 }
 
 .goals-bar-row--anomaly-warning {
-  border-color: rgba(245, 158, 11, 0.45);
+  border-color: rgba(245, 158, 11, 0.4);
   background: #fffbeb;
 }
 
 .goals-bar-row--anomaly-problem {
-  border-color: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.35);
   background: #fef2f2;
 }
 
@@ -5867,8 +5847,8 @@ onMounted(() => {
   white-space: normal;
   overflow-wrap: anywhere;
   color: #374151;
-  font-size: 1.1rem;
-  line-height: 1.3;
+  font-size: 1.05rem;
+  line-height: 1.35;
   font-weight: 450;
 }
 
@@ -5880,27 +5860,33 @@ onMounted(() => {
 }
 
 .goals-bar-track {
-  height: 0.5rem;
-  background: #e9ecf0;
+  height: 0.45rem;
+  background: #eaecf0;
   border-radius: 10rem;
   overflow: hidden;
+}
+
+@keyframes goals-bar-grow {
+  from { transform: scaleX(0); }
 }
 
 .goals-bar-fill {
   height: 100%;
   border-radius: 10rem;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left center;
+  animation: goals-bar-grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .goals-bar-count {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 600;
   color: #1e293b;
   white-space: nowrap;
 }
 
 .goals-bar-trend {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -5933,25 +5919,25 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: #6b7280;
 }
 
 .goals-summary-row strong {
   color: #1e293b;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
 }
 
 .goals-summary-row--accent {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 0.7rem;
+  background: rgba(37, 99, 235, 0.05);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 0.75rem;
   padding: 0.85rem 1.1rem;
-  color: #92400e;
+  color: #2563eb;
 }
 
 .goals-summary-row--accent strong {
-  color: #78350f;
+  color: #1d4ed8;
   font-weight: 700;
 }
 
@@ -5959,15 +5945,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.55rem;
+  margin-top: 0.5rem;
   padding: 0 0.2rem;
-  font-size: 1.05rem;
+  font-size: 1rem;
   color: #9ca3af;
 }
 
 .goals-total-row strong {
   color: #6b7280;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 500;
 }
 
@@ -8528,17 +8514,17 @@ onMounted(() => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.figma-dashboard.is-dark .goals-info-icon {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.4);
+.figma-dashboard.is-dark .goals-channel-header {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.07);
 }
 
-.figma-dashboard.is-dark .goals-channel-header {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+.figma-dashboard.is-dark .goals-channel-name {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .figma-dashboard.is-dark .goals-channel-expense {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .figma-dashboard.is-dark .goals-bar-row {
@@ -8568,7 +8554,6 @@ onMounted(() => {
 }
 
 .figma-dashboard.is-dark .goals-summary-row {
-  border-top-color: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -8577,13 +8562,13 @@ onMounted(() => {
 }
 
 .figma-dashboard.is-dark .goals-summary-row--accent {
-  background: rgba(250, 204, 21, 0.08);
-  border-color: rgba(250, 204, 21, 0.2);
-  color: #fbbf24;
+  background: rgba(74, 122, 255, 0.1);
+  border-color: rgba(74, 122, 255, 0.22);
+  color: #4a7aff;
 }
 
 .figma-dashboard.is-dark .goals-summary-row--accent strong {
-  color: #fcd34d;
+  color: #6b95ff;
 }
 
 .figma-dashboard.is-dark .goals-total-row {
