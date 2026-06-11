@@ -647,7 +647,10 @@ async def get_ai_comment(
     if not client_id:
         return {"text": None}
     cid = _parse_uuid(client_id, "client_id")
-    client = _client_or_404(db, current_user, cid)
+    _client_or_404(db, current_user, cid)
+    client = db.query(models.Client).filter(models.Client.id == cid).first()
+    if not client:
+        return {"text": None}
     return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at}
 
 
@@ -664,7 +667,10 @@ async def save_ai_comment(
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id required")
     cid = _parse_uuid(client_id, "client_id")
-    client = _client_or_404(db, current_user, cid)
+    _client_or_404(db, current_user, cid)
+    client = db.query(models.Client).filter(models.Client.id == cid).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
     client.last_ai_comment = text
     client.last_ai_comment_at = datetime.utcnow()
     db.commit()
