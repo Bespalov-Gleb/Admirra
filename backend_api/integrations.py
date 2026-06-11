@@ -11,7 +11,11 @@ from automation.vk_ads import (
 )
 from automation.mytarget import MyTargetAPI
 from automation.avito_ads import AvitoAdsAPI
-from automation.avito_integration_helpers import build_avito_api_from_integration as _build_avito_api_from_integration
+from automation.avito_integration_helpers import (
+    build_avito_api_from_integration as _build_avito_api_from_integration,
+    get_metrika_integration_for_client as _get_metrika_integration_for_client,
+    metrika_profile_login as _metrika_profile_login,
+)
 from typing import List, Optional
 import uuid
 import httpx
@@ -1678,8 +1682,19 @@ async def get_integration_counters(
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
         return {"counters": []}
-    
-    if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+
+    # Avito Ads: counters come from a linked YANDEX_METRIKA integration
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        metrika_src = _get_metrika_integration_for_client(db, integration.client_id)
+        if not metrika_src:
+            return {"counters": [], "warning": "Подключите Яндекс Метрику (OAuth) для выбора счётчиков лидов"}
+        access_token = security.decrypt_token(metrika_src.access_token)
+        target_account = _metrika_profile_login(metrika_src)
+
+    if integration.platform in (
+        models.IntegrationPlatform.YANDEX_DIRECT,
+        models.IntegrationPlatform.AVITO_ADS,
+    ):
         # Priority 1: Get counters from selected campaigns via CounterIds
         logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
         if campaign_ids:
@@ -1903,17 +1918,25 @@ async def get_integration_goals(
     if integration.platform == models.IntegrationPlatform.VK_ADS:
         logger.info(f"ℹ️ VK Ads integration - Yandex Metrika goals are not applicable. Returning empty list.")
         return []
-    
-    # Determine target_account for profile filtering (used in both paths)
-    if account_id:
-        target_account = account_id
-        logger.info(f"Using account_id from query param: {target_account}")
-    elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
-        target_account = integration.agency_client_login
-        logger.info(f"Using agency_client_login (selected profile): {target_account}")
+
+    # Avito Ads: goals come from a linked YANDEX_METRIKA integration
+    if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        metrika_src = _get_metrika_integration_for_client(db, integration.client_id)
+        if not metrika_src:
+            return []
+        access_token = security.decrypt_token(metrika_src.access_token)
+        target_account = _metrika_profile_login(metrika_src)
     else:
-        target_account = None
-        logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
+        # Determine target_account for profile filtering (used in both paths)
+        if account_id:
+            target_account = account_id
+            logger.info(f"Using account_id from query param: {target_account}")
+        elif integration.agency_client_login and integration.agency_client_login.lower() != "unknown":
+            target_account = integration.agency_client_login
+            logger.info(f"Using agency_client_login (selected profile): {target_account}")
+        else:
+            target_account = None
+            logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
     
     # CRITICAL: Priority order for goal fetching:
     # 1. If counter_ids provided, fetch goals ONLY from those counters (highest priority)
