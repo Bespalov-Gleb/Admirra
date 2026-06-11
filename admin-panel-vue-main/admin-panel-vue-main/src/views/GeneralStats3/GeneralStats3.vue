@@ -714,7 +714,8 @@
       </article>
 
       <article class="panel ai-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-        <div class="ai-title">
+        <!-- Header with small button (only when comment exists or loading) -->
+        <div v-if="loadingInitialComment || reportComment" class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
           <button
@@ -726,16 +727,45 @@
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
             </svg>
             <SparklesIcon v-else class="ai-generate-btn__icon" />
-            {{ loadingAiComment ? 'Генерирую...' : reportComment ? 'Обновить' : 'Сгенерировать' }}
+            {{ loadingAiComment ? 'Генерирую...' : 'Обновить' }}
           </button>
         </div>
-        <div v-if="reportComment" class="ai-report-body">{{ reportComment }}</div>
-        <div v-else class="ai-empty"></div>
-        <p v-if="reportComment">Сгенерировано AI · {{ dateRangeLabel }}</p>
+
+        <!-- Skeleton while loading saved comment -->
+        <div v-if="loadingInitialComment" class="ai-skeleton">
+          <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
+          <div class="ai-skeleton-line"></div>
+          <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
+          <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
+          <div class="ai-skeleton-line ai-skeleton-line--narrow"></div>
+        </div>
+
+        <!-- CTA: no comment yet -->
+        <div v-else-if="!reportComment" class="ai-cta">
+          <span class="ai-cta__icon"><SparklesIcon /></span>
+          <h2 class="ai-cta__title">AI комментарии к отчёту</h2>
+          <p class="ai-cta__desc">Краткий анализ эффективности кампаний за выбранный период: расходы, конверсии, топ кампаний и рекомендации.</p>
+          <button
+            class="ai-cta__btn"
+            :disabled="loadingAiComment || dashboardSyncInProgress"
+            @click="triggerAiComment"
+          >
+            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
+            </svg>
+            <SparklesIcon v-else />
+            {{ loadingAiComment ? 'Генерирую...' : dashboardSyncInProgress ? 'Дождитесь синхронизации' : 'Сгенерировать анализ' }}
+          </button>
+        </div>
+
+        <!-- Rendered markdown report -->
+        <div v-else class="ai-report-body" v-html="renderMarkdown(reportComment)"></div>
+        <p v-if="reportComment && !loadingInitialComment">Сгенерировано AI · {{ dateRangeLabel }}</p>
+
         <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
           <ArrowPathIcon class="spinning" />
           <strong>Выполняется синхронизация</strong>
-          <span>Комментарии обновятся после пересчета данных.</span>
+          <span>Комментарии обновятся после пересчёта данных.</span>
           <i></i><i></i><i></i>
         </div>
       </article>
@@ -1221,6 +1251,57 @@ const userReportSettings = ref({
 })
 const reportComment = ref('')
 const loadingAiComment = ref(false)
+const loadingInitialComment = ref(false)
+
+const aiCommentKey = () => `ai_comment_${filters.client_id || 'all'}`
+
+const loadSavedComment = () => {
+  loadingInitialComment.value = true
+  // nextTick so skeleton renders before synchronous localStorage read
+  nextTick(() => {
+    const saved = localStorage.getItem(aiCommentKey())
+    if (saved) reportComment.value = saved
+    loadingInitialComment.value = false
+  })
+}
+
+const renderMarkdown = (text) => {
+  if (!text) return ''
+  let html = text
+    // Tables: header row + separator + body rows
+    .replace(/^\|(.+)\|\r?\n\|[-| :]+\|\r?\n((?:\|.+\|\r?\n?)*)/gm, (_, header, body) => {
+      const ths = header.split('|').map(h => h.trim()).filter(Boolean)
+        .map(h => `<th>${h}</th>`).join('')
+      const rows = body.trim().split('\n').map(row => {
+        const tds = row.split('|').map(c => c.trim()).filter(Boolean)
+          .map(c => `<td>${c}</td>`).join('')
+        return `<tr>${tds}</tr>`
+      }).join('')
+      return `<table class="ai-md-table"><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`
+    })
+    // Headers
+    .replace(/^### (.+)$/gm, '<h5 class="ai-md-h">$1</h5>')
+    .replace(/^## (.+)$/gm, '<h4 class="ai-md-h">$1</h4>')
+    .replace(/^# (.+)$/gm, '<h3 class="ai-md-h ai-md-h--1">$1</h3>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Bullet lists
+    .replace(/((?:^[*-] .+\n?)+)/gm, match => {
+      const items = match.trim().split('\n')
+        .map(l => `<li>${l.replace(/^[*-] /, '')}</li>`).join('')
+      return `<ul class="ai-md-ul">${items}</ul>`
+    })
+    // Numbered lists
+    .replace(/((?:^\d+\. .+\n?)+)/gm, match => {
+      const items = match.trim().split('\n')
+        .map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('')
+      return `<ol class="ai-md-ol">${items}</ol>`
+    })
+    // Paragraph breaks
+    .replace(/\n\n+/g, '</p><p class="ai-md-p">')
+    .replace(/\n/g, '<br>')
+  return `<p class="ai-md-p">${html}</p>`
+}
 const reportGoals = ref([])
 const integrations = ref([])
 const topAds = ref([])
@@ -2947,6 +3028,9 @@ const triggerAiComment = async () => {
   loadingAiComment.value = true
   try {
     await handleGenerateReport()
+    if (reportComment.value) {
+      localStorage.setItem(aiCommentKey(), reportComment.value)
+    }
   } finally {
     loadingAiComment.value = false
   }
@@ -3382,11 +3466,17 @@ const openAssistantForDetectorAlert = () => {
   })
 }
 
+watch(() => filters.client_id, () => {
+  reportComment.value = ''
+  loadSavedComment()
+})
+
 onMounted(() => {
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
   fetchTopAds()
+  loadSavedComment()
 })
 </script>
 
@@ -6922,15 +7012,115 @@ onMounted(() => {
   font-size: 0.9028rem;
 }
 
+/* Skeleton */
+.ai-skeleton {
+  margin-top: 1.3889rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6944rem;
+}
+.ai-skeleton-line {
+  height: 0.75rem;
+  border-radius: 0.4rem;
+  background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 50%, #eef2f7 75%);
+  background-size: 200% 100%;
+  animation: ai-shimmer 1.4s infinite;
+  width: 75%;
+}
+.ai-skeleton-line--wide { width: 95%; }
+.ai-skeleton-line--medium { width: 60%; }
+.ai-skeleton-line--narrow { width: 40%; }
+@keyframes ai-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* CTA (no comment yet) */
+.ai-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 16rem;
+  text-align: center;
+  gap: 0.8333rem;
+  padding: 1.3889rem;
+}
+.ai-cta__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.8333rem;
+  background: linear-gradient(135deg, rgba(99,91,255,0.12), rgba(139,92,246,0.12));
+  color: #635bff;
+}
+.ai-cta__icon svg { width: 1.4rem; height: 1.4rem; }
+.ai-cta__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #171717;
+  margin: 0;
+}
+.ai-cta__desc {
+  font-size: 0.8rem;
+  color: #6b7280;
+  max-width: 22rem;
+  line-height: 1.5;
+  margin: 0;
+}
+.ai-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.6111rem 1.3889rem;
+  border-radius: 0.6667rem;
+  border: none;
+  background: linear-gradient(135deg, #635bff, #8b5cf6);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.ai-cta__btn svg { width: 1rem; height: 1rem; }
+.ai-cta__btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.ai-cta__btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* Markdown-rendered report */
 .ai-report-body {
   margin-top: 1.1111rem;
-  max-height: 16rem;
+  max-height: 17rem;
   overflow-y: auto;
-  font-size: 0.8333rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  font-size: 0.8rem;
+  line-height: 1.65;
   color: #374151;
   scrollbar-width: thin;
+}
+.ai-report-body :deep(.ai-md-h--1) { font-size: 0.9rem; font-weight: 700; margin: 0.8rem 0 0.3rem; color: #111827; }
+.ai-report-body :deep(.ai-md-h) { font-size: 0.8333rem; font-weight: 700; margin: 0.7rem 0 0.25rem; color: #1f2937; }
+.ai-report-body :deep(.ai-md-p) { margin: 0 0 0.4rem; }
+.ai-report-body :deep(.ai-md-ul),
+.ai-report-body :deep(.ai-md-ol) { padding-left: 1.2rem; margin: 0.3rem 0 0.5rem; }
+.ai-report-body :deep(li) { margin-bottom: 0.2rem; }
+.ai-report-body :deep(.ai-md-table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.75rem;
+}
+.ai-report-body :deep(.ai-md-table th) {
+  background: #f3f4f6;
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1.5px solid #e5e7eb;
+}
+.ai-report-body :deep(.ai-md-table td) {
+  padding: 0.28rem 0.5rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .ai-panel > p {
@@ -7659,6 +7849,33 @@ onMounted(() => {
 :global(.dark) .ai-report-body,
 :global(.darkmode) .ai-report-body {
   color: rgba(255, 255, 255, 0.75);
+}
+:global(.dark) .ai-report-body :deep(.ai-md-table th),
+:global(.darkmode) .ai-report-body :deep(.ai-md-table th) {
+  background: rgba(255,255,255,0.06);
+  border-bottom-color: rgba(255,255,255,0.1);
+}
+:global(.dark) .ai-report-body :deep(.ai-md-table td),
+:global(.darkmode) .ai-report-body :deep(.ai-md-table td) {
+  border-bottom-color: rgba(255,255,255,0.05);
+}
+:global(.dark) .ai-skeleton-line,
+:global(.darkmode) .ai-skeleton-line {
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.06) 75%);
+  background-size: 200% 100%;
+  animation: ai-shimmer 1.4s infinite;
+}
+:global(.dark) .ai-cta__title,
+:global(.darkmode) .ai-cta__title {
+  color: rgba(255,255,255,0.9);
+}
+:global(.dark) .ai-cta__desc,
+:global(.darkmode) .ai-cta__desc {
+  color: rgba(255,255,255,0.45);
+}
+:global(.dark) .ai-md-h,
+:global(.darkmode) .ai-md-h {
+  color: rgba(255,255,255,0.88);
 }
 
 :global(.dark) .select-like,
