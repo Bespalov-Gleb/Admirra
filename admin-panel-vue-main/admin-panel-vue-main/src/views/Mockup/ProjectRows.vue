@@ -88,11 +88,13 @@
           <span class="tile-nds-label">С НДС 22%</span>
         </label>
 
-        <button class="tile-sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncProjects">
-          <svg :class="{ spinning: syncingIntegrations }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <div class="project-sync-meta" v-if="projectSyncStatusText">{{ projectSyncStatusText }}</div>
+
+        <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
+          <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизировать' }}
+          {{ projectsSyncing ? 'Синхронизация...' : 'Синхронизировать' }}
         </button>
 
         <button type="button" class="bulk-btn" @click="openMassEdit">
@@ -494,11 +496,18 @@ import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
 import ProjectSettingsModal from '../../components/ProjectSettingsModal.vue'
 import { useDetectorCrossProject } from '../../composables/useDetector'
+import { useSyncStatus } from '../../composables/useSyncStatus'
 
 const router = useRouter()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const toaster = useToaster()
 const { fetchCrossProject, getProjectStatus } = useDetectorCrossProject()
+const {
+  syncingIntegrations: globalSyncingIntegrations,
+  startIntegrationSync,
+  waitForSyncJobs,
+  fetchSyncStatus,
+} = useSyncStatus()
 
 const periodKey = ref('last_7_days')
 const customPeriodRange = ref({ start: null, end: null })
@@ -824,9 +833,37 @@ const platformLabel = (platform) => {
 const VAT_RATE = 1.22
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
+const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
 const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
+
+const formatMoscowSyncDate = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Moscow'
+  }).replace('.', '')
+}
+
+const lastProjectSyncAt = computed(() => {
+  const timestamps = projects.value
+    .flatMap((project) => project.integrations || [])
+    .map((integration) => Date.parse(integration.last_sync_at || ''))
+    .filter(Number.isFinite)
+  return timestamps.length ? Math.max(...timestamps) : null
+})
+
+const projectSyncStatusText = computed(() => {
+  if (projectsSyncing.value) return 'Выполняется синхронизация, пожалуйста подождите'
+  const formatted = formatMoscowSyncDate(lastProjectSyncAt.value)
+  return formatted ? `Последняя синхронизация: ${formatted} МСК` : ''
+})
 
 const handleSyncProjects = async () => {
   if (syncingIntegrations.value) return
@@ -840,12 +877,21 @@ const handleSyncProjects = async () => {
   }
   syncingIntegrations.value = true
   try {
-    await Promise.all(uniqueIntegrations.map((i) => api.post(`integrations/${i.id}/sync`, { days: 90 })))
-    toaster.success(`Синхронизация запущена для ${uniqueIntegrations.length} ${uniqueIntegrations.length === 1 ? 'канала' : 'каналов'}.`)
-    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject()])
+    const results = await Promise.allSettled(uniqueIntegrations.map((i) => startIntegrationSync(i.id, { days: 90 })))
+    const jobIds = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value?.job_id)
+      .filter(Boolean)
+    if (!jobIds.length) throw new Error('Не удалось запустить синхронизацию.')
+    toaster.info(`Синхронизация запущена для ${jobIds.length} ${jobIds.length === 1 ? 'канала' : 'каналов'}.`)
+    await Promise.all([fetchProjects(), fetchSyncStatus()])
+    const result = await waitForSyncJobs(jobIds)
+    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject(), fetchSyncStatus()])
+    if (result.failed?.length) toaster.warning(`Синхронизация завершена с ошибками: ${result.failed.length}`)
+    else toaster.success('Синхронизация завершена. Данные обновлены.')
   } catch (err) {
     console.error(err)
-    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию.')
+    toaster.error(err.response?.data?.detail || err.message || 'Не удалось запустить синхронизацию.')
   } finally {
     syncingIntegrations.value = false
   }
@@ -1401,6 +1447,13 @@ onUnmounted(() => {
 
 .tile-nds-label {
   line-height: 1;
+}
+
+.project-sync-meta {
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .tile-sync-btn {

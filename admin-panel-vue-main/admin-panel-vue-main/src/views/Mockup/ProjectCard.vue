@@ -89,11 +89,13 @@
           <span class="tile-nds-label">С НДС 22%</span>
         </label>
 
-        <button class="tile-sync-btn" type="button" :disabled="syncingIntegrations" @click="handleSyncProjects">
-          <svg :class="{ spinning: syncingIntegrations }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <div class="project-sync-meta" v-if="projectSyncStatusText">{{ projectSyncStatusText }}</div>
+
+        <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
+          <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ syncingIntegrations ? 'Синхронизация...' : 'Синхронизировать' }}
+          {{ projectsSyncing ? 'Синхронизация...' : 'Синхронизировать' }}
         </button>
 
         <div class="flex">
@@ -123,7 +125,12 @@
 
     <!-- Projects grid -->
     <div v-else class="projects-tile-grid mb-[2.0833rem]">
-      <div v-for="project in filteredProjects" :key="project.id" class="project-card project-card--tile bg-white rounded-[1.0417rem]">
+      <div v-for="project in filteredProjects" :key="project.id" class="project-card project-card--tile bg-white rounded-[1.0417rem]" :class="{ 'project-card--syncing': isProjectSyncing(project) }">
+        <div v-if="isProjectSyncing(project)" class="project-sync-overlay">
+          <div class="project-sync-overlay__spinner"></div>
+          <strong>Выполняется синхронизация</strong>
+          <span>Пожалуйста, подождите. Данные обновятся автоматически.</span>
+        </div>
 
         <div class="project-tile-main">
           <div class="project-tile-header">
@@ -351,11 +358,19 @@ import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
 import ProjectSettingsModal from '../../components/ProjectSettingsModal.vue'
 import { useDetectorCrossProject } from '../../composables/useDetector'
+import { useSyncStatus } from '../../composables/useSyncStatus'
 
 const router = useRouter()
 const toaster = useToaster()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const { fetchCrossProject, getProjectStatus } = useDetectorCrossProject()
+const {
+  syncingIntegrations: globalSyncingIntegrations,
+  isSyncingForProject,
+  startIntegrationSync,
+  waitForSyncJobs,
+  fetchSyncStatus,
+} = useSyncStatus()
 
 const projectFilter = ref('all')
 const periodKey = ref('last_7_days')
@@ -372,6 +387,7 @@ const avatarProject = ref(null)
 const settingsProject = ref(null)
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
+const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
 
 const projectFilterOptions = [
   { value: 'all', label: 'Все' },
@@ -408,6 +424,35 @@ const periodLabel = computed(() => {
   }
   return getProjectPeriodLabel(periodKey.value)
 })
+
+const formatMoscowSyncDate = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Moscow'
+  }).replace('.', '')
+}
+
+const lastProjectSyncAt = computed(() => {
+  const timestamps = projects.value
+    .flatMap((project) => project.integrations || [])
+    .map((integration) => Date.parse(integration.last_sync_at || ''))
+    .filter(Number.isFinite)
+  return timestamps.length ? Math.max(...timestamps) : null
+})
+
+const projectSyncStatusText = computed(() => {
+  if (projectsSyncing.value) return 'Выполняется синхронизация, пожалуйста подождите'
+  const formatted = formatMoscowSyncDate(lastProjectSyncAt.value)
+  return formatted ? `Последняя синхронизация: ${formatted} МСК` : ''
+})
+
+const isProjectSyncing = (project) => syncingIntegrations.value || isSyncingForProject(project.id)
 
 const periodPopoverStyle = computed(() => {
   if (openSelect.value !== 'period' || !periodTriggerRef.value || typeof window === 'undefined') return {}
@@ -840,12 +885,21 @@ const handleSyncProjects = async () => {
 
   syncingIntegrations.value = true
   try {
-    await Promise.all(uniqueIntegrations.map((integration) => api.post(`integrations/${integration.id}/sync`, { days: 90 })))
-    toaster.success(`Синхронизация запущена для ${uniqueIntegrations.length} ${uniqueIntegrations.length === 1 ? 'канала' : 'каналов'}.`)
-    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject()])
+    const results = await Promise.allSettled(uniqueIntegrations.map((integration) => startIntegrationSync(integration.id, { days: 90 })))
+    const jobIds = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value?.job_id)
+      .filter(Boolean)
+    if (!jobIds.length) throw new Error('Не удалось запустить синхронизацию.')
+    toaster.info(`Синхронизация запущена для ${jobIds.length} ${jobIds.length === 1 ? 'канала' : 'каналов'}.`)
+    await Promise.all([fetchProjects(), fetchSyncStatus()])
+    const result = await waitForSyncJobs(jobIds)
+    await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject(), fetchSyncStatus()])
+    if (result.failed?.length) toaster.warning(`Синхронизация завершена с ошибками: ${result.failed.length}`)
+    else toaster.success('Синхронизация завершена. Данные обновлены.')
   } catch (err) {
     console.error(err)
-    toaster.error(err.response?.data?.detail || 'Не удалось запустить синхронизацию.')
+    toaster.error(err.response?.data?.detail || err.message || 'Не удалось запустить синхронизацию.')
   } finally {
     syncingIntegrations.value = false
   }
@@ -1209,6 +1263,48 @@ onMounted(async () => {
   border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow: 0 0.1389rem 0.4167rem rgba(15, 23, 42, 0.03);
   overflow: visible;
+  position: relative;
+}
+
+.project-sync-meta {
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.project-sync-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(5px);
+  text-align: center;
+  color: #334155;
+}
+.project-sync-overlay strong {
+  font-size: 0.9722rem;
+  font-weight: 700;
+}
+.project-sync-overlay span {
+  max-width: 22rem;
+  font-size: 0.8333rem;
+  color: rgba(51, 65, 85, 0.72);
+}
+.project-sync-overlay__spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  border: 3px solid rgba(37, 99, 235, 0.16);
+  border-top-color: #2563eb;
+  animation: tile-spin 0.8s linear infinite;
 }
 
 .project-tile-main {

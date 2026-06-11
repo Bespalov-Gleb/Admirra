@@ -63,7 +63,18 @@
               <h4 class="ip-section-title">Счётчик метрики</h4>
               <p class="ip-section-sub">{{ counterDomain }} • ID {{ counterId }}</p>
             </div>
-            <button class="ip-tariff-btn">Изменить тариф</button>
+            <div v-if="counters.length > 1" class="ip-counter-list" aria-label="Выбор счётчиков">
+              <button
+                v-for="counter in counters"
+                :key="counter.id"
+                type="button"
+                class="ip-counter-chip"
+                :class="{ 'ip-counter-chip--active': selectedCounterIds.includes(String(counter.id)) }"
+                @click="toggleCounter(counter.id)"
+              >
+                {{ counter.site || counter.name || `ID ${counter.id}` }}
+              </button>
+            </div>
           </div>
 
           <div class="ip-hr" />
@@ -86,12 +97,14 @@
                 'ip-goal--checked': goal.state === 'checked',
                 'ip-goal--new': goal.state === 'new',
                 'ip-goal--error': goal.state === 'error',
+                'ip-goal--selected': isGoalSelected(goal.id),
               }"
+              @click="toggleGoal(goal.id)"
             >
               <!-- State icon (left) -->
-              <div class="ip-goal__icon flex-shrink-0">
+              <button class="ip-goal__icon flex-shrink-0" type="button" @click.stop="toggleGoal(goal.id)">
                 <!-- checked -->
-                <svg v-if="goal.state === 'checked'" width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <svg v-if="isGoalSelected(goal.id)" width="22" height="22" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="9.5" stroke="#4b4535" stroke-width="1.5"/>
                   <path d="M7.5 12.5l3 3 6-6" stroke="#4b4535" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -105,7 +118,7 @@
                   <path d="M12 7.5v5.5" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
                   <circle cx="12" cy="16" r="1" fill="#ef4444"/>
                 </svg>
-              </div>
+              </button>
 
               <!-- Name + meta (center) -->
               <div class="ip-goal__info min-w-0">
@@ -117,9 +130,12 @@
               <!-- Right: star / badge / error text -->
               <div class="ip-goal__right flex-shrink-0">
                 <svg
-                  v-if="goal.state === 'checked'"
+                  v-if="isGoalSelected(goal.id)"
+                  class="ip-goal-star"
+                  :class="{ 'ip-goal-star--active': String(goal.id) === String(primaryGoalId) }"
+                  @click.stop="selectPrimaryGoal(goal.id)"
                   width="18" height="18" viewBox="0 0 24 24"
-                  :fill="goal.primary ? '#8a7a54' : '#bfb08a'"
+                  :fill="String(goal.id) === String(primaryGoalId) ? '#8a7a54' : '#bfb08a'"
                 >
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
@@ -144,12 +160,43 @@
 
       <!-- ── Footer ── -->
       <div class="ip-footer">
-        <button class="ip-delete-btn" @click="$emit('delete')">Удалить интеграцию</button>
+        <button class="ip-delete-btn" @click="deleteConfirmOpen = true">Удалить интеграцию</button>
         <div class="flex items-center gap-[0.6944rem]">
           <button class="ip-cancel-btn" @click="$emit('close')">Отмена</button>
-          <button class="ip-save-btn" @click="$emit('save')">Сохранить</button>
+          <button class="ip-save-btn" :disabled="!canSave" @click="emitSave">Сохранить</button>
         </div>
       </div>
+
+      <Teleport to="body">
+        <div v-if="deleteConfirmOpen" class="ip-confirm-backdrop" @click.self="deleteConfirmOpen = false">
+          <div class="ip-confirm">
+            <h3>Удалить интеграцию?</h3>
+            <p>
+              История и данные канала будут обработаны по текущей серверной логике удаления.
+              Для подтверждения введите название интеграции:
+              <strong>{{ deleteConfirmPhrase }}</strong>
+            </p>
+            <input
+              v-model="deleteConfirmText"
+              class="ip-confirm-input"
+              type="text"
+              :placeholder="deleteConfirmPhrase"
+              autocomplete="off"
+            />
+            <div class="ip-confirm-actions">
+              <button type="button" class="ip-cancel-btn" @click="deleteConfirmOpen = false">Отмена</button>
+              <button
+                type="button"
+                class="ip-delete-btn"
+                :disabled="deleteConfirmText.trim() !== deleteConfirmPhrase"
+                @click="$emit('delete')"
+              >
+                Удалить интеграцию
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
 
     </div>
 </template>
@@ -161,7 +208,12 @@ import api from '../../api/axios'
 const panelEl = ref(null)
 const counters = ref([])
 const goals = ref([])
+const selectedGoalIds = ref([])
+const primaryGoalId = ref('')
+const selectedCounterIds = ref([])
 const loadingGoals = ref(false)
+const deleteConfirmOpen = ref(false)
+const deleteConfirmText = ref('')
 
 const props = defineProps({
   integration: {
@@ -170,7 +222,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['close', 'save', 'delete'])
+const emit = defineEmits(['close', 'save', 'delete'])
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -210,18 +262,90 @@ const cabinetName = computed(() => {
 const formattedSync = computed(() => {
   if (!props.integration?.last_sync_at) return '—'
   return new Date(props.integration.last_sync_at).toLocaleString('ru-RU', {
-    day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
+    day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow'
   })
 })
 
 // ── Counter (from fetched data) ───────────────────────────────────────────────
 
 const counterDomain = computed(() => counters.value[0]?.site || '—')
-const counterId     = computed(() => counters.value[0]?.id   || '—')
+const counterId = computed(() => selectedCounterIds.value.join(', ') || counters.value[0]?.id || '—')
 
 // ── New-goal notice ───────────────────────────────────────────────────────────
 
 const hasNewGoals = computed(() => goals.value.some(g => g.state === 'new'))
+const canSave = computed(() => selectedGoalIds.value.length > 0 && Boolean(primaryGoalId.value))
+const deleteConfirmPhrase = computed(() => channelName.value)
+
+const isGoalSelected = (goalId) => selectedGoalIds.value.includes(String(goalId))
+
+const toggleGoal = (goalId) => {
+  const id = String(goalId)
+  if (selectedGoalIds.value.includes(id)) {
+    selectedGoalIds.value = selectedGoalIds.value.filter((item) => item !== id)
+    if (String(primaryGoalId.value) === id) primaryGoalId.value = selectedGoalIds.value[0] || ''
+  } else {
+    selectedGoalIds.value = [...selectedGoalIds.value, id]
+    if (!primaryGoalId.value) primaryGoalId.value = id
+  }
+}
+
+const selectPrimaryGoal = (goalId) => {
+  const id = String(goalId)
+  if (!selectedGoalIds.value.includes(id)) selectedGoalIds.value = [...selectedGoalIds.value, id]
+  primaryGoalId.value = id
+}
+
+const toggleCounter = (counterId) => {
+  const id = String(counterId)
+  if (selectedCounterIds.value.includes(id)) {
+    selectedCounterIds.value = selectedCounterIds.value.filter((item) => item !== id)
+  } else {
+    selectedCounterIds.value = [...selectedCounterIds.value, id]
+  }
+  loadGoalsForSelectedCounters(props.integration?.id, props.integration?.account_id || null)
+}
+
+const emitSave = () => {
+  emit('save', {
+    selected_goals: selectedGoalIds.value,
+    primary_goal_id: primaryGoalId.value,
+    selected_counters: selectedCounterIds.value,
+  })
+}
+
+const loadGoalsForSelectedCounters = async (integrationId, accountId) => {
+  if (!integrationId) return
+  const counterIds = selectedCounterIds.value.length ? selectedCounterIds.value : counters.value.map(c => c.id)
+  const goalParams = {
+    with_stats: false,
+    ...(accountId && { account_id: accountId }),
+    ...(counterIds.length && { counter_ids: counterIds.join(',') }),
+  }
+  const { data: gData } = await api.get(`integrations/${integrationId}/goals`, { params: goalParams })
+  const apiGoals = Array.isArray(gData) ? gData : (gData?.goals ?? [])
+  const apiGoalMap = new Map(apiGoals.map(g => [String(g.id), g]))
+  const selSet = new Set(selectedGoalIds.value.map(String))
+
+  const result = []
+
+  for (const gid of selectedGoalIds.value) {
+    const sid = String(gid)
+    const ag = apiGoalMap.get(sid)
+    result.push(ag
+      ? { id: sid, name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'checked' }
+      : { id: sid, name: `Цель ID ${sid}`, type: null, state: 'error' }
+    )
+  }
+
+  for (const ag of apiGoals) {
+    if (!selSet.has(String(ag.id))) {
+      result.push({ id: String(ag.id), name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'new' })
+    }
+  }
+
+  goals.value = result
+}
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
@@ -230,8 +354,12 @@ const fetchData = async () => {
   if (!integrationId) return
 
   // selected_goals comes as List[str] from the API (already parsed)
-  const selectedGoalIds = parseJsonList(props.integration?.selected_goals)
-  const primaryGoalId   = String(props.integration?.primary_goal_id || '')
+  const initialSelectedGoalIds = parseJsonList(props.integration?.selected_goals)
+  const initialPrimaryGoalId = String(props.integration?.primary_goal_id || '')
+  const initialCounterIds = parseJsonList(props.integration?.selected_counters)
+  selectedGoalIds.value = initialSelectedGoalIds
+  primaryGoalId.value = initialPrimaryGoalId || initialSelectedGoalIds[0] || ''
+  selectedCounterIds.value = initialCounterIds
   // account_id is used to scope Metrika counters to the right profile
   const accountId = props.integration?.account_id || null
 
@@ -241,39 +369,12 @@ const fetchData = async () => {
     const counterParams = accountId ? { account_id: accountId } : {}
     const { data: cData } = await api.get(`integrations/${integrationId}/counters`, { params: counterParams })
     counters.value = cData?.counters || (Array.isArray(cData) ? cData : [])
-
-    // 2. Fetch all available goals — pass account_id + counter_ids if we got them
-    const counterIds = counters.value.map(c => c.id)
-    const goalParams = {
-      with_stats: false,
-      ...(accountId && { account_id: accountId }),
-      ...(counterIds.length && { counter_ids: counterIds.join(',') }),
-    }
-    const { data: gData } = await api.get(`integrations/${integrationId}/goals`, { params: goalParams })
-    const apiGoals   = Array.isArray(gData) ? gData : (gData?.goals ?? [])
-    const apiGoalMap = new Map(apiGoals.map(g => [String(g.id), g]))
-    const selSet     = new Set(selectedGoalIds.map(String))
-
-    const result = []
-
-    // Selected goals first (checked or error if missing from API)
-    for (const gid of selectedGoalIds) {
-      const sid = String(gid)
-      const ag  = apiGoalMap.get(sid)
-      result.push(ag
-        ? { id: sid, name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'checked', primary: sid === primaryGoalId }
-        : { id: sid, name: `Цель ID ${sid}`, type: null, state: 'error', primary: false }
-      )
+    if (!selectedCounterIds.value.length) {
+      selectedCounterIds.value = counters.value.map((counter) => String(counter.id)).filter(Boolean).slice(0, 1)
     }
 
-    // New goals (returned by API but not yet in selected_goals)
-    for (const ag of apiGoals) {
-      if (!selSet.has(String(ag.id))) {
-        result.push({ id: String(ag.id), name: ag.name, type: ag.type && ag.type !== 'Unknown' ? ag.type : null, state: 'new', primary: false })
-      }
-    }
-
-    goals.value = result
+    // 2. Fetch all available goals — pass account_id + selected counter IDs.
+    await loadGoalsForSelectedCounters(integrationId, accountId)
   } catch (err) {
     console.error('[IntegrationSettingsPanel] fetch error:', err)
   } finally {
@@ -503,6 +604,31 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.65);
 }
 
+.ip-counter-list {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.4167rem;
+  max-width: 60%;
+}
+.ip-counter-chip {
+  min-height: 2.0833rem;
+  padding: 0.4167rem 0.7639rem;
+  border: 1px solid rgba(105, 105, 105, 0.2);
+  border-radius: 0.5556rem;
+  background: #fff;
+  color: rgba(23, 23, 23, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ip-counter-chip--active {
+  border-color: rgba(37, 99, 235, 0.4);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 /* ── HR ── */
 .ip-hr {
   height: 1px;
@@ -574,6 +700,9 @@ onMounted(() => {
   background: rgba(230, 210, 160, 0.18);
   border-color: rgba(180, 155, 90, 0.2);
 }
+.ip-goal--selected {
+  cursor: pointer;
+}
 .ip-goal--new {
   background: rgba(37, 99, 235, 0.06);
   border-color: rgba(37, 99, 235, 0.18);
@@ -628,6 +757,22 @@ onMounted(() => {
 .ip-goal__right {
   display: flex;
   align-items: center;
+}
+.ip-goal__icon {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.ip-goal-star {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.ip-goal-star:hover,
+.ip-goal-star--active {
+  opacity: 1;
+  transform: scale(1.08);
 }
 .ip-new-badge {
   display: inline-block;
@@ -737,6 +882,62 @@ onMounted(() => {
 }
 .ip-save-btn:hover { opacity: 0.9; }
 .ip-save-btn:active { transform: scale(0.97); }
+.ip-save-btn:disabled,
+.ip-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ip-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(17, 24, 39, 0.38);
+  backdrop-filter: blur(6px);
+}
+.ip-confirm {
+  width: min(32rem, 100%);
+  border-radius: 1.1111rem;
+  background: #fff;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  box-shadow: 0 1.5rem 4rem rgba(17, 24, 39, 0.22);
+  padding: 1.5rem;
+}
+.ip-confirm h3 {
+  margin: 0 0 0.625rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #171717;
+}
+.ip-confirm p {
+  margin: 0 0 1rem;
+  color: rgba(105, 105, 105, 0.82);
+  line-height: 1.45;
+}
+.ip-confirm-input {
+  width: 100%;
+  height: 3rem;
+  border-radius: 0.6944rem;
+  border: 1px solid rgba(105, 105, 105, 0.18);
+  background: #f7f8fa;
+  padding: 0 1rem;
+  font-size: 0.9722rem;
+  outline: none;
+}
+.ip-confirm-input:focus {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.ip-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6944rem;
+  margin-top: 1rem;
+}
 
 @media (max-width: 600px) {
   .ip-scroll { padding: 1.3889rem 1.3889rem 1.0417rem; }
@@ -745,5 +946,6 @@ onMounted(() => {
   .ip-ctx-sep { width: 100%; height: 1px; }
   .ip-ctx-col { padding: 0; }
   .ip-counter-row { flex-direction: column; gap: 0.6944rem; }
+  .ip-counter-list { max-width: 100%; justify-content: flex-start; }
 }
 </style>

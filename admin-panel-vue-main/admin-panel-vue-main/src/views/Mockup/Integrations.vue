@@ -69,13 +69,13 @@
       >
         <!-- Card header -->
         <div class="int-card__header">
-          <div class="flex items-center gap-[1.0417rem] min-w-0 flex-1">
+          <div class="flex items-center gap-[0.8333rem] min-w-0 flex-1">
             <div class="proj-avatar flex-shrink-0">
               <span>{{ projectInitials(projectName(item)) }}</span>
             </div>
             <div class="min-w-0">
-              <div class="text-[0.9028rem] text-[rgba(105,105,105,0.72)] font-medium leading-none mb-[0.4167rem]">Проект</div>
-              <div class="text-[1.3889rem] font-semibold text-[#171717] leading-tight truncate dark:text-white">{{ projectName(item) }}</div>
+              <div class="text-[0.7639rem] text-[rgba(105,105,105,0.72)] font-medium leading-none mb-[0.2778rem]">Проект</div>
+              <div class="text-[1.0417rem] font-semibold text-[#171717] leading-tight truncate dark:text-white">{{ projectName(item) }}</div>
             </div>
           </div>
           <div class="channel-badge flex-shrink-0">{{ channelCount(item) }} {{ getPlural(channelCount(item), ['канал', 'канала', 'каналов']) }}</div>
@@ -83,8 +83,8 @@
 
         <!-- Card body -->
         <div class="int-card__body">
-          <div class="integration-body-row flex items-start justify-between gap-[2.0833rem]">
-            <div class="flex items-start gap-[1.3889rem] min-w-0 flex-1">
+          <div class="integration-body-row flex items-start justify-between gap-[1.25rem]">
+            <div class="flex items-start gap-[0.9722rem] min-w-0 flex-1">
               <div class="platform-avatar flex-shrink-0">
                 <img
                   :src="platformIcon(item.platform)"
@@ -94,7 +94,7 @@
               </div>
 
               <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-[0.8333rem] mb-[1.1111rem]">
+                <div class="flex flex-wrap items-center gap-[0.625rem] mb-[0.8333rem]">
                   <div class="integration-title">{{ platformLabel(item.platform) }}</div>
                   <span class="status-badge" :class="syncBadgeClass(item.sync_status)" :title="item.error_message || ''">
                     {{ syncLabel(item.sync_status) }}
@@ -113,7 +113,7 @@
                 </div>
 
                 <div class="auto-sync-line">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                   <span>{{ formatAutoSyncText(item) }}</span>
@@ -127,7 +127,7 @@
                     title="Скопировать ID"
                     @click="copyIntegrationId(item.external_account_id || item.id)"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M8 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
                       <path d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     </svg>
@@ -136,12 +136,12 @@
               </div>
             </div>
 
-            <div class="integration-actions flex flex-col items-stretch gap-[0.8333rem] flex-shrink-0">
-              <button class="sync-now-btn" :disabled="syncingId === item.id" @click="syncNow(item)">
-                <svg :class="{ 'animate-spin': syncingId === item.id }" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <div class="integration-actions flex flex-col items-stretch gap-[0.625rem] flex-shrink-0">
+              <button class="sync-now-btn" :disabled="syncingId === item.id || isSyncingIntegration(item.id)" @click="syncNow(item)">
+                <svg :class="{ 'animate-spin': syncingId === item.id || isSyncingIntegration(item.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M4 4v5h5M20 20v-5h-5M6.5 17.5a8 8 0 0 0 12-2.5M17.5 6.5a8 8 0 0 0-12 2.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span>{{ syncingId === item.id ? 'Синхронизация…' : 'Синхронизировать сейчас' }}</span>
+                <span>{{ syncingId === item.id || isSyncingIntegration(item.id) ? 'Синхронизация…' : 'Синхронизировать сейчас' }}</span>
               </button>
               <button class="configure-btn" @click="openSettings(item)">Настроить</button>
             </div>
@@ -156,8 +156,8 @@
         <IntegrationSettingsPanel
           :integration="selectedIntegration"
           @close="settingsOpen = false"
-          @save="settingsOpen = false"
-          @delete="settingsOpen = false"
+          @save="saveIntegrationSettings"
+          @delete="deleteIntegration"
         />
       </div>
     </div>
@@ -170,10 +170,17 @@ import { ref, computed, onMounted } from 'vue'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
+import { useSyncStatus } from '../../composables/useSyncStatus'
 import IntegrationSettingsPanel from './IntegrationSettingsPanel.vue'
 
 const { currentProjectId } = useProjects()
 const toaster = useToaster()
+const {
+  fetchSyncStatus,
+  startIntegrationSync,
+  waitForSyncJobs,
+  isSyncingIntegration,
+} = useSyncStatus()
 
 const integrations = ref([])
 const isLoading    = ref(false)
@@ -218,6 +225,7 @@ const fetchIntegrations = async () => {
     if (currentProjectId.value) params.client_id = currentProjectId.value
     const { data } = await api.get('integrations/', { params })
     integrations.value = normalizeIntegrations(data)
+    await fetchSyncStatus()
   } catch (err) {
     console.error('Failed to load integrations:', err)
     integrations.value = []
@@ -314,8 +322,8 @@ const formatSyncDate = (dateStr) => {
   if (!dateStr) return 'ещё не было'
   const date = new Date(dateStr)
   if (Number.isNaN(date.getTime())) return '—'
-  const day = date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')
-  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const day = date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: 'Europe/Moscow' }).replace('.', '')
+  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
   return `${day}, ${time} МСК`
 }
 
@@ -329,11 +337,11 @@ const formatNextSync = (item) => {
   const now = new Date()
   const tomorrow = new Date(now)
   tomorrow.setDate(now.getDate() + 1)
-  const time = nextSync.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const time = nextSync.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
 
   if (nextSync.toDateString() === now.toDateString()) return `сегодня ~${time} МСК`
   if (nextSync.toDateString() === tomorrow.toDateString()) return `завтра ~${time} МСК`
-  const day = nextSync.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')
+  const day = nextSync.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: 'Europe/Moscow' }).replace('.', '')
   return `${day} ~${time} МСК`
 }
 
@@ -356,15 +364,52 @@ const copyIntegrationId = async (id) => {
 }
 
 const syncNow = async (item) => {
+  if (syncingId.value || isSyncingIntegration(item.id)) return
   syncingId.value = item.id
   try {
-    await api.post(`integrations/${item.id}/sync`, { days: 90 })
-    toaster.info('Синхронизация запущена. Данные появятся через несколько минут.')
+    const data = await startIntegrationSync(item.id, { days: 90 })
+    const jobId = data?.job_id
+    toaster.info('Синхронизация запущена. Данные обновятся автоматически.')
     await fetchIntegrations()
+    if (jobId) {
+      const result = await waitForSyncJobs([jobId])
+      await fetchIntegrations()
+      if (result.failed?.length) {
+        toaster.warning('Синхронизация завершена с ошибкой. Проверьте статус интеграции.')
+      } else {
+        toaster.success('Синхронизация завершена. Данные обновлены.')
+      }
+    }
   } catch (err) {
     toaster.error('Ошибка при синхронизации: ' + (err.response?.data?.detail || err.message))
   } finally {
     syncingId.value = null
+  }
+}
+
+const saveIntegrationSettings = async (payload = {}) => {
+  if (!selectedIntegration.value?.id) return
+  try {
+    const { data } = await api.patch(`integrations/${selectedIntegration.value.id}`, payload)
+    selectedIntegration.value = data
+    await fetchIntegrations()
+    settingsOpen.value = false
+    toaster.success('Настройки интеграции сохранены.')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сохранить настройки интеграции.')
+  }
+}
+
+const deleteIntegration = async () => {
+  if (!selectedIntegration.value?.id) return
+  try {
+    await api.delete(`integrations/${selectedIntegration.value.id}`)
+    settingsOpen.value = false
+    selectedIntegration.value = null
+    await fetchIntegrations()
+    toaster.success('Интеграция удалена.')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось удалить интеграцию.')
   }
 }
 </script>
@@ -550,12 +595,12 @@ const syncNow = async (item) => {
 .int-card {
   display: flex;
   flex-direction: column;
-  gap: 1.5278rem;
-  padding: 1.875rem 2.0833rem;
+  gap: 1.0417rem;
+  padding: 1.3889rem;
   background: #f7f6ed;
   border: 1px solid #e2dfd0;
-  border-radius: 1.7361rem;
-  box-shadow: 0 0.6944rem 1.9444rem rgba(18, 24, 40, 0.04);
+  border-radius: 1.25rem;
+  box-shadow: 0 0.4167rem 1.25rem rgba(18, 24, 40, 0.035);
 }
 :global(.dark) .int-card,
 :global(.darkmode) .int-card {
@@ -588,8 +633,8 @@ const syncNow = async (item) => {
 
 /* ── Project avatar ── */
 .proj-avatar {
-  width: 3.125rem;
-  height: 3.125rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: rgba(255,255,255,0.72);
   border: 1px solid rgba(255,255,255,0.8);
@@ -599,7 +644,7 @@ const syncNow = async (item) => {
   box-shadow: 0 0.3472rem 0.9722rem rgba(18, 24, 40, 0.04);
 }
 .proj-avatar span {
-  font-size: 0.9028rem;
+  font-size: 0.8333rem;
   font-weight: 700;
   color: #3b3b36;
   line-height: 1;
@@ -608,23 +653,23 @@ const syncNow = async (item) => {
 /* ── Channel badge (caption _light _md) ── */
 .channel-badge {
   display: inline-block;
-  padding: 0.625rem 1.1806rem;
-  border-radius: 0.9028rem;
+  padding: 0.4861rem 0.9028rem;
+  border-radius: 0.7639rem;
   background-color: rgba(255,255,255,0.35);
   border: 1px solid rgba(37,99,235,0.72);
   color: #2563eb;
-  font-size: 0.9722rem;
+  font-size: 0.7639rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 /* ── Card body ── */
 .int-card__body {
-  padding: 1.9444rem 2.2222rem;
+  padding: 1.1806rem 1.3889rem;
   background-color: #fff;
-  border-radius: 1.3889rem;
+  border-radius: 1.0417rem;
   border: 1px solid #d8d5c9;
-  box-shadow: 0 0.2778rem 1.25rem rgba(18, 24, 40, 0.03);
+  box-shadow: 0 0.2083rem 0.8333rem rgba(18, 24, 40, 0.025);
 }
 :global(.dark) .int-card__body,
 :global(.darkmode) .int-card__body {
@@ -633,20 +678,20 @@ const syncNow = async (item) => {
 }
 
 .platform-avatar {
-  width: 4.1667rem;
-  height: 4.1667rem;
+  width: 3.3333rem;
+  height: 3.3333rem;
   border-radius: 50%;
   overflow: hidden;
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0.4167rem 1.25rem rgba(18, 24, 40, 0.06);
+  box-shadow: 0 0.2778rem 0.9722rem rgba(18, 24, 40, 0.05);
 }
 
 .integration-title {
   color: #171717;
-  font-size: 1.5278rem;
+  font-size: 1.0417rem;
   font-weight: 650;
   line-height: 1;
 }
@@ -654,10 +699,10 @@ const syncNow = async (item) => {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 2.0139rem;
-  padding: 0.4167rem 1.1111rem;
+  min-height: 1.5278rem;
+  padding: 0.2778rem 0.7639rem;
   border-radius: 999px;
-  font-size: 0.9722rem;
+  font-size: 0.7639rem;
   font-weight: 600;
 }
 .status-badge--success { background: #e8f2dc; color: #2f6b2b; }
@@ -667,20 +712,20 @@ const syncNow = async (item) => {
 
 .sync-meta-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(9.7222rem, 1fr));
-  gap: 1.6667rem;
-  margin-bottom: 1.1111rem;
-  max-width: 27.7778rem;
+  grid-template-columns: repeat(2, minmax(8.3333rem, 1fr));
+  gap: 1.1111rem;
+  margin-bottom: 0.7639rem;
+  max-width: 23.6111rem;
 }
 .sync-meta-label {
   color: #777973;
-  font-size: 0.9722rem;
+  font-size: 0.7639rem;
   font-weight: 600;
-  margin-bottom: 0.3472rem;
+  margin-bottom: 0.2778rem;
 }
 .sync-meta-value {
   color: #171717;
-  font-size: 1.0417rem;
+  font-size: 0.9028rem;
   font-weight: 650;
   line-height: 1.25;
 }
@@ -688,11 +733,11 @@ const syncNow = async (item) => {
 .auto-sync-line {
   display: inline-flex;
   align-items: center;
-  gap: 0.5556rem;
+  gap: 0.4167rem;
   color: #777973;
-  font-size: 1.0417rem;
+  font-size: 0.8333rem;
   font-weight: 600;
-  margin-bottom: 0.8333rem;
+  margin-bottom: 0.5556rem;
 }
 
 .integration-id-row {
@@ -700,7 +745,7 @@ const syncNow = async (item) => {
   align-items: center;
   gap: 0.4167rem;
   color: #777973;
-  font-size: 0.9722rem;
+  font-size: 0.7639rem;
   font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -709,8 +754,8 @@ const syncNow = async (item) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5278rem;
-  height: 1.5278rem;
+  width: 1.25rem;
+  height: 1.25rem;
   border: 0;
   border-radius: 0.4167rem;
   color: #777973;
@@ -727,14 +772,14 @@ const syncNow = async (item) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.625rem;
-  min-height: 3.125rem;
-  padding: 0.625rem 1.3889rem;
-  border-radius: 0.9028rem;
+  gap: 0.4861rem;
+  min-height: 2.7778rem;
+  padding: 0.5556rem 1.1111rem;
+  border-radius: 0.8333rem;
   background: #fff;
   border: 1px solid rgba(105,105,105,0.26);
   color: #171717;
-  font-size: 1.0417rem;
+  font-size: 0.9028rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -757,13 +802,13 @@ const syncNow = async (item) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.125rem;
-  padding: 0.625rem 1.5278rem;
-  border-radius: 0.9028rem;
+  min-height: 2.7778rem;
+  padding: 0.5556rem 1.25rem;
+  border-radius: 0.8333rem;
   background-color: #e9f2ff;
   border: 1px solid #60a5fa;
   color: #2f5f9f;
-  font-size: 1.0417rem;
+  font-size: 0.9028rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;

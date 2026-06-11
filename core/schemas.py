@@ -303,12 +303,28 @@ class IntegrationResponse(IntegrationBase):
     client_id: UUID
     client_name: Optional[str] = None  # Project name for frontend display
     access_token: str
+    expires_at: Optional[datetime] = None
+    agency_client_login: Optional[str] = None
+    is_agency: Optional[bool] = None
     selected_goals: Optional[List[str]] = None
     primary_goal_id: Optional[str] = None
+    selected_counters: Optional[List[str]] = None
+    balance: Optional[float] = None
+    currency: Optional[str] = None
     campaigns: List["CampaignResponse"] = []
     sync_status: Optional[str] = None  # SUCCESS | FAILED | PENDING | NEVER
     last_sync_at: Optional[datetime] = None
     error_message: Optional[str] = None
+
+    @field_validator('selected_counters', mode='before')
+    @classmethod
+    def parse_selected_counters(cls, v: Any) -> Any:
+        if isinstance(v, str) and v:
+            try:
+                return json.loads(v)
+            except:
+                return []
+        return v
 
     class Config:
         from_attributes = True
