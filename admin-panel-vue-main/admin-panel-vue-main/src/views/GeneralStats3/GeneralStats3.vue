@@ -726,14 +726,12 @@
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
             </svg>
             <SparklesIcon v-else class="ai-generate-btn__icon" />
-            {{ loadingAiComment ? 'Генерирую...' : aiComments.length ? 'Обновить' : 'Сгенерировать' }}
+            {{ loadingAiComment ? 'Генерирую...' : reportComment ? 'Обновить' : 'Сгенерировать' }}
           </button>
         </div>
-        <ul v-if="aiComments.length">
-          <li v-for="comment in aiComments" :key="comment">{{ comment }}</li>
-        </ul>
+        <div v-if="reportComment" class="ai-report-body">{{ reportComment }}</div>
         <div v-else class="ai-empty"></div>
-        <p v-if="aiComments.length">Комментарий сгенерирован AI на основе данных за период {{ dateRangeLabel }}</p>
+        <p v-if="reportComment">Сгенерировано AI · {{ dateRangeLabel }}</p>
         <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
           <ArrowPathIcon class="spinning" />
           <strong>Выполняется синхронизация</strong>
@@ -6924,6 +6922,17 @@ onMounted(() => {
   font-size: 0.9028rem;
 }
 
+.ai-report-body {
+  margin-top: 1.1111rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  font-size: 0.8333rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: #374151;
+  scrollbar-width: thin;
+}
+
 .ai-panel > p {
   margin-top: 1.5278rem;
   font-size: 0.8333rem;
@@ -7645,6 +7654,11 @@ onMounted(() => {
 :global(.dark) .ai-panel > p,
 :global(.darkmode) .ai-panel > p {
   color: rgba(255, 255, 255, 0.48);
+}
+
+:global(.dark) .ai-report-body,
+:global(.darkmode) .ai-report-body {
+  color: rgba(255, 255, 255, 0.75);
 }
 
 :global(.dark) .select-like,
