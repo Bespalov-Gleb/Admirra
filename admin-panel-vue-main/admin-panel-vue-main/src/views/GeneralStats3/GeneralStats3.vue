@@ -718,11 +718,6 @@
         <div v-if="loadingInitialComment || reportComment" class="ai-title">
           <span><SparklesIcon /></span>
           <h2>AI комментарии к отчету</h2>
-          <div class="ai-period">
-            <input type="date" v-model="aiPeriodStart" class="ai-period-input" :placeholder="filters.start_date" />
-            <span class="ai-period-sep">—</span>
-            <input type="date" v-model="aiPeriodEnd" class="ai-period-input" :placeholder="filters.end_date" />
-          </div>
           <button
             v-if="reportComment && !loadingInitialComment"
             class="ai-download-btn"
@@ -759,11 +754,6 @@
           <span class="ai-cta__icon"><SparklesIcon /></span>
           <h2 class="ai-cta__title">AI комментарии к отчёту</h2>
           <p class="ai-cta__desc">Краткий анализ эффективности кампаний за выбранный период: расходы, конверсии, топ кампаний и рекомендации.</p>
-          <div class="ai-period ai-period--cta">
-            <input type="date" v-model="aiPeriodStart" class="ai-period-input" :placeholder="filters.start_date" />
-            <span class="ai-period-sep">—</span>
-            <input type="date" v-model="aiPeriodEnd" class="ai-period-input" :placeholder="filters.end_date" />
-          </div>
           <button
             class="ai-cta__btn"
             :disabled="loadingAiComment || dashboardSyncInProgress"
@@ -1271,8 +1261,6 @@ const userReportSettings = ref({
 const reportComment = ref('')
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
-const aiPeriodStart = ref('')
-const aiPeriodEnd = ref('')
 
 const loadSavedComment = async () => {
   if (!filters.client_id) return
@@ -3033,8 +3021,8 @@ const handleGenerateReport = async () => {
   try {
     const { data } = await api.post('ai/generate-report', {
       client_id: filters.client_id || null,
-      start_date: aiPeriodStart.value || filters.start_date,
-      end_date: aiPeriodEnd.value || filters.end_date,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
       report_type: 'full'
     })
     reportComment.value = data?.text || ''
@@ -3060,7 +3048,7 @@ const triggerAiComment = async () => {
 
 const downloadAiComment = () => {
   if (!reportComment.value) return
-  const dateStr = aiPeriodStart.value || filters.start_date || 'report'
+  const dateStr = filters.start_date || 'report'
   const blob = new Blob([reportComment.value], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -4391,10 +4379,6 @@ onMounted(() => {
   mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M-1.75746 0.402423C-1.75483 2.155 -1.74827 3.53735 -1.74287 3.47433C-1.62835 2.13813 -1.05642 0.729807 -0.213224 -0.292158C0.271161 -0.879273 0.899602 -1.42898 1.51662 -1.80529C2.38365 -2.33405 3.24308 -2.62429 4.35797 -2.76478C4.40461 -2.77065 3.04667 -2.77741 1.34028 -2.77976L-1.76221 -2.78406L-1.75746 0.402423ZM19.2414 -2.76461C20.4922 -2.63472 21.664 -2.17099 22.6902 -1.39976C23.0356 -1.14018 23.7533 -0.412972 24.0095 -0.0630181C24.7695 0.97513 25.2285 2.166 25.3566 3.43137C25.3621 3.48651 25.3687 2.11061 25.3712 0.37378L25.3757 -2.78406L22.2591 -2.77947C20.545 -2.77695 19.187 -2.77025 19.2414 -2.76461ZM11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698ZM-1.75768 21.4976L-1.76221 24.7128L1.41095 24.708C3.15621 24.7053 4.53323 24.6986 4.47104 24.6931C2.08208 24.4819 -0.0147773 23.0384 -1.05509 20.889C-1.44642 20.0805 -1.65391 19.3252 -1.74361 18.3828C-1.74886 18.3276 -1.7552 19.7293 -1.75768 21.4976ZM25.3475 18.5231C25.3475 18.5846 25.3218 18.7876 25.2904 18.9743C25.1057 20.073 24.68 21.0758 24.0095 21.9917C23.7533 22.3417 23.0356 23.0689 22.6902 23.3285C21.6625 24.1008 20.4941 24.5632 19.2414 24.6933C19.187 24.699 20.545 24.7057 22.2591 24.7082L25.3757 24.7128V21.5621C25.3757 19.8292 25.3694 18.4114 25.3616 18.4114C25.3538 18.4114 25.3475 18.4617 25.3475 18.5231Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Telegram brand active gradient (overrides shared blue) */
-.report-icon-btn.active .report-icon-circle:has(.telegram-icon) {
-  background: linear-gradient(135deg, #2AABEE 0%, #229ED9 100%);
-}
 /* Telegram connected-not-active: soft teal hint like MAX's blue hint */
 .report-icon-btn.connected:not(.active) .report-icon-circle:has(.telegram-icon) {
   background: #dcf4ff;
@@ -7009,6 +6993,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  margin-left: auto;
   padding: 0.3611rem 0.8333rem;
   border-radius: 0.5556rem;
   border: 1.5px solid rgba(99, 91, 255, 0.35);
@@ -7020,9 +7005,6 @@ onMounted(() => {
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
-}
-.ai-title:not(:has(.ai-period)) .ai-generate-btn {
-  margin-left: auto;
 }
 .ai-generate-btn:hover:not(:disabled) {
   background: rgba(99, 91, 255, 0.14);
@@ -7045,36 +7027,6 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-.ai-period {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.ai-period-input {
-  border: 1px solid rgba(99, 91, 255, 0.28);
-  border-radius: 0.4rem;
-  padding: 0.22rem 0.38rem;
-  font-size: 0.7rem;
-  color: #374151;
-  background: rgba(99, 91, 255, 0.04);
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s;
-  width: 7.5rem;
-}
-.ai-period-input:focus {
-  border-color: rgba(99, 91, 255, 0.55);
-}
-.ai-period-sep {
-  color: #9ca3af;
-  font-size: 0.75rem;
-}
-.ai-period--cta {
-  margin: 0 auto 0.9rem;
-  justify-content: center;
-}
 .ai-download-btn {
   display: flex;
   align-items: center;
