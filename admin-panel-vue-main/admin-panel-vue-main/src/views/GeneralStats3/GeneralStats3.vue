@@ -2174,7 +2174,7 @@ const channelBalances = computed(() => {
 
   return Array.from(balancesByPlatform.values()).map((item) => ({
     ...item,
-    value: formatBalanceMoney(item.balance, item.currency)
+    value: formatBalanceMoney(withVat(item.balance), item.currency)
   }))
 })
 

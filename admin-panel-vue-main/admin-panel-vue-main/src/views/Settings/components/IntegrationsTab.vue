@@ -55,123 +55,139 @@
       
       <div v-else class="grid grid-cols-1 gap-8">
         <div v-for="client in filteredGroupedClients" :key="client.id" 
-             class="bg-white/60 backdrop-blur-xl rounded-[2.2222rem] border border-white/80 shadow-sm animate-fade-in hover:shadow-md transition-all relative z-10 hover:z-50">
+             class="bg-[#f7f6ed] rounded-[1.7361rem] border border-[#e2dfd0] shadow-sm animate-fade-in transition-all relative z-10 hover:z-50 overflow-hidden">
           
           <!-- Шапка проекта (Project Header) -->
-          <div class="px-8 py-6 border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent flex items-center justify-between rounded-t-[2.2222rem]">
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-100 shadow-sm">
-                <span class="text-xs font-black text-gray-400">{{ client.name.charAt(0).toUpperCase() }}</span>
+          <div class="px-8 py-6 flex items-start justify-between gap-4">
+            <div class="flex items-center gap-4 min-w-0">
+              <div class="w-12 h-12 bg-white/80 rounded-full flex items-center justify-center border border-white/80 shadow-sm shrink-0">
+                <span class="text-[0.9028rem] font-bold text-[#3b3b36]">{{ projectInitials(client.name) }}</span>
               </div>
-              <div>
-                <h3 class="text-[0.7639rem] font-black text-gray-400 uppercase tracking-widest leading-none mb-1.5">Проект</h3>
-                <p class="text-[1.0417rem] font-bold text-[#2d3a5d] tracking-tight">{{ client.name }}</p>
+              <div class="min-w-0">
+                <h3 class="text-[0.9028rem] font-semibold text-[#7d7c73] leading-none mb-1.5">Проект</h3>
+                <p class="text-[1.3889rem] font-bold text-[#1f2024] tracking-tight truncate">{{ client.name }}</p>
               </div>
             </div>
-            <div class="px-4 py-1.5 bg-blue-50/50 border border-blue-100/50 rounded-full">
-              <span class="text-[0.6944rem] font-black text-blue-600 uppercase tracking-widest">
-                {{ client.integrations.length }} {{ getPlural(client.integrations.length, ['Канал', 'Канала', 'Каналов']) }}
+            <div class="px-4 py-2 bg-white/35 border border-blue-500/70 rounded-[0.9028rem] shrink-0">
+              <span class="text-[0.9722rem] font-semibold text-blue-600">
+                {{ client.integrations.length }} {{ getPlural(client.integrations.length, ['канал', 'канала', 'каналов']) }}
               </span>
             </div>
           </div>
 
           <!-- Список интеграций (Integrations List) -->
-          <div class="p-4 space-y-2">
+          <div class="px-8 pb-8 space-y-4">
             <div v-for="item in client.integrations" :key="item.id" 
-                 class="group pl-4 pr-3 py-3 rounded-2xl border border-transparent hover:border-gray-100 hover:bg-gray-50/50 flex items-center transition-all">
+                 class="group rounded-[1.3889rem] border border-[#d5d2c6] bg-white px-8 py-7 shadow-sm hover:shadow-md transition-all">
               
               <!-- Платформа и данные -->
-              <div class="flex items-center gap-4 flex-1 min-w-0">
-                <div class="w-12 h-12 flex-shrink-0 bg-white rounded-xl flex items-center justify-center border border-gray-100 overflow-hidden group-hover:scale-105 transition-transform shadow-sm">
-                  <img v-if="item.platform === 'YANDEX_DIRECT' || item.platform === 'YANDEX_METRIKA'" src="https://favicon.yandex.net/favicon/v2/yandex.ru?size=32&stub=1" class="w-8 h-8 object-contain" />
-                  <img v-else-if="item.platform === 'VK_ADS'" :src="vkAdsIcon" alt="VK Ads" class="w-8 h-8 object-contain" />
-                  <div v-else class="w-full h-full bg-gray-100 flex items-center justify-center text-[0.7639rem] font-black text-gray-400">{{ item.platform.split('_')[0] }}</div>
-                </div>
-                
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <h4 class="text-[0.9028rem] font-bold text-[#202939] leading-none">
-                      {{ platformLabels[item.platform] || item.platform }}
-                    </h4>
-                    <span class="text-[0.625rem] font-black text-gray-300 uppercase letter-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                      {{ item.account_name || (item.account_id ? 'ID: ' + (item.account_id || '').split('@')[0] : '—') }}
-                    </span>
+              <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                <div class="flex items-start gap-6 min-w-0">
+                  <div class="w-16 h-16 flex-shrink-0 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-sm">
+                    <img :src="platformIcon(item.platform)" :alt="platformLabels[item.platform] || item.platform" class="w-full h-full object-contain" />
                   </div>
-                  <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5" :title="item.error_message">
-                      <div class="w-1.5 h-1.5 rounded-full" 
-                           :class="{
-                             'bg-green-500': item.sync_status === 'SUCCESS',
-                             'bg-red-400': item.sync_status === 'FAILED',
-                             'bg-amber-400': item.sync_status === 'PENDING',
-                             'bg-gray-300': item.sync_status === 'NEVER'
-                           }"></div>
-                      <span class="text-[0.6944rem] font-bold text-gray-400 uppercase tracking-tight">
-                        {{ statusLabels[item.sync_status] || 'Неизвестно' }}
+
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3 mb-4">
+                      <h4 class="text-[1.5278rem] font-bold text-[#1f2024] leading-none">
+                        {{ platformLabels[item.platform] || item.platform }}
+                      </h4>
+                      <span
+                        class="px-4 py-1.5 rounded-full text-[0.9722rem] font-semibold"
+                        :class="statusBadgeClass(item)"
+                        :title="item.error_message || ''"
+                      >
+                        {{ displayStatus(item) }}
                       </span>
-                    <span
-                      v-if="syncProgressById[item.id] && ['QUEUED','RUNNING'].includes(syncProgressById[item.id].status)"
-                      class="text-[0.6944rem] font-semibold text-blue-500"
-                    >
-                      {{ syncProgressById[item.id].progress || 0 }}%
-                    </span>
-                      <svg v-if="item.error_message" class="w-3 h-3 text-red-400 cursor-help" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                      </svg>
                     </div>
-                    <span v-if="item.last_sync_at" class="text-[0.6944rem] font-medium text-gray-300">
-                      Последняя: {{ formatDate(item.last_sync_at) }}
-                    </span>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 mb-4">
+                      <div>
+                        <div class="text-[0.9722rem] font-semibold text-[#777973] mb-1">Последняя синхронизация</div>
+                        <div class="text-[1.0417rem] font-semibold text-[#1f2024]">{{ formatSyncDate(item.last_sync_at) }}</div>
+                      </div>
+                      <div>
+                        <div class="text-[0.9722rem] font-semibold text-[#777973] mb-1">Следующая</div>
+                        <div class="text-[1.0417rem] font-semibold text-[#1f2024]">{{ formatNextSync(item) }}</div>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 text-[1.0417rem] font-semibold text-[#777973] mb-3">
+                      <span class="inline-flex items-center gap-2">
+                        <svg class="w-4 h-4 text-[#777973]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
+                        </svg>
+                        {{ formatAutoSyncText(item) }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-[0.9722rem] font-semibold text-[#777973]">
+                      <span>ID: {{ item.id }}</span>
+                      <button
+                        type="button"
+                        class="w-5 h-5 inline-flex items-center justify-center rounded-md text-[#777973] hover:bg-gray-100 hover:text-blue-600 transition-colors"
+                        title="Скопировать ID"
+                        @click="copyIntegrationId(item.id)"
+                      >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M8 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Настройки и действия (Settings & Actions) -->
-              <div class="flex items-center gap-6 pr-2">
-                
-                <!-- Авто Синхронизация -->
-                <div class="flex items-center gap-3 border-r border-gray-100 pr-6 mr-2">
-                  <div 
-                    @click="openSyncSettings(item)"
-                    class="h-8 px-4 bg-[#212121] hover:bg-black text-[0.6944rem] font-black text-white uppercase tracking-widest rounded-xl flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm"
+                <!-- Настройки и действия (Settings & Actions) -->
+                <div class="flex flex-col items-stretch sm:items-end gap-3 lg:min-w-[21.5278rem]">
+                  <button
+                    @click="handleSync(item.id)"
+                    :disabled="syncingId === item.id"
+                    class="h-12 px-6 inline-flex items-center justify-center gap-3 rounded-[0.9028rem] border border-[#c9c9c9] bg-white text-[#1f2024] text-[1.0417rem] font-semibold hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/40 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
-                    <svg v-if="item.auto_sync" class="w-3 h-3 text-blue-400 animate-spin-slow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <svg class="w-5 h-5" :class="{ 'animate-spin': syncingId === item.id || isSyncRunning(item) }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M6.5 17.5a8 8 0 0 0 12-2.5M17.5 6.5a8 8 0 0 0-12 2.5" />
                     </svg>
-                    <span>{{ item.auto_sync ? formatInterval(item.sync_interval) : 'Авто-Синх.' }}</span>
-                  </div>
-                  
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" :checked="item.auto_sync" @change="toggleAutoSync(item)" class="sr-only peer">
-                    <div class="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-3.5 after:content-[''] after:absolute after:top-[0.2083rem] after:left-[0.2083rem] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
+                    <span>{{ isSyncRunning(item) ? `Синхронизация ${syncProgressById[item.id]?.progress || 0}%` : 'Синхронизировать сейчас' }}</span>
+                  </button>
 
-                <!-- Тугмаи Настройка (Action Menu) -->
-                <div class="flex items-center gap-3">
-                  <button 
+                  <button
                     @click="openEditWizard(item)"
-                    class="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-[0.6944rem] font-black text-gray-600 uppercase tracking-widest rounded-xl transition-all active:scale-95 border border-gray-100"
+                    class="h-12 px-6 inline-flex items-center justify-center rounded-[0.9028rem] border border-blue-500 bg-blue-50 text-blue-700 text-[1.0417rem] font-semibold hover:bg-blue-100 transition-all"
                   >
                     Настроить
                   </button>
-                  
-                  <div class="relative group/menu">
-                    <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-all text-gray-400 hover:text-gray-600">
-                      <EllipsisVerticalIcon class="w-5 h-5" />
+
+                  <div class="flex items-center justify-end gap-3 pt-1">
+                    <label class="inline-flex items-center gap-3 text-[0.9028rem] font-semibold text-[#777973] cursor-pointer select-none">
+                      <span>Авто</span>
+                      <span class="relative inline-flex items-center">
+                        <input type="checkbox" :checked="item.auto_sync" @change="toggleAutoSync(item)" class="sr-only peer">
+                        <span class="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-blue-600 transition-colors"></span>
+                        <span class="absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+                      </span>
+                    </label>
+
+                    <button
+                      @click="openSyncSettings(item)"
+                      class="text-[0.9028rem] font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                    >
+                      Интервал
                     </button>
-                    <!-- Floating Actions Menu -->
-                    <div class="absolute right-0 top-full pt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 hidden group-hover/menu:block z-50 animate-pop-in">
-                       <button @click="testConnection(item.id)" class="w-full px-4 py-2.5 text-left text-[0.7639rem] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
-                         <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Проверить связь
-                       </button>
-                       <button @click="handleSync(item.id)" class="w-full px-4 py-2.5 text-left text-[0.7639rem] font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-2">
-                         <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div> Синхронизировать
-                       </button>
-                       <div class="my-1 border-t border-gray-50"></div>
-                       <button @click="deleteIntegration(item.id)" class="w-full px-4 py-2.5 text-left text-[0.7639rem] font-bold text-red-500 hover:bg-red-50 flex items-center gap-2">
-                         <TrashIcon class="w-3.5 h-3.5" /> Удалить
-                       </button>
+
+                    <div class="relative group/menu">
+                      <button class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all text-gray-400 hover:text-gray-600">
+                        <EllipsisVerticalIcon class="w-5 h-5" />
+                      </button>
+                      <div class="absolute right-0 top-full pt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 hidden group-hover/menu:block z-50 animate-pop-in">
+                        <button @click="testConnection(item.id)" class="w-full px-4 py-2.5 text-left text-[0.7639rem] font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                          <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Проверить связь
+                        </button>
+                        <div class="my-1 border-t border-gray-50"></div>
+                        <button @click="deleteIntegration(item.id)" class="w-full px-4 py-2.5 text-left text-[0.7639rem] font-bold text-red-500 hover:bg-red-50 flex items-center gap-2">
+                          <TrashIcon class="w-3.5 h-3.5" /> Удалить
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -225,11 +241,13 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PlusIcon, EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
 import { useToaster } from '../../../composables/useToaster'
 import { useProjects } from '../../../composables/useProjects'
+import avitoIcon from '@/assets/icons/avito.svg'
 import vkAdsIcon from '@/assets/icons/vk-ads.png'
+import yandexDirectIcon from '@/assets/icons/yandex-direct.svg'
 
 const { currentProjectId } = useProjects()
 
@@ -241,6 +259,7 @@ const searchQuery = ref('')
 const platformLabels = {
   'YANDEX_DIRECT': 'Яндекс.Директ',
   'VK_ADS': 'VK Ads',
+  'AVITO_ADS': 'Avito Ads',
   'YANDEX_METRIKA': 'Яндекс.Метрика'
 }
 
@@ -291,6 +310,85 @@ const formatDate = (dateStr) => {
   const date = new Date(dateStr)
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ', ' + 
          date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
+}
+
+const projectInitials = (name = '') => {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '—'
+  return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
+const platformIcon = (platform) => {
+  if (platform === 'VK_ADS') return vkAdsIcon
+  if (platform === 'AVITO_ADS') return avitoIcon
+  return yandexDirectIcon
+}
+
+const isSyncRunning = (item) => {
+  const status = syncProgressById.value[item.id]?.status
+  return status === 'QUEUED' || status === 'RUNNING'
+}
+
+const displayStatus = (item) => {
+  if (isSyncRunning(item)) return 'Синхронизация'
+  return statusLabels[item.sync_status] || 'Неизвестно'
+}
+
+const statusBadgeClass = (item) => {
+  if (isSyncRunning(item)) return 'bg-blue-50 text-blue-700'
+  if (item.sync_status === 'SUCCESS') return 'bg-green-50 text-green-700'
+  if (item.sync_status === 'FAILED') return 'bg-red-50 text-red-700'
+  if (item.sync_status === 'PENDING') return 'bg-amber-50 text-amber-700'
+  return 'bg-gray-100 text-gray-500'
+}
+
+const formatSyncDate = (dateStr) => {
+  if (!dateStr) return 'ещё не было'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '—'
+  const day = date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')
+  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  return `${day}, ${time} МСК`
+}
+
+const formatNextSync = (item) => {
+  if (!item.auto_sync) return 'авто выключено'
+  if (!item.last_sync_at) return 'после первой синхронизации'
+
+  const interval = Number(item.sync_interval || 1440)
+  const lastSync = new Date(item.last_sync_at)
+  if (Number.isNaN(lastSync.getTime())) return '—'
+
+  const nextSync = new Date(lastSync.getTime() + interval * 60 * 1000)
+  const now = new Date()
+  const todayKey = now.toDateString()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  const nextKey = nextSync.toDateString()
+  const time = nextSync.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+
+  if (nextKey === todayKey) return `сегодня ~${time} МСК`
+  if (nextKey === tomorrow.toDateString()) return `завтра ~${time} МСК`
+  const day = nextSync.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }).replace('.', '')
+  return `${day} ~${time} МСК`
+}
+
+const formatAutoSyncText = (item) => {
+  if (!item.auto_sync) return 'Автоматическая синхронизация выключена'
+  const interval = Number(item.sync_interval || 1440)
+  if (interval === 1440) return 'Обновляется автоматически раз в сутки'
+  if (interval < 60) return `Обновляется автоматически раз в ${interval} ${getPlural(interval, ['минуту', 'минуты', 'минут'])}`
+  const hours = Math.round(interval / 60)
+  return `Обновляется автоматически раз в ${hours} ${getPlural(hours, ['час', 'часа', 'часов'])}`
+}
+
+const copyIntegrationId = async (id) => {
+  try {
+    await navigator.clipboard.writeText(String(id))
+    toaster.success('ID интеграции скопирован')
+  } catch {
+    toaster.error('Не удалось скопировать ID')
+  }
 }
 
 const route = useRoute()

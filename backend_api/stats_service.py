@@ -1149,17 +1149,39 @@ class StatsService:
         clicks_result = {str(i): 0 for i in range(7)}
         leads_result = {str(i): 0 for i in range(7)}
 
-        # selected_goal_ids для лидов Метрики (как в aggregate_summary)
-        selected_goal_ids = set(
-            StatsService.get_selected_metrika_goal_ids(db, client_ids, platform)
-        )
-
         integration_ids_for_metrika = None
+        campaign_platforms = []
         if campaign_ids:
             campaign_integrations = db.query(models.Campaign.integration_id).filter(
                 models.Campaign.id.in_(campaign_ids)
             ).distinct().all()
             integration_ids_for_metrika = [ci[0] for ci in campaign_integrations if ci[0]]
+            if integration_ids_for_metrika:
+                campaign_platforms = [
+                    row[0]
+                    for row in db.query(models.Integration.platform)
+                    .filter(models.Integration.id.in_(integration_ids_for_metrika))
+                    .distinct()
+                    .all()
+                ]
+
+        selected_campaigns_are_avito = bool(campaign_platforms) and all(
+            p == models.IntegrationPlatform.AVITO_ADS for p in campaign_platforms
+        )
+        selected_campaigns_are_yandex = bool(campaign_platforms) and all(
+            p == models.IntegrationPlatform.YANDEX_DIRECT for p in campaign_platforms
+        )
+        metrika_goal_platform = platform
+        if platform == "all":
+            if selected_campaigns_are_avito:
+                metrika_goal_platform = "avito"
+            elif selected_campaigns_are_yandex:
+                metrika_goal_platform = "yandex"
+
+        # selected_goal_ids для лидов Метрики (как в aggregate_summary)
+        selected_goal_ids = set(
+            StatsService.get_selected_metrika_goal_ids(db, client_ids, metrika_goal_platform)
+        )
 
         if platform in ["all", "yandex"]:
             from sqlalchemy import extract
@@ -1183,28 +1205,29 @@ class StatsService:
                 dow = int(r.dow) if r.dow is not None else 0
                 clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
 
-            # Лиды Yandex — из MetrikaGoals (selected_goals), как в сводке
-            m_q = db.query(
-                extract('dow', models.MetrikaGoals.date).label('dow'),
-                func.sum(models.MetrikaGoals.conversion_count).label('leads')
-            ).filter(
-                models.MetrikaGoals.client_id.in_(client_ids),
-                models.MetrikaGoals.goal_id != "all"
-            )
-            if selected_goal_ids:
-                m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
-            if campaign_ids and integration_ids_for_metrika:
-                m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids_for_metrika))
-            if d_start:
-                m_q = m_q.filter(models.MetrikaGoals.date >= d_start)
-            if d_end:
-                m_q = m_q.filter(models.MetrikaGoals.date <= d_end)
-            m_rows = m_q.group_by(extract('dow', models.MetrikaGoals.date)).all()
-            for r in m_rows:
-                dow = int(r.dow) if r.dow is not None else 0
-                leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
-            # НЕ используем fallback на YandexStats.conversions — они другие (Direct считает не по Metrika целям).
-            # Лиды в диаграмме = ТЕ ЖЕ, что в сводке (MetrikaGoals). Если Metrika пусто — остаётся 0.
+            if not selected_campaigns_are_avito:
+                # Лиды Yandex — из MetrikaGoals (selected_goals), как в сводке.
+                m_q = db.query(
+                    extract('dow', models.MetrikaGoals.date).label('dow'),
+                    func.sum(models.MetrikaGoals.conversion_count).label('leads')
+                ).filter(
+                    models.MetrikaGoals.client_id.in_(client_ids),
+                    models.MetrikaGoals.goal_id != "all"
+                )
+                if selected_goal_ids:
+                    m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+                if campaign_ids and integration_ids_for_metrika:
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids_for_metrika))
+                if d_start:
+                    m_q = m_q.filter(models.MetrikaGoals.date >= d_start)
+                if d_end:
+                    m_q = m_q.filter(models.MetrikaGoals.date <= d_end)
+                m_rows = m_q.group_by(extract('dow', models.MetrikaGoals.date)).all()
+                for r in m_rows:
+                    dow = int(r.dow) if r.dow is not None else 0
+                    leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
+                # НЕ используем fallback на YandexStats.conversions — они другие (Direct считает не по Metrika целям).
+                # Лиды в диаграмме = ТЕ ЖЕ, что в сводке (MetrikaGoals). Если Metrika пусто — остаётся 0.
 
         if platform in ["all", "vk"]:
             from sqlalchemy import extract
@@ -1254,7 +1277,7 @@ class StatsService:
                 clicks_result[str(dow)] = clicks_result.get(str(dow), 0) + int(r.clicks or 0)
                 leads_result[str(dow)] = leads_result.get(str(dow), 0) + int(r.leads or 0)
 
-            if platform == "avito":
+            if platform == "avito" or selected_campaigns_are_avito:
                 m_q = db.query(
                     extract('dow', models.MetrikaGoals.date).label('dow'),
                     func.sum(models.MetrikaGoals.conversion_count).label('leads')
@@ -1264,7 +1287,7 @@ class StatsService:
                 )
                 if selected_goal_ids:
                     m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
-                elif platform == "avito":
+                elif metrika_goal_platform == "avito":
                     m_q = m_q.filter(models.MetrikaGoals.goal_id == "__no_avito_goal_selected__")
                 if d_start:
                     m_q = m_q.filter(models.MetrikaGoals.date >= d_start)
