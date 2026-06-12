@@ -272,7 +272,7 @@ const menuItems = computed(() => [
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
   { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
   { name: 'Команда', path: '/team', icon: UserGroupIcon },
-  { name: 'Настройки', path: '/settings', icon: Cog6ToothIcon },
+  { name: 'Тарифы', path: '/settings', icon: Cog6ToothIcon },
 ])
 
 const bottomLinks = computed(() => [

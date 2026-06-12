@@ -130,7 +130,7 @@
               class="plan-card"
               :class="[`plan-card--${card.code}`, { 'plan-card--current': isCurrentPlan(card.plan) }]"
             >
-              <img v-if="card.code === 'basic'" class="plan-fox" src="/admirra/img/fox.png" alt="" />
+              <img v-if="card.code === 'basic'" class="plan-fox" src="/admirra/img/mascot-basic.png" alt="" />
 
               <div class="plan-title">
                 <span class="two-circles" :class="{ 'two-circles--light': card.code === 'basic' }"></span>
@@ -995,12 +995,13 @@ function onContactWl() {
 
 .plan-fox {
   position: absolute;
-  top: -2.6389rem;
-  right: -5.2083rem;
-  width: 22.2222rem;
-  opacity: 0.34;
-  filter: grayscale(1) sepia(1) hue-rotate(170deg) saturate(3) brightness(1.25);
+  top: -1.5rem;
+  right: -0.5rem;
+  width: 13rem;
+  opacity: 0.72;
+  filter: grayscale(1) sepia(1) hue-rotate(170deg) saturate(3) brightness(1.35);
   pointer-events: none;
+  user-select: none;
 }
 
 .plan-title {
