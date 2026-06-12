@@ -1400,17 +1400,13 @@ const formatSyncDateTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   if (!Number.isFinite(date.getTime())) return ''
+  const tz = 'Europe/Moscow'
   const now = new Date()
-  const sameDay = date.toDateString() === now.toDateString()
-  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-  if (sameDay) return `сегодня, ${time}`
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  const sameDay = date.toLocaleDateString('ru-RU', { timeZone: tz }) === now.toLocaleDateString('ru-RU', { timeZone: tz })
+  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz })
+  if (sameDay) return `сегодня, ${time} МСК`
+  const datePart = date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: tz }).replace('.', '')
+  return `${datePart}, ${time} МСК`
 }
 
 const syncProgressLabel = computed(() => {
@@ -1424,9 +1420,7 @@ const syncProgressLabel = computed(() => {
 const syncStatusLabel = computed(() => {
   if (syncRefreshInProgress.value) return 'Обновляем данные...'
   if (dashboardSyncInProgress.value) return 'Выполняется синхронизация'
-  const completedAt = lastSyncCompletedAt.value ? Date.parse(lastSyncCompletedAt.value) : null
-  const lastAt = completedAt || lastIntegrationSyncAt.value
-  const formatted = formatSyncDateTime(lastAt)
+  const formatted = formatSyncDateTime(lastIntegrationSyncAt.value)
   return formatted ? `Синхронизация: ${formatted}` : 'Синхронизация не запускалась'
 })
 
@@ -2902,7 +2896,7 @@ const refreshDashboardAfterSync = async ({ showToast = false, failedCount = 0 } 
       filters.channel === 'vk' ? fetchAllCampaignsForGoalsTab() : Promise.resolve(),
       filters.client_id ? fetchDetectorSummary(filters.client_id) : Promise.resolve()
     ])
-    lastSyncCompletedAt.value = new Date().toISOString()
+    // lastIntegrationSyncAt is already updated by fetchIntegrations() above
     if (showToast) {
       if (failedCount > 0) toaster.warning(`Синхронизация завершена с ошибками: ${failedCount}`)
       else toaster.success('Синхронизация завершена. Данные обновлены')
