@@ -981,6 +981,7 @@ function onContactWl() {
 .plan-card--basic {
   background: #2563eb;
   color: #fff;
+  overflow: visible;
 }
 
 .plan-card--basic::before {
@@ -995,11 +996,13 @@ function onContactWl() {
 
 .plan-fox {
   position: absolute;
-  top: -1.5rem;
-  right: -0.5rem;
-  width: 13rem;
-  opacity: 0.72;
-  filter: grayscale(1) sepia(1) hue-rotate(170deg) saturate(3) brightness(1.35);
+  top: -4.5rem;
+  right: 0.5rem;
+  width: 14rem;
+  opacity: 0.65;
+  transform: rotate(-5deg);
+  transform-origin: bottom center;
+  filter: grayscale(1) sepia(1) hue-rotate(185deg) saturate(4.5) brightness(0.72);
   pointer-events: none;
   user-select: none;
 }
