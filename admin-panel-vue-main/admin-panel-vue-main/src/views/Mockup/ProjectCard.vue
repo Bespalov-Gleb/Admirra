@@ -238,7 +238,6 @@
                   </span>
                   <div class="project-channel-main">
                     <strong>{{ channel.name }}</strong>
-                    <span>{{ channel.summaryText || 'нет целей за период' }}</span>
                   </div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
