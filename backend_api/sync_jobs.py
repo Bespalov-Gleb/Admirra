@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timedelta
@@ -18,6 +19,18 @@ _worker_lock = threading.Lock()
 _worker_started = False
 _poll_interval_sec = 2.0
 _stale_job_timeout = timedelta(hours=2)
+
+# Parallel worker config — tune via env vars without code changes
+_MAX_WORKERS = int(os.getenv("SYNC_WORKER_CONCURRENCY", "4"))
+_MAX_PER_CLIENT = int(os.getenv("SYNC_WORKER_MAX_PER_CLIENT", "2"))
+
+# Shared state for in-process job tracking (protected by _slots_lock)
+_slots_lock = threading.Lock()
+_active_job_ids: set = set()
+_active_integration_ids: set = set()
+_active_client_counts: dict = {}
+# Signaled when a slot frees up OR a new job arrives — wakes scheduler immediately
+_slot_freed = threading.Event()
 
 
 def _as_naive_utc(value: Optional[datetime]) -> Optional[datetime]:
@@ -52,6 +65,18 @@ def _mark_stale_running_jobs(db) -> int:
     if stale_count:
         db.commit()
     return stale_count
+
+
+def _release_slot(job_id: uuid.UUID, integration_id: uuid.UUID, client_id: uuid.UUID) -> None:
+    with _slots_lock:
+        _active_job_ids.discard(job_id)
+        _active_integration_ids.discard(integration_id)
+        count = _active_client_counts.get(client_id, 1) - 1
+        if count <= 0:
+            _active_client_counts.pop(client_id, None)
+        else:
+            _active_client_counts[client_id] = count
+    _slot_freed.set()  # Wake scheduler immediately so it picks the next job without delay
 
 
 def _run_job_sync(job_id: uuid.UUID) -> None:
@@ -90,7 +115,7 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         except Exception:
             pass
 
-        # Incremental sync: if already synced recently, only fetch the gap
+        # Incremental sync: if recently synced, only fetch the gap — not the full requested window
         last_sync = integration.last_sync_at
         is_first_sync = last_sync is None or integration.sync_status == models.IntegrationSyncStatus.NEVER
         if not is_first_sync:
@@ -104,7 +129,10 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
 
         date_to = datetime.now().strftime("%Y-%m-%d")
         date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        logger.info("Sync job %s: using %d days (%s to %s), is_first_sync=%s", job_id, days, date_from, date_to, is_first_sync)
+        logger.info(
+            "Sync job %s: %d days (%s→%s), is_first_sync=%s",
+            job_id, days, date_from, date_to, is_first_sync,
+        )
 
         retries = 3
         delay_sec = 2
@@ -121,13 +149,17 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
             except Exception as e:
                 last_error = e
                 err_lower = str(e).lower()
-                retriable = ("429" in err_lower) or ("rate" in err_lower) or ("timeout" in err_lower) or ("5" in err_lower)
+                retriable = (
+                    "429" in err_lower or "rate" in err_lower
+                    or "timeout" in err_lower or "5" in err_lower
+                )
                 if not retriable or attempt >= retries:
                     raise
                 time.sleep(delay_sec)
                 delay_sec *= 2
         if last_error:
             raise last_error
+
         job.progress = 100
         job.stage = "done"
         job.status = models.SyncJobStatus.SUCCESS
@@ -147,7 +179,9 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                 job.status = models.SyncJobStatus.FAILED
                 job.error = str(e)[:1000]
                 job.finished_at = datetime.utcnow()
-                integration = db.query(models.Integration).filter(models.Integration.id == job.integration_id).first()
+                integration = db.query(models.Integration).filter(
+                    models.Integration.id == job.integration_id
+                ).first()
                 if integration and integration.sync_status == models.IntegrationSyncStatus.PENDING:
                     integration.sync_status = models.IntegrationSyncStatus.FAILED
                     integration.error_message = str(e)[:1000]
@@ -158,41 +192,86 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         db.close()
 
 
+def _run_job_tracked(job_id: uuid.UUID, integration_id: uuid.UUID, client_id: uuid.UUID) -> None:
+    """Thin wrapper that always releases the parallel slot when the job finishes."""
+    try:
+        _run_job_sync(job_id)
+    finally:
+        _release_slot(job_id, integration_id, client_id)
+        logger.debug("Slot released for job %s (integration %s)", job_id, integration_id)
+
+
 def _worker_loop() -> None:
-    logger.info("Sync job worker started")
+    logger.info(
+        "Sync job worker started (max_workers=%d, max_per_client=%d)",
+        _MAX_WORKERS, _MAX_PER_CLIENT,
+    )
     while True:
-        db = SessionLocal()
         try:
-            stale_count = _mark_stale_running_jobs(db)
-            if stale_count:
-                logger.warning("Marked %s stale sync job(s) as failed", stale_count)
+            # Block until a slot frees or a new job arrives (or poll timeout as safety net)
+            _slot_freed.wait(timeout=_poll_interval_sec)
+            _slot_freed.clear()
 
-            queued = db.query(models.SyncJob).filter(
-                models.SyncJob.status == models.SyncJobStatus.QUEUED
-            ).order_by(models.SyncJob.created_at.asc()).first()
-            if not queued:
-                db.close()
-                threading.Event().wait(_poll_interval_sec)
+            # Fast-path: skip DB query if all slots are taken
+            with _slots_lock:
+                active_count = len(_active_job_ids)
+            if active_count >= _MAX_WORKERS:
                 continue
 
-            running_same = db.query(models.SyncJob).filter(
-                models.SyncJob.integration_id == queued.integration_id,
-                models.SyncJob.status == models.SyncJobStatus.RUNNING
-            ).first()
-            if running_same:
+            db = SessionLocal()
+            try:
+                stale_count = _mark_stale_running_jobs(db)
+                if stale_count:
+                    logger.warning("Marked %d stale sync job(s) as failed", stale_count)
+
+                with _slots_lock:
+                    busy_int_ids = set(_active_integration_ids)
+
+                query = (
+                    db.query(models.SyncJob, models.Integration)
+                    .join(models.Integration, models.SyncJob.integration_id == models.Integration.id)
+                    .filter(models.SyncJob.status == models.SyncJobStatus.QUEUED)
+                )
+                if busy_int_ids:
+                    query = query.filter(models.SyncJob.integration_id.notin_(busy_int_ids))
+                queued_jobs = query.order_by(models.SyncJob.created_at.asc()).all()
+            finally:
                 db.close()
-                threading.Event().wait(_poll_interval_sec)
+
+            if not queued_jobs:
                 continue
 
-            job_id = queued.id
-            db.close()
-            _run_job_sync(job_id)
+            # Fair round: fill all free slots, respecting per-client cap
+            for job, integration in queued_jobs:
+                client_id = integration.client_id
+                # Atomic check-and-acquire under the lock
+                with _slots_lock:
+                    if len(_active_job_ids) >= _MAX_WORKERS:
+                        break
+                    if integration.id in _active_integration_ids:
+                        continue
+                    if _active_client_counts.get(client_id, 0) >= _MAX_PER_CLIENT:
+                        continue
+                    # Slot acquired — register before releasing the lock
+                    _active_job_ids.add(job.id)
+                    _active_integration_ids.add(integration.id)
+                    _active_client_counts[client_id] = _active_client_counts.get(client_id, 0) + 1
+
+                t = threading.Thread(
+                    target=_run_job_tracked,
+                    args=(job.id, integration.id, client_id),
+                    name=f"sync-{job.id}",
+                    daemon=True,
+                )
+                t.start()
+                logger.info(
+                    "▶ Started sync job %s | integration %s | client %s | active=%d/%d",
+                    job.id, integration.id, client_id,
+                    len(_active_job_ids), _MAX_WORKERS,
+                )
+
         except Exception as e:
             logger.exception("Worker loop error: %s", e)
-            try:
-                db.close()
-            except Exception:
-                pass
             threading.Event().wait(_poll_interval_sec)
 
 
@@ -247,6 +326,7 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7) -> uuid.UUID:
         db.commit()
         db.refresh(job)
         ensure_sync_worker_started()
+        _slot_freed.set()  # Wake scheduler immediately — don't wait for next poll tick
         return job.id
     finally:
         db.close()
@@ -260,4 +340,3 @@ def get_last_job(integration_id: uuid.UUID) -> Optional[models.SyncJob]:
         ).order_by(models.SyncJob.created_at.desc()).first()
     finally:
         db.close()
-
