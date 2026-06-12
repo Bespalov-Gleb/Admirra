@@ -219,7 +219,7 @@
               <template v-if="campaignGroupActive.length">
                 <div v-for="campaign in campaignGroupActive" :key="campaign.id" class="cmp-row" @click="togglePendingCampaign(campaign.id)">
                   <input type="checkbox" class="cmp-check" :checked="pendingCampaignIds.includes(campaign.id)" @click.stop="togglePendingCampaign(campaign.id)" />
-                  <span class="cmp-status-dot" :class="campaign.is_active ? 'cmp-status-dot--active' : 'cmp-status-dot--paused'" :title="campaign.is_active ? 'Активна' : 'Остановлена'"></span>
+                  <span class="cmp-status-dot" :class="`cmp-status-dot--${campaignPlatformStatus(campaign)}`" :title="campaignStatusTitle(campaign)"></span>
                   <span class="cmp-name">{{ campaign.name }}</span>
                 </div>
               </template>
@@ -231,7 +231,7 @@
                 <template v-if="campaignArchiveVisible">
                   <div v-for="campaign in campaignGroupArchive" :key="campaign.id" class="cmp-row cmp-row--archive" @click="togglePendingCampaign(campaign.id)">
                     <input type="checkbox" class="cmp-check" :checked="pendingCampaignIds.includes(campaign.id)" @click.stop="togglePendingCampaign(campaign.id)" />
-                    <span class="cmp-status-dot cmp-status-dot--archive" title="Архив"></span>
+                    <span class="cmp-status-dot" :class="`cmp-status-dot--${campaignPlatformStatus(campaign)}`" :title="campaignStatusTitle(campaign)"></span>
                     <span class="cmp-name">{{ campaign.name }}</span>
                   </div>
                 </template>
@@ -1786,8 +1786,33 @@ const campaignReset = () => {
   handlePeriodChange()
 }
 
-const campaignGroupActive = computed(() => filteredCampaigns.value.filter(c => c.is_active))
-const campaignGroupArchive = computed(() => filteredCampaigns.value.filter(c => !c.is_active))
+// Реальный статус кампании с площадки (display_status), фоллбэк по is_active
+const campaignPlatformStatus = (c) => {
+  const s = String(c.display_status || '').toLowerCase()
+  if (['active', 'paused', 'archived', 'unknown'].includes(s)) return s
+  return c.is_active ? 'active' : 'archived'
+}
+const CAMPAIGN_STATUS_TITLES = {
+  active: 'Активна',
+  paused: 'Приостановлена',
+  archived: 'Архив',
+  unknown: 'Статус неизвестен',
+}
+const campaignStatusTitle = (c) => CAMPAIGN_STATUS_TITLES[campaignPlatformStatus(c)] || 'Статус неизвестен'
+
+const STATUS_ORDER = { active: 0, paused: 1 }
+const campaignGroupActive = computed(() =>
+  filteredCampaigns.value
+    .filter(c => ['active', 'paused'].includes(campaignPlatformStatus(c)))
+    .sort((a, b) =>
+      (STATUS_ORDER[campaignPlatformStatus(a)] - STATUS_ORDER[campaignPlatformStatus(b)])
+      || a.name.localeCompare(b.name, 'ru')
+    )
+)
+// Архив: archived + кампании, которые площадка больше не возвращает (unknown)
+const campaignGroupArchive = computed(() =>
+  filteredCampaigns.value.filter(c => ['archived', 'unknown'].includes(campaignPlatformStatus(c)))
+)
 const campaignArchiveVisible = computed(() => campaignQuery.value.trim() ? true : campaignArchiveOpen.value)
 
 const selectChartPeriod = (option) => {
@@ -9000,7 +9025,9 @@ onMounted(() => {
 }
 .cmp-status-dot--active { background: #22c55e; }
 .cmp-status-dot--paused { background: #f59e0b; }
-.cmp-status-dot--archive { background: #9ca3af; }
+.cmp-status-dot--archive,
+.cmp-status-dot--archived { background: #9ca3af; }
+.cmp-status-dot--unknown { background: #d1d5db; }
 
 .cmp-name {
   font-size: 0.88rem;
@@ -9302,11 +9329,15 @@ onMounted(() => {
   align-items: center;
   gap: 0.4861rem;
   margin-top: 0.6944rem;
+  max-width: 17.3611rem;
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 0.6944rem;
   background: #fff;
-  padding: 0.2778rem 0.6944rem;
+  padding: 0.3472rem 0.6944rem;
   color: rgba(105,105,105,0.4);
+}
+.direction-campaign-search:focus-within {
+  border-color: rgba(37, 99, 235, 0.35);
 }
 :global(.dark) .direction-campaign-search { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
 
@@ -9446,7 +9477,8 @@ onMounted(() => {
 }
 
 .direction-campaign-status--archived,
-.direction-campaign-status--archive {
+.direction-campaign-status--archive,
+.direction-campaign-status--unknown {
   background: #f5f7f9;
   color: rgba(105,105,105,0.65);
 }
