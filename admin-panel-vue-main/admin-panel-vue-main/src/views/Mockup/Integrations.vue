@@ -65,6 +65,7 @@
       <div
         v-for="item in filteredIntegrations"
         :key="item.id"
+        :data-int-id="item.id"
         class="int-card"
       >
         <!-- Card header -->
@@ -167,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
@@ -191,20 +192,22 @@ const selectedIntegration = ref(null)
 const selectedIndex = ref(-1)
 const syncingId = ref(null)
 
-const openSettings = (item) => {
-  selectedIntegration.value = item
-  selectedIndex.value = filteredIntegrations.value.indexOf(item)
-  settingsOpen.value = true
-}
+const panelWrapperStyle = ref({})
 
-// Place the panel below the clicked card.
-const panelWrapperStyle = computed(() => {
-  const idx = selectedIndex.value
-  if (idx < 0) return {}
-  const col = 1
-  const row = idx + 2
-  return { gridColumn: String(col), gridRow: String(row) }
-})
+const openSettings = async (item) => {
+  selectedIntegration.value = item
+  const idx = filteredIntegrations.value.indexOf(item)
+  selectedIndex.value = idx
+  const cols = window.innerWidth >= 1280 ? 2 : 1
+  panelWrapperStyle.value = {
+    gridColumn: '1 / -1',
+    gridRow: String(Math.floor(idx / cols) + 2),
+  }
+  settingsOpen.value = true
+  await nextTick()
+  const cardEl = document.querySelector(`[data-int-id="${item.id}"]`)
+  if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+}
 
 // ── Platform definitions ──
 const platformCatalog = [
@@ -607,10 +610,10 @@ const deleteIntegration = async () => {
   flex-direction: column;
   gap: 1.0417rem;
   padding: 1.3889rem;
-  background: #f7f6ed;
-  border: 1px solid #e2dfd0;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 1.25rem;
-  box-shadow: 0 0.4167rem 1.25rem rgba(18, 24, 40, 0.035);
+  box-shadow: 0 0.1389rem 0.4167rem rgba(15, 23, 42, 0.03);
 }
 :global(.dark) .int-card,
 :global(.darkmode) .int-card {
@@ -646,8 +649,8 @@ const deleteIntegration = async () => {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: rgba(255,255,255,0.72);
-  border: 1px solid rgba(255,255,255,0.8);
+  background: #f5f7f9;
+  border: 1px solid rgba(15, 23, 42, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -656,8 +659,17 @@ const deleteIntegration = async () => {
 .proj-avatar span {
   font-size: 0.8333rem;
   font-weight: 700;
-  color: #3b3b36;
+  color: #374151;
   line-height: 1;
+}
+:global(.dark) .proj-avatar,
+:global(.darkmode) .proj-avatar {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:global(.dark) .proj-avatar span,
+:global(.darkmode) .proj-avatar span {
+  color: rgba(255, 255, 255, 0.82);
 }
 .project-public-id {
   margin-top: 0.3472rem;
@@ -676,7 +688,7 @@ const deleteIntegration = async () => {
   display: inline-block;
   padding: 0.4861rem 0.9028rem;
   border-radius: 0.7639rem;
-  background-color: rgba(255,255,255,0.35);
+  background-color: rgba(37, 99, 235, 0.06);
   border: 1px solid rgba(37,99,235,0.72);
   color: #2563eb;
   font-size: 0.7639rem;
@@ -687,9 +699,9 @@ const deleteIntegration = async () => {
 /* ── Card body ── */
 .int-card__body {
   padding: 1.1806rem 1.3889rem;
-  background-color: #fff;
+  background-color: #f5f7f9;
   border-radius: 1.0417rem;
-  border: 1px solid #d8d5c9;
+  border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 0.2083rem 0.8333rem rgba(18, 24, 40, 0.025);
 }
 :global(.dark) .int-card__body,
