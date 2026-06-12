@@ -1491,6 +1491,9 @@ onUnmounted(() => {
 
 /* ===== Toggle switch ===== */
 .psm-toggle {
+  /* relative — якорим sr-only чекбокс внутри тумблера, иначе при клике
+     фокус на нём заставляет браузер скроллить модалку вверх */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.5556rem;
