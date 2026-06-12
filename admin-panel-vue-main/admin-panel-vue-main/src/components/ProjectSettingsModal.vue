@@ -234,7 +234,7 @@
                 </div>
 
                 <!-- Expanded fields -->
-                <div v-if="form.detector_enabled || detectorFieldsExpanded">
+                <div v-show="form.detector_enabled || detectorFieldsExpanded">
                   <div v-if="!form.detector_enabled" class="psm-detector-expanded-toolbar">
                     <div>
                       <div class="psm-detector-expanded-toolbar__title">Бюджеты и цели раскрыты</div>
@@ -439,7 +439,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 import { projectAvatarUrl, projectInitials } from '@/utils/projectAvatar'
 import { useToaster } from '@/composables/useToaster'
@@ -681,23 +681,8 @@ watch(() => form.detector_enabled, (val) => {
   if (val) detectorFieldsExpanded.value = false
 })
 
-async function handleDetectorToggle() {
-  const body = bodyRef.value
-  const scrollTop = body?.scrollTop || 0
-  const nextValue = !form.detector_enabled
-
-  form.detector_enabled = nextValue
-  await nextTick()
-
-  const restoreScroll = () => {
-    if (bodyRef.value) bodyRef.value.scrollTop = scrollTop
-  }
-
-  restoreScroll()
-  requestAnimationFrame(() => {
-    restoreScroll()
-    requestAnimationFrame(restoreScroll)
-  })
+function handleDetectorToggle() {
+  form.detector_enabled = !form.detector_enabled
 }
 
 watch(

@@ -1340,6 +1340,12 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         except Exception as det_err:
             logger.exception("Detector failed for client %s: %s", integration.client_id, det_err)
 
+        try:
+            from backend_api.services.detector_llm import refresh_hypothesis_texts_for_client
+            await refresh_hypothesis_texts_for_client(db, integration.client_id)
+        except Exception as llm_err:
+            logger.exception("LLM hypothesis generation failed for client %s: %s", integration.client_id, llm_err)
+
         # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
         # This prevents stale cached data from appearing on the dashboard
         from backend_api.cache_service import CacheService

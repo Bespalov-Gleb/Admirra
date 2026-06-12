@@ -25,8 +25,12 @@ def get_detector_summary(
     if not client:
         raise HTTPException(status_code=404, detail="Проект не найден")
 
+    # TZ 1.12: account-level global toggle — check project owner's setting
+    owner = db.query(models.User).filter(models.User.id == client.owner_id).first()
+    global_on = getattr(owner, "global_detector_enabled", True) if owner else True
+
     det_state = get_detector_state(client)
-    warmup_status = det_state["status"]
+    warmup_status = det_state["status"] if global_on else "disabled"
     if warmup_status == "disabled":
         return {
             "warning_count": 0,
@@ -136,10 +140,20 @@ def get_cross_project_status(
         .all()
     )
 
+    # Load owners for global toggle check (TZ 1.12)
+    owner_ids = {c.owner_id for c in clients if c.owner_id}
+    owners = {
+        u.id: u
+        for u in db.query(models.User).filter(models.User.id.in_(owner_ids)).all()
+    }
+
     result = []
     for client in clients:
+        owner = owners.get(client.owner_id)
+        global_on = getattr(owner, "global_detector_enabled", True) if owner else True
         det_state = get_detector_state(client)
-        if det_state["status"] == "disabled":
+        status = det_state["status"] if global_on else "disabled"
+        if status == "disabled":
             result.append({
                 "project_id": client.id,
                 "warning_count": 0,
@@ -158,7 +172,7 @@ def get_cross_project_status(
             "warning_count": w,
             "problem_count": p,
             "max_severity": max_sev,
-            "warmup_status": det_state["status"],
+            "warmup_status": status,
         })
 
     return result

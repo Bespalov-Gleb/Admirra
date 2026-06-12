@@ -564,6 +564,8 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
                 detail="Подтвердите email-код, чтобы включить двухфакторную аутентификацию",
             )
         current_user.two_factor_enabled = next_two_factor
+    if "global_detector_enabled" in fields:
+        current_user.global_detector_enabled = bool(updates.global_detector_enabled)
     if "yandex_finance_token" in fields:
         current_user.yandex_finance_token = updates.yandex_finance_token
     if "report_telegram_chat_id" in fields:

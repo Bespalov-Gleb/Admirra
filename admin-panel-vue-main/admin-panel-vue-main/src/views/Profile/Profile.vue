@@ -199,6 +199,32 @@
         </div>
       </section>
 
+      <section class="profile-card profile-card--wide">
+        <div class="card-head">
+          <div>
+            <h2>Детектор аномалий</h2>
+            <p>Глобальное включение детектора для всех проектов аккаунта.</p>
+          </div>
+        </div>
+        <div class="security-list">
+          <div class="security-row">
+            <div class="security-copy">
+              <strong>Детектор аномалий</strong>
+              <span>{{ form.globalDetectorEnabled ? 'Включён для всех проектов аккаунта.' : 'Выключен глобально — флаги и баннеры не показываются ни в одном проекте.' }}</span>
+            </div>
+            <button
+              class="toggle"
+              type="button"
+              :class="{ 'toggle--on': form.globalDetectorEnabled }"
+              @click="toggleGlobalDetector"
+              :aria-pressed="form.globalDetectorEnabled ? 'true' : 'false'"
+            >
+              <i></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="danger-card profile-card--wide">
         <div>
           <h2>Удалить аккаунт</h2>
@@ -318,6 +344,7 @@ const form = reactive({
   isActive: true,
   avatarUrl: '',
   twoFactorEnabled: false,
+  globalDetectorEnabled: true,
   interfaceLanguage: 'ru',
   telegramChatId: '',
   notificationEmail: '',
@@ -388,6 +415,7 @@ function fillProfile(data) {
   form.isActive = data?.is_active !== false
   form.avatarUrl = data?.avatar_url || ''
   form.twoFactorEnabled = Boolean(data?.two_factor_enabled)
+  form.globalDetectorEnabled = data?.global_detector_enabled !== false
   form.interfaceLanguage = data?.interface_language || 'ru'
   form.telegramChatId = data?.report_telegram_chat_id || ''
   form.notificationEmail = data?.notification_email || ''
@@ -444,6 +472,17 @@ async function saveNotifications() {
     toaster.error(error.response?.data?.detail || 'Не удалось сохранить уведомления')
   } finally {
     savingProfile.value = false
+  }
+}
+
+async function toggleGlobalDetector() {
+  try {
+    const next = !form.globalDetectorEnabled
+    const { data } = await api.patch('auth/me', { global_detector_enabled: next })
+    fillProfile(data)
+    toaster.success(next ? 'Детектор включён для всех проектов' : 'Детектор выключен глобально')
+  } catch (error) {
+    toaster.error(error.response?.data?.detail || 'Не удалось изменить настройку детектора')
   }
 }
 

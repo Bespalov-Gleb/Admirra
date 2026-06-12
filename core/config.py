@@ -152,6 +152,7 @@ class DetectorCfg:
     duration_warning: int
     duration_problem: int
     recovery_days: int
+    campaign_min_baseline_spend: float
     thresholds_json: str
     holidays_json: str
 
@@ -314,6 +315,7 @@ def get_config() -> Config:
             duration_warning=int(_env("DETECTOR_DURATION_WARNING", "2")),
             duration_problem=int(_env("DETECTOR_DURATION_PROBLEM", "3")),
             recovery_days=int(_env("DETECTOR_RECOVERY_DAYS", "2")),
+            campaign_min_baseline_spend=float(_env("DETECTOR_CAMPAIGN_MIN_BASELINE_SPEND", "500")),
             thresholds_json=_env("DETECTOR_THRESHOLDS_JSON"),
             holidays_json=_env("DETECTOR_HOLIDAYS_JSON"),
         ),

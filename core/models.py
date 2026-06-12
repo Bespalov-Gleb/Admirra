@@ -39,6 +39,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     two_factor_enabled = Column(Boolean, nullable=False, default=False)
     interface_language = Column(String(8), nullable=False, default="ru")
+    global_detector_enabled = Column(Boolean, nullable=False, default=True, server_default="true")
     # Пользовательский FinanceToken для Яндекс.Директа (или его база)
     # Используется при запросе баланса через AccountManagement API.
     yandex_finance_token = Column(String, nullable=True)

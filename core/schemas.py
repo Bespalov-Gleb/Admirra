@@ -67,6 +67,7 @@ class UserResponse(UserBase):
     whitelabel_available: bool = False
     has_password: bool = True
     password_updated_at: Optional[datetime] = None
+    global_detector_enabled: bool = True
 
     class Config:
         from_attributes = True
@@ -182,6 +183,7 @@ class UserUpdateSettings(BaseModel):
     notification_email: Optional[EmailStr] = None
     interface_language: Optional[str] = None
     two_factor_enabled: Optional[bool] = None
+    global_detector_enabled: Optional[bool] = None
     yandex_finance_token: Optional[str] = None
     report_telegram_chat_id: Optional[str] = None
     report_max_chat_id: Optional[str] = None

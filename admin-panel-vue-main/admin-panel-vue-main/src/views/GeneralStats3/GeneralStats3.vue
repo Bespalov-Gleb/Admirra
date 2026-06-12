@@ -3463,7 +3463,10 @@ const formatDetectorAlertTitle = (alert) => {
   const deviation = alert.deviation_pct > 0 ? `+${alert.deviation_pct}%` : `${alert.deviation_pct}%`
   const days = alert.consecutive_days || 1
   const hypothesis = alert.hypothesis_text ? `\n${alert.hypothesis_text}` : ''
-  return `Отклонение ${deviation}, ${days} дн. подряд${hypothesis}`
+  const baseline = alert.baseline_value != null && alert.actual_value != null
+    ? `\nБаза: ${Number(alert.baseline_value).toLocaleString('ru')}, факт: ${Number(alert.actual_value).toLocaleString('ru')}`
+    : ''
+  return `Отклонение ${deviation}, ${days} дн. подряд${baseline}${hypothesis}\nСчитает детектор по истории · не AI`
 }
 
 const metricAnomalyClass = (key) => {
