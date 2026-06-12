@@ -1800,18 +1800,19 @@ const CAMPAIGN_STATUS_TITLES = {
 }
 const campaignStatusTitle = (c) => CAMPAIGN_STATUS_TITLES[campaignPlatformStatus(c)] || 'Статус неизвестен'
 
-const STATUS_ORDER = { active: 0, paused: 1 }
+const STATUS_ORDER = { active: 0, paused: 1, unknown: 2 }
+// unknown — площадка не отдала статус (нет Direct Pro / кампания только в отчётах),
+// кампания может реально работать, поэтому держим её в основном списке, не в архиве
 const campaignGroupActive = computed(() =>
   filteredCampaigns.value
-    .filter(c => ['active', 'paused'].includes(campaignPlatformStatus(c)))
+    .filter(c => ['active', 'paused', 'unknown'].includes(campaignPlatformStatus(c)))
     .sort((a, b) =>
       (STATUS_ORDER[campaignPlatformStatus(a)] - STATUS_ORDER[campaignPlatformStatus(b)])
       || a.name.localeCompare(b.name, 'ru')
     )
 )
-// Архив: archived + кампании, которые площадка больше не возвращает (unknown)
 const campaignGroupArchive = computed(() =>
-  filteredCampaigns.value.filter(c => ['archived', 'unknown'].includes(campaignPlatformStatus(c)))
+  filteredCampaigns.value.filter(c => campaignPlatformStatus(c) === 'archived')
 )
 const campaignArchiveVisible = computed(() => campaignQuery.value.trim() ? true : campaignArchiveOpen.value)
 
@@ -9329,11 +9330,12 @@ onMounted(() => {
   align-items: center;
   gap: 0.4861rem;
   margin-top: 0.6944rem;
-  max-width: 17.3611rem;
+  max-width: 32.4074rem;
+  height: 2.7778rem;
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 0.6944rem;
   background: #fff;
-  padding: 0.3472rem 0.6944rem;
+  padding: 0 0.8333rem;
   color: rgba(105,105,105,0.4);
 }
 .direction-campaign-search:focus-within {
@@ -9342,20 +9344,25 @@ onMounted(() => {
 :global(.dark) .direction-campaign-search { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
 
 .direction-campaign-search svg {
-  width: 0.8333rem;
-  height: 0.8333rem;
+  width: 0.9722rem;
+  height: 0.9722rem;
   flex: 0 0 auto;
 }
 
-.direction-campaign-search input {
+/* Перебиваем легаси base-app.css (.main-layout input[type="text"]: height 4.6rem, padding, box-shadow) */
+.direction-preview .direction-campaign-search input[type="text"] {
   width: 100%;
+  height: 100%;
   border: 0;
   outline: 0;
+  padding: 0;
   background: transparent;
+  box-shadow: none;
+  border-radius: 0;
   color: #171717;
-  font-size: 0.8333rem;
+  font: 400 0.9028rem/130% "Inter", sans-serif;
 }
-:global(.dark) .direction-campaign-search input { color: rgba(255,255,255,0.88); }
+:global(.dark) .direction-preview .direction-campaign-search input[type="text"] { color: rgba(255,255,255,0.88); }
 
 .direction-preview__list {
   display: grid;
