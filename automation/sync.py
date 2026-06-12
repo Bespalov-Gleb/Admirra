@@ -590,12 +590,17 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             campaigns_task = api.get_campaigns()
             balance_task = api.get_balance()
             stats_task = api.get_report(date_from, date_to)
-            
-            # Ждем запросы параллельно
-            yandex_campaigns, balance_data, stats = await asyncio.gather(
+            # Запускаем group и keyword отчёты одновременно с campaign — Yandex ставит их в очередь параллельно
+            group_task = api.get_report(date_from, date_to, level="group")
+            keyword_task = api.get_report(date_from, date_to, level="keyword")
+
+            # Ждем ВСЕ запросы параллельно (экономим время на 2 последовательных polling-раунда)
+            yandex_campaigns, balance_data, stats, _group_stats_prefetched, _keyword_stats_prefetched = await asyncio.gather(
                 campaigns_task,
                 balance_task,
                 stats_task,
+                group_task,
+                keyword_task,
                 return_exceptions=True
             )
 
@@ -808,22 +813,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             elif not has_selected_goals:
                 logger.debug(f"Direct integration {integration.id} has no selected goals, skipping Metrika goals sync")
 
-            # Group and Keyword stats - получаем параллельно
-            # CRITICAL: Filter by integration_id to avoid saving data from other profiles
-            group_task = api.get_report(date_from, date_to, level="group")
-            keyword_task = api.get_report(date_from, date_to, level="keyword")
-            
-            group_stats_result, keyword_stats_result = await asyncio.gather(
-                group_task,
-                keyword_task,
-                return_exceptions=True
-            )
-            
-            # Обрабатываем group stats
+            # Group и Keyword stats уже получены параллельно в начале — используем prefetch-результаты
+            group_stats_result = _group_stats_prefetched
+            keyword_stats_result = _keyword_stats_prefetched
+
             if isinstance(group_stats_result, Exception):
                 logger.warning(f"Error syncing group stats: {group_stats_result}")
                 group_stats_result = []
-            
+
             level_stats_list = [
                 ("group", group_stats_result if not isinstance(group_stats_result, Exception) else []),
                 ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else [])
@@ -1357,13 +1354,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             logger.warning(f"Failed to create sync-failed notification: {notify_err}")
         raise e
 
-async def sync_data(days: int = 7, max_concurrent: int = 2):
+async def sync_data(days: int = 7, max_concurrent: int = 4):
     """
     Synchronize all integrations with parallel processing.
     
     Args:
         days: Number of days to sync (default 7)
-        max_concurrent: Maximum number of concurrent sync operations (default 2)
+        max_concurrent: Maximum number of concurrent sync operations (default 4)
     """
     db: Session = SessionLocal()
     try:

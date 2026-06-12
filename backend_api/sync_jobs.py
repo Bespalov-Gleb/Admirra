@@ -89,8 +89,22 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                 days = int(payload.get("days", days))
         except Exception:
             pass
+
+        # Incremental sync: if already synced recently, only fetch the gap
+        last_sync = integration.last_sync_at
+        is_first_sync = last_sync is None or integration.sync_status == models.IntegrationSyncStatus.NEVER
+        if not is_first_sync:
+            if last_sync.tzinfo is not None:
+                last_sync = last_sync.replace(tzinfo=None)
+            days_since_last = max(0, (datetime.utcnow() - last_sync).days)
+            if days_since_last < 1:
+                days = 3
+            elif days_since_last < days:
+                days = min(days_since_last + 3, days)
+
         date_to = datetime.now().strftime("%Y-%m-%d")
         date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        logger.info("Sync job %s: using %d days (%s to %s), is_first_sync=%s", job_id, days, date_from, date_to, is_first_sync)
 
         retries = 3
         delay_sec = 2
