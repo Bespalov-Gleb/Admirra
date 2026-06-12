@@ -310,7 +310,15 @@ export function useDashboardStats() {
         const m = name.match(/^Campaign\s+(\d+)$/i)
         if (m && extId) name = `Кампания (ID: ${extId})`
         else if (m && !extId) name = `Кампания (ID: ${m[1]})`
-        return { id: c.id, name, external_id: extId, vk_goal_action_id: c.vk_goal_action_id, is_active: c.is_active !== false }
+        return {
+          id: c.id,
+          name,
+          external_id: extId,
+          vk_goal_action_id: c.vk_goal_action_id,
+          is_active: c.is_active !== false,
+          // Реальный статус площадки — для цветных точек в дропдауне
+          display_status: c.display_status || null,
+        }
       }
       allCampaigns.value = data.map(fmt)
     } catch (err) {
