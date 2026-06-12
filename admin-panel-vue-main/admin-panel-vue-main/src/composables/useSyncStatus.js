@@ -90,8 +90,8 @@ const isSyncingIntegration = (integrationId) => {
   ))
 }
 
-const startIntegrationSync = async (integrationId, { days = 90 } = {}) => {
-  const { data } = await api.post(`integrations/${integrationId}/sync`, { days })
+const startIntegrationSync = async (integrationId, { days = 90, forceFull = true } = {}) => {
+  const { data } = await api.post(`integrations/${integrationId}/sync`, { days, force_full: forceFull })
   await fetchSyncStatus()
   return data
 }

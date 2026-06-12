@@ -774,6 +774,7 @@ class DashboardIntegrationStatus(BaseModel):
 
 class SyncRequest(BaseModel):
     days: int = 7
+    force_full: bool = False
 
 
 class SyncJobResponse(BaseModel):

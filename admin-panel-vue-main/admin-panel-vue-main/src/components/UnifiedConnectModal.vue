@@ -735,7 +735,7 @@ const finishConnection = async () => {
     
     // 3. Trigger initial sync automatically (sync_depth days)
     try {
-      await api.post(`integrations/${lastIntegrationId.value}/sync`, { days: form.sync_depth })
+      await api.post(`integrations/${lastIntegrationId.value}/sync`, { days: form.sync_depth, force_full: true })
     } catch (syncErr) {
       console.warn('Initial sync failed, but integration was saved:', syncErr)
     }

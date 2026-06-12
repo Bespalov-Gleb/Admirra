@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 import logging
 from core.logging_utils import log_structured
+from automation.request_queue import get_api_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -742,6 +743,7 @@ class YandexDirectAPI:
         
         async with httpx.AsyncClient() as client:
             for attempt in range(max_retries):
+                await get_api_limiter('direct').acquire()
                 response = await client.post(
                     self.report_url,
                     json=report_definition,

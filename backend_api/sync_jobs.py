@@ -51,6 +51,32 @@ def _fail_stale_job(db, job: models.SyncJob) -> None:
         integration.error_message = job.error
 
 
+def _claim_queued_job(job_id: uuid.UUID) -> bool:
+    """Atomically move a queued job to RUNNING so another worker/process cannot take it."""
+    db = SessionLocal()
+    try:
+        claimed = db.query(models.SyncJob).filter(
+            models.SyncJob.id == job_id,
+            models.SyncJob.status == models.SyncJobStatus.QUEUED,
+        ).update(
+            {
+                models.SyncJob.status: models.SyncJobStatus.RUNNING,
+                models.SyncJob.stage: "syncing",
+                models.SyncJob.progress: 5,
+                models.SyncJob.started_at: datetime.utcnow(),
+            },
+            synchronize_session=False,
+        )
+        db.commit()
+        return claimed == 1
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to claim sync job %s", job_id)
+        return False
+    finally:
+        db.close()
+
+
 def _mark_stale_running_jobs(db) -> int:
     now = datetime.utcnow()
     stale_count = 0
@@ -103,22 +129,24 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         job.status = models.SyncJobStatus.RUNNING
         job.stage = "syncing"
         job.progress = 5
-        job.started_at = datetime.utcnow()
+        job.started_at = job.started_at or datetime.utcnow()
         job.attempt = (job.attempt or 0) + 1
         db.commit()
 
         days = 7
+        force_full = False
         try:
             if job.params:
                 payload = json.loads(job.params)
                 days = int(payload.get("days", days))
+                force_full = bool(payload.get("force_full", False))
         except Exception:
             pass
 
         # Incremental sync: if recently synced, only fetch the gap — not the full requested window
         last_sync = integration.last_sync_at
         is_first_sync = last_sync is None or integration.sync_status == models.IntegrationSyncStatus.NEVER
-        if not is_first_sync:
+        if not force_full and not is_first_sync:
             if last_sync.tzinfo is not None:
                 last_sync = last_sync.replace(tzinfo=None)
             days_since_last = max(0, (datetime.utcnow() - last_sync).days)
@@ -130,8 +158,8 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         date_to = datetime.now().strftime("%Y-%m-%d")
         date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         logger.info(
-            "Sync job %s: %d days (%s→%s), is_first_sync=%s",
-            job_id, days, date_from, date_to, is_first_sync,
+            "Sync job %s: %d days (%s→%s), is_first_sync=%s, force_full=%s",
+            job_id, days, date_from, date_to, is_first_sync, force_full,
         )
 
         retries = 3
@@ -257,6 +285,10 @@ def _worker_loop() -> None:
                     _active_integration_ids.add(integration.id)
                     _active_client_counts[client_id] = _active_client_counts.get(client_id, 0) + 1
 
+                if not _claim_queued_job(job.id):
+                    _release_slot(job.id, integration.id, client_id)
+                    continue
+
                 t = threading.Thread(
                     target=_run_job_tracked,
                     args=(job.id, integration.id, client_id),
@@ -287,7 +319,7 @@ def ensure_sync_worker_started() -> None:
         _worker_started = True
 
 
-def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7) -> uuid.UUID:
+def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7, force_full: bool = False) -> uuid.UUID:
     db = SessionLocal()
     try:
         existing = db.query(models.SyncJob).filter(
@@ -304,6 +336,7 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7) -> uuid.UUID:
                 _fail_stale_job(db, existing)
                 db.commit()
             else:
+                db.commit()
                 ensure_sync_worker_started()
                 return existing.id
 
@@ -312,15 +345,21 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7) -> uuid.UUID:
             models.SyncJob.status.in_([models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING]),
         ).order_by(models.SyncJob.created_at.desc()).first()
         if existing:
+            db.commit()
             ensure_sync_worker_started()
             return existing.id
+
+        integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
+        if integration:
+            integration.sync_status = models.IntegrationSyncStatus.PENDING
+            integration.error_message = None
 
         job = models.SyncJob(
             integration_id=integration_id,
             status=models.SyncJobStatus.QUEUED,
             stage="queued",
             progress=0,
-            params=json.dumps({"days": days}),
+            params=json.dumps({"days": days, "force_full": force_full}),
         )
         db.add(job)
         db.commit()

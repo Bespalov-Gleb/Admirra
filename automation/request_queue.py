@@ -24,31 +24,43 @@ class RateLimiter:
         self.max_requests = max_requests
         self.time_window = time_window
         self.request_times = deque()
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
     
     async def acquire(self):
         """Ждет, пока можно будет сделать запрос"""
-        async with self._lock:
-            now = time.time()
-            
-            # Удаляем старые запросы вне временного окна
-            while self.request_times and self.request_times[0] < now - self.time_window:
-                self.request_times.popleft()
-            
-            # Если достигнут лимит, ждем
-            if len(self.request_times) >= self.max_requests:
+        while True:
+            wait_time = 0
+            with self._lock:
+                now = time.time()
+
+                # Удаляем старые запросы вне временного окна
+                while self.request_times and self.request_times[0] < now - self.time_window:
+                    self.request_times.popleft()
+
+                if len(self.request_times) < self.max_requests:
+                    self.request_times.append(now)
+                    return
+
                 wait_time = self.time_window - (now - self.request_times[0])
-                if wait_time > 0:
-                    logger.debug(f"Rate limit reached. Waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
-                    # Обновляем время после ожидания
-                    now = time.time()
-                    # Снова очищаем старые запросы
-                    while self.request_times and self.request_times[0] < now - self.time_window:
-                        self.request_times.popleft()
-            
-            # Регистрируем новый запрос
-            self.request_times.append(now)
+
+            if wait_time > 0:
+                logger.debug(f"Rate limit reached. Waiting {wait_time:.2f}s")
+                await asyncio.sleep(wait_time)
+            else:
+                await asyncio.sleep(0)
+
+
+_GLOBAL_METRICA_LIMITER = RateLimiter(max_requests=2, time_window=1.0)
+_GLOBAL_DIRECT_LIMITER = RateLimiter(max_requests=10, time_window=1.0)
+_GLOBAL_VK_LIMITER = RateLimiter(max_requests=10, time_window=1.0)
+
+
+def get_api_limiter(api_type: str) -> RateLimiter:
+    return {
+        'metrica': _GLOBAL_METRICA_LIMITER,
+        'direct': _GLOBAL_DIRECT_LIMITER,
+        'vk': _GLOBAL_VK_LIMITER,
+    }.get(api_type, _GLOBAL_DIRECT_LIMITER)
 
 
 class APIRequestQueue:
@@ -58,10 +70,11 @@ class APIRequestQueue:
     
     def __init__(self):
         # Разные лимитеры для разных API
-        # CRITICAL: Метрика имеет очень строгие лимиты - уменьшаем до 2 запросов в секунду
-        self.metrica_limiter = RateLimiter(max_requests=2, time_window=1.0)  # 2 запросов в секунду для Метрики
-        self.direct_limiter = RateLimiter(max_requests=10, time_window=1.0)  # 10 запросов в секунду для Директа
-        self.vk_limiter = RateLimiter(max_requests=10, time_window=1.0)  # 10 запросов в секунду для VK
+        # Лимитеры общие для всех event loop/thread в процессе, иначе параллельный sync
+        # умножает фактическую частоту запросов на количество потоков.
+        self.metrica_limiter = _GLOBAL_METRICA_LIMITER
+        self.direct_limiter = _GLOBAL_DIRECT_LIMITER
+        self.vk_limiter = _GLOBAL_VK_LIMITER
         self._queue = asyncio.Queue()
         self._workers = []
         self._running = False
@@ -234,4 +247,3 @@ async def shutdown_request_queue():
     if queue:
         await queue.stop()
         logger.info("API Request Queue stopped")
-

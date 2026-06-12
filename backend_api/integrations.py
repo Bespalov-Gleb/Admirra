@@ -1281,6 +1281,7 @@ async def trigger_sync(
     в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
     """
     days = request_data.days if request_data else 7
+    force_full = bool(request_data.force_full) if request_data else False
     integration = db.query(models.Integration).join(models.Client).filter(
         models.Integration.id == integration_id,
         models.Client.owner_id == current_user.id
@@ -1291,10 +1292,7 @@ async def trigger_sync(
     if is_project_paused(integration.client):
         raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
     
-    job_id = enqueue_sync_job(integration_id, days)
-    
-    # Обновляем статус интеграции на PENDING, чтобы показать, что синхронизация запущена
-    integration.sync_status = models.IntegrationSyncStatus.PENDING
+    job_id = enqueue_sync_job(integration_id, days, force_full=force_full)
     log_history_event(
         db,
         actor=current_user,
@@ -1304,7 +1302,7 @@ async def trigger_sync(
         client_id=integration.client_id,
         target_type="integration",
         target_id=str(integration.id),
-        meta={"days": days, "job_id": str(job_id)},
+        meta={"days": days, "force_full": force_full, "job_id": str(job_id)},
     )
     db.commit()
     
@@ -1339,8 +1337,8 @@ async def create_sync_job(
     if is_project_paused(integration.client):
         raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
 
-    job_id = enqueue_sync_job(iid, days)
-    integration.sync_status = models.IntegrationSyncStatus.PENDING
+    force_full = bool(payload.get("force_full", False))
+    job_id = enqueue_sync_job(iid, days, force_full=force_full)
     log_history_event(
         db,
         actor=current_user,
@@ -1350,7 +1348,7 @@ async def create_sync_job(
         client_id=integration.client_id,
         target_type="integration",
         target_id=str(integration.id),
-        meta={"days": days, "job_id": str(job_id)},
+        meta={"days": days, "force_full": force_full, "job_id": str(job_id)},
     )
     db.commit()
     return {"status": "queued", "job_id": str(job_id)}

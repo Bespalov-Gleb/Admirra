@@ -2976,7 +2976,7 @@ const handleSyncIntegrations = async () => {
       return
     }
     const results = await Promise.allSettled(
-      list.map((integration) => api.post(`integrations/${integration.id}/sync`, { days: 90 }))
+      list.map((integration) => api.post(`integrations/${integration.id}/sync`, { days: 90, force_full: true }))
     )
     const jobIds = results
       .filter((result) => result.status === 'fulfilled')
