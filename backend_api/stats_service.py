@@ -9,6 +9,34 @@ from typing import List, Optional
 
 class StatsService:
     @staticmethod
+    def get_metrika_goal_integration_ids(
+        db: Session,
+        client_ids: List[uuid.UUID],
+        platform: str = "all",
+    ) -> List[uuid.UUID]:
+        platform_key = (platform or "all").lower()
+        if platform_key == "avito":
+            platforms = [models.IntegrationPlatform.AVITO_ADS]
+        elif platform_key == "yandex":
+            platforms = [
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.YANDEX_METRIKA,
+            ]
+        else:
+            return []
+
+        return [
+            row[0]
+            for row in db.query(models.Integration.id)
+            .filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Integration.platform.in_(platforms),
+            )
+            .all()
+            if row[0]
+        ]
+
+    @staticmethod
     def get_selected_metrika_goal_ids(
         db: Session,
         client_ids: List[uuid.UUID],
@@ -16,13 +44,14 @@ class StatsService:
     ) -> List[str]:
         platform_key = (platform or "all").lower()
         if platform_key == "avito":
-            platforms = [models.IntegrationPlatform.YANDEX_METRIKA]
+            platforms = [models.IntegrationPlatform.AVITO_ADS]
         elif platform_key == "yandex":
             platforms = [models.IntegrationPlatform.YANDEX_DIRECT]
         else:
             platforms = [
                 models.IntegrationPlatform.YANDEX_DIRECT,
                 models.IntegrationPlatform.YANDEX_METRIKA,
+                models.IntegrationPlatform.AVITO_ADS,
             ]
 
         goal_ids: List[str] = []
@@ -291,17 +320,21 @@ class StatsService:
             elif platform == "avito":
                 m_q = m_q.filter(models.MetrikaGoals.goal_id == "__no_avito_goal_selected__")
             
-            # Filter MetrikaGoals by integration_id только при выборе конкретных кампаний.
-            # При "все кампании" — НЕ фильтруем m_q, чтобы получать все MetrikaGoals клиента.
-            should_filter_metrika_by_integrations = True
+            # Для campaign drill-down фильтруем цели по интеграциям выбранных кампаний.
+            # Для platform=avito/yandex без campaign_ids ограничиваемся интеграциями
+            # соответствующей платформы, чтобы не смешивать одинаковые goal_id разных каналов.
             if campaign_ids and integration_ids:
-                should_filter_metrika_by_integrations = not (
-                    selected_campaign_platforms
-                    and all(p == models.IntegrationPlatform.AVITO_ADS for p in selected_campaign_platforms)
-                )
-
-            if campaign_ids and integration_ids and should_filter_metrika_by_integrations:
                 m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
+            else:
+                goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+                    db,
+                    client_ids,
+                    metrika_goal_platform,
+                )
+                if goal_scope_ids:
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+                elif metrika_goal_platform in ("avito", "yandex"):
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.is_(None))
 
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
@@ -922,6 +955,26 @@ class StatsService:
                     m_int_ids = [c[0] for c in client_int if c[0]]
                 if m_int_ids:
                     m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(m_int_ids))
+                else:
+                    goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+                        db,
+                        client_ids,
+                        metrika_goal_platform,
+                    )
+                    if goal_scope_ids:
+                        m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+                    elif metrika_goal_platform in ("avito", "yandex"):
+                        m_q = m_q.filter(models.MetrikaGoals.integration_id.is_(None))
+            else:
+                goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+                    db,
+                    client_ids,
+                    metrika_goal_platform,
+                )
+                if goal_scope_ids:
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+                elif metrika_goal_platform in ("avito", "yandex"):
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.is_(None))
             if start:
                 m_q = m_q.filter(models.MetrikaGoals.date >= start)
             if end:
@@ -1289,6 +1342,18 @@ class StatsService:
                     m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
                 elif metrika_goal_platform == "avito":
                     m_q = m_q.filter(models.MetrikaGoals.goal_id == "__no_avito_goal_selected__")
+                if campaign_ids and integration_ids_for_metrika:
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids_for_metrika))
+                else:
+                    goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+                        db,
+                        client_ids,
+                        metrika_goal_platform,
+                    )
+                    if goal_scope_ids:
+                        m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+                    elif metrika_goal_platform in ("avito", "yandex"):
+                        m_q = m_q.filter(models.MetrikaGoals.integration_id.is_(None))
                 if d_start:
                     m_q = m_q.filter(models.MetrikaGoals.date >= d_start)
                 if d_end:

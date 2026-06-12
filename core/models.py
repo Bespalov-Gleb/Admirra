@@ -362,6 +362,11 @@ class Integration(Base):
         """Property to expose client name for API responses."""
         return self.client.name if self.client else None
 
+    @property
+    def client_display_id(self):
+        """Public project ID shown in the UI."""
+        return self.client.display_id if self.client else None
+
 class Campaign(Base):
     __tablename__ = "campaigns"
     

@@ -237,6 +237,7 @@ const parseJsonList = (raw) => {
 const platformLabels = {
   yandex: 'Yandex Direct', YANDEX: 'Yandex Direct', YANDEX_DIRECT: 'Yandex Direct',
   vk: 'ВК Ads', VK: 'ВК Ads', VK_ADS: 'ВК Ads',
+  avito: 'Avito Ads', AVITO: 'Avito Ads', AVITO_ADS: 'Avito Ads',
   MYTARGET: 'MyTarget',
 }
 

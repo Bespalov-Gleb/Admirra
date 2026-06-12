@@ -302,6 +302,7 @@ class IntegrationResponse(IntegrationBase):
     id: UUID
     client_id: UUID
     client_name: Optional[str] = None  # Project name for frontend display
+    client_display_id: Optional[int] = None
     access_token: str
     expires_at: Optional[datetime] = None
     agency_client_login: Optional[str] = None

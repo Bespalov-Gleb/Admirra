@@ -71,11 +71,36 @@ router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 def _resolve_avito_credentials(
     *,
+    user: Optional[models.User] = None,
     client_id: Optional[str] = None,
     client_secret: Optional[str] = None,
 ) -> tuple[str, Optional[str], Optional[str]]:
+    if (client_id or "").strip() and (client_secret or "").strip():
+        return "client_credentials", (client_id or "").strip(), (client_secret or "").strip()
+
+    def _secret(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        try:
+            return security.decrypt_token(value)
+        except Exception:
+            return value
+
+    user_client_id = _secret(getattr(user, "avito_client_id", None)) if user else None
+    user_client_secret = _secret(getattr(user, "avito_client_secret", None)) if user else None
+    if user_client_id and user_client_secret:
+        return "client_credentials", user_client_id.strip(), user_client_secret.strip()
+
+    env_client_id = (os.getenv("AVITO_CLIENT_ID") or "").strip()
+    env_client_secret = (os.getenv("AVITO_CLIENT_SECRET") or "").strip()
+    if env_client_id and env_client_secret:
+        return "client_credentials", env_client_id, env_client_secret
+
     if not (client_id or "").strip() or not (client_secret or "").strip():
-        raise HTTPException(status_code=400, detail="client_id и client_secret обязательны")
+        raise HTTPException(
+            status_code=400,
+            detail="Avito API credentials не настроены. Добавьте AVITO_CLIENT_ID и AVITO_CLIENT_SECRET на сервере.",
+        )
     return "client_credentials", (client_id or "").strip(), (client_secret or "").strip()
 
 
@@ -1076,6 +1101,7 @@ async def connect_avito_ads(
     raw_avito_client_secret = payload.get("avito_client_secret") or payload.get("client_secret_value")
 
     credential_type, avito_client_id, avito_client_secret = _resolve_avito_credentials(
+        user=current_user,
         client_id=raw_avito_client_id,
         client_secret=raw_avito_client_secret,
     )
@@ -1683,7 +1709,7 @@ async def get_integration_counters(
     ):
         # Priority 1: Get counters from selected campaigns via CounterIds
         logger.info(f"🔵 Priority 1: Attempting to get counters from campaigns. campaign_ids={campaign_ids}")
-        if campaign_ids:
+        if campaign_ids and integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             campaign_ids_list = [cid.strip() for cid in campaign_ids.split(',') if cid.strip()]
             logger.info(f"🔵 Parsed {len(campaign_ids_list)} campaign IDs: {campaign_ids_list}")
             
@@ -1933,7 +1959,10 @@ async def get_integration_goals(
     if counter_ids:
         counter_ids_list = [cid.strip() for cid in counter_ids.split(',') if cid.strip()]
         
-        if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        if integration.platform in (
+            models.IntegrationPlatform.YANDEX_DIRECT,
+            models.IntegrationPlatform.AVITO_ADS,
+        ):
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token)
             

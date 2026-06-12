@@ -507,18 +507,34 @@ def sync_metrika_goals_background(
             integration = db.query(models.Integration).filter(
                 models.Integration.id == integration_id
             ).first()
-            if not integration or integration.platform != models.IntegrationPlatform.YANDEX_DIRECT:
+            if not integration or integration.platform not in (
+                models.IntegrationPlatform.YANDEX_DIRECT,
+                models.IntegrationPlatform.AVITO_ADS,
+            ):
                 return
             if not (integration.selected_goals or integration.primary_goal_id) or not integration.selected_counters:
                 return
-            access_token = security.decrypt_token(integration.access_token)
-            selected_profile = integration.agency_client_login or integration.account_id
-            if selected_profile and str(selected_profile).lower() in ("unknown", "none", ""):
-                selected_profile = None
+            filters = None
+            if integration.platform == models.IntegrationPlatform.AVITO_ADS:
+                from automation.avito_integration_helpers import (
+                    get_metrika_integration_for_client,
+                    metrika_profile_login,
+                )
+                metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
+                if not metrika_integration:
+                    return
+                access_token = security.decrypt_token(metrika_integration.access_token)
+                selected_profile = metrika_profile_login(metrika_integration)
+                filters = "ym:s:UTMSource=='avito-ads'"
+            else:
+                access_token = security.decrypt_token(integration.access_token)
+                selected_profile = integration.agency_client_login or integration.account_id
+                if selected_profile and str(selected_profile).lower() in ("unknown", "none", ""):
+                    selected_profile = None
             new_loop.run_until_complete(
                 _sync_metrika_goals_for_direct(
                     db, integration, date_from_str, date_to_str,
-                    access_token, selected_profile
+                    access_token, selected_profile, filters=filters
                 )
             )
             db.commit()
@@ -1297,7 +1313,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     selected_profile = metrika_profile_login(metrika_integration)
                     await _sync_metrika_goals_for_direct(
                         db,
-                        metrika_integration,
+                        integration,
                         date_from,
                         date_to,
                         metrika_token,

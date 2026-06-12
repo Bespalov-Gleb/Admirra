@@ -111,36 +111,6 @@
               placeholder="Название нового проекта"
             />
 
-            <template v-if="form.platform === 'AVITO_ADS'">
-              <div class="field-block">
-                <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
-                <input
-                  v-model="form.avito_account_id"
-                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="ID рекламного аккаунта Avito (из кабинета Рекламы)"
-                />
-              </div>
-              <div class="field-block">
-                <div class="field-label dark:!text-white/65">API ключи Avito</div>
-                <input
-                  v-model="form.avito_client_id"
-                  class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                  type="text"
-                  autocomplete="off"
-                  placeholder="Avito Client ID"
-                />
-                <input
-                  v-model="form.avito_client_secret"
-                  class="wizard-input mt-2 dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                  type="password"
-                  autocomplete="new-password"
-                  placeholder="Avito Client Secret"
-                />
-              </div>
-            </template>
-
             <button
               type="button"
               class="primary-btn mt-auto"
@@ -176,12 +146,69 @@
           @click="goToVisibleStep(2)"
         >
           <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">2</span>
-          <span class="wizard-step__label">Профиль</span>
+          <span class="wizard-step__label">{{ form.platform === 'AVITO_ADS' ? 'Данные доступа' : 'Профиль' }}</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(2)" class="wizard-content">
-        <div class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+          <div class="panel-head">
+            <div>
+              <h4 class="dark:!text-white/90">Данные Avito Ads</h4>
+              <p class="dark:!text-white/55">Введите данные рекламного кабинета. Профиль выбирать не нужно: по этим ключам доступен один кабинет.</p>
+            </div>
+          </div>
+
+          <div class="wizard-grid wizard-grid--single">
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
+              <input
+                v-model="form.avito_account_id"
+                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                type="text"
+                inputmode="numeric"
+                placeholder="ID рекламного аккаунта Avito"
+              />
+            </div>
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">Client ID</div>
+              <input
+                v-model="form.avito_client_id"
+                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                type="text"
+                autocomplete="off"
+                placeholder="Avito Client ID"
+              />
+            </div>
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">Client Secret</div>
+              <input
+                v-model="form.avito_client_secret"
+                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Avito Client Secret"
+              />
+            </div>
+          </div>
+
+          <div class="wizard-actions">
+            <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 1">Назад</button>
+            <div class="wizard-actions__right">
+              <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
+              <button
+                type="button"
+                class="primary-btn primary-btn--avito"
+                :disabled="loadingAuth"
+                @click="connectAvito"
+              >
+                {{ loadingAuth ? 'Подключение...' : 'Подключить Avito Ads' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <h4 class="dark:!text-white/90">Выберите рекламный кабинет для интеграции</h4>
             <div class="search-wrap">
@@ -614,7 +641,7 @@ const platformIcon = computed(() => {
 })
 const connectButtonText = computed(() => {
   if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
-  if (form.platform === 'AVITO_ADS') return 'Подключить Avito Ads'
+  if (form.platform === 'AVITO_ADS') return 'Далее'
   return 'Подключить VK Ads'
 })
 
@@ -878,7 +905,7 @@ const doFinish = async () => {
   loadingStates.finish = true
   error.value = null
   try {
-    if (usesMetrikaWizard.value && metrikaIntegrationId.value) {
+    if (form.platform === 'YANDEX_DIRECT' && metrikaIntegrationId.value) {
       await api.patch(`/integrations/${metrikaIntegrationId.value}`, {
         selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
@@ -889,7 +916,7 @@ const doFinish = async () => {
     await api.patch(`/integrations/${lastIntegrationId.value}`, {
       selected_campaign_ids: [...selectedCampaignIds.value],
       all_campaigns: true,
-      ...(form.platform !== 'AVITO_ADS' && {
+      ...(usesMetrikaWizard.value && {
         selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
@@ -1002,7 +1029,9 @@ const handleConnectClick = async () => {
   if (form.platform === 'YANDEX_DIRECT') {
     await initYandexAuth()
   } else if (form.platform === 'AVITO_ADS') {
-    await connectAvito()
+    error.value = null
+    step.value = 2
+    scrollToStep(2)
   } else {
     await initVKAuth()
   }
@@ -1039,8 +1068,17 @@ const connectAvito = async () => {
     if (data.account_id) form.account_id = data.account_id
     toaster.success('Avito Ads подключён!')
     await fetchIntegration(data.integration_id)
-    await fetchProfiles(data.integration_id)
-    step.value = 2
+    await fetchCampaigns(data.integration_id)
+    allFromProfile.value = true
+    await resolveMetrikaIntegrationId()
+    if (!metrikaIntegrationId.value) {
+      toaster.warning('Подключите Яндекс Метрику для отслеживания лидов Avito')
+    } else {
+      await fetchCounters(data.integration_id)
+      await fetchGoals(data.integration_id)
+    }
+    step.value = 3
+    scrollToStep(3)
   } catch (err) {
     const msg = err?.response?.data?.detail || err.message || 'Ошибка подключения Avito'
     error.value = msg
@@ -1178,6 +1216,9 @@ const toggleGoalSelection = (id) => {
   grid-template-columns: minmax(19.4444rem, 22.9167rem) minmax(22.2222rem, 29.8611rem);
   align-items: stretch;
   gap: 1.3889rem;
+}
+.wizard-grid--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 .wizard-panel {
   display: flex;

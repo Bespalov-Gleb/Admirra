@@ -76,6 +76,7 @@
             <div class="min-w-0">
               <div class="text-[0.7639rem] text-[rgba(105,105,105,0.72)] font-medium leading-none mb-[0.2778rem]">Проект</div>
               <div class="text-[1.0417rem] font-semibold text-[#171717] leading-tight truncate dark:text-white">{{ projectName(item) }}</div>
+              <div v-if="projectDisplayId(item)" class="project-public-id">ID проекта {{ projectDisplayId(item) }}</div>
             </div>
           </div>
           <div class="channel-badge flex-shrink-0">{{ channelCount(item) }} {{ getPlural(channelCount(item), ['канал', 'канала', 'каналов']) }}</div>
@@ -120,12 +121,12 @@
                 </div>
 
                 <div class="integration-id-row">
-                  <span>ID: {{ item.external_account_id || item.id }}</span>
+                  <span>{{ integrationIdLabel(item) }}: {{ integrationDisplayId(item) }}</span>
                   <button
                     type="button"
                     class="copy-id-btn"
-                    title="Скопировать ID"
-                    @click="copyIntegrationId(item.external_account_id || item.id)"
+                    :title="`Скопировать ${integrationIdLabel(item).toLowerCase()}`"
+                    @click="copyIntegrationId(integrationDisplayId(item), integrationIdLabel(item))"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M8 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -265,6 +266,15 @@ const normalizePlatform = (platform) => {
 
 const projectName = (integration) => integration.client_name || integration.client?.name || '—'
 
+const projectDisplayId = (integration) =>
+  integration?.client_display_id || integration?.client?.display_id || null
+
+const integrationDisplayId = (integration) =>
+  integration?.account_id || integration?.external_account_id || integration?.id || '—'
+
+const integrationIdLabel = (integration) =>
+  integration?.account_id || integration?.external_account_id ? 'ID кабинета' : 'ID интеграции'
+
 const channelCount = (integration) => {
   if (typeof integration.channels === 'number') return integration.channels
   if (Array.isArray(integration.channels)) return integration.channels.length
@@ -354,10 +364,10 @@ const formatAutoSyncText = (item) => {
   return `Обновляется автоматически раз в ${hours} ${getPlural(hours, ['час', 'часа', 'часов'])}`
 }
 
-const copyIntegrationId = async (id) => {
+const copyIntegrationId = async (id, label = 'ID интеграции') => {
   try {
     await navigator.clipboard.writeText(String(id || ''))
-    toaster.success('ID интеграции скопирован')
+    toaster.success(`${label} скопирован`)
   } catch {
     toaster.error('Не удалось скопировать ID')
   }
@@ -648,6 +658,17 @@ const deleteIntegration = async () => {
   font-weight: 700;
   color: #3b3b36;
   line-height: 1;
+}
+.project-public-id {
+  margin-top: 0.3472rem;
+  font-size: 0.7639rem;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(105, 105, 105, 0.58);
+}
+:global(.dark) .project-public-id,
+:global(.darkmode) .project-public-id {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 /* ── Channel badge (caption _light _md) ── */

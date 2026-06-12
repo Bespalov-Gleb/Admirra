@@ -514,8 +514,6 @@ async def get_dynamics(
             .distinct()
             .all()
         ]
-        if campaign_platforms and all(p == models.IntegrationPlatform.AVITO_ADS for p in campaign_platforms):
-            m_integration_ids = None
 
     metrika_goal_platform = platform
     if platform == "all" and campaign_platforms:
@@ -551,6 +549,16 @@ async def get_dynamics(
         # CRITICAL: Filter MetrikaGoals by integration_id to match campaign selection
         if m_integration_ids:
             m_query = m_query.filter(models.MetrikaGoals.integration_id.in_(m_integration_ids))
+        elif metrika_goal_platform in ("avito", "yandex"):
+            goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+                db,
+                effective_client_ids,
+                metrika_goal_platform,
+            )
+            if goal_scope_ids:
+                m_query = m_query.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+            else:
+                m_query = m_query.filter(models.MetrikaGoals.integration_id.is_(None))
         
         m_stats = m_query.group_by(models.MetrikaGoals.date).all()
 
@@ -1219,22 +1227,15 @@ async def get_goals(
 
     # ——— Yandex / Avito / all: Metrika goals ———
     metrika_goal_integration_id = integration_id
-    if integration_id and platform_key == "avito":
-        source_integration = db.query(models.Integration).filter(
-            models.Integration.id == integration_id,
-            models.Integration.client_id.in_(effective_client_ids),
-        ).first()
-        if source_integration and source_integration.platform == models.IntegrationPlatform.AVITO_ADS:
-            metrika_goal_integration_id = None
-
     if platform_key == "avito":
-        goal_platforms = [models.IntegrationPlatform.YANDEX_METRIKA]
+        goal_platforms = [models.IntegrationPlatform.AVITO_ADS]
     elif platform_key == "yandex":
         goal_platforms = [models.IntegrationPlatform.YANDEX_DIRECT]
     else:
         goal_platforms = [
             models.IntegrationPlatform.YANDEX_DIRECT,
             models.IntegrationPlatform.YANDEX_METRIKA,
+            models.IntegrationPlatform.AVITO_ADS,
         ]
 
     yandex_integrations_query = db.query(models.Integration).filter(
@@ -1252,6 +1253,13 @@ async def get_goals(
     )
     if platform_key == "avito" and not selected_goal_ids:
         return []
+    goal_scope_ids = []
+    if not metrika_goal_integration_id and platform_key in ("avito", "yandex"):
+        goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+            db,
+            effective_client_ids,
+            platform_key,
+        )
 
     query = db.query(
         models.MetrikaGoals.goal_id,
@@ -1264,6 +1272,10 @@ async def get_goals(
     )
     if metrika_goal_integration_id:
         query = query.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
+    elif goal_scope_ids:
+        query = query.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+    elif platform_key in ("avito", "yandex"):
+        query = query.filter(models.MetrikaGoals.integration_id.is_(None))
     if selected_goal_ids:
         query = query.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
     current_counts = {
@@ -1280,6 +1292,10 @@ async def get_goals(
     )
     if metrika_goal_integration_id:
         latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
+    elif goal_scope_ids:
+        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+    elif platform_key in ("avito", "yandex"):
+        latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.integration_id.is_(None))
     if selected_goal_ids:
         latest_name_rows = latest_name_rows.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
     latest_names = {}
@@ -1299,6 +1315,14 @@ async def get_goals(
     if selected_goal_ids:
         has_any_period_goal_rows = has_any_period_goal_rows.filter(
             models.MetrikaGoals.goal_id.in_(selected_goal_ids)
+        )
+    if goal_scope_ids:
+        has_any_period_goal_rows = has_any_period_goal_rows.filter(
+            models.MetrikaGoals.integration_id.in_(goal_scope_ids)
+        )
+    elif not metrika_goal_integration_id and platform_key in ("avito", "yandex"):
+        has_any_period_goal_rows = has_any_period_goal_rows.filter(
+            models.MetrikaGoals.integration_id.is_(None)
         )
     has_any_period_goal_rows = has_any_period_goal_rows.scalar() or 0
     if metrika_goal_integration_id:
