@@ -173,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
@@ -263,6 +263,13 @@ const fetchIntegrations = async () => {
 }
 
 onMounted(fetchIntegrations)
+
+// Смена проекта в хедере — перезагружаем список без перезагрузки страницы
+watch(currentProjectId, () => {
+  closeSettings()
+  search.value = ''
+  fetchIntegrations()
+})
 
 const filteredIntegrations = computed(() => {
   if (!search.value.trim()) return integrations.value
