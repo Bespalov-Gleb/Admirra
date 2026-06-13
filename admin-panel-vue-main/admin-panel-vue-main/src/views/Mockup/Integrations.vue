@@ -343,22 +343,33 @@ const formatSyncDate = (dateStr) => {
   return `${day}, ${time} МСК`
 }
 
+// Автосинхронизация — фиксированный ночной cron (см. AUTO_SYNC_HOUR_MSK в automation/main.py).
+// Следующий синк не зависит от ручных запусков — это всегда ближайшее 03:00 МСК.
+const AUTO_SYNC_HOUR_MSK = 3
+const MSK_OFFSET_MS = 3 * 60 * 60 * 1000 // Москва стабильно UTC+3, без перехода на летнее время
+
 const formatNextSync = (item) => {
   if (!item.auto_sync) return 'авто выключено'
-  if (!item.last_sync_at) return 'после первой синхронизации'
-  const interval = Number(item.sync_interval || 1440)
-  const lastSync = new Date(item.last_sync_at)
-  if (Number.isNaN(lastSync.getTime())) return '—'
-  const nextSync = new Date(lastSync.getTime() + interval * 60 * 1000)
+
   const now = new Date()
-  const tomorrow = new Date(now)
-  tomorrow.setDate(now.getDate() + 1)
+  // «Стенные» часы МСК = UTC + 3ч; берём дату в этой системе
+  const mskNow = new Date(now.getTime() + MSK_OFFSET_MS)
+  const y = mskNow.getUTCFullYear()
+  const m = mskNow.getUTCMonth()
+  const d = mskNow.getUTCDate()
+  // 03:00 МСК сегодня как реальный UTC-момент
+  let targetUtc = Date.UTC(y, m, d, AUTO_SYNC_HOUR_MSK, 0, 0) - MSK_OFFSET_MS
+  if (targetUtc <= now.getTime()) {
+    // окно сегодня уже прошло — берём завтра
+    targetUtc = Date.UTC(y, m, d + 1, AUTO_SYNC_HOUR_MSK, 0, 0) - MSK_OFFSET_MS
+  }
+  const nextSync = new Date(targetUtc)
   const time = nextSync.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
 
-  if (nextSync.toDateString() === now.toDateString()) return `сегодня ~${time} МСК`
-  if (nextSync.toDateString() === tomorrow.toDateString()) return `завтра ~${time} МСК`
-  const day = nextSync.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', timeZone: 'Europe/Moscow' }).replace('.', '')
-  return `${day} ~${time} МСК`
+  const todayMskDay = mskNow.getUTCDate()
+  const nextMskDay = new Date(nextSync.getTime() + MSK_OFFSET_MS).getUTCDate()
+  if (nextMskDay === todayMskDay) return `сегодня, ${time} МСК`
+  return `завтра, ${time} МСК`
 }
 
 const formatAutoSyncText = (item) => {
