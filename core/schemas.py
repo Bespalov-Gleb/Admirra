@@ -1,8 +1,19 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, field_serializer
 from typing import Optional, List, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+
+
+def _serialize_utc(dt: Optional[datetime]) -> Optional[str]:
+    """Naive-значения last_sync_at хранятся в UTC (datetime.utcnow()).
+    Отдаём ISO с явной зоной +00:00, иначе фронт парсит их как локальное время
+    и показывает на 3 часа раньше (UTC вместо МСК)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -329,6 +340,10 @@ class IntegrationResponse(IntegrationBase):
             except:
                 return []
         return v
+
+    @field_serializer('last_sync_at')
+    def _ser_last_sync_at(self, v):
+        return _serialize_utc(v)
 
     class Config:
         from_attributes = True
@@ -776,6 +791,10 @@ class DashboardIntegrationStatus(BaseModel):
     currency: Optional[str] = None
     last_sync_at: Optional[datetime] = None
     last_sync_trigger: Optional[str] = None  # auto | manual | None
+
+    @field_serializer('last_sync_at')
+    def _ser_last_sync_at(self, v):
+        return _serialize_utc(v)
 
 class SyncRequest(BaseModel):
     days: int = 7

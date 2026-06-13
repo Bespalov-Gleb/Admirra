@@ -148,22 +148,24 @@
                 </svg>
                 <span>{{ syncingId === item.id || isSyncingIntegration(item.id) ? 'Синхронизация…' : 'Синхронизировать сейчас' }}</span>
               </button>
-              <button class="configure-btn" @click="openSettings(item)">Настроить</button>
+              <button class="configure-btn" :class="{ 'configure-btn--active': isPanelOpenFor(item) }" @click="toggleSettings(item)">{{ isPanelOpenFor(item) ? 'Свернуть' : 'Настроить' }}</button>
             </div>
           </div>
         </div>
       </div>
-      <!-- Panel inside grid, positioned below the clicked card -->
+      <!-- Panel inside grid, positioned below the clicked card, card width -->
       <div
         v-if="settingsOpen && selectedIntegration"
         :style="panelWrapperStyle"
       >
-        <IntegrationSettingsPanel
-          :integration="selectedIntegration"
-          @close="settingsOpen = false"
-          @save="saveIntegrationSettings"
-          @delete="deleteIntegration"
-        />
+        <div :style="{ gridColumn: String(panelColumn) }">
+          <IntegrationSettingsPanel
+            :integration="selectedIntegration"
+            @close="closeSettings"
+            @save="saveIntegrationSettings"
+            @delete="deleteIntegration"
+          />
+        </div>
       </div>
     </div>
 
@@ -196,20 +198,39 @@ const selectedIndex = ref(-1)
 const syncingId = ref(null)
 
 const panelWrapperStyle = ref({})
+const panelColumn = ref(1)
+
+const isPanelOpenFor = (item) => settingsOpen.value && selectedIntegration.value?.id === item.id
 
 const openSettings = async (item) => {
   selectedIntegration.value = item
   const idx = filteredIntegrations.value.indexOf(item)
   selectedIndex.value = idx
   const cols = window.innerWidth >= 1280 ? 2 : 1
+  // Панель занимает свою строку под кликнутой карточкой, но шириной в одну карточку
+  // (в той же колонке, что и карточка) — для этого вкладываем сетку внутрь.
+  panelColumn.value = (idx % cols) + 1
   panelWrapperStyle.value = {
     gridColumn: '1 / -1',
     gridRow: String(Math.floor(idx / cols) + 2),
+    display: 'grid',
+    gridTemplateColumns: cols === 2 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+    gap: '1.0417rem',
   }
   settingsOpen.value = true
   await nextTick()
   const cardEl = document.querySelector(`[data-int-id="${item.id}"]`)
   if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+}
+
+const closeSettings = () => {
+  settingsOpen.value = false
+  selectedIntegration.value = null
+}
+
+const toggleSettings = (item) => {
+  if (isPanelOpenFor(item)) closeSettings()
+  else openSettings(item)
 }
 
 // ── Platform definitions ──
@@ -876,6 +897,8 @@ const deleteIntegration = async () => {
 }
 .configure-btn:hover  { background-color: #dbeafe; border-color: #2563eb; color: #1d4ed8; transform: scale(1.02); }
 .configure-btn:active { transform: scale(0.97); transition: transform 0s; }
+.configure-btn--active { background-color: #2563eb; border-color: #2563eb; color: #fff; }
+.configure-btn--active:hover { background-color: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 :global(.dark) .configure-btn,
 :global(.darkmode) .configure-btn {
   background-color: rgba(255,255,255,0.06);
