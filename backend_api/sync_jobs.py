@@ -135,11 +135,13 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
 
         days = 7
         force_full = False
+        trigger = "manual"
         try:
             if job.params:
                 payload = json.loads(job.params)
                 days = int(payload.get("days", days))
                 force_full = bool(payload.get("force_full", False))
+                trigger = str(payload.get("trigger", "manual"))
         except Exception:
             pass
 
@@ -192,6 +194,8 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         job.stage = "done"
         job.status = models.SyncJobStatus.SUCCESS
         job.finished_at = datetime.utcnow()
+        # Отмечаем источник синхронизации для индикатора на дашборде/карточках
+        integration.last_sync_trigger = "auto" if trigger == "auto" else "manual"
         update_actual_start_date(db, integration.client_id)
         try:
             from backend_api.services.detector import run_detector_for_client
@@ -319,7 +323,20 @@ def ensure_sync_worker_started() -> None:
         _worker_started = True
 
 
-def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7, force_full: bool = False) -> uuid.UUID:
+def enqueue_sync_job(
+    integration_id: uuid.UUID,
+    days: int = 7,
+    force_full: bool = False,
+    trigger: str = "manual",
+    start_worker: bool = True,
+) -> uuid.UUID:
+    """Поставить интеграцию в очередь синхронизации.
+
+    trigger: 'manual' (по кнопке) или 'auto' (ночной планировщик) — пишется в
+             last_sync_trigger при успехе, для индикатора в UI.
+    start_worker: контейнер automation ставит задачи, но воркер держит backend,
+                  поэтому automation вызывает с start_worker=False.
+    """
     db = SessionLocal()
     try:
         existing = db.query(models.SyncJob).filter(
@@ -336,8 +353,11 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7, force_full: bool 
                 _fail_stale_job(db, existing)
                 db.commit()
             else:
+                # Уже есть активная задача (например ручная) — не плодим дубль,
+                # возвращаем её. Источник у неё уже зафиксирован.
                 db.commit()
-                ensure_sync_worker_started()
+                if start_worker:
+                    ensure_sync_worker_started()
                 return existing.id
 
         existing = db.query(models.SyncJob).filter(
@@ -346,7 +366,8 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7, force_full: bool 
         ).order_by(models.SyncJob.created_at.desc()).first()
         if existing:
             db.commit()
-            ensure_sync_worker_started()
+            if start_worker:
+                ensure_sync_worker_started()
             return existing.id
 
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).first()
@@ -359,13 +380,14 @@ def enqueue_sync_job(integration_id: uuid.UUID, days: int = 7, force_full: bool 
             status=models.SyncJobStatus.QUEUED,
             stage="queued",
             progress=0,
-            params=json.dumps({"days": days, "force_full": force_full}),
+            params=json.dumps({"days": days, "force_full": force_full, "trigger": trigger}),
         )
         db.add(job)
         db.commit()
         db.refresh(job)
-        ensure_sync_worker_started()
-        _slot_freed.set()  # Wake scheduler immediately — don't wait for next poll tick
+        if start_worker:
+            ensure_sync_worker_started()
+            _slot_freed.set()  # Wake scheduler immediately — don't wait for next poll tick
         return job.id
     finally:
         db.close()

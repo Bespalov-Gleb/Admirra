@@ -131,6 +131,15 @@ async def startup_event():
     await get_request_queue()  # Инициализируем очередь запросов
     logger.info("✅ Application startup complete - request queue initialized")
 
+    # Воркер очереди синхронизации держим в backend и стартуем при загрузке —
+    # он обрабатывает и ручные задачи, и ночные авто-задачи (их ставит automation).
+    try:
+        from backend_api.sync_jobs import ensure_sync_worker_started
+        ensure_sync_worker_started()
+        logger.info("✅ Sync job worker started")
+    except Exception as e:
+        logger.error(f"Failed to start sync job worker: {e}")
+
     # Планировщик для задач телефонии и отчётов
     global lead_scheduler
     lead_scheduler = AsyncIOScheduler()

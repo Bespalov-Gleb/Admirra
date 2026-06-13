@@ -1396,6 +1396,20 @@ const lastIntegrationSyncAt = computed(() => {
   return timestamps.length ? Math.max(...timestamps) : null
 })
 
+// Источник самой свежей синхронизации (auto | manual | null) — для индикатора
+const lastSyncTrigger = computed(() => {
+  let latest = null
+  let trigger = null
+  for (const integration of integrations.value) {
+    const ts = Date.parse(integration.last_sync_at || '')
+    if (Number.isFinite(ts) && (latest === null || ts > latest)) {
+      latest = ts
+      trigger = integration.last_sync_trigger || null
+    }
+  }
+  return trigger
+})
+
 const formatSyncDateTime = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
@@ -1421,7 +1435,9 @@ const syncStatusLabel = computed(() => {
   if (syncRefreshInProgress.value) return 'Обновляем данные...'
   if (dashboardSyncInProgress.value) return 'Выполняется синхронизация'
   const formatted = formatSyncDateTime(lastIntegrationSyncAt.value)
-  return formatted ? `Синхронизация: ${formatted}` : 'Синхронизация не запускалась'
+  if (!formatted) return 'Синхронизация не запускалась'
+  const suffix = lastSyncTrigger.value === 'auto' ? ' · авто' : ''
+  return `Синхронизация: ${formatted}${suffix}`
 })
 
 const directionLabelMeta = computed(() => directionLabels[directionStats.value.label_key] || directionLabels.directions)

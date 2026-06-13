@@ -445,10 +445,28 @@ const lastProjectSyncAt = computed(() => {
   return timestamps.length ? Math.max(...timestamps) : null
 })
 
+// Источник самой свежей синхронизации (auto | manual | null) для индикатора
+const lastProjectSyncTrigger = computed(() => {
+  let latest = null
+  let trigger = null
+  for (const project of projects.value) {
+    for (const integration of project.integrations || []) {
+      const ts = Date.parse(integration.last_sync_at || '')
+      if (Number.isFinite(ts) && (latest === null || ts > latest)) {
+        latest = ts
+        trigger = integration.last_sync_trigger || null
+      }
+    }
+  }
+  return trigger
+})
+
 const projectSyncStatusText = computed(() => {
   if (projectsSyncing.value) return 'Выполняется синхронизация, пожалуйста подождите'
   const formatted = formatMoscowSyncDate(lastProjectSyncAt.value)
-  return formatted ? `Последняя синхронизация: ${formatted} МСК` : ''
+  if (!formatted) return ''
+  const suffix = lastProjectSyncTrigger.value === 'auto' ? ' · авто' : ''
+  return `Последняя синхронизация: ${formatted} МСК${suffix}`
 })
 
 const isProjectSyncing = (project) => syncingIntegrations.value || isSyncingForProject(project.id)

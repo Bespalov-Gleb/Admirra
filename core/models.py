@@ -333,6 +333,8 @@ class Integration(Base):
     vk_user_id = Column(String, nullable=True) # VK Ads user_id for token revocation (optional)
     sync_status = Column(Enum(IntegrationSyncStatus), default=IntegrationSyncStatus.NEVER)
     last_sync_at = Column(DateTime)
+    # 'auto' — последний синк выполнен ночным планировщиком; 'manual' — пользователем; NULL — неизвестно/старые записи
+    last_sync_trigger = Column(String(16), nullable=True)
     error_message = Column(String)
     
     # Sync settings

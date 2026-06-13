@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -1448,8 +1448,26 @@ async def sync_data(days: int = 7, max_concurrent: int = 4):
             return_exceptions=True,
         )
 
-        db = SessionLocal()
-        clients = db.query(models.Client).filter(models.Client.id.in_(client_ids)).all() if client_ids else []
+        run_post_sync_reports(end_date)
+    finally:
+        pass
+
+
+def run_post_sync_reports(end_date: Optional[date] = None):
+    """Сгенерировать недельные/месячные отчёты и выгрузить в Google Sheets
+    для всех активных клиентов. Чистые SQL-агрегации + экспорт, без обращений
+    к рекламным API. Запускается отдельной ночной задачей после окна синка.
+    """
+    if end_date is None:
+        end_date = datetime.now().date()
+
+    db: Session = SessionLocal()
+    try:
+        clients = (
+            db.query(models.Client)
+            .filter(models.Client.status == models.ClientStatus.ACTIVE)
+            .all()
+        )
 
         for client in clients:
             try:
@@ -1470,8 +1488,7 @@ async def sync_data(days: int = 7, max_concurrent: int = 4):
 
         db.commit()
     finally:
-        if 'db' in locals():
-            db.close()
+        db.close()
 
 if __name__ == "__main__":
     import sys

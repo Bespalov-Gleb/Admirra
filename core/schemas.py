@@ -317,6 +317,7 @@ class IntegrationResponse(IntegrationBase):
     campaigns: List["CampaignResponse"] = []
     sync_status: Optional[str] = None  # SUCCESS | FAILED | PENDING | NEVER
     last_sync_at: Optional[datetime] = None
+    last_sync_trigger: Optional[str] = None  # auto | manual | None
     error_message: Optional[str] = None
 
     @field_validator('selected_counters', mode='before')
@@ -774,6 +775,7 @@ class DashboardIntegrationStatus(BaseModel):
     balance: Optional[float] = None
     currency: Optional[str] = None
     last_sync_at: Optional[datetime] = None
+    last_sync_trigger: Optional[str] = None  # auto | manual | None
 
 class SyncRequest(BaseModel):
     days: int = 7

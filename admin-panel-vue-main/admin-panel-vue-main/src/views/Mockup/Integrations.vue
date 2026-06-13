@@ -106,7 +106,10 @@
                 <div class="sync-meta-grid">
                   <div>
                     <div class="sync-meta-label">Последняя синхронизация</div>
-                    <div class="sync-meta-value">{{ formatSyncDate(item.last_sync_at) }}</div>
+                    <div class="sync-meta-value">
+                      {{ formatSyncDate(item.last_sync_at) }}
+                      <span v-if="item.last_sync_trigger === 'auto'" class="sync-auto-badge" title="Выполнена ночным автосинхроном">авто</span>
+                    </div>
                   </div>
                   <div>
                     <div class="sync-meta-label">Следующая</div>
@@ -761,6 +764,19 @@ const deleteIntegration = async () => {
   font-size: 0.9028rem;
   font-weight: 650;
   line-height: 1.25;
+}
+.sync-auto-badge {
+  display: inline-block;
+  margin-left: 0.3472rem;
+  padding: 0.0694rem 0.3472rem;
+  border-radius: 0.4167rem;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-size: 0.6944rem;
+  font-weight: 700;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .auto-sync-line {

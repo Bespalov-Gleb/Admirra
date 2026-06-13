@@ -1410,7 +1410,8 @@ def get_integrations_status(
         models.Integration.platform,
         models.Integration.balance,
         models.Integration.currency,
-        models.Integration.last_sync_at
+        models.Integration.last_sync_at,
+        models.Integration.last_sync_trigger
     ).filter(models.Integration.client_id.in_(effective_client_ids)).all()
 
     platform_data = {}
@@ -1424,12 +1425,14 @@ def get_integrations_status(
                 "balance": float(row.balance) if row.balance is not None else None,
                 "currency": row.currency,
                 "last_sync_at": row.last_sync_at,
+                "last_sync_trigger": row.last_sync_trigger,
             }
         else:
             # Keep the most recent last_sync_at across multiple integrations for same platform
             existing = platform_data[p].get("last_sync_at")
             if row.last_sync_at and (not existing or row.last_sync_at > existing):
                 platform_data[p]["last_sync_at"] = row.last_sync_at
+                platform_data[p]["last_sync_trigger"] = row.last_sync_trigger
             if row.balance is not None and platform_data[p].get("balance") is not None:
                 platform_data[p]["balance"] = (platform_data[p]["balance"] or 0) + float(row.balance)
 

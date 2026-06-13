@@ -1,6 +1,9 @@
 services:
   db:
     image: postgres:15-alpine
+    # Запас по коннектам под рост (backend pool + worker + automation).
+    # Дефолт postgres = 100; поднимаем до 200.
+    command: postgres -c max_connections=200
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
