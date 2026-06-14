@@ -726,6 +726,9 @@ onMounted(async () => {
 
   if (resumeId) {
     lastIntegrationId.value = resumeId
+    // Дублируем в localStorage — чтобы кнопка «Подключить» на шаге 4 не теряла
+    // интеграцию, если query-параметр пропадёт (перезагрузка/навигация).
+    try { localStorage.setItem('wizard_integration_id', String(resumeId)) } catch (e) {}
     const s = parseInt(startStep) || 2
     await fetchIntegration(resumeId)
     await resolveMetrikaIntegrationId()
@@ -901,7 +904,18 @@ const initVKAuth = async () => {
 }
 
 const doFinish = async () => {
-  if (!lastIntegrationId.value) return
+  // Восстанавливаем ID из localStorage, если он потерялся в памяти
+  // (перезагрузка/навигация после OAuth) — иначе кнопка молча не работала.
+  if (!lastIntegrationId.value) {
+    try {
+      const stored = localStorage.getItem('wizard_integration_id')
+      if (stored) lastIntegrationId.value = stored
+    } catch (e) {}
+  }
+  if (!lastIntegrationId.value) {
+    toaster.error('Не удалось определить интеграцию. Начните подключение заново.')
+    return
+  }
   loadingStates.finish = true
   error.value = null
   try {
@@ -1064,6 +1078,7 @@ const connectAvito = async () => {
       throw new Error('Сервер не вернул integration_id')
     }
     lastIntegrationId.value = data.integration_id
+    try { localStorage.setItem('wizard_integration_id', String(data.integration_id)) } catch (e) {}
     if (data.client_id) form.client_id = data.client_id
     if (data.account_id) form.account_id = data.account_id
     toaster.success('Avito Ads подключён!')

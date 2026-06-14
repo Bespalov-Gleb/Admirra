@@ -49,6 +49,7 @@ export function useIntegrationWizard() {
   const resetStore = () => {
     currentStep.value = 1
     lastIntegrationId.value = null
+    try { localStorage.removeItem('wizard_integration_id') } catch (e) {}
     error.value = null
     form.client_id = null
     form.client_name = ''
