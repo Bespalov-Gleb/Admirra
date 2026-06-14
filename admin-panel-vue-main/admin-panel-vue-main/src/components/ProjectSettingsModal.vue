@@ -488,6 +488,7 @@ const sheetsExporting = ref(false)
 const sheetsDisconnecting = ref(false)
 
 const goalRows = ref([])
+const isInitializing = ref(false)
 
 const projectDisplayId = computed(() => props.project?.display_id || String(props.project?.id || '').substring(0, 8).toUpperCase())
 
@@ -649,7 +650,7 @@ function snapshotForm() {
 
 watch(
   () => props.project?.id,
-  () => {
+  async () => {
     if (props.project) {
       form.name = props.project.name || ''
       form.description = props.project.description || ''
@@ -657,9 +658,6 @@ watch(
       form.spreadsheet_id = props.project.spreadsheet_id || ''
       form.detector_enabled = props.project.detector_enabled || false
       form.status = props.project.status || 'active'
-      const period = defaultPeriod()
-      form.period_start = period.start
-      form.period_end = period.end
       updatedAvatarUrl.value = null
       error.value = ''
       urlError.value = ''
@@ -668,8 +666,14 @@ watch(
       pauseTargetStatus.value = ''
       deleteConfirmText.value = ''
       sheetsStatus.value = null
-      loadGoals()
-      loadBudgets()
+      isInitializing.value = true
+      // Период берём из последних сохранённых данных детектора (если есть),
+      // иначе — текущий месяц. Иначе при повторном заходе колонки пустые,
+      // т.к. defaultPeriod() не совпадал с периодом сохранённых бюджетов/CPA.
+      await resolveActivePeriod()
+      await loadGoals()
+      await loadBudgets()
+      isInitializing.value = false
       loadGoogleSheetsStatus()
       snapshotForm()
     }
@@ -688,7 +692,7 @@ function handleDetectorToggle() {
 watch(
   () => [form.period_start, form.period_end],
   () => {
-    if (!props.project?.id || periodError.value) return
+    if (!props.project?.id || periodError.value || isInitializing.value) return
     loadGoals()
     loadBudgets()
   }
@@ -777,6 +781,35 @@ async function loadBudgets() {
       }
     }
   } catch { /* API not ready yet */ }
+}
+
+// Определяет рабочий период детектора при открытии: берём период последних
+// сохранённых бюджетов/целевых CPA, чтобы текущие данные сразу были видны.
+// Если ничего не сохранено — текущий месяц.
+async function resolveActivePeriod() {
+  let latest = null
+  try {
+    const [budgetsRes, cpaRes] = await Promise.all([
+      api.get(`clients/${props.project.id}/budgets`).catch(() => ({ data: [] })),
+      api.get(`clients/${props.project.id}/target-cpa`).catch(() => ({ data: [] })),
+    ])
+    const records = [
+      ...(Array.isArray(budgetsRes.data) ? budgetsRes.data : []),
+      ...(Array.isArray(cpaRes.data) ? cpaRes.data : []),
+    ].filter((r) => r && r.period_start && r.period_end)
+    for (const r of records) {
+      if (!latest || String(r.period_start) > String(latest.period_start)) latest = r
+    }
+  } catch { /* fall back to default */ }
+
+  if (latest) {
+    form.period_start = latest.period_start
+    form.period_end = latest.period_end
+  } else {
+    const period = defaultPeriod()
+    form.period_start = period.start
+    form.period_end = period.end
+  }
 }
 
 async function loadGoogleSheetsStatus() {

@@ -37,6 +37,12 @@ DEFAULT_THRESHOLDS: dict[str, dict[str, float]] = {
 
 METRICS = ["expenses", "impressions", "clicks", "cpc", "conversions", "cpa"]
 
+# Расход из API рекламных кабинетов приходит без НДС. На дашборде и в целевых
+# CPA пользователь оперирует суммами с НДС (×1.22), поэтому в формуле план-факт
+# CPA (Режим 2Б) расход тоже приводим к сумме с НДС — иначе факт CPA занижен
+# относительно целевого, который агентство задаёт «как на дашборде».
+VAT_RATE = 1.22
+
 # Campaign level: Yandex has no per-campaign conversions (Metrika is counter-level)
 CAMPAIGN_METRICS_YD = ["expenses", "impressions", "clicks", "cpc"]
 CAMPAIGN_METRICS_VK = ["expenses", "impressions", "clicks", "cpc", "conversions", "cpa"]
@@ -772,7 +778,8 @@ def check_mode2b_cpa(
         if total_conv < cfg.min_conversions_silence:
             continue
 
-        actual_cpa = total_cost / total_conv if total_conv > 0 else 0
+        # Расход с НДС — для соответствия целевому CPA, заданному «как на дашборде»
+        actual_cpa = (total_cost * VAT_RATE) / total_conv if total_conv > 0 else 0
         dev = (actual_cpa - target_val) / target_val if target_val > 0 else 0
         if dev <= 0:
             continue
