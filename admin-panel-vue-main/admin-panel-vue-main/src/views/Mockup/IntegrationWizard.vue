@@ -1307,7 +1307,7 @@ const toggleGoalSelection = (id) => {
 }
 .avito-access-grid {
   display: grid;
-  grid-template-columns: minmax(17.5rem, 24rem) minmax(18rem, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
   gap: 1.6667rem;
 }
@@ -1315,19 +1315,18 @@ const toggleGoalSelection = (id) => {
   .avito-access-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .avito-access-form,
   .avito-access-input {
     max-width: none;
   }
 }
 .avito-access-form {
   display: flex;
-  max-width: 24rem;
   flex-direction: column;
-  gap: 1.1111rem;
+  justify-content: center;
+  gap: 1.0417rem;
 }
 .avito-access-input {
-  max-width: 24rem;
+  max-width: 22.2222rem;
 }
 .avito-cabinet-preview {
   display: flex;
