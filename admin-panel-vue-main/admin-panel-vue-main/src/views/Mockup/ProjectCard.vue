@@ -902,7 +902,7 @@ const handleSyncProjects = async () => {
 
   syncingIntegrations.value = true
   try {
-    const results = await Promise.allSettled(uniqueIntegrations.map((integration) => startIntegrationSync(integration.id, { days: 90 })))
+    const results = await Promise.allSettled(uniqueIntegrations.map((integration) => startIntegrationSync(integration.id, { days: 90, forceFull: false })))
     const jobIds = results
       .filter((result) => result.status === 'fulfilled')
       .map((result) => result.value?.job_id)

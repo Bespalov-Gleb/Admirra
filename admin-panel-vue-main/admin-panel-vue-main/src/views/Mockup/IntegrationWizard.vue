@@ -159,36 +159,61 @@
             </div>
           </div>
 
-          <div class="wizard-grid wizard-grid--single">
-            <div class="field-block">
-              <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
-              <input
-                v-model="form.avito_account_id"
-                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                type="text"
-                inputmode="numeric"
-                placeholder="ID рекламного аккаунта Avito"
-              />
+          <div class="avito-access-grid">
+            <div class="avito-access-form">
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
+                <input
+                  v-model="form.avito_account_id"
+                  class="wizard-input avito-access-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="ID рекламного аккаунта"
+                />
+              </div>
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">Client ID</div>
+                <input
+                  v-model="form.avito_client_id"
+                  class="wizard-input avito-access-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Avito Client ID"
+                />
+              </div>
+              <div class="field-block">
+                <div class="field-label dark:!text-white/65">Client Secret</div>
+                <input
+                  v-model="form.avito_client_secret"
+                  class="wizard-input avito-access-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="Avito Client Secret"
+                />
+              </div>
             </div>
-            <div class="field-block">
-              <div class="field-label dark:!text-white/65">Client ID</div>
-              <input
-                v-model="form.avito_client_id"
-                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                type="text"
-                autocomplete="off"
-                placeholder="Avito Client ID"
-              />
-            </div>
-            <div class="field-block">
-              <div class="field-label dark:!text-white/65">Client Secret</div>
-              <input
-                v-model="form.avito_client_secret"
-                class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-                type="password"
-                autocomplete="new-password"
-                placeholder="Avito Client Secret"
-              />
+
+            <div class="avito-cabinet-preview dark:!bg-white/5 dark:!border-white/10">
+              <div class="avito-cabinet-preview__top">
+                <span class="avito-cabinet-preview__icon dark:!bg-white/10">
+                  <img src="/admirra/img/icons/avito.svg" alt="Avito Ads" />
+                </span>
+                <span class="avito-cabinet-preview__badge" :class="{ 'avito-cabinet-preview__badge--ready': avitoAccessReady }">
+                  {{ avitoPreviewStatus }}
+                </span>
+              </div>
+              <div>
+                <div class="avito-cabinet-preview__label dark:!text-white/45">Рекламный кабинет</div>
+                <h5 class="dark:!text-white/90">{{ avitoPreviewTitle }}</h5>
+                <p class="dark:!text-white/55">{{ avitoPreviewDescription }}</p>
+              </div>
+              <div class="avito-cabinet-preview__meta dark:!bg-white/5">
+                <span class="dark:!text-white/45">ID кабинета</span>
+                <strong class="dark:!text-white/80">{{ avitoPreviewAccountId }}</strong>
+              </div>
+              <div class="avito-cabinet-preview__hint dark:!text-white/45">
+                Кампании будут подтягиваться автоматически после подключения.
+              </div>
             </div>
           </div>
 
@@ -289,7 +314,7 @@
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(3)" class="wizard-content">
-        <div class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform !== 'AVITO_ADS'" class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div>
             <h4 class="dark:!text-white/90">Рекламные кампании</h4>
             <p class="dark:!text-white/55">Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
@@ -297,7 +322,7 @@
           <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
           </div>
 
-        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Яндекс Метрика (лиды)</h4>
@@ -658,6 +683,26 @@ const allCountersSelected = computed(() =>
 const allGoalsSelected = computed(() =>
   goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length
 )
+const avitoAccessReady = computed(() =>
+  Boolean(String(form.avito_account_id || '').trim() && form.avito_client_id && form.avito_client_secret)
+)
+const avitoPreviewAccountId = computed(() =>
+  String(form.account_id || form.avito_account_id || '').trim() || 'будет указан после ввода'
+)
+const avitoPreviewStatus = computed(() => {
+  if (lastIntegrationId.value && form.account_id) return 'Подключен'
+  if (avitoAccessReady.value) return 'Готов'
+  return 'Ожидает данные'
+})
+const avitoPreviewTitle = computed(() => {
+  if (form.account_id || form.avito_account_id) return 'Avito Ads'
+  return 'Кабинет Avito Ads'
+})
+const avitoPreviewDescription = computed(() => {
+  if (lastIntegrationId.value && form.account_id) return 'Кабинет сохранен, дальше выберите Метрику и цели для лидов.'
+  if (avitoAccessReady.value) return 'Данные заполнены. Нажмите подключение, чтобы проверить доступ.'
+  return 'Введите ID аккаунта, Client ID и Client Secret.'
+})
 
 const filteredProfiles = computed(() => {
   const q = profileSearch.value.trim().toLowerCase()
@@ -1243,6 +1288,120 @@ const toggleGoalSelection = (id) => {
 }
 .wizard-grid--single {
   grid-template-columns: minmax(0, 1fr);
+}
+.avito-access-grid {
+  display: grid;
+  grid-template-columns: minmax(17.5rem, 24rem) minmax(18rem, 1fr);
+  align-items: stretch;
+  gap: 1.3889rem;
+}
+.avito-access-form {
+  display: flex;
+  max-width: 24rem;
+  flex-direction: column;
+  gap: 1.1111rem;
+}
+.avito-access-input {
+  max-width: 24rem;
+}
+.avito-cabinet-preview {
+  display: flex;
+  min-height: 16.25rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.3889rem;
+  border: 1px solid rgba(105, 105, 105, 0.1);
+  border-radius: 1.0417rem;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(5, 150, 105, 0.12), transparent 30%),
+    #f9fcff;
+}
+.avito-cabinet-preview__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8333rem;
+}
+.avito-cabinet-preview__icon {
+  display: flex;
+  width: 3.0556rem;
+  height: 3.0556rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9722rem;
+  background: #fff;
+  box-shadow: 0 0.4861rem 1.5278rem rgba(19, 34, 56, 0.08);
+}
+.avito-cabinet-preview__icon img {
+  width: 2.0833rem;
+  height: 2.0833rem;
+  object-fit: contain;
+}
+.avito-cabinet-preview__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.0833rem;
+  padding: 0.4167rem 0.8333rem;
+  border-radius: 999px;
+  background: rgba(105, 105, 105, 0.08);
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 0.7639rem;
+  font-weight: 700;
+}
+.avito-cabinet-preview__badge--ready {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+.avito-cabinet-preview__label {
+  margin-bottom: 0.4167rem;
+  color: rgba(105, 105, 105, 0.52);
+  font-size: 0.7639rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.avito-cabinet-preview h5 {
+  color: #171717;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.avito-cabinet-preview p {
+  max-width: 25rem;
+  margin-top: 0.5556rem;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 0.9028rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.avito-cabinet-preview__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  padding: 0.9028rem 1.0417rem;
+  border-radius: 0.8333rem;
+  background: #fff;
+}
+.avito-cabinet-preview__meta span {
+  color: rgba(105, 105, 105, 0.5);
+  font-size: 0.7639rem;
+  font-weight: 600;
+}
+.avito-cabinet-preview__meta strong {
+  min-width: 0;
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.avito-cabinet-preview__hint {
+  color: rgba(105, 105, 105, 0.5);
+  font-size: 0.7639rem;
+  font-weight: 500;
+  line-height: 1.35;
 }
 .wizard-panel {
   display: flex;
@@ -2018,8 +2177,13 @@ const toggleGoalSelection = (id) => {
 }
 @media (max-width: 767.25px) {
   .wizard-grid,
+  .avito-access-grid,
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+  .avito-access-form,
+  .avito-access-input {
+    max-width: none;
   }
   .panel-head {
     align-items: flex-start;

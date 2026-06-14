@@ -541,7 +541,7 @@ const testConnection = async (id) => {
 const handleSync = async (id) => {
   syncingId.value = id
   try {
-    const { data } = await api.post(`integrations/${id}/sync`, { days: 90, force_full: true })
+    const { data } = await api.post(`integrations/${id}/sync`, { days: 90, force_full: false })
     toaster.info('Синхронизация запущена. Данные появятся через несколько минут.')
     fetchIntegrations()
     if (data?.job_id) {

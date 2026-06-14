@@ -422,7 +422,7 @@ const syncNow = async (item) => {
   if (syncingId.value || isSyncingIntegration(item.id)) return
   syncingId.value = item.id
   try {
-    const data = await startIntegrationSync(item.id, { days: 90 })
+    const data = await startIntegrationSync(item.id, { days: 90, forceFull: false })
     const jobId = data?.job_id
     toaster.info('Синхронизация запущена. Данные обновятся автоматически.')
     await fetchIntegrations()
