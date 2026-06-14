@@ -715,14 +715,23 @@ onMounted(async () => {
     isNewProject.value = false
   }
 
-  if (localStorage.getItem('metrika_integration_id')) {
-    metrikaIntegrationId.value = localStorage.getItem('metrika_integration_id')
-  }
-
   // Проверяем, есть ли resumption после OAuth-редиректа
   const resumeId = router.currentRoute.value.query.resume_integration_id
   const startStep = router.currentRoute.value.query.initial_step
   const metrikaConnected = router.currentRoute.value.query.metrika_connected === '1'
+
+  // Привязку Метрики восстанавливаем ТОЛЬКО при возобновлении флоу.
+  // Для нового визарда чистим залежавшийся metrika_integration_id от прошлой
+  // (отменённой/брошенной) попытки — иначе на шаге 3 Avito ложно показывает
+  // «Метрика подключена», но счётчики/цели пустые.
+  if (resumeId) {
+    if (localStorage.getItem('metrika_integration_id')) {
+      metrikaIntegrationId.value = localStorage.getItem('metrika_integration_id')
+    }
+  } else {
+    try { localStorage.removeItem('metrika_integration_id') } catch (e) {}
+    metrikaIntegrationId.value = null
+  }
 
   if (resumeId) {
     lastIntegrationId.value = resumeId
