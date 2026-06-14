@@ -16,6 +16,7 @@ const form = reactive({
   avito_client_secret: '',
   avito_account_id: '',
   account_id: null,
+  account_name: '',
   agency_client_login: '',
   primary_goal_id: null
 })
@@ -60,6 +61,7 @@ export function useIntegrationWizard() {
     form.avito_client_secret = ''
     form.avito_account_id = ''
     form.account_id = null
+    form.account_name = ''
     form.agency_client_login = ''
     form.primary_goal_id = null
     campaigns.value = []
@@ -215,6 +217,7 @@ export function useIntegrationWizard() {
       form.platform = integration.platform
       form.client_id = integration.client_id
       form.account_id = integration.account_id
+      form.account_name = integration.account_name || ''
       // CRITICAL: agency_client_login is separate from account_id
       // It's set when user selects a profile on step 2
       form.agency_client_login = integration.agency_client_login || integration.account_id

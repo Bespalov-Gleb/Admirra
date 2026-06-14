@@ -193,16 +193,17 @@
               </div>
             </div>
 
-            <div class="avito-cabinet-preview dark:!bg-white/5 dark:!border-white/10">
+            <div class="avito-cabinet-preview dark:!bg-white/5 dark:!border-white/10" :class="{ 'avito-cabinet-preview--connected': avitoConnected }">
               <div class="avito-cabinet-preview__top">
                 <span class="avito-cabinet-preview__icon dark:!bg-white/10">
                   <img src="/admirra/img/icons/avito.svg" alt="Avito Ads" />
                 </span>
-                <span class="avito-cabinet-preview__badge" :class="{ 'avito-cabinet-preview__badge--ready': avitoAccessReady }">
+                <span class="avito-cabinet-preview__badge" :class="{ 'avito-cabinet-preview__badge--ready': avitoConnected }">
+                  <svg v-if="avitoConnected" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   {{ avitoPreviewStatus }}
                 </span>
               </div>
-              <div>
+              <div class="avito-cabinet-preview__body">
                 <div class="avito-cabinet-preview__label dark:!text-white/45">Рекламный кабинет</div>
                 <h5 class="dark:!text-white/90">{{ avitoPreviewTitle }}</h5>
                 <p class="dark:!text-white/55">{{ avitoPreviewDescription }}</p>
@@ -210,9 +211,6 @@
               <div class="avito-cabinet-preview__meta dark:!bg-white/5">
                 <span class="dark:!text-white/45">ID кабинета</span>
                 <strong class="dark:!text-white/80">{{ avitoPreviewAccountId }}</strong>
-              </div>
-              <div class="avito-cabinet-preview__hint dark:!text-white/45">
-                Кампании будут подтягиваться автоматически после подключения.
               </div>
             </div>
           </div>
@@ -222,12 +220,21 @@
             <div class="wizard-actions__right">
               <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
               <button
+                v-if="!avitoConnected"
                 type="button"
                 class="primary-btn primary-btn--avito"
-                :disabled="loadingAuth"
+                :disabled="loadingAuth || !avitoAccessReady"
                 @click="connectAvito"
               >
                 {{ loadingAuth ? 'Подключение...' : 'Подключить Avito Ads' }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="primary-btn"
+                @click="proceedAvitoToMetrika"
+              >
+                Далее
               </button>
             </div>
           </div>
@@ -686,22 +693,26 @@ const allGoalsSelected = computed(() =>
 const avitoAccessReady = computed(() =>
   Boolean(String(form.avito_account_id || '').trim() && form.avito_client_id && form.avito_client_secret)
 )
+// Кабинет реально подключён и подтверждён (вернулось название)
+const avitoConnected = computed(() =>
+  Boolean(lastIntegrationId.value && form.platform === 'AVITO_ADS' && form.account_id)
+)
 const avitoPreviewAccountId = computed(() =>
-  String(form.account_id || form.avito_account_id || '').trim() || 'будет указан после ввода'
+  String(form.account_id || form.avito_account_id || '').trim() || '—'
 )
 const avitoPreviewStatus = computed(() => {
-  if (lastIntegrationId.value && form.account_id) return 'Подключен'
-  if (avitoAccessReady.value) return 'Готов'
+  if (avitoConnected.value) return 'Подключён'
+  if (avitoAccessReady.value) return 'Готов к проверке'
   return 'Ожидает данные'
 })
 const avitoPreviewTitle = computed(() => {
-  if (form.account_id || form.avito_account_id) return 'Avito Ads'
-  return 'Кабинет Avito Ads'
+  if (avitoConnected.value) return form.account_name || `Avito ${avitoPreviewAccountId.value}`
+  return 'Рекламный кабинет Avito'
 })
 const avitoPreviewDescription = computed(() => {
-  if (lastIntegrationId.value && form.account_id) return 'Кабинет сохранен, дальше выберите Метрику и цели для лидов.'
-  if (avitoAccessReady.value) return 'Данные заполнены. Нажмите подключение, чтобы проверить доступ.'
-  return 'Введите ID аккаунта, Client ID и Client Secret.'
+  if (avitoConnected.value) return 'Кабинет подтверждён. Нажмите «Далее», чтобы выбрать Метрику и цели для лидов.'
+  if (avitoAccessReady.value) return 'Данные заполнены. Нажмите «Подключить», чтобы проверить доступ к кабинету.'
+  return 'Введите ID аккаунта, Client ID и Client Secret — справа появится название кабинета.'
 })
 
 const filteredProfiles = computed(() => {
@@ -1105,6 +1116,12 @@ const handleConnectClick = async () => {
   }
 }
 
+const proceedAvitoToMetrika = () => {
+  // Данные кабинета/кампаний уже загружены в connectAvito — просто переходим
+  step.value = 3
+  scrollToStep(3)
+}
+
 const connectAvito = async () => {
   if (!form.avito_account_id || !String(form.avito_account_id).trim()) {
     error.value = 'Укажите ID рекламного аккаунта Avito'
@@ -1135,19 +1152,18 @@ const connectAvito = async () => {
     try { localStorage.setItem('wizard_integration_id', String(data.integration_id)) } catch (e) {}
     if (data.client_id) form.client_id = data.client_id
     if (data.account_id) form.account_id = data.account_id
-    toaster.success('Avito Ads подключён!')
+    if (data.account_name) form.account_name = data.account_name
+    toaster.success('Кабинет Avito подключён')
     await fetchIntegration(data.integration_id)
     await fetchCampaigns(data.integration_id)
     allFromProfile.value = true
     await resolveMetrikaIntegrationId()
-    if (!metrikaIntegrationId.value) {
-      toaster.warning('Подключите Яндекс Метрику для отслеживания лидов Avito')
-    } else {
+    if (metrikaIntegrationId.value) {
       await fetchCounters(data.integration_id)
       await fetchGoals(data.integration_id)
     }
-    step.value = 3
-    scrollToStep(3)
+    // Не перескакиваем сразу на шаг 3 — показываем подтверждённый кабинет
+    // (название «ИП …») в превью справа, пользователь жмёт «Далее».
   } catch (err) {
     const msg = err?.response?.data?.detail || err.message || 'Ошибка подключения Avito'
     error.value = msg
@@ -1293,7 +1309,16 @@ const toggleGoalSelection = (id) => {
   display: grid;
   grid-template-columns: minmax(17.5rem, 24rem) minmax(18rem, 1fr);
   align-items: stretch;
-  gap: 1.3889rem;
+  gap: 1.6667rem;
+}
+@media (max-width: 56.25rem) {
+  .avito-access-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .avito-access-form,
+  .avito-access-input {
+    max-width: none;
+  }
 }
 .avito-access-form {
   display: flex;
@@ -1306,15 +1331,19 @@ const toggleGoalSelection = (id) => {
 }
 .avito-cabinet-preview {
   display: flex;
-  min-height: 16.25rem;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.3889rem;
-  border: 1px solid rgba(105, 105, 105, 0.1);
-  border-radius: 1.0417rem;
-  background:
-    radial-gradient(circle at 88% 10%, rgba(5, 150, 105, 0.12), transparent 30%),
-    #f9fcff;
+  gap: 1.0417rem;
+  padding: 1.5278rem;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 1.25rem;
+  background: #fbfcfe;
+  box-shadow: 0 0.1389rem 0.5556rem rgba(15, 23, 42, 0.03);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.avito-cabinet-preview--connected {
+  border-color: rgba(5, 150, 105, 0.35);
+  box-shadow: 0 0.4861rem 1.4rem rgba(5, 150, 105, 0.1);
+  background: #f7fdfb;
 }
 .avito-cabinet-preview__top {
   display: flex;
@@ -1324,55 +1353,59 @@ const toggleGoalSelection = (id) => {
 }
 .avito-cabinet-preview__icon {
   display: flex;
-  width: 3.0556rem;
-  height: 3.0556rem;
+  width: 2.9167rem;
+  height: 2.9167rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.9722rem;
+  border-radius: 0.8333rem;
   background: #fff;
-  box-shadow: 0 0.4861rem 1.5278rem rgba(19, 34, 56, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 .avito-cabinet-preview__icon img {
-  width: 2.0833rem;
-  height: 2.0833rem;
+  width: 1.8056rem;
+  height: 1.8056rem;
   object-fit: contain;
 }
 .avito-cabinet-preview__badge {
   display: inline-flex;
   align-items: center;
-  min-height: 2.0833rem;
-  padding: 0.4167rem 0.8333rem;
+  gap: 0.3472rem;
+  min-height: 1.9444rem;
+  padding: 0.3472rem 0.7639rem;
   border-radius: 999px;
   background: rgba(105, 105, 105, 0.08);
-  color: rgba(105, 105, 105, 0.72);
-  font-size: 0.7639rem;
+  color: rgba(105, 105, 105, 0.7);
+  font-size: 0.7292rem;
   font-weight: 700;
 }
 .avito-cabinet-preview__badge--ready {
   background: rgba(5, 150, 105, 0.12);
   color: #047857;
 }
+.avito-cabinet-preview__body {
+  flex: 1 1 auto;
+}
 .avito-cabinet-preview__label {
   margin-bottom: 0.4167rem;
-  color: rgba(105, 105, 105, 0.52);
-  font-size: 0.7639rem;
+  color: rgba(105, 105, 105, 0.5);
+  font-size: 0.7292rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .avito-cabinet-preview h5 {
   color: #171717;
-  font-size: 1.25rem;
+  font-size: 1.1806rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 .avito-cabinet-preview p {
-  max-width: 25rem;
   margin-top: 0.5556rem;
-  color: rgba(105, 105, 105, 0.62);
-  font-size: 0.9028rem;
+  color: rgba(105, 105, 105, 0.6);
+  font-size: 0.8681rem;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 .avito-cabinet-preview__meta {
   display: flex;
@@ -1380,9 +1413,10 @@ const toggleGoalSelection = (id) => {
   justify-content: space-between;
   gap: 1rem;
   margin-top: auto;
-  padding: 0.9028rem 1.0417rem;
+  padding: 0.8333rem 1.0417rem;
   border-radius: 0.8333rem;
   background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.05);
 }
 .avito-cabinet-preview__meta span {
   color: rgba(105, 105, 105, 0.5);
@@ -1396,12 +1430,6 @@ const toggleGoalSelection = (id) => {
   font-weight: 700;
   overflow-wrap: anywhere;
   text-align: right;
-}
-.avito-cabinet-preview__hint {
-  color: rgba(105, 105, 105, 0.5);
-  font-size: 0.7639rem;
-  font-weight: 500;
-  line-height: 1.35;
 }
 .wizard-panel {
   display: flex;
