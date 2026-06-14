@@ -341,7 +341,7 @@
           <button
             v-else
             type="button"
-            class="primary-btn"
+            class="primary-btn primary-btn--inline"
             :disabled="loadingMetrikaAuth || !lastIntegrationId"
             @click="initYandexMetrikaAuth"
           >
@@ -1652,6 +1652,10 @@ const toggleGoalSelection = (id) => {
 .primary-btn {
   background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
+}
+.primary-btn--inline {
+  /* Внутри wizard-panel (flex-column) кнопка иначе растягивается на всю ширину */
+  align-self: flex-start;
 }
 .primary-btn--vk {
   background: linear-gradient(135deg, #0077ff, #005fcc);
