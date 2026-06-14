@@ -754,11 +754,25 @@ watch(
 
 onMounted(async () => {
   const platformQuery = router.currentRoute.value.query.platform
+  const resumeId = router.currentRoute.value.query.resume_integration_id
+  const startStep = router.currentRoute.value.query.initial_step
+  const metrikaConnected = router.currentRoute.value.query.metrika_connected === '1'
+  const isResuming = Boolean(resumeId || metrikaConnected)
+
+  if (isResuming) {
+    // Возврат из OAuth Метрики — восстанавливаем состояние Avito-флоу
+    restoreAvitoWizardState()
+  } else {
+    // Новый визард — сбрасываем залежавшееся состояние от прошлой брошенной
+    // попытки (form/lastIntegrationId — module-level синглтоны), иначе превью
+    // Avito показывает старый кабинет ещё до ввода данных.
+    resetStore()
+    try { localStorage.removeItem(AVITO_WIZARD_STATE_KEY) } catch (e) {}
+  }
+
   if (platformQuery === 'YANDEX_DIRECT' || platformQuery === 'VK_ADS' || platformQuery === 'AVITO_ADS') {
     form.platform = platformQuery
   }
-
-  restoreAvitoWizardState()
 
   await fetchProjects()
 
@@ -771,11 +785,7 @@ onMounted(async () => {
     isNewProject.value = false
   }
 
-  // Проверяем, есть ли resumption после OAuth-редиректа
-  const resumeId = router.currentRoute.value.query.resume_integration_id
-  const startStep = router.currentRoute.value.query.initial_step
-  const metrikaConnected = router.currentRoute.value.query.metrika_connected === '1'
-
+  // resumeId / metrikaConnected уже определены выше.
   // Привязку Метрики восстанавливаем ТОЛЬКО при возобновлении флоу.
   // Для нового визарда чистим залежавшийся metrika_integration_id от прошлой
   // (отменённой/брошенной) попытки — иначе на шаге 3 Avito ложно показывает
