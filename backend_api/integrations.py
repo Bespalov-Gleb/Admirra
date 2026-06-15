@@ -1859,7 +1859,29 @@ async def get_integration_counters(
                             })
                     except Exception as fallback_err:
                         logger.error(f"Fallback counter fetch also failed: {fallback_err}")
-    
+
+    # Avito: если профиль Метрики не резолвится (target_account=None) — Priority 2
+    # пропускается и блок счётчиков остаётся пустым, хотя цели грузятся через свой
+    # фолбэк. Тянем все доступные счётчики без фильтра по профилю.
+    # СТРОГО для AVITO_ADS — Яндекс.Директ сюда не попадает.
+    if not counters_list and integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        logger.info("🟢 Avito: счётчики пусты, грузим все доступные без фильтра по профилю")
+        from automation.yandex_metrica import YandexMetricaAPI
+        avito_metrica_api = YandexMetricaAPI(access_token)
+        try:
+            all_avito_counters = await avito_metrica_api.get_counters()
+            for counter in all_avito_counters:
+                counters_list.append({
+                    "id": str(counter.get('id')),
+                    "name": counter.get('name', 'Unknown'),
+                    "site": counter.get('site', ''),
+                    "owner_login": counter.get('owner_login', ''),
+                    "source": "avito_all",
+                })
+            logger.info(f"🟢 Avito: загружено {len(counters_list)} счётчиков без фильтра по профилю")
+        except Exception as e:
+            logger.error(f"Avito counters (all) fetch failed: {e}")
+
     logger.info(f"✅ Returning {len(counters_list)} counters for integration {integration_id}")
     return {"counters": counters_list}
 
