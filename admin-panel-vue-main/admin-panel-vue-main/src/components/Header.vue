@@ -241,8 +241,9 @@
             @click="toggleProfileMenu"
             class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
           >
-            <div class="h-[2.0833rem] w-[2.0833rem] flex-shrink-0 overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
-              <img class="h-full w-full object-cover" src="/admirra/img/avatars/avatar-30x30.png" alt="#" />
+            <div class="flex h-[2.0833rem] w-[2.0833rem] flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#ecf3fe] dark:bg-white/10">
+              <img v-if="avatarUrl" class="h-full w-full object-cover" :src="avatarUrl" alt="" />
+              <span v-else class="text-[0.8333rem] font-semibold text-[#2563eb] dark:text-[#4A7AFF]">{{ avatarInitial }}</span>
             </div>
             <span class="hidden max-w-[4.7222rem] truncate text-[0.6944rem] font-medium text-[#515151] dark:text-gray-100 min-[1280px]:block 2xl:max-w-[10.4167rem] 2xl:text-[0.9722rem]">{{ displayName }}</span>
             <span class="header-arrow-circle ml-auto flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white transition-all duration-500 dark:bg-white/15">
@@ -256,7 +257,10 @@
             <div v-if="isProfileMenuOpen" class="absolute top-full right-0 z-50 w-[18rem] mt-2">
               <div class="hd-panel">
                 <div class="hd-profile-header">
-                  <div class="hd-profile-avatar">{{ displayName.charAt(0).toUpperCase() }}</div>
+                  <div class="hd-profile-avatar">
+                    <img v-if="avatarUrl" :src="avatarUrl" alt="" />
+                    <template v-else>{{ avatarInitial }}</template>
+                  </div>
                   <div class="min-w-0">
                     <div class="hd-profile-name truncate">{{ displayName }}</div>
                     <div class="hd-profile-email truncate">{{ user?.email }}</div>
@@ -369,6 +373,9 @@ const displayName = computed(() => {
   }
   return user.value.username || user.value.email
 })
+
+const avatarUrl = computed(() => user.value?.avatar_url || '')
+const avatarInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase())
 
 const headerProjectName = computed(() => {
   return currentProjectId.value ? currentProjectName.value : 'Трафик агентство'
@@ -950,6 +957,12 @@ watch(
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.hd-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .hd-profile-name {
   font-size: 0.9722rem;
