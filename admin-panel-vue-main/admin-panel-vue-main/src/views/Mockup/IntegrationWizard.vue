@@ -895,7 +895,7 @@ const goToStep3 = async () => {
   }
 }
 
-const goToStep4 = async () => {
+const goToStep4 = () => {
   if (usesMetrikaWizard.value) {
     if (form.platform === 'AVITO_ADS' && !metrikaIntegrationId.value) {
       error.value = 'Подключите Яндекс Метрику (OAuth) на шаге счётчиков'
@@ -905,7 +905,8 @@ const goToStep4 = async () => {
       error.value = 'Выберите хотя бы один счетчик'
       return
     }
-    await fetchGoals(lastIntegrationId.value)
+    // Цели уже загружены на шаге 3 (и обновляются вотчером при смене счётчиков).
+    // Повторный await fetchGoals здесь при большом числе целей блокировал переход.
   }
   error.value = null
   step.value = 4
