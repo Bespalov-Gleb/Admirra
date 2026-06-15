@@ -282,9 +282,9 @@ class AvitoAdsAPI:
                         "impressions": int(row.get("views") or 0),
                         "clicks": clicks,
                         "cost": spend,
-                        "cpc": float(row.get("cpc")) if row.get("cpc") is not None else (
-                            (spend / clicks) if clicks > 0 else None
-                        ),
+                        # CPC считаем сами как расход/клики (рубли). Поле cpc из Avito API
+                        # приходит в копейках (×100) и расходится со spend — не используем его.
+                        "cpc": round(spend / clicks, 2) if clicks > 0 else None,
                     }
                 )
 
