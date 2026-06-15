@@ -89,8 +89,39 @@ def _parse_email_recipients(val) -> list:
         return []
 
 
-def _with_vat(value) -> float:
-    return float(value or 0) * VAT_RATE
+def _is_avito_platform(value) -> bool:
+    return str(value or "").strip().lower() in {"avito", "avito_ads"}
+
+
+def _campaign_platform(campaign: dict) -> str:
+    platform = campaign.get("platform") or campaign.get("channel")
+    if platform:
+        return str(platform)
+    name = str(campaign.get("name") or campaign.get("campaign_name") or "").lower()
+    if name.startswith("[avito]") or name.startswith("[авито]"):
+        return "avito"
+    return ""
+
+
+def _with_channel_vat(value, platform=None) -> float:
+    raw = float(value or 0)
+    return raw if _is_avito_platform(platform) else raw * VAT_RATE
+
+
+def _with_cost_breakdown_vat(value, cost_by_platform: dict | None, platform=None) -> float:
+    if isinstance(cost_by_platform, dict):
+        return (
+            float(cost_by_platform.get("yandex") or 0) * VAT_RATE
+            + float(cost_by_platform.get("vk") or 0) * VAT_RATE
+            + float(cost_by_platform.get("avito") or 0)
+        )
+    return _with_channel_vat(value, platform)
+
+
+def _summary_platform(campaigns: list) -> str:
+    if campaigns and all(_is_avito_platform(_campaign_platform(c)) for c in campaigns):
+        return "avito"
+    return ""
 
 
 def _parse_delivery_channels(val, user: models.User) -> list[str]:
@@ -115,23 +146,27 @@ def _parse_delivery_channels(val, user: models.User) -> list[str]:
 
 
 def _format_text_report(summary: dict, top_campaigns: list, client_name: str, sd: str, ed: str) -> str:
+    summary_platform = _summary_platform(top_campaigns)
+    summary_expenses = _with_cost_breakdown_vat(summary.get("expenses"), summary.get("cost_by_platform"), summary_platform)
+    summary_cpc = summary_expenses / float(summary.get("clicks") or 0) if summary.get("clicks") else _with_channel_vat(summary.get("cpc"), summary_platform)
+    summary_cpa = summary_expenses / float(summary.get("leads") or 0) if summary.get("leads") else _with_channel_vat(summary.get("cpa"), summary_platform)
     lines = [
         f"Отчёт за период {sd} — {ed}",
         f"Проект: {client_name or 'все проекты'}",
         "",
-        f"Расходы: {_with_vat(summary.get('expenses')):,.0f} ₽".replace(",", " "),
+        f"Расходы: {summary_expenses:,.0f} ₽".replace(",", " "),
         f"Показы: {int(summary.get('impressions') or 0):,}".replace(",", " "),
         f"Клики: {int(summary.get('clicks') or 0):,}".replace(",", " "),
         f"Лиды: {int(summary.get('leads') or 0):,}".replace(",", " "),
-        f"CPC: {_with_vat(summary.get('cpc')):.2f} ₽",
-        f"CPL: {_with_vat(summary.get('cpa')):.2f} ₽",
+        f"CPC: {summary_cpc:.2f} ₽",
+        f"CPL: {summary_cpa:.2f} ₽",
     ]
     if top_campaigns:
         lines.extend(["", "Топ кампаний по лидам:"])
         for index, campaign in enumerate(top_campaigns[:5], 1):
             name = campaign.get("name") or campaign.get("campaign_name") or "Кампания"
             leads = int(campaign.get("conversions") or 0)
-            cost = _with_vat(campaign.get("cost"))
+            cost = _with_channel_vat(campaign.get("cost"), _campaign_platform(campaign))
             lines.append(f"{index}. {name}: {leads} лидов, {cost:,.0f} ₽".replace(",", " "))
     return "\n".join(lines)
 

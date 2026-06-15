@@ -192,6 +192,7 @@ class StatsService:
                 "cpa_available": True,
                 "goals_syncing": False,
                 "goals_sync_message": None,
+                "cost_by_platform": {"yandex": 0, "vk": 0, "avito": 0},
                 "trends": None
             }
 
@@ -543,6 +544,11 @@ class StatsService:
                 "imps": imps, 
                 "clks": clks, 
                 "convs": convs,
+                "cost_by_platform": {
+                    "yandex": round(yandex_cost, 2),
+                    "vk": round(vk_cost, 2),
+                    "avito": round(avito_cost, 2),
+                },
                 "avg_cpc": avg_cpc,  # Взвешенное среднее CPC
                 "avg_cpa": avg_cpa,  # Взвешенное среднее CPA
                 "leads_available": leads_available,
@@ -677,6 +683,7 @@ class StatsService:
                 "cpa_available": bool(curr.get("cpa_available", True)),
                 "goals_syncing": goals_syncing,
                 "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
+                "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
                 "revenue": 0.0,
                 "profit": -round(curr["costs"], 2),
                 "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -756,6 +763,7 @@ class StatsService:
             "cpa_available": bool(curr.get("cpa_available", True)),
             "goals_syncing": goals_syncing,
             "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
+            "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -1028,6 +1036,7 @@ class StatsService:
 
                 campaigns.append({
                     "id": cid,
+                    "platform": "yandex",
                     "name": f"[ЯД] {r.campaign_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1082,6 +1091,7 @@ class StatsService:
                     disp_name = raw or "Без названия"
                 campaigns.append({
                     "id": cid,
+                    "platform": "vk",
                     "name": f"[VK] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1152,6 +1162,7 @@ class StatsService:
                     disp_name = raw or "Без названия"
                 campaigns.append({
                     "id": cid,
+                    "platform": "avito",
                     "name": f"[Avito] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,

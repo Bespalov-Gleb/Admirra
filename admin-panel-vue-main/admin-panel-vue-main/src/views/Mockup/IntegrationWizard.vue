@@ -349,6 +349,20 @@
           </button>
         </div>
 
+        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel avito-utm-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+          <div>
+            <h4 class="dark:!text-white/90">UTM source</h4>
+            <p class="dark:!text-white/55">По этому source считаются лиды из Метрики; измените, если у клиента нестандартный source.</p>
+          </div>
+          <input
+            v-model.trim="form.utm_source"
+            type="text"
+            class="wizard-input avito-utm-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+            placeholder="avito-ads"
+            autocomplete="off"
+          />
+        </div>
+
         <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
@@ -559,6 +573,11 @@
               <span class="summary-card__icon dark:!bg-white/10">★</span>
               <span class="summary-card__label dark:!text-white/50">Основная цель</span>
               <strong class="dark:!text-white/85">{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
+            </div>
+            <div v-if="form.platform === 'AVITO_ADS'" class="summary-card summary-card--green dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">UTM</span>
+              <span class="summary-card__label dark:!text-white/50">Источник лидов</span>
+              <strong class="dark:!text-white/85">{{ form.utm_source || 'avito-ads' }}</strong>
             </div>
             <div v-if="usesMetrikaWizard" class="summary-card summary-card--violet dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">+</span>
@@ -945,6 +964,7 @@ watch(
     form.account_id = null
     form.account_name = ''
     form.agency_client_login = ''
+    form.utm_source = 'avito-ads'
     form.primary_goal_id = null
     form.avito_account_id = ''
     form.avito_client_id = ''
@@ -1109,6 +1129,9 @@ const doFinish = async () => {
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
       }),
+      ...(form.platform === 'AVITO_ADS' && {
+        utm_source: form.utm_source || 'avito-ads',
+      }),
       is_active: true
     })
     localStorage.removeItem('metrika_integration_id')
@@ -1166,6 +1189,7 @@ const saveAvitoWizardState = () => {
     avito_account_id: form.avito_account_id,
     account_id: form.account_id,
     agency_client_login: form.agency_client_login,
+    utm_source: form.utm_source,
     integration_id: lastIntegrationId.value
   }))
 }
@@ -1181,6 +1205,7 @@ const restoreAvitoWizardState = () => {
     if (state.avito_account_id) form.avito_account_id = state.avito_account_id
     if (state.account_id) form.account_id = state.account_id
     if (state.agency_client_login) form.agency_client_login = state.agency_client_login
+    if (state.utm_source) form.utm_source = state.utm_source
     if (state.integration_id && !lastIntegrationId.value) {
       lastIntegrationId.value = state.integration_id
     }
@@ -1457,6 +1482,24 @@ const toggleGoalSelection = (id) => {
 }
 .avito-access-input {
   max-width: 22.2222rem;
+}
+.avito-utm-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13.8889rem, 19.4444rem);
+  align-items: center;
+  gap: 1.3889rem;
+}
+.avito-utm-input {
+  width: 100%;
+  max-width: 19.4444rem;
+}
+@media (max-width: 48rem) {
+  .avito-utm-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .avito-utm-input {
+    max-width: none;
+  }
 }
 .avito-cabinet-preview {
   display: flex;

@@ -1137,6 +1137,7 @@ async def connect_avito_ads(
         or (profile_match.get("name") if profile_match else None)
         or f"Avito {avito_account_id}"
     )
+    utm_source = str(payload.get("utm_source") or "avito-ads").strip() or "avito-ads"
 
     db_integration = db.query(models.Integration).filter(
         models.Integration.client_id == db_client.id,
@@ -1153,6 +1154,8 @@ async def connect_avito_ads(
         db_integration.platform_client_secret = encrypted_client_secret
         db_integration.account_id = str(inferred_account_id) if inferred_account_id else None
         db_integration.account_name = inferred_account_name or credential_type
+        if not db_integration.utm_source:
+            db_integration.utm_source = utm_source
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db_integration.error_message = None
     else:
@@ -1165,6 +1168,7 @@ async def connect_avito_ads(
             platform_client_secret=encrypted_client_secret,
             account_id=str(inferred_account_id) if inferred_account_id else None,
             account_name=inferred_account_name or credential_type,
+            utm_source=utm_source,
             sync_status=models.IntegrationSyncStatus.NEVER,
         )
         db.add(db_integration)

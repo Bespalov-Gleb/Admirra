@@ -44,6 +44,18 @@ def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
     return profile
 
 
+def _avito_utm_source(integration: models.Integration) -> str:
+    source = str(getattr(integration, "utm_source", None) or "").strip()
+    return source or "avito-ads"
+
+
+def _metrika_utm_source_filter(source: str) -> str:
+    # Metrika filter syntax uses quoted string literals. Escape only the
+    # characters that can break the literal; the value itself remains user-editable.
+    safe_source = str(source or "avito-ads").replace("\\", "\\\\").replace("'", "\\'")
+    return f"ym:s:UTMSource=='{safe_source}'"
+
+
 def _upsert_campaign_catalog(
     db: Session,
     integration: models.Integration,
@@ -536,7 +548,7 @@ def sync_metrika_goals_background(
                     return
                 access_token = security.decrypt_token(metrika_integration.access_token)
                 selected_profile = metrika_profile_login(metrika_integration)
-                filters = "ym:s:UTMSource=='avito-ads'"
+                filters = _metrika_utm_source_filter(_avito_utm_source(integration))
             else:
                 access_token = security.decrypt_token(integration.access_token)
                 selected_profile = integration.agency_client_login or integration.account_id
@@ -1344,7 +1356,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         date_to,
                         metrika_token,
                         selected_profile,
-                        filters="ym:s:UTMSource=='avito-ads'",
+                        filters=_metrika_utm_source_filter(_avito_utm_source(integration)),
                     )
                 except Exception as metrika_err:
                     logger.warning(

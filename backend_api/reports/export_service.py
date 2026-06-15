@@ -27,8 +27,39 @@ _report_file_cache: dict[str, tuple[str, float]] = {}
 _report_view_cache: dict[str, tuple[dict, float]] = {}
 
 
-def _with_vat(value) -> float:
-    return float(value or 0) * VAT_RATE
+def _is_avito_platform(value) -> bool:
+    return str(value or "").strip().lower() in {"avito", "avito_ads"}
+
+
+def _campaign_platform(campaign: dict) -> str:
+    platform = campaign.get("platform") or campaign.get("channel")
+    if platform:
+        return str(platform)
+    name = str(campaign.get("name") or campaign.get("campaign_name") or "").lower()
+    if name.startswith("[avito]") or name.startswith("[авито]"):
+        return "avito"
+    return ""
+
+
+def _with_channel_vat(value, platform=None) -> float:
+    raw = float(value or 0)
+    return raw if _is_avito_platform(platform) else raw * VAT_RATE
+
+
+def _with_cost_breakdown_vat(value, cost_by_platform: dict | None, platform=None) -> float:
+    if isinstance(cost_by_platform, dict):
+        return (
+            float(cost_by_platform.get("yandex") or 0) * VAT_RATE
+            + float(cost_by_platform.get("vk") or 0) * VAT_RATE
+            + float(cost_by_platform.get("avito") or 0)
+        )
+    return _with_channel_vat(value, platform)
+
+
+def _summary_platform(campaigns: list) -> str:
+    if campaigns and all(_is_avito_platform(_campaign_platform(c)) for c in campaigns):
+        return "avito"
+    return ""
 
 
 def _get_report_data(db, user_id, client_id, start_date, end_date, comment):
@@ -99,6 +130,10 @@ def generate_report_docx(
     summary, top_campaigns, client_name, ai_comment, sd, ed = _get_report_data(
         db, user_id, client_id, start_date, end_date, comment
     )
+    summary_platform = _summary_platform(top_campaigns)
+    summary_expenses = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), summary_platform)
+    summary_cpc = summary_expenses / float(summary.get("clicks") or 0) if summary.get("clicks") else _with_channel_vat(summary.get("cpc", 0), summary_platform)
+    summary_cpa = summary_expenses / float(summary.get("leads") or 0) if summary.get("leads") else _with_channel_vat(summary.get("cpa", 0), summary_platform)
     try:
         from docx import Document
         from docx.shared import Pt
@@ -117,12 +152,12 @@ def generate_report_docx(
 
         doc.add_heading("Ключевые показатели", level=1)
         kpi_text = (
-            f"Расходы: {int(_with_vat(summary.get('expenses', 0)))} ₽ | "
+            f"Расходы: {int(summary_expenses)} ₽ | "
             f"Показы: {int(summary.get('impressions', 0))} | "
             f"Клики: {int(summary.get('clicks', 0))} | "
             f"Лиды: {int(summary.get('leads', 0))} | "
-            f"CPC: {_with_vat(summary.get('cpc', 0)):.2f} ₽ | "
-            f"CPA: {_with_vat(summary.get('cpa', 0)):.2f} ₽"
+            f"CPC: {summary_cpc:.2f} ₽ | "
+            f"CPA: {summary_cpa:.2f} ₽"
         )
         doc.add_paragraph(kpi_text)
 
@@ -136,11 +171,12 @@ def generate_report_docx(
             hdr[2].text = "Расход"
             hdr[3].text = "CPA"
             for i, c in enumerate(top_campaigns, 1):
+                c_platform = _campaign_platform(c)
                 row = table.rows[i].cells
                 row[0].text = c.get("name", c.get("campaign_name", "—"))
                 row[1].text = str(c.get("conversions", 0))
-                row[2].text = f"{_with_vat(c.get('cost', 0)):,.0f} ₽"
-                row[3].text = f"{_with_vat(c.get('cpa', 0)):.2f} ₽" if c.get("conversions") else "—"
+                row[2].text = f"{_with_channel_vat(c.get('cost', 0), c_platform):,.0f} ₽"
+                row[3].text = f"{_with_channel_vat(c.get('cpa', 0), c_platform):.2f} ₽" if c.get("conversions") else "—"
 
         doc.add_paragraph(f"Сформировано: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 

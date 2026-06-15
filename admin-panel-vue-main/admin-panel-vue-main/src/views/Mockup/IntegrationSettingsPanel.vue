@@ -64,6 +64,20 @@
           </div>
         </div>
 
+        <div v-if="isAvitoIntegration" class="ip-utm-row">
+          <div>
+            <h4 class="ip-section-title">UTM source</h4>
+            <p class="ip-section-sub">По этому source считаются лиды из Метрики. По умолчанию — avito-ads.</p>
+          </div>
+          <input
+            v-model.trim="utmSource"
+            type="text"
+            class="ip-utm-input"
+            placeholder="avito-ads"
+            autocomplete="off"
+          />
+        </div>
+
         <!-- ── New goal notice (only when new goals exist) ── -->
         <div v-if="hasNewGoals" class="ip-notice">
           В Метрике появилась новая цель, ещё не отслеживается. Отметьте, если нужна.
@@ -75,10 +89,33 @@
           <!-- Counter row -->
           <div class="ip-counter-row">
             <div>
-              <h4 class="ip-section-title">Счётчик метрики</h4>
-              <p class="ip-section-sub">{{ counterDomain }} • ID {{ counterId }}</p>
+              <h4 class="ip-section-title">Счётчики Метрики</h4>
+              <p class="ip-section-sub">{{ counterSummary }}</p>
             </div>
-            <div v-if="counters.length > 1" class="ip-counter-list" aria-label="Выбор счётчиков">
+            <button type="button" class="ip-add-counter-btn" @click="addingCounter = !addingCounter">
+              {{ addingCounter ? 'Скрыть список' : 'Добавить счётчик для отслеживания' }}
+            </button>
+          </div>
+
+          <div v-if="trackedCounters.length" class="ip-counter-selected-list" aria-label="Подключённые счётчики">
+            <button
+              v-for="counter in trackedCounters"
+              :key="counter.id"
+              type="button"
+              class="ip-counter-chip ip-counter-chip--active"
+              @click="toggleCounter(counter.id)"
+            >
+              <span>{{ counter.site || counter.name || `Счётчик ${counter.id}` }}</span>
+              <small>ID {{ counter.id }}</small>
+              <b aria-hidden="true">×</b>
+            </button>
+          </div>
+          <div v-else class="ip-counter-empty">
+            Счётчики не выбраны. Добавьте счётчик Метрики, чтобы считать лиды Avito.
+          </div>
+
+          <div v-if="addingCounter" class="ip-counter-add-panel">
+            <div class="ip-counter-list" aria-label="Добавление счётчиков">
               <div v-if="counters.length > counterChipLimit" class="ip-counter-search">
                 <input
                   v-model="counterSearch"
@@ -87,17 +124,19 @@
                 />
               </div>
               <button
-                v-for="counter in visibleCounters"
+                v-for="counter in visibleAvailableCounters"
                 :key="counter.id"
                 type="button"
                 class="ip-counter-chip"
-                :class="{ 'ip-counter-chip--active': selectedCounterIds.includes(String(counter.id)) }"
                 @click="toggleCounter(counter.id)"
               >
                 {{ counter.site || counter.name || `ID ${counter.id}` }}
               </button>
-              <div v-if="hiddenCounterCount > 0" class="ip-counter-more">
-                Ещё {{ hiddenCounterCount }}. Уточните поиск, чтобы выбрать нужный.
+              <div v-if="filteredAvailableCounters.length === 0" class="ip-counter-more">
+                Все найденные счётчики уже добавлены.
+              </div>
+              <div v-else-if="hiddenAvailableCounterCount > 0" class="ip-counter-more">
+                Ещё {{ hiddenAvailableCounterCount }}. Уточните поиск, чтобы выбрать нужный.
               </div>
             </div>
           </div>
@@ -240,6 +279,8 @@ const loadingGoals = ref(false)
 const deleteConfirmOpen = ref(false)
 const deleteConfirmText = ref('')
 const counterSearch = ref('')
+const addingCounter = ref(false)
+const utmSource = ref('avito-ads')
 const counterChipLimit = 40
 
 const props = defineProps({
@@ -311,8 +352,23 @@ const formattedSync = computed(() => {
 
 // ── Counter (from fetched data) ───────────────────────────────────────────────
 
-const counterDomain = computed(() => counters.value[0]?.site || '—')
-const counterId = computed(() => selectedCounterIds.value.join(', ') || counters.value[0]?.id || '—')
+const trackedCounters = computed(() => {
+  const byId = new Map(counters.value.map((counter) => [String(counter.id), counter]))
+  return selectedCounterIds.value.map((id) => {
+    const key = String(id)
+    const counter = byId.get(key)
+    return counter || { id: key, name: `Счётчик ${key}`, site: '' }
+  })
+})
+
+const counterSummary = computed(() => {
+  if (!selectedCounterIds.value.length) return 'Состав счётчиков пока не выбран'
+  if (selectedCounterIds.value.length === 1) {
+    const counter = trackedCounters.value[0]
+    return `${counter?.site || counter?.name || 'Счётчик'} • ID ${counter?.id || '—'}`
+  }
+  return `Выбрано счётчиков: ${selectedCounterIds.value.length}`
+})
 
 const filteredCounters = computed(() => {
   const q = counterSearch.value.trim().toLowerCase()
@@ -323,8 +379,11 @@ const filteredCounters = computed(() => {
     String(counter.id || '').includes(q)
   )
 })
-const visibleCounters = computed(() => filteredCounters.value.slice(0, counterChipLimit))
-const hiddenCounterCount = computed(() => Math.max(filteredCounters.value.length - visibleCounters.value.length, 0))
+const filteredAvailableCounters = computed(() =>
+  filteredCounters.value.filter((counter) => !selectedCounterIds.value.includes(String(counter.id)))
+)
+const visibleAvailableCounters = computed(() => filteredAvailableCounters.value.slice(0, counterChipLimit))
+const hiddenAvailableCounterCount = computed(() => Math.max(filteredAvailableCounters.value.length - visibleAvailableCounters.value.length, 0))
 
 // ── New-goal notice ───────────────────────────────────────────────────────────
 
@@ -366,6 +425,7 @@ const emitSave = () => {
     selected_goals: selectedGoalIds.value,
     primary_goal_id: primaryGoalId.value,
     selected_counters: selectedCounterIds.value,
+    ...(isAvitoIntegration.value && { utm_source: utmSource.value || 'avito-ads' }),
   })
 }
 
@@ -420,9 +480,10 @@ const fetchData = async () => {
   const initialSelectedGoalIds = parseJsonList(props.integration?.selected_goals)
   const initialPrimaryGoalId = String(props.integration?.primary_goal_id || '')
   const initialCounterIds = parseJsonList(props.integration?.selected_counters)
-  selectedGoalIds.value = initialSelectedGoalIds
-  primaryGoalId.value = initialPrimaryGoalId || initialSelectedGoalIds[0] || ''
-  selectedCounterIds.value = initialCounterIds
+  utmSource.value = props.integration?.utm_source || 'avito-ads'
+  selectedGoalIds.value = initialSelectedGoalIds.map(String)
+  primaryGoalId.value = initialPrimaryGoalId || selectedGoalIds.value[0] || ''
+  selectedCounterIds.value = initialCounterIds.map(String)
   // account_id is used to scope Metrika counters to the right profile
   const rawAccountId = props.integration?.account_id || null
   const normalizedAccountId = String(rawAccountId || '').trim()
@@ -436,7 +497,7 @@ const fetchData = async () => {
     const counterParams = (!isAvitoIntegration.value && accountId) ? { account_id: accountId } : {}
     const { data: cData } = await api.get(`integrations/${integrationId}/counters`, { params: counterParams })
     counters.value = cData?.counters || (Array.isArray(cData) ? cData : [])
-    if (!selectedCounterIds.value.length) {
+    if (!selectedCounterIds.value.length && !isAvitoIntegration.value) {
       selectedCounterIds.value = counters.value.map((counter) => String(counter.id)).filter(Boolean).slice(0, 1)
     }
 
@@ -604,6 +665,45 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.9);
 }
 
+.ip-utm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13.8889rem, 20.8333rem);
+  align-items: center;
+  gap: 1.1111rem;
+  background: #fff;
+  border: 1px solid #e9e9e9;
+  border-radius: 0.8333rem;
+  padding: 1.1111rem 1.3889rem;
+  margin-bottom: 1.1111rem;
+}
+.ip-utm-input {
+  width: 100%;
+  height: 2.7778rem;
+  border: 1px solid rgba(105, 105, 105, 0.16);
+  border-radius: 0.6944rem;
+  background: #f7f8fa;
+  padding: 0 1rem;
+  color: #171717;
+  font-size: 0.9028rem;
+  font-weight: 700;
+  outline: none;
+}
+.ip-utm-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+:global(.dark) .ip-utm-row,
+:global(.darkmode) .ip-utm-row {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:global(.dark) .ip-utm-input,
+:global(.darkmode) .ip-utm-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+
 /* ── New goal notice ── */
 .ip-notice {
   padding: 0.9722rem 1.2500rem;
@@ -641,6 +741,44 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1.1111rem;
+}
+.ip-add-counter-btn {
+  flex-shrink: 0;
+  min-height: 2.5rem;
+  padding: 0.5556rem 0.9722rem;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 0.6944rem;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.8333rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ip-add-counter-btn:hover {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: #e7f0ff;
+}
+.ip-counter-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5556rem;
+  margin-bottom: 0.8333rem;
+}
+.ip-counter-empty {
+  border: 1px dashed rgba(105, 105, 105, 0.22);
+  border-radius: 0.8333rem;
+  padding: 0.9028rem 1rem;
+  color: rgba(105, 105, 105, 0.7);
+  font-size: 0.8333rem;
+  font-weight: 600;
+  margin-bottom: 0.8333rem;
+}
+.ip-counter-add-panel {
+  border: 1px solid rgba(105, 105, 105, 0.12);
+  border-radius: 0.8333rem;
+  background: #f9fafb;
+  padding: 0.8333rem;
   margin-bottom: 1.1111rem;
 }
 .ip-section-title {
@@ -685,10 +823,10 @@ onMounted(() => {
 .ip-counter-list {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 0.4167rem;
-  max-width: 60%;
+  max-width: 100%;
 }
 .ip-counter-search {
   width: 100%;
@@ -718,6 +856,9 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.9);
 }
 .ip-counter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
   min-height: 2.0833rem;
   padding: 0.4167rem 0.7639rem;
   border: 1px solid rgba(105, 105, 105, 0.2);
@@ -728,10 +869,33 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
 }
+.ip-counter-chip small {
+  color: rgba(105, 105, 105, 0.52);
+  font-size: 0.6944rem;
+  font-weight: 700;
+}
+.ip-counter-chip b {
+  color: rgba(37, 99, 235, 0.8);
+  font-size: 1rem;
+  line-height: 1;
+}
 .ip-counter-chip--active {
   border-color: rgba(37, 99, 235, 0.4);
   background: #eff6ff;
   color: #1d4ed8;
+}
+:global(.dark) .ip-add-counter-btn,
+:global(.darkmode) .ip-add-counter-btn,
+:global(.dark) .ip-counter-add-panel,
+:global(.darkmode) .ip-counter-add-panel {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #93c5fd;
+}
+:global(.dark) .ip-counter-empty,
+:global(.darkmode) .ip-counter-empty {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.52);
 }
 .ip-counter-more {
   width: 100%;

@@ -18,6 +18,7 @@ const form = reactive({
   account_id: null,
   account_name: '',
   agency_client_login: '',
+  utm_source: 'avito-ads',
   primary_goal_id: null
 })
 
@@ -64,6 +65,7 @@ export function useIntegrationWizard() {
     form.account_id = null
     form.account_name = ''
     form.agency_client_login = ''
+    form.utm_source = 'avito-ads'
     form.primary_goal_id = null
     campaigns.value = []
     selectedCampaignIds.value = []
@@ -235,6 +237,7 @@ export function useIntegrationWizard() {
       form.client_id = integration.client_id
       form.account_id = integration.account_id
       form.account_name = integration.account_name || ''
+      form.utm_source = integration.utm_source || 'avito-ads'
       // CRITICAL: agency_client_login is separate from account_id
       // It's set when user selects a profile on step 2
       form.agency_client_login = integration.agency_client_login || integration.account_id
@@ -322,6 +325,7 @@ export function useIntegrationWizard() {
         selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
+        ...(form.platform === 'AVITO_ADS' && { utm_source: form.utm_source || 'avito-ads' }),
         is_active: true
       })
       toaster.success("Интеграция успешно настроена!")

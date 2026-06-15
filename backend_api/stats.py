@@ -811,7 +811,13 @@ async def get_top_ads(
                 "cost": c.get("cost", 0),
                 "conversions": c.get("conversions", 0),
                 "ctr": round((c.get("clicks", 0) or 0) / (c.get("impressions", 1) or 1) * 100, 2),
-                "platform": "yandex" if c["name"].startswith("[ЯД]") else "vk",
+                "platform": c.get("platform") or (
+                    "yandex"
+                    if c["name"].startswith("[ЯД]")
+                    else "avito"
+                    if c["name"].startswith("[Avito]")
+                    else "vk"
+                ),
             }
             for c in top
         ]

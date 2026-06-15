@@ -286,6 +286,7 @@ class IntegrationBase(BaseModel):
     sync_interval: Optional[int] = 1440
     selected_goals: Optional[List[str]] = None # List of goal IDs
     primary_goal_id: Optional[str] = None
+    utm_source: Optional[str] = None
 
     @field_validator('selected_goals', mode='before')
     @classmethod

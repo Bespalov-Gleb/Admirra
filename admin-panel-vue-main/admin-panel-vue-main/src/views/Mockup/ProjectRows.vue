@@ -238,7 +238,7 @@
                     <img width="18" :src="balancePlatform(project).icon" :alt="balancePlatform(project).label" />
                     <div :class="['px-[0.6944rem] text-[0.9028rem]', balancePlatform(project).textClass]">{{ balancePlatform(project).label }}</div>
                     <div :class="['inline-flex min-h-[1.5278rem] items-center rounded-full bg-white px-[0.5556rem] text-center text-[0.7639rem] dark:bg-white/10', balancePlatform(project).textClass]">
-                      {{ formatMoney(withVat(getProjectMetric(project.id).balance)) }}
+                      {{ formatMoney(withProjectVat(getProjectMetric(project.id).balance, project)) }}
                     </div>
                   </div>
                 </div>
@@ -837,6 +837,34 @@ const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncin
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
 const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
 const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
+const isOnlyAvitoProject = (project) => {
+  const platforms = visibleProjectPlatforms(project)
+  return platforms.length === 1 && platforms[0] === 'AVITO'
+}
+const withProjectVat = (num, project) => {
+  const value = Number(num) || 0
+  if (!includeVat.value || isOnlyAvitoProject(project)) return value
+  return value * VAT_RATE
+}
+const adjustedProjectExpenses = (metric, project) => {
+  const byPlatform = metric?.cost_by_platform
+  if (!includeVat.value || !byPlatform || typeof byPlatform !== 'object') {
+    return withProjectVat(metric?.expenses, project)
+  }
+  return (
+    (Number(byPlatform.yandex || 0) * VAT_RATE)
+    + (Number(byPlatform.vk || 0) * VAT_RATE)
+    + Number(byPlatform.avito || 0)
+  )
+}
+const adjustedProjectCpc = (metric, project) => {
+  const clicks = Number(metric?.clicks || 0)
+  return clicks > 0 ? adjustedProjectExpenses(metric, project) / clicks : withProjectVat(metric?.cpc, project)
+}
+const adjustedProjectCpa = (metric, project) => {
+  const leads = Number(metric?.leads || 0)
+  return leads > 0 ? adjustedProjectExpenses(metric, project) / leads : withProjectVat(metric?.cpa, project)
+}
 
 const formatMoscowSyncDate = (value) => {
   if (!value) return ''
@@ -911,10 +939,10 @@ const metricCells = (project) => {
   return [
     { key: 'impressions', value: formatNumber(m.impressions) },
     { key: 'clicks', value: formatNumber(m.clicks) },
-    { key: 'expenses', value: formatMoney(withVat(m.expenses)), bold: true },
+    { key: 'expenses', value: formatMoney(adjustedProjectExpenses(m, project)), bold: true },
     { key: 'leads', value: leadsAvailable ? (goalsSyncing ? 'синхр.' : formatNumber(m.leads)) : '—', trendAvailable: leadsAvailable && !goalsSyncing },
-    { key: 'cpc', value: formatMoney(withVat(m.cpc)) },
-    { key: 'cpa', value: cpaAvailable && !goalsSyncing ? formatMoney(withVat(m.cpa)) : '—', trendAvailable: cpaAvailable && !goalsSyncing }
+    { key: 'cpc', value: formatMoney(adjustedProjectCpc(m, project)) },
+    { key: 'cpa', value: cpaAvailable && !goalsSyncing ? formatMoney(adjustedProjectCpa(m, project)) : '—', trendAvailable: cpaAvailable && !goalsSyncing }
   ]
 }
 

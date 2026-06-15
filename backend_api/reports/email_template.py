@@ -6,8 +6,42 @@ Inline-стили для максимальной совместимости с 
 VAT_RATE = 1.22
 
 
-def _with_vat(value) -> float:
-    return float(value or 0) * VAT_RATE
+def _is_avito_platform(value) -> bool:
+    return str(value or "").strip().lower() in {"avito", "avito_ads"}
+
+
+def _campaign_platform(campaign: dict) -> str:
+    platform = campaign.get("platform") or campaign.get("channel")
+    if platform:
+        return str(platform)
+    name = str(campaign.get("name") or campaign.get("campaign_name") or "").lower()
+    if name.startswith("[avito]") or name.startswith("[авито]"):
+        return "avito"
+    return ""
+
+
+def _with_channel_vat(value, platform=None) -> float:
+    raw = float(value or 0)
+    return raw if _is_avito_platform(platform) else raw * VAT_RATE
+
+
+def _with_cost_breakdown_vat(value, cost_by_platform: dict | None, platform=None) -> float:
+    if isinstance(cost_by_platform, dict):
+        return (
+            float(cost_by_platform.get("yandex") or 0) * VAT_RATE
+            + float(cost_by_platform.get("vk") or 0) * VAT_RATE
+            + float(cost_by_platform.get("avito") or 0)
+        )
+    return _with_channel_vat(value, platform)
+
+
+def _summary_platform(data: dict, campaigns: list) -> str:
+    platform = data.get("platform") or data.get("channel")
+    if platform:
+        return str(platform)
+    if campaigns and all(_is_avito_platform(_campaign_platform(c)) for c in campaigns):
+        return "avito"
+    return ""
 
 
 def _fmt_number(value, decimals=0) -> str:
@@ -46,12 +80,14 @@ def render_report_email_html(data: dict) -> str:
     end_date = data.get("end_date", "")
     generated_at = data.get("generated_at", "")
 
-    expenses = _with_vat(s.get("expenses", 0))
+    summary_platform = _summary_platform(data, tc)
+
+    expenses = _with_cost_breakdown_vat(s.get("expenses", 0), s.get("cost_by_platform"), summary_platform)
     impressions = int(s.get("impressions", 0))
     clicks = int(s.get("clicks", 0))
     leads = int(s.get("leads", 0))
-    cpc = _with_vat(s.get("cpc", 0))
-    cpa = _with_vat(s.get("cpa", 0))
+    cpc = expenses / clicks if clicks > 0 else _with_channel_vat(s.get("cpc", 0), summary_platform)
+    cpa = expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
 
     project_line = f'<div style="font-size:13px;opacity:0.85;margin-top:4px;">{_escape(client_name)}</div>' if client_name else ""
 
@@ -69,9 +105,10 @@ def render_report_email_html(data: dict) -> str:
         rows = ""
         for i, c in enumerate(tc[:10]):
             name = _escape(c.get("name", c.get("campaign_name", "—")))
+            c_platform = _campaign_platform(c)
             conv = int(c.get("conversions", 0))
-            cost = f"{_fmt_number(_with_vat(c.get('cost', 0)))} ₽"
-            cpa_val = f"{_fmt_number(_with_vat(c.get('cpa', 0)), 2)} ₽" if conv else "—"
+            cost = f"{_fmt_number(_with_channel_vat(c.get('cost', 0), c_platform))} ₽"
+            cpa_val = f"{_fmt_number(_with_channel_vat(c.get('cpa', 0), c_platform), 2)} ₽" if conv else "—"
             bg = _tint_colors[i % len(_tint_colors)]
             td_style = "padding:12px 14px;font-size:13px;color:#4b4b4b;"
             rows += f"""

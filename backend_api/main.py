@@ -48,6 +48,7 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS display_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status_synced_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS utm_source VARCHAR"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

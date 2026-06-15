@@ -43,7 +43,7 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cost)) }} ₽</span>
+                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cost, campaign.platform)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cost ?? getDemoTrend(idx, 0)" metric="cost" />
               </div>
             </td>
@@ -61,7 +61,7 @@
             </td>
             <td class="px-4 py-4">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpc)) }} ₽</span>
+                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpc, campaign.platform)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpc ?? getDemoTrend(idx, 3)" metric="cpc" />
               </div>
             </td>
@@ -73,7 +73,7 @@
             </td>
             <td class="px-4 py-4 rounded-r-[0.6944rem]">
               <div class="flex items-center gap-2 flex-nowrap">
-                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpa)) }} ₽</span>
+                <span class="text-[1.0417rem] font-normal text-gray-900 dark:text-gray-200 tabular-nums">{{ formatMoney(withVat(campaign.cpa, campaign.platform)) }} ₽</span>
                 <TrendBadge :val="campaign.trend_cpa ?? getDemoTrend(idx, 5)" metric="cpa" />
               </div>
             </td>
@@ -107,9 +107,11 @@ const props = defineProps({
 const filteredCampaigns = computed(() => props.campaigns)
 const VAT_FACTOR = 1.22
 
-const withVat = (val) => {
+const isVatIncludedPlatform = (platform) => ['avito', 'avito_ads'].includes(String(platform || '').trim().toLowerCase())
+
+const withVat = (val, platform) => {
   const num = Number(val || 0)
-  return props.includeVat ? num * VAT_FACTOR : num
+  return props.includeVat && !isVatIncludedPlatform(platform) ? num * VAT_FACTOR : num
 }
 
 const formatMoney = (val) => {

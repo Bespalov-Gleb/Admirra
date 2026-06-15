@@ -2210,14 +2210,51 @@ const channelBalances = computed(() => {
 
   return Array.from(balancesByPlatform.values()).map((item) => ({
     ...item,
-    value: formatBalanceMoney(withVat(item.balance), item.currency)
+    value: formatBalanceMoney(withVat(item.balance, { platform: item.id }), item.currency)
   }))
 })
 
-const withVat = (value) => {
-  const num = Number(value) || 0
-  return includeVat.value ? num * 1.22 : num
+const platformHasVatIncluded = (platform) => {
+  const normalized = normalizeIntegrationPlatform(platform || currentVatScopePlatform.value || filters.channel)
+  return normalized === 'avito' || normalized === 'avito_ads'
 }
+
+const withVat = (value, options = {}) => {
+  const num = Number(value) || 0
+  return includeVat.value && !platformHasVatIncluded(options.platform) ? num * 1.22 : num
+}
+
+const withCostBreakdownVat = (value, costByPlatform, fallbackPlatform = '') => {
+  const raw = Number(value) || 0
+  if (!includeVat.value) return raw
+  if (!costByPlatform || typeof costByPlatform !== 'object') {
+    return withVat(raw, { platform: fallbackPlatform })
+  }
+  return (
+    (Number(costByPlatform.yandex || 0) * 1.22)
+    + (Number(costByPlatform.vk || 0) * 1.22)
+    + Number(costByPlatform.avito || 0)
+  )
+}
+
+const currentVatScopePlatform = computed(() => {
+  const explicit = normalizeIntegrationPlatform(filters.channel)
+  if (explicit && explicit !== 'all') return explicit
+
+  const adPlatforms = new Set(
+    integrations.value
+      .map((integration) => normalizeIntegrationPlatform(integration.platform))
+      .map((platform) => {
+        if (platform === 'avito_ads') return 'avito'
+        if (platform === 'yandex_direct') return 'yandex'
+        if (platform === 'vk_ads') return 'vk'
+        return platform
+      })
+      .filter((platform) => ['avito', 'yandex', 'vk'].includes(platform))
+  )
+
+  return adPlatforms.size === 1 ? Array.from(adPlatforms)[0] : ''
+})
 
 const formatTrend = (value) => {
   const num = Number(value)
@@ -2290,13 +2327,16 @@ const metrics = computed(() => {
   const leadsAvailable = data.leads_available !== false
   const cpaAvailable = data.cpa_available !== false
   const goalsSyncing = Boolean(data.goals_syncing)
+  const adjustedExpenses = withCostBreakdownVat(data.expenses, data.cost_by_platform)
+  const adjustedCpc = Number(data.clicks || 0) > 0 ? adjustedExpenses / Number(data.clicks || 0) : withVat(data.cpc)
+  const adjustedCpa = Number(data.leads || 0) > 0 ? adjustedExpenses / Number(data.leads || 0) : withVat(data.cpa)
   const values = {
-    expenses:    hasData ? formatMoney(withVat(data.expenses))                    : '—',
+    expenses:    hasData ? formatMoney(adjustedExpenses)                          : '—',
     impressions: hasData ? formatNumber(data.impressions)                         : '—',
     clicks:      hasData ? formatNumber(data.clicks)                              : '—',
-    cpc:         hasData ? formatMoney(withVat(data.cpc))                        : '—',
+    cpc:         hasData ? formatMoney(adjustedCpc)                               : '—',
     leads:       hasData && leadsAvailable ? (goalsSyncing ? 'синхр.' : `${formatNumber(data.leads)} шт.`) : '—',
-    cpa:         hasData && cpaAvailable && !goalsSyncing ? formatMoney(withVat(data.cpa)) : '—',
+    cpa:         hasData && cpaAvailable && !goalsSyncing ? formatMoney(adjustedCpa) : '—',
   }
   return METRIC_CONFIG.map((metric) => {
     const rawTrend = Number(trends[metric.key] ?? 0)
@@ -2699,9 +2739,9 @@ const goalsSummaryCpl = computed(() => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
-  const expenses = summary.value?.expenses || 0
+  const expenses = withCostBreakdownVat(summary.value?.expenses || 0, summary.value?.cost_by_platform)
   if (!totalGoals || !expenses) return '—'
-  return formatMoney(withVat(expenses / totalGoals))
+  return formatMoney(expenses / totalGoals)
 })
 
 const campaignRows = computed(() => {
@@ -2718,12 +2758,12 @@ const campaignRows = computed(() => {
       alert,
       alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
       alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
-      cost: formatMoney(withVat(campaign.cost)),
+      cost: formatMoney(withVat(campaign.cost, { platform: campaign.platform })),
       impressions: formatNumber(campaign.impressions),
       clicks: formatNumber(campaign.clicks),
-      cpc: formatMoney(withVat(campaign.cpc)),
+      cpc: formatMoney(withVat(campaign.cpc, { platform: campaign.platform })),
       leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
-      cpa: formatMoney(withVat(campaign.cpa)),
+      cpa: formatMoney(withVat(campaign.cpa, { platform: campaign.platform })),
       trendCost: campaignTrend(campaign.trend_cost, 'cost'),
       trendImpressions: campaignTrend(campaign.trend_impressions, 'impressions'),
       trendClicks: campaignTrend(campaign.trend_clicks, 'clicks'),

@@ -22,6 +22,10 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS avito_client_id TEXT,
     ADD COLUMN IF NOT EXISTS avito_client_secret TEXT;
 
+-- 2.1) Avito + Metrika matching settings
+ALTER TABLE integrations
+    ADD COLUMN IF NOT EXISTS utm_source VARCHAR;
+
 -- 3) Avito stats table
 CREATE TABLE IF NOT EXISTS avito_stats (
     id BIGSERIAL PRIMARY KEY,

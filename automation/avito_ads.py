@@ -16,14 +16,32 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-# Документированные статусы кампании (CampaignStatus)
+# Документированные и встречающиеся статусы кампании (CampaignStatus).
+# Точные значения Avito API нужно пополнять по логам, но неизвестные статусы
+# нельзя превращать в OFF: такая кампания может быть активной.
 AVITO_ADS_ACTIVE_STATUSES = frozenset({"active", "unpausing"})
+AVITO_ADS_PAUSED_STATUSES = frozenset({
+    "paused",
+    "stopped",
+    "inactive",
+    "moderation",
+    "rejected",
+    "blocked",
+    "draft",
+    "finished",
+})
+AVITO_ADS_ARCHIVED_STATUSES = frozenset({"archived", "deleted", "removed", "completed"})
 
 
 def _map_campaign_state(status: Optional[str]) -> str:
-    if status in AVITO_ADS_ACTIVE_STATUSES:
+    normalized = str(status or "").strip().lower()
+    if normalized in AVITO_ADS_ACTIVE_STATUSES:
         return "ON"
-    return "OFF"
+    if normalized in AVITO_ADS_ARCHIVED_STATUSES:
+        return "ARCHIVED"
+    if normalized in AVITO_ADS_PAUSED_STATUSES:
+        return "OFF"
+    return "UNKNOWN"
 
 
 def _parse_stats_date(timestamp: Optional[str]) -> Optional[str]:

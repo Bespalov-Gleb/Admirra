@@ -351,6 +351,7 @@ class Integration(Base):
     
     # Metrika Counters Support (for Direct integrations)
     selected_counters = Column(String, nullable=True) # JSON list of counter IDs
+    utm_source = Column(String, nullable=True) # For hybrid channels like Avito Ads + Metrika leads
     
     # Balance Support
     balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
