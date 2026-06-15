@@ -1025,17 +1025,31 @@ const doFinish = async () => {
 
 const resolveMetrikaIntegrationId = async () => {
   if (metrikaIntegrationId.value) return
-  const stored = localStorage.getItem('metrika_integration_id')
-  if (stored) {
-    metrikaIntegrationId.value = stored
-    return
-  }
   try {
     const { data } = await api.get('integrations/')
-    const metrika = data.find(i => i.platform === 'YANDEX_METRIKA' && i.client_id === form.client_id)
+    const stored = localStorage.getItem('metrika_integration_id')
+    // Доверяем сохранённому id ТОЛЬКО если эта Метрика реально принадлежит
+    // текущему проекту — иначе Метрика от другого (например Яндекс) проекта
+    // ложно показалась бы подключённой в Avito-флоу.
+    const storedBelongsToClient = stored && data.some(
+      (i) => String(i.id) === String(stored)
+        && i.platform === 'YANDEX_METRIKA'
+        && String(i.client_id) === String(form.client_id)
+    )
+    if (storedBelongsToClient) {
+      metrikaIntegrationId.value = stored
+      return
+    }
+    const metrika = data.find(
+      (i) => i.platform === 'YANDEX_METRIKA' && String(i.client_id) === String(form.client_id)
+    )
     if (metrika) {
       metrikaIntegrationId.value = metrika.id
       localStorage.setItem('metrika_integration_id', metrika.id)
+    } else {
+      // У этого проекта Метрики нет — убираем возможный чужой/залежавшийся id
+      try { localStorage.removeItem('metrika_integration_id') } catch (e) {}
+      metrikaIntegrationId.value = null
     }
   } catch (e) {
     console.warn('Failed to resolve Metrika integration', e)
