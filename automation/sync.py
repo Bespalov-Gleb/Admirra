@@ -1140,7 +1140,22 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 integration.error_message = "No counter ID (account_id) configured"
                 integration.sync_status = models.IntegrationSyncStatus.FAILED
                 return
-            
+
+            # account_id Метрики используется как ID счётчика — он должен быть числовым.
+            # Когда Метрику подключают как аккаунт для лидов Avito, в account_id попадает
+            # ЛОГИН/домен (например 'burlakov.timof'), а не счётчик. Синкать его как
+            # отдельный счётчик нечего (цели приходят через синк Avito с utm-фильтром) —
+            # пропускаем без ошибки, иначе Метрика возвращает 400 и интеграция «падает».
+            if not str(integration.account_id).strip().isdigit():
+                logger.info(
+                    f"Metrika integration {integration.id}: account_id "
+                    f"'{integration.account_id}' не числовой счётчик — пропускаем синк целей"
+                )
+                integration.sync_status = models.IntegrationSyncStatus.SUCCESS
+                integration.error_message = None
+                integration.last_sync_at = datetime.utcnow()
+                return
+
             access_token = security.decrypt_token(integration.access_token)
             
             # CRITICAL: Use selected profile (agency_client_login) to ensure we sync stats for the correct profile
