@@ -101,6 +101,14 @@
                   <span class="status-badge" :class="syncBadgeClass(item.sync_status)" :title="item.error_message || ''">
                     {{ syncLabel(item.sync_status) }}
                   </span>
+                  <span
+                    v-if="isAvitoIntegration(item)"
+                    class="metrika-source-badge"
+                    title="Лиды и цели Avito берутся из выбранного счётчика Яндекс Метрики"
+                  >
+                    <img src="/admirra/img/integrations/yandex-metrika.png" alt="" />
+                    Метрика
+                  </span>
                 </div>
 
                 <div class="sync-meta-grid">
@@ -244,6 +252,7 @@ const platformCatalog = [
 ]
 const visiblePlatformIds = new Set(['YANDEX_DIRECT', 'VK_ADS', 'AVITO_ADS'])
 const platforms = platformCatalog.filter((platform) => visiblePlatformIds.has(platform.id))
+const hiddenIntegrationPlatformIds = new Set(['YANDEX_METRIKA'])
 
 // ── API ──
 const fetchIntegrations = async () => {
@@ -282,10 +291,15 @@ const filteredIntegrations = computed(() => {
 })
 
 const normalizeIntegrations = (data) => {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.results)) return data.results
-  if (Array.isArray(data?.items)) return data.items
-  return []
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data?.items)
+        ? data.items
+        : []
+
+  return list.filter((item) => !hiddenIntegrationPlatformIds.has(normalizePlatform(item?.platform)))
 }
 
 const normalizePlatform = (platform) => {
@@ -341,6 +355,9 @@ const platformIcon = (platform) => {
   if (normalizePlatform(platform) === 'MYTARGET') return '/admirra/img/icons/target.png'
   return p?.icon || '/admirra/img/icons/yandex-direct.png'
 }
+
+const isAvitoIntegration = (integration) =>
+  normalizePlatform(integration?.platform) === 'AVITO_ADS'
 
 const syncClass = (status) => ({
   'sync-dot--success': status === 'SUCCESS',
@@ -784,6 +801,34 @@ const deleteIntegration = async () => {
 .status-badge--danger { background: #fee2e2; color: #b91c1c; }
 .status-badge--warning { background: #fff7ed; color: #c2410c; }
 .status-badge--muted { background: #f1f3f5; color: #697386; }
+
+.metrika-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3472rem;
+  min-height: 1.5278rem;
+  padding: 0.2083rem 0.625rem 0.2083rem 0.3472rem;
+  border-radius: 999px;
+  background: #fff9e8;
+  color: #80662d;
+  border: 1px solid rgba(242, 190, 60, 0.35);
+  font-size: 0.6944rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.metrika-source-badge img {
+  width: 0.9028rem;
+  height: 0.9028rem;
+  object-fit: contain;
+  border-radius: 50%;
+}
+:global(.dark) .metrika-source-badge,
+:global(.darkmode) .metrika-source-badge {
+  background: rgba(255, 249, 232, 0.08);
+  color: #f1d28b;
+  border-color: rgba(242, 190, 60, 0.24);
+}
 
 .sync-meta-grid {
   display: grid;

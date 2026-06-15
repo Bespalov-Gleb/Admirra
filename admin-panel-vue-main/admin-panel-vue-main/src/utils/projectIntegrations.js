@@ -1,6 +1,7 @@
 const normalizePlatformCode = (value) => {
   const raw = String(value || '').trim().toUpperCase()
   if (!raw) return ''
+  if (raw.includes('METRIKA') || raw.includes('МЕТРИК')) return ''
   if (raw.includes('YANDEX') || raw.includes('ЯНДЕКС') || raw.includes('DIRECT') || raw.includes('ДИРЕКТ')) return 'YANDEX'
   if (raw.includes('VK') || raw.includes('ВК')) return 'VK'
   if (raw.includes('AVITO') || raw.includes('АВИТО')) return 'AVITO'

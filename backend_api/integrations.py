@@ -69,6 +69,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 
+def _clean_metrika_target_account(value: Optional[str]) -> Optional[str]:
+    """Return a real Yandex login for Metrika filters, never an internal project id."""
+    account = str(value or "").strip()
+    if not account:
+        return None
+    if account.lower() in {"unknown", "none"}:
+        return None
+    # Internal public project/account ids like porg-24tk76ez are not Yandex logins.
+    if account.lower().startswith("porg-"):
+        return None
+    return account
+
+
 def _resolve_avito_credentials(
     *,
     user: Optional[models.User] = None,
@@ -1702,6 +1715,7 @@ async def get_integration_counters(
             return {"counters": [], "warning": "Подключите Яндекс Метрику (OAuth) для выбора счётчиков лидов"}
         access_token = security.decrypt_token(metrika_src.access_token)
         target_account = _metrika_profile_login(metrika_src)
+    target_account = _clean_metrika_target_account(target_account)
 
     if integration.platform in (
         models.IntegrationPlatform.YANDEX_DIRECT,
@@ -1971,6 +1985,7 @@ async def get_integration_goals(
         else:
             target_account = None
             logger.info(f"No profile selected, not filtering Metrika counters (will show all accessible)")
+    target_account = _clean_metrika_target_account(target_account)
     
     # CRITICAL: Priority order for goal fetching:
     # 1. If counter_ids provided, fetch goals ONLY from those counters (highest priority)
@@ -2892,9 +2907,12 @@ async def discover_campaigns(
             selected_profile = integration.agency_client_login
         elif integration.account_id and integration.account_id.lower() != "unknown":
             selected_profile = integration.account_id
+        selected_profile = _clean_metrika_target_account(selected_profile)
         if not selected_profile:
-            logger.error(f"❌ discover_campaigns: integration {integration_id} has no profile (agency_client_login or account_id). Cannot fetch campaigns correctly.")
-            raise HTTPException(status_code=400, detail="Для интеграции не задан логин рекламного профиля. Пере настройте интеграцию и выберите профиль.")
+            logger.warning(
+                f"⚠️ discover_campaigns: integration {integration_id} has no valid Yandex profile. "
+                "Trying without Client-Login."
+            )
         
         use_client_login = selected_profile
         logger.info(

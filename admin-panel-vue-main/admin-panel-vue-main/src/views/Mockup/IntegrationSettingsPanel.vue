@@ -18,7 +18,7 @@
             </div>
           </div>
           <p class="ip-subtitle">
-            Авторизация и кабинет уже подключены — повторно входить в Яндекс не нужно, меняется только состав целей.
+            {{ panelSubtitle }}
           </p>
         </div>
 
@@ -46,6 +46,21 @@
               <span class="ip-ctx-label">Кабинет:</span>
               <span class="ip-ctx-val">{{ cabinetName }}</span>
             </div>
+            <div class="ip-ctx-sep" />
+            <div class="ip-ctx-col">
+              <span class="ip-ctx-label">ID кабинета:</span>
+              <span class="ip-ctx-val">{{ cabinetId }}</span>
+            </div>
+            <template v-if="isAvitoIntegration">
+              <div class="ip-ctx-sep" />
+              <div class="ip-ctx-col">
+                <span class="ip-ctx-label">Источник лидов:</span>
+                <span class="ip-ctx-val ip-ctx-val--source">
+                  <img src="/admirra/img/integrations/yandex-metrika.png" alt="" />
+                  Яндекс Метрика
+                </span>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -64,8 +79,15 @@
               <p class="ip-section-sub">{{ counterDomain }} • ID {{ counterId }}</p>
             </div>
             <div v-if="counters.length > 1" class="ip-counter-list" aria-label="Выбор счётчиков">
+              <div v-if="counters.length > counterChipLimit" class="ip-counter-search">
+                <input
+                  v-model="counterSearch"
+                  type="text"
+                  placeholder="Поиск счётчика"
+                />
+              </div>
               <button
-                v-for="counter in counters"
+                v-for="counter in visibleCounters"
                 :key="counter.id"
                 type="button"
                 class="ip-counter-chip"
@@ -74,6 +96,9 @@
               >
                 {{ counter.site || counter.name || `ID ${counter.id}` }}
               </button>
+              <div v-if="hiddenCounterCount > 0" class="ip-counter-more">
+                Ещё {{ hiddenCounterCount }}. Уточните поиск, чтобы выбрать нужный.
+              </div>
             </div>
           </div>
 
@@ -214,6 +239,8 @@ const selectedCounterIds = ref([])
 const loadingGoals = ref(false)
 const deleteConfirmOpen = ref(false)
 const deleteConfirmText = ref('')
+const counterSearch = ref('')
+const counterChipLimit = 40
 
 const props = defineProps({
   integration: {
@@ -246,6 +273,16 @@ const channelName = computed(() => {
   return platformLabels[p] || platformLabels[p?.toUpperCase()] || p || '—'
 })
 
+const platformCode = computed(() => String(props.integration?.platform || '').toUpperCase())
+const isAvitoIntegration = computed(() => platformCode.value === 'AVITO_ADS' || platformCode.value === 'AVITO')
+
+const panelSubtitle = computed(() => {
+  if (isAvitoIntegration.value) {
+    return 'Avito Ads уже подключён. Здесь меняются счётчик Метрики и цели, по которым считаются лиды Avito.'
+  }
+  return 'Авторизация и кабинет уже подключены — повторно входить в Яндекс не нужно, меняется только состав целей.'
+})
+
 const projectName = computed(() =>
   props.integration?.client_name || props.integration?.client?.name || '—'
 )
@@ -254,9 +291,14 @@ const cabinetName = computed(() => {
   const login = props.integration?.agency_client_login
   const name  = props.integration?.account_name
   const id    = props.integration?.account_id || props.integration?.external_account_id
+  if (isAvitoIntegration.value) return name || (id ? `Avito ${id}` : '—')
   if (login && name && login !== name) return `${login} • ${name}`
   return name || login || id || '—'
 })
+
+const cabinetId = computed(() =>
+  props.integration?.account_id || props.integration?.external_account_id || '—'
+)
 
 // ── Sync chip ─────────────────────────────────────────────────────────────────
 
@@ -271,6 +313,18 @@ const formattedSync = computed(() => {
 
 const counterDomain = computed(() => counters.value[0]?.site || '—')
 const counterId = computed(() => selectedCounterIds.value.join(', ') || counters.value[0]?.id || '—')
+
+const filteredCounters = computed(() => {
+  const q = counterSearch.value.trim().toLowerCase()
+  if (!q) return counters.value
+  return counters.value.filter((counter) =>
+    String(counter.name || '').toLowerCase().includes(q) ||
+    String(counter.site || '').toLowerCase().includes(q) ||
+    String(counter.id || '').includes(q)
+  )
+})
+const visibleCounters = computed(() => filteredCounters.value.slice(0, counterChipLimit))
+const hiddenCounterCount = computed(() => Math.max(filteredCounters.value.length - visibleCounters.value.length, 0))
 
 // ── New-goal notice ───────────────────────────────────────────────────────────
 
@@ -317,10 +371,18 @@ const emitSave = () => {
 
 const loadGoalsForSelectedCounters = async (integrationId, accountId) => {
   if (!integrationId) return
-  const counterIds = selectedCounterIds.value.length ? selectedCounterIds.value : counters.value.map(c => c.id)
+  const counterIds = selectedCounterIds.value
+  if (!counterIds.length) {
+    goals.value = []
+    return
+  }
+  const normalizedAccountId = String(accountId || '').trim()
+  const scopedAccountId = normalizedAccountId && !normalizedAccountId.toLowerCase().startsWith('porg-')
+    ? normalizedAccountId
+    : null
   const goalParams = {
     with_stats: false,
-    ...(accountId && { account_id: accountId }),
+    ...(!isAvitoIntegration.value && scopedAccountId && { account_id: scopedAccountId }),
     ...(counterIds.length && { counter_ids: counterIds.join(',') }),
   }
   const { data: gData } = await api.get(`integrations/${integrationId}/goals`, { params: goalParams })
@@ -362,12 +424,16 @@ const fetchData = async () => {
   primaryGoalId.value = initialPrimaryGoalId || initialSelectedGoalIds[0] || ''
   selectedCounterIds.value = initialCounterIds
   // account_id is used to scope Metrika counters to the right profile
-  const accountId = props.integration?.account_id || null
+  const rawAccountId = props.integration?.account_id || null
+  const normalizedAccountId = String(rawAccountId || '').trim()
+  const accountId = normalizedAccountId && !normalizedAccountId.toLowerCase().startsWith('porg-')
+    ? normalizedAccountId
+    : null
 
   loadingGoals.value = true
   try {
     // 1. Fetch counters scoped to the integration's account
-    const counterParams = accountId ? { account_id: accountId } : {}
+    const counterParams = (!isAvitoIntegration.value && accountId) ? { account_id: accountId } : {}
     const { data: cData } = await api.get(`integrations/${integrationId}/counters`, { params: counterParams })
     counters.value = cData?.counters || (Array.isArray(cData) ? cData : [])
     if (!selectedCounterIds.value.length) {
@@ -522,6 +588,17 @@ onMounted(() => {
   font-weight: 600;
   color: #171717;
 }
+.ip-ctx-val--source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
+}
+.ip-ctx-val--source img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+  border-radius: 50%;
+}
 :global(.dark) .ip-ctx-val,
 :global(.darkmode) .ip-ctx-val {
   color: rgba(255, 255, 255, 0.9);
@@ -613,6 +690,33 @@ onMounted(() => {
   gap: 0.4167rem;
   max-width: 60%;
 }
+.ip-counter-search {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+.ip-counter-search input {
+  width: min(100%, 17.5rem);
+  height: 2.0833rem;
+  padding: 0 0.7639rem;
+  border: 1px solid rgba(105, 105, 105, 0.16);
+  border-radius: 0.5556rem;
+  background: #fff;
+  color: #171717;
+  font-size: 0.7639rem;
+  font-weight: 600;
+  outline: none;
+}
+.ip-counter-search input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+:global(.dark) .ip-counter-search input,
+:global(.darkmode) .ip-counter-search input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
 .ip-counter-chip {
   min-height: 2.0833rem;
   padding: 0.4167rem 0.7639rem;
@@ -628,6 +732,17 @@ onMounted(() => {
   border-color: rgba(37, 99, 235, 0.4);
   background: #eff6ff;
   color: #1d4ed8;
+}
+.ip-counter-more {
+  width: 100%;
+  text-align: right;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 0.7639rem;
+  font-weight: 600;
+}
+:global(.dark) .ip-counter-more,
+:global(.darkmode) .ip-counter-more {
+  color: rgba(255, 255, 255, 0.48);
 }
 
 /* ── HR ── */

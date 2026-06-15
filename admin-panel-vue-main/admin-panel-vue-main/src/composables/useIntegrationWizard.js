@@ -55,6 +55,7 @@ export function useIntegrationWizard() {
       localStorage.removeItem('metrika_integration_id')
     } catch (e) {}
     error.value = null
+    form.platform = 'YANDEX_DIRECT'
     form.client_id = null
     form.client_name = ''
     form.avito_client_id = ''
@@ -132,7 +133,9 @@ export function useIntegrationWizard() {
   const metrikaAccountParam = () => {
     if (form.platform === 'AVITO_ADS') return ''
     const targetAccount = form.agency_client_login || form.account_id
-    return targetAccount ? `&account_id=${targetAccount}` : ''
+    const normalizedAccount = String(targetAccount || '').trim()
+    if (!normalizedAccount || normalizedAccount.toLowerCase().startsWith('porg-')) return ''
+    return `&account_id=${encodeURIComponent(normalizedAccount)}`
   }
 
   const fetchCounters = async (integrationId) => {
@@ -169,6 +172,13 @@ export function useIntegrationWizard() {
   const fetchGoals = async (integrationId) => {
     loadingStates.goals = true
     try {
+      if (form.platform === 'AVITO_ADS' && selectedCounterIds.value.length === 0) {
+        goals.value = []
+        selectedGoalIds.value = []
+        form.primary_goal_id = null
+        return
+      }
+
       const { date_from, date_to } = getDateRangeParams()
       const accountIdParam = metrikaAccountParam()
 

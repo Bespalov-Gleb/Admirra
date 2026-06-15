@@ -33,6 +33,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
+    profile = str(value or "").strip()
+    if not profile:
+        return None
+    if profile.lower() in {"unknown", "none"}:
+        return None
+    if profile.lower().startswith("porg-"):
+        return None
+    return profile
+
+
 def _upsert_campaign_catalog(
     db: Session,
     integration: models.Integration,
@@ -529,8 +540,7 @@ def sync_metrika_goals_background(
             else:
                 access_token = security.decrypt_token(integration.access_token)
                 selected_profile = integration.agency_client_login or integration.account_id
-                if selected_profile and str(selected_profile).lower() in ("unknown", "none", ""):
-                    selected_profile = None
+                selected_profile = _clean_yandex_profile_login(selected_profile)
             new_loop.run_until_complete(
                 _sync_metrika_goals_for_direct(
                     db, integration, date_from_str, date_to_str,
@@ -576,6 +586,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 selected_profile = integration.agency_client_login
             elif integration.account_id and integration.account_id.lower() not in ["unknown", "none", ""]:
                 selected_profile = integration.account_id
+            selected_profile = _clean_yandex_profile_login(selected_profile)
             
             logger.info(
                 f"Syncing Yandex Direct integration {integration.id} "

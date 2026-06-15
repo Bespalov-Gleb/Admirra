@@ -32,6 +32,8 @@ def metrika_profile_login(integration: models.Integration) -> Optional[str]:
         if not candidate or str(candidate).lower() in ("unknown", "none", ""):
             continue
         s = str(candidate).strip()
+        if s.lower().startswith("porg-"):
+            continue
         if s.isdigit():
             continue
         # В account_id иногда ошибочно сохраняют site счётчика (например facebook.tim).

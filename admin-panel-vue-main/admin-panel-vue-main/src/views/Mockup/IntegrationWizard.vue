@@ -376,7 +376,7 @@
                 :disabled="loadingStates.counters || counters.length === 0"
                 @click="toggleAllCounters"
               >
-                {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
+                {{ counterBulkLabel }}
               </button>
             </div>
           </div>
@@ -387,7 +387,7 @@
 
           <div v-else class="cards-grid">
             <label
-              v-for="counter in filteredCounters"
+              v-for="counter in visibleCounters"
               :key="counter.id"
               class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': selectedCounterIds.includes(counter.id) }"
@@ -404,6 +404,9 @@
               <span class="select-tile__title dark:!text-white/85">{{ counter.name }}</span>
               <span class="select-tile__meta dark:!text-white/50">ID: {{ counter.id }}</span>
             </label>
+          </div>
+          <div v-if="hiddenCounterCount > 0" class="large-list-hint dark:!text-white/55">
+            Показано {{ visibleCounters.length }} из {{ filteredCounters.length }}. Уточните поиск, чтобы быстрее выбрать нужный счётчик.
           </div>
         </div>
 
@@ -439,7 +442,7 @@
                 :disabled="loadingStates.goals || goals.length === 0"
                 @click="toggleAllGoals"
               >
-                {{ allGoalsSelected ? 'Снять все' : 'Отметить все' }}
+                {{ goalBulkLabel }}
               </button>
             </div>
           </div>
@@ -449,8 +452,8 @@
           <div v-else-if="goals.length === 0" class="empty-line dark:!text-white/55">Нет доступных целей.</div>
 
           <template v-else>
-            <div v-for="group in goalsGroupedByCounter" :key="group.counterId">
-              <div v-if="goalsGroupedByCounter.length > 1" class="flex items-center gap-[0.6944rem] px-[0.3472rem] pt-[1.3889rem] pb-[0.6944rem]">
+            <div v-for="group in visibleGoalsGroupedByCounter" :key="group.counterId">
+              <div v-if="visibleGoalsGroupedByCounter.length > 1" class="flex items-center gap-[0.6944rem] px-[0.3472rem] pt-[1.3889rem] pb-[0.6944rem]">
                 <span class="w-[0.5556rem] h-[0.5556rem] rounded-full bg-[#2563eb]"></span>
                 <span class="text-[1.1111rem] font-bold text-[#171717] dark:text-white/85">{{ group.counterName }}</span>
                 <span class="text-[0.9028rem] text-[rgba(105,105,105,0.45)] dark:text-white/35">ID: {{ group.counterId }}</span>
@@ -488,6 +491,9 @@
                   </span>
                 </label>
               </div>
+            </div>
+            <div v-if="hiddenGoalCount > 0" class="large-list-hint dark:!text-white/55">
+              Показано {{ visibleGoalCount }} из {{ filteredGoals.length }} целей. Уточните поиск, чтобы не перегружать список.
             </div>
             <div v-if="goalSearch && filteredGoals.length === 0" class="empty-line dark:!text-white/55">Ничего не найдено по «{{ goalSearch }}»</div>
           </template>
@@ -646,6 +652,9 @@ const metrikaIntegrationId = ref(null)
 const openSelect = ref(null)
 const profileSearch = ref('')
 const counterSearch = ref('')
+const suppressPlatformReset = ref(false)
+const COUNTER_RENDER_LIMIT = 120
+const GOAL_RENDER_LIMIT = 160
 const filteredCounters = computed(() => {
   const q = counterSearch.value.trim().toLowerCase()
   if (!q) return counters.value
@@ -654,6 +663,8 @@ const filteredCounters = computed(() => {
     String(c.id || '').includes(q)
   )
 })
+const visibleCounters = computed(() => filteredCounters.value.slice(0, COUNTER_RENDER_LIMIT))
+const hiddenCounterCount = computed(() => Math.max(filteredCounters.value.length - visibleCounters.value.length, 0))
 
 const goalSearch = ref('')
 
@@ -667,14 +678,16 @@ const filteredGoals = computed(() => {
   )
 })
 
-const goalsGroupedByCounter = computed(() => {
-  const list = filteredGoals.value
+const visibleGoals = computed(() => filteredGoals.value.slice(0, GOAL_RENDER_LIMIT))
+const hiddenGoalCount = computed(() => Math.max(filteredGoals.value.length - visibleGoals.value.length, 0))
+const visibleGoalCount = computed(() => visibleGoals.value.length)
+const visibleGoalsGroupedByCounter = computed(() => {
   const counterMap = {}
   for (const c of counters.value) {
     counterMap[String(c.id)] = c.name || `Счётчик ${c.id}`
   }
   const groups = new Map()
-  for (const goal of list) {
+  for (const goal of visibleGoals.value) {
     const cid = String(goal.counter_id || 'unknown')
     if (!groups.has(cid)) {
       groups.set(cid, { counterId: cid, counterName: counterMap[cid] || `Счётчик ${cid}`, goals: [] })
@@ -718,15 +731,34 @@ const allCountersSelected = computed(() =>
 const allGoalsSelected = computed(() =>
   goals.value.length > 0 && selectedGoalIds.value.length === goals.value.length
 )
+const visibleCounterIds = computed(() => visibleCounters.value.map((counter) => counter.id))
+const visibleGoalIds = computed(() => visibleGoals.value.map((goal) => goal.id))
+const visibleCountersSelected = computed(() =>
+  visibleCounterIds.value.length > 0 && visibleCounterIds.value.every((id) => selectedCounterIds.value.includes(id))
+)
+const visibleGoalsSelected = computed(() =>
+  visibleGoalIds.value.length > 0 && visibleGoalIds.value.every((id) => selectedGoalIds.value.includes(id))
+)
+const counterBulkLabel = computed(() => {
+  if (hiddenCounterCount.value > 0) return visibleCountersSelected.value ? 'Снять показанные' : 'Отметить показанные'
+  return allCountersSelected.value ? 'Снять все' : 'Отметить все'
+})
+const goalBulkLabel = computed(() => {
+  if (hiddenGoalCount.value > 0) return visibleGoalsSelected.value ? 'Снять показанные' : 'Отметить показанные'
+  return allGoalsSelected.value ? 'Снять все' : 'Отметить все'
+})
 const avitoAccessReady = computed(() =>
   Boolean(String(form.avito_account_id || '').trim() && form.avito_client_id && form.avito_client_secret)
 )
 // Кабинет реально подключён и подтверждён (вернулось название)
-const avitoConnected = computed(() =>
-  Boolean(lastIntegrationId.value && form.platform === 'AVITO_ADS' && form.account_id)
-)
+const avitoConnected = computed(() => {
+  if (!lastIntegrationId.value || form.platform !== 'AVITO_ADS') return false
+  const inputAccountId = String(form.avito_account_id || '').trim()
+  const connectedAccountId = String(form.account_id || '').trim()
+  return Boolean(inputAccountId && connectedAccountId && inputAccountId === connectedAccountId)
+})
 const avitoPreviewAccountId = computed(() =>
-  String(form.account_id || form.avito_account_id || '').trim() || '—'
+  String(avitoConnected.value ? form.account_id : form.avito_account_id || '').trim() || '—'
 )
 const avitoPreviewStatus = computed(() => {
   if (avitoConnected.value) return 'Подключён'
@@ -781,6 +813,7 @@ watch(
 )
 
 onMounted(async () => {
+  suppressPlatformReset.value = true
   const platformQuery = router.currentRoute.value.query.platform
   const resumeId = router.currentRoute.value.query.resume_integration_id
   const startStep = router.currentRoute.value.query.initial_step
@@ -850,6 +883,8 @@ onMounted(async () => {
       fetchProfiles(resumeId)
     }
   }
+  await nextTick()
+  suppressPlatformReset.value = false
 })
 
 watch(isNewProject, (val) => {
@@ -895,6 +930,39 @@ const selectProfile = (cabinet) => {
   form.account_id = cabinet.login
   form.agency_client_login = cabinet.login
 }
+
+watch(
+  () => form.platform,
+  (platform, previousPlatform) => {
+    if (suppressPlatformReset.value) return
+    if (!previousPlatform || platform === previousPlatform) return
+    error.value = null
+    profileSearch.value = ''
+    counterSearch.value = ''
+    goalSearch.value = ''
+    metrikaIntegrationId.value = null
+    lastIntegrationId.value = null
+    form.account_id = null
+    form.account_name = ''
+    form.agency_client_login = ''
+    form.primary_goal_id = null
+    form.avito_account_id = ''
+    form.avito_client_id = ''
+    form.avito_client_secret = ''
+    campaigns.value = []
+    selectedCampaignIds.value = []
+    counters.value = []
+    selectedCounterIds.value = []
+    goals.value = []
+    selectedGoalIds.value = []
+    profiles.value = []
+    try {
+      localStorage.removeItem('wizard_integration_id')
+      localStorage.removeItem('metrika_integration_id')
+      localStorage.removeItem(AVITO_WIZARD_STATE_KEY)
+    } catch (e) {}
+  }
+)
 
 const goToStep3 = async () => {
   if (!form.account_id) return
@@ -1230,19 +1298,26 @@ const connectAvito = async () => {
 
 const toggleAllCounters = () => {
   if (!counters.value.length) return
-  if (allCountersSelected.value) {
-    selectedCounterIds.value = []
+  const ids = hiddenCounterCount.value > 0 ? visibleCounterIds.value : counters.value.map(c => c.id)
+  if (!ids.length) return
+  if (ids.every((id) => selectedCounterIds.value.includes(id))) {
+    selectedCounterIds.value = selectedCounterIds.value.filter((id) => !ids.includes(id))
   } else {
-    selectedCounterIds.value = counters.value.map(c => c.id)
+    selectedCounterIds.value = Array.from(new Set([...selectedCounterIds.value, ...ids]))
+    if (hiddenCounterCount.value > 0) {
+      toaster.info('Отмечены только показанные счётчики. Уточните поиск, чтобы выбрать остальные.')
+    }
   }
 }
 
 const toggleAllGoals = () => {
   if (!goals.value.length) return
-  if (allGoalsSelected.value) {
-    selectedGoalIds.value = []
+  const ids = hiddenGoalCount.value > 0 ? visibleGoalIds.value : goals.value.map(g => g.id)
+  if (!ids.length) return
+  if (ids.every((id) => selectedGoalIds.value.includes(id))) {
+    selectedGoalIds.value = selectedGoalIds.value.filter((id) => !ids.includes(id))
   } else {
-    selectedGoalIds.value = goals.value.map(g => g.id)
+    selectedGoalIds.value = Array.from(new Set([...selectedGoalIds.value, ...ids]))
   }
 }
 
@@ -1872,6 +1947,13 @@ const toggleGoalSelection = (id) => {
   padding: 1.3889rem 0;
   color: rgba(105, 105, 105, 0.56);
   font-size: 0.9028rem;
+}
+.large-list-hint {
+  margin-top: 0.8333rem;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 0.8333rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 .cards-grid {
   display: grid;
