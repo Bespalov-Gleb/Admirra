@@ -147,9 +147,16 @@ export function useIntegrationWizard() {
       const { data } = await api.get(`/integrations/${integrationId}/counters?${accountIdParam}${campaignIdsParam}`)
       
       counters.value = data.counters || []
-      
-      // Auto-select all counters by default
-      selectedCounterIds.value = counters.value.map(c => c.id)
+
+      // Авто-выбор всех счётчиков — только когда их немного. При большом числе
+      // (например Avito с сотней счётчиков) НЕ грузим тысячи целей сразу: пользователь
+      // сам выбирает счётчик, и под него подгружаются цели (каскад, как в Яндексе).
+      const AUTO_SELECT_COUNTER_LIMIT = 5
+      if (counters.value.length <= AUTO_SELECT_COUNTER_LIMIT) {
+        selectedCounterIds.value = counters.value.map(c => c.id)
+      } else {
+        selectedCounterIds.value = []
+      }
     } catch (err) {
       console.error('Failed to fetch counters:', err)
       toaster.warning('Не удалось загрузить счетчики Метрики.')

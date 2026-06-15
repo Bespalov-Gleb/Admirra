@@ -355,22 +355,39 @@
               <h4 class="dark:!text-white/90">Счетчики метрики</h4>
               <p class="dark:!text-white/55">Выберите счетчики для отслеживания целей</p>
             </div>
-            <button
-              type="button"
-              class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
-              :disabled="loadingStates.counters || counters.length === 0"
-              @click="toggleAllCounters"
-            >
-              {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
-            </button>
+            <div class="flex items-center gap-[0.6944rem]">
+              <div v-if="counters.length > 5" class="search-wrap">
+                <input
+                  v-model="counterSearch"
+                  type="text"
+                  class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
+                  placeholder="Поиск по счётчикам"
+                />
+                <div class="search-icon-circle dark:!bg-white/10">
+                  <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
+                    <circle cx="6.5" cy="6.5" r="5.5" stroke="#ababab" stroke-width="1.8"/>
+                    <path d="M10.5 10.5L14 14" stroke="#ababab" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="small-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
+                :disabled="loadingStates.counters || counters.length === 0"
+                @click="toggleAllCounters"
+              >
+                {{ allCountersSelected ? 'Снять все' : 'Отметить все' }}
+              </button>
+            </div>
           </div>
 
           <div v-if="loadingStates.counters" class="empty-line dark:!text-white/55">Загрузка счетчиков...</div>
           <div v-else-if="counters.length === 0" class="empty-line dark:!text-white/55">Нет доступных счетчиков.</div>
+          <div v-else-if="counterSearch && filteredCounters.length === 0" class="empty-line dark:!text-white/55">Ничего не найдено по «{{ counterSearch }}»</div>
 
           <div v-else class="cards-grid">
             <label
-              v-for="counter in counters"
+              v-for="counter in filteredCounters"
               :key="counter.id"
               class="select-tile dark:!border-white/10 dark:!bg-white/5"
               :class="{ 'select-tile--active': selectedCounterIds.includes(counter.id) }"
@@ -428,6 +445,7 @@
           </div>
 
           <div v-if="loadingStates.goals" class="empty-line dark:!text-white/55">Загрузка целей...</div>
+          <div v-else-if="!selectedCounterIds.length && counters.length" class="empty-line dark:!text-white/55">Выберите счётчик выше, чтобы загрузить его цели.</div>
           <div v-else-if="goals.length === 0" class="empty-line dark:!text-white/55">Нет доступных целей.</div>
 
           <template v-else>
@@ -627,6 +645,16 @@ const loadingMetrikaAuth = ref(false)
 const metrikaIntegrationId = ref(null)
 const openSelect = ref(null)
 const profileSearch = ref('')
+const counterSearch = ref('')
+const filteredCounters = computed(() => {
+  const q = counterSearch.value.trim().toLowerCase()
+  if (!q) return counters.value
+  return counters.value.filter(c =>
+    (c.name || '').toLowerCase().includes(q) ||
+    String(c.id || '').includes(q)
+  )
+})
+
 const goalSearch = ref('')
 
 const filteredGoals = computed(() => {
@@ -813,7 +841,9 @@ onMounted(async () => {
       await fetchCampaigns(resumeId)
       if (usesMetrikaWizard.value && (metrikaIntegrationId.value || metrikaConnected)) {
         await fetchCounters(resumeId)
-        await fetchGoals(resumeId)
+        // Цели грузим только если счётчики авто-выбраны (мало). При большом числе
+        // счётчиков пользователь выбирает сам — цели подтянет вотчер.
+        if (selectedCounterIds.value.length) await fetchGoals(resumeId)
       }
     } else if (s >= 2) {
       step.value = 2
@@ -890,7 +920,7 @@ const goToStep3 = async () => {
     }
     if (metrikaIntegrationId.value || form.platform === 'YANDEX_DIRECT') {
       await fetchCounters(lastIntegrationId.value)
-      await fetchGoals(lastIntegrationId.value)
+      if (selectedCounterIds.value.length) await fetchGoals(lastIntegrationId.value)
     }
   }
 }
@@ -1185,7 +1215,7 @@ const connectAvito = async () => {
     await resolveMetrikaIntegrationId()
     if (metrikaIntegrationId.value) {
       await fetchCounters(data.integration_id)
-      await fetchGoals(data.integration_id)
+      if (selectedCounterIds.value.length) await fetchGoals(data.integration_id)
     }
     // Не перескакиваем сразу на шаг 3 — показываем подтверждённый кабинет
     // (название «ИП …») в превью справа, пользователь жмёт «Далее».
