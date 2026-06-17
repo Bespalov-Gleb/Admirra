@@ -39,8 +39,10 @@ def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
         return None
     if profile.lower() in {"unknown", "none"}:
         return None
-    if profile.lower().startswith("porg-"):
-        return None
+    # ВНИМАНИЕ: логины вида "porg-..." — это валидные агентские Client-Login
+    # реальных кабинетов Яндекс.Директа (например porg-hf7cit2n = ПОДАРКИ ВОСТОКА).
+    # Их НЕЛЬЗЯ обнулять: без Client-Login запрос уходит в личный аккаунт токена
+    # и возвращает 0 строк — данные по кабинету не подтягиваются.
     return profile
 
 
