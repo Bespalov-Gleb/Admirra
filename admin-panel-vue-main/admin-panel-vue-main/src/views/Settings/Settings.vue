@@ -502,7 +502,7 @@ async function savePdf() {
 .wl-feature-panel {
   position: relative;
   min-height: 16.6667rem;
-  padding: 1.9444rem 17.3611rem 1.9444rem 2.0833rem;
+  padding: 1.9444rem 20.1389rem 1.9444rem 2.0833rem;
   overflow: hidden;
   border-radius: 0.8333rem;
   background: url('/admirra/img/white-label/banner-bg.jpg') center / cover no-repeat, #3a5fd9;
@@ -588,10 +588,9 @@ async function savePdf() {
 
 .wl-feature-fox {
   position: absolute;
-  right: 1.3889rem;
-  bottom: 0;
-  height: 100%;
-  max-height: 17.3611rem;
+  right: 0.2778rem;
+  bottom: -1.9444rem;
+  height: 21.5278rem;
   width: auto;
   object-fit: contain;
   pointer-events: none;
