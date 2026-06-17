@@ -55,6 +55,12 @@
             <button type="button" class="wl-upgrade-button" @click="selectTab('tariff')">
               Перейти на тариф «Профи»
             </button>
+            <img
+              class="wl-feature-fox"
+              src="/admirra/img/white-label/banner-fox.png"
+              alt=""
+              aria-hidden="true"
+            />
           </section>
 
           <p v-if="!brand.whitelabel_available" class="wl-preview-title">Как это будет выглядеть — превью:</p>
@@ -225,9 +231,9 @@ const brand = reactive({
 
 const wlFeatures = [
   'Свой логотип в PDF и сообщениях',
+  'Свой домен для ссылок',
   'Фирменный стиль отчетов',
   'Шапка и подпись в PDF',
-  'Свой домен для ссылок',
 ]
 
 const brandFields = [
@@ -495,25 +501,25 @@ async function savePdf() {
 
 .wl-feature-panel {
   position: relative;
-  min-height: 23.6111rem;
-  padding: 1.8056rem 1.8056rem 1.875rem;
+  min-height: 16.6667rem;
+  padding: 1.9444rem 17.3611rem 1.9444rem 2.0833rem;
   overflow: hidden;
-  border: 1.5px dashed rgba(37, 99, 235, 0.36);
   border-radius: 0.8333rem;
-  background: #d7e8fb;
+  background: url('/admirra/img/white-label/banner-bg.jpg') center / cover no-repeat, #3a5fd9;
 }
 
 .wl-feature-panel h5 {
   margin: 0;
-  color: #2d70ca;
-  font-size: 1.25rem;
-  font-weight: 500;
+  color: #fff;
+  font-size: 1.3194rem;
+  font-weight: 600;
   line-height: 1.25;
 }
 
 .wl-feature-panel p {
-  margin: 0.7639rem 0 1.3889rem;
-  color: rgba(37, 99, 235, 0.58);
+  margin: 0.6944rem 0 1.4583rem;
+  max-width: 34.7222rem;
+  color: rgba(255, 255, 255, 0.82);
   font-size: 0.9722rem;
   font-weight: 500;
   line-height: 1.4;
@@ -521,39 +527,38 @@ async function savePdf() {
 
 .wl-feature-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1.5278rem;
-  max-width: 58.8889rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9028rem 2.0833rem;
+  max-width: 36.1111rem;
 }
 
 .wl-feature-tile {
-  min-height: 8.4722rem;
-  padding: 1.25rem 1.1111rem 0.9028rem;
-  border-radius: 0.5556rem;
-  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  background: transparent;
 }
 
 .wl-feature-check {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.1111rem;
-  height: 1.1111rem;
-  margin-bottom: 1.7361rem;
-  border-radius: 0.1389rem;
-  background: #2563eb;
-  color: #fff;
+  width: 1.1806rem;
+  height: 1.1806rem;
+  border-radius: 0.2083rem;
+  background: #fff;
+  color: #2563eb;
 }
 
 .wl-feature-check svg {
-  width: 0.625rem;
-  height: 0.5208rem;
+  width: 0.6597rem;
+  height: 0.5498rem;
   fill: currentColor;
 }
 
 .wl-feature-tile strong {
-  display: block;
-  color: #4f8ce8;
+  color: #fff;
   font-size: 0.9028rem;
   font-weight: 500;
   line-height: 1.18;
@@ -565,15 +570,32 @@ async function savePdf() {
   justify-content: center;
   min-width: 12.9861rem;
   min-height: 2.7778rem;
-  margin-top: 2.2222rem;
+  margin-top: 1.7361rem;
   padding: 0 1.1111rem;
   border: 0;
   border-radius: 0.5556rem;
-  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
-  color: #fff;
+  background: #fff;
+  color: #2563eb;
   font-size: 0.8333rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.wl-upgrade-button:hover {
+  opacity: 0.92;
+}
+
+.wl-feature-fox {
+  position: absolute;
+  right: 1.3889rem;
+  bottom: 0;
+  height: 100%;
+  max-height: 17.3611rem;
+  width: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
 }
 
 .wl-preview-title {
@@ -815,6 +837,12 @@ async function savePdf() {
 @media (max-width: 1024px) {
   .wl-page {
     width: 100%;
+  }
+  .wl-feature-panel {
+    padding-right: 2.0833rem;
+  }
+  .wl-feature-fox {
+    display: none;
   }
   .wl-feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
