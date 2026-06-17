@@ -654,73 +654,6 @@
     </section>
 
     <section class="bottom-grid">
-      <article class="panel creatives-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-        <h2>Топ креативы</h2>
-        <div v-if="topAdsLoading" class="creatives-row" aria-label="Загрузка креативов">
-          <div v-for="item in 3" :key="item" class="creative-card creative-card--skeleton">
-            <div class="creative-image creative-skeleton"></div>
-            <div class="creative-skeleton-line creative-skeleton-line--short"></div>
-            <div class="creative-skeleton-line"></div>
-          </div>
-        </div>
-        <template v-else-if="creativeTabs.length">
-          <div v-if="creativeTabs.length > 1" class="creative-tabs">
-            <button
-              v-for="tab in creativeTabs"
-              :key="tab.key"
-              type="button"
-              class="creative-tab"
-              :class="{ 'creative-tab--active': activeCreativeTab === tab.key }"
-              @click="activeCreativeTab = tab.key"
-            >{{ tab.label }} · {{ tab.count }}</button>
-          </div>
-          <div class="creatives-row">
-            <div
-              v-for="creative in activeCreativeCards"
-              :key="creative.id"
-              class="creative-card"
-              @mouseenter="creative.isVideo ? ($event.currentTarget.querySelector('video')?.play()) : null"
-              @mouseleave="creative.isVideo ? ($event.currentTarget.querySelector('video')?.pause()) : null"
-            >
-              <div class="creative-image-wrap">
-                <template v-if="creative.isVideo && creative.thumbnailUrl">
-                  <img :src="creative.thumbnailUrl" alt="" class="creative-image creative-image--cover" />
-                  <video
-                    v-if="creative.imageUrl"
-                    :src="creative.imageUrl"
-                    class="creative-image creative-image--video"
-                    muted loop playsinline preload="none"
-                  ></video>
-                  <span class="creative-play-icon">▶</span>
-                </template>
-                <button
-                  v-else-if="creative.imageUrl"
-                  type="button"
-                  class="creative-image creative-image-button"
-                  :style="{ backgroundImage: `url(${creative.imageUrl})` }"
-                  @click="openCreativeImage(creative)"
-                ></button>
-                <div v-else class="creative-image creative-image--placeholder"></div>
-                <span v-if="creative.formatBadge" class="creative-format-badge">{{ creative.formatBadge }}</span>
-              </div>
-              <span class="creative-platform" :class="creative.platformClass">
-                <img v-if="creative.platformIcon" :src="creative.platformIcon" alt="" />
-                {{ creative.badge }}
-              </span>
-              <em class="creative-title">{{ creative.heading }}</em>
-              <em v-if="creative.text" class="creative-text">{{ creative.text }}</em>
-            </div>
-          </div>
-        </template>
-        <div v-else class="creative-empty"></div>
-        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
-          <ArrowPathIcon class="spinning" />
-          <strong>Выполняется синхронизация</strong>
-          <span>Топ креативы подтянутся заново.</span>
-          <i></i><i></i><i></i>
-        </div>
-      </article>
-
       <article class="panel ai-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <!-- Header with small button (only when comment exists or loading) -->
         <div v-if="loadingInitialComment || reportComment" class="ai-title">
@@ -2972,7 +2905,6 @@ const refreshDashboardAfterSync = async ({ showToast = false, failedCount = 0 } 
       fetchStats(),
       fetchCampaignPool(),
       fetchReportGoals(),
-      fetchTopAds(),
       refreshDirections(),
       fetchIntegrations(),
       filters.channel === 'vk' ? fetchAllCampaignsForGoalsTab() : Promise.resolve(),
@@ -3493,7 +3425,6 @@ watch(() => filters.client_id, (newId) => {
 
 watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
   fetchReportGoals()
-  fetchTopAds()
 }, { deep: true })
 
 watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel], () => {
@@ -3605,7 +3536,6 @@ onMounted(() => {
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
-  fetchTopAds()
   loadSavedComment()
 })
 </script>
@@ -6207,7 +6137,7 @@ onMounted(() => {
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: 67.1rem minmax(42rem, 1fr) 33.3rem;
+  grid-template-columns: minmax(0, 1fr) 33.3rem;
   gap: 2rem;
   margin-top: 2rem;
 }
@@ -7065,7 +6995,7 @@ onMounted(() => {
 }
 
 .bottom-grid {
-  grid-template-columns: minmax(29.8611rem, 0.95fr) minmax(27.7778rem, 1fr) minmax(18.75rem, 0.55fr);
+  grid-template-columns: minmax(0, 1fr) minmax(18.75rem, 0.55fr);
   gap: 1.3889rem;
   margin-top: 1.3889rem;
 }
