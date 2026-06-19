@@ -196,9 +196,11 @@ async def _metrika_drill_conv_map(
                 continue
             if dim_val is None or str(dim_val).strip() == "":
                 continue
-            if level == "group":
+            if level == "campaign":
+                # показываем группы: ключ = нормализованное имя группы (DirectBannerGroup)
                 key = _normalize_direct_name(dim_val)
             else:
+                # показываем объявления: ключ = ad_id (DirectBanner вида "M-<id>")
                 key = str(dim_val).strip()
                 if key.upper().startswith("M-"):
                     key = key[2:]
