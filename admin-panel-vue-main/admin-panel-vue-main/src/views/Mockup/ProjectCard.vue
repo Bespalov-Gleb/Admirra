@@ -568,16 +568,22 @@ const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
 const channelHasVatIncluded = (platformCode) => String(platformCode || '').toLowerCase() === 'avito'
 const withChannelVat = (num, platformCode) => {
   const value = Number(num) || 0
-  if (!includeVat.value || channelHasVatIncluded(platformCode)) return value
-  return value * VAT_RATE
+  if (channelHasVatIncluded(platformCode)) {
+    // Авито: из API уже с НДС → «с НДС» как есть, «без НДС» вычитаем налог
+    return includeVat.value ? value : value / VAT_RATE
+  }
+  return includeVat.value ? value * VAT_RATE : value
 }
 const withCostBreakdownVat = (num, costByPlatform) => {
-  if (!includeVat.value || !costByPlatform || typeof costByPlatform !== 'object') return Number(num || 0)
-  return (
-    (Number(costByPlatform.yandex || 0) * VAT_RATE)
-    + (Number(costByPlatform.vk || 0) * VAT_RATE)
-    + Number(costByPlatform.avito || 0)
-  )
+  if (!costByPlatform || typeof costByPlatform !== 'object') return Number(num || 0)
+  const yandex = Number(costByPlatform.yandex || 0)
+  const vk = Number(costByPlatform.vk || 0)
+  const avito = Number(costByPlatform.avito || 0)
+  if (includeVat.value) {
+    return (yandex * VAT_RATE) + (vk * VAT_RATE) + avito
+  }
+  // «без НДС»: Яндекс/VK как есть, у Авито вычитаем НДС
+  return yandex + vk + (avito / VAT_RATE)
 }
 
 const trendText = (metric, key) => {
@@ -631,7 +637,7 @@ const isAvitoOnlyProject = (project) =>
 
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
-  const withProjectVat = (value) => (isAvitoOnlyProject(project) ? Number(value || 0) : withVat(value))
+  const withProjectVat = (value) => (isAvitoOnlyProject(project) ? withChannelVat(value, 'avito') : withVat(value))
   const platforms = projectPlatformCards(project)
   const insights = getProjectInsights(project.id)
   const adjustedExpenses = metric.cost_by_platform

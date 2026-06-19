@@ -2154,20 +2154,29 @@ const platformHasVatIncluded = (platform) => {
 
 const withVat = (value, options = {}) => {
   const num = Number(value) || 0
-  return includeVat.value && !platformHasVatIncluded(options.platform) ? num * 1.22 : num
+  if (platformHasVatIncluded(options.platform)) {
+    // Авито: расход из API уже включает НДС.
+    // «с НДС» — показываем как есть; «без НДС» — вычитаем налог (÷1.22).
+    return includeVat.value ? num : num / 1.22
+  }
+  // Яндекс/VK: расход из API без НДС → «с НДС» добавляем 22%.
+  return includeVat.value ? num * 1.22 : num
 }
 
 const withCostBreakdownVat = (value, costByPlatform, fallbackPlatform = '') => {
   const raw = Number(value) || 0
-  if (!includeVat.value) return raw
   if (!costByPlatform || typeof costByPlatform !== 'object') {
     return withVat(raw, { platform: fallbackPlatform })
   }
-  return (
-    (Number(costByPlatform.yandex || 0) * 1.22)
-    + (Number(costByPlatform.vk || 0) * 1.22)
-    + Number(costByPlatform.avito || 0)
-  )
+  const yandex = Number(costByPlatform.yandex || 0)
+  const vk = Number(costByPlatform.vk || 0)
+  const avito = Number(costByPlatform.avito || 0)
+  if (includeVat.value) {
+    // «с НДС»: Яндекс/VK +22%, Авито уже с НДС
+    return (yandex * 1.22) + (vk * 1.22) + avito
+  }
+  // «без НДС»: Яндекс/VK как есть, у Авито вычитаем НДС
+  return yandex + vk + (avito / 1.22)
 }
 
 const currentVatScopePlatform = computed(() => {

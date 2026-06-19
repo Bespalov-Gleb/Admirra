@@ -843,19 +843,25 @@ const isOnlyAvitoProject = (project) => {
 }
 const withProjectVat = (num, project) => {
   const value = Number(num) || 0
-  if (!includeVat.value || isOnlyAvitoProject(project)) return value
-  return value * VAT_RATE
+  if (isOnlyAvitoProject(project)) {
+    // Авито: из API уже с НДС → «с НДС» как есть, «без НДС» вычитаем налог
+    return includeVat.value ? value : value / VAT_RATE
+  }
+  return includeVat.value ? value * VAT_RATE : value
 }
 const adjustedProjectExpenses = (metric, project) => {
   const byPlatform = metric?.cost_by_platform
-  if (!includeVat.value || !byPlatform || typeof byPlatform !== 'object') {
+  if (!byPlatform || typeof byPlatform !== 'object') {
     return withProjectVat(metric?.expenses, project)
   }
-  return (
-    (Number(byPlatform.yandex || 0) * VAT_RATE)
-    + (Number(byPlatform.vk || 0) * VAT_RATE)
-    + Number(byPlatform.avito || 0)
-  )
+  const yandex = Number(byPlatform.yandex || 0)
+  const vk = Number(byPlatform.vk || 0)
+  const avito = Number(byPlatform.avito || 0)
+  if (includeVat.value) {
+    return (yandex * VAT_RATE) + (vk * VAT_RATE) + avito
+  }
+  // «без НДС»: Яндекс/VK как есть, у Авито вычитаем НДС
+  return yandex + vk + (avito / VAT_RATE)
 }
 const adjustedProjectCpc = (metric, project) => {
   const clicks = Number(metric?.clicks || 0)
