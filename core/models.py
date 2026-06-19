@@ -519,6 +519,7 @@ class YandexGroups(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     group_id = Column(String, nullable=True, index=True)

@@ -49,6 +49,7 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS display_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status_synced_at TIMESTAMP WITH TIME ZONE"))
                 conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS utm_source VARCHAR"))
+                conn.execute(text("ALTER TABLE yandex_keywords ADD COLUMN IF NOT EXISTS campaign_id UUID"))
                 conn.execute(text("ALTER TABLE yandex_groups ADD COLUMN IF NOT EXISTS campaign_id UUID"))
                 conn.execute(text("ALTER TABLE yandex_groups ADD COLUMN IF NOT EXISTS group_id VARCHAR"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_yandex_groups_client_id ON yandex_groups (client_id)"))
