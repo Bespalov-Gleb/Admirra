@@ -864,7 +864,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
             level_stats_list = [
                 ("group", group_stats_result if not isinstance(group_stats_result, Exception) else []),
-                ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else [])
+                ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else []),
             ]
 
             # Оптимизация: не делаем SELECT campaign для каждой строки статистики.
@@ -892,10 +892,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             continue
                         
                         if level == "group":
+                            campaign_external_id = str(l.get("campaign_id") or "")
+                            campaign = campaign_map.get(campaign_external_id)
                             filters = {
                                 "client_id": integration.client_id,
+                                "campaign_id": campaign.id if campaign else None,
                                 "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
                                 "campaign_name": campaign_name,
+                                "group_id": l.get('group_id'),
                                 "group_name": l['name']
                             }
                             data = {
@@ -922,6 +926,15 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 except Exception as e:
                     logger.warning(f"Error syncing {level} stats: {e}")
                     continue
+
+            db.commit()
+            CacheService.invalidate_client(str(integration.client_id))
+            logger.info(
+                "✅ Committed Yandex drilldown stats: groups=%s keywords=%s ads=%s",
+                len(group_stats_result),
+                len(keyword_stats_result if not isinstance(keyword_stats_result, Exception) else []),
+                "lazy",
+            )
 
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)

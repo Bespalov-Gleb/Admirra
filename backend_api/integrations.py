@@ -3694,7 +3694,11 @@ async def delete_integration(
             models.YandexGroups.client_id == client_id,
             models.YandexGroups.campaign_name.in_(campaign_names)
         ).delete(synchronize_session=False)
-        logger.info(f"🗑️ Deleted {deleted_keywords} YandexKeywords and {deleted_groups} YandexGroups for integration {integration_id}")
+        deleted_ads = db.query(models.YandexAds).filter(
+            models.YandexAds.client_id == client_id,
+            models.YandexAds.campaign_name.in_(campaign_names)
+        ).delete(synchronize_session=False)
+        logger.info(f"🗑️ Deleted {deleted_keywords} YandexKeywords, {deleted_groups} YandexGroups and {deleted_ads} YandexAds for integration {integration_id}")
     
     deleted_goals = db.query(models.MetrikaGoals).filter(
         models.MetrikaGoals.integration_id == integration_id

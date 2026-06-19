@@ -864,6 +864,9 @@ def _delete_user_account_data(db: Session, user_id: uuid.UUID) -> None:
         db.query(models.YandexGroups).filter(models.YandexGroups.client_id.in_(client_ids)).delete(
             synchronize_session=False
         )
+        db.query(models.YandexAds).filter(models.YandexAds.client_id.in_(client_ids)).delete(
+            synchronize_session=False
+        )
         db.query(models.VKStats).filter(models.VKStats.client_id.in_(client_ids)).delete(synchronize_session=False)
 
         if direction_ids:

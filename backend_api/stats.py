@@ -16,6 +16,7 @@ import logging
 import asyncio
 from automation.sync import sync_integration, sync_metrika_goals_background
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+from automation.yandex_direct import YandexDirectAPI
 from backend_api.sync_jobs import enqueue_sync_job
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,185 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 # Дедупликация ensure_data_synced: не запускать повторный sync для интеграции в течение 30 сек
 _sync_last_started: dict = {}
 _sync_cooldown_sec = 30
+
+
+def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned or cleaned.lower() in {"unknown", "none", "null"}:
+        return None
+    return cleaned
+
+
+async def _ensure_yandex_ad_rows_for_campaign(
+    db: Session,
+    campaign: models.Campaign,
+    d_start: Optional[date],
+    d_end: date,
+) -> None:
+    """
+    Lazy-load Yandex ad-level stats for a single campaign and period.
+    This keeps regular project sync fast and only fills the deepest level
+    when a user actually expands an ad group.
+    """
+    if not campaign or not campaign.integration:
+        return
+    if campaign.integration.platform != models.IntegrationPlatform.YANDEX_DIRECT:
+        return
+    if not campaign.external_id or not str(campaign.external_id).isdigit():
+        return
+
+    exists_q = db.query(models.YandexAds.id).filter(
+        models.YandexAds.campaign_id == campaign.id,
+        models.YandexAds.date <= d_end,
+    )
+    if d_start:
+        exists_q = exists_q.filter(models.YandexAds.date >= d_start)
+    if exists_q.first():
+        return
+
+    integration = campaign.integration
+    selected_profile = _clean_yandex_profile_login(integration.agency_client_login)
+    if not selected_profile and integration.account_id:
+        selected_profile = _clean_yandex_profile_login(integration.account_id)
+
+    try:
+        access_token = security.decrypt_token(integration.access_token)
+        api = YandexDirectAPI(access_token, client_login=selected_profile)
+        date_from = (d_start or d_end).strftime("%Y-%m-%d")
+        date_to = d_end.strftime("%Y-%m-%d")
+        rows = await api.get_report(
+            date_from,
+            date_to,
+            level="ad",
+            campaign_ids=[int(campaign.external_id)],
+        )
+    except Exception as err:
+        logger.warning("Failed to lazy-load Yandex ad drilldown for campaign %s: %s", campaign.id, err)
+        return
+
+    for row in rows:
+        ad_id = row.get("ad_id")
+        if not ad_id:
+            continue
+        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+        filters = {
+            "client_id": integration.client_id,
+            "campaign_id": campaign.id,
+            "date": row_date,
+            "campaign_name": row.get("campaign_name") or campaign.name,
+            "group_id": row.get("group_id"),
+            "ad_id": str(ad_id),
+        }
+        existing = db.query(models.YandexAds).filter_by(**filters).first()
+        data = {
+            "group_name": row.get("ad_group_name"),
+            "impressions": row.get("impressions", 0),
+            "clicks": row.get("clicks", 0),
+            "cost": row.get("cost", 0),
+            "conversions": row.get("conversions", 0),
+        }
+        if existing:
+            for key, value in data.items():
+                setattr(existing, key, value)
+        else:
+            db.add(models.YandexAds(**filters, **data))
+
+    db.commit()
+
+
+def _json_list_safe(value) -> List[str]:
+    try:
+        import json as _json
+        parsed = _json.loads(value) if isinstance(value, str) else value
+        if isinstance(parsed, (list, tuple)):
+            return [str(x) for x in parsed if str(x).strip()]
+    except Exception:
+        pass
+    return []
+
+
+def _normalize_direct_name(value) -> str:
+    return str(value or "").replace("\xa0", " ").strip().lower()
+
+
+async def _metrika_drill_conv_map(
+    integration: models.Integration,
+    campaign: models.Campaign,
+    level: str,
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple:
+    """
+    Лиды для drill-down берём из того же источника, что и кампания — из Метрики,
+    но с разбивкой по нативным дименшенам Директа (атрибуция AUTOMATIC):
+      level == 'campaign' (показываем группы)    -> DirectBannerGroup -> {норм.имя группы: лиды}
+      level == 'group'    (показываем объявления) -> DirectBanner      -> {ad_id: лиды}
+    Скоуп по кампании — через DirectClickOrder (имя кампании).
+    Возвращает (conv_map, available). available=False, если Метрика не привязана
+    (нет счётчиков/целей) — тогда лиды «не атрибутируются». Если привязана, но
+    конкретной группы/объявления нет в карте — это честный 0 лидов.
+    """
+    counters = _json_list_safe(integration.selected_counters)
+    goals = _json_list_safe(integration.selected_goals)
+    if integration.primary_goal_id and str(integration.primary_goal_id) not in goals:
+        goals.append(str(integration.primary_goal_id))
+    if not counters or not goals:
+        return {}, False
+
+    profile = _clean_yandex_profile_login(integration.agency_client_login)
+    if not profile and integration.account_id:
+        profile = _clean_yandex_profile_login(integration.account_id)
+
+    try:
+        access_token = security.decrypt_token(integration.access_token)
+    except Exception:
+        return {}, False
+
+    from automation.yandex_metrica import YandexMetricaAPI
+
+    api = YandexMetricaAPI(access_token, client_login=profile)
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+    target_campaign = _normalize_direct_name(campaign.name)
+    dimension = (
+        "ym:s:<attribution>DirectBannerGroup" if level == "campaign"
+        else "ym:s:<attribution>DirectBanner"
+    )
+
+    conv_map: dict = {}
+    for counter in counters:
+        try:
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals,
+                dimension=dimension,
+                extra_dimension="ym:s:<attribution>DirectClickOrder",
+            )
+        except Exception as err:
+            logger.warning("Metrika drilldown conv map failed for campaign %s: %s", campaign.id, err)
+            continue
+        for row in rows:
+            keys = row.get("keys") or []
+            if len(keys) < 2:
+                continue
+            camp_name, dim_val = keys[0], keys[1]
+            if _normalize_direct_name(camp_name) != target_campaign:
+                continue
+            if dim_val is None or str(dim_val).strip() == "":
+                continue
+            if level == "group":
+                key = _normalize_direct_name(dim_val)
+            else:
+                key = str(dim_val).strip()
+                if key.upper().startswith("M-"):
+                    key = key[2:]
+            conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
+    return conv_map, True
+
 
 def check_data_availability(
     db: Session,
@@ -735,6 +915,82 @@ async def get_campaign_stats(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     
     return StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
+
+
+@router.get("/campaigns/{campaign_id}/children", response_model=List[schemas.CampaignStat])
+async def get_campaign_children(
+    campaign_id: str,
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    level: str = Query("campaign"),
+    node_id: Optional[str] = Query(None),
+    sort_by: str = Query("leads"),
+    sort_dir: str = Query("desc"),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Lazy drill-down for campaign hierarchy:
+    campaign -> ad groups -> ads.
+    """
+    try:
+        u_campaign_id = uuid.UUID(campaign_id)
+    except Exception:
+        return []
+
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not effective_client_ids:
+        return []
+
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+
+    campaign = (
+        db.query(models.Campaign)
+        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+        .filter(
+            models.Campaign.id == u_campaign_id,
+            models.Integration.client_id.in_(effective_client_ids),
+        )
+        .first()
+    )
+    if not campaign or not campaign.integration:
+        return []
+
+    if level == "group":
+        await _ensure_yandex_ad_rows_for_campaign(db, campaign, d_start, d_end)
+
+    # Лиды вглубь дерева берём из Метрики (нативные Direct-дименшены) — тот же
+    # источник, что и на уровне кампании. Где Метрика не атрибутирует уровень,
+    # ключа в карте нет → строка помечается «не атрибутируется».
+    conv_map: dict = {}
+    conv_available = False
+    if campaign.integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
+        conv_map, conv_available = await _metrika_drill_conv_map(
+            campaign.integration, campaign, level, d_start, d_end
+        )
+
+    return StatsService.get_campaign_children(
+        db,
+        effective_client_ids,
+        u_campaign_id,
+        d_start,
+        d_end,
+        level=level,
+        node_id=node_id,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        conv_map=conv_map,
+        conv_available=conv_available,
+    )
 
 
 @router.get("/top-ads", response_model=List[dict])

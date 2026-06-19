@@ -727,11 +727,17 @@ class DynamicsStat(BaseModel):
 
 class CampaignStat(BaseModel):
     id: Optional[str] = None
+    parent_id: Optional[str] = None
+    platform: Optional[str] = None
+    level: Optional[str] = "campaign"
+    source_id: Optional[str] = None
+    has_children: bool = False
+    conversions_attributed: bool = True
     name: str
     impressions: int
     clicks: int
     cost: float
-    conversions: int
+    conversions: Optional[int] = 0
     cpc: float
     cpa: float
     trend_cost: Optional[float] = None

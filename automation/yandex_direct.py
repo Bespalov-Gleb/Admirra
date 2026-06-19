@@ -676,7 +676,8 @@ class YandexDirectAPI:
         date_to: str,
         level: str = "campaign",
         campaign_ids: Optional[List[int]] = None,
-        max_retries: int = 5
+        max_retries: int = 5,
+        include_ad_conversions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Fetches a report from Yandex Direct API v5.
@@ -705,11 +706,12 @@ class YandexDirectAPI:
             field_names.insert(2, "Criteria")
             report_type = "CRITERIA_PERFORMANCE_REPORT"
         elif level == "group":
-            field_names.insert(2, "AdGroupName")
+            field_names = ["Date", "CampaignId", "CampaignName", "AdGroupId", "AdGroupName", "Impressions", "Clicks", "Cost", "Conversions"]
             report_type = "ADGROUP_PERFORMANCE_REPORT"
         elif level == "ad":
-            # Минимальный набор полей (Conversions может быть недоступен на уровне объявления)
-            field_names = ["Date", "CampaignId", "CampaignName", "AdId", "Impressions", "Clicks", "Cost"]
+            field_names = ["Date", "CampaignId", "CampaignName", "AdGroupId", "AdId", "Impressions", "Clicks", "Cost"]
+            if include_ad_conversions:
+                field_names.append("Conversions")
             report_type = "AD_PERFORMANCE_REPORT"
         else:
             report_type = "CAMPAIGN_PERFORMANCE_REPORT"
@@ -803,6 +805,18 @@ class YandexDirectAPI:
                     
                     # Raise specific exceptions for different error codes
                     if response.status_code == 400:
+                        if level == "ad" and include_ad_conversions:
+                            logger.warning(
+                                "Yandex AD report does not support Conversions for this account/report; retrying without conversions"
+                            )
+                            return await self.get_report(
+                                date_from,
+                                date_to,
+                                level=level,
+                                campaign_ids=campaign_ids,
+                                max_retries=max_retries,
+                                include_ad_conversions=False,
+                            )
                         raise ValueError(f"Bad request to Yandex API: {error_msg}")
                     elif response.status_code == 401:
                         raise PermissionError(f"Unauthorized access to Yandex API: {error_msg}")
@@ -835,27 +849,43 @@ class YandexDirectAPI:
             if len(cols[0]) == 10 and cols[0][4] == '-' and cols[0][7] == '-':
                 try:
                     if level == "ad":
-                        if len(cols) >= 7:
-                            imps = int(cols[4]) if cols[4].isdigit() else 0
-                            clicks = int(cols[5]) if cols[5].isdigit() else 0
+                        if len(cols) >= 8:
+                            imps = int(cols[5]) if cols[5].isdigit() else 0
+                            clicks = int(cols[6]) if cols[6].isdigit() else 0
                             results.append({
                                 "date": cols[0],
                                 "campaign_id": cols[1],
                                 "campaign_name": cols[2],
-                                "ad_id": cols[3],
+                                "group_id": cols[3] if cols[3] != "--" else None,
+                                "ad_id": cols[4] if cols[4] != "--" else None,
                                 "ad_group_name": "",
                                 "impressions": imps,
                                 "clicks": clicks,
-                                "cost": float(cols[6]) / 1000000 if cols[6].replace('.', '', 1).isdigit() else 0.0,
+                                "cost": float(cols[7]) / 1000000 if cols[7].replace('.', '', 1).isdigit() else 0.0,
                                 "ctr": round(clicks / imps * 100, 2) if imps else 0.0,
-                                "conversions": int(cols[7]) if len(cols) > 7 and cols[7].isdigit() else 0
+                                "conversions": int(cols[8]) if len(cols) > 8 and cols[8].isdigit() else 0,
+                                "conversions_attributed": len(cols) > 8,
                             })
-                    elif level in ["keyword", "group"]:
+                    elif level == "group":
+                        if len(cols) >= 9:
+                            results.append({
+                                "date": cols[0],
+                                "campaign_id": cols[1],
+                                "campaign_name": cols[2],
+                                "group_id": cols[3] if cols[3] != "--" else None,
+                                "name": cols[4],
+                                "impressions": int(cols[5]) if cols[5].isdigit() else 0,
+                                "clicks": int(cols[6]) if cols[6].isdigit() else 0,
+                                "cost": float(cols[7]) / 1000000 if cols[7].replace('.', '', 1).isdigit() else 0.0,
+                                "conversions": int(cols[8]) if cols[8].isdigit() else 0,
+                                "conversions_attributed": True,
+                            })
+                    elif level == "keyword":
                         if len(cols) >= 8: # These reports have 8 columns
                             results.append({
                                 "date": cols[0],
                                 "campaign_name": cols[3], # Index 3 is CampaignName
-                                "name": cols[2], # Index 2 is AdGroupName or Criteria
+                                "name": cols[2], # Index 2 is Criteria
                                 "impressions": int(cols[4]) if cols[4].isdigit() else 0,
                                 "clicks": int(cols[5]) if cols[5].isdigit() else 0,
                                 "cost": float(cols[6]) / 1000000 if cols[6].replace('.', '', 1).isdigit() else 0.0,

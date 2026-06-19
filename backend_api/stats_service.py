@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from core import models
 from datetime import datetime, timedelta
 import uuid
@@ -826,6 +826,7 @@ class StatsService:
         def run_yandex_query(start, end):
             q = db.query(
                 models.Campaign.id.label("campaign_id"),
+                models.Campaign.external_id.label("campaign_external_id"),
                 models.YandexStats.campaign_name,
                 func.sum(models.YandexStats.impressions).label("impressions"),
                 func.sum(models.YandexStats.clicks).label("clicks"),
@@ -842,7 +843,7 @@ class StatsService:
                 q = q.filter(models.YandexStats.date >= start)
             if end:
                 q = q.filter(models.YandexStats.date <= end)
-            return q.group_by(models.Campaign.id, models.YandexStats.campaign_name).all()
+            return q.group_by(models.Campaign.id, models.Campaign.external_id, models.YandexStats.campaign_name).all()
 
         def get_yandex_scope_cost(start, end):
             q = db.query(
@@ -993,6 +994,24 @@ class StatsService:
 
         if platform in ["all", "yandex"]:
             y_results = run_yandex_query(d_start, d_end)
+            y_group_names_q = db.query(models.YandexGroups.campaign_name).filter(
+                models.YandexGroups.client_id.in_(client_ids),
+                models.YandexGroups.campaign_name.isnot(None),
+            )
+            if d_start:
+                y_group_names_q = y_group_names_q.filter(models.YandexGroups.date >= d_start)
+            if d_end:
+                y_group_names_q = y_group_names_q.filter(models.YandexGroups.date <= d_end)
+            y_group_names = {row[0] for row in y_group_names_q.distinct().all() if row and row[0]}
+            y_group_campaign_ids_q = db.query(models.YandexGroups.campaign_id).filter(
+                models.YandexGroups.client_id.in_(client_ids),
+                models.YandexGroups.campaign_id.isnot(None),
+            )
+            if d_start:
+                y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date >= d_start)
+            if d_end:
+                y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date <= d_end)
+            y_group_campaign_ids = {str(row[0]) for row in y_group_campaign_ids_q.distinct().all() if row and row[0]}
             total_metrika_convs = get_metrika_convs(d_start, d_end)
             total_yandex_cost = get_yandex_scope_cost(d_start, d_end)
 
@@ -1037,6 +1056,10 @@ class StatsService:
                 campaigns.append({
                     "id": cid,
                     "platform": "yandex",
+                    "level": "campaign",
+                    "source_id": getattr(r, "campaign_external_id", None),
+                    "has_children": str(r.campaign_id) in y_group_campaign_ids or r.campaign_name in y_group_names,
+                    "conversions_attributed": True,
                     "name": f"[ЯД] {r.campaign_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1092,6 +1115,10 @@ class StatsService:
                 campaigns.append({
                     "id": cid,
                     "platform": "vk",
+                    "level": "campaign",
+                    "source_id": ext_id or None,
+                    "has_children": False,
+                    "conversions_attributed": True,
                     "name": f"[VK] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1163,6 +1190,10 @@ class StatsService:
                 campaigns.append({
                     "id": cid,
                     "platform": "avito",
+                    "level": "campaign",
+                    "source_id": ext_id or None,
+                    "has_children": False,
+                    "conversions_attributed": True,
                     "name": f"[Avito] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1181,6 +1212,167 @@ class StatsService:
         # Сортировка: сначала по лидам (заявкам) desc, затем по расходу desc
         campaigns.sort(key=lambda x: (x["conversions"], x["cost"]), reverse=True)
         return campaigns
+
+    @staticmethod
+    def get_campaign_children(
+        db: Session,
+        client_ids: List[uuid.UUID],
+        campaign_id: uuid.UUID,
+        d_start: Optional[datetime.date],
+        d_end: datetime.date,
+        level: str = "campaign",
+        node_id: Optional[str] = None,
+        sort_by: str = "leads",
+        sort_dir: str = "desc",
+        conv_map: Optional[dict] = None,
+        conv_available: bool = False,
+    ):
+        if not client_ids:
+            return []
+
+        conv_map = conv_map or {}
+
+        def _norm_name(value):
+            return str(value or "").replace("\xa0", " ").strip().lower()
+
+        campaign = (
+            db.query(models.Campaign)
+            .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+            .filter(
+                models.Campaign.id == campaign_id,
+                models.Integration.client_id.in_(client_ids),
+            )
+            .first()
+        )
+        if not campaign or not campaign.integration:
+            return []
+
+        platform = campaign.integration.platform
+        if platform != models.IntegrationPlatform.YANDEX_DIRECT:
+            return []
+
+        def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True):
+            cost_val = float(cost or 0)
+            clicks_val = int(clicks or 0)
+            conv_val = int(convs or 0) if attributed else 0
+            return {
+                "id": str(raw_id or name or ""),
+                "parent_id": str(parent_id) if parent_id else None,
+                "platform": "yandex",
+                "level": lvl,
+                "source_id": str(raw_id) if raw_id else None,
+                "has_children": bool(has_children),
+                "conversions_attributed": bool(attributed),
+                "name": name or ("Группа" if lvl == "group" else "Объявление"),
+                "impressions": int(imps or 0),
+                "clicks": clicks_val,
+                "cost": round(cost_val, 2),
+                "conversions": conv_val,
+                "cpc": round(cost_val / clicks_val, 2) if clicks_val > 0 else 0,
+                "cpa": round(cost_val / conv_val, 2) if attributed and conv_val > 0 else 0,
+                "trend_cost": None,
+                "trend_impressions": None,
+                "trend_clicks": None,
+                "trend_conversions": None,
+                "trend_cpc": None,
+                "trend_cpa": None,
+            }
+
+        def apply_dates(query, model):
+            if d_start:
+                query = query.filter(model.date >= d_start)
+            if d_end:
+                query = query.filter(model.date <= d_end)
+            return query
+
+        def sort_rows(rows):
+            sort_key = (sort_by or "leads").lower()
+            reverse = (sort_dir or "desc").lower() != "asc"
+
+            def value(row):
+                if sort_key in ("cost", "expense", "expenses"):
+                    return float(row.get("cost") or 0)
+                if sort_key in ("cpa", "cpl"):
+                    cpa = row.get("cpa")
+                    return float(cpa) if cpa else float("inf")
+                return int(row.get("conversions") or 0)
+
+            sorted_rows = sorted(rows, key=value, reverse=reverse)
+            if sort_key in ("cpa", "cpl") and reverse:
+                sorted_rows = sorted(rows, key=lambda r: (r.get("cpa") in (None, 0), float(r.get("cpa") or 0)))
+            return sorted_rows
+
+        if level == "campaign":
+            group_q = db.query(
+                models.YandexGroups.group_id,
+                models.YandexGroups.group_name,
+                func.sum(models.YandexGroups.impressions).label("impressions"),
+                func.sum(models.YandexGroups.clicks).label("clicks"),
+                func.sum(models.YandexGroups.cost).label("cost"),
+                func.sum(models.YandexGroups.conversions).label("conversions"),
+            ).filter(
+                models.YandexGroups.client_id.in_(client_ids),
+                or_(
+                    models.YandexGroups.campaign_id == campaign.id,
+                    models.YandexGroups.campaign_name == campaign.name,
+                ),
+            )
+            group_q = apply_dates(group_q, models.YandexGroups)
+            group_rows = group_q.group_by(models.YandexGroups.group_id, models.YandexGroups.group_name).all()
+
+            # Лиды групп — из карты Метрики (нативный DirectBannerGroup), по имени группы.
+            # Универсальные метрики (показы/клики/расход) — из сохранённой статистики Яндекса.
+            rows = []
+            for row in group_rows:
+                g_convs = conv_map.get(_norm_name(row.group_name), 0) if conv_available else 0
+                rows.append(metric_row(
+                    raw_id=row.group_id,
+                    parent_id=str(campaign.id),
+                    name=row.group_name,
+                    lvl="group",
+                    imps=row.impressions,
+                    clicks=row.clicks,
+                    cost=row.cost,
+                    convs=g_convs,
+                    has_children=bool(row.group_id),
+                    attributed=conv_available,
+                ))
+            return sort_rows(rows)
+
+        if level == "group" and node_id:
+            ad_q = db.query(
+                models.YandexAds.ad_id,
+                func.sum(models.YandexAds.impressions).label("impressions"),
+                func.sum(models.YandexAds.clicks).label("clicks"),
+                func.sum(models.YandexAds.cost).label("cost"),
+                func.sum(models.YandexAds.conversions).label("conversions"),
+            ).filter(
+                models.YandexAds.client_id.in_(client_ids),
+                models.YandexAds.campaign_id == campaign.id,
+                models.YandexAds.ad_id.isnot(None),
+            )
+            ad_q = ad_q.filter(or_(models.YandexAds.group_id == node_id, models.YandexAds.group_name == node_id))
+            ad_q = apply_dates(ad_q, models.YandexAds)
+            ad_rows = ad_q.group_by(models.YandexAds.ad_id).all()
+            # Лиды объявлений — из карты Метрики (нативный DirectBanner), по ad_id.
+            rows = []
+            for row in ad_rows:
+                a_convs = conv_map.get(str(row.ad_id), 0) if conv_available else 0
+                rows.append(metric_row(
+                    raw_id=row.ad_id,
+                    parent_id=node_id,
+                    name=f"Объявление {row.ad_id}",
+                    lvl="ad",
+                    imps=row.impressions,
+                    clicks=row.clicks,
+                    cost=row.cost,
+                    convs=a_convs,
+                    has_children=False,
+                    attributed=conv_available,
+                ))
+            return sort_rows(rows)
+
+        return []
 
     @staticmethod
     def get_activity_by_weekday(

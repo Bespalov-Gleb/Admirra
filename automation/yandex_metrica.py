@@ -198,6 +198,58 @@ class YandexMetricaAPI:
                 logger.warning(f"Yandex Metrica API error {response.status_code}: {response.text[:200]}")
                 return []
 
+    async def get_conversions_by_dimension(
+        self,
+        counter_id: str,
+        date_from: str,
+        date_to: str,
+        goal_ids: List[str],
+        dimension: str,
+        extra_dimension: Optional[str] = None,
+        filters: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Конверсии (сумма выбранных целей) с разбивкой по нативному дименшену
+        Яндекс.Директа — DirectClickOrder (кампания), DirectBannerGroup (группа),
+        DirectBanner (объявление, вид `M-<id>`). Фильтр по Директу. Атрибуция
+        AUTOMATIC — как в остальном дашборде, чтобы цифры сходились.
+        Возвращает список {"keys": [extra?, dim], "conversions": float}.
+        """
+        goal_ids = [str(g) for g in (goal_ids or []) if str(g).strip()]
+        if not goal_ids:
+            return []
+        metrics = ",".join(f"ym:s:goal{g}visits" for g in goal_ids)
+        dims = dimension if not extra_dimension else f"{extra_dimension},{dimension}"
+        params = {
+            "ids": str(counter_id),
+            "metrics": metrics,
+            "dimensions": dims,
+            "date1": date_from,
+            "date2": date_to,
+            "filters": filters if filters is not None else FILTER_YANDEX_DIRECT_VISITS,
+            "attribution": "AUTOMATIC",
+            "accuracy": "full",
+            "limit": 100000,
+        }
+        results: List[Dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                response = await client.get(self.base_url, params=params, headers=self.headers)
+        except Exception as err:
+            logger.warning("Metrika conversions-by-dimension request failed: %s", err)
+            return []
+        if response.status_code != 200:
+            logger.warning(
+                "Metrika conversions-by-dimension error %s: %s",
+                response.status_code, response.text[:200],
+            )
+            return []
+        for row in response.json().get("data", []):
+            keys = [d.get("name") for d in row.get("dimensions", [])]
+            conv = sum(float(m or 0) for m in row.get("metrics", []))
+            results.append({"keys": keys, "conversions": conv})
+        return results
+
     async def get_counters(self) -> List[Dict[str, Any]]:
         """
         Lists all accessible counters.

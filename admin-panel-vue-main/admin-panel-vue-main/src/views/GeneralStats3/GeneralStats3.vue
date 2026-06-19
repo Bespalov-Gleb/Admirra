@@ -619,6 +619,25 @@
     <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
       <div class="panel-title-row">
         <h2>Лучшие рекламные компании</h2>
+        <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
+          <button
+            v-for="option in campaignSortOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: campaignSort === option.value }"
+            @click="setCampaignSort(option.value)"
+          >
+            {{ option.label }}
+          </button>
+          <button
+            type="button"
+            class="campaign-expand-all"
+            :disabled="!campaignTreeRows.length"
+            @click="toggleExpandAllCampaignRows"
+          >
+            {{ anyCampaignRowExpanded ? 'Свернуть всё' : 'Развернуть всё' }}
+          </button>
+        </div>
       </div>
       <div class="campaign-table">
         <div class="campaign-row header">
@@ -631,18 +650,56 @@
           <span>Лиды</span>
           <span>CPL</span>
         </div>
-        <div v-for="(campaign, index) in campaignRows" :key="campaign.id || index" class="campaign-row" :class="[campaign.tint, campaign.alertClass]" :title="campaign.alertTitle">
-          <span>
-            {{ campaign.name }}
-            <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
+        <div
+          v-for="campaign in campaignTreeRows"
+          :key="campaign.rowKey"
+          class="campaign-row"
+          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad' }]"
+          :title="campaign.alertTitle"
+        >
+          <span class="campaign-name-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
+            <button
+              v-if="campaign.canExpand"
+              type="button"
+              class="campaign-tree-toggle"
+              :class="{ expanded: isCampaignRowExpanded(campaign.rowKey), loading: isCampaignRowLoading(campaign.rowKey) }"
+              :aria-label="isCampaignRowExpanded(campaign.rowKey) ? 'Свернуть' : 'Развернуть'"
+              @click.stop="toggleCampaignRow(campaign)"
+            >
+              <ChevronDownIcon />
+            </button>
+            <span v-else class="campaign-tree-placeholder"></span>
+            <span class="campaign-name-stack">
+              <span class="campaign-name-main">
+                {{ campaign.name }}
+                <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
+              </span>
+              <button
+                v-if="campaign.sourceId"
+                type="button"
+                class="campaign-source-id"
+                :class="{ copied: copiedCampaignSourceId === campaign.sourceId }"
+                title="Скопировать ID"
+                @click.stop="copyCampaignSourceId(campaign.sourceId)"
+              >
+                ID {{ campaign.sourceId }}
+              </button>
+            </span>
           </span>
           <span><em class="campaign-direction-pill">{{ campaign.direction }}</em></span>
-          <span>{{ campaign.cost }} <b :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
-          <span>{{ campaign.impressions }} <b :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
-          <span>{{ campaign.clicks }} <b :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
-          <span>{{ campaign.cpc }} <b :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
-          <span>{{ campaign.leads }} <b :class="{ negative: campaign.trendLeads.negative }"><component :is="campaign.trendLeads.icon" />{{ campaign.trendLeads.text }}</b></span>
-          <span>{{ campaign.cpa }} <b :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b></span>
+          <span>{{ campaign.cost }} <b v-if="campaign.trendCost" :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
+          <span>{{ campaign.impressions }} <b v-if="campaign.trendImpressions" :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
+          <span>{{ campaign.clicks }} <b v-if="campaign.trendClicks" :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
+          <span>{{ campaign.cpc }} <b v-if="campaign.trendCpc" :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
+          <span :title="campaign.conversionsAttributed ? '' : 'Лиды не атрибутируются на этом уровне'">
+            {{ campaign.leads }}
+            <em v-if="campaign.leadsApprox" class="campaign-estimate-badge">ориентир.</em>
+            <b v-if="campaign.trendLeads" :class="{ negative: campaign.trendLeads.negative }"><component :is="campaign.trendLeads.icon" />{{ campaign.trendLeads.text }}</b>
+          </span>
+          <span :title="campaign.conversionsAttributed ? '' : 'CPL не атрибутируется на этом уровне'">
+            {{ campaign.cpa }}
+            <b v-if="campaign.trendCpa" :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b>
+          </span>
         </div>
       </div>
       <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
@@ -1820,6 +1877,7 @@ watch(() => openMenu.value, (val) => {
 })
 onBeforeUnmount(() => {
   if (_periodScrollCleanup) _periodScrollCleanup()
+  if (copiedCampaignSourceTimer) clearTimeout(copiedCampaignSourceTimer)
   clearSyncJobPolling()
   clearIntegrationStatusPolling()
 })
@@ -2215,6 +2273,205 @@ const campaignTrend = (value, metric) => {
     icon: safeNum >= 0 ? ArrowTrendingUpIcon : ArrowTrendingDownIcon,
     negative: isCostMetric ? safeNum > 0 : safeNum < 0,
   }
+}
+
+const campaignSortOptions = [
+  { value: 'leads', label: 'Лиды' },
+  { value: 'cost', label: 'Расход' },
+  { value: 'cpl', label: 'CPL' },
+]
+const campaignSort = ref('leads')
+const campaignChildren = ref({})
+const campaignChildrenLoading = ref({})
+const expandedCampaignRows = ref(new Set())
+const copiedCampaignSourceId = ref('')
+let copiedCampaignSourceTimer = null
+
+const campaignSortDir = computed(() => campaignSort.value === 'cpl' ? 'asc' : 'desc')
+
+const setCampaignSort = (value) => {
+  campaignSort.value = value
+}
+
+const resetCampaignTree = () => {
+  expandedCampaignRows.value = new Set()
+  campaignChildren.value = {}
+  campaignChildrenLoading.value = {}
+}
+
+const isCampaignRowExpanded = (rowKey) => expandedCampaignRows.value.has(rowKey)
+const isCampaignRowLoading = (rowKey) => Boolean(campaignChildrenLoading.value[rowKey])
+
+const getCampaignSortValue = (campaign) => {
+  if (campaignSort.value === 'cost') return Number(campaign.cost || 0)
+  if (campaignSort.value === 'cpl') {
+    const cpa = Number(campaign.cpa || 0)
+    return cpa > 0 ? cpa : Number.POSITIVE_INFINITY
+  }
+  return Number(campaign.conversions ?? campaign.leads ?? 0)
+}
+
+const sortedCampaignSourceRows = computed(() => {
+  const rows = campaigns.value?.length ? [...campaigns.value] : []
+  return rows.sort((a, b) => {
+    const aVal = getCampaignSortValue(a)
+    const bVal = getCampaignSortValue(b)
+    if (campaignSort.value === 'cpl') return aVal - bVal
+    return bVal - aVal
+  })
+})
+
+const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
+  const tints = ['orange', 'green', 'blue']
+  const nodeLevel = campaign.level || (level === 0 ? 'campaign' : 'group')
+  const isRoot = level === 0
+  const rootTint = parent?.tint || tints[index % tints.length]
+  const conversionsAttributed = campaign.conversions_attributed !== false
+  const conversions = Number(campaign.conversions ?? campaign.leads ?? 0)
+  const hasPositiveLeads = conversionsAttributed && conversions > 0
+  const sourceId = campaign.source_id || campaign.sourceId || (nodeLevel !== 'campaign' ? campaign.id : null)
+  const baseId = campaign.id || sourceId || `${nodeLevel}-${index}`
+  const rowKey = parent
+    ? `${parent.rowKey}:${nodeLevel}:${baseId}`
+    : `campaign:${baseId}`
+  const alert = isRoot ? getAlertForEntity('campaign', campaign.id) : null
+
+  return {
+    id: baseId,
+    rowKey,
+    campaignId: parent?.campaignId || campaign.id,
+    sourceId,
+    nodeLevel,
+    level,
+    name: campaign.name || (nodeLevel === 'ad' ? `Объявление ${sourceId || index + 1}` : `Группа ${index + 1}`),
+    direction: isRoot
+      ? (directionNameByCampaignId.value.get(String(campaign.id)) || '—')
+      : (nodeLevel === 'ad' ? 'Объявление' : 'Группа'),
+    tint: rootTint,
+    alert,
+    alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
+    alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
+    cost: formatMoney(withVat(campaign.cost, { platform: campaign.platform })),
+    impressions: formatNumber(campaign.impressions),
+    clicks: formatNumber(campaign.clicks),
+    cpc: Number(campaign.clicks || 0) > 0 ? formatMoney(withVat(campaign.cpc, { platform: campaign.platform })) : '—',
+    leads: conversionsAttributed ? `${formatNumber(conversions)} шт.` : '—',
+    leadsApprox: conversionsAttributed && conversions > 0 && conversions <= 2,
+    cpa: hasPositiveLeads ? formatMoney(withVat(campaign.cpa, { platform: campaign.platform })) : '—',
+    conversionsAttributed,
+    canExpand: Boolean(campaign.has_children) && nodeLevel !== 'ad',
+    trendCost: isRoot ? campaignTrend(campaign.trend_cost, 'cost') : null,
+    trendImpressions: isRoot ? campaignTrend(campaign.trend_impressions, 'impressions') : null,
+    trendClicks: isRoot ? campaignTrend(campaign.trend_clicks, 'clicks') : null,
+    trendCpc: isRoot ? campaignTrend(campaign.trend_cpc, 'cpc') : null,
+    trendLeads: isRoot ? campaignTrend(campaign.trend_conversions, 'leads') : null,
+    trendCpa: isRoot ? campaignTrend(campaign.trend_cpa, 'cpa') : null,
+  }
+}
+
+const copyCampaignSourceId = async (sourceId) => {
+  const value = String(sourceId || '').trim()
+  if (!value) return
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = value
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    copiedCampaignSourceId.value = value
+    if (copiedCampaignSourceTimer) clearTimeout(copiedCampaignSourceTimer)
+    copiedCampaignSourceTimer = setTimeout(() => {
+      copiedCampaignSourceId.value = ''
+    }, 1400)
+  } catch (err) {
+    console.error('Failed to copy campaign source ID:', err)
+    toaster.error('Не удалось скопировать ID')
+  }
+}
+
+const fetchCampaignChildren = async (row) => {
+  if (!row?.campaignId || isCampaignRowLoading(row.rowKey)) return
+  campaignChildrenLoading.value = { ...campaignChildrenLoading.value, [row.rowKey]: true }
+  try {
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || undefined,
+      level: row.nodeLevel,
+      node_id: row.nodeLevel === 'campaign' ? undefined : (row.sourceId || row.id),
+      sort_by: campaignSort.value,
+      sort_dir: campaignSortDir.value,
+    }
+    const { data } = await api.get(`dashboard/campaigns/${row.campaignId}/children`, { params })
+    campaignChildren.value = {
+      ...campaignChildren.value,
+      [row.rowKey]: Array.isArray(data) ? data : [],
+    }
+  } catch (err) {
+    console.error('Failed to load campaign drilldown:', err)
+    toaster.error('Не удалось загрузить детализацию кампании')
+    campaignChildren.value = { ...campaignChildren.value, [row.rowKey]: [] }
+  } finally {
+    campaignChildrenLoading.value = { ...campaignChildrenLoading.value, [row.rowKey]: false }
+  }
+}
+
+const toggleCampaignRow = async (row) => {
+  if (!row?.canExpand) return
+  const next = new Set(expandedCampaignRows.value)
+  if (next.has(row.rowKey)) {
+    next.delete(row.rowKey)
+    expandedCampaignRows.value = next
+    return
+  }
+  next.add(row.rowKey)
+  expandedCampaignRows.value = next
+  if (!Object.prototype.hasOwnProperty.call(campaignChildren.value, row.rowKey)) {
+    await fetchCampaignChildren(row)
+  }
+}
+
+const anyCampaignRowExpanded = computed(() => expandedCampaignRows.value.size > 0)
+
+// Развернуть всё: уровень за уровнем — раскрываем видимые узлы, ждём ленивую
+// подгрузку детей, затем раскрываем уже их (группы → объявления).
+const expandAllCampaignRows = async () => {
+  let safety = 0
+  while (safety < 12) {
+    safety += 1
+    const toExpand = campaignTreeRows.value.filter(
+      (r) => r.canExpand && !expandedCampaignRows.value.has(r.rowKey)
+    )
+    if (!toExpand.length) break
+    const next = new Set(expandedCampaignRows.value)
+    toExpand.forEach((r) => next.add(r.rowKey))
+    expandedCampaignRows.value = next
+    await Promise.all(
+      toExpand.map((r) =>
+        Object.prototype.hasOwnProperty.call(campaignChildren.value, r.rowKey)
+          ? null
+          : fetchCampaignChildren(r)
+      )
+    )
+    await nextTick()
+  }
+}
+
+const collapseAllCampaignRows = () => {
+  expandedCampaignRows.value = new Set()
+}
+
+const toggleExpandAllCampaignRows = () => {
+  if (anyCampaignRowExpanded.value) collapseAllCampaignRows()
+  else expandAllCampaignRows()
 }
 
 const selectedChannel = computed(() => filterChannels.find((item) => item.value === filters.channel)?.name || 'Все каналы')
@@ -2687,33 +2944,26 @@ const goalsSummaryCpl = computed(() => {
 })
 
 const campaignRows = computed(() => {
-  const rows = campaigns.value?.length ? campaigns.value : []
-  if (!rows.length) return []
-  const tints = ['orange', 'green', 'blue']
-  return rows.slice(0, 5).map((campaign, index) => {
-    const alert = getAlertForEntity('campaign', campaign.id)
-    return {
-      id: campaign.id,
-      name: campaign.name || `Кампания ${index + 1}`,
-      direction: directionNameByCampaignId.value.get(String(campaign.id)) || '—',
-      tint: tints[index % tints.length],
-      alert,
-      alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
-      alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
-      cost: formatMoney(withVat(campaign.cost, { platform: campaign.platform })),
-      impressions: formatNumber(campaign.impressions),
-      clicks: formatNumber(campaign.clicks),
-      cpc: formatMoney(withVat(campaign.cpc, { platform: campaign.platform })),
-      leads: `${formatNumber(campaign.conversions ?? campaign.leads)} шт.`,
-      cpa: formatMoney(withVat(campaign.cpa, { platform: campaign.platform })),
-      trendCost: campaignTrend(campaign.trend_cost, 'cost'),
-      trendImpressions: campaignTrend(campaign.trend_impressions, 'impressions'),
-      trendClicks: campaignTrend(campaign.trend_clicks, 'clicks'),
-      trendCpc: campaignTrend(campaign.trend_cpc, 'cpc'),
-      trendLeads: campaignTrend(campaign.trend_conversions, 'leads'),
-      trendCpa: campaignTrend(campaign.trend_cpa, 'cpa')
-    }
-  })
+  return sortedCampaignSourceRows.value
+    .slice(0, 5)
+    .map((campaign, index) => formatCampaignTreeRow(campaign, index))
+})
+
+const campaignTreeRows = computed(() => {
+  const result = []
+
+  const appendRow = (row) => {
+    result.push(row)
+    if (!row.canExpand || !expandedCampaignRows.value.has(row.rowKey)) return
+
+    const children = campaignChildren.value[row.rowKey] || []
+    children.forEach((child, index) => {
+      appendRow(formatCampaignTreeRow(child, index, row.level + 1, row))
+    })
+  }
+
+  campaignRows.value.forEach(appendRow)
+  return result
 })
 
 const AD_TYPE_TAB_MAP = {
@@ -3439,6 +3689,18 @@ watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.ch
 watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel], () => {
   if (filters.client_id) refreshDirections()
 }, { deep: true })
+
+watch(() => [
+  filters.start_date,
+  filters.end_date,
+  filters.client_id,
+  filters.channel,
+  filters.campaign_ids.join(','),
+  campaigns.value.map((item) => item.id).join(','),
+  campaignSort.value,
+], () => {
+  resetCampaignTree()
+})
 
 watch(() => [directionEditor.value.name, directionEditor.value.masks, directionModalOpen.value], () => {
   fetchDirectionPreview()
@@ -6044,6 +6306,47 @@ onMounted(() => {
   overflow-x: auto;
 }
 
+.campaign-sort-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.campaign-sort-tabs button {
+  min-height: 2.6rem;
+  padding: 0 1.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8d95a5;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.campaign-sort-tabs button.active {
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 0.35rem 1rem rgba(37, 99, 235, 0.12);
+}
+
+.campaign-sort-tabs .campaign-expand-all {
+  margin-left: 0.45rem;
+  padding-left: 1.2rem;
+  border-left: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 0;
+  color: #2563eb;
+}
+
+.campaign-sort-tabs .campaign-expand-all:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .campaign-row {
   display: grid;
   grid-template-columns: minmax(26rem, 2.2fr) minmax(13rem, 0.9fr) repeat(6, minmax(9.5rem, 1fr));
@@ -6072,6 +6375,104 @@ onMounted(() => {
 
 .campaign-row.blue {
   background: #e8eefc;
+}
+
+.campaign-row--child {
+  min-height: 5.1rem;
+  background: #f7f9fd !important;
+  color: #5c6472;
+}
+
+.campaign-row--ad {
+  background: #fbfcff !important;
+}
+
+.campaign-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding-left: var(--tree-indent, 0);
+}
+
+.campaign-name-stack {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.campaign-name-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-tree-toggle,
+.campaign-tree-placeholder {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 2.2rem;
+}
+
+.campaign-tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2563eb;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.campaign-tree-toggle svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  transform: rotate(-90deg);
+  transition: transform 0.18s ease;
+}
+
+.campaign-tree-toggle.expanded svg {
+  transform: rotate(0);
+}
+
+.campaign-tree-toggle.loading {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.campaign-source-id {
+  justify-self: start;
+  max-width: 18rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9aa3b2;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: copy;
+}
+
+.campaign-source-id.copied {
+  color: #22a85a;
+}
+
+.campaign-estimate-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b7791f;
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .campaign-row--anomaly-warning {
@@ -6977,6 +7378,17 @@ onMounted(() => {
   margin-top: 1.3889rem;
 }
 
+.campaign-sort-tabs {
+  gap: 0.3125rem;
+  padding: 0.2431rem;
+}
+
+.campaign-sort-tabs button {
+  min-height: 1.8056rem;
+  padding: 0 0.8333rem;
+  font-size: 0.6944rem;
+}
+
 .campaign-row {
   grid-template-columns: minmax(18.0556rem, 2.1fr) minmax(9.0278rem, 0.9fr) repeat(6, minmax(6.9444rem, 1fr));
   min-width: 86.1111rem;
@@ -6995,6 +7407,37 @@ onMounted(() => {
 .campaign-row b svg {
   width: 0.6944rem;
   height: 0.6944rem;
+}
+
+.campaign-row--child {
+  min-height: 3.125rem;
+}
+
+.campaign-name-cell {
+  gap: 0.5208rem;
+}
+
+.campaign-tree-toggle,
+.campaign-tree-placeholder {
+  width: 1.5278rem;
+  height: 1.5278rem;
+  flex-basis: 1.5278rem;
+}
+
+.campaign-tree-toggle svg {
+  width: 0.8333rem;
+  height: 0.8333rem;
+}
+
+.campaign-source-id {
+  max-width: 12.5rem;
+  font-size: 0.625rem;
+}
+
+.campaign-estimate-badge {
+  margin-left: 0.3125rem;
+  padding: 0.1736rem 0.3472rem;
+  font-size: 0.5903rem;
 }
 
 .campaign-direction-pill {

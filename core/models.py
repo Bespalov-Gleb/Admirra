@@ -244,6 +244,7 @@ class Client(Base):
     yandex_stats = relationship("YandexStats", back_populates="client")
     yandex_keywords = relationship("YandexKeywords", back_populates="client")
     yandex_groups = relationship("YandexGroups", back_populates="client")
+    yandex_ads = relationship("YandexAds", back_populates="client")
     vk_stats = relationship("VKStats", back_populates="client")
     avito_stats = relationship("AvitoStats", back_populates="client")
     weekly_reports = relationship("WeeklyReport", back_populates="client")
@@ -389,6 +390,8 @@ class Campaign(Base):
 
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
+    yandex_groups = relationship("YandexGroups", back_populates="campaign")
+    yandex_ads = relationship("YandexAds", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
     avito_stats = relationship("AvitoStats", back_populates="campaign")
 
@@ -500,6 +503,7 @@ class YandexKeywords(Base):
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
     keyword = Column(String)
@@ -514,9 +518,10 @@ class YandexGroups(Base):
     __tablename__ = "yandex_groups"
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"))
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
     date = Column(Date, index=True, nullable=False)
     campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
     group_name = Column(String)
     impressions = Column(BigInteger, default=0)
     clicks = Column(BigInteger, default=0)
@@ -524,6 +529,27 @@ class YandexGroups(Base):
     conversions = Column(BigInteger, default=0)
 
     client = relationship("Client", back_populates="yandex_groups")
+    campaign = relationship("Campaign", back_populates="yandex_groups")
+
+
+class YandexAds(Base):
+    __tablename__ = "yandex_ads"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
+    group_name = Column(String, nullable=True)
+    ad_id = Column(String, nullable=True, index=True)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+
+    client = relationship("Client", back_populates="yandex_ads")
+    campaign = relationship("Campaign", back_populates="yandex_ads")
 
 class AvitoStats(Base):
     __tablename__ = "avito_stats"
