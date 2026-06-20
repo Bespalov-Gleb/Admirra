@@ -247,6 +247,8 @@ class Client(Base):
     yandex_ads = relationship("YandexAds", back_populates="client")
     vk_stats = relationship("VKStats", back_populates="client")
     avito_stats = relationship("AvitoStats", back_populates="client")
+    avito_groups = relationship("AvitoGroups", back_populates="client")
+    avito_creatives = relationship("AvitoCreatives", back_populates="client")
     weekly_reports = relationship("WeeklyReport", back_populates="client")
     monthly_reports = relationship("MonthlyReport", back_populates="client")
     team_accesses = relationship("TeamMemberProject", back_populates="project", cascade="all, delete-orphan")
@@ -394,6 +396,8 @@ class Campaign(Base):
     yandex_ads = relationship("YandexAds", back_populates="campaign")
     vk_stats = relationship("VKStats", back_populates="campaign")
     avito_stats = relationship("AvitoStats", back_populates="campaign")
+    avito_groups = relationship("AvitoGroups", back_populates="campaign")
+    avito_creatives = relationship("AvitoCreatives", back_populates="campaign")
 
 
 class ProjectDirection(Base):
@@ -569,6 +573,49 @@ class AvitoStats(Base):
 
     client = relationship("Client", back_populates="avito_stats")
     campaign = relationship("Campaign", back_populates="avito_stats")
+
+
+class AvitoGroups(Base):
+    __tablename__ = "avito_groups"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
+    group_name = Column(String, nullable=True)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+    cpc = Column(Numeric(20, 2), nullable=True)
+    cpa = Column(Numeric(20, 2), nullable=True)
+
+    client = relationship("Client", back_populates="avito_groups")
+    campaign = relationship("Campaign", back_populates="avito_groups")
+
+
+class AvitoCreatives(Base):
+    __tablename__ = "avito_creatives"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
+    creative_id = Column(String, nullable=True, index=True)
+    creative_name = Column(String, nullable=True)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+    cpc = Column(Numeric(20, 2), nullable=True)
+    cpa = Column(Numeric(20, 2), nullable=True)
+
+    client = relationship("Client", back_populates="avito_creatives")
+    campaign = relationship("Campaign", back_populates="avito_creatives")
 
 
 class VKStats(Base):

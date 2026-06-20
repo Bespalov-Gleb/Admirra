@@ -1144,6 +1144,28 @@ class StatsService:
 
         if platform in ["all", "avito"]:
             av_results = run_avito_query(d_start, d_end)
+            avito_child_campaign_ids_q = db.query(models.AvitoGroups.campaign_id).filter(
+                models.AvitoGroups.client_id.in_(client_ids),
+                models.AvitoGroups.campaign_id.isnot(None),
+            )
+            if d_start:
+                avito_child_campaign_ids_q = avito_child_campaign_ids_q.filter(models.AvitoGroups.date >= d_start)
+            if d_end:
+                avito_child_campaign_ids_q = avito_child_campaign_ids_q.filter(models.AvitoGroups.date <= d_end)
+            avito_child_campaign_ids = {
+                str(row[0]) for row in avito_child_campaign_ids_q.distinct().all() if row and row[0]
+            }
+            avito_creative_campaign_ids_q = db.query(models.AvitoCreatives.campaign_id).filter(
+                models.AvitoCreatives.client_id.in_(client_ids),
+                models.AvitoCreatives.campaign_id.isnot(None),
+            )
+            if d_start:
+                avito_creative_campaign_ids_q = avito_creative_campaign_ids_q.filter(models.AvitoCreatives.date >= d_start)
+            if d_end:
+                avito_creative_campaign_ids_q = avito_creative_campaign_ids_q.filter(models.AvitoCreatives.date <= d_end)
+            avito_child_campaign_ids.update(
+                str(row[0]) for row in avito_creative_campaign_ids_q.distinct().all() if row and row[0]
+            )
             total_avito_metrika_convs = get_metrika_convs(
                 d_start,
                 d_end,
@@ -1202,7 +1224,7 @@ class StatsService:
                     "platform": "avito",
                     "level": "campaign",
                     "source_id": ext_id or None,
-                    "has_children": False,
+                    "has_children": cid in avito_child_campaign_ids,
                     "conversions_attributed": True,
                     "name": f"[Avito] {disp_name}",
                     "impressions": imps,
@@ -1260,8 +1282,9 @@ class StatsService:
             return []
 
         platform = campaign.integration.platform
-        if platform != models.IntegrationPlatform.YANDEX_DIRECT:
+        if platform not in (models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.AVITO_ADS):
             return []
+        platform_code = "avito" if platform == models.IntegrationPlatform.AVITO_ADS else "yandex"
 
         def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True):
             cost_val = float(cost or 0)
@@ -1271,7 +1294,7 @@ class StatsService:
             return {
                 "id": str(raw_id or name or ""),
                 "parent_id": str(parent_id) if parent_id else None,
-                "platform": "yandex",
+                "platform": platform_code,
                 "level": lvl,
                 "source_id": str(raw_id) if raw_id else None,
                 "has_children": bool(has_children),
@@ -1312,10 +1335,81 @@ class StatsService:
                     return float(cpa) if cpa else float("inf")
                 return int(row.get("conversions") or 0)
 
+            if sort_key in ("leads", "conversions", "results") and rows and all(
+                row.get("conversions_attributed") is False for row in rows
+            ):
+                return sorted(rows, key=lambda row: float(row.get("cost") or 0), reverse=True)
             sorted_rows = sorted(rows, key=value, reverse=reverse)
             if sort_key in ("cpa", "cpl") and reverse:
                 sorted_rows = sorted(rows, key=lambda r: (r.get("cpa") in (None, 0), float(r.get("cpa") or 0)))
             return sorted_rows
+
+        if platform == models.IntegrationPlatform.AVITO_ADS:
+            if level == "campaign":
+                group_q = db.query(
+                    models.AvitoGroups.group_id,
+                    models.AvitoGroups.group_name,
+                    func.sum(models.AvitoGroups.impressions).label("impressions"),
+                    func.sum(models.AvitoGroups.clicks).label("clicks"),
+                    func.sum(models.AvitoGroups.cost).label("cost"),
+                ).filter(
+                    models.AvitoGroups.client_id.in_(client_ids),
+                    models.AvitoGroups.campaign_id == campaign.id,
+                    models.AvitoGroups.group_id.isnot(None),
+                )
+                group_q = apply_dates(group_q, models.AvitoGroups)
+                group_rows = group_q.group_by(models.AvitoGroups.group_id, models.AvitoGroups.group_name).all()
+                rows = []
+                for row in group_rows:
+                    rows.append(metric_row(
+                        raw_id=row.group_id,
+                        parent_id=str(campaign.id),
+                        name=row.group_name or f"Группа {row.group_id}",
+                        lvl="group",
+                        imps=row.impressions,
+                        clicks=row.clicks,
+                        cost=row.cost,
+                        convs=0,
+                        has_children=bool(row.group_id),
+                        attributed=False,
+                    ))
+                return sort_rows(rows)
+
+            if level == "group" and node_id:
+                creative_q = db.query(
+                    models.AvitoCreatives.creative_id,
+                    models.AvitoCreatives.creative_name,
+                    func.sum(models.AvitoCreatives.impressions).label("impressions"),
+                    func.sum(models.AvitoCreatives.clicks).label("clicks"),
+                    func.sum(models.AvitoCreatives.cost).label("cost"),
+                ).filter(
+                    models.AvitoCreatives.client_id.in_(client_ids),
+                    models.AvitoCreatives.campaign_id == campaign.id,
+                    models.AvitoCreatives.creative_id.isnot(None),
+                    models.AvitoCreatives.group_id == node_id,
+                )
+                creative_q = apply_dates(creative_q, models.AvitoCreatives)
+                creative_rows = creative_q.group_by(
+                    models.AvitoCreatives.creative_id,
+                    models.AvitoCreatives.creative_name,
+                ).all()
+                rows = []
+                for row in creative_rows:
+                    rows.append(metric_row(
+                        raw_id=row.creative_id,
+                        parent_id=node_id,
+                        name=row.creative_name or f"Креатив {row.creative_id}",
+                        lvl="ad",
+                        imps=row.impressions,
+                        clicks=row.clicks,
+                        cost=row.cost,
+                        convs=0,
+                        has_children=False,
+                        attributed=False,
+                    ))
+                return sort_rows(rows)
+
+            return []
 
         if level == "campaign":
             group_q = db.query(

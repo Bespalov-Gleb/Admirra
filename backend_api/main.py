@@ -59,6 +59,13 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_yandex_ads_campaign_id ON yandex_ads (campaign_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_yandex_ads_group_id ON yandex_ads (group_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_yandex_ads_ad_id ON yandex_ads (ad_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_groups_client_id ON avito_groups (client_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_groups_campaign_id ON avito_groups (campaign_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_groups_group_id ON avito_groups (group_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_client_id ON avito_creatives (client_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_campaign_id ON avito_creatives (campaign_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_group_id ON avito_creatives (group_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_creative_id ON avito_creatives (creative_id)"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

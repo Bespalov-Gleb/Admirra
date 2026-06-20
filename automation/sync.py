@@ -134,9 +134,11 @@ def _update_or_create_stats(db: Session, model, filters: dict, data: dict, verbo
                 raise
 
 
-def _bulk_upsert_stats_by_key(db: Session, model, rows: list):
+def _bulk_upsert_stats_by_key(db: Session, model, rows: list, extra_key_fields: tuple[str, ...] = ()):
     """
-    Batched upsert by logical key (client_id, campaign_id, date) without per-row SELECT/flush.
+    Batched upsert by logical key without per-row SELECT/flush.
+    Base key is (client_id, campaign_id, date); child stat tables can append
+    identifiers such as group_id or creative_id.
     """
     if not rows:
         return 0
@@ -153,11 +155,17 @@ def _bulk_upsert_stats_by_key(db: Session, model, rows: list):
         model.date >= min_date,
         model.date <= max_date,
     ).all()
-    existing_map = {(e.client_id, e.campaign_id, e.date): e for e in existing}
+    def row_key(row):
+        return tuple(row[field] for field in ("client_id", "campaign_id", "date", *extra_key_fields))
+
+    def model_key(item):
+        return tuple(getattr(item, field) for field in ("client_id", "campaign_id", "date", *extra_key_fields))
+
+    existing_map = {model_key(e): e for e in existing}
 
     updated = 0
     for row in rows:
-        key = (row["client_id"], row["campaign_id"], row["date"])
+        key = row_key(row)
         rec = existing_map.get(key)
         if rec:
             for k, v in row.items():
@@ -1334,7 +1342,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 models.Campaign.is_active.is_(True),
             ).all()
             external_ids = [str(c.external_id) for c in campaigns if c.external_id]
-            stats = await api.get_statistics(external_ids, date_from, date_to, integration.account_id)
+            stats_bundle = await api.get_statistics_bundle(
+                external_ids,
+                date_from,
+                date_to,
+                integration.account_id,
+            )
+            stats = stats_bundle.get("campaigns", [])
 
             campaign_map = {str(c.external_id): c for c in campaigns}
             avito_rows = []
@@ -1356,6 +1370,63 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     "cpa": None,
                 })
             _bulk_upsert_stats_by_key(db, models.AvitoStats, avito_rows)
+
+            avito_group_rows = []
+            for s in stats_bundle.get("groups", []):
+                campaign_external_id = str(s.get("campaign_id", ""))
+                campaign = campaign_map.get(campaign_external_id)
+                group_id = str(s.get("group_id") or "").strip()
+                if not campaign or not group_id:
+                    continue
+                avito_group_rows.append({
+                    "client_id": integration.client_id,
+                    "campaign_id": campaign.id,
+                    "date": datetime.strptime(s["date"], "%Y-%m-%d").date(),
+                    "campaign_name": s.get("campaign_name") or campaign.name,
+                    "group_id": group_id,
+                    "group_name": s.get("group_name") or f"Группа {group_id}",
+                    "impressions": s.get("impressions", 0),
+                    "clicks": s.get("clicks", 0),
+                    "cost": s.get("cost", 0),
+                    "conversions": 0,
+                    "cpc": s.get("cpc"),
+                    "cpa": None,
+                })
+            _bulk_upsert_stats_by_key(
+                db,
+                models.AvitoGroups,
+                avito_group_rows,
+                extra_key_fields=("group_id",),
+            )
+
+            avito_creative_rows = []
+            for s in stats_bundle.get("creatives", []):
+                campaign_external_id = str(s.get("campaign_id", ""))
+                campaign = campaign_map.get(campaign_external_id)
+                creative_id = str(s.get("creative_id") or "").strip()
+                if not campaign or not creative_id:
+                    continue
+                avito_creative_rows.append({
+                    "client_id": integration.client_id,
+                    "campaign_id": campaign.id,
+                    "date": datetime.strptime(s["date"], "%Y-%m-%d").date(),
+                    "campaign_name": s.get("campaign_name") or campaign.name,
+                    "group_id": str(s.get("group_id") or "").strip() or None,
+                    "creative_id": creative_id,
+                    "creative_name": s.get("creative_name") or f"Креатив {creative_id}",
+                    "impressions": s.get("impressions", 0),
+                    "clicks": s.get("clicks", 0),
+                    "cost": s.get("cost", 0),
+                    "conversions": 0,
+                    "cpc": s.get("cpc"),
+                    "cpa": None,
+                })
+            _bulk_upsert_stats_by_key(
+                db,
+                models.AvitoCreatives,
+                avito_creative_rows,
+                extra_key_fields=("creative_id",),
+            )
             db.commit()
 
             metrika_integration = get_metrika_integration_for_client(db, integration.client_id)

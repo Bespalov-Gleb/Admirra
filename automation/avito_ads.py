@@ -55,6 +55,11 @@ def _parse_stats_date(timestamp: Optional[str]) -> Optional[str]:
         return None
 
 
+def _chunked(items: List[str], size: int = 100):
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
+
+
 class AvitoAdsAPI:
     def __init__(
         self,
@@ -239,6 +244,170 @@ class AvitoAdsAPI:
 
         return campaigns
 
+    def _stats_rows_from_entity(
+        self,
+        entity: dict,
+        *,
+        entity_id_key: str,
+        entity_name_key: str,
+        row_id_field: str,
+        row_name_field: str,
+        campaign_id: str,
+        campaign_name: str,
+        default_name_prefix: str,
+    ) -> List[dict]:
+        entity_id = entity.get(entity_id_key)
+        if entity_id is None:
+            return []
+        entity_id = str(entity_id)
+        entity_name = entity.get(entity_name_key) or f"{default_name_prefix} {entity_id}"
+        rows: List[dict] = []
+        data_rows = entity.get("data")
+        if not isinstance(data_rows, list):
+            return rows
+
+        for row in data_rows:
+            if not isinstance(row, dict):
+                continue
+            day = _parse_stats_date(row.get("timestamp"))
+            if not day:
+                continue
+            clicks = int(row.get("clicks") or 0)
+            spend = float(row.get("spend") or 0)
+            normalized = {
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+                "date": day,
+                row_id_field: entity_id,
+                row_name_field: entity_name,
+                "impressions": int(row.get("views") or 0),
+                "clicks": clicks,
+                "cost": spend,
+                "cpc": round(spend / clicks, 2) if clicks > 0 else None,
+            }
+            if "groupId" in entity:
+                normalized["group_id"] = str(entity.get("groupId") or "")
+            elif "groupID" in entity:
+                normalized["group_id"] = str(entity.get("groupID") or "")
+            rows.append(normalized)
+        return rows
+
+    def _parse_campaign_stats_payload(
+        self,
+        payload: dict,
+        campaign_external_id: str,
+    ) -> dict:
+        campaign_block = payload.get("campaign") if isinstance(payload, dict) else None
+        if not isinstance(campaign_block, dict):
+            return {"campaigns": [], "groups": [], "creatives": [], "group_ids": [], "creative_ids": []}
+
+        campaign_id = str(campaign_block.get("id") or campaign_external_id)
+        campaign_name = campaign_block.get("name") or f"Campaign {campaign_id}"
+        campaign_rows = self._stats_rows_from_entity(
+            campaign_block,
+            entity_id_key="id",
+            entity_name_key="name",
+            row_id_field="campaign_id",
+            row_name_field="campaign_name",
+            campaign_id=campaign_id,
+            campaign_name=campaign_name,
+            default_name_prefix="Campaign",
+        )
+
+        group_items = payload.get("groups") if isinstance(payload, dict) else None
+        if not isinstance(group_items, list):
+            group_items = []
+        creative_items = payload.get("creatives") if isinstance(payload, dict) else None
+        if not isinstance(creative_items, list):
+            creative_items = []
+
+        group_rows: List[dict] = []
+        group_ids: List[str] = []
+        for group in group_items:
+            if not isinstance(group, dict):
+                continue
+            group_id = group.get("id")
+            if group_id is not None:
+                group_ids.append(str(group_id))
+            group_rows.extend(self._stats_rows_from_entity(
+                group,
+                entity_id_key="id",
+                entity_name_key="name",
+                row_id_field="group_id",
+                row_name_field="group_name",
+                campaign_id=campaign_id,
+                campaign_name=campaign_name,
+                default_name_prefix="Группа",
+            ))
+
+        creative_rows: List[dict] = []
+        creative_ids: List[str] = []
+        for creative in creative_items:
+            if not isinstance(creative, dict):
+                continue
+            creative_id = creative.get("id")
+            if creative_id is not None:
+                creative_ids.append(str(creative_id))
+            creative_rows.extend(self._stats_rows_from_entity(
+                creative,
+                entity_id_key="id",
+                entity_name_key="name",
+                row_id_field="creative_id",
+                row_name_field="creative_name",
+                campaign_id=campaign_id,
+                campaign_name=campaign_name,
+                default_name_prefix="Креатив",
+            ))
+
+        return {
+            "campaigns": campaign_rows,
+            "groups": group_rows,
+            "creatives": creative_rows,
+            "group_ids": group_ids,
+            "creative_ids": creative_ids,
+        }
+
+    async def get_campaign_statistics_bundle(
+        self,
+        campaign_external_id: str,
+        date_from: str,
+        date_to: str,
+        account_id: Optional[str] = None,
+    ) -> dict:
+        """POST /ads/v1/account/{accountID}/campaigns/{campaignID}/stats."""
+        acc = self._require_account_id(account_id)
+        if not str(campaign_external_id).isdigit():
+            return {"campaigns": [], "groups": [], "creatives": []}
+
+        payload = await self._request(
+            "POST",
+            f"/ads/v1/account/{acc}/campaigns/{int(campaign_external_id)}/stats",
+            json_data={"dateFrom": date_from, "dateTo": date_to},
+        )
+        parsed = self._parse_campaign_stats_payload(payload, campaign_external_id)
+
+        # In regular responses /campaigns/{id}/stats already contains child
+        # daily rows. If Avito returns only aggregates, fall back to dedicated
+        # child stats endpoints using IDs from the same response.
+        if parsed["group_ids"] and not parsed["groups"]:
+            parsed["groups"] = await self.get_group_statistics(
+                campaign_external_id,
+                parsed["group_ids"],
+                date_from,
+                date_to,
+                account_id=acc,
+            )
+        if parsed["creative_ids"] and not parsed["creatives"]:
+            parsed["creatives"] = await self.get_creative_statistics(
+                campaign_external_id,
+                parsed["creative_ids"],
+                date_from,
+                date_to,
+                account_id=acc,
+            )
+
+        return parsed
+
     async def get_campaign_statistics(
         self,
         campaign_external_id: str,
@@ -246,48 +415,92 @@ class AvitoAdsAPI:
         date_to: str,
         account_id: Optional[str] = None,
     ) -> List[dict]:
-        """POST /ads/v1/account/{accountID}/campaigns/{campaignID}/stats."""
+        bundle = await self.get_campaign_statistics_bundle(
+            campaign_external_id,
+            date_from,
+            date_to,
+            account_id=account_id,
+        )
+        return bundle.get("campaigns", [])
+
+    async def get_group_statistics(
+        self,
+        campaign_external_id: str,
+        group_external_ids: List[str],
+        date_from: str,
+        date_to: str,
+        account_id: Optional[str] = None,
+    ) -> List[dict]:
         acc = self._require_account_id(account_id)
         if not str(campaign_external_id).isdigit():
             return []
-
-        payload = await self._request(
-            "POST",
-            f"/ads/v1/account/{acc}/campaigns/{int(campaign_external_id)}/stats",
-            json_data={"dateFrom": date_from, "dateTo": date_to},
-        )
-        campaign_block = payload.get("campaign") if isinstance(payload, dict) else None
-        if not isinstance(campaign_block, dict):
-            return []
-
-        campaign_id = str(campaign_block.get("id") or campaign_external_id)
-        campaign_name = campaign_block.get("name") or f"Campaign {campaign_id}"
         rows: List[dict] = []
-
-        data_rows = campaign_block.get("data")
-        if isinstance(data_rows, list):
-            for row in data_rows:
-                if not isinstance(row, dict):
+        for group_ids in _chunked([str(g) for g in group_external_ids if str(g).isdigit()]):
+            if not group_ids:
+                continue
+            payload = await self._request(
+                "POST",
+                f"/ads/v1/account/{acc}/campaigns/{int(campaign_external_id)}/groups/stats",
+                json_data={
+                    "dateFrom": date_from,
+                    "dateTo": date_to,
+                    "groupIDs": [int(group_id) for group_id in group_ids],
+                },
+            )
+            campaign_name = f"Campaign {campaign_external_id}"
+            for group in payload.get("groups", []) if isinstance(payload, dict) else []:
+                if not isinstance(group, dict):
                     continue
-                day = _parse_stats_date(row.get("timestamp"))
-                if not day:
-                    continue
-                clicks = int(row.get("clicks") or 0)
-                spend = float(row.get("spend") or 0)
-                rows.append(
-                    {
-                        "campaign_id": campaign_id,
-                        "campaign_name": campaign_name,
-                        "date": day,
-                        "impressions": int(row.get("views") or 0),
-                        "clicks": clicks,
-                        "cost": spend,
-                        # CPC считаем сами как расход/клики (рубли). Поле cpc из Avito API
-                        # приходит в копейках (×100) и расходится со spend — не используем его.
-                        "cpc": round(spend / clicks, 2) if clicks > 0 else None,
-                    }
-                )
+                rows.extend(self._stats_rows_from_entity(
+                    group,
+                    entity_id_key="id",
+                    entity_name_key="name",
+                    row_id_field="group_id",
+                    row_name_field="group_name",
+                    campaign_id=str(campaign_external_id),
+                    campaign_name=campaign_name,
+                    default_name_prefix="Группа",
+                ))
+        return rows
 
+    async def get_creative_statistics(
+        self,
+        campaign_external_id: str,
+        creative_external_ids: List[str],
+        date_from: str,
+        date_to: str,
+        account_id: Optional[str] = None,
+    ) -> List[dict]:
+        acc = self._require_account_id(account_id)
+        if not str(campaign_external_id).isdigit():
+            return []
+        rows: List[dict] = []
+        for creative_ids in _chunked([str(c) for c in creative_external_ids if str(c).isdigit()]):
+            if not creative_ids:
+                continue
+            payload = await self._request(
+                "POST",
+                f"/ads/v1/account/{acc}/campaigns/{int(campaign_external_id)}/creatives/stats",
+                json_data={
+                    "dateFrom": date_from,
+                    "dateTo": date_to,
+                    "creativeIDs": [int(creative_id) for creative_id in creative_ids],
+                },
+            )
+            campaign_name = f"Campaign {campaign_external_id}"
+            for creative in payload.get("creatives", []) if isinstance(payload, dict) else []:
+                if not isinstance(creative, dict):
+                    continue
+                rows.extend(self._stats_rows_from_entity(
+                    creative,
+                    entity_id_key="id",
+                    entity_name_key="name",
+                    row_id_field="creative_id",
+                    row_name_field="creative_name",
+                    campaign_id=str(campaign_external_id),
+                    campaign_name=campaign_name,
+                    default_name_prefix="Креатив",
+                ))
         return rows
 
     async def get_statistics(
@@ -311,6 +524,25 @@ class AvitoAdsAPI:
             except Exception:
                 continue
         return normalized
+
+    async def get_statistics_bundle(
+        self,
+        campaign_external_ids: List[str],
+        date_from: str,
+        date_to: str,
+        account_id: Optional[str] = None,
+    ) -> dict:
+        bundle = {"campaigns": [], "groups": [], "creatives": []}
+        for external_id in campaign_external_ids:
+            try:
+                campaign_bundle = await self.get_campaign_statistics_bundle(
+                    external_id, date_from, date_to, account_id=account_id
+                )
+            except Exception:
+                continue
+            for key in bundle:
+                bundle[key].extend(campaign_bundle.get(key, []))
+        return bundle
 
     async def get_balance(self, account_id: Optional[str] = None) -> Optional[dict]:
         """GET /ads/v1/account/{accountID}/balance — balance и bonusBalance в рублях."""
