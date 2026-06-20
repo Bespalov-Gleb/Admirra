@@ -738,11 +738,13 @@ class CampaignStat(BaseModel):
     clicks: int
     cost: float
     conversions: Optional[int] = 0
+    ctr: float = 0
     cpc: float
     cpa: float
     trend_cost: Optional[float] = None
     trend_impressions: Optional[float] = None
     trend_clicks: Optional[float] = None
+    trend_ctr: Optional[float] = None
     trend_conversions: Optional[float] = None
     trend_cpc: Optional[float] = None
     trend_cpa: Optional[float] = None

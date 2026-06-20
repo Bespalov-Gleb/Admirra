@@ -618,7 +618,7 @@
 
     <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
       <div class="panel-title-row">
-        <h2>Лучшие рекламные компании</h2>
+        <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
           <button
             v-for="option in campaignSortOptions"
@@ -646,6 +646,7 @@
           <span>Расход</span>
           <span>Показы</span>
           <span>Клики</span>
+          <span>CTR</span>
           <span>CPC</span>
           <span>Лиды</span>
           <span>CPL</span>
@@ -654,9 +655,15 @@
           v-for="campaign in campaignTreeRows"
           :key="campaign.rowKey"
           class="campaign-row"
-          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad' }]"
+          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad', 'campaign-row--empty': campaign.empty }]"
           :title="campaign.alertTitle"
         >
+          <template v-if="campaign.empty">
+            <span class="campaign-empty-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
+              {{ campaign.name }}
+            </span>
+          </template>
+          <template v-else>
           <span class="campaign-name-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
             <button
               v-if="campaign.canExpand"
@@ -682,7 +689,7 @@
                 title="Скопировать ID"
                 @click.stop="copyCampaignSourceId(campaign.sourceId)"
               >
-                ID {{ campaign.sourceId }}
+                {{ campaign.sourceLabel }}
               </button>
             </span>
           </span>
@@ -690,6 +697,7 @@
           <span>{{ campaign.cost }} <b v-if="campaign.trendCost" :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
           <span>{{ campaign.impressions }} <b v-if="campaign.trendImpressions" :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
           <span>{{ campaign.clicks }} <b v-if="campaign.trendClicks" :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
+          <span>{{ campaign.ctr }} <b v-if="campaign.trendCtr" :class="{ negative: campaign.trendCtr.negative }"><component :is="campaign.trendCtr.icon" />{{ campaign.trendCtr.text }}</b></span>
           <span>{{ campaign.cpc }} <b v-if="campaign.trendCpc" :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
           <span :title="campaign.conversionsAttributed ? '' : 'Лиды не атрибутируются на этом уровне'">
             {{ campaign.leads }}
@@ -700,6 +708,7 @@
             {{ campaign.cpa }}
             <b v-if="campaign.trendCpa" :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b>
           </span>
+          </template>
         </div>
       </div>
       <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
@@ -2288,6 +2297,11 @@ const copiedCampaignSourceId = ref('')
 let copiedCampaignSourceTimer = null
 
 const campaignSortDir = computed(() => campaignSort.value === 'cpl' ? 'asc' : 'desc')
+const campaignLevelLabels = {
+  campaign: 'кампания',
+  group: 'группа',
+  ad: 'объявление',
+}
 
 const setCampaignSort = (value) => {
   campaignSort.value = value
@@ -2341,6 +2355,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     rowKey,
     campaignId: parent?.campaignId || campaign.id,
     sourceId,
+    sourceLabel: sourceId ? `${campaignLevelLabels[nodeLevel] || 'ID'} · ${sourceId}` : '',
     nodeLevel,
     level,
     name: campaign.name || (nodeLevel === 'ad' ? `Объявление ${sourceId || index + 1}` : `Группа ${index + 1}`),
@@ -2354,6 +2369,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     cost: formatMoney(withVat(campaign.cost, { platform: campaign.platform })),
     impressions: formatNumber(campaign.impressions),
     clicks: formatNumber(campaign.clicks),
+    ctr: `${formatNumber(campaign.ctr, 2)}%`,
     cpc: Number(campaign.clicks || 0) > 0 ? formatMoney(withVat(campaign.cpc, { platform: campaign.platform })) : '—',
     leads: conversionsAttributed ? `${formatNumber(conversions)} шт.` : '—',
     leadsApprox: conversionsAttributed && conversions > 0 && conversions <= 2,
@@ -2363,6 +2379,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     trendCost: isRoot ? campaignTrend(campaign.trend_cost, 'cost') : null,
     trendImpressions: isRoot ? campaignTrend(campaign.trend_impressions, 'impressions') : null,
     trendClicks: isRoot ? campaignTrend(campaign.trend_clicks, 'clicks') : null,
+    trendCtr: isRoot ? campaignTrend(campaign.trend_ctr, 'ctr') : null,
     trendCpc: isRoot ? campaignTrend(campaign.trend_cpc, 'cpc') : null,
     trendLeads: isRoot ? campaignTrend(campaign.trend_conversions, 'leads') : null,
     trendCpa: isRoot ? campaignTrend(campaign.trend_cpa, 'cpa') : null,
@@ -2945,7 +2962,6 @@ const goalsSummaryCpl = computed(() => {
 
 const campaignRows = computed(() => {
   return sortedCampaignSourceRows.value
-    .slice(0, 5)
     .map((campaign, index) => formatCampaignTreeRow(campaign, index))
 })
 
@@ -2957,6 +2973,18 @@ const campaignTreeRows = computed(() => {
     if (!row.canExpand || !expandedCampaignRows.value.has(row.rowKey)) return
 
     const children = campaignChildren.value[row.rowKey] || []
+    if (!children.length && Object.prototype.hasOwnProperty.call(campaignChildren.value, row.rowKey)) {
+      result.push({
+        rowKey: `${row.rowKey}:empty`,
+        empty: true,
+        level: row.level + 1,
+        tint: row.tint,
+        name: row.nodeLevel === 'campaign'
+          ? 'За выбранный период групп объявлений нет'
+          : 'За выбранный период объявлений нет',
+      })
+      return
+    }
     children.forEach((child, index) => {
       appendRow(formatCampaignTreeRow(child, index, row.level + 1, row))
     })
@@ -6349,9 +6377,9 @@ onMounted(() => {
 
 .campaign-row {
   display: grid;
-  grid-template-columns: minmax(26rem, 2.2fr) minmax(13rem, 0.9fr) repeat(6, minmax(9.5rem, 1fr));
+  grid-template-columns: minmax(26rem, 2.2fr) minmax(13rem, 0.9fr) repeat(7, minmax(9rem, 1fr));
   align-items: center;
-  min-width: 138rem;
+  min-width: 146rem;
   min-height: 5.6rem;
   padding: 0 2.5rem;
   border-radius: 1rem;
@@ -6385,6 +6413,18 @@ onMounted(() => {
 
 .campaign-row--ad {
   background: #fbfcff !important;
+}
+
+.campaign-row--empty {
+  min-height: 4.6rem;
+  background: #f8fafc !important;
+  color: #9aa3b2;
+  font-weight: 600;
+}
+
+.campaign-empty-cell {
+  grid-column: 1 / -1;
+  padding-left: var(--tree-indent, 0);
 }
 
 .campaign-name-cell {
@@ -7390,8 +7430,8 @@ onMounted(() => {
 }
 
 .campaign-row {
-  grid-template-columns: minmax(18.0556rem, 2.1fr) minmax(9.0278rem, 0.9fr) repeat(6, minmax(6.9444rem, 1fr));
-  min-width: 86.1111rem;
+  grid-template-columns: minmax(18.0556rem, 2.1fr) minmax(9.0278rem, 0.9fr) repeat(7, minmax(6.25rem, 1fr));
+  min-width: 91.6667rem;
   min-height: 3.4722rem;
   padding: 0 1.3889rem;
   border-radius: 0.6944rem;
@@ -7799,7 +7839,7 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 83.3333rem;
+    min-width: 91.6667rem;
   }
 }
 

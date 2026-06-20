@@ -1029,6 +1029,7 @@ class StatsService:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
                 imps = int(r.impressions or 0)
+                ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 # CRITICAL: Конверсии Yandex — только из Метрики (пропорционально).
                 if total_metrika_convs > 0 and total_yandex_cost > 0:
                     convs = round(total_metrika_convs * (cost / total_yandex_cost))
@@ -1044,6 +1045,7 @@ class StatsService:
                     prev_cost = float(p.cost or 0)
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
+                    prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
                     if prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
                         prev_convs = round(prev_total_metrika_convs * (prev_cost / prev_total_yandex_cost))
                     else:
@@ -1051,7 +1053,7 @@ class StatsService:
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
-                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+                    prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
 
                 campaigns.append({
                     "id": cid,
@@ -1065,11 +1067,13 @@ class StatsService:
                     "clicks": clicks,
                     "cost": round(cost, 2),
                     "conversions": convs,
+                    "ctr": ctr,
                     "cpc": cpc,
                     "cpa": cpa,
                     "trend_cost": calc_trend(cost, prev_cost),
                     "trend_impressions": calc_trend(imps, prev_imps),
                     "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_ctr": calc_trend(ctr, prev_ctr),
                     "trend_conversions": calc_trend(convs, prev_convs),
                     "trend_cpc": calc_trend(cpc, prev_cpc),
                     "trend_cpa": calc_trend(cpa, prev_cpa),
@@ -1088,6 +1092,7 @@ class StatsService:
                 clicks = int(r.clicks or 0)
                 convs = int(r.conversions or 0)
                 imps = int(r.impressions or 0)
+                ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0
 
@@ -1097,11 +1102,12 @@ class StatsService:
                     prev_cost = float(p.cost or 0)
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
+                    prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
                     prev_convs = int(p.conversions or 0)
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
-                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+                    prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
 
                 # Название: Campaign.name (из API); если "Campaign {id}" — показываем "Кампания (ID: X)"
                 raw = (r.campaign_display_name or r.campaign_name or "").strip()
@@ -1124,11 +1130,13 @@ class StatsService:
                     "clicks": clicks,
                     "cost": round(cost, 2),
                     "conversions": convs,
+                    "ctr": ctr,
                     "cpc": cpc,
                     "cpa": cpa,
                     "trend_cost": calc_trend(cost, prev_cost),
                     "trend_impressions": calc_trend(imps, prev_imps),
                     "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_ctr": calc_trend(ctr, prev_ctr),
                     "trend_conversions": calc_trend(convs, prev_convs),
                     "trend_cpc": calc_trend(cpc, prev_cpc),
                     "trend_cpa": calc_trend(cpa, prev_cpa),
@@ -1162,6 +1170,7 @@ class StatsService:
                     else int(r.conversions or 0)
                 )
                 imps = int(r.impressions or 0)
+                ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0
                 cid = str(r.campaign_id)
@@ -1170,6 +1179,7 @@ class StatsService:
                     prev_cost = float(p.cost or 0)
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
+                    prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
                     prev_convs = (
                         round(prev_total_avito_metrika_convs * (prev_cost / prev_total_avito_cost))
                         if prev_total_avito_metrika_convs > 0 and prev_total_avito_cost > 0
@@ -1178,7 +1188,7 @@ class StatsService:
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
-                    prev_cost = prev_clicks = prev_imps = prev_convs = prev_cpc = prev_cpa = 0
+                    prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
                 raw = (r.campaign_display_name or r.campaign_name or "").strip()
                 ext_id = getattr(r, "campaign_external_id", None) or ""
                 if raw and not (raw.startswith("Campaign ") and raw.replace("Campaign ", "").strip().isdigit()):
@@ -1199,11 +1209,13 @@ class StatsService:
                     "clicks": clicks,
                     "cost": round(cost, 2),
                     "conversions": convs,
+                    "ctr": ctr,
                     "cpc": cpc,
                     "cpa": cpa,
                     "trend_cost": calc_trend(cost, prev_cost),
                     "trend_impressions": calc_trend(imps, prev_imps),
                     "trend_clicks": calc_trend(clicks, prev_clicks),
+                    "trend_ctr": calc_trend(ctr, prev_ctr),
                     "trend_conversions": calc_trend(convs, prev_convs),
                     "trend_cpc": calc_trend(cpc, prev_cpc),
                     "trend_cpa": calc_trend(cpa, prev_cpa),
@@ -1254,6 +1266,7 @@ class StatsService:
         def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True):
             cost_val = float(cost or 0)
             clicks_val = int(clicks or 0)
+            imps_val = int(imps or 0)
             conv_val = int(convs or 0) if attributed else 0
             return {
                 "id": str(raw_id or name or ""),
@@ -1264,15 +1277,17 @@ class StatsService:
                 "has_children": bool(has_children),
                 "conversions_attributed": bool(attributed),
                 "name": name or ("Группа" if lvl == "group" else "Объявление"),
-                "impressions": int(imps or 0),
+                "impressions": imps_val,
                 "clicks": clicks_val,
                 "cost": round(cost_val, 2),
                 "conversions": conv_val,
+                "ctr": round(clicks_val / imps_val * 100, 2) if imps_val > 0 else 0,
                 "cpc": round(cost_val / clicks_val, 2) if clicks_val > 0 else 0,
                 "cpa": round(cost_val / conv_val, 2) if attributed and conv_val > 0 else 0,
                 "trend_cost": None,
                 "trend_impressions": None,
                 "trend_clicks": None,
+                "trend_ctr": None,
                 "trend_conversions": None,
                 "trend_cpc": None,
                 "trend_cpa": None,
