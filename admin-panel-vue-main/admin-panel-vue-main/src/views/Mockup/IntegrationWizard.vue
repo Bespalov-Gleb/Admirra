@@ -634,6 +634,7 @@ import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
 import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
+import { trackFirstMilestone } from '@/utils/metrika'
 
 const router = useRouter()
 const { projects, currentProjectId, fetchProjects } = useProjects()
@@ -1135,6 +1136,8 @@ const doFinish = async () => {
       is_active: true
     })
     localStorage.removeItem('metrika_integration_id')
+    // Цель «Подключён первый кабинет» — только при первом подключении на аккаунт
+    trackFirstMilestone('integration_connected', 'integration_connected')
     toaster.success('Интеграция успешно настроена!')
     resetStore()
     router.push('/integrations')

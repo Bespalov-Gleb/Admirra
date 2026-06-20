@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
@@ -15,6 +16,8 @@ from backend_api.services.subscription import SubscriptionService
 from core import models, schemas, security
 from core.config import get_config
 from core.database import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
 
@@ -358,6 +361,28 @@ async def cloudpayments_webhook(
             target_id=str(sub.id),
             meta={"plan_code": plan.code, "billing_period": billing_period},
         )
+
+        # Серверная офлайн-конверсия в Метрику (выручка → рекламный источник).
+        # Рекуррент (автосписание) — фоновое, клиента нет: шлём subscription_renewal
+        # и payment_success с сервера. Первое/ручное списание: payment_success шлёт
+        # клиент на странице успеха, поэтому с сервера шлём только trial_to_paid.
+        try:
+            from backend_api.services.metrika_conversions import upload_offline_conversion
+            _amount = data.get("Amount") or data.get("Price")
+            _amount = float(_amount) if _amount not in (None, "") else None
+            _currency = str(data.get("Currency") or "RUB")
+            _cid = getattr(user, "metrika_client_id", None)
+            _yclid = getattr(user, "metrika_yclid", None)
+            if "recurrent" in event_name:
+                await upload_offline_conversion(target="subscription_renewal", price=_amount,
+                                                currency=_currency, client_id=_cid, yclid=_yclid)
+                await upload_offline_conversion(target="payment_success", price=_amount,
+                                                currency=_currency, client_id=_cid, yclid=_yclid)
+            else:
+                await upload_offline_conversion(target="trial_to_paid", price=_amount,
+                                                currency=_currency, client_id=_cid, yclid=_yclid)
+        except Exception as _conv_err:
+            logger.warning("Metrika offline conversion hook error: %s", _conv_err)
     elif "cancel" in event_name:
         sub.status = models.SubscriptionStatus.CANCELED
         user.is_subscribed = False

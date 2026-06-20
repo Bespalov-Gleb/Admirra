@@ -190,6 +190,7 @@ import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
+import { sendMetrikaIdentity } from '@/utils/metrika'
 import { getAuthProvider, setAuthProvider } from '@/utils/authToken'
 import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
@@ -284,6 +285,7 @@ const handleLogin = async () => {
   loading.value = false
 
   if (result.success) {
+    sendMetrikaIdentity()
     router.push(DEFAULT_DASHBOARD_PATH)
     return
   }

@@ -439,6 +439,9 @@ class ClientResponse(ClientBase):
     created_at: datetime
     integrations: List[IntegrationResponse] = []
     summary: Optional[StatsSummary] = None
+    # Сколько всего проектов у владельца после создания (для целей Метрики
+    # project_created / second_project — дедупликация «первого раза»).
+    owner_project_count: Optional[int] = None
 
     @field_validator("status", mode="before")
     @classmethod
@@ -869,6 +872,21 @@ class BillingSubscriptionResponse(BaseModel):
     autorenew: bool = True
     payment_method: Optional[Any] = None
     whitelabel_available: bool = False
+
+
+class MetrikaIdentityRequest(BaseModel):
+    """ClientID Метрики и yclid, собранные на фронте — для серверных конверсий."""
+    client_id: Optional[str] = None
+    yclid: Optional[str] = None
+
+
+class MetrikaMilestoneRequest(BaseModel):
+    """Заявка на «веху» Метрики (дедупликация цели «первого раза»)."""
+    name: str
+
+
+class MetrikaMilestoneResponse(BaseModel):
+    first: bool
 
 
 class BillingSubscribeRequest(BaseModel):

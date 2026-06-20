@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import CreateProjectBanner from '../Dashboard/components/CreateProjectBanner.vue'
+import { trackProjectCreated } from '@/utils/metrika'
 
 const { setCurrentProject, fetchProjects } = useProjects()
 const router = useRouter()
@@ -27,6 +28,7 @@ const handleCreate = async (name) => {
     if (data && data.id) {
       setCurrentProject(data.id)
     }
+    trackProjectCreated(data?.owner_project_count)
     
     // Refresh global projects list
     await fetchProjects()

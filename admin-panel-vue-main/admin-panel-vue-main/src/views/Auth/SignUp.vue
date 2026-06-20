@@ -211,8 +211,9 @@
 
 <script setup>
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { reachGoal } from '@/utils/metrika'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
@@ -237,6 +238,9 @@ const registerForm = reactive({
 })
 
 const errorMessage = ref('')
+
+// Цель «Начало регистрации» — открыл форму
+onMounted(() => reachGoal('signup_start'))
 
 const reuseProviderSession = async (provider) => {
   if (getAuthProvider() !== provider) return false
@@ -347,6 +351,9 @@ const handleRegister = async () => {
     )
     
     if (result.success) {
+      // Аккаунт создан + триал стартует при регистрации (см. ТЗ)
+      reachGoal('signup_complete', { method: 'email' })
+      reachGoal('trial_start')
       router.push({
         path: '/pending-email-verification',
         query: { email: result.email || registerForm.email }

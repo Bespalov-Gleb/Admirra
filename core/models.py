@@ -79,6 +79,14 @@ class User(Base):
     brand_custom_domain = Column(String, nullable=True)
     brand_domain_status = Column(String(16), nullable=True, default="none")
 
+    # Яндекс.Метрика: идентификаторы для серверных офлайн-конверсий (счётчик 109911357).
+    # Собираются на фронте при регистрации/входе и привязываются к аккаунту.
+    metrika_client_id = Column(String, nullable=True)
+    metrika_yclid = Column(String, nullable=True)
+    # Достигнутые «вехи» Метрики (JSON-список), для дедупликации целей «первого
+    # раза» (integration_connected и т.п.) на стороне сервера.
+    ym_milestones = Column(Text, nullable=True)
+
     clients = relationship("Client", back_populates="owner")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     oauth_identities = relationship(

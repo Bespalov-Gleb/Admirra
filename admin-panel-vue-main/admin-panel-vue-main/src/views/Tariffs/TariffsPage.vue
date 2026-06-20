@@ -214,6 +214,10 @@ import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { useToaster } from '@/composables/useToaster'
 import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
+import { reachGoal } from '@/utils/metrika'
+
+// Ранги тарифов для определения апгрейда (старший тариф / White Label)
+const PLAN_RANK = { start: 0, basic: 1, standard: 2, white_label: 3 }
 import { getAccessToken } from '@/utils/authToken'
 import {
   normalizePlansFromApi,
@@ -454,6 +458,9 @@ onMounted(async () => {
 
 async function onSubscribe(planCode, bp = 'month') {
   paying.value = planCode
+  // Цель «Начало оплаты»
+  reachGoal('payment_start')
+  const prevPlanCode = String(subscription.value?.plan_code || currentPlanCode.value || 'start').toLowerCase()
   try {
     const { data } = await api.post('billing/subscribe', {
       plan_code: planCode,
@@ -473,6 +480,19 @@ async function onSubscribe(planCode, bp = 'month') {
       recurrent: data.recurrent || null,
     })
     if (result.status === 'cancelled') return
+    // Успешная оплата — денежная цель с суммой и срезами
+    const newPlan = String(data.plan_code || planCode).toLowerCase()
+    const moneyParams = {
+      order_price: Number(data.amount) || 0,
+      currency: data.currency || 'RUB',
+      plan: newPlan,
+      billing: data.billing_period || bp,
+    }
+    reachGoal('payment_success', moneyParams)
+    // Апгрейд: уже был платный тариф и перешли на старший
+    if ((PLAN_RANK[prevPlanCode] ?? 0) >= 1 && (PLAN_RANK[newPlan] ?? 0) > (PLAN_RANK[prevPlanCode] ?? 0)) {
+      reachGoal('plan_upgrade', moneyParams)
+    }
     toaster.success('Оплата успешно выполнена')
     await fetchCurrentUser()
   } catch (e) {

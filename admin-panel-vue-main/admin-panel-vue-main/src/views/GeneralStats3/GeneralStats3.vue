@@ -1114,6 +1114,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { reachGoal } from '@/utils/metrika'
 import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
@@ -2056,6 +2057,7 @@ const saveReportSettings = async ({ silent = false } = {}) => {
 
 const saveReportSchedule = async () => {
   await saveReportSettings()
+  reachGoal('scheduled_report_set')
   closeMenu('report-schedule')
 }
 

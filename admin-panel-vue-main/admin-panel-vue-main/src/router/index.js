@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { metrikaHit } from '@/utils/metrika'
 import { useAuth } from '../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../constants/config'
 
@@ -374,6 +375,17 @@ router.onError((error, to) => {
   } else {
     console.error('Router error:', error)
   }
+})
+
+// SPA: счётчик Метрики засчитывает только первую загрузку сам. На клиентских
+// переходах шлём hit вручную (первую навигацию пропускаем — она = первая загрузка).
+let _ymFirstNav = true
+router.afterEach((to) => {
+  if (_ymFirstNav) {
+    _ymFirstNav = false
+    return
+  }
+  metrikaHit(window.location.href)
 })
 
 export default router

@@ -111,7 +111,11 @@ def create_client(
     )
     db.commit()
     db.refresh(new_client)
-    return new_client
+    resp = schemas.ClientResponse.model_validate(new_client)
+    resp.owner_project_count = (
+        db.query(models.Client).filter(models.Client.owner_id == current_user.id).count()
+    )
+    return resp
 
 @router.get("/{client_id}", response_model=schemas.ClientResponse)
 def get_client(

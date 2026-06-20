@@ -224,6 +224,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../../api/axios'
 import { useToaster } from '../../composables/useToaster'
+import { reachGoal } from '@/utils/metrika'
 
 const toaster = useToaster()
 
@@ -251,6 +252,7 @@ async function submitInvite() {
   inviteModal.value.error = ''
   try {
     await api.post('/team/members/invite', { email, role: roleByTab(currentTab.value) })
+    reachGoal('team_member_added')
     inviteModal.value.open = false
     toaster.success('Приглашение отправлено')
     await fetchMembers()

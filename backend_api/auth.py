@@ -530,6 +530,52 @@ def read_users_me(
     return _decorate_user_response(resp, current_user)
 
 
+@router.post("/metrika/identity", status_code=status.HTTP_204_NO_CONTENT)
+def save_metrika_identity(
+    body: schemas.MetrikaIdentityRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Сохранить ClientID Метрики и yclid на аккаунт (первое значение фиксируем —
+    оно соответствует визиту, который привёл к регистрации). Для офлайн-конверсий."""
+    changed = False
+    cid = (body.client_id or "").strip()
+    yclid = (body.yclid or "").strip()
+    if cid and not current_user.metrika_client_id:
+        current_user.metrika_client_id = cid[:128]
+        changed = True
+    if yclid and not current_user.metrika_yclid:
+        current_user.metrika_yclid = yclid[:255]
+        changed = True
+    if changed:
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/metrika/milestone", response_model=schemas.MetrikaMilestoneResponse)
+def claim_metrika_milestone(
+    body: schemas.MetrikaMilestoneRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отметить достижение «вехи» Метрики единожды на аккаунт (дедуп «первого раза»,
+    например integration_connected). first=True только при первом достижении."""
+    import json as _json
+    name = (body.name or "").strip()
+    if not name:
+        return schemas.MetrikaMilestoneResponse(first=False)
+    try:
+        claimed = set(_json.loads(current_user.ym_milestones)) if current_user.ym_milestones else set()
+    except Exception:
+        claimed = set()
+    if name in claimed:
+        return schemas.MetrikaMilestoneResponse(first=False)
+    claimed.add(name)
+    current_user.ym_milestones = _json.dumps(sorted(claimed))
+    db.commit()
+    return schemas.MetrikaMilestoneResponse(first=True)
+
+
 def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: models.User, db: Session):
     """Общая логика обновления настроек пользователя."""
     fields = updates.model_fields_set

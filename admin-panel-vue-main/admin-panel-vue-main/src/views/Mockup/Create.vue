@@ -87,6 +87,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
+import { trackProjectCreated } from '@/utils/metrika'
 
 const router = useRouter()
 const { fetchProjects, setCurrentProject } = useProjects()
@@ -101,6 +102,7 @@ const handleSubmit = async () => {
   errorMsg.value = ''
   try {
     const { data } = await api.post('clients/', { name: projectName.value.trim() })
+    trackProjectCreated(data?.owner_project_count)
     await fetchProjects()
     setCurrentProject(data.id)
     router.push({ path: '/integrations/wizard', query: { client_id: data.id } })
