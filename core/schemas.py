@@ -86,6 +86,7 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    is_new_user: Optional[bool] = None
 
 
 class OAuthAuthorizeUrlResponse(BaseModel):

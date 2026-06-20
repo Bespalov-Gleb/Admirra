@@ -2,6 +2,79 @@
   const API_BASE = '/api/'
   const TOKEN_KEY = 'auth_token'
   const DEFAULT_DASHBOARD_PATH = '/projects/create'
+  const YM_COUNTER_ID = 109911357
+  const YCLID_KEY = 'ym_yclid'
+
+  function callYm(...args) {
+    if (typeof window.ym !== 'function') return
+    try {
+      window.ym(YM_COUNTER_ID, ...args)
+    } catch {
+      // Метрика не должна ломать авторизацию
+    }
+  }
+
+  function reachGoal(goal, params) {
+    if (!goal) return
+    if (params && Object.keys(params).length) callYm('reachGoal', String(goal), params)
+    else callYm('reachGoal', String(goal))
+  }
+
+  function captureYclid() {
+    try {
+      const yclid = new URL(window.location.href).searchParams.get('yclid')
+      if (yclid && !localStorage.getItem(YCLID_KEY)) {
+        localStorage.setItem(YCLID_KEY, yclid)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  function getStoredYclid() {
+    try {
+      return localStorage.getItem(YCLID_KEY) || null
+    } catch {
+      return null
+    }
+  }
+
+  function getMetrikaClientId() {
+    return new Promise((resolve) => {
+      if (typeof window.ym !== 'function') {
+        resolve(null)
+        return
+      }
+      let settled = false
+      const done = (value) => {
+        if (!settled) {
+          settled = true
+          resolve(value || null)
+        }
+      }
+      try {
+        window.ym(YM_COUNTER_ID, 'getClientID', (clientId) => done(clientId))
+      } catch {
+        done(null)
+      }
+      setTimeout(() => done(null), 3000)
+    })
+  }
+
+  async function sendMetrikaIdentity(token) {
+    try {
+      const clientId = await getMetrikaClientId()
+      const yclid = getStoredYclid()
+      if (!token || (!clientId && !yclid)) return
+      await apiRequest('auth/metrika/identity', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ client_id: clientId, yclid }),
+      })
+    } catch {
+      // ignore
+    }
+  }
 
   function $(selector, root = document) {
     return root.querySelector(selector)
@@ -191,6 +264,7 @@
 
         if (data?.access_token) {
           saveToken(data.access_token)
+          await sendMetrikaIdentity(data.access_token)
           window.location.href = DEFAULT_DASHBOARD_PATH
           return
         }
@@ -221,6 +295,7 @@
     if (!form) return
     const submitButton = $('#reg-submit')
     bindOAuthButtons('reg-error')
+    reachGoal('signup_start')
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault()
@@ -269,6 +344,8 @@
             last_name: lastName || null,
           }),
         })
+        reachGoal('signup_complete', { method: 'email' })
+        reachGoal('trial_start')
         window.location.href = `/pending-email-verification?email=${encodeURIComponent(data?.email || email)}`
       } catch (error) {
         showError('reg-error', getDetailMessage(error?.data?.detail, 'Ошибка регистрации'))
@@ -279,6 +356,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    captureYclid()
     initEntryPage()
     initRegPage()
   })

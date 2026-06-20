@@ -70,8 +70,8 @@ export function getStoredYclid() {
 // 1-й проект → project_created, 2-й → second_project.
 export function trackProjectCreated(ownerProjectCount) {
   const n = Number(ownerProjectCount)
-  if (n === 1) reachGoal('project_created')
-  else if (n === 2) reachGoal('second_project')
+  if (n === 1) trackFirstMilestone('project_created', 'project_created')
+  else if (n === 2) trackFirstMilestone('second_project', 'second_project')
 }
 
 // Цель «первого раза» через серверную «веху» (дедупликация на бэке).

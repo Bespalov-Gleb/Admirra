@@ -9,6 +9,7 @@ subscription_renewal, фоновые payment_success), нельзя отправ
 Требуется env:
   METRIKA_COUNTER_ID    — ID счётчика (по умолчанию 109911357)
   METRIKA_OFFLINE_TOKEN — OAuth-токен Яндекса с доступом к счётчику (право редактирования).
+Поддерживаются legacy-алиасы METRICA_COUNTER_ID / METRICA_OAUTH_TOKEN из старого .env.example.
 Без токена/идентификатора загрузка тихо пропускается (не роняет вебхук оплаты).
 """
 
@@ -27,11 +28,19 @@ _METRIKA_API = "https://api-metrika.yandex.net"
 
 
 def _counter_id() -> str:
-    return (os.getenv("METRIKA_COUNTER_ID") or "109911357").strip()
+    return (
+        os.getenv("METRIKA_COUNTER_ID")
+        or os.getenv("METRICA_COUNTER_ID")
+        or "109911357"
+    ).strip()
 
 
 def _token() -> str:
-    return (os.getenv("METRIKA_OFFLINE_TOKEN") or "").strip()
+    return (
+        os.getenv("METRIKA_OFFLINE_TOKEN")
+        or os.getenv("METRICA_OAUTH_TOKEN")
+        or ""
+    ).strip()
 
 
 async def upload_offline_conversion(

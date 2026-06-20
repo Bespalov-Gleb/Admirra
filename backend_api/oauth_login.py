@@ -352,7 +352,7 @@ def _issue_token_for_user(
 ) -> schemas.Token:
     access_token = security.create_access_token(data={"sub": user.email})
     security.create_refresh_session(db, user, request, response, remember_me=remember_me)
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "is_new_user": False}
 
 
 def _optional_current_user(request: Request, db: Session) -> Optional[models.User]:
@@ -763,6 +763,7 @@ async def yandex_oauth_callback(
         )
     db.refresh(user)
     token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+    token["is_new_user"] = True
     db.commit()
     return token
 
@@ -941,5 +942,6 @@ async def vk_oauth_callback(
         )
     db.refresh(user)
     token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
+    token["is_new_user"] = True
     db.commit()
     return token

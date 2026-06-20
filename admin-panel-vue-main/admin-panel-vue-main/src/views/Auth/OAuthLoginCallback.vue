@@ -118,10 +118,14 @@ onMounted(async () => {
     }
     // Привязываем ClientID Метрики к аккаунту (для серверных конверсий)
     sendMetrikaIdentity()
-    // Новый аккаунт через OAuth → регистрация завершена + старт триала
+    // Новый аккаунт через OAuth → регистрация завершена + старт триала.
+    // Флаг приходит с бэка; fallback по created_at оставлен для совместимости
+    // со старым backend во время rolling deploy.
     if (profileLinkProvider !== provider) {
       const createdAt = userResult.data?.created_at ? new Date(userResult.data.created_at).getTime() : 0
-      if (createdAt && (Date.now() - createdAt) < 60000) {
+      const hasNewUserFlag = typeof data.is_new_user === 'boolean'
+      const isNewUser = hasNewUserFlag ? data.is_new_user : (createdAt && (Date.now() - createdAt) < 60000)
+      if (isNewUser) {
         reachGoal('signup_complete', { method: provider })
         reachGoal('trial_start')
       }
