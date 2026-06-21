@@ -163,7 +163,9 @@ async def _metrika_drill_conv_map(
     но с разбивкой по нативным дименшенам Директа (атрибуция AUTOMATIC):
       level == 'campaign' (показываем группы)    -> DirectBannerGroup -> {group_id: лиды}
       level == 'group'    (показываем объявления) -> DirectBanner      -> {ad_id: лиды}
-    Скоуп по кампании — через DirectClickOrder.id (= campaign.external_id).
+    Скоуп по кампании — через DirectClickOrder.name. DirectClickOrder.id в
+    Метрике не совпадает с CampaignId из Директа, поэтому его нельзя матчить
+    с campaign.external_id.
     Возвращает (conv_map, available). available=False, если Метрика не привязана
     (нет счётчиков/целей) — тогда лиды «не атрибутируются». Если привязана, но
     конкретной группы/объявления нет в карте — это честный 0 лидов.
@@ -189,7 +191,6 @@ async def _metrika_drill_conv_map(
     api = YandexMetricaAPI(access_token, client_login=profile)
     date_from = (d_start or d_end).strftime("%Y-%m-%d")
     date_to = d_end.strftime("%Y-%m-%d")
-    target_campaign_id = str(campaign.external_id or "").strip()
     target_campaign = _normalize_direct_name(campaign.name)
     dimension = (
         "ym:s:<attribution>DirectBannerGroup" if level == "campaign"
@@ -231,13 +232,9 @@ async def _metrika_drill_conv_map(
                     continue
                 campaign_dim = dimensions[0] or {}
                 entity_dim = dimensions[1] or {}
-                campaign_dim_id = str(campaign_dim.get("id") or "").strip()
                 campaign_dim_name = _normalize_direct_name(campaign_dim.get("name"))
 
-                if target_campaign_id:
-                    if campaign_dim_id != target_campaign_id:
-                        continue
-                elif campaign_dim_name != target_campaign:
+                if campaign_dim_name != target_campaign:
                     continue
 
                 if level == "campaign":
