@@ -778,7 +778,9 @@ class StatsService:
         d_end: datetime.date,
         platform: str = "all",
         campaign_ids: Optional[List[uuid.UUID]] = None,
-        vk_goal_action_ids: Optional[List[str]] = None
+        vk_goal_action_ids: Optional[List[str]] = None,
+        yandex_conversion_overrides: Optional[dict] = None,
+        yandex_prev_conversion_overrides: Optional[dict] = None,
     ):
         if not client_ids:
             return []
@@ -1012,6 +1014,8 @@ class StatsService:
             if d_end:
                 y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date <= d_end)
             y_group_campaign_ids = {str(row[0]) for row in y_group_campaign_ids_q.distinct().all() if row and row[0]}
+            yandex_conversion_overrides = yandex_conversion_overrides or {}
+            yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
             total_metrika_convs = get_metrika_convs(d_start, d_end)
             total_yandex_cost = get_yandex_scope_cost(d_start, d_end)
 
@@ -1030,8 +1034,14 @@ class StatsService:
                 clicks = int(r.clicks or 0)
                 imps = int(r.impressions or 0)
                 ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
-                # CRITICAL: Конверсии Yandex — только из Метрики (пропорционально).
-                if total_metrika_convs > 0 and total_yandex_cost > 0:
+                cid = str(r.campaign_id)
+                # CRITICAL: Конверсии Yandex — только из Метрики. Когда endpoint
+                # передал точные значения по DirectClickOrder, используем их.
+                # Иначе оставляем старый пропорциональный fallback для вызовов,
+                # где live drill-down Метрики недоступен.
+                if cid in yandex_conversion_overrides:
+                    convs = int(yandex_conversion_overrides.get(cid) or 0)
+                elif total_metrika_convs > 0 and total_yandex_cost > 0:
                     convs = round(total_metrika_convs * (cost / total_yandex_cost))
                 else:
                     convs = 0
@@ -1039,14 +1049,15 @@ class StatsService:
                 cpa = round(cost / convs, 2) if convs > 0 else 0
 
                 # Previous period values for this campaign
-                cid = str(r.campaign_id)
                 p = prev_y_rows.get(cid)
                 if p:
                     prev_cost = float(p.cost or 0)
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
                     prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
-                    if prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
+                    if cid in yandex_prev_conversion_overrides:
+                        prev_convs = int(yandex_prev_conversion_overrides.get(cid) or 0)
+                    elif prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
                         prev_convs = round(prev_total_metrika_convs * (prev_cost / prev_total_yandex_cost))
                     else:
                         prev_convs = 0
