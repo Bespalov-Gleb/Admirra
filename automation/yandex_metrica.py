@@ -213,7 +213,13 @@ class YandexMetricaAPI:
         Яндекс.Директа — DirectClickOrder (кампания), DirectBannerGroup (группа),
         DirectBanner (объявление, вид `M-<id>`). Фильтр по Директу. Атрибуция
         AUTOMATIC — как в остальном дашборде, чтобы цифры сходились.
-        Возвращает список {"keys": [extra?, dim], "conversions": float}.
+        Возвращает список:
+        {
+            "keys": [extra?.name, dim.name],
+            "ids": [extra?.id, dim.id],
+            "dimensions": [raw dimension objects],
+            "conversions": float,
+        }
         """
         goal_ids = [str(g) for g in (goal_ids or []) if str(g).strip()]
         if not goal_ids:
@@ -245,9 +251,16 @@ class YandexMetricaAPI:
             )
             return []
         for row in response.json().get("data", []):
-            keys = [d.get("name") for d in row.get("dimensions", [])]
+            dimensions = row.get("dimensions", []) or []
+            keys = [d.get("name") for d in dimensions]
+            ids = [d.get("id") for d in dimensions]
             conv = sum(float(m or 0) for m in row.get("metrics", []))
-            results.append({"keys": keys, "conversions": conv})
+            results.append({
+                "keys": keys,
+                "ids": ids,
+                "dimensions": dimensions,
+                "conversions": conv,
+            })
         return results
 
     async def get_counters(self) -> List[Dict[str, Any]]:

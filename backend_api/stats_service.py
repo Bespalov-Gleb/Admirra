@@ -1517,7 +1517,7 @@ class StatsService:
             group_q = apply_dates(group_q, models.YandexGroups)
             group_rows = group_q.group_by(models.YandexGroups.group_id, models.YandexGroups.group_name).all()
 
-            # Лиды групп — из карты Метрики (нативный DirectBannerGroup), по имени группы.
+            # Лиды групп — из карты Метрики (нативный DirectBannerGroup), по group_id.
             # Универсальные метрики (показы/клики/расход) — из сохранённой статистики Яндекса.
             exact_conversions = _has_exact_conversions()
             campaign_conversion_total = 0 if exact_conversions else _campaign_conversion_total()
@@ -1529,7 +1529,7 @@ class StatsService:
             rows = []
             for idx, row in enumerate(group_rows):
                 if exact_conversions:
-                    g_convs = conv_map.get(_norm_name(row.group_name), 0)
+                    g_convs = conv_map.get(str(row.group_id), 0)
                     attributed = True
                     estimated = False
                 else:

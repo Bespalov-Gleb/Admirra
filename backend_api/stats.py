@@ -6,6 +6,7 @@ from core import models, schemas, security
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 import uuid
+from time import monotonic
 from backend_api.stats_service import StatsService
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
@@ -26,6 +27,9 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 # Дедупликация ensure_data_synced: не запускать повторный sync для интеграции в течение 30 сек
 _sync_last_started: dict = {}
 _sync_cooldown_sec = 30
+
+_metrika_counter_goals_cache: dict = {}
+_metrika_counter_goals_ttl_sec = 600
 
 
 def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
@@ -129,6 +133,24 @@ def _normalize_direct_name(value) -> str:
     return str(value or "").replace("\xa0", " ").strip().lower()
 
 
+def _chunks(items: List[str], size: int):
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
+
+
+async def _get_metrika_counter_goal_ids(api, integration_id: uuid.UUID, counter_id: str) -> set:
+    cache_key = (str(integration_id), str(counter_id))
+    cached = _metrika_counter_goals_cache.get(cache_key)
+    now = monotonic()
+    if cached and now - cached["ts"] < _metrika_counter_goals_ttl_sec:
+        return cached["goal_ids"]
+
+    counter_goals = await api.get_counter_goals(str(counter_id))
+    goal_ids = {str(goal.get("id")) for goal in (counter_goals or []) if goal.get("id")}
+    _metrika_counter_goals_cache[cache_key] = {"ts": now, "goal_ids": goal_ids}
+    return goal_ids
+
+
 async def _metrika_drill_conv_map(
     integration: models.Integration,
     campaign: models.Campaign,
@@ -139,9 +161,9 @@ async def _metrika_drill_conv_map(
     """
     Лиды для drill-down берём из того же источника, что и кампания — из Метрики,
     но с разбивкой по нативным дименшенам Директа (атрибуция AUTOMATIC):
-      level == 'campaign' (показываем группы)    -> DirectBannerGroup -> {норм.имя группы: лиды}
+      level == 'campaign' (показываем группы)    -> DirectBannerGroup -> {group_id: лиды}
       level == 'group'    (показываем объявления) -> DirectBanner      -> {ad_id: лиды}
-    Скоуп по кампании — через DirectClickOrder (имя кампании).
+    Скоуп по кампании — через DirectClickOrder.id (= campaign.external_id).
     Возвращает (conv_map, available). available=False, если Метрика не привязана
     (нет счётчиков/целей) — тогда лиды «не атрибутируются». Если привязана, но
     конкретной группы/объявления нет в карте — это честный 0 лидов.
@@ -167,6 +189,7 @@ async def _metrika_drill_conv_map(
     api = YandexMetricaAPI(access_token, client_login=profile)
     date_from = (d_start or d_end).strftime("%Y-%m-%d")
     date_to = d_end.strftime("%Y-%m-%d")
+    target_campaign_id = str(campaign.external_id or "").strip()
     target_campaign = _normalize_direct_name(campaign.name)
     dimension = (
         "ym:s:<attribution>DirectBannerGroup" if level == "campaign"
@@ -174,38 +197,64 @@ async def _metrika_drill_conv_map(
     )
 
     conv_map: dict = {}
+    goals_available = False
     for counter in counters:
         try:
-            rows = await api.get_conversions_by_dimension(
-                counter_id=str(counter),
-                date_from=date_from,
-                date_to=date_to,
-                goal_ids=goals,
-                dimension=dimension,
-                extra_dimension="ym:s:<attribution>DirectClickOrder",
-            )
+            available_goal_ids = await _get_metrika_counter_goal_ids(api, integration.id, str(counter))
         except Exception as err:
-            logger.warning("Metrika drilldown conv map failed for campaign %s: %s", campaign.id, err)
+            logger.warning("Metrika drilldown goals fetch failed for counter %s: %s", counter, err)
             continue
-        for row in rows:
-            keys = row.get("keys") or []
-            if len(keys) < 2:
+
+        counter_goal_ids = [goal_id for goal_id in goals if goal_id in available_goal_ids]
+        if not counter_goal_ids:
+            logger.info("No selected Metrika goals available for counter %s in drilldown", counter)
+            continue
+
+        goals_available = True
+        for goals_batch in _chunks(counter_goal_ids, 20):
+            try:
+                rows = await api.get_conversions_by_dimension(
+                    counter_id=str(counter),
+                    date_from=date_from,
+                    date_to=date_to,
+                    goal_ids=goals_batch,
+                    dimension=dimension,
+                    extra_dimension="ym:s:<attribution>DirectClickOrder",
+                )
+            except Exception as err:
+                logger.warning("Metrika drilldown conv map failed for campaign %s: %s", campaign.id, err)
                 continue
-            camp_name, dim_val = keys[0], keys[1]
-            if _normalize_direct_name(camp_name) != target_campaign:
-                continue
-            if dim_val is None or str(dim_val).strip() == "":
-                continue
-            if level == "campaign":
-                # показываем группы: ключ = нормализованное имя группы (DirectBannerGroup)
-                key = _normalize_direct_name(dim_val)
-            else:
-                # показываем объявления: ключ = ad_id (DirectBanner вида "M-<id>")
-                key = str(dim_val).strip()
-                if key.upper().startswith("M-"):
-                    key = key[2:]
-            conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
-    return conv_map, True
+
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if len(dimensions) < 2:
+                    continue
+                campaign_dim = dimensions[0] or {}
+                entity_dim = dimensions[1] or {}
+                campaign_dim_id = str(campaign_dim.get("id") or "").strip()
+                campaign_dim_name = _normalize_direct_name(campaign_dim.get("name"))
+
+                if target_campaign_id:
+                    if campaign_dim_id != target_campaign_id:
+                        continue
+                elif campaign_dim_name != target_campaign:
+                    continue
+
+                if level == "campaign":
+                    # DirectBannerGroup.id == AdGroupId from Yandex Direct.
+                    key = str(entity_dim.get("id") or "").strip()
+                    if not key:
+                        continue
+                else:
+                    # DirectBanner.name has form "M-<ad_id>"; YandexAds.ad_id stores <ad_id>.
+                    key = str(entity_dim.get("name") or "").strip()
+                    if key.upper().startswith("M-"):
+                        key = key[2:]
+                    if not key:
+                        continue
+
+                conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
+    return conv_map, goals_available
 
 
 def check_data_availability(
