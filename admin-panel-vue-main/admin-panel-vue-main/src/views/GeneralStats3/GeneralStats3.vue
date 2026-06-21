@@ -699,12 +699,12 @@
           <span>{{ campaign.clicks }} <b v-if="campaign.trendClicks" :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
           <span>{{ campaign.ctr }} <b v-if="campaign.trendCtr" :class="{ negative: campaign.trendCtr.negative }"><component :is="campaign.trendCtr.icon" />{{ campaign.trendCtr.text }}</b></span>
           <span>{{ campaign.cpc }} <b v-if="campaign.trendCpc" :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
-          <span :title="campaign.conversionsAttributed ? '' : 'Лиды не атрибутируются на этом уровне'">
+          <span :title="campaign.conversionsEstimated ? 'Лиды распределены пропорционально расходу внутри родительского уровня' : (campaign.conversionsAttributed ? '' : 'Лиды не атрибутируются на этом уровне')">
             {{ campaign.leads }}
             <em v-if="campaign.leadsApprox" class="campaign-estimate-badge">ориентир.</em>
             <b v-if="campaign.trendLeads" :class="{ negative: campaign.trendLeads.negative }"><component :is="campaign.trendLeads.icon" />{{ campaign.trendLeads.text }}</b>
           </span>
-          <span :title="campaign.conversionsAttributed ? '' : 'CPL не атрибутируется на этом уровне'">
+          <span :title="campaign.conversionsEstimated ? 'CPL рассчитан по распределённым лидам' : (campaign.conversionsAttributed ? '' : 'CPL не атрибутируется на этом уровне')">
             {{ campaign.cpa }}
             <b v-if="campaign.trendCpa" :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b>
           </span>
@@ -2342,7 +2342,8 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
   const nodeLevel = campaign.level || (level === 0 ? 'campaign' : 'group')
   const isRoot = level === 0
   const rootTint = parent?.tint || tints[index % tints.length]
-  const conversionsAttributed = campaign.conversions_attributed !== false
+  const conversionsEstimated = campaign.conversions_estimated === true || campaign.conversionsEstimated === true
+  const conversionsAttributed = campaign.conversions_attributed !== false || conversionsEstimated
   const conversions = Number(campaign.conversions ?? campaign.leads ?? 0)
   const hasPositiveLeads = conversionsAttributed && conversions > 0
   const sourceId = campaign.source_id || campaign.sourceId || (nodeLevel !== 'campaign' ? campaign.id : null)
@@ -2374,9 +2375,10 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     ctr: `${formatNumber(campaign.ctr, 2)}%`,
     cpc: Number(campaign.clicks || 0) > 0 ? formatMoney(withVat(campaign.cpc, { platform: campaign.platform })) : '—',
     leads: conversionsAttributed ? `${formatNumber(conversions)} шт.` : '—',
-    leadsApprox: conversionsAttributed && conversions > 0 && conversions <= 2,
+    leadsApprox: conversionsEstimated && conversions > 0,
     cpa: hasPositiveLeads ? formatMoney(withVat(campaign.cpa, { platform: campaign.platform })) : '—',
     conversionsAttributed,
+    conversionsEstimated,
     canExpand: Boolean(campaign.has_children) && nodeLevel !== 'ad',
     trendCost: isRoot ? campaignTrend(campaign.trend_cost, 'cost') : null,
     trendImpressions: isRoot ? campaignTrend(campaign.trend_impressions, 'impressions') : null,

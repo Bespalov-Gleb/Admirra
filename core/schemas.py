@@ -737,6 +737,7 @@ class CampaignStat(BaseModel):
     source_id: Optional[str] = None
     has_children: bool = False
     conversions_attributed: bool = True
+    conversions_estimated: bool = False
     name: str
     impressions: int
     clicks: int

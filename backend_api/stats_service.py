@@ -1286,11 +1286,65 @@ class StatsService:
             return []
         platform_code = "avito" if platform == models.IntegrationPlatform.AVITO_ADS else "yandex"
 
-        def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True):
+        def _allocated_conversions_by_cost(total_conversions, rows, cost_getter):
+            total = int(round(float(total_conversions or 0)))
+            if total <= 0 or not rows:
+                return [0 for _ in rows]
+
+            weights = []
+            for row in rows:
+                try:
+                    weights.append(max(float(cost_getter(row) or 0), 0.0))
+                except Exception:
+                    weights.append(0.0)
+
+            total_weight = sum(weights)
+            if total_weight <= 0:
+                return [0 for _ in rows]
+
+            raw_values = [(total * weight / total_weight) for weight in weights]
+            allocated = [int(value) for value in raw_values]
+            remainder = total - sum(allocated)
+            if remainder > 0:
+                order = sorted(
+                    range(len(rows)),
+                    key=lambda idx: (raw_values[idx] - allocated[idx], weights[idx]),
+                    reverse=True,
+                )
+                for idx in order[:remainder]:
+                    allocated[idx] += 1
+            return allocated
+
+        campaign_conversion_total_cache = None
+
+        def _campaign_conversion_total():
+            nonlocal campaign_conversion_total_cache
+            if campaign_conversion_total_cache is not None:
+                return campaign_conversion_total_cache
+            rows = StatsService.get_campaign_stats(
+                db,
+                client_ids,
+                d_start,
+                d_end,
+                platform_code,
+                [campaign.id],
+                None,
+            )
+            for row in rows:
+                if str(row.get("id")) == str(campaign.id):
+                    campaign_conversion_total_cache = int(row.get("conversions") or 0)
+                    return campaign_conversion_total_cache
+            campaign_conversion_total_cache = 0
+            return campaign_conversion_total_cache
+
+        def _has_exact_conversions():
+            return conv_available and any(float(value or 0) > 0 for value in conv_map.values())
+
+        def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True, estimated=False):
             cost_val = float(cost or 0)
             clicks_val = int(clicks or 0)
             imps_val = int(imps or 0)
-            conv_val = int(convs or 0) if attributed else 0
+            conv_val = int(convs or 0) if attributed or estimated else 0
             return {
                 "id": str(raw_id or name or ""),
                 "parent_id": str(parent_id) if parent_id else None,
@@ -1299,6 +1353,7 @@ class StatsService:
                 "source_id": str(raw_id) if raw_id else None,
                 "has_children": bool(has_children),
                 "conversions_attributed": bool(attributed),
+                "conversions_estimated": bool(estimated),
                 "name": name or ("Группа" if lvl == "group" else "Объявление"),
                 "impressions": imps_val,
                 "clicks": clicks_val,
@@ -1306,7 +1361,7 @@ class StatsService:
                 "conversions": conv_val,
                 "ctr": round(clicks_val / imps_val * 100, 2) if imps_val > 0 else 0,
                 "cpc": round(cost_val / clicks_val, 2) if clicks_val > 0 else 0,
-                "cpa": round(cost_val / conv_val, 2) if attributed and conv_val > 0 else 0,
+                "cpa": round(cost_val / conv_val, 2) if conv_val > 0 else 0,
                 "trend_cost": None,
                 "trend_impressions": None,
                 "trend_clicks": None,
@@ -1359,8 +1414,13 @@ class StatsService:
                 )
                 group_q = apply_dates(group_q, models.AvitoGroups)
                 group_rows = group_q.group_by(models.AvitoGroups.group_id, models.AvitoGroups.group_name).all()
+                allocated_conversions = _allocated_conversions_by_cost(
+                    _campaign_conversion_total(),
+                    group_rows,
+                    lambda item: item.cost,
+                )
                 rows = []
-                for row in group_rows:
+                for idx, row in enumerate(group_rows):
                     rows.append(metric_row(
                         raw_id=row.group_id,
                         parent_id=str(campaign.id),
@@ -1369,13 +1429,35 @@ class StatsService:
                         imps=row.impressions,
                         clicks=row.clicks,
                         cost=row.cost,
-                        convs=0,
+                        convs=allocated_conversions[idx],
                         has_children=bool(row.group_id),
-                        attributed=False,
+                        attributed=True,
+                        estimated=True,
                     ))
                 return sort_rows(rows)
 
             if level == "group" and node_id:
+                group_q = db.query(
+                    models.AvitoGroups.group_id,
+                    func.sum(models.AvitoGroups.cost).label("cost"),
+                ).filter(
+                    models.AvitoGroups.client_id.in_(client_ids),
+                    models.AvitoGroups.campaign_id == campaign.id,
+                    models.AvitoGroups.group_id.isnot(None),
+                )
+                group_q = apply_dates(group_q, models.AvitoGroups)
+                sibling_groups = group_q.group_by(models.AvitoGroups.group_id).all()
+                group_allocations = _allocated_conversions_by_cost(
+                    _campaign_conversion_total(),
+                    sibling_groups,
+                    lambda item: item.cost,
+                )
+                group_conversion_total = 0
+                for idx, group in enumerate(sibling_groups):
+                    if str(group.group_id) == str(node_id):
+                        group_conversion_total = group_allocations[idx]
+                        break
+
                 creative_q = db.query(
                     models.AvitoCreatives.creative_id,
                     models.AvitoCreatives.creative_name,
@@ -1393,8 +1475,13 @@ class StatsService:
                     models.AvitoCreatives.creative_id,
                     models.AvitoCreatives.creative_name,
                 ).all()
+                allocated_conversions = _allocated_conversions_by_cost(
+                    group_conversion_total,
+                    creative_rows,
+                    lambda item: item.cost,
+                )
                 rows = []
-                for row in creative_rows:
+                for idx, row in enumerate(creative_rows):
                     rows.append(metric_row(
                         raw_id=row.creative_id,
                         parent_id=node_id,
@@ -1403,9 +1490,10 @@ class StatsService:
                         imps=row.impressions,
                         clicks=row.clicks,
                         cost=row.cost,
-                        convs=0,
+                        convs=allocated_conversions[idx],
                         has_children=False,
-                        attributed=False,
+                        attributed=True,
+                        estimated=True,
                     ))
                 return sort_rows(rows)
 
@@ -1431,9 +1519,23 @@ class StatsService:
 
             # Лиды групп — из карты Метрики (нативный DirectBannerGroup), по имени группы.
             # Универсальные метрики (показы/клики/расход) — из сохранённой статистики Яндекса.
+            exact_conversions = _has_exact_conversions()
+            campaign_conversion_total = 0 if exact_conversions else _campaign_conversion_total()
+            allocated_conversions = _allocated_conversions_by_cost(
+                campaign_conversion_total,
+                group_rows,
+                lambda item: item.cost,
+            )
             rows = []
-            for row in group_rows:
-                g_convs = conv_map.get(_norm_name(row.group_name), 0) if conv_available else 0
+            for idx, row in enumerate(group_rows):
+                if exact_conversions:
+                    g_convs = conv_map.get(_norm_name(row.group_name), 0)
+                    attributed = True
+                    estimated = False
+                else:
+                    g_convs = allocated_conversions[idx]
+                    attributed = conv_available or campaign_conversion_total > 0
+                    estimated = campaign_conversion_total > 0
                 rows.append(metric_row(
                     raw_id=row.group_id,
                     parent_id=str(campaign.id),
@@ -1444,11 +1546,42 @@ class StatsService:
                     cost=row.cost,
                     convs=g_convs,
                     has_children=bool(row.group_id),
-                    attributed=conv_available,
+                    attributed=attributed,
+                    estimated=estimated,
                 ))
             return sort_rows(rows)
 
         if level == "group" and node_id:
+            exact_conversions = _has_exact_conversions()
+            group_conversion_total = 0
+            if not exact_conversions:
+                sibling_group_q = db.query(
+                    models.YandexGroups.group_id,
+                    models.YandexGroups.group_name,
+                    func.sum(models.YandexGroups.cost).label("cost"),
+                ).filter(
+                    models.YandexGroups.client_id.in_(client_ids),
+                    or_(
+                        models.YandexGroups.campaign_id == campaign.id,
+                        models.YandexGroups.campaign_name == campaign.name,
+                    ),
+                    models.YandexGroups.group_id.isnot(None),
+                )
+                sibling_group_q = apply_dates(sibling_group_q, models.YandexGroups)
+                sibling_groups = sibling_group_q.group_by(
+                    models.YandexGroups.group_id,
+                    models.YandexGroups.group_name,
+                ).all()
+                group_allocations = _allocated_conversions_by_cost(
+                    _campaign_conversion_total(),
+                    sibling_groups,
+                    lambda item: item.cost,
+                )
+                for idx, group in enumerate(sibling_groups):
+                    if str(group.group_id) == str(node_id) or _norm_name(group.group_name) == _norm_name(node_id):
+                        group_conversion_total = group_allocations[idx]
+                        break
+
             ad_q = db.query(
                 models.YandexAds.ad_id,
                 func.sum(models.YandexAds.impressions).label("impressions"),
@@ -1464,9 +1597,21 @@ class StatsService:
             ad_q = apply_dates(ad_q, models.YandexAds)
             ad_rows = ad_q.group_by(models.YandexAds.ad_id).all()
             # Лиды объявлений — из карты Метрики (нативный DirectBanner), по ad_id.
+            allocated_conversions = _allocated_conversions_by_cost(
+                group_conversion_total,
+                ad_rows,
+                lambda item: item.cost,
+            )
             rows = []
-            for row in ad_rows:
-                a_convs = conv_map.get(str(row.ad_id), 0) if conv_available else 0
+            for idx, row in enumerate(ad_rows):
+                if exact_conversions:
+                    a_convs = conv_map.get(str(row.ad_id), 0)
+                    attributed = True
+                    estimated = False
+                else:
+                    a_convs = allocated_conversions[idx]
+                    attributed = conv_available or group_conversion_total > 0
+                    estimated = group_conversion_total > 0
                 rows.append(metric_row(
                     raw_id=row.ad_id,
                     parent_id=node_id,
@@ -1477,7 +1622,8 @@ class StatsService:
                     cost=row.cost,
                     convs=a_convs,
                     has_children=False,
-                    attributed=conv_available,
+                    attributed=attributed,
+                    estimated=estimated,
                 ))
             return sort_rows(rows)
 
