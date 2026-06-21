@@ -12,7 +12,7 @@ Tests cover:
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from automation.yandex_direct import YandexDirectAPI
+from automation.yandex_direct import YandexDirectAPI, organization_name_from_client, cabinet_display_name
 
 
 class TestYandexDirectAPIInitialization:
@@ -228,6 +228,20 @@ class TestYandexDirectAPIUnitsTracking:
 
 class TestYandexDirectAPIClients:
     """Test client info fetching"""
+
+    def test_organization_name_from_client(self):
+        client = {
+            "ErirAttributes": {
+                "Organization": {"Name": "САКУРА АВТО"},
+            }
+        }
+        assert organization_name_from_client(client) == "САКУРА АВТО"
+        assert organization_name_from_client({}) == ""
+
+    def test_cabinet_display_name_priority(self):
+        assert cabinet_display_name("ООО Рога", "", "login", "Кабинет") == "ООО Рога"
+        assert cabinet_display_name("", "Иванов", "login", "Кабинет") == "Иванов"
+        assert cabinet_display_name("", "", "porg-abc", "Кабинет") == "Кабинет (porg-abc)"
     
     @pytest.mark.asyncio
     async def test_get_clients_success(self):

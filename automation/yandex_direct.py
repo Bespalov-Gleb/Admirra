@@ -10,6 +10,32 @@ from automation.request_queue import get_api_limiter
 
 logger = logging.getLogger(__name__)
 
+
+def organization_name_from_client(client: Dict[str, Any]) -> str:
+    """
+    ErirAttributes.Organization.Name из ответа Clients.get / AgencyClients.get.
+    Документация: https://yandex.ru/dev/direct/doc/ru/clients/get
+    """
+    erir = client.get("ErirAttributes") or {}
+    org = erir.get("Organization") or {}
+    return (org.get("Name") or "").strip()
+
+
+def cabinet_display_name(
+    organization_name: str,
+    client_info: str,
+    login: str,
+    fallback_prefix: str,
+) -> str:
+    """Имя кабинета: Organization.Name, иначе ClientInfo (где уместно), иначе login."""
+    if organization_name:
+        return organization_name
+    info = (client_info or "").strip()
+    if info:
+        return info
+    return f"{fallback_prefix} ({login})"
+
+
 class YandexDirectAPI:
     def __init__(self, access_token: str, client_login: str = None, finance_token: Optional[str] = None):
         """
@@ -1770,18 +1796,22 @@ class YandexDirectAPI:
                 logger.warning(f"⚠️ Error getting campaign goals, will use fallback method: {e}")
                 return {}
     
-    async def get_client_info_for_login(self, client_login: str) -> Optional[Dict[str, Any]]:
+    async def get_cabinet_profile_for_login(self, client_login: str) -> Optional[Dict[str, Any]]:
         """
-        Fetches ClientInfo (human-readable cabinet name) for a specific login.
-        Uses Client-Login header to request that cabinet's parameters.
+        Clients.get с заголовком Client-Login — параметры рекламодателя для выбранного кабинета.
+        Документация: https://yandex.ru/dev/direct/doc/ru/clients/get
+
+        ClientInfo/Login в ответе относятся к представителю, не к организации.
+        Для отображаемого имени кабинета используем OrganizationFieldNames: Name.
         """
         url = "https://api.direct.yandex.com/json/v5/clients"
         headers = {**self.headers, "Client-Login": client_login}
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Login", "ClientInfo"]
-            }
+                "FieldNames": ["Login", "ClientId", "Type"],
+                "OrganizationFieldNames": ["Name"],
+            },
         }
         async with httpx.AsyncClient() as client:
             try:
@@ -1790,21 +1820,41 @@ class YandexDirectAPI:
                     data = response.json()
                     if "result" in data and "Clients" in data["result"] and data["result"]["Clients"]:
                         c = data["result"]["Clients"][0]
-                        return {"Login": c.get("Login"), "ClientInfo": c.get("ClientInfo", "")}
+                        return {
+                            "login": client_login,
+                            "organization_name": organization_name_from_client(c),
+                            "client_id": c.get("ClientId"),
+                            "client_type": c.get("Type"),
+                        }
             except Exception as e:
-                logger.warning(f"Could not get ClientInfo for {client_login}: {e}")
+                logger.warning(f"Could not get cabinet profile for {client_login}: {e}")
         return None
+
+    async def get_client_info_for_login(self, client_login: str) -> Optional[Dict[str, Any]]:
+        """Обратная совместимость: см. get_cabinet_profile_for_login."""
+        profile = await self.get_cabinet_profile_for_login(client_login)
+        if not profile:
+            return None
+        return {
+            "Login": profile["login"],
+            "ClientInfo": profile.get("organization_name", ""),
+        }
 
     async def get_clients(self) -> List[Dict[str, Any]]:
         """
-        Fetches information about the current client, including ManagedLogins for shared access.
+        Clients.get — параметры рекламодателя и представителя (токена).
+        Документация: https://yandex.ru/dev/direct/doc/ru/clients/get
+
+        ManagedLogins не описан в FieldNames, но API возвращает его при запросе —
+        используем только как список логинов кабинетов с делегированным доступом.
         """
         url = "https://api.direct.yandex.com/json/v5/clients"
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Login", "ClientInfo", "ManagedLogins", "ClientId"]
-            }
+                "FieldNames": ["Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"],
+                "OrganizationFieldNames": ["Name"],
+            },
         }
         async with httpx.AsyncClient() as client:
             try:

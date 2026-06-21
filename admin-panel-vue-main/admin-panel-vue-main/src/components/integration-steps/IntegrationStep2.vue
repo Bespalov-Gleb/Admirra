@@ -81,7 +81,7 @@
                 {{ 
                   profile.type === 'personal' ? 'Личный' : 
                   profile.type === 'agency_client' ? 'Клиент агентства' : 
-                  profile.type === 'managed' ? 'Редактор' : 'Аккаунт'
+                  profile.type === 'managed' ? 'Кабинет' : 'Аккаунт'
                 }}
               </span>
               

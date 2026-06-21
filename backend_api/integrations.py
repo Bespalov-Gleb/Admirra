@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 from core.database import get_db, SessionLocal
 from core import models, schemas, security
-from automation.yandex_direct import YandexDirectAPI
+from automation.yandex_direct import YandexDirectAPI, organization_name_from_client, cabinet_display_name
 from automation.yandex_metrica import YandexMetricaAPI
 from automation.vk_ads import (
     VKAdsAPI,
@@ -1506,9 +1506,10 @@ async def get_integration_profiles(
             seen_logins = set()
 
             # ARCHITECTURE: One Yandex account (email) can have access to multiple advertising profiles
-            # 1. Personal advertising account
-            # 2. Agency clients (if this is an agency account)
-            # 3. Managed accounts (accounts where user has Editor/Manager role)
+            # 1. Personal — Clients.get (без Client-Login)
+            # 2. Agency clients — AgencyClients.get
+            # 3. Shared cabinets — ManagedLogins* + Clients.get с Client-Login и OrganizationFieldNames
+            #    * ManagedLogins не в enum FieldNames, но API возвращает при запросе
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -1536,8 +1537,13 @@ async def get_integration_profiles(
                 logger.warning(f"⚠️ Using account_id as fallback for personal login: {personal_login} (this may not be the correct advertising account login)")
             
             if personal_login and personal_login.lower() != "unknown":
-                personal_info = clients_info[0].get("ClientInfo", "") if clients_info else ""
-                personal_name = personal_info if personal_info else f"Личный аккаунт ({personal_login})"
+                personal_client = clients_info[0] if clients_info else {}
+                personal_name = cabinet_display_name(
+                    organization_name_from_client(personal_client),
+                    personal_client.get("ClientInfo", ""),
+                    personal_login,
+                    "Личный аккаунт",
+                )
                 profiles.append({"login": personal_login, "name": personal_name, "type": "personal"})
                 seen_logins.add(personal_login.lower())
                 logger.info(f"✅ Added personal profile: {personal_login} ({personal_name})")
@@ -1558,8 +1564,8 @@ async def get_integration_profiles(
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
 
-            # 3. Try to get managed logins (accounts with shared access)
-            # For each managed login, fetch ClientInfo (human-readable cabinet name) via Clients.get
+            # 3. Кабинеты с делегированным доступом (ManagedLogins — недокументированное поле API).
+            # Имя: Organization.Name через Clients.get + Client-Login (документация Clients.get).
             try:
                 direct_api = YandexDirectAPI(access_token)
                 clients_info_managed = await direct_api.get_clients() or []
@@ -1571,19 +1577,18 @@ async def get_integration_profiles(
                             managed_logins_to_fetch.append(m_login)
                             seen_logins.add(m_login.lower())
 
-                # Fetch ClientInfo for each managed login (human-readable cabinet name)
                 for m_login in managed_logins_to_fetch:
-                    info = await direct_api.get_client_info_for_login(m_login)
-                    cabinet_name = info.get("ClientInfo", "").strip() if info else ""
-                    display_name = cabinet_name if cabinet_name else f"Доступный аккаунт ({m_login})"
+                    profile_info = await direct_api.get_cabinet_profile_for_login(m_login)
+                    org_name = profile_info.get("organization_name", "").strip() if profile_info else ""
+                    display_name = org_name if org_name else f"Кабинет ({m_login})"
                     profiles.append({
                         "login": m_login,
                         "name": display_name,
-                        "type": "managed"
+                        "type": "managed",
                     })
-                    logger.info(f"Added managed login: {m_login} ({display_name})")
+                    logger.info(f"Added shared cabinet: {m_login} ({display_name})")
             except Exception as managed_err:
-                logger.warning(f"Error fetching managed logins: {managed_err}")
+                logger.warning(f"Error fetching shared cabinets: {managed_err}")
 
             # Fallback if nothing found
             if not profiles:
@@ -3734,7 +3739,8 @@ async def delete_integration(
 
 async def get_agency_clients(access_token: str) -> List[dict]:
     """
-    Fetch list of sub-clients from Yandex Agency Account using AgencyClients service.
+    Список клиентов агентства через AgencyClients.get.
+    Документация: https://yandex.ru/dev/direct/doc/ru/agencyclients/get
     """
     url = "https://api.direct.yandex.com/json/v5/agencyclients"
     headers = {
@@ -3742,14 +3748,14 @@ async def get_agency_clients(access_token: str) -> List[dict]:
         "Accept-Language": "ru"
     }
     
-    # Request all clients
     payload = {
         "method": "get",
         "params": {
             "SelectionCriteria": {
-                "Archived": "NO" # Only active clients
+                "Archived": "NO"
             },
             "FieldNames": ["Login", "ClientInfo", "RepresentedBy"],
+            "OrganizationFieldNames": ["Name"],
             "Page": {
                 "Limit": 10000 
             }
@@ -3765,7 +3771,12 @@ async def get_agency_clients(access_token: str) -> List[dict]:
                     return [
                         {
                             "login": c["Login"],
-                            "name": c.get("ClientInfo", c["Login"]).strip() or c["Login"],
+                            "name": cabinet_display_name(
+                                organization_name_from_client(c),
+                                c.get("ClientInfo", ""),
+                                c["Login"],
+                                "Клиент агентства",
+                            ),
                             "fio": c.get("RepresentedBy", {}).get("Agency", ""),
                             "type": "agency_client"
                         }
