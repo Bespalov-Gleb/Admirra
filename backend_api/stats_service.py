@@ -896,25 +896,6 @@ class StatsService:
                 q = q.filter(models.AvitoStats.date <= end)
             return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id, models.AvitoStats.campaign_name).all()
 
-        def get_yandex_scope_cost(start, end):
-            scope_q = db.query(func.sum(models.YandexStats.cost)).join(
-                models.Campaign,
-                models.YandexStats.campaign_id == models.Campaign.id,
-            ).filter(models.YandexStats.client_id.in_(client_ids))
-            scope_integration_ids = integration_ids_filter
-            if not scope_integration_ids and campaign_ids:
-                camp_int = db.query(models.Campaign.integration_id).filter(
-                    models.Campaign.id.in_(campaign_ids)
-                ).distinct().all()
-                scope_integration_ids = [c[0] for c in camp_int if c[0]]
-            if scope_integration_ids:
-                scope_q = scope_q.filter(models.Campaign.integration_id.in_(scope_integration_ids))
-            if start:
-                scope_q = scope_q.filter(models.YandexStats.date >= start)
-            if end:
-                scope_q = scope_q.filter(models.YandexStats.date <= end)
-            return float((scope_q.scalar() or 0) or 0)
-
         def get_avito_scope_cost(start, end):
             scope_q = db.query(func.sum(models.AvitoStats.cost)).join(
                 models.Campaign,
@@ -998,6 +979,49 @@ class StatsService:
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
             return int((m_q.scalar() or 0) or 0)
 
+        def allocate_yandex_metrika_convs(rows, total_convs, overrides):
+            overrides = overrides or {}
+            allocations = {}
+            remaining_rows = []
+            used_total = 0
+            for row in rows:
+                cid = str(row.campaign_id)
+                if cid in overrides:
+                    value = int(overrides.get(cid) or 0)
+                    allocations[cid] = value
+                    used_total += value
+                else:
+                    remaining_rows.append(row)
+
+            remaining_total = max(int(total_convs or 0) - used_total, 0)
+            if remaining_total <= 0 or not remaining_rows:
+                for row in remaining_rows:
+                    allocations[str(row.campaign_id)] = 0
+                return allocations
+
+            weights = [max(float(row.cost or 0), 0.0) for row in remaining_rows]
+            total_weight = sum(weights)
+            if total_weight <= 0:
+                for row in remaining_rows:
+                    allocations[str(row.campaign_id)] = 0
+                return allocations
+
+            raw_values = [remaining_total * weight / total_weight for weight in weights]
+            base_values = [int(value) for value in raw_values]
+            remainder = remaining_total - sum(base_values)
+            if remainder > 0:
+                order = sorted(
+                    range(len(remaining_rows)),
+                    key=lambda idx: (raw_values[idx] - base_values[idx], weights[idx]),
+                    reverse=True,
+                )
+                for idx in order[:remainder]:
+                    base_values[idx] += 1
+
+            for row, value in zip(remaining_rows, base_values):
+                allocations[str(row.campaign_id)] = value
+            return allocations
+
         campaigns = []
 
         if platform in ["all", "yandex"]:
@@ -1014,17 +1038,25 @@ class StatsService:
             yandex_conversion_overrides = yandex_conversion_overrides or {}
             yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
             total_yandex_metrika_convs = get_metrika_convs(d_start, d_end)
-            total_yandex_cost = get_yandex_scope_cost(d_start, d_end)
+            yandex_conv_allocations = allocate_yandex_metrika_convs(
+                y_results,
+                total_yandex_metrika_convs,
+                yandex_conversion_overrides,
+            )
 
             # Previous period Yandex data keyed by campaign_id
             prev_y_rows = {}
             prev_total_yandex_metrika_convs = 0
-            prev_total_yandex_cost = 0
+            prev_yandex_conv_allocations = {}
             if prev_start is not None:
                 prev_y_list = run_yandex_query(prev_start, prev_end)
                 prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
                 prev_total_yandex_metrika_convs = get_metrika_convs(prev_start, prev_end)
-                prev_total_yandex_cost = get_yandex_scope_cost(prev_start, prev_end)
+                prev_yandex_conv_allocations = allocate_yandex_metrika_convs(
+                    prev_y_list,
+                    prev_total_yandex_metrika_convs,
+                    yandex_prev_conversion_overrides,
+                )
 
             for r in y_results:
                 cost = float(r.cost or 0)
@@ -1035,12 +1067,7 @@ class StatsService:
                 # Yandex leads/CPL must use selected Metrika goals. Direct
                 # conversions include all goals and inflate campaign/direction
                 # rows compared with KPI cards.
-                if cid in yandex_conversion_overrides:
-                    convs = int(yandex_conversion_overrides.get(cid) or 0)
-                elif total_yandex_metrika_convs > 0 and total_yandex_cost > 0:
-                    convs = round(total_yandex_metrika_convs * (cost / total_yandex_cost))
-                else:
-                    convs = 0
+                convs = int(yandex_conv_allocations.get(cid, 0) or 0)
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0
 
@@ -1051,12 +1078,7 @@ class StatsService:
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
                     prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
-                    if cid in yandex_prev_conversion_overrides:
-                        prev_convs = int(yandex_prev_conversion_overrides.get(cid) or 0)
-                    elif prev_total_yandex_metrika_convs > 0 and prev_total_yandex_cost > 0:
-                        prev_convs = round(prev_total_yandex_metrika_convs * (prev_cost / prev_total_yandex_cost))
-                    else:
-                        prev_convs = 0
+                    prev_convs = int(prev_yandex_conv_allocations.get(cid, 0) or 0)
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
