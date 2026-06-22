@@ -46,6 +46,14 @@ def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
     return profile
 
 
+def _selected_yandex_direct_profile(integration: models.Integration) -> Optional[str]:
+    if getattr(integration, "is_agency", False):
+        profile = integration.agency_client_login or integration.account_id
+    else:
+        profile = integration.account_id
+    return _clean_yandex_profile_login(profile)
+
+
 def _avito_utm_source(integration: models.Integration) -> str:
     source = str(getattr(integration, "utm_source", None) or "").strip()
     return source or "avito-ads"
@@ -561,8 +569,7 @@ def sync_metrika_goals_background(
                 filters = _metrika_utm_source_filter(_avito_utm_source(integration))
             else:
                 access_token = security.decrypt_token(integration.access_token)
-                selected_profile = integration.agency_client_login or integration.account_id
-                selected_profile = _clean_yandex_profile_login(selected_profile)
+                selected_profile = _selected_yandex_direct_profile(integration)
             new_loop.run_until_complete(
                 _sync_metrika_goals_for_direct(
                     db, integration, date_from_str, date_to_str,
@@ -599,16 +606,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
             access_token = security.decrypt_token(integration.access_token)
             
-            # CRITICAL: Use exactly тот профиль, который пользователь выбрал на шаге 2.
-            # В UI этот профиль сохраняется в integration.account_id и integration.agency_client_login.
-            # Приоритет: agency_client_login (более точный), затем account_id
-            # Это логин рекламного кабинета (например, "istore-habarovsk"), который используется в Client-Login заголовке
-            selected_profile = None
-            if integration.agency_client_login and integration.agency_client_login.lower() not in ["unknown", "none", ""]:
-                selected_profile = integration.agency_client_login
-            elif integration.account_id and integration.account_id.lower() not in ["unknown", "none", ""]:
-                selected_profile = integration.account_id
-            selected_profile = _clean_yandex_profile_login(selected_profile)
+            # Use agency Client-Login only for agency integrations. In regular
+            # integrations stale agency_client_login values can be display aliases,
+            # not valid Direct logins, and Yandex rejects them with 404/8800.
+            selected_profile = _selected_yandex_direct_profile(integration)
             
             logger.info(
                 f"Syncing Yandex Direct integration {integration.id} "

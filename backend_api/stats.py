@@ -36,6 +36,14 @@ def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
     return cleaned
 
 
+def _selected_yandex_direct_profile(integration: models.Integration) -> Optional[str]:
+    if getattr(integration, "is_agency", False):
+        profile = integration.agency_client_login or integration.account_id
+    else:
+        profile = integration.account_id
+    return _clean_yandex_profile_login(profile)
+
+
 async def _ensure_yandex_hierarchy_rows_for_campaign(
     db: Session,
     campaign: models.Campaign,
@@ -58,9 +66,7 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
         return
 
     integration = campaign.integration
-    selected_profile = _clean_yandex_profile_login(integration.agency_client_login)
-    if not selected_profile and integration.account_id:
-        selected_profile = _clean_yandex_profile_login(integration.account_id)
+    selected_profile = _selected_yandex_direct_profile(integration)
 
     try:
         access_token = security.decrypt_token(integration.access_token)
