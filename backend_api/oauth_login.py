@@ -373,8 +373,8 @@ def _optional_current_user(request: Request, db: Session) -> Optional[models.Use
 def _pick_username(db: Session, login: Optional[str]) -> Optional[str]:
     if not login:
         return None
-    taken = db.query(models.User).filter(models.User.username == login).first()
-    return None if taken else login
+    # username is a display name, not a login. It may repeat across users.
+    return login
 
 
 def _attach_identity(

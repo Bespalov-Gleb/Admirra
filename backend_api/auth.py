@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -76,6 +77,21 @@ def _user_has_usable_password(user: models.User) -> bool:
     if identities:
         return False
     return bool(user.password_hash)
+
+
+def _normalize_email(email: str) -> str:
+    return str(email or "").strip().lower()
+
+
+def _find_user_by_email_ci(db: Session, email: str) -> Optional[models.User]:
+    normalized = _normalize_email(email)
+    if not normalized:
+        return None
+    return (
+        db.query(models.User)
+        .filter(func.lower(models.User.email) == normalized)
+        .first()
+    )
 
 
 def _mask_secret(value: Optional[str]) -> Optional[str]:
@@ -191,9 +207,10 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     Регистрация: пользователь создаётся с email_verified=False, JWT не выдаётся.
     На почту уходит ссылка с токеном.
     """
-    logger.info("Registration attempt for email: %s", user.email)
+    email = _normalize_email(user.email)
+    logger.info("Registration attempt for email: %s", email)
 
-    db_user_email = db.query(models.User).filter(models.User.email == user.email).first()
+    db_user_email = _find_user_by_email_ci(db, email)
     if db_user_email:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -206,7 +223,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     exp = verification_expiry(48)
 
     new_user = models.User(
-        email=user.email,
+        email=email,
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
@@ -227,13 +244,13 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
 
     verify_url = _frontend_verify_url(raw_token)
     if smtp_delivery_active():
-        sent = await send_verification_link_email(user.email, verify_url)
+        sent = await send_verification_link_email(email, verify_url)
         if not sent:
             raise HTTPException(status_code=503, detail="Failed to send verification email")
-        return schemas.RegisterPendingResponse(email=user.email)
+        return schemas.RegisterPendingResponse(email=email)
 
     if smtp_enabled() and not smtp_configured():
-        logger.error("SMTP not configured; cannot send verification email to %s", user.email)
+        logger.error("SMTP not configured; cannot send verification email to %s", email)
         raise HTTPException(
             status_code=503,
             detail="Email delivery is not configured on server",
@@ -241,10 +258,10 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
 
     logger.warning(
         "SMTP_ENABLED=false: registration OK for %s, verification email not sent",
-        user.email,
+        email,
     )
     return schemas.RegisterPendingResponse(
-        email=user.email,
+        email=email,
         message="Аккаунт создан. Отправка письма отключена (SMTP_ENABLED=false). "
         "Подтвердите email вручную или включите SMTP и используйте «Отправить снова».",
     )
@@ -291,7 +308,7 @@ async def verify_email(
 @router.post("/resend-verification")
 async def resend_verification(body: schemas.ResendVerificationRequest, db: Session = Depends(get_db)):
     """Повторная отправка письма подтверждения (throttle)."""
-    user = db.query(models.User).filter(models.User.email == body.email).first()
+    user = _find_user_by_email_ci(db, body.email)
     # Не раскрываем, есть ли пользователь
     generic = {"message": "Если email зарегистрирован и не подтверждён, письмо отправлено."}
     if not user or user.email_verified:
@@ -333,7 +350,7 @@ async def login_password_step(
     - Неподтверждённая почта → step=email_not_verified (без JWT), если AUTH_REQUIRE_EMAIL_VERIFIED.
     - Иначе → OTP на почту или JWT (как у подтверждённой почты).
     """
-    user = db.query(models.User).filter(models.User.email == login_data.email).first()
+    user = _find_user_by_email_ci(db, login_data.email)
 
     if not user or not security.verify_password(login_data.password, user.password_hash):
         raise HTTPException(
@@ -449,7 +466,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 async def reset_password_request(body: schemas.PasswordResetRequestBody, db: Session = Depends(get_db)):
     """Шаг 1 сброса пароля: отправляет ссылку на email (ответ всегда 200, чтобы не раскрывать наличие аккаунта)."""
     generic = {"message": "Если указанный email зарегистрирован, ссылка для сброса пароля отправлена."}
-    user = db.query(models.User).filter(models.User.email == body.email).first()
+    user = _find_user_by_email_ci(db, body.email)
     if not user:
         return generic
 
