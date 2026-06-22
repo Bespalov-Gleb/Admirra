@@ -981,6 +981,7 @@ class StatsService:
 
         def allocate_yandex_metrika_convs(rows, total_convs, overrides):
             overrides = overrides or {}
+            total = max(int(total_convs or 0), 0)
             allocations = {}
             remaining_rows = []
             used_total = 0
@@ -993,17 +994,31 @@ class StatsService:
                 else:
                     remaining_rows.append(row)
 
-            remaining_total = max(int(total_convs or 0) - used_total, 0)
+            if used_total > total:
+                # If live DirectClickOrder attribution returns more than the
+                # selected-goal KPI total, keep the dashboard internally
+                # consistent and fall back to cost allocation.
+                allocations = {}
+                remaining_rows = list(rows)
+                used_total = 0
+
+            remaining_total = total - used_total
+            if remaining_total > 0 and not remaining_rows:
+                # Some selected-goal visits may not be attributed by Metrika to
+                # a DirectClickOrder. Distribute that residual over visible
+                # campaigns so campaign totals still match KPI cards.
+                remaining_rows = list(rows)
+
             if remaining_total <= 0 or not remaining_rows:
                 for row in remaining_rows:
-                    allocations[str(row.campaign_id)] = 0
+                    allocations.setdefault(str(row.campaign_id), 0)
                 return allocations
 
             weights = [max(float(row.cost or 0), 0.0) for row in remaining_rows]
             total_weight = sum(weights)
             if total_weight <= 0:
                 for row in remaining_rows:
-                    allocations[str(row.campaign_id)] = 0
+                    allocations.setdefault(str(row.campaign_id), 0)
                 return allocations
 
             raw_values = [remaining_total * weight / total_weight for weight in weights]
@@ -1019,7 +1034,8 @@ class StatsService:
                     base_values[idx] += 1
 
             for row, value in zip(remaining_rows, base_values):
-                allocations[str(row.campaign_id)] = value
+                cid = str(row.campaign_id)
+                allocations[cid] = int(allocations.get(cid, 0) or 0) + value
             return allocations
 
         campaigns = []
