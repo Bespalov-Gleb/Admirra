@@ -75,6 +75,38 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
     known_group_ids = set()
 
     try:
+        campaign_rows = await api.get_report(
+            date_from,
+            date_to,
+            level="campaign",
+            campaign_ids=[int(campaign.external_id)],
+        )
+    except Exception as err:
+        logger.warning("Failed to lazy-load Yandex campaign report for campaign %s: %s", campaign.id, err)
+        campaign_rows = []
+
+    for row in campaign_rows:
+        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+        filters = {
+            "client_id": integration.client_id,
+            "campaign_id": campaign.id,
+            "date": row_date,
+        }
+        existing = db.query(models.YandexStats).filter_by(**filters).first()
+        data = {
+            "campaign_name": row.get("campaign_name") or campaign.name,
+            "impressions": row.get("impressions", 0),
+            "clicks": row.get("clicks", 0),
+            "cost": row.get("cost", 0),
+            "conversions": row.get("conversions", 0),
+        }
+        if existing:
+            for key, value in data.items():
+                setattr(existing, key, value)
+        else:
+            db.add(models.YandexStats(**filters, **data))
+
+    try:
         group_rows = await api.get_report(
             date_from,
             date_to,
