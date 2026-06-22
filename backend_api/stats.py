@@ -87,6 +87,16 @@ def _metrika_integration_goal_context(integration: models.Integration) -> tuple[
     return counters, goals
 
 
+def _avito_utm_source(integration: models.Integration) -> str:
+    source = str(getattr(integration, "utm_source", None) or "").strip()
+    return source or "avito-ads"
+
+
+def _metrika_utm_source_filter(source: str) -> str:
+    safe_source = str(source or "avito-ads").replace("\\", "\\\\").replace("'", "\\'")
+    return f"ym:s:UTMSource=='{safe_source}'"
+
+
 async def _metrika_drill_conv_map(
     integration: models.Integration,
     campaign: models.Campaign,
@@ -162,6 +172,96 @@ async def _metrika_drill_conv_map(
                     conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
 
     return conv_map, goals_available
+
+
+async def _avito_metrika_utm_conv_maps(
+    db: Session,
+    integration: models.Integration,
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple[dict, dict, bool]:
+    """
+    Exact Avito leads from Metrika selected goals.
+    Avito Ads stats API has spend/views/clicks only; leads come from Metrika
+    with UTM tags:
+    - utm_source = integration.utm_source, default avito-ads
+    - utm_campaign = Avito campaign id
+    - utm_content = Avito creative/ad id
+    """
+    counters, goals = _metrika_integration_goal_context(integration)
+    if not counters or not goals:
+        return {}, {}, False
+
+    try:
+        from automation.avito_integration_helpers import (
+            get_metrika_integration_for_client,
+            metrika_profile_login,
+        )
+
+        metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
+        if not metrika_integration:
+            return {}, {}, False
+        access_token = security.decrypt_token(metrika_integration.access_token)
+        selected_profile = metrika_profile_login(metrika_integration)
+    except Exception:
+        return {}, {}, False
+
+    from automation.yandex_metrica import YandexMetricaAPI
+
+    api = YandexMetricaAPI(access_token, client_login=selected_profile)
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+    filters = _metrika_utm_source_filter(_avito_utm_source(integration))
+    campaign_map: dict = {}
+    creative_map: dict = {}
+    goals_available = False
+
+    for counter in counters:
+        try:
+            available_goal_ids = await _get_metrika_counter_goal_ids(api, integration.id, str(counter))
+        except Exception as err:
+            logger.warning("Avito Metrika goals fetch failed for counter %s: %s", counter, err)
+            continue
+
+        counter_goal_ids = [goal_id for goal_id in goals if goal_id in available_goal_ids]
+        if not counter_goal_ids:
+            continue
+
+        goals_available = True
+        for goals_batch in _chunks(counter_goal_ids, 20):
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals_batch,
+                dimension="ym:s:UTMCampaign",
+                filters=filters,
+            )
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if not dimensions:
+                    continue
+                key = str((dimensions[0] or {}).get("name") or "").strip()
+                if key:
+                    campaign_map[key] = campaign_map.get(key, 0.0) + float(row.get("conversions") or 0)
+
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals_batch,
+                dimension="ym:s:UTMContent",
+                filters=filters,
+            )
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if not dimensions:
+                    continue
+                key = str((dimensions[0] or {}).get("name") or "").strip()
+                if key:
+                    creative_map[key] = creative_map.get(key, 0.0) + float(row.get("conversions") or 0)
+
+    return campaign_map, creative_map, goals_available
 
 
 async def _metrika_campaign_conv_map(
@@ -257,6 +357,30 @@ async def _build_yandex_campaign_conversion_overrides(
             key = _normalize_direct_name(campaign.name)
             if name_counts.get(key, 0) == 1:
                 overrides[str(campaign.id)] = int(round(conv_map.get(key, 0)))
+    return overrides
+
+
+async def _build_avito_campaign_conversion_overrides(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: Optional[date],
+    d_end: date,
+    campaign_ids: Optional[List[uuid.UUID]] = None,
+) -> dict:
+    integration_q = db.query(models.Integration).filter(
+        models.Integration.client_id.in_(client_ids),
+        models.Integration.platform == models.IntegrationPlatform.AVITO_ADS,
+    )
+    if campaign_ids:
+        integration_q = integration_q.join(models.Campaign).filter(models.Campaign.id.in_(campaign_ids))
+
+    overrides: dict = {}
+    for integration in integration_q.distinct().all():
+        campaign_map, _, available = await _avito_metrika_utm_conv_maps(db, integration, d_start, d_end)
+        if not available:
+            continue
+        for external_id, conversions in campaign_map.items():
+            overrides[str(external_id)] = int(round(float(conversions or 0)))
     return overrides
 
 
@@ -1193,6 +1317,8 @@ async def get_campaign_stats(
 
     yandex_conversion_overrides = None
     yandex_prev_conversion_overrides = None
+    avito_conversion_overrides = None
+    avito_prev_conversion_overrides = None
     if platform in ["all", "yandex"]:
         yandex_conversion_overrides = await _build_yandex_campaign_conversion_overrides(
             db,
@@ -1213,6 +1339,26 @@ async def get_campaign_stats(
                 u_campaign_ids,
             )
 
+    if platform in ["all", "avito"]:
+        avito_conversion_overrides = await _build_avito_campaign_conversion_overrides(
+            db,
+            effective_client_ids,
+            d_start,
+            d_end,
+            u_campaign_ids,
+        )
+        if d_start:
+            delta = (d_end - d_start).days + 1
+            prev_start = d_start - timedelta(days=delta)
+            prev_end = d_start - timedelta(days=1)
+            avito_prev_conversion_overrides = await _build_avito_campaign_conversion_overrides(
+                db,
+                effective_client_ids,
+                prev_start,
+                prev_end,
+                u_campaign_ids,
+            )
+
     return StatsService.get_campaign_stats(
         db,
         effective_client_ids,
@@ -1223,6 +1369,8 @@ async def get_campaign_stats(
         u_goal_action_ids,
         yandex_conversion_overrides=yandex_conversion_overrides,
         yandex_prev_conversion_overrides=yandex_prev_conversion_overrides,
+        avito_conversion_overrides=avito_conversion_overrides,
+        avito_prev_conversion_overrides=avito_prev_conversion_overrides,
     )
 
 
@@ -1289,6 +1437,46 @@ async def get_campaign_children(
             d_start,
             d_end,
         )
+    elif campaign.integration.platform == models.IntegrationPlatform.AVITO_ADS:
+        campaign_conv_map, creative_conv_map, conv_available = await _avito_metrika_utm_conv_maps(
+            db,
+            campaign.integration,
+            d_start,
+            d_end,
+        )
+        campaign_exact_convs = float(campaign_conv_map.get(str(campaign.external_id), 0) or 0)
+        # For Avito hierarchy, group/ad precision requires utm_content
+        # (creative id). If only utm_campaign is present and there are leads,
+        # fall back to estimated distribution instead of showing exact zeros.
+        hierarchy_conv_available = bool(creative_conv_map) or campaign_exact_convs <= 0
+        conv_available = bool(conv_available and hierarchy_conv_available)
+        if conv_available and level == "campaign":
+            creative_rows_q = db.query(
+                models.AvitoCreatives.group_id,
+                models.AvitoCreatives.creative_id,
+            ).filter(
+                models.AvitoCreatives.client_id.in_(effective_client_ids),
+                models.AvitoCreatives.campaign_id == campaign.id,
+                models.AvitoCreatives.group_id.isnot(None),
+                models.AvitoCreatives.creative_id.isnot(None),
+            )
+            if d_start:
+                creative_rows_q = creative_rows_q.filter(models.AvitoCreatives.date >= d_start)
+            if d_end:
+                creative_rows_q = creative_rows_q.filter(models.AvitoCreatives.date <= d_end)
+            group_conv_map: dict = {}
+            seen_pairs = set()
+            for group_id, creative_id in creative_rows_q.distinct().all():
+                pair = (str(group_id), str(creative_id))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                group_conv_map[pair[0]] = group_conv_map.get(pair[0], 0.0) + float(
+                    creative_conv_map.get(pair[1], 0) or 0
+                )
+            conv_map = group_conv_map
+        else:
+            conv_map = creative_conv_map
     else:
         conv_map, conv_available = {}, False
 

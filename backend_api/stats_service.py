@@ -781,6 +781,8 @@ class StatsService:
         vk_goal_action_ids: Optional[List[str]] = None,
         yandex_conversion_overrides: Optional[dict] = None,
         yandex_prev_conversion_overrides: Optional[dict] = None,
+        avito_conversion_overrides: Optional[dict] = None,
+        avito_prev_conversion_overrides: Optional[dict] = None,
     ):
         if not client_ids:
             return []
@@ -979,14 +981,14 @@ class StatsService:
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
             return int((m_q.scalar() or 0) or 0)
 
-        def allocate_yandex_metrika_convs(rows, total_convs, overrides):
+        def allocate_metrika_convs(rows, total_convs, overrides, row_key_getter=lambda row: row.campaign_id):
             overrides = overrides or {}
             total = max(int(total_convs or 0), 0)
             allocations = {}
             remaining_rows = []
             used_total = 0
             for row in rows:
-                cid = str(row.campaign_id)
+                cid = str(row_key_getter(row) or "")
                 if cid in overrides:
                     value = int(overrides.get(cid) or 0)
                     allocations[cid] = value
@@ -1034,7 +1036,7 @@ class StatsService:
                     base_values[idx] += 1
 
             for row, value in zip(remaining_rows, base_values):
-                cid = str(row.campaign_id)
+                cid = str(row_key_getter(row) or "")
                 allocations[cid] = int(allocations.get(cid, 0) or 0) + value
             return allocations
 
@@ -1054,7 +1056,7 @@ class StatsService:
             yandex_conversion_overrides = yandex_conversion_overrides or {}
             yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
             total_yandex_metrika_convs = get_metrika_convs(d_start, d_end)
-            yandex_conv_allocations = allocate_yandex_metrika_convs(
+            yandex_conv_allocations = allocate_metrika_convs(
                 y_results,
                 total_yandex_metrika_convs,
                 yandex_conversion_overrides,
@@ -1068,7 +1070,7 @@ class StatsService:
                 prev_y_list = run_yandex_query(prev_start, prev_end)
                 prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
                 prev_total_yandex_metrika_convs = get_metrika_convs(prev_start, prev_end)
-                prev_yandex_conv_allocations = allocate_yandex_metrika_convs(
+                prev_yandex_conv_allocations = allocate_metrika_convs(
                     prev_y_list,
                     prev_total_yandex_metrika_convs,
                     yandex_prev_conversion_overrides,
@@ -1190,6 +1192,8 @@ class StatsService:
 
         if platform in ["all", "avito"]:
             av_results = run_avito_query(d_start, d_end)
+            avito_conversion_overrides = avito_conversion_overrides or {}
+            avito_prev_conversion_overrides = avito_prev_conversion_overrides or {}
             avito_child_campaign_ids_q = db.query(models.AvitoGroups.campaign_id).filter(
                 models.AvitoGroups.client_id.in_(client_ids),
                 models.AvitoGroups.campaign_id.isnot(None),
@@ -1218,25 +1222,60 @@ class StatsService:
                 filter_by_campaign_integrations=False,
             )
             total_avito_cost = get_avito_scope_cost(d_start, d_end)
+            if avito_conversion_overrides:
+                avito_conv_allocations = {
+                    str(getattr(row, "campaign_external_id", None) or ""): int(
+                        avito_conversion_overrides.get(
+                            str(getattr(row, "campaign_external_id", None) or ""),
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in av_results
+                }
+            else:
+                avito_conv_allocations = allocate_metrika_convs(
+                    av_results,
+                    total_avito_metrika_convs,
+                    {},
+                    lambda row: getattr(row, "campaign_external_id", None),
+                )
             prev_av_rows = {}
             prev_total_avito_metrika_convs = 0
             prev_total_avito_cost = 0
+            prev_avito_conv_allocations = {}
             if prev_start is not None:
-                prev_av_rows = {str(r.campaign_id): r for r in run_avito_query(prev_start, prev_end)}
+                prev_av_list = run_avito_query(prev_start, prev_end)
+                prev_av_rows = {str(r.campaign_id): r for r in prev_av_list}
                 prev_total_avito_metrika_convs = get_metrika_convs(
                     prev_start,
                     prev_end,
                     filter_by_campaign_integrations=False,
                 )
                 prev_total_avito_cost = get_avito_scope_cost(prev_start, prev_end)
+                if avito_prev_conversion_overrides:
+                    prev_avito_conv_allocations = {
+                        str(getattr(row, "campaign_external_id", None) or ""): int(
+                            avito_prev_conversion_overrides.get(
+                                str(getattr(row, "campaign_external_id", None) or ""),
+                                0,
+                            )
+                            or 0
+                        )
+                        for row in prev_av_list
+                    }
+                else:
+                    prev_avito_conv_allocations = allocate_metrika_convs(
+                        prev_av_list,
+                        prev_total_avito_metrika_convs,
+                        {},
+                        lambda row: getattr(row, "campaign_external_id", None),
+                    )
             for r in av_results:
                 cost = float(r.cost or 0)
                 clicks = int(r.clicks or 0)
-                convs = (
-                    round(total_avito_metrika_convs * (cost / total_avito_cost))
-                    if total_avito_metrika_convs > 0 and total_avito_cost > 0
-                    else int(r.conversions or 0)
-                )
+                ext_id = str(getattr(r, "campaign_external_id", None) or "")
+                convs = int(avito_conv_allocations.get(ext_id, 0) or 0)
                 imps = int(r.impressions or 0)
                 ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
@@ -1248,17 +1287,13 @@ class StatsService:
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
                     prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
-                    prev_convs = (
-                        round(prev_total_avito_metrika_convs * (prev_cost / prev_total_avito_cost))
-                        if prev_total_avito_metrika_convs > 0 and prev_total_avito_cost > 0
-                        else int(p.conversions or 0)
-                    )
+                    prev_ext_id = str(getattr(p, "campaign_external_id", None) or "")
+                    prev_convs = int(prev_avito_conv_allocations.get(prev_ext_id, 0) or 0)
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
                     prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
                 raw = (r.campaign_display_name or r.campaign_name or "").strip()
-                ext_id = getattr(r, "campaign_external_id", None) or ""
                 if raw and not (raw.startswith("Campaign ") and raw.replace("Campaign ", "").strip().isdigit()):
                     disp_name = raw
                 elif ext_id:
@@ -1272,6 +1307,7 @@ class StatsService:
                     "source_id": ext_id or None,
                     "has_children": cid in avito_child_campaign_ids,
                     "conversions_attributed": True,
+                    "conversions_estimated": bool(convs and not avito_conversion_overrides),
                     "name": f"[Avito] {disp_name}",
                     "impressions": imps,
                     "clicks": clicks,
@@ -1457,13 +1493,21 @@ class StatsService:
                 )
                 group_q = apply_dates(group_q, models.AvitoGroups)
                 group_rows = group_q.group_by(models.AvitoGroups.group_id, models.AvitoGroups.group_name).all()
-                allocated_conversions = _allocated_conversions_by_cost(
-                    _campaign_conversion_total(),
-                    group_rows,
-                    lambda item: item.cost,
-                )
+                allocated_conversions = []
+                if not conv_available:
+                    allocated_conversions = _allocated_conversions_by_cost(
+                        _campaign_conversion_total(),
+                        group_rows,
+                        lambda item: item.cost,
+                    )
                 rows = []
                 for idx, row in enumerate(group_rows):
+                    if conv_available:
+                        convs = int(round(float(conv_map.get(str(row.group_id), 0) or 0)))
+                        estimated = False
+                    else:
+                        convs = allocated_conversions[idx]
+                        estimated = True
                     rows.append(metric_row(
                         raw_id=row.group_id,
                         parent_id=str(campaign.id),
@@ -1472,34 +1516,35 @@ class StatsService:
                         imps=row.impressions,
                         clicks=row.clicks,
                         cost=row.cost,
-                        convs=allocated_conversions[idx],
+                        convs=convs,
                         has_children=bool(row.group_id),
                         attributed=True,
-                        estimated=True,
+                        estimated=estimated,
                     ))
                 return sort_rows(rows)
 
             if level == "group" and node_id:
-                group_q = db.query(
-                    models.AvitoGroups.group_id,
-                    func.sum(models.AvitoGroups.cost).label("cost"),
-                ).filter(
-                    models.AvitoGroups.client_id.in_(client_ids),
-                    models.AvitoGroups.campaign_id == campaign.id,
-                    models.AvitoGroups.group_id.isnot(None),
-                )
-                group_q = apply_dates(group_q, models.AvitoGroups)
-                sibling_groups = group_q.group_by(models.AvitoGroups.group_id).all()
-                group_allocations = _allocated_conversions_by_cost(
-                    _campaign_conversion_total(),
-                    sibling_groups,
-                    lambda item: item.cost,
-                )
                 group_conversion_total = 0
-                for idx, group in enumerate(sibling_groups):
-                    if str(group.group_id) == str(node_id):
-                        group_conversion_total = group_allocations[idx]
-                        break
+                if not conv_available:
+                    group_q = db.query(
+                        models.AvitoGroups.group_id,
+                        func.sum(models.AvitoGroups.cost).label("cost"),
+                    ).filter(
+                        models.AvitoGroups.client_id.in_(client_ids),
+                        models.AvitoGroups.campaign_id == campaign.id,
+                        models.AvitoGroups.group_id.isnot(None),
+                    )
+                    group_q = apply_dates(group_q, models.AvitoGroups)
+                    sibling_groups = group_q.group_by(models.AvitoGroups.group_id).all()
+                    group_allocations = _allocated_conversions_by_cost(
+                        _campaign_conversion_total(),
+                        sibling_groups,
+                        lambda item: item.cost,
+                    )
+                    for idx, group in enumerate(sibling_groups):
+                        if str(group.group_id) == str(node_id):
+                            group_conversion_total = group_allocations[idx]
+                            break
 
                 creative_q = db.query(
                     models.AvitoCreatives.creative_id,
@@ -1518,13 +1563,21 @@ class StatsService:
                     models.AvitoCreatives.creative_id,
                     models.AvitoCreatives.creative_name,
                 ).all()
-                allocated_conversions = _allocated_conversions_by_cost(
-                    group_conversion_total,
-                    creative_rows,
-                    lambda item: item.cost,
-                )
+                allocated_conversions = []
+                if not conv_available:
+                    allocated_conversions = _allocated_conversions_by_cost(
+                        group_conversion_total,
+                        creative_rows,
+                        lambda item: item.cost,
+                    )
                 rows = []
                 for idx, row in enumerate(creative_rows):
+                    if conv_available:
+                        convs = int(round(float(conv_map.get(str(row.creative_id), 0) or 0)))
+                        estimated = False
+                    else:
+                        convs = allocated_conversions[idx]
+                        estimated = True
                     rows.append(metric_row(
                         raw_id=row.creative_id,
                         parent_id=node_id,
@@ -1533,10 +1586,10 @@ class StatsService:
                         imps=row.impressions,
                         clicks=row.clicks,
                         cost=row.cost,
-                        convs=allocated_conversions[idx],
+                        convs=convs,
                         has_children=False,
                         attributed=True,
-                        estimated=True,
+                        estimated=estimated,
                     ))
                 return sort_rows(rows)
 
