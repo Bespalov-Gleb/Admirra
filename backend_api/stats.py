@@ -6,6 +6,7 @@ from core import models, schemas, security
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 import uuid
+from time import monotonic
 from backend_api.stats_service import StatsService
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
@@ -25,6 +26,8 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 # Дедупликация ensure_data_synced: не запускать повторный sync для интеграции в течение 30 сек
 _sync_last_started: dict = {}
 _sync_cooldown_sec = 30
+_metrika_counter_goals_cache: dict = {}
+_metrika_counter_goals_ttl_sec = 600
 
 
 def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
@@ -42,6 +45,219 @@ def _selected_yandex_direct_profile(integration: models.Integration) -> Optional
     else:
         profile = integration.account_id
     return _clean_yandex_profile_login(profile)
+
+
+def _json_list_safe(value) -> List[str]:
+    try:
+        parsed = json.loads(value) if isinstance(value, str) else value
+        if isinstance(parsed, (list, tuple)):
+            return [str(item) for item in parsed if str(item).strip()]
+    except Exception:
+        pass
+    return []
+
+
+def _normalize_direct_name(value) -> str:
+    return str(value or "").replace("\xa0", " ").strip().lower()
+
+
+def _chunks(items: List[str], size: int):
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
+
+
+async def _get_metrika_counter_goal_ids(api, integration_id: uuid.UUID, counter_id: str) -> set:
+    cache_key = (str(integration_id), str(counter_id))
+    cached = _metrika_counter_goals_cache.get(cache_key)
+    now = monotonic()
+    if cached and now - cached["ts"] < _metrika_counter_goals_ttl_sec:
+        return cached["goal_ids"]
+
+    counter_goals = await api.get_counter_goals(str(counter_id))
+    goal_ids = {str(goal.get("id")) for goal in (counter_goals or []) if goal.get("id")}
+    _metrika_counter_goals_cache[cache_key] = {"ts": now, "goal_ids": goal_ids}
+    return goal_ids
+
+
+def _metrika_integration_goal_context(integration: models.Integration) -> tuple[List[str], List[str]]:
+    counters = _json_list_safe(integration.selected_counters)
+    goals = _json_list_safe(integration.selected_goals)
+    if integration.primary_goal_id and str(integration.primary_goal_id) not in goals:
+        goals.append(str(integration.primary_goal_id))
+    return counters, goals
+
+
+async def _metrika_drill_conv_map(
+    integration: models.Integration,
+    campaign: models.Campaign,
+    level: str,
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple[dict, bool]:
+    """
+    Exact Yandex leads for drill-down from Metrika selected goals.
+    DirectBannerGroup.id matches Yandex AdGroupId; DirectBanner.name is M-<ad_id>.
+    DirectClickOrder.id does not match Direct CampaignId, so campaign scope is by name.
+    """
+    counters, goals = _metrika_integration_goal_context(integration)
+    if not counters or not goals:
+        return {}, False
+
+    try:
+        access_token = security.decrypt_token(integration.access_token)
+    except Exception:
+        return {}, False
+
+    from automation.yandex_metrica import YandexMetricaAPI
+
+    api = YandexMetricaAPI(access_token, client_login=_selected_yandex_direct_profile(integration))
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+    target_campaign = _normalize_direct_name(campaign.name)
+    dimension = (
+        "ym:s:<attribution>DirectBannerGroup"
+        if level == "campaign"
+        else "ym:s:<attribution>DirectBanner"
+    )
+
+    conv_map: dict = {}
+    goals_available = False
+    for counter in counters:
+        try:
+            available_goal_ids = await _get_metrika_counter_goal_ids(api, integration.id, str(counter))
+        except Exception as err:
+            logger.warning("Metrika drilldown goals fetch failed for counter %s: %s", counter, err)
+            continue
+
+        counter_goal_ids = [goal_id for goal_id in goals if goal_id in available_goal_ids]
+        if not counter_goal_ids:
+            continue
+
+        goals_available = True
+        for goals_batch in _chunks(counter_goal_ids, 20):
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals_batch,
+                dimension=dimension,
+                extra_dimension="ym:s:<attribution>DirectClickOrder",
+            )
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if len(dimensions) < 2:
+                    continue
+                campaign_dim = dimensions[0] or {}
+                entity_dim = dimensions[1] or {}
+                if _normalize_direct_name(campaign_dim.get("name")) != target_campaign:
+                    continue
+
+                if level == "campaign":
+                    key = str(entity_dim.get("id") or "").strip()
+                else:
+                    key = str(entity_dim.get("name") or "").strip()
+                    if key.upper().startswith("M-"):
+                        key = key[2:]
+                if key:
+                    conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
+
+    return conv_map, goals_available
+
+
+async def _metrika_campaign_conv_map(
+    integration: models.Integration,
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple[dict, bool]:
+    counters, goals = _metrika_integration_goal_context(integration)
+    if not counters or not goals:
+        return {}, False
+
+    try:
+        access_token = security.decrypt_token(integration.access_token)
+    except Exception:
+        return {}, False
+
+    from automation.yandex_metrica import YandexMetricaAPI
+
+    api = YandexMetricaAPI(access_token, client_login=_selected_yandex_direct_profile(integration))
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+
+    conv_map: dict = {}
+    goals_available = False
+    for counter in counters:
+        try:
+            available_goal_ids = await _get_metrika_counter_goal_ids(api, integration.id, str(counter))
+        except Exception as err:
+            logger.warning("Metrika campaign goals fetch failed for counter %s: %s", counter, err)
+            continue
+
+        counter_goal_ids = [goal_id for goal_id in goals if goal_id in available_goal_ids]
+        if not counter_goal_ids:
+            continue
+
+        goals_available = True
+        for goals_batch in _chunks(counter_goal_ids, 20):
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals_batch,
+                dimension="ym:s:<attribution>DirectClickOrder",
+            )
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if not dimensions:
+                    continue
+                key = _normalize_direct_name((dimensions[0] or {}).get("name"))
+                if key:
+                    conv_map[key] = conv_map.get(key, 0.0) + float(row.get("conversions") or 0)
+
+    return conv_map, goals_available
+
+
+async def _build_yandex_campaign_conversion_overrides(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: Optional[date],
+    d_end: date,
+    campaign_ids: Optional[List[uuid.UUID]] = None,
+) -> dict:
+    campaign_q = (
+        db.query(models.Campaign)
+        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+        .filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
+        )
+    )
+    if campaign_ids:
+        campaign_q = campaign_q.filter(models.Campaign.id.in_(campaign_ids))
+
+    campaigns = campaign_q.all()
+    campaigns_by_integration: dict = {}
+    for campaign in campaigns:
+        if campaign.integration:
+            campaigns_by_integration.setdefault(campaign.integration.id, []).append(campaign)
+
+    overrides: dict = {}
+    for grouped_campaigns in campaigns_by_integration.values():
+        integration = grouped_campaigns[0].integration
+        conv_map, available = await _metrika_campaign_conv_map(integration, d_start, d_end)
+        if not available:
+            continue
+
+        name_counts: dict = {}
+        for campaign in grouped_campaigns:
+            key = _normalize_direct_name(campaign.name)
+            name_counts[key] = name_counts.get(key, 0) + 1
+
+        for campaign in grouped_campaigns:
+            key = _normalize_direct_name(campaign.name)
+            if name_counts.get(key, 0) == 1:
+                overrides[str(campaign.id)] = int(round(conv_map.get(key, 0)))
+    return overrides
 
 
 async def _ensure_yandex_hierarchy_rows_for_campaign(
@@ -975,6 +1191,28 @@ async def get_campaign_stats(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
 
+    yandex_conversion_overrides = None
+    yandex_prev_conversion_overrides = None
+    if platform in ["all", "yandex"]:
+        yandex_conversion_overrides = await _build_yandex_campaign_conversion_overrides(
+            db,
+            effective_client_ids,
+            d_start,
+            d_end,
+            u_campaign_ids,
+        )
+        if d_start:
+            delta = (d_end - d_start).days + 1
+            prev_start = d_start - timedelta(days=delta)
+            prev_end = d_start - timedelta(days=1)
+            yandex_prev_conversion_overrides = await _build_yandex_campaign_conversion_overrides(
+                db,
+                effective_client_ids,
+                prev_start,
+                prev_end,
+                u_campaign_ids,
+            )
+
     return StatsService.get_campaign_stats(
         db,
         effective_client_ids,
@@ -983,6 +1221,8 @@ async def get_campaign_stats(
         platform,
         u_campaign_ids,
         u_goal_action_ids,
+        yandex_conversion_overrides=yandex_conversion_overrides,
+        yandex_prev_conversion_overrides=yandex_prev_conversion_overrides,
     )
 
 
@@ -1042,6 +1282,15 @@ async def get_campaign_children(
             d_end,
             include_ads=(level == "group"),
         )
+        conv_map, conv_available = await _metrika_drill_conv_map(
+            campaign.integration,
+            campaign,
+            level,
+            d_start,
+            d_end,
+        )
+    else:
+        conv_map, conv_available = {}, False
 
     return StatsService.get_campaign_children(
         db,
@@ -1053,6 +1302,8 @@ async def get_campaign_children(
         node_id=node_id,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        conv_map=conv_map,
+        conv_available=conv_available,
     )
 
 
