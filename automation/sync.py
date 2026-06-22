@@ -875,8 +875,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 ("keyword", keyword_stats_result if not isinstance(keyword_stats_result, Exception) else []),
             ]
 
-            # Оптимизация: не делаем SELECT campaign для каждой строки статистики.
-            # Предзагружаем названия кампаний этой интеграции в set.
+            # Keyword reports do not carry our DB campaign_id, so they still need
+            # a defensive name check. Group reports have CampaignId and must be
+            # matched by the stable external ID instead of campaign name.
             integration_campaign_names = {
                 row[0]
                 for row in db.query(models.Campaign.name)
@@ -888,25 +889,21 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             for level, level_stats in level_stats_list:
                 try:
                     for l in level_stats:
-                        # CRITICAL: Verify that campaign_name belongs to this integration
-                        # This prevents saving stats for campaigns from other profiles
                         campaign_name = l.get('campaign_name', '')
-                        if campaign_name not in integration_campaign_names:
-                            logger.debug(
-                                f"Skipping {level} stats for campaign '{campaign_name}' - "
-                                f"not found in DB for integration {integration.id}. "
-                                f"This campaign likely belongs to a different profile."
-                            )
-                            continue
-                        
                         if level == "group":
                             campaign_external_id = str(l.get("campaign_id") or "")
                             campaign = campaign_map.get(campaign_external_id)
+                            if not campaign:
+                                logger.debug(
+                                    f"Skipping group stats for campaign_id={campaign_external_id} "
+                                    f"campaign='{campaign_name}' - not found in DB for integration {integration.id}"
+                                )
+                                continue
                             filters = {
                                 "client_id": integration.client_id,
-                                "campaign_id": campaign.id if campaign else None,
+                                "campaign_id": campaign.id,
                                 "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),
-                                "campaign_name": campaign_name,
+                                "campaign_name": campaign_name or campaign.name,
                                 "group_id": l.get('group_id'),
                                 "group_name": l['name']
                             }
@@ -918,6 +915,15 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             }
                             _update_or_create_stats(db, models.YandexGroups, filters, data, verbose=False)
                         else:
+                            # CRITICAL: Verify that keyword campaign_name belongs to this integration.
+                            # This prevents saving keyword stats for campaigns from other profiles.
+                            if campaign_name not in integration_campaign_names:
+                                logger.debug(
+                                    f"Skipping {level} stats for campaign '{campaign_name}' - "
+                                    f"not found in DB for integration {integration.id}. "
+                                    f"This campaign likely belongs to a different profile."
+                                )
+                                continue
                             filters = {
                                 "client_id": integration.client_id,
                                 "date": datetime.strptime(l['date'], "%Y-%m-%d").date(),

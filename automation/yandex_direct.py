@@ -1495,6 +1495,59 @@ class YandexDirectAPI:
                 logger.debug(f"_get_ads_via_adgroups: {e}")
                 return []
 
+    async def get_ad_groups_for_campaigns(self, campaign_ids: List[int]) -> List[Dict[str, Any]]:
+        """
+        Return Direct ad groups for the selected campaigns using stable source IDs.
+        Used by dashboard drill-down as a catalog fallback when the report has no
+        rows for a group in the selected period.
+        """
+        if not campaign_ids:
+            return []
+
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"CampaignIds": campaign_ids[:10]},
+                "FieldNames": ["Id", "CampaignId", "Name", "Status", "ServingStatus", "Type"],
+            },
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                data = None
+                for url in [self.adgroups_url_v501, self.adgroups_url]:
+                    response = await client.post(url, json=payload, headers=self.headers, timeout=60.0)
+                    if response.status_code != 200:
+                        continue
+                    candidate = response.json()
+                    if "error" in candidate:
+                        logger.debug(f"AdGroups.get catalog error ({url}): {candidate['error']}")
+                        continue
+                    if url == self.adgroups_url_v501 and not candidate.get("result", {}).get("AdGroups"):
+                        logger.info("AdGroups.get v501 returned 0 groups, trying v5")
+                        continue
+                    data = candidate
+                    break
+                if data is None:
+                    return []
+
+                result = []
+                for group in data.get("result", {}).get("AdGroups", []) or []:
+                    if not group.get("Id"):
+                        continue
+                    result.append({
+                        "Id": group.get("Id"),
+                        "CampaignId": group.get("CampaignId"),
+                        "Name": group.get("Name") or f"Группа {group.get('Id')}",
+                        "Status": group.get("Status"),
+                        "ServingStatus": group.get("ServingStatus"),
+                        "Type": group.get("Type"),
+                    })
+                return result
+            except Exception as e:
+                logger.warning(f"AdGroups.get catalog error: {e}")
+                return []
+
     async def get_ads_with_titles_and_images(
         self,
         campaign_ids: Optional[List[int]] = None,
@@ -1519,7 +1572,7 @@ class YandexDirectAPI:
             "method": "get",
             "params": {
                 "SelectionCriteria": criteria,
-                "FieldNames": ["Id", "CampaignId", "State", "Type"],
+                "FieldNames": ["Id", "CampaignId", "AdGroupId", "Status", "State", "Type"],
                 "TextAdFieldNames": ["Title", "Text", "AdImageHash"],
                 "TextImageAdFieldNames": ["AdImageHash", "Href"],
                 "DynamicTextAdFieldNames": ["AdImageHash", "Text"],
@@ -1561,16 +1614,18 @@ class YandexDirectAPI:
                 ads = data.get("result", {}).get("Ads", [])
                 if ad_group_ids and not ads:
                     logger.info(f"Ads.get by AdGroupIds: ad_group_ids={ad_group_ids[:5]}..., ads_count=0")
-                # Диагностика: при пустом Ads.get по CampaignIds — логируем типы кампаний и пробуем Creatives.get
+                # For drill-down we need real Ads with AdGroupId. If CampaignIds
+                # return nothing (Smart / unified campaigns), first go through
+                # AdGroups.get -> Ads.get by AdGroupIds. Creative-only fallback is
+                # useful for top creatives, but it cannot build a real hierarchy.
                 if not ads and campaign_ids and not ad_group_ids:
                     await self._log_campaign_types(campaign_ids[:10])
+                    logger.info(f"Ads.get: campaign_ids={campaign_ids}, ads_count=0, trying AdGroups+Ads path")
+                    ads = await self._get_ads_via_adgroups(campaign_ids)
+                if not ads and campaign_ids and not ad_group_ids:
                     creatives_from_api = await self._get_creatives_by_campaigns(campaign_ids[:10])
                     if creatives_from_api:
                         ads = creatives_from_api
-                # Fallback: Ads.get по CampaignIds пуст для Smart — пробуем AdGroups.get → Ads.get по AdGroupIds (v501)
-                if not ads and campaign_ids and not ad_group_ids:
-                    logger.info(f"Ads.get: campaign_ids={campaign_ids}, ads_count=0, trying AdGroups+Ads path")
-                    ads = await self._get_ads_via_adgroups(campaign_ids)
                 result = []
                 for ad in ads:
                     title = ad.get("Title")
@@ -1599,6 +1654,9 @@ class YandexDirectAPI:
                     result.append({
                         "Id": ad["Id"],
                         "CampaignId": ad["CampaignId"],
+                        "AdGroupId": ad.get("AdGroupId"),
+                        "Status": ad.get("Status"),
+                        "State": ad.get("State"),
                         "Title": (title or "")[:120],
                         "Text": (text or "")[:200],
                         "Type": ad_type,

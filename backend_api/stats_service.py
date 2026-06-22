@@ -779,8 +779,6 @@ class StatsService:
         platform: str = "all",
         campaign_ids: Optional[List[uuid.UUID]] = None,
         vk_goal_action_ids: Optional[List[str]] = None,
-        yandex_conversion_overrides: Optional[dict] = None,
-        yandex_prev_conversion_overrides: Optional[dict] = None,
     ):
         if not client_ids:
             return []
@@ -828,8 +826,9 @@ class StatsService:
         def run_yandex_query(start, end):
             q = db.query(
                 models.Campaign.id.label("campaign_id"),
+                models.Campaign.name.label("campaign_display_name"),
                 models.Campaign.external_id.label("campaign_external_id"),
-                models.YandexStats.campaign_name,
+                func.max(models.YandexStats.campaign_name).label("campaign_name"),
                 func.sum(models.YandexStats.impressions).label("impressions"),
                 func.sum(models.YandexStats.clicks).label("clicks"),
                 func.sum(models.YandexStats.cost).label("cost"),
@@ -845,21 +844,7 @@ class StatsService:
                 q = q.filter(models.YandexStats.date >= start)
             if end:
                 q = q.filter(models.YandexStats.date <= end)
-            return q.group_by(models.Campaign.id, models.Campaign.external_id, models.YandexStats.campaign_name).all()
-
-        def get_yandex_scope_cost(start, end):
-            q = db.query(
-                func.sum(models.YandexStats.cost)
-            ).join(models.Campaign, models.YandexStats.campaign_id == models.Campaign.id).filter(
-                models.YandexStats.client_id.in_(client_ids)
-            )
-            if integration_ids_filter:
-                q = q.filter(models.Campaign.integration_id.in_(integration_ids_filter))
-            if start:
-                q = q.filter(models.YandexStats.date >= start)
-            if end:
-                q = q.filter(models.YandexStats.date <= end)
-            return float((q.scalar() or 0) or 0)
+            return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id).all()
 
         def run_vk_query(start, end):
             q = db.query(
@@ -996,15 +981,6 @@ class StatsService:
 
         if platform in ["all", "yandex"]:
             y_results = run_yandex_query(d_start, d_end)
-            y_group_names_q = db.query(models.YandexGroups.campaign_name).filter(
-                models.YandexGroups.client_id.in_(client_ids),
-                models.YandexGroups.campaign_name.isnot(None),
-            )
-            if d_start:
-                y_group_names_q = y_group_names_q.filter(models.YandexGroups.date >= d_start)
-            if d_end:
-                y_group_names_q = y_group_names_q.filter(models.YandexGroups.date <= d_end)
-            y_group_names = {row[0] for row in y_group_names_q.distinct().all() if row and row[0]}
             y_group_campaign_ids_q = db.query(models.YandexGroups.campaign_id).filter(
                 models.YandexGroups.client_id.in_(client_ids),
                 models.YandexGroups.campaign_id.isnot(None),
@@ -1014,20 +990,12 @@ class StatsService:
             if d_end:
                 y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date <= d_end)
             y_group_campaign_ids = {str(row[0]) for row in y_group_campaign_ids_q.distinct().all() if row and row[0]}
-            yandex_conversion_overrides = yandex_conversion_overrides or {}
-            yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
-            total_metrika_convs = get_metrika_convs(d_start, d_end)
-            total_yandex_cost = get_yandex_scope_cost(d_start, d_end)
 
             # Previous period Yandex data keyed by campaign_id
             prev_y_rows = {}
-            prev_total_metrika_convs = 0
-            prev_total_yandex_cost = 0
             if prev_start is not None:
                 prev_y_list = run_yandex_query(prev_start, prev_end)
                 prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
-                prev_total_metrika_convs = get_metrika_convs(prev_start, prev_end)
-                prev_total_yandex_cost = get_yandex_scope_cost(prev_start, prev_end)
 
             for r in y_results:
                 cost = float(r.cost or 0)
@@ -1035,16 +1003,7 @@ class StatsService:
                 imps = int(r.impressions or 0)
                 ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 cid = str(r.campaign_id)
-                # CRITICAL: Конверсии Yandex — только из Метрики. Когда endpoint
-                # передал точные значения по DirectClickOrder, используем их.
-                # Иначе оставляем старый пропорциональный fallback для вызовов,
-                # где live drill-down Метрики недоступен.
-                if cid in yandex_conversion_overrides:
-                    convs = int(yandex_conversion_overrides.get(cid) or 0)
-                elif total_metrika_convs > 0 and total_yandex_cost > 0:
-                    convs = round(total_metrika_convs * (cost / total_yandex_cost))
-                else:
-                    convs = 0
+                convs = int(r.conversions or 0)
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0
 
@@ -1055,25 +1014,21 @@ class StatsService:
                     prev_clicks = int(p.clicks or 0)
                     prev_imps = int(p.impressions or 0)
                     prev_ctr = prev_clicks / prev_imps * 100 if prev_imps > 0 else 0
-                    if cid in yandex_prev_conversion_overrides:
-                        prev_convs = int(yandex_prev_conversion_overrides.get(cid) or 0)
-                    elif prev_total_metrika_convs > 0 and prev_total_yandex_cost > 0:
-                        prev_convs = round(prev_total_metrika_convs * (prev_cost / prev_total_yandex_cost))
-                    else:
-                        prev_convs = 0
+                    prev_convs = int(p.conversions or 0)
                     prev_cpc = prev_cost / prev_clicks if prev_clicks > 0 else 0
                     prev_cpa = prev_cost / prev_convs if prev_convs > 0 else 0
                 else:
                     prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
 
+                raw_name = (r.campaign_display_name or r.campaign_name or "").strip()
                 campaigns.append({
                     "id": cid,
                     "platform": "yandex",
                     "level": "campaign",
                     "source_id": getattr(r, "campaign_external_id", None),
-                    "has_children": str(r.campaign_id) in y_group_campaign_ids or r.campaign_name in y_group_names,
+                    "has_children": bool(getattr(r, "campaign_external_id", None)) or str(r.campaign_id) in y_group_campaign_ids,
                     "conversions_attributed": True,
-                    "name": f"[ЯД] {r.campaign_name}",
+                    "name": f"[ЯД] {raw_name or 'Без названия'}",
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
@@ -1348,9 +1303,6 @@ class StatsService:
             campaign_conversion_total_cache = 0
             return campaign_conversion_total_cache
 
-        def _has_exact_conversions():
-            return conv_available and any(float(value or 0) > 0 for value in conv_map.values())
-
         def metric_row(*, raw_id, name, parent_id=None, lvl="group", imps=0, clicks=0, cost=0, convs=0, has_children=False, attributed=True, estimated=False):
             cost_val = float(cost or 0)
             clicks_val = int(clicks or 0)
@@ -1513,40 +1465,21 @@ class StatsService:
         if level == "campaign":
             group_q = db.query(
                 models.YandexGroups.group_id,
-                models.YandexGroups.group_name,
+                func.max(models.YandexGroups.group_name).label("group_name"),
                 func.sum(models.YandexGroups.impressions).label("impressions"),
                 func.sum(models.YandexGroups.clicks).label("clicks"),
                 func.sum(models.YandexGroups.cost).label("cost"),
                 func.sum(models.YandexGroups.conversions).label("conversions"),
             ).filter(
                 models.YandexGroups.client_id.in_(client_ids),
-                or_(
-                    models.YandexGroups.campaign_id == campaign.id,
-                    models.YandexGroups.campaign_name == campaign.name,
-                ),
+                models.YandexGroups.campaign_id == campaign.id,
             )
             group_q = apply_dates(group_q, models.YandexGroups)
-            group_rows = group_q.group_by(models.YandexGroups.group_id, models.YandexGroups.group_name).all()
+            group_rows = group_q.group_by(models.YandexGroups.group_id).all()
 
-            # Лиды групп — из карты Метрики (нативный DirectBannerGroup), по group_id.
-            # Универсальные метрики (показы/клики/расход) — из сохранённой статистики Яндекса.
-            exact_conversions = _has_exact_conversions()
-            campaign_conversion_total = 0 if exact_conversions else _campaign_conversion_total()
-            allocated_conversions = _allocated_conversions_by_cost(
-                campaign_conversion_total,
-                group_rows,
-                lambda item: item.cost,
-            )
             rows = []
-            for idx, row in enumerate(group_rows):
-                if exact_conversions:
-                    g_convs = conv_map.get(str(row.group_id), 0)
-                    attributed = True
-                    estimated = False
-                else:
-                    g_convs = allocated_conversions[idx]
-                    attributed = conv_available or campaign_conversion_total > 0
-                    estimated = campaign_conversion_total > 0
+            for row in group_rows:
+                g_convs = int(row.conversions or 0)
                 rows.append(metric_row(
                     raw_id=row.group_id,
                     parent_id=str(campaign.id),
@@ -1557,44 +1490,15 @@ class StatsService:
                     cost=row.cost,
                     convs=g_convs,
                     has_children=bool(row.group_id),
-                    attributed=attributed,
-                    estimated=estimated,
+                    attributed=True,
+                    estimated=False,
                 ))
             return sort_rows(rows)
 
         if level == "group" and node_id:
-            exact_conversions = _has_exact_conversions()
-            group_conversion_total = 0
-            if not exact_conversions:
-                sibling_group_q = db.query(
-                    models.YandexGroups.group_id,
-                    models.YandexGroups.group_name,
-                    func.sum(models.YandexGroups.cost).label("cost"),
-                ).filter(
-                    models.YandexGroups.client_id.in_(client_ids),
-                    or_(
-                        models.YandexGroups.campaign_id == campaign.id,
-                        models.YandexGroups.campaign_name == campaign.name,
-                    ),
-                    models.YandexGroups.group_id.isnot(None),
-                )
-                sibling_group_q = apply_dates(sibling_group_q, models.YandexGroups)
-                sibling_groups = sibling_group_q.group_by(
-                    models.YandexGroups.group_id,
-                    models.YandexGroups.group_name,
-                ).all()
-                group_allocations = _allocated_conversions_by_cost(
-                    _campaign_conversion_total(),
-                    sibling_groups,
-                    lambda item: item.cost,
-                )
-                for idx, group in enumerate(sibling_groups):
-                    if str(group.group_id) == str(node_id) or _norm_name(group.group_name) == _norm_name(node_id):
-                        group_conversion_total = group_allocations[idx]
-                        break
-
             ad_q = db.query(
                 models.YandexAds.ad_id,
+                func.max(models.YandexAds.group_name).label("group_name"),
                 func.sum(models.YandexAds.impressions).label("impressions"),
                 func.sum(models.YandexAds.clicks).label("clicks"),
                 func.sum(models.YandexAds.cost).label("cost"),
@@ -1604,25 +1508,13 @@ class StatsService:
                 models.YandexAds.campaign_id == campaign.id,
                 models.YandexAds.ad_id.isnot(None),
             )
-            ad_q = ad_q.filter(or_(models.YandexAds.group_id == node_id, models.YandexAds.group_name == node_id))
+            ad_q = ad_q.filter(models.YandexAds.group_id == node_id)
             ad_q = apply_dates(ad_q, models.YandexAds)
             ad_rows = ad_q.group_by(models.YandexAds.ad_id).all()
-            # Лиды объявлений — из карты Метрики (нативный DirectBanner), по ad_id.
-            allocated_conversions = _allocated_conversions_by_cost(
-                group_conversion_total,
-                ad_rows,
-                lambda item: item.cost,
-            )
+
             rows = []
-            for idx, row in enumerate(ad_rows):
-                if exact_conversions:
-                    a_convs = conv_map.get(str(row.ad_id), 0)
-                    attributed = True
-                    estimated = False
-                else:
-                    a_convs = allocated_conversions[idx]
-                    attributed = conv_available or group_conversion_total > 0
-                    estimated = group_conversion_total > 0
+            for row in ad_rows:
+                a_convs = int(row.conversions or 0)
                 rows.append(metric_row(
                     raw_id=row.ad_id,
                     parent_id=node_id,
@@ -1633,8 +1525,8 @@ class StatsService:
                     cost=row.cost,
                     convs=a_convs,
                     has_children=False,
-                    attributed=attributed,
-                    estimated=estimated,
+                    attributed=True,
+                    estimated=False,
                 ))
             return sort_rows(rows)
 
