@@ -69,43 +69,77 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
         logger.warning("Failed to initialize Yandex drilldown catalog for campaign %s: %s", campaign.id, err)
         return
 
-    row_date = d_end
-    group_exists_q = db.query(models.YandexGroups.id).filter(
-        models.YandexGroups.campaign_id == campaign.id,
-        models.YandexGroups.date <= d_end,
-    )
-    if d_start:
-        group_exists_q = group_exists_q.filter(models.YandexGroups.date >= d_start)
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+    catalog_row_date = d_end
+    known_group_ids = set()
 
-    if not group_exists_q.first():
-        try:
-            groups = await api.get_ad_groups_for_campaigns([int(campaign.external_id)])
-            for group in groups:
-                group_id = str(group.get("Id") or "").strip()
-                if not group_id:
-                    continue
-                filters = {
-                    "client_id": integration.client_id,
-                    "campaign_id": campaign.id,
-                    "date": row_date,
-                    "campaign_name": campaign.name,
-                    "group_id": group_id,
-                }
-                existing = db.query(models.YandexGroups).filter_by(**filters).first()
-                data = {
-                    "group_name": group.get("Name") or f"Группа {group_id}",
-                    "impressions": 0,
-                    "clicks": 0,
-                    "cost": 0,
-                    "conversions": 0,
-                }
-                if existing:
-                    for key, value in data.items():
-                        setattr(existing, key, value)
-                else:
-                    db.add(models.YandexGroups(**filters, **data))
-        except Exception as err:
-            logger.warning("Failed to lazy-load Yandex group catalog for campaign %s: %s", campaign.id, err)
+    try:
+        group_rows = await api.get_report(
+            date_from,
+            date_to,
+            level="group",
+            campaign_ids=[int(campaign.external_id)],
+        )
+    except Exception as err:
+        logger.warning("Failed to lazy-load Yandex group report for campaign %s: %s", campaign.id, err)
+        group_rows = []
+
+    for row in group_rows:
+        group_id = str(row.get("group_id") or "").strip()
+        if not group_id:
+            continue
+        known_group_ids.add(group_id)
+        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+        filters = {
+            "client_id": integration.client_id,
+            "campaign_id": campaign.id,
+            "date": row_date,
+            "campaign_name": row.get("campaign_name") or campaign.name,
+            "group_id": group_id,
+        }
+        existing = db.query(models.YandexGroups).filter_by(**filters).first()
+        data = {
+            "group_name": row.get("name") or f"Группа {group_id}",
+            "impressions": row.get("impressions", 0),
+            "clicks": row.get("clicks", 0),
+            "cost": row.get("cost", 0),
+            "conversions": row.get("conversions", 0),
+        }
+        if existing:
+            for key, value in data.items():
+                setattr(existing, key, value)
+        else:
+            db.add(models.YandexGroups(**filters, **data))
+
+    try:
+        groups = await api.get_ad_groups_for_campaigns([int(campaign.external_id)])
+        for group in groups:
+            group_id = str(group.get("Id") or "").strip()
+            if not group_id or group_id in known_group_ids:
+                continue
+            filters = {
+                "client_id": integration.client_id,
+                "campaign_id": campaign.id,
+                "date": catalog_row_date,
+                "campaign_name": campaign.name,
+                "group_id": group_id,
+            }
+            existing = db.query(models.YandexGroups).filter_by(**filters).first()
+            data = {
+                "group_name": group.get("Name") or f"Группа {group_id}",
+                "impressions": 0,
+                "clicks": 0,
+                "cost": 0,
+                "conversions": 0,
+            }
+            if existing:
+                for key, value in data.items():
+                    setattr(existing, key, value)
+            else:
+                db.add(models.YandexGroups(**filters, **data))
+    except Exception as err:
+        logger.warning("Failed to lazy-load Yandex group catalog for campaign %s: %s", campaign.id, err)
 
     if not include_ads:
         db.commit()
@@ -121,9 +155,6 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
         db.commit()
         return
 
-    date_from = (d_start or d_end).strftime("%Y-%m-%d")
-    date_to = d_end.strftime("%Y-%m-%d")
-    catalog_row_date = d_end
     try:
         rows = await api.get_report(
             date_from,
