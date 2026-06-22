@@ -292,10 +292,45 @@ class AvitoAdsAPI:
             rows.append(normalized)
         return rows
 
+    def _zero_stats_row_from_entity(
+        self,
+        entity: dict,
+        *,
+        date_to: str,
+        entity_id_key: str,
+        entity_name_key: str,
+        row_id_field: str,
+        row_name_field: str,
+        campaign_id: str,
+        campaign_name: str,
+        default_name_prefix: str,
+    ) -> Optional[dict]:
+        entity_id = entity.get(entity_id_key)
+        if entity_id is None:
+            return None
+        entity_id = str(entity_id)
+        row = {
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "date": date_to,
+            row_id_field: entity_id,
+            row_name_field: entity.get(entity_name_key) or f"{default_name_prefix} {entity_id}",
+            "impressions": 0,
+            "clicks": 0,
+            "cost": 0,
+            "cpc": None,
+        }
+        if "groupId" in entity:
+            row["group_id"] = str(entity.get("groupId") or "")
+        elif "groupID" in entity:
+            row["group_id"] = str(entity.get("groupID") or "")
+        return row
+
     def _parse_campaign_stats_payload(
         self,
         payload: dict,
         campaign_external_id: str,
+        date_to: str,
     ) -> dict:
         campaign_block = payload.get("campaign") if isinstance(payload, dict) else None
         if not isinstance(campaign_block, dict):
@@ -329,7 +364,7 @@ class AvitoAdsAPI:
             group_id = group.get("id")
             if group_id is not None:
                 group_ids.append(str(group_id))
-            group_rows.extend(self._stats_rows_from_entity(
+            rows = self._stats_rows_from_entity(
                 group,
                 entity_id_key="id",
                 entity_name_key="name",
@@ -338,7 +373,22 @@ class AvitoAdsAPI:
                 campaign_id=campaign_id,
                 campaign_name=campaign_name,
                 default_name_prefix="Группа",
-            ))
+            )
+            if not rows and group_id is not None:
+                zero_row = self._zero_stats_row_from_entity(
+                    group,
+                    date_to=date_to,
+                    entity_id_key="id",
+                    entity_name_key="name",
+                    row_id_field="group_id",
+                    row_name_field="group_name",
+                    campaign_id=campaign_id,
+                    campaign_name=campaign_name,
+                    default_name_prefix="Группа",
+                )
+                if zero_row:
+                    rows.append(zero_row)
+            group_rows.extend(rows)
 
         creative_rows: List[dict] = []
         creative_ids: List[str] = []
@@ -348,7 +398,7 @@ class AvitoAdsAPI:
             creative_id = creative.get("id")
             if creative_id is not None:
                 creative_ids.append(str(creative_id))
-            creative_rows.extend(self._stats_rows_from_entity(
+            rows = self._stats_rows_from_entity(
                 creative,
                 entity_id_key="id",
                 entity_name_key="name",
@@ -357,7 +407,22 @@ class AvitoAdsAPI:
                 campaign_id=campaign_id,
                 campaign_name=campaign_name,
                 default_name_prefix="Креатив",
-            ))
+            )
+            if not rows and creative_id is not None:
+                zero_row = self._zero_stats_row_from_entity(
+                    creative,
+                    date_to=date_to,
+                    entity_id_key="id",
+                    entity_name_key="name",
+                    row_id_field="creative_id",
+                    row_name_field="creative_name",
+                    campaign_id=campaign_id,
+                    campaign_name=campaign_name,
+                    default_name_prefix="Креатив",
+                )
+                if zero_row:
+                    rows.append(zero_row)
+            creative_rows.extend(rows)
 
         return {
             "campaigns": campaign_rows,
@@ -384,7 +449,7 @@ class AvitoAdsAPI:
             f"/ads/v1/account/{acc}/campaigns/{int(campaign_external_id)}/stats",
             json_data={"dateFrom": date_from, "dateTo": date_to},
         )
-        parsed = self._parse_campaign_stats_payload(payload, campaign_external_id)
+        parsed = self._parse_campaign_stats_payload(payload, campaign_external_id, date_to)
 
         # In regular responses /campaigns/{id}/stats already contains child
         # daily rows. If Avito returns only aggregates, fall back to dedicated
