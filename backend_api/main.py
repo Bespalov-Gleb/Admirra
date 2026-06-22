@@ -46,6 +46,10 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS metrika_client_id VARCHAR"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS metrika_yclid VARCHAR"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ym_milestones TEXT"))
+                # username — отображаемое имя, может повторяться (логин по email).
+                # Снимаем устаревшее UNIQUE-ограничение, оставляем обычный индекс.
+                conn.execute(text("DROP INDEX IF EXISTS ix_users_username"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS direction_label VARCHAR(32) NOT NULL DEFAULT 'directions'"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))

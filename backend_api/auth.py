@@ -197,10 +197,8 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
     if db_user_email:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    if user.username:
-        db_user_name = db.query(models.User).filter(models.User.username == user.username).first()
-        if db_user_name:
-            raise HTTPException(status_code=400, detail="Username already taken")
+    # username — это отображаемое имя (с формы «Имя»), оно НЕ уникально и может
+    # повторяться. Уникален только email. Поэтому дубль имени не проверяем.
 
     hashed_password = security.get_password_hash(user.password)
     raw_token = generate_email_verification_raw_token()
@@ -580,16 +578,8 @@ def _update_user_settings(updates: schemas.UserUpdateSettings, current_user: mod
     """Общая логика обновления настроек пользователя."""
     fields = updates.model_fields_set
     if "username" in fields:
-        if updates.username is None:
-            current_user.username = None
-        else:
-            existing = db.query(models.User).filter(
-                models.User.username == updates.username,
-                models.User.id != current_user.id,
-            ).first()
-            if existing:
-                raise HTTPException(status_code=400, detail="Username already taken")
-            current_user.username = updates.username
+        # username — отображаемое имя, может повторяться; дубль не проверяем.
+        current_user.username = updates.username
     if "first_name" in fields:
         current_user.first_name = updates.first_name
     if "last_name" in fields:
