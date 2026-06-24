@@ -6592,14 +6592,7 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* Вертикальные разделители колонок через всю таблицу (как в Яндексе) */
-.campaign-row > span:not(:last-child) {
-  border-right: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.campaign-row.header > span:not(:last-child) {
-  border-right-color: rgba(148, 163, 184, 0.28);
-}
+/* Разделители колонок — только в шапке (у значений в ячейках их нет). */
 
 .campaign-column-resizer {
   position: absolute;
@@ -6617,12 +6610,12 @@ onMounted(() => {
 .campaign-column-resizer::after {
   content: '';
   position: absolute;
-  top: -0.15rem;
-  right: 0.42rem;
-  bottom: -0.15rem;
-  width: 2px;
+  top: 0.1rem;
+  right: 1.35rem;
+  bottom: 0.1rem;
+  width: 1px;
   border-radius: 999px;
-  background: transparent;
+  background: rgba(148, 163, 184, 0.32);
   transition: background 0.18s ease, box-shadow 0.18s ease;
 }
 
