@@ -641,15 +641,20 @@
         </div>
       </div>
       <div class="campaign-table">
-        <div class="campaign-row header">
-          <span>Название кампании</span>
-          <span>Расход</span>
-          <span>Показы</span>
-          <span>Клики</span>
-          <span>CTR</span>
-          <span>CPC</span>
-          <span>Лиды</span>
-          <span>CPL</span>
+        <div class="campaign-row header" :style="campaignRowGridStyle">
+          <span
+            v-for="column in campaignTableColumns"
+            :key="column.key"
+            class="campaign-header-cell"
+          >
+            {{ column.label }}
+            <button
+              type="button"
+              class="campaign-column-resizer"
+              :aria-label="`Изменить ширину колонки ${column.label}`"
+              @pointerdown="startCampaignColumnResize($event, column)"
+            ></button>
+          </span>
         </div>
         <div
           v-for="campaign in campaignTreeRows"
@@ -657,6 +662,7 @@
           class="campaign-row"
           :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad', 'campaign-row--empty': campaign.empty, 'campaign-row--loading': campaign.loadingChildren }]"
           :title="campaign.alertTitle"
+          :style="campaignRowGridStyle"
         >
           <template v-if="campaign.loadingChildren">
             <span class="campaign-loading-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
@@ -1897,6 +1903,7 @@ watch(() => openMenu.value, (val) => {
 onBeforeUnmount(() => {
   if (_periodScrollCleanup) _periodScrollCleanup()
   if (copiedCampaignSourceTimer) clearTimeout(copiedCampaignSourceTimer)
+  stopCampaignColumnResize()
   clearSyncJobPolling()
   clearIntegrationStatusPolling()
 })
@@ -2301,11 +2308,102 @@ const campaignSortOptions = [
   { value: 'cpl', label: 'CPL' },
 ]
 const campaignSort = ref('leads')
+const CAMPAIGN_COLUMNS_STORAGE_KEY = 'admirra:campaign-table-column-widths:v1'
+const campaignTableColumns = [
+  { key: 'name', label: 'Название кампании', width: 390, min: 260 },
+  { key: 'cost', label: 'Расход', width: 132, min: 108 },
+  { key: 'impressions', label: 'Показы', width: 132, min: 108 },
+  { key: 'clicks', label: 'Клики', width: 122, min: 96 },
+  { key: 'ctr', label: 'CTR', width: 110, min: 88 },
+  { key: 'cpc', label: 'CPC', width: 122, min: 96 },
+  { key: 'leads', label: 'Лиды', width: 118, min: 94 },
+  { key: 'cpa', label: 'CPL', width: 132, min: 108 },
+]
+const getDefaultCampaignColumnWidths = () =>
+  Object.fromEntries(campaignTableColumns.map((column) => [column.key, column.width]))
+const loadCampaignColumnWidths = () => {
+  const defaults = getDefaultCampaignColumnWidths()
+  if (typeof window === 'undefined') return defaults
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(CAMPAIGN_COLUMNS_STORAGE_KEY) || '{}')
+    return Object.fromEntries(campaignTableColumns.map((column) => {
+      const raw = Number(saved[column.key])
+      const width = Number.isFinite(raw) ? Math.max(column.min, Math.min(raw, 720)) : column.width
+      return [column.key, width]
+    }))
+  } catch {
+    return defaults
+  }
+}
+const campaignColumnWidths = ref(loadCampaignColumnWidths())
+const campaignGridTemplateColumns = computed(() =>
+  campaignTableColumns.map((column) => `${campaignColumnWidths.value[column.key] || column.width}px`).join(' ')
+)
+const campaignTableMinWidth = computed(() =>
+  `${campaignTableColumns.reduce((sum, column) => sum + (campaignColumnWidths.value[column.key] || column.width), 0) + 80}px`
+)
+const campaignRowGridStyle = computed(() => ({
+  gridTemplateColumns: campaignGridTemplateColumns.value,
+  minWidth: campaignTableMinWidth.value,
+}))
 const campaignChildren = ref({})
 const campaignChildrenLoading = ref({})
 const expandedCampaignRows = ref(new Set())
 const copiedCampaignSourceId = ref('')
 let copiedCampaignSourceTimer = null
+let campaignColumnResizeState = null
+
+const persistCampaignColumnWidths = () => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(CAMPAIGN_COLUMNS_STORAGE_KEY, JSON.stringify(campaignColumnWidths.value))
+  } catch {}
+}
+
+const stopCampaignColumnResize = () => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pointermove', handleCampaignColumnResize)
+    window.removeEventListener('pointerup', stopCampaignColumnResize)
+    window.removeEventListener('pointercancel', stopCampaignColumnResize)
+  }
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('campaign-column-resizing')
+  }
+  if (campaignColumnResizeState) persistCampaignColumnWidths()
+  campaignColumnResizeState = null
+}
+
+const handleCampaignColumnResize = (event) => {
+  if (!campaignColumnResizeState) return
+  const column = campaignColumnResizeState.column
+  const nextWidth = Math.max(
+    column.min,
+    Math.min(campaignColumnResizeState.startWidth + event.clientX - campaignColumnResizeState.startX, 720)
+  )
+  campaignColumnWidths.value = {
+    ...campaignColumnWidths.value,
+    [column.key]: Math.round(nextWidth),
+  }
+}
+
+const startCampaignColumnResize = (event, column) => {
+  if (event.button !== undefined && event.button !== 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  campaignColumnResizeState = {
+    column,
+    startX: event.clientX,
+    startWidth: campaignColumnWidths.value[column.key] || column.width,
+  }
+  if (typeof document !== 'undefined') {
+    document.body.classList.add('campaign-column-resizing')
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointermove', handleCampaignColumnResize)
+    window.addEventListener('pointerup', stopCampaignColumnResize)
+    window.addEventListener('pointercancel', stopCampaignColumnResize)
+  }
+}
 
 const campaignSortDir = computed(() => campaignSort.value === 'cpl' ? 'asc' : 'desc')
 const campaignLevelLabels = {
@@ -6423,6 +6521,53 @@ onMounted(() => {
   background: transparent;
 }
 
+.campaign-header-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-right: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.campaign-column-resizer {
+  position: absolute;
+  top: 0.15rem;
+  right: -0.48rem;
+  bottom: 0.15rem;
+  width: 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.campaign-column-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  right: 0.42rem;
+  bottom: 0.15rem;
+  width: 1px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.28);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.campaign-column-resizer:hover::after,
+.campaign-column-resizer:focus-visible::after {
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+:global(body.campaign-column-resizing),
+:global(body.campaign-column-resizing *) {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 .campaign-row.orange {
   background: #fff4ee;
 }
@@ -7525,6 +7670,23 @@ onMounted(() => {
 
 .campaign-row--child {
   min-height: 3.125rem;
+}
+
+.campaign-header-cell {
+  padding-right: 0.6944rem;
+}
+
+.campaign-column-resizer {
+  top: 0.1042rem;
+  right: -0.3333rem;
+  bottom: 0.1042rem;
+  width: 0.6597rem;
+}
+
+.campaign-column-resizer::after {
+  top: 0.1042rem;
+  right: 0.2917rem;
+  bottom: 0.1042rem;
 }
 
 .campaign-loading-cell {
