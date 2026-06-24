@@ -219,6 +219,15 @@ async def run_scheduled_reports():
                 logger.exception(f"Scheduled report data failed for user {user.email}: {e}")
                 continue
 
+            # Opt-in блок «Динамика» — хранится в JSON расписания пользователя.
+            include_dynamics = False
+            try:
+                import json as _json
+                _sched = _json.loads(user.report_schedule) if user.report_schedule else {}
+                include_dynamics = bool(_sched.get("include_dynamics"))
+            except Exception:
+                include_dynamics = False
+
             try:
                 pdf_bytes = generate_report_pdf(
                     db=db,
@@ -227,6 +236,7 @@ async def run_scheduled_reports():
                     start_date=start_str,
                     end_date=end_str,
                     comment=None,
+                    include_dynamics=include_dynamics,
                 )
             except Exception as e:
                 logger.exception(f"Scheduled report PDF failed for user {user.email}: {e}")

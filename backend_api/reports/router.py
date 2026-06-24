@@ -28,6 +28,16 @@ from backend_api.reports.report_html import render_report_html
 
 logger = logging.getLogger(__name__)
 
+
+def _wants_dynamics(user) -> bool:
+    """Opt-in блока «Динамика» из JSON расписания пользователя."""
+    try:
+        import json
+        sched = json.loads(user.report_schedule) if getattr(user, "report_schedule", None) else {}
+        return bool(sched.get("include_dynamics"))
+    except Exception:
+        return False
+
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
@@ -116,6 +126,7 @@ async def get_report_pdf(
             start_date=start_date,
             end_date=end_date,
             comment=use_comment,
+            include_dynamics=_wants_dynamics(current_user),
         )
         filename = f"report_{start_date}_{end_date}.pdf"
         _log_report_export(db, current_user, "pdf", u_client_id, start_date, end_date)
@@ -332,6 +343,7 @@ async def post_report_pdf(
         pdf_bytes = generate_report_pdf(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+            include_dynamics=_wants_dynamics(current_user),
         )
         filename = f"report_{req.start_date}_{req.end_date}.pdf"
         _log_report_export(db, current_user, "pdf", u_client_id, req.start_date, req.end_date)
@@ -531,6 +543,7 @@ async def send_report(
                 start_date=req.start_date,
                 end_date=req.end_date,
                 comment=ai_text,
+                include_dynamics=_wants_dynamics(current_user),
             )
         except Exception as e:
             logger.exception("PDF generation failed: %s", e)

@@ -198,6 +198,61 @@ def render_report_html(data: dict) -> str:
 
     project_line = f'<div class="header-project">{_escape_html(client_name)}</div>' if client_name else ""
 
+    # Опциональный блок «Динамика по месяцам» (Phase 3 — opt-in, помесячно).
+    dynamics_html = ""
+    dyn_periods = (data.get("dynamics") or {}).get("periods") or []
+    if dyn_periods:
+        dyn_rows = ""
+        prev = None
+        has_incomplete = False
+        for i, p in enumerate(dyn_periods):
+            cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("cost_by_platform"))
+            leads = int(p.get("leads", 0) or 0)
+            cpl = cost / leads if leads > 0 else 0
+            d_cost = d_leads = ""
+            if prev is not None:
+                pc, pl = prev
+                if pc > 0:
+                    dc = (cost - pc) / pc * 100
+                    d_cost = f'<span style="color:#94a3b8;font-size:11px;"> ({"+" if dc >= 0 else ""}{_fmt(dc, 1)}%)</span>'
+                if pl > 0:
+                    dl = (leads - pl) / pl * 100
+                    col = "#16a34a" if dl >= 0 else "#dc2626"
+                    d_leads = f'<span style="color:{col};font-size:11px;"> ({"+" if dl >= 0 else ""}{_fmt(dl, 1)}%)</span>'
+            tint = _ROW_TINTS[i % len(_ROW_TINTS)]
+            bg = _ROW_BACKGROUNDS[tint]
+            mark = ""
+            if p.get("incomplete"):
+                mark = " *"
+                has_incomplete = True
+            dyn_rows += (
+                f'<tr style="background:{bg};">'
+                f'<td>{_escape_html(p.get("label", ""))}{mark}</td>'
+                f'<td class="num">{_fmt(cost)} ₽{d_cost}</td>'
+                f'<td class="num">{leads} шт.{d_leads}</td>'
+                f'<td class="num">{_fmt(cpl, 2)} ₽</td>'
+                f"</tr>"
+            )
+            prev = (cost, leads)
+        note = (
+            '<div style="font-size:11px;color:#94a3b8;margin-top:8px;">* — текущий период ещё не завершён</div>'
+            if has_incomplete else ""
+        )
+        dynamics_html = f"""
+    <div class="panel campaigns-panel">
+      <h2>Динамика по месяцам</h2>
+      <table>
+        <thead><tr>
+          <th>Месяц</th>
+          <th class="num">Расход</th>
+          <th class="num">Лиды</th>
+          <th class="num">CPL</th>
+        </tr></thead>
+        <tbody>{dyn_rows}</tbody>
+      </table>
+      {note}
+    </div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -383,6 +438,7 @@ def render_report_html(data: dict) -> str:
 
     {comment_html}
     {campaigns_html}
+    {dynamics_html}
 
     <div class="report-footer">
       Сформировано {generated_at}

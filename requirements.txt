@@ -30,3 +30,4 @@ pymupdf
 python-docx
 telethon  # опционально: для проверки номера в Telegram (TG check)
 Pillow
+openpyxl  # XLSX-экспорт «Динамики»

@@ -1367,6 +1367,126 @@ async def dynamics_backfill_status_endpoint(
     return get_status(client_ids)
 
 
+@router.get("/dynamics/export")
+async def dynamics_export_endpoint(
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
+    platform: Optional[str] = "all",
+    granularity: str = Query("month"),
+    fmt: str = Query("csv"),         # csv | xlsx
+    include_vat: bool = Query(True),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Экспорт ряда «Динамики» (CSV/XLSX). Ряд строится тем же движком, что и экран,
+    поэтому числа гарантированно совпадают. НДС применяется как на дашборде
+    (Яндекс/VK ×1.22, Avito уже с НДС; «без НДС» → Avito ÷1.22).
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try:
+                    u_campaign_ids.append(uuid.UUID(cid))
+                except Exception:
+                    pass
+        if not u_campaign_ids:
+            u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else (d_end - timedelta(days=90))
+    gran = "week" if str(granularity).lower().startswith("w") else "month"
+
+    if not effective_client_ids:
+        data = {"goals": [], "periods": []}
+    else:
+        from backend_api.services.dynamics_service import get_dynamics_series
+        data = get_dynamics_series(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, gran)
+
+    goals = data.get("goals", [])
+    periods = data.get("periods", [])
+    VAT = 1.22
+
+    def _vat_cost(cbp: dict) -> float:
+        y = float((cbp or {}).get("yandex") or 0)
+        v = float((cbp or {}).get("vk") or 0)
+        a = float((cbp or {}).get("avito") or 0)
+        return (y * VAT + v * VAT + a) if include_vat else (y + v + a / VAT)
+
+    header = ["Период", "Начало", "Конец", "Неполный", "Расход", "Показы", "Клики",
+              "CTR %", "CPC", "Конверсии Я", "CPL Я"]
+    for g in goals:
+        header += [g["name"], f'{g["name"]} CPA']
+
+    rows = []
+    for p in periods:
+        cost = _vat_cost(p.get("cost_by_platform") or {})
+        clicks = int(p.get("clicks") or 0)
+        cpc = round(cost / clicks, 2) if clicks > 0 else 0
+        ys = p.get("yandex_summary") or {}
+        yconv = ys.get("conversions")
+        ycpl = ys.get("cpl")
+        ycpl_adj = round(float(ycpl) * (VAT if include_vat else 1.0), 2) if ycpl else ""
+        row = [
+            p.get("label", ""), p.get("start", ""), p.get("end", ""),
+            "да" if p.get("incomplete") else "нет",
+            round(cost, 2), int(p.get("impressions") or 0), clicks,
+            round(float(p.get("ctr") or 0), 2), cpc,
+            yconv if yconv is not None else "", ycpl_adj,
+        ]
+        for g in goals:
+            gg = (p.get("goals") or {}).get(g["id"]) or {}
+            cnt = int(gg.get("count") or 0)
+            row += [cnt, round(cost / cnt, 2) if cnt > 0 else ""]
+        rows.append(row)
+
+    filename = f"dynamics_{d_start}_{d_end}"
+
+    if str(fmt).lower() == "xlsx":
+        try:
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Динамика"
+            ws.append(header)
+            for r in rows:
+                ws.append(r)
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+            return StreamingResponse(
+                buf,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'},
+            )
+        except Exception as e:
+            logger.warning("XLSX export unavailable (%s), falling back to CSV", e)
+
+    output = io.StringIO()
+    output.write('﻿')  # BOM для Excel
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(header)
+    for r in rows:
+        writer.writerow(r)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'},
+    )
+
+
 @router.get("/campaigns", response_model=List[schemas.CampaignStat])
 async def get_campaign_stats(
     start_date: str = None,

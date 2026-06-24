@@ -23,21 +23,41 @@
         >{{ h.label }}</button>
       </div>
 
-      <div class="dyn-backfill">
-        <button
-          type="button"
-          class="dyn-backfill__btn"
-          :class="{ 'dyn-backfill__btn--busy': backfillBusy }"
-          :disabled="backfillBusy || backfill.in_cooldown || !clientId"
-          @click="startBackfill"
-        >
-          <span v-if="backfillBusy" class="dyn-backfill__spinner" aria-hidden="true"></span>
-          {{ backfillLabel }}
-        </button>
-        <span v-if="backfillHint" class="dyn-backfill__hint">{{ backfillHint }}</span>
+      <div class="dyn-controls__right">
+        <div class="dyn-backfill">
+          <button
+            type="button"
+            class="dyn-backfill__btn"
+            :class="{ 'dyn-backfill__btn--busy': backfillBusy }"
+            :disabled="backfillBusy || backfill.in_cooldown || !clientId"
+            @click="startBackfill"
+          >
+            <span v-if="backfillBusy" class="dyn-backfill__spinner" aria-hidden="true"></span>
+            {{ backfillLabel }}
+          </button>
+          <span v-if="backfillHint" class="dyn-backfill__hint">{{ backfillHint }}</span>
+        </div>
+
+        <div class="dyn-export" :class="{ 'dyn-export--open': exportOpen }">
+          <button
+            type="button"
+            class="dyn-export__btn"
+            :disabled="!periods.length"
+            @click="exportOpen = !exportOpen"
+          >
+            Экспорт динамики
+            <span class="dyn-export__chev">▾</span>
+          </button>
+          <div v-if="exportOpen" class="dyn-export__menu">
+            <button type="button" @click="doExport('csv')">CSV</button>
+            <button type="button" @click="doExport('xlsx')">XLSX</button>
+            <button type="button" @click="doExport('png')">PNG (изображение)</button>
+          </div>
+        </div>
       </div>
     </div>
 
+    <div ref="dynExportRef" class="dyn-capture">
     <!-- График -->
     <section class="panel dyn-chart-panel">
       <div class="dyn-chart-head">
@@ -121,7 +141,7 @@
               <td v-html="cell(p.ctr, p.deltas.ctr, 'conv', 'pct')"></td>
               <td v-html="cell(adjCpc(p), p.deltas.cpc, 'rate', 'money')"></td>
               <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.conversions, deltaOf(p,'ys_conv'), 'conv', 'int')"></td>
-              <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.cpl, deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
+              <td v-if="hasYandexSummary" v-html="cell(adjCpl(p), deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
               <template v-for="g in goals" :key="g.id">
                 <td class="dyn-td-goal" v-html="goalCell(p, g.id)"></td>
               </template>
@@ -130,12 +150,14 @@
         </table>
       </div>
     </section>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
+import html2canvas from 'html2canvas'
 
 const props = defineProps({
   clientId: { type: String, default: '' },
@@ -182,6 +204,13 @@ const withCostVat = (cbp, raw) => {
 }
 const adjCost = (p) => withCostVat(p.cost_by_platform, p.cost)
 const adjCpc = (p) => (p.clicks > 0 ? adjCost(p) / p.clicks : 0)
+// Яндекс отдаёт расход без НДС → при НДС-режиме ×1.22, без НДС остаётся как есть.
+const adjCpl = (p) => {
+  const cpl = p.yandex_summary && p.yandex_summary.cpl
+  if (cpl === null || cpl === undefined) return null
+  return Number(cpl) * (props.includeVat ? VAT : 1)
+}
+const goalCpa = (p, count) => (count > 0 ? adjCost(p) / count : null)
 
 // ── График ──
 const CW = 1000, CH = 320, PAD_TOP = 30, PAD_BOTTOM = 22
@@ -258,8 +287,9 @@ const goalCell = (p, gid) => {
   if (!g) return '<span class="dyn-cellval">—</span>'
   const gd = (p.goal_deltas || {})[gid] || {}
   const count = `<span class="dyn-cellval">${fmtInt(g.count)}</span>${deltaChip(gd.count, 'conv')}`
-  const cpa = g.cpa != null
-    ? `<span class="dyn-goal-cpa">CPA ${fmtMoney(g.cpa)}${deltaChip(gd.cpa, 'rate')}</span>`
+  const cpaVal = goalCpa(p, g.count)
+  const cpa = cpaVal != null
+    ? `<span class="dyn-goal-cpa">CPA ${fmtMoney(cpaVal)}${deltaChip(gd.cpa, 'rate')}</span>`
     : '<span class="dyn-goal-cpa">CPA —</span>'
   return `${count}<br/>${cpa}`
 }
@@ -357,9 +387,52 @@ const startBackfill = async () => {
   } catch (e) { /* запуск не удался — оставляем как есть */ }
 }
 
+// ── Экспорт динамики (Phase 3): CSV/XLSX через бэк, PNG — снимок экрана ──
+const exportOpen = ref(false)
+const dynExportRef = ref(null)
+
+const exportFilename = () => {
+  const { start, end } = horizonDates()
+  return `dynamics_${start}_${end}`
+}
+const triggerDownload = (blob, name) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = name
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+const exportPng = async () => {
+  if (!dynExportRef.value) return
+  const canvas = await html2canvas(dynExportRef.value, { backgroundColor: '#ffffff', scale: 2, useCORS: true })
+  canvas.toBlob((blob) => { if (blob) triggerDownload(blob, `${exportFilename()}.png`) })
+}
+const doExport = async (fmt) => {
+  exportOpen.value = false
+  try {
+    if (fmt === 'png') { await exportPng(); return }
+    const { start, end } = horizonDates()
+    const params = {
+      client_id: props.clientId,
+      platform: props.channel || 'all',
+      granularity: granularity.value,
+      start_date: start,
+      end_date: end,
+      fmt,
+      include_vat: props.includeVat,
+    }
+    if (props.campaignIds && props.campaignIds.length) params.campaign_ids = props.campaignIds
+    const resp = await api.get('dashboard/dynamics/export', { params, responseType: 'blob' })
+    triggerDownload(resp.data, `${exportFilename()}.${fmt === 'xlsx' ? 'xlsx' : 'csv'}`)
+  } catch (e) { /* экспорт не удался — молча */ }
+}
+const onDocMousedown = (e) => {
+  if (exportOpen.value && e.target && !e.target.closest('.dyn-export')) exportOpen.value = false
+}
+
 watch(() => [props.clientId, props.channel, props.campaignIds], () => { fetchSeries(); fetchBackfillStatus() }, { deep: true })
-onMounted(() => { fetchSeries(); fetchBackfillStatus() })
-onUnmounted(stopBackfillPolling)
+onMounted(() => { fetchSeries(); fetchBackfillStatus(); document.addEventListener('mousedown', onDocMousedown) })
+onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedown', onDocMousedown) })
 </script>
 
 <style scoped>
@@ -377,7 +450,29 @@ onUnmounted(stopBackfillPolling)
 }
 .dyn-seg__btn--active { background: #fff; color: #2563eb; box-shadow: 0 0.3rem 0.9rem rgba(37, 99, 235, 0.12); }
 
-.dyn-backfill { display: inline-flex; align-items: center; gap: 0.8rem; margin-left: auto; }
+.dyn-controls__right { display: inline-flex; align-items: center; gap: 0.8rem; margin-left: auto; flex-wrap: wrap; }
+.dyn-capture { display: flex; flex-direction: column; gap: 1.6rem; }
+.dyn-backfill { display: inline-flex; align-items: center; gap: 0.8rem; }
+
+.dyn-export { position: relative; }
+.dyn-export__btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; min-height: 3rem; padding: 0 1.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 999px; background: #fff;
+  color: #172033; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.16s ease;
+}
+.dyn-export__btn:hover:not(:disabled) { background: rgba(148, 163, 184, 0.08); }
+.dyn-export__btn:disabled { opacity: 0.5; cursor: default; }
+.dyn-export__chev { font-size: 0.8rem; color: #8d95a5; }
+.dyn-export__menu {
+  position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 20; min-width: 14rem;
+  display: flex; flex-direction: column; padding: 0.4rem; border-radius: 0.9rem;
+  background: #fff; box-shadow: 0 1rem 2.4rem rgba(15, 23, 42, 0.16); border: 1px solid rgba(148, 163, 184, 0.16);
+}
+.dyn-export__menu button {
+  text-align: left; min-height: 2.6rem; padding: 0 0.9rem; border: 0; border-radius: 0.6rem;
+  background: transparent; color: #172033; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+}
+.dyn-export__menu button:hover { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
 .dyn-backfill__btn {
   display: inline-flex; align-items: center; gap: 0.55rem; min-height: 3rem; padding: 0 1.4rem;
   border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 999px; background: #fff;

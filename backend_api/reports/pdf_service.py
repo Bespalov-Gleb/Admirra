@@ -3,7 +3,7 @@
 Использует общий рендерер report_html для единообразия с веб-просмотром.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 import uuid
 
@@ -23,6 +23,7 @@ def generate_report_pdf(
     start_date: str,
     end_date: str,
     comment: Optional[str] = None,
+    include_dynamics: bool = False,
 ) -> bytes:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
@@ -68,6 +69,20 @@ def generate_report_pdf(
         "end_date": end_date,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
+
+    # Опциональный блок «Динамика по месяцам» (трейлинг 6 календарных месяцев до end_date).
+    if include_dynamics:
+        try:
+            from backend_api.services.dynamics_service import get_dynamics_series
+            total = d_end.year * 12 + (d_end.month - 1) - 5
+            y2, m2 = divmod(total, 12)
+            dyn_from = date(y2, m2 + 1, 1)
+            data["dynamics"] = get_dynamics_series(
+                db, effective_client_ids, dyn_from, d_end, "all", None, "month"
+            )
+        except Exception as e:
+            logger.warning("Dynamics block skipped: %s", e)
+
     html = render_report_html(data)
 
     try:

@@ -115,6 +115,15 @@
                 @input="updateScheduleTime"
               />
             </label>
+            <label class="schedule-field-group schedule-toggle-row">
+              <span>Блок «Динамика» (помесячно)</span>
+              <input
+                type="checkbox"
+                class="schedule-toggle"
+                :checked="reportSchedule.include_dynamics"
+                @change="setScheduleDynamics($event.target.checked)"
+              />
+            </label>
             <div class="schedule-actions">
               <button type="button" class="schedule-secondary" @click="resetReportSchedule">Сбросить</button>
               <button type="button" class="schedule-primary" @click="saveReportSchedule">Сохранить</button>
@@ -1281,7 +1290,7 @@ const showAddMenu = ref(false)
 const metricsMap = computed(() => { const m = {}; metrics.value.forEach(x => { m[x.key] = x }); return m })
 const campaignQuery = ref('')
 const selectedReportTemplate = ref('Шаблон: Яндекс')
-const defaultReportSchedule = { day: 'daily', time: '10:00' }
+const defaultReportSchedule = { day: 'daily', time: '10:00', include_dynamics: false }
 const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
@@ -2056,7 +2065,7 @@ const normalizeReportSchedule = (value = {}) => {
   const validDays = new Set(scheduleDayOptions.map((option) => option.value))
   const day = validDays.has(value.day) ? value.day : defaultReportSchedule.day
   const time = normalizeScheduleTime(value.time)
-  return { day, time }
+  return { day, time, include_dynamics: Boolean(value.include_dynamics) }
 }
 
 const formatReportSchedule = (value) => {
@@ -2076,6 +2085,10 @@ const updateScheduleTime = (event) => {
 
 const setScheduleDay = (day) => {
   reportSchedule.value = { ...reportSchedule.value, day }
+}
+
+const setScheduleDynamics = (checked) => {
+  reportSchedule.value = { ...reportSchedule.value, include_dynamics: Boolean(checked) }
 }
 
 const parseReportSchedule = (raw) => {
