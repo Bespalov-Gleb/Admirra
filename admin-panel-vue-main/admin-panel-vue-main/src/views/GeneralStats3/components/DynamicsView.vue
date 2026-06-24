@@ -1,0 +1,342 @@
+<template>
+  <div class="dyn">
+    <!-- Контролы: гранулярность + горизонт -->
+    <div class="dyn-controls">
+      <div class="dyn-seg" role="tablist" aria-label="Гранулярность">
+        <button
+          v-for="g in granularities"
+          :key="g.value"
+          type="button"
+          class="dyn-seg__btn"
+          :class="{ 'dyn-seg__btn--active': granularity === g.value }"
+          @click="setGranularity(g.value)"
+        >{{ g.label }}</button>
+      </div>
+      <div class="dyn-seg" role="tablist" aria-label="Горизонт">
+        <button
+          v-for="h in horizons"
+          :key="h.value"
+          type="button"
+          class="dyn-seg__btn"
+          :class="{ 'dyn-seg__btn--active': horizon === h.value }"
+          @click="setHorizon(h.value)"
+        >{{ h.label }}</button>
+      </div>
+    </div>
+
+    <!-- График -->
+    <section class="panel dyn-chart-panel">
+      <div class="dyn-chart-head">
+        <h2>Динамика</h2>
+        <div class="dyn-metric-chips">
+          <button
+            v-for="m in metrics"
+            :key="m.key"
+            type="button"
+            class="dyn-metric-chip"
+            :class="{ 'dyn-metric-chip--active': metric === m.key }"
+            @click="metric = m.key"
+          >
+            <span class="dyn-metric-dot" :style="{ background: m.color }"></span>
+            {{ m.label }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="loading" class="dyn-empty">Загрузка…</div>
+      <div v-else-if="!periods.length" class="dyn-empty">
+        Накапливаем данные — динамика появится по мере истории.
+      </div>
+      <template v-else>
+        <svg class="dyn-chart" :viewBox="`0 0 ${CW} ${CH}`" role="img" aria-label="График динамики">
+          <defs>
+            <pattern :id="hatchId" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="6" height="6" :fill="activeColor" opacity="0.18" />
+              <line x1="0" y1="0" x2="0" y2="6" :stroke="activeColor" stroke-width="2" opacity="0.6" />
+            </pattern>
+          </defs>
+          <g v-for="(p, i) in periods" :key="p.start">
+            <rect
+              :x="barX(i)" :y="barY(i)" :width="barW" :height="barH(i)"
+              rx="3"
+              :fill="p.incomplete ? `url(#${hatchId})` : activeColor"
+              :stroke="p.incomplete ? activeColor : 'none'"
+              :stroke-dasharray="p.incomplete ? '3 3' : '0'"
+            />
+            <text :x="barX(i) + barW / 2" :y="CH - 6" text-anchor="middle" class="dyn-bar-label">
+              {{ shortLabel(p.label) }}
+            </text>
+            <text :x="barX(i) + barW / 2" :y="barY(i) - 4" text-anchor="middle" class="dyn-bar-value">
+              {{ fmtMetric(metricValue(p)) }}
+            </text>
+          </g>
+        </svg>
+        <div class="dyn-chart-note">
+          <span class="dyn-metric-dot" :style="{ background: activeColor }"></span>
+          Цвет столбцов — по выбранной метрике. Штриховка — неполный (текущий) период.
+        </div>
+      </template>
+    </section>
+
+    <!-- Таблица периодов -->
+    <section v-if="periods.length" class="panel dyn-table-panel">
+      <div class="dyn-table-wrap">
+        <table class="dyn-table">
+          <thead>
+            <tr>
+              <th class="dyn-th-sticky">Период</th>
+              <th>Расход</th>
+              <th>Показы</th>
+              <th>Клики</th>
+              <th>CTR</th>
+              <th>CPC</th>
+              <th v-if="hasYandexSummary" class="dyn-th-group">Конверсии Я</th>
+              <th v-if="hasYandexSummary">CPL Я</th>
+              <th v-for="g in goals" :key="g.id" class="dyn-th-goal">{{ g.name }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in periods" :key="p.start" :class="{ 'dyn-row--incomplete': p.incomplete }">
+              <td class="dyn-td-sticky">
+                {{ p.label }}
+                <em v-if="p.incomplete" class="dyn-incomplete-badge">неполный</em>
+              </td>
+              <td v-html="cell(adjCost(p), p.deltas.cost, 'volume', 'money')"></td>
+              <td v-html="cell(p.impressions, p.deltas.impressions, 'volume', 'int')"></td>
+              <td v-html="cell(p.clicks, p.deltas.clicks, 'volume', 'int')"></td>
+              <td v-html="cell(p.ctr, p.deltas.ctr, 'conv', 'pct')"></td>
+              <td v-html="cell(adjCpc(p), p.deltas.cpc, 'rate', 'money')"></td>
+              <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.conversions, deltaOf(p,'ys_conv'), 'conv', 'int')"></td>
+              <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.cpl, deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
+              <template v-for="g in goals" :key="g.id">
+                <td class="dyn-td-goal" v-html="goalCell(p, g.id)"></td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import api from '@/api/axios'
+
+const props = defineProps({
+  clientId: { type: String, default: '' },
+  channel: { type: String, default: 'all' },     // platform: all|yandex|vk|avito
+  campaignIds: { type: Array, default: () => [] }, // фильтр направления
+  includeVat: { type: Boolean, default: true },
+})
+
+const VAT = 1.22
+const granularities = [
+  { value: 'month', label: 'Месяцы' },
+  { value: 'week', label: 'Недели' },
+]
+const horizons = [
+  { value: 1, label: '1 мес' },
+  { value: 3, label: '3 мес' },
+  { value: 6, label: '6 мес' },
+  { value: 12, label: '12 мес' },
+]
+const metrics = [
+  { key: 'cost', label: 'Расход', color: '#2563eb', money: true },
+  { key: 'impressions', label: 'Показы', color: '#f59e0b', money: false },
+  { key: 'clicks', label: 'Клики', color: '#38bdf8', money: false },
+  { key: 'cpc', label: 'CPC', color: '#8b5cf6', money: true },
+  { key: 'leads', label: 'Конверсии', color: '#22c55e', money: false },
+]
+
+const granularity = ref('month')
+const horizon = ref(3)
+const metric = ref('cost')
+const loading = ref(false)
+const periods = ref([])
+const goals = ref([])
+
+const activeColor = computed(() => (metrics.find((m) => m.key === metric.value) || metrics[0]).color)
+const hatchId = 'dyn-hatch'
+const hasYandexSummary = computed(() => periods.value.some((p) => p.yandex_summary))
+
+// ── НДС (как на дашборде): Яндекс/VK +22%, Авито уже с НДС ──
+const withCostVat = (cbp, raw) => {
+  if (!cbp) return Number(raw || 0)
+  const y = Number(cbp.yandex || 0), v = Number(cbp.vk || 0), a = Number(cbp.avito || 0)
+  return props.includeVat ? (y * VAT + v * VAT + a) : (y + v + a / VAT)
+}
+const adjCost = (p) => withCostVat(p.cost_by_platform, p.cost)
+const adjCpc = (p) => (p.clicks > 0 ? adjCost(p) / p.clicks : 0)
+
+// ── График ──
+const CW = 1000, CH = 320, PAD_TOP = 30, PAD_BOTTOM = 22
+const metricValue = (p) => {
+  if (metric.value === 'cost') return adjCost(p)
+  if (metric.value === 'cpc') return adjCpc(p)
+  return Number(p[metric.value] || 0)
+}
+const maxVal = computed(() => Math.max(1, ...periods.value.map(metricValue)))
+const barW = computed(() => {
+  const n = periods.value.length || 1
+  return (CW / n) * 0.6
+})
+const barGap = computed(() => (CW / (periods.value.length || 1)))
+const barX = (i) => barGap.value * i + (barGap.value - barW.value) / 2
+const barH = (i) => {
+  const v = metricValue(periods.value[i])
+  return Math.max(2, (v / maxVal.value) * (CH - PAD_TOP - PAD_BOTTOM))
+}
+const barY = (i) => CH - PAD_BOTTOM - barH(i)
+
+// ── Форматирование ──
+const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
+const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
+const fmtMoney = (v) => `${nf2.format(Number(v || 0))} ₽`
+const fmtInt = (v) => nf.format(Number(v || 0))
+const fmtPct = (v) => `${nf2.format(Number(v || 0))}%`
+const fmtMetric = (v) => {
+  const m = metrics.find((x) => x.key === metric.value)
+  return m && m.money ? fmtMoney(v) : fmtInt(v)
+}
+const shortLabel = (label) => {
+  // «Июнь 2026» → «Июнь», недельный диапазон оставляем
+  const parts = String(label).split(' ')
+  return parts.length === 2 ? parts[0] : label
+}
+
+// ── Ячейка значение + дельта-чип ──
+// kind: volume (серая дельта) | rate (CPC/CPL: вниз=хорошо) | conv (вверх=хорошо)
+const fmtVal = (v, fmt) => {
+  if (v === null || v === undefined) return '—'
+  if (fmt === 'money') return fmtMoney(v)
+  if (fmt === 'pct') return fmtPct(v)
+  return fmtInt(v)
+}
+const deltaChip = (delta, kind) => {
+  if (delta === null || delta === undefined) return ''
+  const up = delta >= 0
+  const arrow = up ? '▲' : '▼'
+  let cls = 'dyn-delta--neutral'
+  if (kind === 'rate') cls = up ? 'dyn-delta--bad' : 'dyn-delta--good'
+  else if (kind === 'conv') cls = up ? 'dyn-delta--good' : 'dyn-delta--bad'
+  const sign = up ? '+' : ''
+  return `<span class="dyn-delta ${cls}">${arrow}${sign}${nf2.format(delta)}%</span>`
+}
+const cell = (value, delta, kind, fmt) => `<span class="dyn-cellval">${fmtVal(value, fmt)}</span>${deltaChip(delta, kind)}`
+
+const deltaOf = (p, key) => {
+  // дельты сводной Яндекса считаем на лету (бэк отдаёт по основным метрикам)
+  const idx = periods.value.indexOf(p)
+  if (idx <= 0) return null
+  const prev = periods.value[idx - 1]
+  const curr = p.yandex_summary
+  const pr = prev.yandex_summary
+  if (!curr || !pr) return null
+  const a = key === 'ys_conv' ? curr.conversions : curr.cpl
+  const b = key === 'ys_conv' ? pr.conversions : pr.cpl
+  if (!b) return null
+  return Math.round((Number(a || 0) - Number(b || 0)) / Number(b) * 1000) / 10
+}
+
+const goalCell = (p, gid) => {
+  const g = (p.goals || {})[gid]
+  if (!g) return '<span class="dyn-cellval">—</span>'
+  const gd = (p.goal_deltas || {})[gid] || {}
+  const count = `<span class="dyn-cellval">${fmtInt(g.count)}</span>${deltaChip(gd.count, 'conv')}`
+  const cpa = g.cpa != null
+    ? `<span class="dyn-goal-cpa">CPA ${fmtMoney(g.cpa)}${deltaChip(gd.cpa, 'rate')}</span>`
+    : '<span class="dyn-goal-cpa">CPA —</span>'
+  return `${count}<br/>${cpa}`
+}
+
+// ── Загрузка ──
+const horizonDates = () => {
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - horizon.value)
+  const iso = (d) => d.toISOString().slice(0, 10)
+  return { start: iso(start), end: iso(end) }
+}
+const fetchSeries = async () => {
+  if (!props.clientId) { periods.value = []; goals.value = []; return }
+  loading.value = true
+  try {
+    const { start, end } = horizonDates()
+    const params = {
+      client_id: props.clientId,
+      platform: props.channel || 'all',
+      granularity: granularity.value,
+      start_date: start,
+      end_date: end,
+    }
+    if (props.campaignIds && props.campaignIds.length) params.campaign_ids = props.campaignIds
+    const { data } = await api.get('dashboard/dynamics-series', { params })
+    periods.value = Array.isArray(data?.periods) ? data.periods : []
+    goals.value = Array.isArray(data?.goals) ? data.goals : []
+  } catch (e) {
+    periods.value = []; goals.value = []
+  } finally {
+    loading.value = false
+  }
+}
+const setGranularity = (g) => { granularity.value = g; fetchSeries() }
+const setHorizon = (h) => { horizon.value = h; fetchSeries() }
+
+watch(() => [props.clientId, props.channel, props.campaignIds], fetchSeries, { deep: true })
+onMounted(fetchSeries)
+</script>
+
+<style scoped>
+.dyn { display: flex; flex-direction: column; gap: 1.6rem; }
+
+.dyn-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
+.dyn-seg {
+  display: inline-flex; gap: 0.3rem; padding: 0.3rem;
+  border-radius: 999px; background: rgba(37, 99, 235, 0.06);
+}
+.dyn-seg__btn {
+  min-height: 2.4rem; padding: 0 1.1rem; border: 0; border-radius: 999px;
+  background: transparent; color: #8d95a5; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.dyn-seg__btn--active { background: #fff; color: #2563eb; box-shadow: 0 0.3rem 0.9rem rgba(37, 99, 235, 0.12); }
+
+.panel { background: #fff; border-radius: 1.4rem; padding: 1.8rem 2rem; }
+.dyn-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+.dyn-chart-head h2 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #172033; }
+.dyn-metric-chips { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; }
+.dyn-metric-chip {
+  display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.3rem; padding: 0 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: #fff;
+  color: #64748b; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: all 0.16s ease;
+}
+.dyn-metric-chip--active { border-color: transparent; background: rgba(37, 99, 235, 0.08); color: #172033; box-shadow: 0 0.25rem 0.8rem rgba(37, 99, 235, 0.1); }
+.dyn-metric-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; flex: 0 0 auto; }
+
+.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; }
+.dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
+.dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 700; }
+.dyn-chart-note { margin-top: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #9aa3b2; font-size: 0.86rem; font-weight: 600; }
+.dyn-empty { padding: 4rem 0; text-align: center; color: #9aa3b2; font-size: 1rem; font-weight: 600; }
+
+.dyn-table-wrap { overflow-x: auto; }
+.dyn-table { width: 100%; border-collapse: collapse; font-size: 1.04rem; }
+.dyn-table th, .dyn-table td { padding: 0.85rem 1rem; text-align: left; white-space: nowrap; }
+.dyn-table thead th { color: #b3b3b3; font-weight: 700; font-size: 0.92rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); }
+.dyn-table tbody tr { border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
+.dyn-th-sticky, .dyn-td-sticky { position: sticky; left: 0; background: #fff; z-index: 1; font-weight: 700; color: #172033; }
+.dyn-th-goal, .dyn-td-goal { border-left: 1px solid rgba(148, 163, 184, 0.14); }
+.dyn-th-group { border-left: 1px solid rgba(148, 163, 184, 0.14); }
+.dyn-row--incomplete { background: rgba(37, 99, 235, 0.03); }
+.dyn-incomplete-badge {
+  margin-left: 0.5rem; padding: 0.1rem 0.5rem; border-radius: 0.5rem; font-style: normal;
+  font-size: 0.74rem; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.1);
+}
+:deep(.dyn-cellval) { color: #4b4b4b; font-weight: 600; }
+:deep(.dyn-goal-cpa) { color: #9aa3b2; font-size: 0.82rem; font-weight: 600; }
+:deep(.dyn-delta) { margin-left: 0.4rem; font-size: 0.8rem; font-weight: 700; }
+:deep(.dyn-delta--neutral) { color: #9aa3b2; }
+:deep(.dyn-delta--good) { color: #22a85a; }
+:deep(.dyn-delta--bad) { color: #ef4444; }
+</style>

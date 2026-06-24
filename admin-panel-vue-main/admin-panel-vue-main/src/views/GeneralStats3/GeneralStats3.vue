@@ -131,6 +131,24 @@
 
     <section class="heading-section">
       <h1>{{ dashboardTitle }}</h1>
+      <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
+        <button
+          type="button"
+          class="dashboard-view-tab"
+          role="tab"
+          :class="{ 'dashboard-view-tab--active': activeView === 'report' }"
+          :aria-selected="activeView === 'report'"
+          @click="activeView = 'report'"
+        >Отчёт</button>
+        <button
+          type="button"
+          class="dashboard-view-tab"
+          role="tab"
+          :class="{ 'dashboard-view-tab--active': activeView === 'dynamics' }"
+          :aria-selected="activeView === 'dynamics'"
+          @click="activeView = 'dynamics'"
+        >Динамика</button>
+      </div>
       <div class="filters-row">
         <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'channels' }" v-click-outside="() => closeMenu('channels')">
           <button class="filter-btn cs-head" type="button" @click="toggleMenu('channels')">
@@ -349,6 +367,7 @@
       class="detector-banner-slot"
     />
 
+    <template v-if="activeView === 'report'">
     <div v-if="dashboardSyncInProgress" class="kpi-grid kpi-grid--sync">
       <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
         <span class="metric-skeleton-icon"></span>
@@ -842,6 +861,15 @@
         </article>
       </div>
     </section>
+    </template>
+
+    <DynamicsView
+      v-else-if="activeView === 'dynamics'"
+      :client-id="filters.client_id"
+      :channel="filters.channel"
+      :campaign-ids="filters.campaign_ids"
+      :include-vat="includeVat"
+    />
 
     <div
       v-if="selectedCreativeImage"
@@ -1174,6 +1202,7 @@ import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
+import DynamicsView from './components/DynamicsView.vue'
 import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
 
@@ -1272,6 +1301,7 @@ const customPeriodRange = ref(
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const includeVat = ref(true)
+const activeView = ref('report') // 'report' | 'dynamics'
 const manualSyncActive = ref(false)
 const syncRefreshInProgress = ref(false)
 const activeSyncJobIds = ref([])
@@ -4216,11 +4246,39 @@ onMounted(() => {
 }
 
 .heading-section h1 {
-  margin: 0 0 2.4rem;
+  margin: 0 0 1.6rem;
   color: #171717;
   font-size: 2.8rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.dashboard-view-tabs {
+  display: inline-flex;
+  gap: 0.4rem;
+  margin: 0 0 2rem;
+  padding: 0.4rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.dashboard-view-tab {
+  min-height: 2.8rem;
+  padding: 0 1.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8d95a5;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dashboard-view-tab--active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.3rem 0.9rem rgba(37, 99, 235, 0.14);
 }
 
 .filters-row {
