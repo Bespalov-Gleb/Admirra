@@ -112,6 +112,12 @@ class GoogleSheetsService:
             .order_by(models.VKStats.date.asc(), models.VKStats.campaign_name.asc())
             .all()
         )
+        avito_data = (
+            db.query(models.AvitoStats)
+            .filter_by(client_id=client_id)
+            .order_by(models.AvitoStats.date.asc(), models.AvitoStats.campaign_name.asc())
+            .all()
+        )
 
         rows = [["Date", "Platform", "Campaign", "Impressions", "Clicks", "Cost", "Conversions"]]
 
@@ -130,6 +136,17 @@ class GoogleSheetsService:
             rows.append([
                 str(item.date),
                 "VK Ads",
+                item.campaign_name or "",
+                _to_int(item.impressions),
+                _to_int(item.clicks),
+                _to_float(item.cost),
+                _to_int(item.conversions),
+            ])
+
+        for item in avito_data:
+            rows.append([
+                str(item.date),
+                "Avito",
                 item.campaign_name or "",
                 _to_int(item.impressions),
                 _to_int(item.clicks),
