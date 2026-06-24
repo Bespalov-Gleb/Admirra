@@ -1323,6 +1323,50 @@ async def get_dynamics_series_endpoint(
     )
 
 
+@router.post("/dynamics/backfill")
+async def dynamics_backfill_start_endpoint(
+    client_id: Optional[str] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Запустить фоновую загрузку истории (до 12 мес) в витрину для текущего
+    клиента — чтобы на «Динамике» появились прошлые периоды. Идемпотентно:
+    повторный вызов во время прогона/кулдауна вернёт текущий статус.
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+    client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not client_ids:
+        return {"started": False, "reason": "no_client"}
+    from backend_api.services.dynamics_backfill import start_backfill
+    return start_backfill(client_ids)
+
+
+@router.get("/dynamics/backfill-status")
+async def dynamics_backfill_status_endpoint(
+    client_id: Optional[str] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Статус фоновой загрузки истории + самая ранняя дата данных в витрине."""
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+    client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not client_ids:
+        return {"status": "idle", "running": False, "history_from": None}
+    from backend_api.services.dynamics_backfill import get_status
+    return get_status(client_ids)
+
+
 @router.get("/campaigns", response_model=List[schemas.CampaignStat])
 async def get_campaign_stats(
     start_date: str = None,

@@ -22,6 +22,20 @@
           @click="setHorizon(h.value)"
         >{{ h.label }}</button>
       </div>
+
+      <div class="dyn-backfill">
+        <button
+          type="button"
+          class="dyn-backfill__btn"
+          :class="{ 'dyn-backfill__btn--busy': backfillBusy }"
+          :disabled="backfillBusy || backfill.in_cooldown || !clientId"
+          @click="startBackfill"
+        >
+          <span v-if="backfillBusy" class="dyn-backfill__spinner" aria-hidden="true"></span>
+          {{ backfillLabel }}
+        </button>
+        <span v-if="backfillHint" class="dyn-backfill__hint">{{ backfillHint }}</span>
+      </div>
     </div>
 
     <!-- График -->
@@ -120,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
 
 const props = defineProps({
@@ -283,8 +297,69 @@ const fetchSeries = async () => {
 const setGranularity = (g) => { granularity.value = g; fetchSeries() }
 const setHorizon = (h) => { horizon.value = h; fetchSeries() }
 
-watch(() => [props.clientId, props.channel, props.campaignIds], fetchSeries, { deep: true })
-onMounted(fetchSeries)
+// ── Бэкафилл истории (Phase 2) ──
+const backfill = ref({ status: 'idle', running: false, progress: 0, in_cooldown: false, history_from: null, message: null })
+let backfillTimer = null
+
+const fmtDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+const backfillBusy = computed(() => backfill.value.running)
+const backfillLabel = computed(() => {
+  const b = backfill.value
+  if (b.running) return `Загрузка истории… ${b.progress || 0}%`
+  if (b.in_cooldown) return 'История обновлена'
+  return 'Загрузить историю за 12 мес'
+})
+const backfillHint = computed(() => {
+  const b = backfill.value
+  if (b.running && b.message) return b.message
+  if (b.history_from) return `Данные в системе с ${fmtDate(b.history_from)}`
+  return ''
+})
+
+const fetchBackfillStatus = async () => {
+  if (!props.clientId) return
+  try {
+    const { data } = await api.get('dashboard/dynamics/backfill-status', { params: { client_id: props.clientId } })
+    backfill.value = data || backfill.value
+    if (backfill.value.running) {
+      ensureBackfillPolling()
+    } else {
+      stopBackfillPolling()
+    }
+  } catch (e) { /* нет статуса — не критично */ }
+}
+const ensureBackfillPolling = () => {
+  if (backfillTimer) return
+  backfillTimer = setInterval(async () => {
+    const wasRunning = backfill.value.running
+    await fetchBackfillStatus()
+    // прогон завершился — подтянуть свежий ряд
+    if (wasRunning && !backfill.value.running) fetchSeries()
+  }, 8000)
+}
+const stopBackfillPolling = () => {
+  if (backfillTimer) { clearInterval(backfillTimer); backfillTimer = null }
+}
+const startBackfill = async () => {
+  if (!props.clientId || backfill.value.running || backfill.value.in_cooldown) return
+  try {
+    const { data } = await api.post('dashboard/dynamics/backfill', null, { params: { client_id: props.clientId } })
+    if (data && data.started === false && data.reason === 'cooldown') {
+      backfill.value = { ...backfill.value, in_cooldown: true, cooldown_until: data.cooldown_until }
+      return
+    }
+    backfill.value = { ...backfill.value, ...(data || {}), running: true, status: 'running' }
+    ensureBackfillPolling()
+  } catch (e) { /* запуск не удался — оставляем как есть */ }
+}
+
+watch(() => [props.clientId, props.channel, props.campaignIds], () => { fetchSeries(); fetchBackfillStatus() }, { deep: true })
+onMounted(() => { fetchSeries(); fetchBackfillStatus() })
+onUnmounted(stopBackfillPolling)
 </script>
 
 <style scoped>
@@ -301,6 +376,24 @@ onMounted(fetchSeries)
   transition: background 0.18s ease, color 0.18s ease;
 }
 .dyn-seg__btn--active { background: #fff; color: #2563eb; box-shadow: 0 0.3rem 0.9rem rgba(37, 99, 235, 0.12); }
+
+.dyn-backfill { display: inline-flex; align-items: center; gap: 0.8rem; margin-left: auto; }
+.dyn-backfill__btn {
+  display: inline-flex; align-items: center; gap: 0.55rem; min-height: 3rem; padding: 0 1.4rem;
+  border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 999px; background: #fff;
+  color: #2563eb; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  transition: background 0.16s ease, opacity 0.16s ease;
+}
+.dyn-backfill__btn:hover:not(:disabled) { background: rgba(37, 99, 235, 0.06); }
+.dyn-backfill__btn:disabled { opacity: 0.55; cursor: default; }
+.dyn-backfill__btn--busy { color: #8d95a5; }
+.dyn-backfill__spinner {
+  width: 1.1rem; height: 1.1rem; border-radius: 999px;
+  border: 2px solid rgba(37, 99, 235, 0.25); border-top-color: #2563eb;
+  animation: dyn-spin 0.8s linear infinite;
+}
+.dyn-backfill__hint { color: #9aa3b2; font-size: 0.86rem; font-weight: 600; }
+@keyframes dyn-spin { to { transform: rotate(360deg); } }
 
 .panel { background: #fff; border-radius: 1.4rem; padding: 1.8rem 2rem; }
 .dyn-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
