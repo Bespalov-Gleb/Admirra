@@ -698,7 +698,7 @@
             </button>
             <span v-else class="campaign-tree-placeholder"></span>
             <span class="campaign-name-stack">
-              <span class="campaign-name-main">
+              <span class="campaign-name-main" :title="campaign.name">
                 {{ campaign.name }}
                 <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
               </span>
@@ -6592,6 +6592,15 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* Вертикальные разделители колонок через всю таблицу (как в Яндексе) */
+.campaign-row > span:not(:last-child) {
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.campaign-row.header > span:not(:last-child) {
+  border-right-color: rgba(148, 163, 184, 0.28);
+}
+
 .campaign-column-resizer {
   position: absolute;
   top: 0.15rem;
@@ -6611,9 +6620,9 @@ onMounted(() => {
   top: -0.15rem;
   right: 0.42rem;
   bottom: -0.15rem;
-  width: 1px;
+  width: 2px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.28);
+  background: transparent;
   transition: background 0.18s ease, box-shadow 0.18s ease;
 }
 
