@@ -1656,6 +1656,18 @@ class StatsService:
             return sort_rows(rows)
 
         if level == "group" and node_id:
+            parent_group_q = db.query(
+                func.sum(models.YandexGroups.impressions).label("impressions"),
+                func.sum(models.YandexGroups.clicks).label("clicks"),
+                func.sum(models.YandexGroups.cost).label("cost"),
+            ).filter(
+                models.YandexGroups.client_id.in_(client_ids),
+                models.YandexGroups.campaign_id == campaign.id,
+                models.YandexGroups.group_id == node_id,
+            )
+            parent_group_q = apply_dates(parent_group_q, models.YandexGroups)
+            parent_group = parent_group_q.first()
+
             ad_q = db.query(
                 models.YandexAds.ad_id,
                 func.max(models.YandexAds.group_name).label("group_name"),
@@ -1694,24 +1706,32 @@ class StatsService:
                     attributed=attributed,
                     estimated=estimated,
                 ))
-            if conv_available and "__parent_total__" in conv_map:
-                parent_total = int(round(float(conv_map.get("__parent_total__", 0) or 0)))
-                visible_total = sum(int(row.get("conversions") or 0) for row in rows)
-                residual = parent_total - visible_total
-                if residual > 0:
-                    rows.append(metric_row(
-                        raw_id=f"unattributed:{node_id}",
-                        parent_id=node_id,
-                        name="Не распределено по объявлениям",
-                        lvl="ad",
-                        imps=0,
-                        clicks=0,
-                        cost=0,
-                        convs=residual,
-                        has_children=False,
-                        attributed=True,
-                        estimated=False,
-                    ))
+            parent_total = int(round(float(conv_map.get("__parent_total__", 0) or 0))) if conv_available and "__parent_total__" in conv_map else 0
+            visible_conversions = sum(int(row.get("conversions") or 0) for row in rows)
+            visible_impressions = sum(int(row.get("impressions") or 0) for row in rows)
+            visible_clicks = sum(int(row.get("clicks") or 0) for row in rows)
+            visible_cost = sum(float(row.get("cost") or 0) for row in rows)
+            parent_impressions = int(getattr(parent_group, "impressions", 0) or 0)
+            parent_clicks = int(getattr(parent_group, "clicks", 0) or 0)
+            parent_cost = float(getattr(parent_group, "cost", 0) or 0)
+            residual_conversions = max(parent_total - visible_conversions, 0)
+            residual_impressions = max(parent_impressions - visible_impressions, 0)
+            residual_clicks = max(parent_clicks - visible_clicks, 0)
+            residual_cost = max(parent_cost - visible_cost, 0.0)
+            if residual_conversions > 0 or residual_impressions > 0 or residual_clicks > 0 or residual_cost > 0.005:
+                rows.append(metric_row(
+                    raw_id=f"unattributed:{node_id}",
+                    parent_id=node_id,
+                    name="Не распределено по объявлениям",
+                    lvl="ad",
+                    imps=residual_impressions,
+                    clicks=residual_clicks,
+                    cost=residual_cost,
+                    convs=residual_conversions,
+                    has_children=False,
+                    attributed=conv_available,
+                    estimated=False,
+                ))
             return sort_rows(rows)
 
         return []

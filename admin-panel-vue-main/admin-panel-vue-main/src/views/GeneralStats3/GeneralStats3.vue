@@ -642,7 +642,6 @@
       <div class="campaign-table">
         <div class="campaign-row header">
           <span>Название кампании</span>
-          <span>Направление</span>
           <span>Расход</span>
           <span>Показы</span>
           <span>Клики</span>
@@ -655,10 +654,20 @@
           v-for="campaign in campaignTreeRows"
           :key="campaign.rowKey"
           class="campaign-row"
-          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad', 'campaign-row--empty': campaign.empty }]"
+          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad', 'campaign-row--empty': campaign.empty, 'campaign-row--loading': campaign.loadingChildren }]"
           :title="campaign.alertTitle"
         >
-          <template v-if="campaign.empty">
+          <template v-if="campaign.loadingChildren">
+            <span class="campaign-loading-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
+              <span class="campaign-loading-spinner"></span>
+              <span>
+                <strong>Загружаем детализацию</strong>
+                <small>Получаем группы и объявления за выбранный период</small>
+              </span>
+              <i></i><i></i><i></i>
+            </span>
+          </template>
+          <template v-else-if="campaign.empty">
             <span class="campaign-empty-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
               {{ campaign.name }}
             </span>
@@ -693,7 +702,6 @@
               </button>
             </span>
           </span>
-          <span><em class="campaign-direction-pill">{{ campaign.direction }}</em></span>
           <span>{{ campaign.cost }} <b v-if="campaign.trendCost" :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
           <span>{{ campaign.impressions }} <b v-if="campaign.trendImpressions" :class="{ negative: campaign.trendImpressions.negative }"><component :is="campaign.trendImpressions.icon" />{{ campaign.trendImpressions.text }}</b></span>
           <span>{{ campaign.clicks }} <b v-if="campaign.trendClicks" :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
@@ -2977,6 +2985,15 @@ const campaignTreeRows = computed(() => {
     if (!row.canExpand || !expandedCampaignRows.value.has(row.rowKey)) return
 
     const children = campaignChildren.value[row.rowKey] || []
+    if (isCampaignRowLoading(row.rowKey) && !Object.prototype.hasOwnProperty.call(campaignChildren.value, row.rowKey)) {
+      result.push({
+        rowKey: `${row.rowKey}:loading`,
+        loadingChildren: true,
+        level: row.level + 1,
+        tint: row.tint,
+      })
+      return
+    }
     if (!children.length && Object.prototype.hasOwnProperty.call(campaignChildren.value, row.rowKey)) {
       result.push({
         rowKey: `${row.rowKey}:empty`,
@@ -6381,9 +6398,9 @@ onMounted(() => {
 
 .campaign-row {
   display: grid;
-  grid-template-columns: minmax(26rem, 2.2fr) minmax(13rem, 0.9fr) repeat(7, minmax(9rem, 1fr));
+  grid-template-columns: minmax(28rem, 2.35fr) repeat(7, minmax(9rem, 1fr));
   align-items: center;
-  min-width: 146rem;
+  min-width: 132rem;
   min-height: 5.6rem;
   padding: 0 2.5rem;
   border-radius: 1rem;
@@ -6426,9 +6443,65 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.campaign-empty-cell {
+.campaign-empty-cell,
+.campaign-loading-cell {
   grid-column: 1 / -1;
   padding-left: var(--tree-indent, 0);
+}
+
+.campaign-row--loading {
+  min-height: 5.3rem;
+  background: linear-gradient(90deg, #f8fbff 0%, #f4f7fd 100%) !important;
+}
+
+.campaign-loading-cell {
+  display: grid;
+  grid-template-columns: 2rem minmax(16rem, 24rem) minmax(8rem, 1fr) minmax(6rem, 0.55fr) minmax(4rem, 0.35fr);
+  align-items: center;
+  gap: 1rem;
+  color: #64748b;
+}
+
+.campaign-loading-spinner {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  border: 2px solid rgba(37, 99, 235, 0.16);
+  border-top-color: #2563eb;
+  animation: spin 0.75s linear infinite;
+}
+
+.campaign-loading-cell strong {
+  display: block;
+  color: #172033;
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.campaign-loading-cell small {
+  display: block;
+  margin-top: 0.18rem;
+  color: #9aa3b2;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.campaign-loading-cell i {
+  position: relative;
+  overflow: hidden;
+  display: block;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: #e8eef8;
+}
+
+.campaign-loading-cell i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.78), transparent);
+  animation: sync-shimmer 1.05s infinite;
 }
 
 .campaign-name-cell {
@@ -6570,23 +6643,6 @@ onMounted(() => {
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
-}
-
-.campaign-direction-pill {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-height: 2.6rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
-  font-style: normal;
-  font-size: 1.05rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .bottom-grid {
@@ -7041,7 +7097,7 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 132rem;
+    min-width: 84.0278rem;
   }
 }
 
@@ -7434,8 +7490,8 @@ onMounted(() => {
 }
 
 .campaign-row {
-  grid-template-columns: minmax(18.0556rem, 2.1fr) minmax(9.0278rem, 0.9fr) repeat(7, minmax(6.25rem, 1fr));
-  min-width: 91.6667rem;
+  grid-template-columns: minmax(19.4444rem, 2.25fr) repeat(7, minmax(6.25rem, 1fr));
+  min-width: 84.0278rem;
   min-height: 3.4722rem;
   padding: 0 1.3889rem;
   border-radius: 0.6944rem;
@@ -7455,6 +7511,28 @@ onMounted(() => {
 
 .campaign-row--child {
   min-height: 3.125rem;
+}
+
+.campaign-loading-cell {
+  grid-template-columns: 1.3889rem minmax(11.1111rem, 16.6667rem) minmax(5.5556rem, 1fr) minmax(4.1667rem, 0.55fr) minmax(2.7778rem, 0.35fr);
+  gap: 0.6944rem;
+}
+
+.campaign-loading-spinner {
+  width: 1.0764rem;
+  height: 1.0764rem;
+}
+
+.campaign-loading-cell strong {
+  font-size: 0.75rem;
+}
+
+.campaign-loading-cell small {
+  font-size: 0.5972rem;
+}
+
+.campaign-loading-cell i {
+  height: 0.5903rem;
 }
 
 .campaign-name-cell {
@@ -7482,12 +7560,6 @@ onMounted(() => {
   margin-left: 0.3125rem;
   padding: 0.1736rem 0.3472rem;
   font-size: 0.5903rem;
-}
-
-.campaign-direction-pill {
-  min-height: 1.8056rem;
-  padding: 0.2778rem 0.5208rem;
-  font-size: 0.7292rem;
 }
 
 .bottom-grid {
@@ -7843,7 +7915,7 @@ onMounted(() => {
   }
 
   .campaign-row {
-    min-width: 91.6667rem;
+    min-width: 84.0278rem;
   }
 }
 
