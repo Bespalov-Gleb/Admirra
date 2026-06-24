@@ -620,6 +620,7 @@
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
+          <span class="campaign-sort-label">Сортировать по</span>
           <button
             v-for="option in campaignSortOptions"
             :key="option.value"
@@ -6364,6 +6365,14 @@ onMounted(() => {
   background: rgba(37, 99, 235, 0.06);
 }
 
+.campaign-sort-label {
+  padding: 0 0.65rem 0 0.85rem;
+  color: #8d95a5;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .campaign-sort-tabs button {
   min-height: 2.6rem;
   padding: 0 1.2rem;
@@ -7481,6 +7490,11 @@ onMounted(() => {
 .campaign-sort-tabs {
   gap: 0.3125rem;
   padding: 0.2431rem;
+}
+
+.campaign-sort-label {
+  padding: 0 0.4514rem 0 0.5903rem;
+  font-size: 0.6944rem;
 }
 
 .campaign-sort-tabs button {
