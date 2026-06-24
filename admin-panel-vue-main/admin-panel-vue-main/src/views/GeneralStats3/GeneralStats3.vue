@@ -8561,6 +8561,20 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.schedule-toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.schedule-toggle {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
 .schedule-day-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
