@@ -640,7 +640,12 @@
           </button>
         </div>
       </div>
-      <div class="campaign-table">
+      <div ref="campaignTableRef" class="campaign-table">
+        <span
+          v-if="campaignResizeGuideVisible"
+          class="campaign-resize-guide"
+          :style="campaignResizeGuideStyle"
+        ></span>
         <div class="campaign-row header" :style="campaignRowGridStyle">
           <span
             v-for="column in campaignTableColumns"
@@ -2346,6 +2351,14 @@ const campaignRowGridStyle = computed(() => ({
   gridTemplateColumns: campaignGridTemplateColumns.value,
   minWidth: campaignTableMinWidth.value,
 }))
+const campaignTableRef = ref(null)
+const campaignResizeGuideX = ref(null)
+const campaignResizeGuideHeight = ref(0)
+const campaignResizeGuideVisible = computed(() => campaignResizeGuideX.value !== null)
+const campaignResizeGuideStyle = computed(() => ({
+  left: `${campaignResizeGuideX.value || 0}px`,
+  height: `${campaignResizeGuideHeight.value || 0}px`,
+}))
 const campaignChildren = ref({})
 const campaignChildrenLoading = ref({})
 const expandedCampaignRows = ref(new Set())
@@ -2360,6 +2373,31 @@ const persistCampaignColumnWidths = () => {
   } catch {}
 }
 
+const getCampaignHeaderPaddingLeft = () => {
+  if (typeof window === 'undefined') return 0
+  const header = campaignTableRef.value?.querySelector('.campaign-row.header')
+  if (!header) return 0
+  return Number.parseFloat(window.getComputedStyle(header).paddingLeft) || 0
+}
+
+const getCampaignColumnBoundaryX = (columnKey, currentWidth = null) => {
+  const columnIndex = campaignTableColumns.findIndex((column) => column.key === columnKey)
+  if (columnIndex === -1) return null
+  const widthBefore = campaignTableColumns.slice(0, columnIndex).reduce(
+    (sum, column) => sum + (campaignColumnWidths.value[column.key] || column.width),
+    0
+  )
+  const column = campaignTableColumns[columnIndex]
+  const activeWidth = currentWidth ?? (campaignColumnWidths.value[column.key] || column.width)
+  return Math.round(getCampaignHeaderPaddingLeft() + widthBefore + activeWidth)
+}
+
+const updateCampaignResizeGuide = (columnKey, width = null) => {
+  const nextX = getCampaignColumnBoundaryX(columnKey, width)
+  campaignResizeGuideHeight.value = campaignTableRef.value?.scrollHeight || 0
+  campaignResizeGuideX.value = nextX === null ? null : nextX
+}
+
 const stopCampaignColumnResize = () => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('pointermove', handleCampaignColumnResize)
@@ -2371,6 +2409,8 @@ const stopCampaignColumnResize = () => {
   }
   if (campaignColumnResizeState) persistCampaignColumnWidths()
   campaignColumnResizeState = null
+  campaignResizeGuideX.value = null
+  campaignResizeGuideHeight.value = 0
 }
 
 const handleCampaignColumnResize = (event) => {
@@ -2384,6 +2424,7 @@ const handleCampaignColumnResize = (event) => {
     ...campaignColumnWidths.value,
     [column.key]: Math.round(nextWidth),
   }
+  updateCampaignResizeGuide(column.key, Math.round(nextWidth))
 }
 
 const startCampaignColumnResize = (event, column) => {
@@ -2395,6 +2436,7 @@ const startCampaignColumnResize = (event, column) => {
     startX: event.clientX,
     startWidth: campaignColumnWidths.value[column.key] || column.width,
   }
+  updateCampaignResizeGuide(column.key, campaignColumnResizeState.startWidth)
   if (typeof document !== 'undefined') {
     document.body.classList.add('campaign-column-resizing')
   }
@@ -6448,10 +6490,25 @@ onMounted(() => {
 }
 
 .campaign-table {
+  position: relative;
   display: grid;
   gap: 1.5rem;
   margin-top: 2.5rem;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.campaign-resize-guide {
+  position: absolute;
+  top: 0;
+  z-index: 8;
+  width: 2px;
+  min-height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.25), #2563eb 15%, #2563eb 85%, rgba(37, 99, 235, 0.25));
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14), 0 0 1.2rem rgba(37, 99, 235, 0.18);
+  transform: translateX(-1px);
+  pointer-events: none;
 }
 
 .campaign-sort-tabs {
@@ -6516,9 +6573,13 @@ onMounted(() => {
 }
 
 .campaign-row.header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   min-height: auto;
   color: #b3b3b3;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(0.45rem);
 }
 
 .campaign-header-cell {
@@ -6547,9 +6608,9 @@ onMounted(() => {
 .campaign-column-resizer::after {
   content: '';
   position: absolute;
-  top: 0.15rem;
+  top: -0.15rem;
   right: 0.42rem;
-  bottom: 0.15rem;
+  bottom: -0.15rem;
   width: 1px;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.28);
@@ -7684,9 +7745,9 @@ onMounted(() => {
 }
 
 .campaign-column-resizer::after {
-  top: 0.1042rem;
+  top: -0.1042rem;
   right: 0.2917rem;
-  bottom: 0.1042rem;
+  bottom: -0.1042rem;
 }
 
 .campaign-loading-cell {
