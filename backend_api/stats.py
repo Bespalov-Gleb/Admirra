@@ -1274,6 +1274,55 @@ async def get_dynamics(
         "cpa": cpa
     }
 
+
+@router.get("/dynamics-series")
+async def get_dynamics_series_endpoint(
+    start_date: str = None,
+    end_date: str = None,
+    client_id: Optional[str] = Query(None),
+    campaign_ids: Optional[List[str]] = Query(None),
+    platform: Optional[str] = "all",
+    granularity: str = Query("month"),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Экран «Динамика»: ряд периодов (месяцы/недели) с дельтами к предыдущему
+    периоду. Только чтение из витрины; без обращения к площадкам.
+    """
+    u_client_id = None
+    if client_id and client_id.strip():
+        try:
+            u_client_id = uuid.UUID(client_id)
+        except Exception:
+            pass
+
+    u_campaign_ids = None
+    if campaign_ids:
+        u_campaign_ids = []
+        for cid in campaign_ids:
+            if cid and cid.strip():
+                try:
+                    u_campaign_ids.append(uuid.UUID(cid))
+                except Exception:
+                    pass
+        if not u_campaign_ids:
+            u_campaign_ids = None
+
+    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if not effective_client_ids:
+        return {"granularity": granularity, "goals": [], "periods": []}
+
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else (d_end - timedelta(days=90))
+    gran = "week" if str(granularity).lower().startswith("w") else "month"
+
+    from backend_api.services.dynamics_service import get_dynamics_series
+    return get_dynamics_series(
+        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, gran
+    )
+
+
 @router.get("/campaigns", response_model=List[schemas.CampaignStat])
 async def get_campaign_stats(
     start_date: str = None,
