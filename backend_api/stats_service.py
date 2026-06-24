@@ -996,15 +996,11 @@ class StatsService:
                 else:
                     remaining_rows.append(row)
 
-            if used_total > total:
-                # If live DirectClickOrder attribution returns more than the
-                # selected-goal KPI total, keep the dashboard internally
-                # consistent and fall back to cost allocation.
-                allocations = {}
-                remaining_rows = list(rows)
-                used_total = 0
-
-            remaining_total = total - used_total
+            # Keep exact platform attribution even when the sum differs from
+            # the stored KPI total by a small residual. Falling back to cost
+            # allocation here makes campaign rows disagree with drill-down
+            # rows that are also exact Metrika attribution.
+            remaining_total = max(total - used_total, 0)
             if remaining_total > 0 and not remaining_rows:
                 # Some selected-goal visits may not be attributed by Metrika to
                 # a DirectClickOrder. Distribute that residual over visible
@@ -1611,8 +1607,15 @@ class StatsService:
 
             rows = []
             for row in group_rows:
+                group_id = str(row.group_id).strip() if row.group_id is not None else ""
+                is_master_aggregate = not group_id or group_id == "--"
+                raw_group_id = f"master:{campaign.id}" if is_master_aggregate else group_id
+                group_name = row.group_name
+                if is_master_aggregate and (not group_name or str(group_name).strip() == "--"):
+                    group_name = "Мастер кампаний"
                 if conv_available:
-                    g_convs = int(round(float(conv_map.get(str(row.group_id), 0) or 0)))
+                    conv_key = group_id if not is_master_aggregate else "__campaign_total__"
+                    g_convs = int(round(float(conv_map.get(conv_key, 0) or 0)))
                     estimated = False
                     attributed = True
                 else:
@@ -1620,18 +1623,36 @@ class StatsService:
                     estimated = False
                     attributed = False
                 rows.append(metric_row(
-                    raw_id=row.group_id,
+                    raw_id=raw_group_id,
                     parent_id=str(campaign.id),
-                    name=row.group_name,
+                    name=group_name,
                     lvl="group",
                     imps=row.impressions,
                     clicks=row.clicks,
                     cost=row.cost,
                     convs=g_convs,
-                    has_children=bool(row.group_id),
+                    has_children=bool(group_id and not is_master_aggregate),
                     attributed=attributed,
                     estimated=estimated,
                 ))
+            if conv_available and "__campaign_total__" in conv_map:
+                parent_total = int(round(float(conv_map.get("__campaign_total__", 0) or 0)))
+                visible_total = sum(int(row.get("conversions") or 0) for row in rows)
+                residual = parent_total - visible_total
+                if residual > 0:
+                    rows.append(metric_row(
+                        raw_id=f"unattributed:{campaign.id}",
+                        parent_id=str(campaign.id),
+                        name="Не распределено по группам",
+                        lvl="group",
+                        imps=0,
+                        clicks=0,
+                        cost=0,
+                        convs=residual,
+                        has_children=False,
+                        attributed=True,
+                        estimated=False,
+                    ))
             return sort_rows(rows)
 
         if level == "group" and node_id:
@@ -1673,6 +1694,24 @@ class StatsService:
                     attributed=attributed,
                     estimated=estimated,
                 ))
+            if conv_available and "__parent_total__" in conv_map:
+                parent_total = int(round(float(conv_map.get("__parent_total__", 0) or 0)))
+                visible_total = sum(int(row.get("conversions") or 0) for row in rows)
+                residual = parent_total - visible_total
+                if residual > 0:
+                    rows.append(metric_row(
+                        raw_id=f"unattributed:{node_id}",
+                        parent_id=node_id,
+                        name="Не распределено по объявлениям",
+                        lvl="ad",
+                        imps=0,
+                        clicks=0,
+                        cost=0,
+                        convs=residual,
+                        has_children=False,
+                        attributed=True,
+                        estimated=False,
+                    ))
             return sort_rows(rows)
 
         return []

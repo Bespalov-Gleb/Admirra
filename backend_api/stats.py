@@ -1437,6 +1437,27 @@ async def get_campaign_children(
             d_start,
             d_end,
         )
+        if conv_available:
+            if level == "campaign":
+                campaign_overrides = await _build_yandex_campaign_conversion_overrides(
+                    db,
+                    effective_client_ids,
+                    d_start,
+                    d_end,
+                    campaign_ids=[campaign.id],
+                )
+                if str(campaign.id) in campaign_overrides:
+                    conv_map["__campaign_total__"] = int(campaign_overrides[str(campaign.id)] or 0)
+            elif level == "group" and node_id:
+                group_conv_map, group_available = await _metrika_drill_conv_map(
+                    campaign.integration,
+                    campaign,
+                    "campaign",
+                    d_start,
+                    d_end,
+                )
+                if group_available:
+                    conv_map["__parent_total__"] = int(round(float(group_conv_map.get(str(node_id), 0) or 0)))
     elif campaign.integration.platform == models.IntegrationPlatform.AVITO_ADS:
         campaign_conv_map, creative_conv_map, conv_available = await _avito_metrika_utm_conv_maps(
             db,
