@@ -2,37 +2,37 @@
   <div class="dyn">
     <!-- Контролы: гранулярность + горизонт -->
     <div class="dyn-controls">
-      <div class="dyn-controls__left">
-        <div class="dyn-control-group">
-          <span class="dyn-control-label">Период</span>
-          <div class="dyn-seg" role="tablist" aria-label="Гранулярность">
-            <button
-              v-for="g in granularities"
-              :key="g.value"
-              type="button"
-              class="dyn-seg__btn"
-              :class="{ 'dyn-seg__btn--active': granularity === g.value }"
-              @click="setGranularity(g.value)"
-            >{{ g.label }}</button>
+      <div class="dyn-controls__row">
+        <div class="dyn-controls__left">
+          <div class="dyn-control-group">
+            <span class="dyn-control-label">Период</span>
+            <div class="dyn-seg" role="tablist" aria-label="Гранулярность">
+              <button
+                v-for="g in granularities"
+                :key="g.value"
+                type="button"
+                class="dyn-seg__btn"
+                :class="{ 'dyn-seg__btn--active': granularity === g.value }"
+                @click="setGranularity(g.value)"
+              >{{ g.label }}</button>
+            </div>
+          </div>
+          <div class="dyn-control-group">
+            <span class="dyn-control-label">Горизонт</span>
+            <div class="dyn-seg" role="tablist" aria-label="Горизонт">
+              <button
+                v-for="h in horizons"
+                :key="h.value"
+                type="button"
+                class="dyn-seg__btn"
+                :class="{ 'dyn-seg__btn--active': horizon === h.value }"
+                @click="setHorizon(h.value)"
+              >{{ h.label }}</button>
+            </div>
           </div>
         </div>
-        <div class="dyn-control-group">
-          <span class="dyn-control-label">Горизонт</span>
-          <div class="dyn-seg" role="tablist" aria-label="Горизонт">
-            <button
-              v-for="h in horizons"
-              :key="h.value"
-              type="button"
-              class="dyn-seg__btn"
-              :class="{ 'dyn-seg__btn--active': horizon === h.value }"
-              @click="setHorizon(h.value)"
-            >{{ h.label }}</button>
-          </div>
-        </div>
-      </div>
 
-      <div class="dyn-controls__right">
-        <div class="dyn-backfill">
+        <div class="dyn-controls__right">
           <button
             type="button"
             class="dyn-backfill__btn"
@@ -43,25 +43,29 @@
             <span v-if="backfillBusy" class="dyn-backfill__spinner" aria-hidden="true"></span>
             {{ backfillLabel }}
           </button>
-          <span v-if="backfillHint" class="dyn-backfill__hint">{{ backfillHint }}</span>
-        </div>
 
-        <div class="dyn-export" :class="{ 'dyn-export--open': exportOpen }">
-          <button
-            type="button"
-            class="dyn-export__btn"
-            :disabled="!periods.length"
-            @click="exportOpen = !exportOpen"
-          >
-            Экспорт динамики
-            <span class="dyn-export__chev">▾</span>
-          </button>
-          <div v-if="exportOpen" class="dyn-export__menu">
-            <button type="button" @click="doExport('csv')">CSV</button>
-            <button type="button" @click="doExport('xlsx')">XLSX</button>
-            <button type="button" @click="doExport('png')">PNG (изображение)</button>
+          <div class="dyn-export" :class="{ 'dyn-export--open': exportOpen }">
+            <button
+              type="button"
+              class="dyn-export__btn"
+              :disabled="!periods.length"
+              @click="exportOpen = !exportOpen"
+            >
+              Экспорт динамики
+              <span class="dyn-export__chev">▾</span>
+            </button>
+            <div v-if="exportOpen" class="dyn-export__menu">
+              <button type="button" @click="doExport('csv')">CSV</button>
+              <button type="button" @click="doExport('xlsx')">XLSX</button>
+              <button type="button" @click="doExport('png')">PNG (изображение)</button>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div v-if="backfillHint" class="dyn-controls__status">
+        <span class="dyn-controls__status-dot"></span>
+        <span>{{ backfillHint }}</span>
       </div>
     </div>
 
@@ -457,32 +461,41 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 }
 
 .dyn-controls {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 1.2rem;
-  flex-wrap: wrap;
-  padding: 1.05rem;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.25rem 1.35rem 1.15rem;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 0.65rem 1.8rem rgba(15, 23, 42, 0.035);
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 252, 255, 0.9)),
+    #fff;
+  box-shadow: 0 0.75rem 1.9rem rgba(15, 23, 42, 0.045);
+}
+
+.dyn-controls__row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.35rem;
+  flex-wrap: wrap;
 }
 
 .dyn-controls__left {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 1.25rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .dyn-control-group {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.58rem;
+  min-width: 0;
 }
 
 .dyn-control-label {
-  padding-left: 0.15rem;
+  padding-left: 0.2rem;
   color: #9aa3b2;
   font-size: 0.78rem;
   font-weight: 800;
@@ -525,23 +538,38 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 
 .dyn-controls__right {
   display: inline-flex;
-  align-items: center;
+  align-items: end;
   justify-content: flex-end;
   gap: 0.75rem;
   margin-left: auto;
   flex-wrap: wrap;
 }
 
+.dyn-controls__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.35rem;
+  padding-left: 0.2rem;
+  color: #9aa3b2;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.dyn-controls__status-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: #8fb3ff;
+  box-shadow: 0 0 0 0.22rem rgba(37, 99, 235, 0.09);
+  flex: 0 0 auto;
+}
+
 .dyn-capture {
   display: flex;
   flex-direction: column;
   gap: 1.65rem;
-}
-
-.dyn-backfill {
-  display: grid;
-  gap: 0.32rem;
-  justify-items: end;
 }
 
 .dyn-export {
@@ -656,14 +684,6 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   width: 1.1rem; height: 1.1rem; border-radius: 999px;
   border: 2px solid rgba(37, 99, 235, 0.25); border-top-color: #2563eb;
   animation: dyn-spin 0.8s linear infinite;
-}
-.dyn-backfill__hint {
-  max-width: 19rem;
-  color: #9aa3b2;
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: right;
 }
 @keyframes dyn-spin { to { transform: rotate(360deg); } }
 
@@ -834,22 +854,19 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 
 @media (max-width: 980px) {
   .dyn-controls,
+  .dyn-controls__row,
   .dyn-controls__left,
   .dyn-controls__right {
     width: 100%;
   }
 
+  .dyn-controls__row {
+    align-items: stretch;
+  }
+
   .dyn-controls__right {
     justify-content: flex-start;
     margin-left: 0;
-  }
-
-  .dyn-backfill {
-    justify-items: start;
-  }
-
-  .dyn-backfill__hint {
-    text-align: left;
   }
 
   .dyn-chart-head {
@@ -869,7 +886,6 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 
   .dyn-control-group,
   .dyn-seg,
-  .dyn-backfill,
   .dyn-backfill__btn,
   .dyn-export,
   .dyn-export__btn {
