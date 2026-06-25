@@ -64,6 +64,76 @@ def _pct_delta(curr: float, prev: float) -> Optional[float]:
     return round((curr - prev) / prev * 100, 1)
 
 
+def _selected_campaign_scope(db: Session, campaign_ids: Optional[List[uuid.UUID]]) -> tuple[list, list]:
+    if not campaign_ids:
+        return [], []
+    rows = (
+        db.query(models.Campaign.integration_id, models.Integration.platform)
+        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+        .filter(models.Campaign.id.in_(campaign_ids))
+        .distinct()
+        .all()
+    )
+    integration_ids = [r[0] for r in rows if r[0]]
+    platforms = [r[1] for r in rows if r[1]]
+    return integration_ids, platforms
+
+
+def _metrika_goal_platform(platform: str, campaign_platforms: list) -> str:
+    platform_key = (platform or "all").lower()
+    if platform_key != "all" or not campaign_platforms:
+        return platform_key
+    if all(p == models.IntegrationPlatform.AVITO_ADS for p in campaign_platforms):
+        return "avito"
+    if all(p == models.IntegrationPlatform.YANDEX_DIRECT for p in campaign_platforms):
+        return "yandex"
+    return "all"
+
+
+def _goal_scope_ids(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    metrika_platform: str,
+    campaign_integration_ids: list,
+) -> list:
+    if campaign_integration_ids:
+        return campaign_integration_ids
+    return StatsService.get_metrika_goal_integration_ids(db, client_ids, metrika_platform)
+
+
+def _earliest_data_date(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    campaign_ids: Optional[List[uuid.UUID]],
+    goal_scope_ids: list,
+) -> Optional[date]:
+    dates: list[date] = []
+    for model in (models.YandexStats, models.VKStats, models.AvitoStats):
+        q = db.query(func.min(model.date)).filter(model.client_id.in_(client_ids))
+        if campaign_ids:
+            q = q.filter(model.campaign_id.in_(campaign_ids))
+        d = q.scalar()
+        if d:
+            dates.append(d)
+
+    mq = db.query(func.min(models.MetrikaGoals.date)).filter(models.MetrikaGoals.client_id.in_(client_ids))
+    if goal_scope_ids:
+        mq = mq.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+    d = mq.scalar()
+    if d:
+        dates.append(d)
+    return min(dates) if dates else None
+
+
+def _completed_months_since(start: Optional[date], today: date) -> int:
+    if not start:
+        return 99
+    months = (today.year - start.year) * 12 + (today.month - start.month)
+    if start.day > 1:
+        months -= 1
+    return max(0, months)
+
+
 def get_dynamics_series(
     db: Session,
     client_ids: List[uuid.UUID],
@@ -77,25 +147,36 @@ def get_dynamics_series(
         return {"granularity": granularity, "goals": [], "periods": []}
 
     today = date.today()
+    campaign_integration_ids, campaign_platforms = _selected_campaign_scope(db, campaign_ids)
+    goal_platform = _metrika_goal_platform(platform, campaign_platforms)
+    scope_ids = _goal_scope_ids(db, client_ids, goal_platform, campaign_integration_ids)
+    history_from = _earliest_data_date(db, client_ids, campaign_ids, scope_ids)
+    actual_start = (
+        db.query(func.min(models.Client.actual_start_date))
+        .filter(models.Client.id.in_(client_ids), models.Client.actual_start_date.isnot(None))
+        .scalar()
+    )
+    basis_start = actual_start or history_from
+    suggested_granularity = "week" if _completed_months_since(basis_start, today) < 3 else "month"
     buckets = list(
         _week_buckets(d_from, d_to) if granularity == "week" else _month_buckets(d_from, d_to)
     )
 
     # Динамический набор целевых колонок: выбранные цели Метрики проекта + их имена.
     selected_goal_ids = [
-        str(g) for g in StatsService.get_selected_metrika_goal_ids(db, client_ids, platform)
+        str(g) for g in StatsService.get_selected_metrika_goal_ids(db, client_ids, goal_platform)
     ]
     goal_names: dict = {}
     if selected_goal_ids:
-        for gid, gname in (
-            db.query(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name)
-            .filter(
-                models.MetrikaGoals.client_id.in_(client_ids),
-                models.MetrikaGoals.goal_id.in_(selected_goal_ids),
-            )
-            .distinct()
-            .all()
-        ):
+        name_q = db.query(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name).filter(
+            models.MetrikaGoals.client_id.in_(client_ids),
+            models.MetrikaGoals.goal_id.in_(selected_goal_ids),
+        )
+        if scope_ids:
+            name_q = name_q.filter(models.MetrikaGoals.integration_id.in_(scope_ids))
+        elif goal_platform in ("avito", "yandex"):
+            name_q = name_q.filter(models.MetrikaGoals.integration_id.is_(None))
+        for gid, gname in name_q.distinct().all():
             if gid and gid not in goal_names and gname:
                 goal_names[str(gid)] = gname
     goals_meta = [{"id": gid, "name": goal_names.get(gid, gid)} for gid in selected_goal_ids]
@@ -110,23 +191,23 @@ def get_dynamics_series(
         impressions = int(summary.get("impressions") or 0)
         cost_by_platform = summary.get("cost_by_platform") or {}
 
-        # Лиды по каждой выбранной цели за период (из MetrikaGoals).
+        # Лиды по каждой выбранной цели за период — в том же scope, что и summary.
         goal_counts: dict = {}
         if selected_goal_ids:
-            rows = (
-                db.query(
-                    models.MetrikaGoals.goal_id,
-                    func.sum(models.MetrikaGoals.conversion_count).label("cnt"),
-                )
-                .filter(
-                    models.MetrikaGoals.client_id.in_(client_ids),
-                    models.MetrikaGoals.goal_id.in_(selected_goal_ids),
-                    models.MetrikaGoals.date >= start,
-                    models.MetrikaGoals.date <= end,
-                )
-                .group_by(models.MetrikaGoals.goal_id)
-                .all()
+            q = db.query(
+                models.MetrikaGoals.goal_id,
+                func.sum(models.MetrikaGoals.conversion_count).label("cnt"),
+            ).filter(
+                models.MetrikaGoals.client_id.in_(client_ids),
+                models.MetrikaGoals.goal_id.in_(selected_goal_ids),
+                models.MetrikaGoals.date >= start,
+                models.MetrikaGoals.date <= end,
             )
+            if scope_ids:
+                q = q.filter(models.MetrikaGoals.integration_id.in_(scope_ids))
+            elif goal_platform in ("avito", "yandex"):
+                q = q.filter(models.MetrikaGoals.integration_id.is_(None))
+            rows = q.group_by(models.MetrikaGoals.goal_id).all()
             goal_counts = {str(gid): int(cnt or 0) for gid, cnt in rows}
 
         goals = {}
@@ -164,6 +245,7 @@ def get_dynamics_series(
             "ctr": round(clicks / impressions * 100, 2) if impressions > 0 else 0,
             "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
             "leads": int(summary.get("leads") or 0),
+            "cpl": round(cost / int(summary.get("leads") or 0), 2) if int(summary.get("leads") or 0) > 0 else None,
             "cost_by_platform": {
                 "yandex": round(float(cost_by_platform.get("yandex") or 0), 2),
                 "vk": round(float(cost_by_platform.get("vk") or 0), 2),
@@ -182,6 +264,7 @@ def get_dynamics_series(
             "clicks": _pct_delta(p["clicks"], prev["clicks"]),
             "ctr": _pct_delta(p["ctr"], prev["ctr"]),
             "cpc": _pct_delta(p["cpc"], prev["cpc"]),
+            "cpl": _pct_delta(p["cpl"] or 0, prev["cpl"] or 0),
             "leads": _pct_delta(p["leads"], prev["leads"]),
         }
         p["goal_deltas"] = {}
@@ -192,4 +275,12 @@ def get_dynamics_series(
                     "cpa": _pct_delta(p["goals"][gid]["cpa"] or 0, prev["goals"][gid]["cpa"] or 0),
                 }
 
-    return {"granularity": granularity, "goals": goals_meta, "periods": periods}
+    return {
+        "granularity": granularity,
+        "suggested_granularity": suggested_granularity,
+        "history_from": history_from.isoformat() if history_from else None,
+        "requested_from": d_from.isoformat(),
+        "needs_backfill": bool(history_from and d_from < history_from),
+        "goals": goals_meta,
+        "periods": periods,
+    }

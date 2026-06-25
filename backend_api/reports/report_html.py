@@ -202,38 +202,43 @@ def render_report_html(data: dict) -> str:
     dynamics_html = ""
     dyn_periods = (data.get("dynamics") or {}).get("periods") or []
     if dyn_periods:
-        dyn_rows = ""
-        prev = None
+        points = []
         has_incomplete = False
-        for i, p in enumerate(dyn_periods):
+        for p in dyn_periods:
             cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("cost_by_platform"))
             leads = int(p.get("leads", 0) or 0)
             cpl = cost / leads if leads > 0 else 0
-            d_cost = d_leads = ""
-            if prev is not None:
-                pc, pl = prev
-                if pc > 0:
-                    dc = (cost - pc) / pc * 100
-                    d_cost = f'<span style="color:#94a3b8;font-size:11px;"> ({"+" if dc >= 0 else ""}{_fmt(dc, 1)}%)</span>'
-                if pl > 0:
-                    dl = (leads - pl) / pl * 100
-                    col = "#16a34a" if dl >= 0 else "#dc2626"
-                    d_leads = f'<span style="color:{col};font-size:11px;"> ({"+" if dl >= 0 else ""}{_fmt(dl, 1)}%)</span>'
-            tint = _ROW_TINTS[i % len(_ROW_TINTS)]
-            bg = _ROW_BACKGROUNDS[tint]
-            mark = ""
-            if p.get("incomplete"):
-                mark = " *"
+            incomplete = bool(p.get("incomplete"))
+            if incomplete:
                 has_incomplete = True
-            dyn_rows += (
-                f'<tr style="background:{bg};">'
-                f'<td>{_escape_html(p.get("label", ""))}{mark}</td>'
-                f'<td class="num">{_fmt(cost)} ₽{d_cost}</td>'
-                f'<td class="num">{leads} шт.{d_leads}</td>'
-                f'<td class="num">{_fmt(cpl, 2)} ₽</td>'
-                f"</tr>"
+            points.append({
+                "label": _escape_html(p.get("label", "")),
+                "cost": cost,
+                "leads": leads,
+                "cpl": cpl,
+                "incomplete": incomplete,
+            })
+
+        chart_w, chart_h = 820, 235
+        pad_l, pad_r, pad_t, pad_b = 42, 22, 18, 70
+        plot_w = chart_w - pad_l - pad_r
+        plot_h = chart_h - pad_t - pad_b
+        max_cost = max([pt["cost"] for pt in points] + [1])
+        step = plot_w / max(len(points), 1)
+        bar_w = min(70, step * 0.55)
+        bars = ""
+        for i, pt in enumerate(points):
+            h = max(4, pt["cost"] / max_cost * plot_h)
+            x = pad_l + i * step + (step - bar_w) / 2
+            y = pad_t + plot_h - h
+            fill = "#3464F3" if not pt["incomplete"] else "#9DB7FF"
+            dash = ' stroke="#3464F3" stroke-dasharray="4 4"' if pt["incomplete"] else ""
+            bars += (
+                f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="8" fill="{fill}"{dash}/>'
+                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 22}" text-anchor="middle" font-size="11" fill="#64748b">{pt["label"]}</text>'
+                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 39}" text-anchor="middle" font-size="10" fill="#94a3b8">{pt["leads"]} лид.</text>'
+                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 55}" text-anchor="middle" font-size="10" fill="#94a3b8">CPL {_fmt(pt["cpl"], 0)} ₽</text>'
             )
-            prev = (cost, leads)
         note = (
             '<div style="font-size:11px;color:#94a3b8;margin-top:8px;">* — текущий период ещё не завершён</div>'
             if has_incomplete else ""
@@ -241,15 +246,15 @@ def render_report_html(data: dict) -> str:
         dynamics_html = f"""
     <div class="panel campaigns-panel">
       <h2>Динамика по месяцам</h2>
-      <table>
-        <thead><tr>
-          <th>Месяц</th>
-          <th class="num">Расход</th>
-          <th class="num">Лиды</th>
-          <th class="num">CPL</th>
-        </tr></thead>
-        <tbody>{dyn_rows}</tbody>
-      </table>
+      <svg width="100%" viewBox="0 0 {chart_w} {chart_h}" role="img" aria-label="Тренд динамики по месяцам">
+        <rect x="0" y="0" width="{chart_w}" height="{chart_h}" rx="18" fill="#f8fafc"/>
+        <line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{chart_w - pad_r}" y2="{pad_t + plot_h}" stroke="#e2e8f0"/>
+        {bars}
+      </svg>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:10px;color:#64748b;font-size:12px;">
+        <span style="display:inline-flex;width:10px;height:10px;border-radius:4px;background:#3464F3;"></span>
+        <span>Столбцы показывают расход, подписи — лиды и CPL по периоду.</span>
+      </div>
       {note}
     </div>"""
 

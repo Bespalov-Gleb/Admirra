@@ -173,7 +173,10 @@
               <th>CPC</th>
               <th v-if="hasYandexSummary" class="dyn-th-group">Конверсии Я</th>
               <th v-if="hasYandexSummary">CPL Я</th>
-              <th v-for="g in goals" :key="g.id" class="dyn-th-goal">{{ g.name }}</th>
+              <template v-for="g in goals" :key="g.id">
+                <th class="dyn-th-goal">{{ g.name }}</th>
+                <th class="dyn-th-goal">{{ g.name }} CPA</th>
+              </template>
             </tr>
           </thead>
           <tbody>
@@ -190,7 +193,8 @@
               <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.conversions, deltaOf(p,'ys_conv'), 'conv', 'int')"></td>
               <td v-if="hasYandexSummary" v-html="cell(adjCpl(p), deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
               <template v-for="g in goals" :key="g.id">
-                <td class="dyn-td-goal" v-html="goalCell(p, g.id)"></td>
+                <td class="dyn-td-goal" v-html="goalCountCell(p, g.id)"></td>
+                <td class="dyn-td-goal" v-html="goalCpaCell(p, g.id)"></td>
               </template>
             </tr>
           </tbody>
@@ -229,6 +233,7 @@ const metrics = [
   { key: 'impressions', label: 'Показы', color: '#f59e0b', money: false },
   { key: 'clicks', label: 'Клики', color: '#38bdf8', money: false },
   { key: 'cpc', label: 'CPC', color: '#8b5cf6', money: true },
+  { key: 'cpl', label: 'CPL', color: '#f97373', money: true },
   { key: 'leads', label: 'Конверсии', color: '#22c55e', money: false },
 ]
 
@@ -238,6 +243,8 @@ const metric = ref('cost')
 const loading = ref(false)
 const periods = ref([])
 const goals = ref([])
+const meta = ref({ history_from: null, requested_from: null, needs_backfill: false, suggested_granularity: null })
+const userTouchedGranularity = ref(false)
 const dynChartWrapRef = ref(null)
 const barTooltip = ref(null)
 
@@ -254,6 +261,10 @@ const withCostVat = (cbp, raw) => {
 }
 const adjCost = (p) => withCostVat(p.cost_by_platform, p.cost)
 const adjCpc = (p) => (p.clicks > 0 ? adjCost(p) / p.clicks : 0)
+const adjOverallCpl = (p) => {
+  const leads = Number(p.leads || 0)
+  return leads > 0 ? adjCost(p) / leads : 0
+}
 // Яндекс отдаёт расход без НДС → при НДС-режиме ×1.22, без НДС остаётся как есть.
 const adjCpl = (p) => {
   const cpl = p.yandex_summary && p.yandex_summary.cpl
@@ -267,6 +278,7 @@ const CW = 1000, CH = 320, PAD_TOP = 30, PAD_BOTTOM = 22
 const metricValue = (p) => {
   if (metric.value === 'cost') return adjCost(p)
   if (metric.value === 'cpc') return adjCpc(p)
+  if (metric.value === 'cpl') return adjOverallCpl(p)
   return Number(p[metric.value] || 0)
 }
 const maxVal = computed(() => Math.max(1, ...periods.value.map(metricValue)))
@@ -384,16 +396,21 @@ const deltaOf = (p, key) => {
   return Math.round((Number(a || 0) - Number(b || 0)) / Number(b) * 1000) / 10
 }
 
-const goalCell = (p, gid) => {
+const goalCountCell = (p, gid) => {
   const g = (p.goals || {})[gid]
   if (!g) return '<span class="dyn-cellval">—</span>'
   const gd = (p.goal_deltas || {})[gid] || {}
-  const count = `<span class="dyn-cellval">${fmtInt(g.count)}</span>${deltaChip(gd.count, 'conv')}`
+  return `<span class="dyn-cellval">${fmtInt(g.count)}</span>${deltaChip(gd.count, 'conv')}`
+}
+
+const goalCpaCell = (p, gid) => {
+  const g = (p.goals || {})[gid]
+  if (!g) return '<span class="dyn-cellval">—</span>'
+  const gd = (p.goal_deltas || {})[gid] || {}
   const cpaVal = goalCpa(p, g.count)
-  const cpa = cpaVal != null
-    ? `<span class="dyn-goal-cpa">CPA ${fmtMoney(cpaVal)}${deltaChip(gd.cpa, 'rate')}</span>`
-    : '<span class="dyn-goal-cpa">CPA —</span>'
-  return `${count}<br/>${cpa}`
+  return cpaVal != null
+    ? `<span class="dyn-cellval">${fmtMoney(cpaVal)}</span>${deltaChip(gd.cpa, 'rate')}`
+    : '<span class="dyn-cellval">—</span>'
 }
 
 // ── Загрузка ──
@@ -420,13 +437,23 @@ const fetchSeries = async () => {
     const { data } = await api.get('dashboard/dynamics-series', { params })
     periods.value = Array.isArray(data?.periods) ? data.periods : []
     goals.value = Array.isArray(data?.goals) ? data.goals : []
+    meta.value = {
+      history_from: data?.history_from || null,
+      requested_from: data?.requested_from || start,
+      needs_backfill: Boolean(data?.needs_backfill),
+      suggested_granularity: data?.suggested_granularity || null,
+    }
+    if (!userTouchedGranularity.value && data?.suggested_granularity && data.suggested_granularity !== granularity.value) {
+      granularity.value = data.suggested_granularity
+      await fetchSeries()
+    }
   } catch (e) {
     periods.value = []; goals.value = []
   } finally {
     loading.value = false
   }
 }
-const setGranularity = (g) => { granularity.value = g; fetchSeries() }
+const setGranularity = (g) => { userTouchedGranularity.value = true; granularity.value = g; fetchSeries() }
 const setHorizon = (h) => { horizon.value = h; fetchSeries() }
 
 // ── Бэкафилл истории (Phase 2) ──
@@ -448,7 +475,11 @@ const backfillLabel = computed(() => {
 const backfillHint = computed(() => {
   const b = backfill.value
   if (b.running && b.message) return b.message
+  if (meta.value.needs_backfill && meta.value.history_from) {
+    return `Данные до ${fmtDate(meta.value.history_from)} не загружены. Нажмите «Загрузить историю», чтобы догрузить период.`
+  }
   if (b.history_from) return `Данные в системе с ${fmtDate(b.history_from)}`
+  if (meta.value.history_from) return `Данные в системе с ${fmtDate(meta.value.history_from)}`
   return ''
 })
 
@@ -532,6 +563,7 @@ const onDocMousedown = (e) => {
   if (exportOpen.value && e.target && !e.target.closest('.dyn-export')) exportOpen.value = false
 }
 
+watch(() => props.clientId, () => { userTouchedGranularity.value = false })
 watch(() => [props.clientId, props.channel, props.campaignIds], () => { fetchSeries(); fetchBackfillStatus() }, { deep: true })
 onMounted(() => { fetchSeries(); fetchBackfillStatus(); document.addEventListener('mousedown', onDocMousedown) })
 onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedown', onDocMousedown) })
