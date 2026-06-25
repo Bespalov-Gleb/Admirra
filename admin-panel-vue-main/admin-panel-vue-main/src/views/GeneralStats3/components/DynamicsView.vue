@@ -108,12 +108,28 @@
               :fill="p.incomplete ? `url(#${hatchId})` : activeColor"
               :stroke="p.incomplete ? activeColor : 'none'"
               :stroke-dasharray="p.incomplete ? '3 3' : '0'"
-            />
-            <text :x="barX(i) + barW / 2" :y="CH - 6" text-anchor="middle" class="dyn-bar-label">
-              {{ shortLabel(p.label) }}
+            >
+              <title>{{ p.label }} · {{ fmtMetric(metricValue(p)) }}</title>
+            </rect>
+            <text
+              v-if="shouldShowAxisLabel(i)"
+              :x="barX(i) + barW / 2"
+              :y="CH - 6"
+              text-anchor="middle"
+              class="dyn-bar-label"
+              :class="{ 'dyn-bar-label--dense': periods.length > 12 }"
+            >
+              {{ shortAxisLabel(p.label) }}
             </text>
-            <text :x="barX(i) + barW / 2" :y="barY(i) - 4" text-anchor="middle" class="dyn-bar-value">
-              {{ fmtMetric(metricValue(p)) }}
+            <text
+              v-if="shouldShowValueLabel(i)"
+              :x="barX(i) + barW / 2"
+              :y="barY(i) - 4"
+              text-anchor="middle"
+              class="dyn-bar-value"
+              :class="{ 'dyn-bar-value--dense': periods.length > 8 }"
+            >
+              {{ fmtMetricCompact(metricValue(p)) }}
             </text>
           </g>
         </svg>
@@ -249,10 +265,36 @@ const barH = (i) => {
   return Math.max(2, (v / maxVal.value) * (CH - PAD_TOP - PAD_BOTTOM))
 }
 const barY = (i) => CH - PAD_BOTTOM - barH(i)
+const axisLabelStep = computed(() => {
+  const n = periods.value.length
+  if (n <= 6) return 1
+  if (n <= 12) return 2
+  if (n <= 20) return 3
+  if (n <= 32) return 4
+  return Math.ceil(n / 7)
+})
+const valueLabelStep = computed(() => {
+  const n = periods.value.length
+  if (n <= 6) return 1
+  if (n <= 12) return 2
+  if (n <= 24) return 4
+  return Math.ceil(n / 6)
+})
+const shouldShowAxisLabel = (index) => {
+  const n = periods.value.length
+  if (!n) return false
+  return index === 0 || index === n - 1 || index % axisLabelStep.value === 0
+}
+const shouldShowValueLabel = (index) => {
+  const n = periods.value.length
+  if (!n) return false
+  return index === 0 || index === n - 1 || index % valueLabelStep.value === 0
+}
 
 // ── Форматирование ──
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
 const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
+const nfCompact = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 })
 const fmtMoney = (v) => `${nf2.format(Number(v || 0))} ₽`
 const fmtInt = (v) => nf.format(Number(v || 0))
 const fmtPct = (v) => `${nf2.format(Number(v || 0))}%`
@@ -260,7 +302,15 @@ const fmtMetric = (v) => {
   const m = metrics.find((x) => x.key === metric.value)
   return m && m.money ? fmtMoney(v) : fmtInt(v)
 }
-const shortLabel = (label) => {
+const fmtCompact = (v) => {
+  const num = Number(v || 0)
+  return Math.abs(num) >= 10000 ? nfCompact.format(num) : nf.format(num)
+}
+const fmtMetricCompact = (v) => {
+  const m = metrics.find((x) => x.key === metric.value)
+  return m && m.money ? `${fmtCompact(v)} ₽` : fmtCompact(v)
+}
+const shortAxisLabel = (label) => {
   // «Июнь 2026» → «Июнь», недельный диапазон оставляем
   const parts = String(label).split(' ')
   return parts.length === 2 ? parts[0] : label
@@ -763,9 +813,11 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 }
 .dyn-metric-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; flex: 0 0 auto; }
 
-.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; }
-.dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
-.dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 700; }
+.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; overflow: visible; }
+.dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 700; }
+.dyn-bar-label--dense { font-size: 10px; }
+.dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 800; }
+.dyn-bar-value--dense { font-size: 9px; }
 .dyn-chart-note {
   margin-top: 0.9rem;
   display: flex;
