@@ -740,6 +740,13 @@
               >
                 {{ campaign.sourceLabel }}
               </button>
+              <span
+                v-if="campaign.hierarchyUnavailable"
+                class="campaign-no-drill-badge"
+                :title="campaign.hierarchyUnavailableReason"
+              >
+                Без детализации
+              </span>
             </span>
           </span>
           <span>{{ campaign.cost }} <b v-if="campaign.trendCost" :class="{ negative: campaign.trendCost.negative }"><component :is="campaign.trendCost.icon" />{{ campaign.trendCost.text }}</b></span>
@@ -2536,6 +2543,10 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
   const rootTint = parent?.tint || tints[index % tints.length]
   const conversionsEstimated = campaign.conversions_estimated === true || campaign.conversionsEstimated === true
   const conversionsAttributed = campaign.conversions_attributed !== false || conversionsEstimated
+  const hierarchyUnavailable = campaign.hierarchy_unavailable === true || campaign.hierarchyUnavailable === true
+  const hierarchyUnavailableReason = campaign.hierarchy_unavailable_reason
+    || campaign.hierarchyUnavailableReason
+    || 'Для этого типа кампаний Яндекс API отдаёт статистику только на уровне кампании'
   const conversions = Number(campaign.conversions ?? campaign.leads ?? 0)
   const hasPositiveLeads = conversionsAttributed && conversions > 0
   const sourceId = campaign.source_id || campaign.sourceId || (nodeLevel !== 'campaign' ? campaign.id : null)
@@ -2571,7 +2582,9 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     cpa: hasPositiveLeads ? formatMoney(withVat(campaign.cpa, { platform: campaign.platform })) : '—',
     conversionsAttributed,
     conversionsEstimated,
-    canExpand: Boolean(campaign.has_children) && nodeLevel !== 'ad',
+    hierarchyUnavailable,
+    hierarchyUnavailableReason,
+    canExpand: Boolean(campaign.has_children) && nodeLevel !== 'ad' && !hierarchyUnavailable,
     trendCost: isRoot ? campaignTrend(campaign.trend_cost, 'cost') : null,
     trendImpressions: isRoot ? campaignTrend(campaign.trend_impressions, 'impressions') : null,
     trendClicks: isRoot ? campaignTrend(campaign.trend_clicks, 'clicks') : null,
@@ -6867,6 +6880,22 @@ onMounted(() => {
   color: #22a85a;
 }
 
+.campaign-no-drill-badge {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  max-width: 12rem;
+  min-height: 1.45rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #8d95a5;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .campaign-estimate-badge {
   display: inline-flex;
   align-items: center;
@@ -7864,6 +7893,13 @@ onMounted(() => {
 .campaign-source-id {
   max-width: 12.5rem;
   font-size: 0.625rem;
+}
+
+.campaign-no-drill-badge {
+  max-width: 8.3333rem;
+  min-height: 1.0069rem;
+  padding: 0 0.3819rem;
+  font-size: 0.5417rem;
 }
 
 .campaign-estimate-badge {

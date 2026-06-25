@@ -1040,15 +1040,28 @@ class StatsService:
 
         if platform in ["all", "yandex"]:
             y_results = run_yandex_query(d_start, d_end)
-            y_group_campaign_ids_q = db.query(models.YandexGroups.campaign_id).filter(
+            y_group_campaign_rows_q = db.query(
+                models.YandexGroups.campaign_id,
+                models.YandexGroups.group_id,
+            ).filter(
                 models.YandexGroups.client_id.in_(client_ids),
                 models.YandexGroups.campaign_id.isnot(None),
             )
             if d_start:
-                y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date >= d_start)
+                y_group_campaign_rows_q = y_group_campaign_rows_q.filter(models.YandexGroups.date >= d_start)
             if d_end:
-                y_group_campaign_ids_q = y_group_campaign_ids_q.filter(models.YandexGroups.date <= d_end)
-            y_group_campaign_ids = {str(row[0]) for row in y_group_campaign_ids_q.distinct().all() if row and row[0]}
+                y_group_campaign_rows_q = y_group_campaign_rows_q.filter(models.YandexGroups.date <= d_end)
+            y_group_campaign_ids = set()
+            y_group_any_campaign_ids = set()
+            for row in y_group_campaign_rows_q.distinct().all():
+                if not row or not row[0]:
+                    continue
+                cid = str(row[0])
+                group_id = str(row[1] or "").strip()
+                y_group_any_campaign_ids.add(cid)
+                if group_id and group_id != "--":
+                    y_group_campaign_ids.add(cid)
+            y_hierarchy_unavailable_campaign_ids = y_group_any_campaign_ids - y_group_campaign_ids
             yandex_conversion_overrides = yandex_conversion_overrides or {}
             yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
             total_yandex_metrika_convs = get_metrika_convs(d_start, d_end)
@@ -1099,12 +1112,19 @@ class StatsService:
                     prev_cost = prev_clicks = prev_imps = prev_ctr = prev_convs = prev_cpc = prev_cpa = 0
 
                 raw_name = (r.campaign_display_name or r.campaign_name or "").strip()
+                has_real_children = str(r.campaign_id) in y_group_campaign_ids
+                hierarchy_unavailable = str(r.campaign_id) in y_hierarchy_unavailable_campaign_ids
                 campaigns.append({
                     "id": cid,
                     "platform": "yandex",
                     "level": "campaign",
                     "source_id": getattr(r, "campaign_external_id", None),
-                    "has_children": bool(getattr(r, "campaign_external_id", None)) or str(r.campaign_id) in y_group_campaign_ids,
+                    "has_children": has_real_children,
+                    "hierarchy_unavailable": hierarchy_unavailable,
+                    "hierarchy_unavailable_reason": (
+                        "API Яндекс Директа отдаёт статистику только на уровне кампании"
+                        if hierarchy_unavailable else None
+                    ),
                     "conversions_attributed": True,
                     "name": f"[ЯД] {raw_name or 'Без названия'}",
                     "impressions": imps,

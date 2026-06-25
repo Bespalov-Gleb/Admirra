@@ -736,6 +736,8 @@ class CampaignStat(BaseModel):
     level: Optional[str] = "campaign"
     source_id: Optional[str] = None
     has_children: bool = False
+    hierarchy_unavailable: bool = False
+    hierarchy_unavailable_reason: Optional[str] = None
     conversions_attributed: bool = True
     conversions_estimated: bool = False
     name: str
