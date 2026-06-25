@@ -730,22 +730,24 @@
                 {{ campaign.name }}
                 <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
               </span>
-              <button
-                v-if="campaign.sourceId"
-                type="button"
-                class="campaign-source-id"
-                :class="{ copied: copiedCampaignSourceId === campaign.sourceId }"
-                title="Скопировать ID"
-                @click.stop="copyCampaignSourceId(campaign.sourceId)"
-              >
-                {{ campaign.sourceLabel }}
-              </button>
-              <span
-                v-if="campaign.hierarchyUnavailable"
-                class="campaign-no-drill-badge"
-                :title="campaign.hierarchyUnavailableReason"
-              >
-                Без детализации
+              <span v-if="campaign.sourceId || campaign.hierarchyUnavailable" class="campaign-meta-line">
+                <button
+                  v-if="campaign.sourceId"
+                  type="button"
+                  class="campaign-source-id"
+                  :class="{ copied: copiedCampaignSourceId === campaign.sourceId }"
+                  title="Скопировать ID"
+                  @click.stop="copyCampaignSourceId(campaign.sourceId)"
+                >
+                  {{ campaign.sourceLabel }}
+                </button>
+                <span
+                  v-if="campaign.hierarchyUnavailable"
+                  class="campaign-no-drill-badge"
+                  :title="campaign.hierarchyUnavailableReason"
+                >
+                  Без детализации
+                </span>
               </span>
             </span>
           </span>
@@ -6672,6 +6674,7 @@ onMounted(() => {
   align-items: center;
   min-width: 0;
   padding-right: 1rem;
+  font-size: 1.08rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -6815,7 +6818,7 @@ onMounted(() => {
 
 .campaign-name-stack {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.38rem;
   min-width: 0;
 }
 
@@ -6824,6 +6827,15 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 800;
+}
+
+.campaign-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .campaign-tree-toggle,
@@ -6862,14 +6874,14 @@ onMounted(() => {
 }
 
 .campaign-source-id {
-  justify-self: start;
+  flex: 0 1 auto;
   max-width: 18rem;
   padding: 0;
   border: 0;
   background: transparent;
   color: #9aa3b2;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.98rem;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6881,17 +6893,18 @@ onMounted(() => {
 }
 
 .campaign-no-drill-badge {
-  justify-self: start;
   display: inline-flex;
   align-items: center;
-  max-width: 12rem;
-  min-height: 1.7rem;
-  padding: 0.12rem 0.76rem;
+  justify-content: center;
+  flex: 0 0 auto;
+  max-width: 14rem;
+  min-height: 2rem;
+  padding: 0.22rem 0.95rem;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
-  color: #8d95a5;
-  font-size: 0.78rem;
+  background: rgba(241, 245, 249, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
+  color: #778193;
+  font-size: 0.84rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -7815,10 +7828,10 @@ onMounted(() => {
 .campaign-row {
   grid-template-columns: minmax(19.4444rem, 2.25fr) repeat(7, minmax(6.25rem, 1fr));
   min-width: 84.0278rem;
-  min-height: 3.4722rem;
+  min-height: 3.72rem;
   padding: 0 1.3889rem;
   border-radius: 0.6944rem;
-  font-size: 0.8333rem;
+  font-size: 0.92rem;
 }
 
 .campaign-row b {
@@ -7833,11 +7846,12 @@ onMounted(() => {
 }
 
 .campaign-row--child {
-  min-height: 3.125rem;
+  min-height: 3.35rem;
 }
 
 .campaign-header-cell {
   padding-right: 0.6944rem;
+  font-size: 0.82rem;
 }
 
 .campaign-column-resizer {
@@ -7879,6 +7893,14 @@ onMounted(() => {
   gap: 0.5208rem;
 }
 
+.campaign-name-stack {
+  gap: 0.32rem;
+}
+
+.campaign-meta-line {
+  gap: 0.45rem;
+}
+
 .campaign-tree-toggle,
 .campaign-tree-placeholder {
   width: 1.5278rem;
@@ -7892,15 +7914,15 @@ onMounted(() => {
 }
 
 .campaign-source-id {
-  max-width: 12.5rem;
-  font-size: 0.625rem;
+  max-width: 13.8889rem;
+  font-size: 0.7rem;
 }
 
 .campaign-no-drill-badge {
-  max-width: 8.3333rem;
-  min-height: 1.1806rem;
-  padding: 0.0833rem 0.5278rem;
-  font-size: 0.5417rem;
+  max-width: 9.7222rem;
+  min-height: 1.42rem;
+  padding: 0.12rem 0.68rem;
+  font-size: 0.64rem;
 }
 
 .campaign-estimate-badge {
