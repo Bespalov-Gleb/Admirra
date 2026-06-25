@@ -458,6 +458,7 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   display: flex;
   flex-direction: column;
   gap: 1.65rem;
+  margin-top: 1.25rem;
 }
 
 .dyn-controls {
