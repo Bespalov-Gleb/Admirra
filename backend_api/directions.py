@@ -225,7 +225,7 @@ def suggest_directions(
 
 
 @router.get("/stats", response_model=schemas.DirectionStatsResponse)
-def get_direction_stats(
+async def get_direction_stats(
     client_id: uuid.UUID,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -237,4 +237,34 @@ def get_direction_stats(
     client = _client_or_404(db, client_id)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
-    return direction_service.direction_stats(db, client, d_start, d_end, platform=platform)
+
+    # ТЗ «Направления» §4.5: направление = сумма фактических лидов своих кампаний
+    # из Метрики. Строим те же per-campaign Metrika-оверрайды, что и таблица
+    # кампаний, чтобы разбивка по направлениям совпадала с ней.
+    from backend_api.stats import (
+        _build_yandex_campaign_conversion_overrides,
+        _build_avito_campaign_conversion_overrides,
+    )
+    client_ids = [client.id]
+    y_ov = y_prev = a_ov = a_prev = None
+    prev_start = prev_end = None
+    if d_start:
+        delta = (d_end - d_start).days + 1
+        prev_start = d_start - timedelta(days=delta)
+        prev_end = d_start - timedelta(days=1)
+    if platform in ("all", "yandex"):
+        y_ov = await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        if prev_start:
+            y_prev = await _build_yandex_campaign_conversion_overrides(db, client_ids, prev_start, prev_end)
+    if platform in ("all", "avito"):
+        a_ov = await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        if prev_start:
+            a_prev = await _build_avito_campaign_conversion_overrides(db, client_ids, prev_start, prev_end)
+
+    return direction_service.direction_stats(
+        db, client, d_start, d_end, platform=platform,
+        yandex_conversion_overrides=y_ov,
+        yandex_prev_conversion_overrides=y_prev,
+        avito_conversion_overrides=a_ov,
+        avito_prev_conversion_overrides=a_prev,
+    )

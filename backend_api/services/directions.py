@@ -269,6 +269,10 @@ def direction_stats(
     d_start: date | None,
     d_end: date,
     platform: str = "all",
+    yandex_conversion_overrides: dict | None = None,
+    yandex_prev_conversion_overrides: dict | None = None,
+    avito_conversion_overrides: dict | None = None,
+    avito_prev_conversion_overrides: dict | None = None,
 ) -> dict:
     matches = build_direction_matches(db, client.id, platform=platform, include_inactive=True)
     label_key = normalize_label(client.direction_label)
@@ -292,6 +296,10 @@ def direction_stats(
             "items": [],
         }
 
+    # По ТЗ «Направления» §4.5: конверсии приходят в разрезе кампании, а
+    # направление = сумма лидов своих кампаний. Поэтому считаем кампании той же
+    # точной Metrika-атрибуцией (оверрайды), что и таблица кампаний — иначе
+    # разбивка расходится с таблицей (раньше тут был грубый fallback по бюджету).
     stats = StatsService.get_campaign_stats(
         db,
         [client.id],
@@ -299,6 +307,10 @@ def direction_stats(
         d_end,
         platform=platform,
         campaign_ids=[uuid.UUID(cid) for cid in all_campaign_ids],
+        yandex_conversion_overrides=yandex_conversion_overrides,
+        yandex_prev_conversion_overrides=yandex_prev_conversion_overrides,
+        avito_conversion_overrides=avito_conversion_overrides,
+        avito_prev_conversion_overrides=avito_prev_conversion_overrides,
     )
     stat_by_id = {str(item.get("id")): item for item in stats}
     total_expenses = sum(float(item.get("cost") or 0) for item in stats)
