@@ -6651,11 +6651,11 @@ onMounted(() => {
   grid-template-columns: minmax(28rem, 2.35fr) repeat(7, minmax(9rem, 1fr));
   align-items: center;
   min-width: 132rem;
-  min-height: 5.6rem;
+  min-height: 5.95rem;
   padding: 0 2.5rem;
   border-radius: 1rem;
   color: #4b4b4b;
-  font-size: 1.3rem;
+  font-size: 1.38rem;
 }
 
 .campaign-row.header {
@@ -6674,7 +6674,7 @@ onMounted(() => {
   align-items: center;
   min-width: 0;
   padding-right: 1rem;
-  font-size: 1.08rem;
+  font-size: 1.15rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -6731,7 +6731,7 @@ onMounted(() => {
 }
 
 .campaign-row--child {
-  min-height: 5.1rem;
+  min-height: 5.45rem;
   background: #f7f9fd !important;
   color: #5c6472;
 }
@@ -6741,7 +6741,7 @@ onMounted(() => {
 }
 
 .campaign-row--empty {
-  min-height: 4.6rem;
+  min-height: 4.9rem;
   background: #f8fafc !important;
   color: #9aa3b2;
   font-weight: 600;
@@ -6880,7 +6880,7 @@ onMounted(() => {
   border: 0;
   background: transparent;
   color: #9aa3b2;
-  font-size: 0.98rem;
+  font-size: 1.04rem;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6897,14 +6897,14 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  max-width: 14rem;
-  min-height: 2rem;
-  padding: 0.22rem 0.95rem;
+  max-width: 14.8rem;
+  min-height: 2.14rem;
+  padding: 0.25rem 1.04rem;
   border-radius: 999px;
   background: rgba(241, 245, 249, 0.92);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
   color: #778193;
-  font-size: 0.84rem;
+  font-size: 0.89rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -7828,10 +7828,10 @@ onMounted(() => {
 .campaign-row {
   grid-template-columns: minmax(19.4444rem, 2.25fr) repeat(7, minmax(6.25rem, 1fr));
   min-width: 84.0278rem;
-  min-height: 3.72rem;
+  min-height: 3.95rem;
   padding: 0 1.3889rem;
   border-radius: 0.6944rem;
-  font-size: 0.92rem;
+  font-size: 0.98rem;
 }
 
 .campaign-row b {
@@ -7846,12 +7846,12 @@ onMounted(() => {
 }
 
 .campaign-row--child {
-  min-height: 3.35rem;
+  min-height: 3.57rem;
 }
 
 .campaign-header-cell {
   padding-right: 0.6944rem;
-  font-size: 0.82rem;
+  font-size: 0.87rem;
 }
 
 .campaign-column-resizer {
@@ -7915,14 +7915,14 @@ onMounted(() => {
 
 .campaign-source-id {
   max-width: 13.8889rem;
-  font-size: 0.7rem;
+  font-size: 0.745rem;
 }
 
 .campaign-no-drill-badge {
-  max-width: 9.7222rem;
-  min-height: 1.42rem;
-  padding: 0.12rem 0.68rem;
-  font-size: 0.64rem;
+  max-width: 10.35rem;
+  min-height: 1.51rem;
+  padding: 0.14rem 0.73rem;
+  font-size: 0.68rem;
 }
 
 .campaign-estimate-badge {
