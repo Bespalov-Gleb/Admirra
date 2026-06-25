@@ -2,25 +2,33 @@
   <div class="dyn">
     <!-- Контролы: гранулярность + горизонт -->
     <div class="dyn-controls">
-      <div class="dyn-seg" role="tablist" aria-label="Гранулярность">
-        <button
-          v-for="g in granularities"
-          :key="g.value"
-          type="button"
-          class="dyn-seg__btn"
-          :class="{ 'dyn-seg__btn--active': granularity === g.value }"
-          @click="setGranularity(g.value)"
-        >{{ g.label }}</button>
-      </div>
-      <div class="dyn-seg" role="tablist" aria-label="Горизонт">
-        <button
-          v-for="h in horizons"
-          :key="h.value"
-          type="button"
-          class="dyn-seg__btn"
-          :class="{ 'dyn-seg__btn--active': horizon === h.value }"
-          @click="setHorizon(h.value)"
-        >{{ h.label }}</button>
+      <div class="dyn-controls__left">
+        <div class="dyn-control-group">
+          <span class="dyn-control-label">Период</span>
+          <div class="dyn-seg" role="tablist" aria-label="Гранулярность">
+            <button
+              v-for="g in granularities"
+              :key="g.value"
+              type="button"
+              class="dyn-seg__btn"
+              :class="{ 'dyn-seg__btn--active': granularity === g.value }"
+              @click="setGranularity(g.value)"
+            >{{ g.label }}</button>
+          </div>
+        </div>
+        <div class="dyn-control-group">
+          <span class="dyn-control-label">Горизонт</span>
+          <div class="dyn-seg" role="tablist" aria-label="Горизонт">
+            <button
+              v-for="h in horizons"
+              :key="h.value"
+              type="button"
+              class="dyn-seg__btn"
+              :class="{ 'dyn-seg__btn--active': horizon === h.value }"
+              @click="setHorizon(h.value)"
+            >{{ h.label }}</button>
+          </div>
+        </div>
       </div>
 
       <div class="dyn-controls__right">
@@ -114,6 +122,12 @@
 
     <!-- Таблица периодов -->
     <section v-if="periods.length" class="panel dyn-table-panel">
+      <div class="dyn-table-head">
+        <div>
+          <h2>История по периодам</h2>
+          <p>Значения и динамика к предыдущему периоду</p>
+        </div>
+      </div>
       <div class="dyn-table-wrap">
         <table class="dyn-table">
           <thead>
@@ -436,87 +450,377 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 </script>
 
 <style scoped>
-.dyn { display: flex; flex-direction: column; gap: 1.6rem; }
+.dyn {
+  display: flex;
+  flex-direction: column;
+  gap: 1.65rem;
+}
 
-.dyn-controls { display: flex; gap: 1rem; flex-wrap: wrap; }
+.dyn-controls {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  padding: 1.05rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 0.65rem 1.8rem rgba(15, 23, 42, 0.035);
+}
+
+.dyn-controls__left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.dyn-control-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dyn-control-label {
+  padding-left: 0.15rem;
+  color: #9aa3b2;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
 .dyn-seg {
-  display: inline-flex; gap: 0.3rem; padding: 0.3rem;
-  border-radius: 999px; background: rgba(37, 99, 235, 0.06);
+  display: inline-flex;
+  gap: 0.28rem;
+  padding: 0.32rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  background: rgba(244, 247, 251, 0.92);
 }
+
 .dyn-seg__btn {
-  min-height: 2.4rem; padding: 0 1.1rem; border: 0; border-radius: 999px;
-  background: transparent; color: #8d95a5; font-size: 0.95rem; font-weight: 700; cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  min-height: 2.35rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8d95a5;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
-.dyn-seg__btn--active { background: #fff; color: #2563eb; box-shadow: 0 0.3rem 0.9rem rgba(37, 99, 235, 0.12); }
 
-.dyn-controls__right { display: inline-flex; align-items: center; gap: 0.8rem; margin-left: auto; flex-wrap: wrap; }
-.dyn-capture { display: flex; flex-direction: column; gap: 1.6rem; }
-.dyn-backfill { display: inline-flex; align-items: center; gap: 0.8rem; }
+.dyn-seg__btn:hover {
+  color: #2563eb;
+}
 
-.dyn-export { position: relative; }
+.dyn-seg__btn--active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.35rem 0.95rem rgba(37, 99, 235, 0.12);
+}
+
+.dyn-controls__right {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.dyn-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 1.65rem;
+}
+
+.dyn-backfill {
+  display: grid;
+  gap: 0.32rem;
+  justify-items: end;
+}
+
+.dyn-export {
+  position: relative;
+}
+
 .dyn-export__btn {
-  display: inline-flex; align-items: center; gap: 0.5rem; min-height: 3rem; padding: 0 1.4rem;
-  border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 999px; background: #fff;
-  color: #172033; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: background 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.95rem;
+  padding: 0 1.28rem;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 999px;
+  background: #fff;
+  color: #172033;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.045);
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
 }
-.dyn-export__btn:hover:not(:disabled) { background: rgba(148, 163, 184, 0.08); }
-.dyn-export__btn:disabled { opacity: 0.5; cursor: default; }
-.dyn-export__chev { font-size: 0.8rem; color: #8d95a5; }
+
+.dyn-export__btn:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.04);
+  color: #2563eb;
+}
+
+.dyn-export__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dyn-export__chev {
+  font-size: 0.8rem;
+  color: #8d95a5;
+  transition: transform 0.16s ease;
+}
+
+.dyn-export--open .dyn-export__chev {
+  transform: rotate(180deg);
+}
+
 .dyn-export__menu {
-  position: absolute; top: calc(100% + 0.4rem); right: 0; z-index: 20; min-width: 14rem;
-  display: flex; flex-direction: column; padding: 0.4rem; border-radius: 0.9rem;
-  background: #fff; box-shadow: 0 1rem 2.4rem rgba(15, 23, 42, 0.16); border: 1px solid rgba(148, 163, 184, 0.16);
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: 20;
+  min-width: 14rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.42rem;
+  border-radius: 0.95rem;
+  background: #fff;
+  box-shadow: 0 1rem 2.4rem rgba(15, 23, 42, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
+
 .dyn-export__menu button {
-  text-align: left; min-height: 2.6rem; padding: 0 0.9rem; border: 0; border-radius: 0.6rem;
-  background: transparent; color: #172033; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  text-align: left;
+  min-height: 2.55rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: #172033;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
 }
-.dyn-export__menu button:hover { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
+
+.dyn-export__menu button:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+}
+
 .dyn-backfill__btn {
-  display: inline-flex; align-items: center; gap: 0.55rem; min-height: 3rem; padding: 0 1.4rem;
-  border: 1px solid rgba(37, 99, 235, 0.3); border-radius: 999px; background: #fff;
-  color: #2563eb; font-size: 0.95rem; font-weight: 700; cursor: pointer;
-  transition: background 0.16s ease, opacity 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 2.95rem;
+  padding: 0 1.28rem;
+  border: 1px solid rgba(37, 99, 235, 0.26);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(20, 184, 166, 0.08));
+  color: #2563eb;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s ease, opacity 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
-.dyn-backfill__btn:hover:not(:disabled) { background: rgba(37, 99, 235, 0.06); }
-.dyn-backfill__btn:disabled { opacity: 0.55; cursor: default; }
-.dyn-backfill__btn--busy { color: #8d95a5; }
+
+.dyn-backfill__btn:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(20, 184, 166, 0.12));
+  box-shadow: 0 0.45rem 1.1rem rgba(37, 99, 235, 0.12);
+}
+
+.dyn-backfill__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dyn-backfill__btn--busy {
+  color: #64748b;
+}
 .dyn-backfill__spinner {
   width: 1.1rem; height: 1.1rem; border-radius: 999px;
   border: 2px solid rgba(37, 99, 235, 0.25); border-top-color: #2563eb;
   animation: dyn-spin 0.8s linear infinite;
 }
-.dyn-backfill__hint { color: #9aa3b2; font-size: 0.86rem; font-weight: 600; }
+.dyn-backfill__hint {
+  max-width: 19rem;
+  color: #9aa3b2;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: right;
+}
 @keyframes dyn-spin { to { transform: rotate(360deg); } }
 
-.panel { background: #fff; border-radius: 1.4rem; padding: 1.8rem 2rem; }
-.dyn-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
-.dyn-chart-head h2 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #172033; }
-.dyn-metric-chips { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; }
-.dyn-metric-chip {
-  display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.3rem; padding: 0 0.9rem;
-  border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: #fff;
-  color: #64748b; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: all 0.16s ease;
+.panel {
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 1.45rem;
+  padding: 1.85rem 2rem;
+  box-shadow: 0 0.9rem 2rem rgba(15, 23, 42, 0.035);
 }
-.dyn-metric-chip--active { border-color: transparent; background: rgba(37, 99, 235, 0.08); color: #172033; box-shadow: 0 0.25rem 0.8rem rgba(37, 99, 235, 0.1); }
+
+.dyn-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.35rem;
+}
+
+.dyn-chart-head h2,
+.dyn-table-head h2 {
+  margin: 0;
+  font-size: 1.38rem;
+  font-weight: 900;
+  color: #172033;
+}
+
+.dyn-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dyn-table-head p {
+  margin: 0.32rem 0 0;
+  color: #9aa3b2;
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.dyn-metric-chips {
+  display: inline-flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dyn-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.dyn-metric-chip:hover {
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #2563eb;
+}
+
+.dyn-metric-chip--active {
+  border-color: transparent;
+  background: rgba(37, 99, 235, 0.08);
+  color: #172033;
+  box-shadow: 0 0.25rem 0.8rem rgba(37, 99, 235, 0.1);
+}
 .dyn-metric-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; flex: 0 0 auto; }
 
 .dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; }
 .dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
 .dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 700; }
-.dyn-chart-note { margin-top: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #9aa3b2; font-size: 0.86rem; font-weight: 600; }
+.dyn-chart-note {
+  margin-top: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9aa3b2;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
 .dyn-empty { padding: 4rem 0; text-align: center; color: #9aa3b2; font-size: 1rem; font-weight: 600; }
 
-.dyn-table-wrap { overflow-x: auto; }
-.dyn-table { width: 100%; border-collapse: collapse; font-size: 1.04rem; }
-.dyn-table th, .dyn-table td { padding: 0.85rem 1rem; text-align: left; white-space: nowrap; }
-.dyn-table thead th { color: #b3b3b3; font-weight: 700; font-size: 0.92rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); }
-.dyn-table tbody tr { border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
-.dyn-th-sticky, .dyn-td-sticky { position: sticky; left: 0; background: #fff; z-index: 1; font-weight: 700; color: #172033; }
+.dyn-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 1rem;
+  background: #fff;
+}
+
+.dyn-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 1rem;
+}
+
+.dyn-table th,
+.dyn-table td {
+  padding: 0.9rem 1rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dyn-table thead th {
+  color: #8d95a5;
+  font-weight: 800;
+  font-size: 0.86rem;
+  background: rgba(247, 249, 252, 0.92);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.dyn-table tbody tr {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.dyn-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.025);
+}
+
+.dyn-table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.dyn-th-sticky,
+.dyn-td-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  font-weight: 800;
+  color: #172033;
+}
+
+.dyn-th-sticky {
+  background: #f7f9fc;
+}
+
+.dyn-td-sticky {
+  background: #fff;
+}
+
+.dyn-table tbody tr:hover .dyn-td-sticky,
+.dyn-row--incomplete .dyn-td-sticky {
+  background: #f7faff;
+}
 .dyn-th-goal, .dyn-td-goal { border-left: 1px solid rgba(148, 163, 184, 0.14); }
 .dyn-th-group { border-left: 1px solid rgba(148, 163, 184, 0.14); }
-.dyn-row--incomplete { background: rgba(37, 99, 235, 0.03); }
+.dyn-row--incomplete { background: rgba(37, 99, 235, 0.035); }
 .dyn-incomplete-badge {
   margin-left: 0.5rem; padding: 0.1rem 0.5rem; border-radius: 0.5rem; font-style: normal;
   font-size: 0.74rem; font-weight: 700; color: #2563eb; background: rgba(37, 99, 235, 0.1);
@@ -527,4 +831,63 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 :deep(.dyn-delta--neutral) { color: #9aa3b2; }
 :deep(.dyn-delta--good) { color: #22a85a; }
 :deep(.dyn-delta--bad) { color: #ef4444; }
+
+@media (max-width: 980px) {
+  .dyn-controls,
+  .dyn-controls__left,
+  .dyn-controls__right {
+    width: 100%;
+  }
+
+  .dyn-controls__right {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .dyn-backfill {
+    justify-items: start;
+  }
+
+  .dyn-backfill__hint {
+    text-align: left;
+  }
+
+  .dyn-chart-head {
+    align-items: stretch;
+  }
+
+  .dyn-metric-chips {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .dyn-controls {
+    padding: 0.85rem;
+    border-radius: 1rem;
+  }
+
+  .dyn-control-group,
+  .dyn-seg,
+  .dyn-backfill,
+  .dyn-backfill__btn,
+  .dyn-export,
+  .dyn-export__btn {
+    width: 100%;
+  }
+
+  .dyn-seg {
+    justify-content: space-between;
+  }
+
+  .dyn-seg__btn {
+    flex: 1;
+    padding: 0 0.7rem;
+  }
+
+  .panel {
+    padding: 1.25rem;
+    border-radius: 1.1rem;
+  }
+}
 </style>
