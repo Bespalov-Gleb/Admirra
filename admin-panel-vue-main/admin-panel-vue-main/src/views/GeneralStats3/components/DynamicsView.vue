@@ -94,45 +94,58 @@
         Накапливаем данные — динамика появится по мере истории.
       </div>
       <template v-else>
-        <svg class="dyn-chart" :viewBox="`0 0 ${CW} ${CH}`" role="img" aria-label="График динамики">
-          <defs>
-            <pattern :id="hatchId" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="6" height="6" :fill="activeColor" opacity="0.18" />
-              <line x1="0" y1="0" x2="0" y2="6" :stroke="activeColor" stroke-width="2" opacity="0.6" />
-            </pattern>
-          </defs>
-          <g v-for="(p, i) in periods" :key="p.start">
-            <rect
-              :x="barX(i)" :y="barY(i)" :width="barW" :height="barH(i)"
-              rx="3"
-              :fill="p.incomplete ? `url(#${hatchId})` : activeColor"
-              :stroke="p.incomplete ? activeColor : 'none'"
-              :stroke-dasharray="p.incomplete ? '3 3' : '0'"
-            >
-              <title>{{ p.label }} · {{ fmtMetric(metricValue(p)) }}</title>
-            </rect>
-            <text
-              v-if="shouldShowAxisLabel(i)"
-              :x="barX(i) + barW / 2"
-              :y="CH - 6"
-              text-anchor="middle"
-              class="dyn-bar-label"
-              :class="{ 'dyn-bar-label--dense': periods.length > 12 }"
-            >
-              {{ shortAxisLabel(p.label) }}
-            </text>
-            <text
-              v-if="shouldShowValueLabel(i)"
-              :x="barX(i) + barW / 2"
-              :y="barY(i) - 4"
-              text-anchor="middle"
-              class="dyn-bar-value"
-              :class="{ 'dyn-bar-value--dense': periods.length > 8 }"
-            >
-              {{ fmtMetricCompact(metricValue(p)) }}
-            </text>
-          </g>
-        </svg>
+        <div ref="dynChartWrapRef" class="dyn-chart-wrap" @mouseleave="hideBarTooltip">
+          <svg class="dyn-chart" :viewBox="`0 0 ${CW} ${CH}`" role="img" aria-label="График динамики">
+            <defs>
+              <pattern :id="hatchId" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="6" height="6" :fill="activeColor" opacity="0.18" />
+                <line x1="0" y1="0" x2="0" y2="6" :stroke="activeColor" stroke-width="2" opacity="0.6" />
+              </pattern>
+            </defs>
+            <g v-for="(p, i) in periods" :key="p.start">
+              <rect
+                :x="barX(i)" :y="barY(i)" :width="barW" :height="barH(i)"
+                rx="3"
+                class="dyn-bar-rect"
+                :fill="p.incomplete ? `url(#${hatchId})` : activeColor"
+                :stroke="p.incomplete ? activeColor : 'none'"
+                :stroke-dasharray="p.incomplete ? '3 3' : '0'"
+                @mouseenter="showBarTooltip($event, p)"
+                @mousemove="showBarTooltip($event, p)"
+                @focus="showBarTooltip($event, p)"
+                @blur="hideBarTooltip"
+              />
+              <text
+                v-if="shouldShowAxisLabel(i)"
+                :x="barX(i) + barW / 2"
+                :y="CH - 6"
+                text-anchor="middle"
+                class="dyn-bar-label"
+                :class="{ 'dyn-bar-label--dense': periods.length > 12 }"
+              >
+                {{ shortAxisLabel(p.label) }}
+              </text>
+              <text
+                v-if="shouldShowValueLabel(i)"
+                :x="barX(i) + barW / 2"
+                :y="barY(i) - 4"
+                text-anchor="middle"
+                class="dyn-bar-value"
+                :class="{ 'dyn-bar-value--dense': periods.length > 8 }"
+              >
+                {{ fmtMetricCompact(metricValue(p)) }}
+              </text>
+            </g>
+          </svg>
+          <div
+            v-if="barTooltip"
+            class="dyn-bar-tooltip"
+            :style="{ left: `${barTooltip.x}px`, top: `${barTooltip.y}px` }"
+          >
+            <span>{{ barTooltip.period }}</span>
+            <strong>{{ activeMetricLabel }}: {{ barTooltip.value }}</strong>
+          </div>
+        </div>
         <div class="dyn-chart-note">
           <span class="dyn-metric-dot" :style="{ background: activeColor }"></span>
           Цвет столбцов — по выбранной метрике. Штриховка — неполный (текущий) период.
@@ -225,8 +238,11 @@ const metric = ref('cost')
 const loading = ref(false)
 const periods = ref([])
 const goals = ref([])
+const dynChartWrapRef = ref(null)
+const barTooltip = ref(null)
 
 const activeColor = computed(() => (metrics.find((m) => m.key === metric.value) || metrics[0]).color)
+const activeMetricLabel = computed(() => (metrics.find((m) => m.key === metric.value) || metrics[0]).label)
 const hatchId = 'dyn-hatch'
 const hasYandexSummary = computed(() => periods.value.some((p) => p.yandex_summary))
 
@@ -289,6 +305,24 @@ const shouldShowValueLabel = (index) => {
   const n = periods.value.length
   if (!n) return false
   return index === 0 || index === n - 1 || index % valueLabelStep.value === 0
+}
+const showBarTooltip = (event, period) => {
+  const wrap = dynChartWrapRef.value
+  if (!wrap || !period) return
+  const rect = wrap.getBoundingClientRect()
+  const rawX = event.clientX - rect.left + 14
+  const rawY = event.clientY - rect.top - 56
+  const x = Math.max(12, Math.min(rawX, rect.width - 210))
+  const y = Math.max(12, rawY)
+  barTooltip.value = {
+    x,
+    y,
+    period: period.label,
+    value: fmtMetric(metricValue(period)),
+  }
+}
+const hideBarTooltip = () => {
+  barTooltip.value = null
 }
 
 // ── Форматирование ──
@@ -813,11 +847,50 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 }
 .dyn-metric-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; flex: 0 0 auto; }
 
+.dyn-chart-wrap {
+  position: relative;
+}
+
 .dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; overflow: visible; }
+.dyn-bar-rect {
+  cursor: default;
+  transition: opacity 0.16s ease, filter 0.16s ease;
+}
+.dyn-bar-rect:hover {
+  filter: brightness(1.04);
+  opacity: 0.92;
+}
 .dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 700; }
 .dyn-bar-label--dense { font-size: 10px; }
 .dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 800; }
 .dyn-bar-value--dense { font-size: 9px; }
+.dyn-bar-tooltip {
+  position: absolute;
+  z-index: 8;
+  min-width: 12rem;
+  max-width: 14rem;
+  padding: 0.7rem 0.82rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 1rem 2.2rem rgba(15, 23, 42, 0.14);
+  pointer-events: none;
+}
+.dyn-bar-tooltip span {
+  display: block;
+  margin-bottom: 0.28rem;
+  color: #8d95a5;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.dyn-bar-tooltip strong {
+  display: block;
+  color: #172033;
+  font-size: 0.96rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
 .dyn-chart-note {
   margin-top: 0.9rem;
   display: flex;

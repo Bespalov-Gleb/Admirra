@@ -6885,10 +6885,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   max-width: 12rem;
-  min-height: 1.45rem;
-  padding: 0 0.55rem;
+  min-height: 1.7rem;
+  padding: 0.12rem 0.76rem;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(148, 163, 184, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
   color: #8d95a5;
   font-size: 0.78rem;
   font-weight: 800;
@@ -7848,7 +7849,7 @@ onMounted(() => {
 
 .campaign-column-resizer::after {
   top: -0.1042rem;
-  right: 0.2917rem;
+  right: 0.9028rem;
   bottom: -0.1042rem;
 }
 
@@ -7897,8 +7898,8 @@ onMounted(() => {
 
 .campaign-no-drill-badge {
   max-width: 8.3333rem;
-  min-height: 1.0069rem;
-  padding: 0 0.3819rem;
+  min-height: 1.1806rem;
+  padding: 0.0833rem 0.5278rem;
   font-size: 0.5417rem;
 }
 
