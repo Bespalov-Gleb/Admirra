@@ -3077,17 +3077,32 @@ const parseOptionalNumber = (value) => {
   return Number.isFinite(num) ? num : NaN
 }
 
+const dashboardGoalItems = computed(() => {
+  if (!selectedDirection.value && Array.isArray(directionStats.value.items) && directionStats.value.items.length) {
+    return directionStats.value.items
+      .filter((item) => Number(item.leads || 0) > 0 || Number(item.expenses || 0) > 0)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        count: Number(item.leads || 0),
+        trend: item.trend,
+        cost: Number(item.expenses || 0),
+      }))
+  }
+  return reportGoals.value
+})
+
 const goals = computed(() => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
-  if (!reportGoals.value.length) return []
-  const total = reportGoals.value.reduce((sum, item) => {
+  if (!dashboardGoalItems.value.length) return []
+  const total = dashboardGoalItems.value.reduce((sum, item) => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
-  return reportGoals.value.map((goal, index) => {
+  return dashboardGoalItems.value.map((goal, index) => {
     const count = parseOptionalNumber(goal.count ?? goal.conversions ?? goal.value)
     const safeCount = Number.isFinite(count) ? count : 0
-    const pct = total > 0 ? (safeCount / total) * 100 : (100 / reportGoals.value.length)
+    const pct = total > 0 ? (safeCount / total) * 100 : (100 / dashboardGoalItems.value.length)
     const color = goal.color || colors[index % colors.length]
     return {
       id: goal.id || goal.goal_id || goal.external_id || `${goal.name || goal.goal_name || 'goal'}-${index}`,
@@ -3122,7 +3137,7 @@ const innerDonutGradient = computed(() => {
 })
 
 const goalsTotalLabel = computed(() => {
-  const total = reportGoals.value.reduce((sum, item) => {
+  const total = dashboardGoalItems.value.reduce((sum, item) => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
@@ -3132,8 +3147,8 @@ const goalsTotalLabel = computed(() => {
 
 const goalBars = computed(() => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
-  if (!reportGoals.value.length) return []
-  const items = reportGoals.value.map((goal, index) => {
+  if (!dashboardGoalItems.value.length) return []
+  const items = dashboardGoalItems.value.map((goal, index) => {
     const count = parseOptionalNumber(goal.count ?? goal.conversions ?? goal.value)
     const safeCount = Number.isFinite(count) ? count : 0
     const trendRaw = parseOptionalNumber(goal.trend ?? goal.trend_pct)
@@ -3162,7 +3177,7 @@ const goalBars = computed(() => {
 })
 
 const goalsSummaryCpl = computed(() => {
-  const totalGoals = reportGoals.value.reduce((sum, item) => {
+  const totalGoals = dashboardGoalItems.value.reduce((sum, item) => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
