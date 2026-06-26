@@ -3357,7 +3357,8 @@ const fetchReportGoals = async () => {
       date_from: filters.start_date,
       date_to: filters.end_date,
       platform: filters.channel !== 'all' ? filters.channel : undefined,
-      campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids.join(',') : undefined
+      campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids.join(',') : undefined,
+      direction_name: selectedDirection.value?.name || undefined
     }
     const { data } = await api.get('dashboard/goals', { params })
     reportGoals.value = Array.isArray(data) ? data : (data?.goals || [])

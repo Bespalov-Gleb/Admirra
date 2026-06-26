@@ -2083,6 +2083,7 @@ async def get_goals(
     date_to: Optional[str] = None,
     platform: Optional[str] = Query("all", description="yandex | vk | avito | all"),
     campaign_ids: Optional[str] = Query(None, description="comma-separated campaign UUIDs (для VK)"),
+    direction_name: Optional[str] = Query(None, description="Selected direction name for goal narrowing"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2119,32 +2120,119 @@ async def get_goals(
     platform_key = (platform or "all").lower()
 
     if u_campaign_ids and platform_key != "vk":
-        current_rows = StatsService.get_campaign_stats(
+        campaign_integration_ids = [
+            row[0]
+            for row in db.query(models.Campaign.integration_id)
+            .filter(models.Campaign.id.in_(u_campaign_ids))
+            .distinct()
+            .all()
+            if row[0]
+        ]
+        goal_platform = platform_key
+        if platform_key == "all" and campaign_integration_ids:
+            selected_platforms = [
+                row[0]
+                for row in db.query(models.Integration.platform)
+                .filter(models.Integration.id.in_(campaign_integration_ids))
+                .distinct()
+                .all()
+            ]
+            if selected_platforms and all(p == models.IntegrationPlatform.YANDEX_DIRECT for p in selected_platforms):
+                goal_platform = "yandex"
+            elif selected_platforms and all(p == models.IntegrationPlatform.AVITO_ADS for p in selected_platforms):
+                goal_platform = "avito"
+
+        selected_goal_ids_for_direction = StatsService.get_selected_metrika_goal_ids(
+            db,
+            effective_client_ids,
+            goal_platform,
+        )
+        direction_key = (direction_name or "").strip().lower()
+        if direction_key and selected_goal_ids_for_direction:
+            name_q = db.query(
+                models.MetrikaGoals.goal_id,
+                models.MetrikaGoals.goal_name,
+            ).filter(
+                models.MetrikaGoals.client_id.in_(effective_client_ids),
+                models.MetrikaGoals.goal_id.in_(selected_goal_ids_for_direction),
+                models.MetrikaGoals.goal_id != "all",
+            )
+            if campaign_integration_ids:
+                name_q = name_q.filter(models.MetrikaGoals.integration_id.in_(campaign_integration_ids))
+            latest_goal_names = {}
+            for goal_id, goal_name in name_q.order_by(models.MetrikaGoals.date.desc()).all():
+                gid = str(goal_id)
+                if gid not in latest_goal_names and goal_name:
+                    latest_goal_names[gid] = goal_name
+
+            matching_goal_ids = [
+                gid
+                for gid, goal_name in latest_goal_names.items()
+                if direction_key in str(goal_name or "").lower()
+            ]
+            if matching_goal_ids:
+                period_days = (date_to_obj - date_from_obj).days + 1
+                prev_date_from = date_from_obj - timedelta(days=period_days)
+                prev_date_to = date_from_obj - timedelta(days=1)
+
+                def goal_counts(start_date, end_date):
+                    q = db.query(
+                        models.MetrikaGoals.goal_id,
+                        func.sum(models.MetrikaGoals.conversion_count).label("count"),
+                    ).filter(
+                        models.MetrikaGoals.client_id.in_(effective_client_ids),
+                        models.MetrikaGoals.goal_id.in_(matching_goal_ids),
+                        models.MetrikaGoals.date >= start_date,
+                        models.MetrikaGoals.date <= end_date,
+                    )
+                    if campaign_integration_ids:
+                        q = q.filter(models.MetrikaGoals.integration_id.in_(campaign_integration_ids))
+                    return {
+                        str(row.goal_id): int(row.count or 0)
+                        for row in q.group_by(models.MetrikaGoals.goal_id).all()
+                    }
+
+                current_counts = goal_counts(date_from_obj, date_to_obj)
+                previous_counts = goal_counts(prev_date_from, prev_date_to)
+                return [
+                    {
+                        "id": gid,
+                        "name": latest_goal_names.get(gid) or f"Goal {gid}",
+                        "count": int(current_counts.get(gid, 0) or 0),
+                        "trend": (
+                            round(((int(current_counts.get(gid, 0) or 0) - int(previous_counts.get(gid, 0) or 0)) / int(previous_counts.get(gid, 0) or 1)) * 100, 1)
+                            if int(previous_counts.get(gid, 0) or 0) > 0
+                            else 0.0
+                        ),
+                        "cost": None,
+                    }
+                    for gid in matching_goal_ids
+                ]
+
+        current_summary = StatsService.aggregate_summary(
             db,
             effective_client_ids,
             date_from_obj,
             date_to_obj,
             platform_key,
             u_campaign_ids,
-            None,
         )
         period_days = (date_to_obj - date_from_obj).days + 1
         prev_date_from = date_from_obj - timedelta(days=period_days)
         prev_date_to = date_from_obj - timedelta(days=1)
-        prev_rows = StatsService.get_campaign_stats(
+        prev_summary = StatsService.aggregate_summary(
             db,
             effective_client_ids,
             prev_date_from,
             prev_date_to,
             platform_key,
             u_campaign_ids,
-            None,
         )
 
-        current_count = sum(int(row.get("conversions") or 0) for row in current_rows)
-        current_cost = sum(float(row.get("cost") or 0) for row in current_rows)
-        prev_count = sum(int(row.get("conversions") or 0) for row in prev_rows)
-        prev_cost = sum(float(row.get("cost") or 0) for row in prev_rows)
+        current_count = int(current_summary.get("leads") or 0)
+        current_cost = float(current_summary.get("expenses") or 0)
+        prev_count = int(prev_summary.get("leads") or 0)
+        prev_cost = float(prev_summary.get("expenses") or 0)
         trend = 0.0
         current_cpl = current_cost / current_count if current_count > 0 else 0
         prev_cpl = prev_cost / prev_count if prev_count > 0 else 0
@@ -2369,6 +2457,10 @@ async def get_goals(
         )
         if metrika_goal_integration_id:
             prev_count = prev_count.filter(models.MetrikaGoals.integration_id == metrika_goal_integration_id)
+        elif goal_scope_ids:
+            prev_count = prev_count.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+        elif platform_key in ("avito", "yandex"):
+            prev_count = prev_count.filter(models.MetrikaGoals.integration_id.is_(None))
         prev_count = prev_count.scalar() or 0
 
         current_count = int(current_counts.get(str(goal_id), 0) or 0)
