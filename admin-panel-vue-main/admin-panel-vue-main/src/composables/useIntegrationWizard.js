@@ -44,6 +44,23 @@ const allFromGoalsFromProfile = ref(false)
 
 const profiles = ref([])
 
+// №5: VK — шаг «что считать CPL». Какие типы событий VK считаем лидом для расчёта
+// CPL. codes — канонические коды ЦД, уходят в integration.selected_goals; бэкенд
+// по ним считает лид/CPL (см. stats.py /goals summable). По умолчанию — лид-типы.
+const VK_CPL_OPTIONS = [
+  { key: 'lead_forms', label: 'Лид-формы', codes: ['leadads', 'lead_forms', 'leadforms', 'leadgen', 'evt_51_lead_forms'], def: true },
+  { key: 'site_conversions', label: 'Конверсии на сайте', codes: ['engagement', 'conversions', 'site_conversions', 'siteconversions', 'site_conversion'], def: true },
+  { key: 'messages', label: 'Сообщения', codes: ['messages', 'vkmessages'], def: true },
+  { key: 'purchases', label: 'Покупки / каталог', codes: ['storeproductssales', 'store_products_sales', 'catalogue_sales'], def: true },
+  { key: 'community', label: 'Подписки в сообществе', codes: ['community', 'group_join', 'socialengagement', 'social_engagement', 'evt_41_community_actions'], def: false },
+  { key: 'installs', label: 'Установки приложений', codes: ['appinstalls', 'app_install', 'app_installs', 'reengagement', 'playersengagement', 'mini_app', 'evt_43_miniapp_events'], def: false },
+  { key: 'traffic', label: 'Трафик', codes: ['traffic'], def: false },
+  { key: 'reach', label: 'Охват', codes: ['reach', 'premium_reach', 'premium_reach_network', 'general_ttm', 'branding', 'audiolistening', 'audio_listening'], def: false },
+  { key: 'views', label: 'Просмотры', codes: ['videoviews', 'video_views', 'articleviews', 'article_views', 'storevisits', 'store_visits', 'dzen'], def: false },
+]
+const vkCplDefaultKeys = () => VK_CPL_OPTIONS.filter(o => o.def).map(o => o.key)
+const vkCplSelected = ref(vkCplDefaultKeys())
+
 export function useIntegrationWizard() {
   const toaster = useToaster()
   const router = useRouter()
@@ -76,6 +93,7 @@ export function useIntegrationWizard() {
     goals.value = []
     selectedGoalIds.value = []
     profiles.value = []
+    vkCplSelected.value = vkCplDefaultKeys()
   }
 
   const fetchProfiles = async (integrationId) => {
@@ -316,15 +334,33 @@ export function useIntegrationWizard() {
     }
   }
 
+  // №5: VK CPL helpers
+  const vkCplCodes = computed(() =>
+    VK_CPL_OPTIONS.filter(o => vkCplSelected.value.includes(o.key)).flatMap(o => o.codes)
+  )
+  const vkCplSelectedLabels = computed(() =>
+    VK_CPL_OPTIONS.filter(o => vkCplSelected.value.includes(o.key)).map(o => o.label)
+  )
+  const toggleVkCpl = (key) => {
+    const i = vkCplSelected.value.indexOf(key)
+    if (i > -1) vkCplSelected.value.splice(i, 1)
+    else vkCplSelected.value.push(key)
+  }
+
   const finishConnection = async () => {
     loadingStates.finish = true
     try {
+      const isVk = form.platform === 'VK_ADS'
       await api.patch(`/integrations/${lastIntegrationId.value}`, {
+        // VK: РК не выбираем — активируем все кампании кабинета.
         selected_campaign_ids: [...selectedCampaignIds.value],
-        all_campaigns: allFromProfile.value,
+        all_campaigns: isVk ? true : allFromProfile.value,
         selected_counters: [...selectedCounterIds.value],
-        primary_goal_id: form.primary_goal_id,
-        selected_goals: [...selectedGoalIds.value],
+        // VK: целей Метрики нет; primary_goal не используем.
+        primary_goal_id: isVk ? null : form.primary_goal_id,
+        // VK: selected_goals хранит выбор «что считать лидом для CPL».
+        selected_goals: isVk ? [...vkCplCodes.value] : [...selectedGoalIds.value],
+        account_name: form.account_name || null,
         ...(form.platform === 'AVITO_ADS' && { utm_source: form.utm_source || 'avito-ads' }),
         is_active: true
       })
@@ -364,6 +400,12 @@ export function useIntegrationWizard() {
     fetchGoals,
     fetchIntegration,
     finishConnection,
+    // №5: VK CPL step
+    VK_CPL_OPTIONS,
+    vkCplSelected,
+    vkCplCodes,
+    vkCplSelectedLabels,
+    toggleVkCpl,
     toggleCampaignSelection,
     bulkSelectCampaigns,
     bulkDeselectCampaigns,

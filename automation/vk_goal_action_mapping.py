@@ -24,6 +24,13 @@ VK_GOAL_ACTION_RU: dict[str, str] = {
     "storeproductssales": "Покупки в интернет-магазине",
     "store_products_sales": "Покупки в интернет-магазине",
     "engagement": "Конверсии",
+    "site_conversions": "Конверсии на сайте",
+    "siteconversions": "Конверсии на сайте",
+    "site_conversion": "Конверсии на сайте",
+    "conversions": "Конверсии на сайте",
+    "messages": "Сообщения",
+    "vkmessages": "Сообщения",
+    "leadgen": "Лид-формы (группа)",
     "articleviews": "Просмотр статей",
     "article_views": "Просмотр статей",
     "social_engagement": "Действия в социальных сетях",
@@ -56,6 +63,13 @@ VK_GOAL_ACTION_RU: dict[str, str] = {
 }
 
 
+def _clean_code(code: str) -> str:
+    """Нормализует код ЦД: lower, без скобок/точек/пробелов по краям."""
+    if not code or not isinstance(code, str):
+        return ""
+    return code.strip().lower().replace("(", "").replace(")", "").replace(".", "")
+
+
 def get_vk_goal_action_name_ru(code: str) -> str:
     """
     Возвращает русское название целевого действия по коду VK.
@@ -63,5 +77,86 @@ def get_vk_goal_action_name_ru(code: str) -> str:
     """
     if not code or not isinstance(code, str):
         return code or ""
-    code_clean = code.strip().lower().replace("(", "").replace(")", "").replace(".", "")
+    code_clean = _clean_code(code)
     return VK_GOAL_ACTION_RU.get(code_clean, code.strip())
+
+
+# Категории типов ЦД. Нужны, чтобы в блоке «Целевые действия» НЕ суммировать
+# несовместимые типы: лиды (lead) — это результат-заявка и их можно складывать
+# как «лиды»; трафик/охват/просмотры — это другие единицы, их нельзя суммировать
+# с лидами в один итог. summable=True только для категории lead.
+VK_GOAL_ACTION_CATEGORY: dict[str, str] = {
+    # ——— Лиды (результат-заявка) — суммируемые ———
+    "leadads": "lead",
+    "lead_forms": "lead",
+    "leadforms": "lead",
+    "leadgen": "lead",
+    "evt_51_lead_forms": "lead",
+    "site_conversions": "lead",
+    "siteconversions": "lead",
+    "site_conversion": "lead",
+    "conversions": "lead",
+    "engagement": "lead",
+    "messages": "lead",
+    "vkmessages": "lead",
+    "storeproductssales": "lead",
+    "store_products_sales": "lead",
+    "catalogue_sales": "lead",
+    # ——— Социальные действия / подписки (отдельная категория, не лид) ———
+    "socialengagement": "engagement",
+    "social_engagement": "engagement",
+    "evt_41_community_actions": "engagement",
+    "community": "engagement",
+    "group_join": "engagement",
+    "playersengagement": "engagement",
+    "profile": "engagement",
+    # ——— Установки/мини-приложения ———
+    "appinstalls": "install",
+    "app_install": "install",
+    "app_installs": "install",
+    "reengagement": "install",
+    "mini_app": "install",
+    "evt_43_miniapp_events": "install",
+    # ——— Трафик ———
+    "traffic": "traffic",
+    # ——— Охват / медийка ———
+    "reach": "reach",
+    "premium_reach": "reach",
+    "premium_reach_network": "reach",
+    "general_ttm": "reach",
+    "branding": "reach",
+    "audiolistening": "reach",
+    "audio_listening": "reach",
+    # ——— Просмотры контента ———
+    "videoviews": "views",
+    "video_views": "views",
+    "articleviews": "views",
+    "article_views": "views",
+    "storevisits": "views",
+    "store_visits": "views",
+    "dzen": "views",
+}
+
+# Русские подписи категорий для UI.
+VK_CATEGORY_LABEL_RU: dict[str, str] = {
+    "lead": "Лиды",
+    "engagement": "Действия в сообществах",
+    "install": "Установки и мини-приложения",
+    "traffic": "Трафик",
+    "reach": "Охват",
+    "views": "Просмотры",
+    "other": "Другие действия",
+}
+
+
+def get_vk_goal_action_category(code: str) -> str:
+    """Категория типа ЦД VK (lead/engagement/install/traffic/reach/views/other)."""
+    if not code or not isinstance(code, str):
+        return "other"
+    code_clean = code.strip().lower().replace("(", "").replace(")", "").replace(".", "")
+    return VK_GOAL_ACTION_CATEGORY.get(code_clean, "other")
+
+
+def is_vk_lead_action(code: str) -> bool:
+    """True, если тип ЦД считается лидом (результат-заявка) и его можно суммировать."""
+    return get_vk_goal_action_category(code) == "lead"

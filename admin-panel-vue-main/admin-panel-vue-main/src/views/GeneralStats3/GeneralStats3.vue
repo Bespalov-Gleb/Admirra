@@ -3089,7 +3089,10 @@ const dashboardGoalItems = computed(() => {
         cost: Number(item.expenses || 0),
       }))
   }
-  return reportGoals.value
+  // №3: в сводный блок «Цели» (пончик/итог/CPL) для VK берём только суммируемые
+  // типы (лиды). Трафик/охват/просмотры не являются лидами и не складываются в
+  // общий итог — у не-лидовых ЦД с бэкенда summable === false.
+  return reportGoals.value.filter((item) => item.summable !== false)
 })
 
 const goals = computed(() => {

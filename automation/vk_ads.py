@@ -270,13 +270,47 @@ async def exchange_vk_agency_client_credentials_for_integration(
 
 
 class VKAdsAPI:
-    def __init__(self, access_token: str, account_id: str = None):
+    def __init__(self, access_token: str, account_id: str = None, *, send_client_id: Optional[bool] = None):
         self.base_url = "https://ads.vk.com/api/v2" # Example base URL
         self.headers = {
             "Authorization": f"Bearer {access_token}"
         }
-        self.account_id = account_id
+        # cabinet_id — реальный id кабинета (для отображения и фолбэков профилей/аккаунтов).
+        self.cabinet_id = account_id
+        # client_id подставляем в запросы ТОЛЬКО для агентского токена. По документации
+        # VK Ads параметр client_id — это id клиента агентства; для ЛИЧНОГО кабинета токен
+        # сам себя скоупит, и передача client_id возвращает пустую статистику (это и есть
+        # баг «личный кабинет подключается, но не вытягивает статистику»).
+        # По умолчанию поведение прежнее (шлём client_id, если задан account_id) — личный
+        # vs агентский кабинет различает вызывающий код через send_client_id.
+        if send_client_id is None:
+            send_client_id = bool(account_id)
+        self.send_client_id = bool(send_client_id)
+        # account_id используется в методах только для подстановки client_id в запросы.
+        # Для личного кабинета держим его None, чтобы client_id нигде не подставился.
+        self.account_id = account_id if self.send_client_id else None
         self.debug_events: List[str] = []
+
+    async def detect_token_kind(self) -> str:
+        """
+        Определяет тип токена по агентскому endpoint: "agency" | "personal" | "unknown".
+
+        GET /agency/clients.json: 200 (агентство, в т.ч. с items) → agency;
+        403 → личный/рекламодатель (personal); прочее/ошибка → unknown.
+        Нужен, чтобы решить, передавать ли client_id в запросах статистики.
+        """
+        url = f"{self.base_url}/agency/clients.json"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=self.headers, timeout=20.0)
+                if response.status_code == 200:
+                    return "agency"
+                if response.status_code == 403:
+                    return "personal"
+                logger.info("VK Ads detect_token_kind: HTTP %s", response.status_code)
+        except Exception as ex:
+            logger.info("VK Ads detect_token_kind error: %s", ex)
+        return "unknown"
 
     def _push_debug(self, message: str, limit: int = 60) -> None:
         self.debug_events.append(message)
@@ -413,7 +447,7 @@ class VKAdsAPI:
             params["client_id"] = self.account_id
         
         self._push_debug(f"GET {url} params={params}")
-        self._push_debug(f"account_id={self.account_id}")
+        self._push_debug(f"account_id={self.account_id} cabinet_id={self.cabinet_id} send_client_id={self.send_client_id}")
             
         try:
             async with httpx.AsyncClient() as client:
@@ -1495,8 +1529,8 @@ class VKAdsAPI:
             logger.debug(f"Statistics extraction method failed: {e}")
         
         # Fallback: Если account_id задан в конструкторе, используем его
-        if self.account_id:
-            account_id_str = str(self.account_id)
+        if self.cabinet_id:
+            account_id_str = str(self.cabinet_id)
             import re
             if '@vk@' in account_id_str or account_id_str.startswith('vkads_'):
                 match = re.search(r'vkads_(\d+)', account_id_str)
@@ -1733,13 +1767,13 @@ class VKAdsAPI:
             logger.debug(f"No agency clients found or error: {e}")
         
         # 3. Fallback: Если ничего не найдено, используем account_id из интеграции
-        if not profiles and self.account_id:
+        if not profiles and self.cabinet_id:
             profiles.append({
-                "id": str(self.account_id),
-                "name": f"Аккаунт ({self.account_id})",
+                "id": str(self.cabinet_id),
+                "name": f"Аккаунт ({self.cabinet_id})",
                 "type": "personal"
             })
-            logger.info(f"✅ Added fallback VK profile from account_id: {self.account_id}")
+            logger.info(f"✅ Added fallback VK profile from account_id: {self.cabinet_id}")
         
         # 4. Fallback: Если account_id не определен, пытаемся получить его из первой кампании
         if not profiles:
@@ -1769,13 +1803,13 @@ class VKAdsAPI:
         return profiles
         
         # Fallback: если ничего не найдено, возвращаем текущий account_id если он есть
-        if not profiles and self.account_id:
+        if not profiles and self.cabinet_id:
             profiles.append({
-                "id": str(self.account_id),
-                "name": f"Аккаунт ({self.account_id})",
+                "id": str(self.cabinet_id),
+                "name": f"Аккаунт ({self.cabinet_id})",
                 "type": "personal"
             })
-            logger.info(f"✅ Added fallback VK account: {self.account_id}")
+            logger.info(f"✅ Added fallback VK account: {self.cabinet_id}")
         
         return profiles
     

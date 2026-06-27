@@ -15,7 +15,12 @@ from fastapi.responses import StreamingResponse
 import json
 import logging
 from automation.sync import sync_integration, sync_metrika_goals_background
-from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+from automation.vk_goal_action_mapping import (
+    get_vk_goal_action_name_ru,
+    get_vk_goal_action_category,
+    is_vk_lead_action,
+    VK_CATEGORY_LABEL_RU,
+)
 from automation.yandex_direct import YandexDirectAPI
 from backend_api.sync_jobs import enqueue_sync_job
 
@@ -2273,6 +2278,24 @@ async def get_goals(
         prev_date_from = date_from_obj - timedelta(days=period_days)
         prev_date_to = date_from_obj - timedelta(days=1)
 
+        # №5: настраиваемый CPL. Какие коды ЦД считаются лидом для этих кабинетов,
+        # берём из Integration.selected_goals (для VK это поле хранит выбор лид-типов
+        # из шага «что считать CPL»). Если не настроено — дефолтные лид-типы
+        # (is_vk_lead_action). Это определяет флаг summable ниже, по которому
+        # дашборд считает сводный CPL и не суммирует не-лидовые типы.
+        vk_lead_codes: set[str] = set()
+        for (sg,) in db.query(models.Integration.selected_goals).filter(
+            models.Integration.client_id.in_(effective_client_ids),
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        ).all():
+            if sg:
+                try:
+                    for c in json.loads(sg):
+                        if c:
+                            vk_lead_codes.add(str(c))
+                except Exception:
+                    pass
+
         for row in vk_rows:
             prev_q = db.query(
                 func.sum(models.VKStats.conversions),
@@ -2297,16 +2320,36 @@ async def get_goals(
             if prev_cpl > 0 and current_cpl > 0:
                 trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
 
-            name = (row.vk_goal_action_name or "").strip() or get_vk_goal_action_name_ru(row.vk_goal_action_id or "")
-            if not name:
-                name = str(row.vk_goal_action_id or "ЦД")
+            # №3: имя берём каноническое по коду ЦД, чтобы один и тот же тип
+            # продвижения не назывался по-разному (разные источники синка пишут
+            # разные vk_goal_action_name). Сохранённое имя — только если код
+            # неизвестен в маппинге.
+            code = row.vk_goal_action_id or ""
+            canonical = get_vk_goal_action_name_ru(code)
+            if canonical and canonical != code:
+                name = canonical
+            else:
+                name = (row.vk_goal_action_name or "").strip() or str(code or "ЦД")
+
+            # №3: категория и флаг summable. Лиды (заявки) можно суммировать в один
+            # итог; трафик/охват/просмотры/подписки — нельзя складывать с лидами.
+            # №5: если CPL настроен (vk_lead_codes) — summable по выбору пользователя,
+            # иначе — по дефолтной классификации лид-типов.
+            category = get_vk_goal_action_category(code)
+            if vk_lead_codes:
+                summable = str(code) in vk_lead_codes
+            else:
+                summable = is_vk_lead_action(code)
 
             result.append({
-                "id": str(row.vk_goal_action_id or ""),
+                "id": str(code or ""),
                 "name": name,
                 "count": current_count,
                 "trend": trend,
                 "cost": current_cost,
+                "category": category,
+                "category_label": VK_CATEGORY_LABEL_RU.get(category, "Другие действия"),
+                "summable": summable,
             })
 
         return result

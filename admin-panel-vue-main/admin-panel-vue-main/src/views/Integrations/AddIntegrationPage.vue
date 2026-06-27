@@ -62,7 +62,7 @@
               class="absolute -bottom-7 whitespace-nowrap text-[0.625rem] font-black uppercase tracking-widest transition-all duration-300"
               :class="currentStep >= step ? 'text-blue-600' : 'text-gray-300'"
             >
-              {{ stepLabels[step] }}
+              {{ labelFor(step) }}
             </span>
           </div>
         </div>
@@ -94,7 +94,43 @@
                 @next="nextStep"
               />
 
-              <IntegrationStep3 
+              <!-- №5: VK — шаг 3 это «что считать CPL» + имя кабинета (без выбора РК) -->
+              <div v-else-if="currentStep === 3 && isVk" class="space-y-6">
+                <div>
+                  <label class="block text-[0.625rem] font-black text-gray-400 uppercase tracking-widest mb-2">Название кабинета</label>
+                  <input
+                    v-model="form.account_name"
+                    type="text"
+                    placeholder="Напр. VK Ads — Основной"
+                    class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                  />
+                </div>
+                <div>
+                  <h3 class="text-lg font-black text-gray-900">Что считать лидом для CPL</h3>
+                  <p class="text-sm text-gray-500 mt-1">CPL = расход ÷ выбранные результаты. У разных агентств лид считается по-разному — отметьте нужные типы событий VK.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label
+                    v-for="opt in VK_CPL_OPTIONS"
+                    :key="opt.key"
+                    class="flex items-center gap-3 px-4 py-3 rounded-2xl border cursor-pointer transition-all"
+                    :class="vkCplSelected.includes(opt.key) ? 'border-blue-300 bg-blue-50/60' : 'border-gray-200 hover:border-gray-300'"
+                  >
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      :checked="vkCplSelected.includes(opt.key)"
+                      @change="toggleVkCpl(opt.key)"
+                    />
+                    <span class="text-sm font-semibold text-gray-800">{{ opt.label }}</span>
+                  </label>
+                </div>
+                <p v-if="!vkCplSelected.length" class="text-xs text-amber-600">
+                  Не выбран ни один тип — CPL будет считаться по умолчанию (лид-формы, конверсии, сообщения, покупки).
+                </p>
+              </div>
+
+              <IntegrationStep3
                 v-else-if="currentStep === 3"
                 :campaigns="campaigns"
                 :selectedIds="selectedCampaignIds"
@@ -133,8 +169,26 @@
                 @bulkDeselect="bulkDeselectGoals"
               />
 
-              <!-- Step 6: Summary -->
-              <IntegrationStep6 
+              <!-- Step 6: Summary — VK свой компактный итог (кабинет + что считаем CPL) -->
+              <div v-else-if="currentStep === 6 && isVk" class="space-y-4">
+                <h3 class="text-lg font-black text-gray-900">Сводка</h3>
+                <div class="rounded-2xl border border-gray-200 p-5 space-y-3 text-sm">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-gray-500">Проект</span>
+                    <span class="font-semibold text-gray-900 truncate">{{ form.client_name || 'Не выбран' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-gray-500">Кабинет VK Ads</span>
+                    <span class="font-semibold text-gray-900 truncate">{{ form.account_name || form.account_id || '—' }}</span>
+                  </div>
+                  <div class="flex items-start justify-between gap-3">
+                    <span class="text-gray-500 whitespace-nowrap">Лид для CPL</span>
+                    <span class="font-semibold text-gray-900 text-right">{{ vkCplSelectedLabels.length ? vkCplSelectedLabels.join(', ') : 'По умолчанию (лид-формы, конверсии, сообщения, покупки)' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <IntegrationStep6
                 v-else-if="currentStep === 6"
                 :projectName="form.client_name"
                 :selectedCampaigns="campaigns.filter(c => selectedCampaignIds.includes(c.id))"
@@ -301,8 +355,21 @@ const {
   bulkDeselectCounters,
   bulkSelectGoals,
   bulkDeselectGoals,
-  selectPrimaryGoal
+  selectPrimaryGoal,
+  // №5: VK CPL step
+  VK_CPL_OPTIONS,
+  vkCplSelected,
+  vkCplCodes,
+  vkCplSelectedLabels,
+  toggleVkCpl
 } = useIntegrationWizard()
+
+// №5: для VK шаг 3 — не «выбор РК», а «что считать CPL».
+const isVk = computed(() => form.platform === 'VK_ADS')
+const labelFor = (step) => {
+  if (isVk.value && step === 3) return 'CPL'
+  return stepLabels[step]
+}
 
 const isCreatingNewProject = ref(false)
 const isProfileSelectorOpen = ref(false)
@@ -374,7 +441,10 @@ const isNextDisabled = computed(() => {
     return !form.client_id && (!isCreatingNewProject.value || !form.client_name)
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
-  if (currentStep.value === 3) return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
+  if (currentStep.value === 3) {
+    if (form.platform === 'VK_ADS') return false // VK: шаг CPL, значения по умолчанию есть
+    return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
+  }
   // For VK_ADS, counters are not required (VK Ads doesn't use Yandex Metrika)
   if (currentStep.value === 4) {
     if (form.platform === 'VK_ADS') return false // Allow skipping counters for VK Ads
@@ -439,18 +509,23 @@ const nextStep = async () => {
       return
     }
     currentStep.value = 3
-    fetchCampaigns(lastIntegrationId.value)
+    // VK: шаг 3 — это «что считать CPL», кампании не выбираем и не грузим.
+    if (form.platform !== 'VK_ADS') {
+      fetchCampaigns(lastIntegrationId.value)
+    }
   } else if (currentStep.value === 3) {
+    // VK: с шага CPL сразу в сводку (РК не выбираем).
+    if (form.platform === 'VK_ADS') {
+      currentStep.value = 6
+      return
+    }
     // Step 3 -> Next: Campaigns selected, validate
     if (!allFromProfile.value && selectedCampaignIds.value.length === 0) {
       toaster.error('Пожалуйста, выберите хотя бы одну кампанию')
       return
     }
-    // For VK_ADS, skip steps 4 and 5, go directly to step 6 (summary)
     // For other platforms, go to step 4 (counters)
-    if (form.platform === 'VK_ADS') {
-      currentStep.value = 6
-    } else {
+    {
       currentStep.value = 4
       if (lastIntegrationId.value) {
         fetchCounters(lastIntegrationId.value)

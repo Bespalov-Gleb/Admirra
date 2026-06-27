@@ -124,14 +124,14 @@
             </div>
             <label
               v-for="goal in group.items"
-              :key="goal.id"
+              :key="goal.key"
               class="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer transition-colors"
             >
               <input
                 type="checkbox"
                 class="h-3.5 w-3.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
-                :checked="selectedGoalIds.includes(goal.id)"
-                @change="toggleGoal(goal.id)"
+                :checked="isGoalChecked(goal)"
+                @change="toggleGoal(goal)"
               />
               <span class="truncate" :title="goal.name">{{ goal.name }}</span>
             </label>
@@ -244,67 +244,64 @@ const allGoalsSelected = computed(() => {
   return selectedGoalIds.value.length === props.vkGoalActions.length
 })
 
-// Конфигурация групп ЦД VK: какие коды относятся к какой группе
-const VK_GOAL_GROUPS = [
-  {
-    key: 'lead_forms',
-    name: 'Лид-формы',
-    groupIds: ['leadads', 'lead_forms', 'leadforms'],
-    childIds: ['evt_51_lead_forms']
-  },
-  {
-    key: 'social_engagement',
-    name: 'Действия в социальных сетях',
-    groupIds: ['socialengagement', 'social_engagement'],
-    childIds: ['evt_41_community_actions']
-  },
-  {
-    key: 'mini_apps',
-    name: 'Мини-приложения',
-    groupIds: ['mini_app'],
-    childIds: ['evt_43_miniapp_events']
-  }
-]
+// №3: порядок и подписи категорий ЦД VK (категория приходит с бэкенда).
+const VK_CATEGORY_ORDER = ['lead', 'engagement', 'install', 'traffic', 'reach', 'views', 'other']
+const VK_CATEGORY_LABELS = {
+  lead: 'Лиды',
+  engagement: 'Действия в сообществах',
+  install: 'Установки и мини-приложения',
+  traffic: 'Трафик',
+  reach: 'Охват',
+  views: 'Просмотры',
+  other: 'Другие действия',
+}
 
-// Группируем плоский список vkGoalActions во вложенную структуру для UI
+// №3: группируем ЦД по КАТЕГОРИЯМ (лиды/трафик/охват/…) и схлопываем дубли одного
+// типа (несколько кодов → одно каноническое имя) в одну строку, сохраняя все коды
+// в ids. Это убирает «один тип назван по-разному» и не даёт смешивать несумми-
+// руемые типы (лиды vs трафик/охват) в один общий список.
 const groupedVkGoals = computed(() => {
-  if (!props.vkGoalActions || !props.vkGoalActions.length) return []
+  const list = props.vkGoalActions || []
+  if (!list.length) return []
 
-  const byId = new Map(props.vkGoalActions.map(g => [g.id, g]))
-  const usedIds = new Set()
-  const groups = []
-
-  VK_GOAL_GROUPS.forEach(def => {
-    const items = def.childIds
-      .map(id => byId.get(id))
-      .filter(Boolean)
-
-    if (!items.length) {
-      return
+  const byCat = new Map()
+  for (const g of list) {
+    const cat = g.category || 'other'
+    if (!byCat.has(cat)) byCat.set(cat, { label: g.category_label || VK_CATEGORY_LABELS[cat] || 'Другие действия', byName: new Map() })
+    const bucket = byCat.get(cat).byName
+    const key = g.name
+    if (!bucket.has(key)) {
+      bucket.set(key, {
+        key: `${cat}:${key}`,
+        name: g.name,
+        category: cat,
+        summable: !!g.summable,
+        ids: [g.id],
+        count: Number(g.count || 0),
+        cost: Number(g.cost || 0),
+      })
+    } else {
+      const m = bucket.get(key)
+      if (!m.ids.includes(g.id)) m.ids.push(g.id)
+      m.count += Number(g.count || 0)
+      m.cost += Number(g.cost || 0)
     }
-
-    def.groupIds.forEach(id => usedIds.add(id))
-    def.childIds.forEach(id => usedIds.add(id))
-
-    groups.push({
-      key: def.key,
-      name: def.name,
-      items
-    })
-  })
-
-  // Остальные цели, не попавшие ни в одну группу
-  const others = props.vkGoalActions.filter(g => !usedIds.has(g.id))
-  if (others.length) {
-    groups.push({
-      key: 'other',
-      name: 'Другие действия',
-      items: others
-    })
   }
 
+  const cats = [...byCat.keys()].sort(
+    (a, b) => ((VK_CATEGORY_ORDER.indexOf(a) + 1) || 99) - ((VK_CATEGORY_ORDER.indexOf(b) + 1) || 99)
+  )
+  const groups = []
+  for (const cat of cats) {
+    const items = [...byCat.get(cat).byName.values()]
+    if (!items.length) continue
+    groups.push({ key: cat, name: byCat.get(cat).label, items })
+  }
   return groups
 })
+
+// Отмечена ли «схлопнутая» строка ЦД — когда выбраны все её коды.
+const isGoalChecked = (goal) => goal.ids.every(id => selectedGoalIds.value.includes(id))
 
 const updateDropdownPosition = () => {
   if (!goalsButton.value) return
@@ -330,13 +327,13 @@ const toggleAllGoals = (event) => {
   emit('update:goal-action-ids', checked ? allIds : [])
 }
 
-const toggleGoal = (goalId) => {
+const toggleGoal = (goal) => {
+  // goal — «схлопнутая» строка с несколькими кодами (goal.ids). Переключаем все
+  // её коды вместе, чтобы фильтр по vk_goal_action_id охватывал весь тип ЦД.
+  const ids = Array.isArray(goal?.ids) ? goal.ids : [goal]
   const current = new Set(selectedGoalIds.value)
-  if (current.has(goalId)) {
-    current.delete(goalId)
-  } else {
-    current.add(goalId)
-  }
+  const allSelected = ids.every(id => current.has(id))
+  ids.forEach(id => (allSelected ? current.delete(id) : current.add(id)))
   emit('update:goal-action-ids', Array.from(current))
 }
 

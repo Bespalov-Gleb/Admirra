@@ -1156,6 +1156,13 @@ class StatsService:
                 clicks = int(r.clicks or 0)
                 convs = int(r.conversions or 0)
                 imps = int(r.impressions or 0)
+                # №2: VK пишет строки статистики и для кампаний без активности
+                # (пауза/архив отдают нули по дням), поэтому в таблицу лезут «все
+                # кампании подряд». В таблице нужны только кампании с реальной
+                # статистикой за период — как у Яндекс/Авито. Пропускаем полностью
+                # нулевые строки (нет показов/кликов/расхода/результатов).
+                if imps == 0 and clicks == 0 and cost == 0 and convs == 0:
+                    continue
                 ctr = round(clicks / imps * 100, 2) if imps > 0 else 0
                 cpc = round(cost / clicks, 2) if clicks > 0 else 0
                 cpa = round(cost / convs, 2) if convs > 0 else 0

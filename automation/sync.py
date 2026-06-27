@@ -953,8 +953,52 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)
-            api = VKAdsAPI(access_token, integration.account_id)
-            
+
+            # Личный кабинет vs агентство. По документации VK Ads параметр client_id
+            # (id клиента агентства) шлётся ТОЛЬКО для агентского токена; для личного
+            # кабинета его передача возвращает пустую статистику (баг «личный кабинет
+            # подключается, но не вытягивает статистику»). Определяем тип токена по
+            # agency/clients.json и решаем, передавать ли client_id в запросах.
+            vk_send_client_id = True
+            if integration.account_id:
+                try:
+                    _vk_kind = await VKAdsAPI(access_token).detect_token_kind()
+                    if _vk_kind == "personal":
+                        vk_send_client_id = False
+                    elif _vk_kind == "agency":
+                        vk_send_client_id = True
+                    # unknown → сохраняем прежнее поведение (шлём client_id)
+                    logger.info(
+                        f"VK token kind for integration {integration.id}: "
+                        f"{_vk_kind} → send_client_id={vk_send_client_id}"
+                    )
+                except Exception as _vk_kind_err:
+                    logger.info(f"VK token kind detect failed for {integration.id}: {_vk_kind_err}")
+            else:
+                vk_send_client_id = False
+
+            api = VKAdsAPI(access_token, integration.account_id, send_client_id=vk_send_client_id)
+
+            # №4: VK по умолчанию синкается узким окном (воркер сужает days до ~3-7),
+            # из-за чего дашборд не может показать период больше недели. Расширяем окно
+            # запроса статистики ТОЛЬКО для VK до VK_MIN_SYNC_DAYS (по умолчанию 90),
+            # не трогая общий механизм окна и другие платформы. API VK допускает до 92
+            # дней за запрос; get_statistics сам бьёт период на чанки по 90.
+            vk_date_from = date_from
+            try:
+                _vk_min_days = int(os.getenv("VK_MIN_SYNC_DAYS", "90"))
+                _vk_floor = (
+                    datetime.strptime(date_to, "%Y-%m-%d").date() - timedelta(days=_vk_min_days)
+                ).strftime("%Y-%m-%d")
+                if _vk_floor < vk_date_from:
+                    vk_date_from = _vk_floor
+                    logger.info(
+                        f"VK sync window widened to {vk_date_from}..{date_to} "
+                        f"(min {_vk_min_days}d) for integration {integration.id}"
+                    )
+            except Exception as _vk_win_err:
+                logger.info(f"VK window widen skipped for {integration.id}: {_vk_win_err}")
+
             # Получаем баланс перед синхронизацией статистики
             try:
                 balance_data = await api.get_balance()
@@ -1015,7 +1059,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             pass
                     db.commit()
                     new_plain = security.decrypt_token(integration.access_token)
-                    api = VKAdsAPI(new_plain, integration.account_id)
+                    api = VKAdsAPI(new_plain, integration.account_id, send_client_id=vk_send_client_id)
                     return await api.get_campaigns()
 
             try:
@@ -1073,7 +1117,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             
             try:
                 log_event("sync", f"fetching vk statistics for {integration.id}")
-                stats = await api.get_statistics(date_from, date_to)
+                stats = await api.get_statistics(vk_date_from, date_to)
                 log_event("sync", f"received {len(stats)} rows from vk")
             except Exception as e:
                 # VK Token Refresh: Try refresh_token first (OAuth flow), then fallback to client_credentials
@@ -1091,8 +1135,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         if "refresh_token" in new_token_data:
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
-                        api = VKAdsAPI(new_token_data["access_token"], integration.account_id)
-                        stats = await api.get_statistics(date_from, date_to)
+                        api = VKAdsAPI(new_token_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
+                        stats = await api.get_statistics(vk_date_from, date_to)
                         logger.info(f"✅ VK token refreshed successfully, retrying statistics fetch")
                     else:
                         logger.warning(f"⚠️ VK refresh_token failed, trying client_credentials fallback")
@@ -1104,8 +1148,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             if vk_data and "access_token" in vk_data:
                                 integration.access_token = security.encrypt_token(vk_data["access_token"])
                                 db.flush()
-                                api = VKAdsAPI(vk_data["access_token"], integration.account_id)
-                                stats = await api.get_statistics(date_from, date_to)
+                                api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
+                                stats = await api.get_statistics(vk_date_from, date_to)
                             else:
                                 raise e
                         else:
@@ -1120,8 +1164,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     if vk_data and "access_token" in vk_data:
                         integration.access_token = security.encrypt_token(vk_data["access_token"])
                         db.flush()
-                        api = VKAdsAPI(vk_data["access_token"], integration.account_id)
-                        stats = await api.get_statistics(date_from, date_to)
+                        api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
+                        stats = await api.get_statistics(vk_date_from, date_to)
                     else:
                         raise e
                 else:
