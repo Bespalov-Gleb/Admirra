@@ -796,7 +796,14 @@ def sync_integration_background(
         days = max(1, (d_to - d_from).days + 1)
     except Exception:
         days = 7
-    enqueue_sync_job(integration_id, days)
+    enqueue_sync_job(
+        integration_id,
+        days,
+        force_full=True,
+        trigger="backfill",
+        date_from=date_from_str,
+        date_to=date_to_str,
+    )
 
 def ensure_data_synced_async(
     db: Session,
@@ -1035,8 +1042,17 @@ async def get_dynamics(
         models.VKStats.date >= d_start,
         models.VKStats.date <= d_end
     )
+    v_lead_stats = db.query(
+        models.VKStats.date,
+        func.sum(models.VKStats.conversions).label("leads"),
+    ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+        models.VKStats.client_id.in_(effective_client_ids),
+        models.VKStats.date >= d_start,
+        models.VKStats.date <= d_end,
+    )
     if u_campaign_ids:
         v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+        v_lead_stats = v_lead_stats.filter(models.Campaign.id.in_(u_campaign_ids))
         # CRITICAL: Also filter by integration_id when campaigns are selected
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
@@ -1044,9 +1060,16 @@ async def get_dynamics(
         integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
         if integration_ids:
             v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
-    elif u_goal_action_ids:
+            v_lead_stats = v_lead_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+    if u_goal_action_ids:
         v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
+        v_lead_stats = v_lead_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
+        v_lead_stats = StatsService.apply_vk_lead_action_scope(
+            v_lead_stats,
+            db,
+            effective_client_ids,
+        )
         if len(effective_client_ids) == 1:
             client_integrations = db.query(models.Integration.id).filter(
                 models.Integration.client_id.in_(effective_client_ids)
@@ -1055,6 +1078,7 @@ async def get_dynamics(
             if integration_ids:
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
+    v_lead_stats = v_lead_stats.group_by(models.VKStats.date).all()
 
     a_stats = db.query(
         models.AvitoStats.date,
@@ -1214,6 +1238,7 @@ async def get_dynamics(
         
         y_s = next((s for s in y_stats if s.date == d), None) if platform in ["all", "yandex"] else None
         v_s = next((s for s in v_stats if s.date == d), None) if platform in ["all", "vk"] else None
+        v_lead_s = next((s for s in v_lead_stats if s.date == d), None) if platform in ["all", "vk"] else None
         a_s = next((s for s in a_stats if s.date == d), None) if platform in ["all", "avito"] else None
         m_s = next((s for s in m_stats if s.date == d), None) if m_stats else None
 
@@ -1224,7 +1249,7 @@ async def get_dynamics(
         # Лиды для Yandex — только Метрика. Direct conversions не используем
         # fallback-ом, чтобы график совпадал со страницей проектов и целями.
         metrika_le = int(m_s.leads if m_s else 0)
-        vk_le = int(v_s.leads if v_s else 0)
+        vk_le = int(v_lead_s.leads if v_lead_s else 0)
         if platform == "vk":
             le = vk_le
         elif platform == "avito":

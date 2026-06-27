@@ -136,29 +136,46 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         days = 7
         force_full = False
         trigger = "manual"
+        requested_date_from = None
+        requested_date_to = None
         try:
             if job.params:
                 payload = json.loads(job.params)
                 days = int(payload.get("days", days))
                 force_full = bool(payload.get("force_full", False))
                 trigger = str(payload.get("trigger", "manual"))
+                requested_date_from = payload.get("date_from")
+                requested_date_to = payload.get("date_to")
         except Exception:
             pass
 
-        # Incremental sync: if recently synced, only fetch the gap — not the full requested window
         last_sync = integration.last_sync_at
         is_first_sync = last_sync is None or integration.sync_status == models.IntegrationSyncStatus.NEVER
-        if not force_full and not is_first_sync:
-            if last_sync.tzinfo is not None:
-                last_sync = last_sync.replace(tzinfo=None)
-            days_since_last = max(0, (datetime.utcnow() - last_sync).days)
-            if days_since_last < 1:
-                days = 3
-            elif days_since_last < days:
-                days = min(days_since_last + 3, days)
+        if requested_date_from and requested_date_to:
+            try:
+                parsed_from = datetime.strptime(str(requested_date_from), "%Y-%m-%d")
+                parsed_to = datetime.strptime(str(requested_date_to), "%Y-%m-%d")
+                if parsed_from > parsed_to:
+                    raise ValueError("date_from is after date_to")
+                date_from = parsed_from.strftime("%Y-%m-%d")
+                date_to = parsed_to.strftime("%Y-%m-%d")
+                days = (parsed_to.date() - parsed_from.date()).days + 1
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Invalid explicit sync date range") from exc
+        else:
+            # Обычный ручной/ночной синк остаётся инкрементальным. Явный
+            # backfill диапазона выше никогда не сужается.
+            if not force_full and not is_first_sync:
+                if last_sync.tzinfo is not None:
+                    last_sync = last_sync.replace(tzinfo=None)
+                days_since_last = max(0, (datetime.utcnow() - last_sync).days)
+                if days_since_last < 1:
+                    days = 3
+                elif days_since_last < days:
+                    days = min(days_since_last + 3, days)
 
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         logger.info(
             "Sync job %s: %d days (%s→%s), is_first_sync=%s, force_full=%s",
             job_id, days, date_from, date_to, is_first_sync, force_full,
@@ -329,6 +346,8 @@ def enqueue_sync_job(
     force_full: bool = False,
     trigger: str = "manual",
     start_worker: bool = True,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
 ) -> uuid.UUID:
     """Поставить интеграцию в очередь синхронизации.
 
@@ -375,12 +394,21 @@ def enqueue_sync_job(
             integration.sync_status = models.IntegrationSyncStatus.PENDING
             integration.error_message = None
 
+        params = {
+            "days": days,
+            "force_full": force_full,
+            "trigger": trigger,
+        }
+        if date_from and date_to:
+            params["date_from"] = date_from
+            params["date_to"] = date_to
+
         job = models.SyncJob(
             integration_id=integration_id,
             status=models.SyncJobStatus.QUEUED,
             stage="queued",
             progress=0,
-            params=json.dumps({"days": days, "force_full": force_full, "trigger": trigger}),
+            params=json.dumps(params),
         )
         db.add(job)
         db.commit()

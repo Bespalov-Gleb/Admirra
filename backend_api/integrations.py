@@ -563,7 +563,6 @@ async def exchange_vk_token_oauth(
     # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
     if auth_code:
         logger.info(f"🔄 Exchanging VK Ads authorization code for token...")
-        logger.info(f"   Code: {auth_code[:20]}... (truncated)")
         
         async with httpx.AsyncClient() as client:
             try:
@@ -580,11 +579,13 @@ async def exchange_vk_token_oauth(
                     token_payload["redirect_uri"] = redirect_uri
                 
                 logger.info(f"   Using VK Ads token endpoint: {VK_ADS_TOKEN_URL}")
-                logger.info(f"   Token payload: grant_type=authorization_code, code={auth_code[:20]}..., client_id={VK_CLIENT_ID}")
+                logger.info(
+                    "VK Ads token exchange: grant_type=authorization_code, client_id=%s",
+                    VK_CLIENT_ID,
+                )
                 response = await client.post(VK_ADS_TOKEN_URL, data=token_payload, timeout=30.0)
                 
                 logger.info(f"📡 VK Ads Token Exchange Response: {response.status_code}")
-                logger.info(f"   Response headers: {dict(response.headers)}")
                 
                 if response.status_code != 200:
                     logger.error(f"❌ VK Ads Token Exchange Failed: {response.status_code}")
@@ -780,114 +781,47 @@ async def exchange_vk_token_oauth(
             db.flush()
             logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
 
-    # Save Integration
-    # CRITICAL: For VK Ads, check if there's already an integration with the same account_id for this user
-    # This prevents creating duplicate integrations for the same VK Ads account, which would consume token slots
-    # and lead to token_limit_exceeded errors
-    db_integration = None
-    
-    if vk_account_id:
-        # First, try to find existing integration with the same account_id for this user
-        # (across all clients owned by this user)
-        existing_integration = db.query(models.Integration).join(
-            models.Client
-        ).filter(
-            models.Client.owner_id == current_user.id,
-            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
-            models.Integration.account_id == vk_account_id
-        ).first()
-        
-        if existing_integration:
-            logger.info(f"✅ Found existing VK Ads integration with account_id={vk_account_id} for user {current_user.id}")
-            logger.info(f"   Existing integration ID: {existing_integration.id}, Client: {existing_integration.client.name}")
-            logger.info(f"   New client: {db_client.name}")
-            
-            # CRITICAL: If existing integration belongs to a different client, we have two options:
-            # 1. Use existing integration and update its token (reuse token)
-            # 2. Create new integration for new client (but this wastes token slots)
-            # We choose option 1: reuse existing integration and update token
-            # This prevents token_limit_exceeded errors
-            logger.info(f"🔄 Reusing existing VK Ads integration {existing_integration.id} for account_id={vk_account_id}")
-            logger.info(f"   Updating token and linking to new client: {db_client.name}")
-            
-            db_integration = existing_integration
-            # Update token and client_id
-            encrypted_access = security.encrypt_token(access_token)
-            encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-            db_integration.access_token = encrypted_access
-            db_integration.refresh_token = encrypted_refresh
-            db_integration.client_id = db_client.id  # Link to new client
-            db_integration.account_id = vk_account_id
-            if vk_user_id:
-                db_integration.vk_user_id = vk_user_id
-            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
-        else:
-            # No existing integration with this account_id, check for integration in this specific client
-            db_integration = db.query(models.Integration).filter(
-                models.Integration.client_id == db_client.id,
-                models.Integration.platform == models.IntegrationPlatform.VK_ADS
-            ).first()
-            
-            if db_integration:
-                # Update existing integration for this client
-                encrypted_access = security.encrypt_token(access_token)
-                encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-                db_integration.access_token = encrypted_access
-                db_integration.refresh_token = encrypted_refresh
-                db_integration.account_id = vk_account_id
-                if vk_user_id:
-                    db_integration.vk_user_id = vk_user_id
-                db_integration.sync_status = models.IntegrationSyncStatus.NEVER
-            else:
-                # Create new integration
-                SubscriptionService.ensure_can_create_cabinet(db, current_user)
-                encrypted_access = security.encrypt_token(access_token)
-                encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-                db_integration = models.Integration(
-                    client_id=db_client.id,
-                    platform=models.IntegrationPlatform.VK_ADS,
-                    access_token=encrypted_access,
-                    refresh_token=encrypted_refresh,
-                    account_id=vk_account_id,
-                    vk_user_id=vk_user_id,
-                    sync_status=models.IntegrationSyncStatus.NEVER
-                )
-                db.add(db_integration)
-    else:
-        # No account_id detected, use client-specific check (legacy behavior)
-        db_integration = db.query(models.Integration).filter(
-            models.Integration.client_id == db_client.id,
-            models.Integration.platform == models.IntegrationPlatform.VK_ADS
-        ).first()
+    # Интеграция принадлежит проекту. Нельзя переносить уже существующую
+    # интеграцию другого проекта только потому, что OAuth вернул тот же кабинет:
+    # это незаметно лишало старый проект данных. Внутри текущего проекта токен
+    # обновляем, для другого проекта создаём отдельную связь.
+    db_integration = db.query(models.Integration).filter(
+        models.Integration.client_id == db_client.id,
+        models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+    ).first()
+    encrypted_access = security.encrypt_token(access_token)
+    encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
 
-        encrypted_access = security.encrypt_token(access_token)
-        encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
-        
-        if db_integration:
-            db_integration.access_token = encrypted_access
-            db_integration.refresh_token = encrypted_refresh
-            db_integration.account_id = vk_account_id
-            if vk_user_id:
-                db_integration.vk_user_id = vk_user_id
-            db_integration.sync_status = models.IntegrationSyncStatus.NEVER
-        else:
-            SubscriptionService.ensure_can_create_cabinet(db, current_user)
-            db_integration = models.Integration(
-                client_id=db_client.id,
-                platform=models.IntegrationPlatform.VK_ADS,
-                access_token=encrypted_access,
-                refresh_token=encrypted_refresh,
-                account_id=vk_account_id,
-                vk_user_id=vk_user_id,
-                sync_status=models.IntegrationSyncStatus.NEVER
+    if db_integration:
+        db_integration.access_token = encrypted_access
+        db_integration.refresh_token = encrypted_refresh
+        db_integration.account_id = vk_account_id
+        db_integration.vk_user_id = vk_user_id or db_integration.vk_user_id
+        db_integration.sync_status = models.IntegrationSyncStatus.NEVER
+        db_integration.error_message = None
+    else:
+        SubscriptionService.ensure_can_create_cabinet(db, current_user)
+        db_integration = models.Integration(
+            client_id=db_client.id,
+            platform=models.IntegrationPlatform.VK_ADS,
+            access_token=encrypted_access,
+            refresh_token=encrypted_refresh,
+            account_id=vk_account_id,
+            vk_user_id=vk_user_id,
+            sync_status=models.IntegrationSyncStatus.NEVER,
+        )
+        db.add(db_integration)
+
+    if expires_in is not None:
+        try:
+            db_integration.expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=int(expires_in)
             )
-            db.add(db_integration)
+        except (TypeError, ValueError):
+            db_integration.expires_at = None
     
     db.commit()
     db.refresh(db_integration)
-    
-    # Trigger background sync
-    background_tasks.add_task(run_sync_in_background, db_integration.id)
     
     return {
         "status": "success", 
@@ -1606,7 +1540,11 @@ async def get_integration_profiles(
         log_event("vk", f"fetching profiles for integration {integration_id}")
         try:
             from automation.vk_ads import VKAdsAPI
-            vk_api = VKAdsAPI(access_token, integration.account_id)
+            vk_api = VKAdsAPI(
+                access_token,
+                integration.account_id,
+                send_client_id=False,
+            )
             
             # Получаем все доступные профили (личные аккаунты + agency клиенты)
             vk_profiles = await vk_api.get_profiles()
@@ -2718,7 +2656,31 @@ async def update_integration(
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
     
-    logger.info(f"Updating integration {integration_id} with data: {integration_in}")
+    allowed_fields = {
+        "account_id",
+        "account_name",
+        "agency_client_login",
+        "is_agency",
+        "selected_goals",
+        "selected_counters",
+        "primary_goal_id",
+        "utm_source",
+        "auto_sync",
+        "sync_interval",
+    }
+    control_fields = {"selected_campaign_ids", "all_campaigns", "is_active"}
+    rejected_fields = set(integration_in) - allowed_fields - control_fields
+    if rejected_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported integration settings: {', '.join(sorted(rejected_fields))}",
+        )
+
+    logger.info(
+        "Updating integration %s fields=%s",
+        integration_id,
+        sorted(integration_in.keys()),
+    )
     logger.info(f"Before update: agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
     
     # CRITICAL: For VK Ads, validate and normalize account_id format
@@ -2755,14 +2717,14 @@ async def update_integration(
     
     # 1. Обновляем поля самой интеграции
     for key, value in integration_in.items():
-        if hasattr(integration, key):
+        if key in allowed_fields:
             # Special handling for JSON fields if they come as lists/dicts
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             elif key == 'selected_counters' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
-            logger.info(f"Set {key} = {value}")
+            logger.info("Updated integration field %s", key)
 
     # 2. Обновляем признак активности кампаний по selected_campaign_ids / all_campaigns
     try:
@@ -2832,10 +2794,22 @@ async def update_integration(
     # This happens on step 6 (summary) when user completes the integration wizard
     # CRITICAL: Sync выполняется в фоне, чтобы не блокировать запрос
     if integration_in.get("is_active") is True:
-        # CRITICAL: Используем run_sync_in_background, которая запускает синхронизацию
-        # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
-        run_sync_in_background(integration_id, 30)
-        logger.info(f"🔄 Finalizing integration {integration_id}: queued background sync for 30 days")
+        # До завершения мастера VK ещё не выбран конкретный профиль, поэтому
+        # первый синк запускаем только здесь. Однократно загружаем максимально
+        # доступную официальному Statistics API историю (366 дней).
+        # В очереди days — это смещение от текущей даты; 365 даёт 366
+        # календарных дат включительно, то есть максимум VK.
+        initial_days = 365 if integration.platform == models.IntegrationPlatform.VK_ADS else 30
+        enqueue_sync_job(
+            integration_id,
+            initial_days,
+            force_full=integration.platform == models.IntegrationPlatform.VK_ADS,
+        )
+        logger.info(
+            "Finalizing integration %s: queued initial sync for %s days",
+            integration_id,
+            initial_days,
+        )
     
     return integration
 
@@ -3024,8 +2998,6 @@ async def discover_campaigns(
         
         log_event("yandex", f"discovered {len(discovered_campaigns)} campaigns")
     elif integration.platform == models.IntegrationPlatform.VK_ADS:
-        # CRITICAL: Для VK Ads используем account_id (выбранный кабинет) для фильтрации кампаний
-        # Согласно документации VK Ads API, параметр client_id используется для фильтрации кампаний по кабинету
         selected_cabinet_id = integration.account_id if integration.account_id and integration.account_id.lower() != "unknown" else None
         
         if selected_cabinet_id:
@@ -3035,7 +3007,26 @@ async def discover_campaigns(
         
         campaigns_ok = False
         try:
-            api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
+            # Токен клиента агентства должен быть получен через
+            # agency_client_credentials. После обмена он сам задаёт кабинет;
+            # client_id в AdPlans/Statistics не передаём.
+            if integration.is_agency and VK_CLIENT_SECRET:
+                td = await exchange_vk_agency_client_credentials_for_integration(
+                    client_id=VK_CLIENT_ID,
+                    client_secret=VK_CLIENT_SECRET,
+                    agency_access_token=access_token,
+                    agency_client_login=integration.agency_client_login,
+                    account_id=integration.account_id,
+                )
+                if td:
+                    _vk_persist_token_json_to_integration(integration, db, td)
+                    access_token = security.decrypt_token(integration.access_token)
+
+            api = VKAdsAPI(
+                access_token,
+                account_id=selected_cabinet_id,
+                send_client_id=False,
+            )
             discovered_campaigns = await api.get_campaigns()
             campaigns_ok = True
         except HTTPException:
@@ -3057,7 +3048,11 @@ async def discover_campaigns(
                 if td:
                         _vk_persist_token_json_to_integration(integration, db, td)
                         access_token = security.decrypt_token(integration.access_token)
-                        api = VKAdsAPI(access_token, account_id=selected_cabinet_id)
+                        api = VKAdsAPI(
+                            access_token,
+                            account_id=selected_cabinet_id,
+                            send_client_id=False,
+                        )
                         try:
                             discovered_campaigns = await api.get_campaigns()
                             campaigns_ok = True
@@ -3146,7 +3141,11 @@ async def discover_campaigns(
         (integration.agency_client_login and integration.agency_client_login.lower() not in ["unknown", "none", ""])
         or (integration.account_id and integration.account_id.lower() != "unknown")
     )
-    if has_valid_profile and discovered_campaigns and len(discovered_campaigns) > 0:
+    if (
+        integration.platform != models.IntegrationPlatform.VK_ADS
+        and has_valid_profile
+        and discovered_campaigns
+    ):
         discovered_external_ids = {str(dc["id"]) for dc in discovered_campaigns}
         all_db_campaigns = db.query(models.Campaign).filter_by(integration_id=integration.id).all()
         

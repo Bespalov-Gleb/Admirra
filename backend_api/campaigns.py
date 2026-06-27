@@ -91,7 +91,13 @@ def get_vk_goal_actions(
     if client_id:
         query = query.filter(models.Integration.client_id == client_id)
 
-    from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+    from automation.vk_goal_action_mapping import (
+        VK_CATEGORY_LABEL_RU,
+        get_vk_goal_action_category,
+        get_vk_goal_action_name_ru,
+        is_vk_lead_action,
+    )
+    from backend_api.stats_service import StatsService
 
     actions = {}
     for goal_id, goal_name in query.distinct().all():
@@ -101,10 +107,34 @@ def get_vk_goal_actions(
             # Переводим на русский (для кодов VK: traffic → Трафик и т.д.)
             actions[action_id] = get_vk_goal_action_name_ru(action_id) or get_vk_goal_action_name_ru(action_name) or action_name
 
-    return [
-        {"id": action_id, "name": action_name}
-        for action_id, action_name in sorted(actions.items(), key=lambda x: (x[1] or "").lower())
+    client_ids = [client_id] if client_id else [
+        row[0]
+        for row in db.query(models.Client.id).filter(
+            models.Client.owner_id == current_user.id
+        ).all()
     ]
+    configured_codes = set()
+    has_configured_scope = False
+    for codes in StatsService.get_vk_lead_action_scope(db, client_ids).values():
+        if codes is not None:
+            has_configured_scope = True
+            configured_codes.update(codes)
+
+    result = []
+    for action_id, action_name in sorted(actions.items(), key=lambda x: (x[1] or "").lower()):
+        category = get_vk_goal_action_category(action_id)
+        result.append({
+            "id": action_id,
+            "name": action_name,
+            "category": category,
+            "category_label": VK_CATEGORY_LABEL_RU.get(category, "Другие действия"),
+            "summable": (
+                action_id in configured_codes
+                if has_configured_scope
+                else is_vk_lead_action(action_id)
+            ),
+        })
+    return result
 
 @router.patch("/{campaign_id}", response_model=schemas.CampaignResponse)
 def update_campaign(
@@ -190,4 +220,3 @@ def bulk_update_campaigns(
             
     db.commit()
     return {"status": "success", "updated_count": len(campaigns)}
-

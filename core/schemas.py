@@ -318,7 +318,8 @@ class IntegrationResponse(IntegrationBase):
     client_id: UUID
     client_name: Optional[str] = None  # Project name for frontend display
     client_display_id: Optional[int] = None
-    access_token: str
+    # Токен платформы хранится зашифрованным и никогда не должен уходить в API.
+    access_token: str = Field(exclude=True)
     expires_at: Optional[datetime] = None
     agency_client_login: Optional[str] = None
     is_agency: Optional[bool] = None
@@ -759,6 +760,9 @@ class CampaignStat(BaseModel):
 class VkGoalAction(BaseModel):
     id: str
     name: str
+    category: str = "other"
+    category_label: str = "Другие действия"
+    summable: bool = False
 
 class KeywordStat(BaseModel):
     keyword: str

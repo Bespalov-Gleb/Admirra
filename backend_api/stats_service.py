@@ -1,13 +1,78 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from core import models
 from datetime import datetime, timedelta
 import uuid
 import json
 import os
 from typing import List, Optional
+from automation.vk_goal_action_mapping import is_vk_lead_action
 
 class StatsService:
+    @staticmethod
+    def get_vk_lead_action_scope(
+        db: Session,
+        client_ids: List[uuid.UUID],
+    ) -> dict[uuid.UUID, Optional[set[str]]]:
+        """
+        Возвращает CPL-настройку отдельно для каждой VK-интеграции.
+
+        None означает совместимость со старой интеграцией: её неизвестный тип
+        результата не отбрасываем. Для настроенных интеграций используются ровно
+        выбранные пользователем коды.
+        """
+        integrations = db.query(models.Integration).filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        ).all()
+        result: dict[uuid.UUID, Optional[set[str]]] = {}
+        for integration in integrations:
+            configured: set[str] = set()
+            if integration.selected_goals:
+                try:
+                    raw = (
+                        json.loads(integration.selected_goals)
+                        if isinstance(integration.selected_goals, str)
+                        else integration.selected_goals
+                    )
+                    configured = {str(code) for code in (raw or []) if code}
+                except (TypeError, ValueError):
+                    configured = set()
+            if configured:
+                result[integration.id] = configured
+                continue
+
+            observed_codes = [
+                str(row[0])
+                for row in db.query(models.Campaign.vk_goal_action_id).filter(
+                    models.Campaign.integration_id == integration.id,
+                    models.Campaign.vk_goal_action_id.isnot(None),
+                    models.Campaign.vk_goal_action_id != "",
+                ).distinct().all()
+                if row[0]
+            ]
+            default_codes = {code for code in observed_codes if is_vk_lead_action(code)}
+            result[integration.id] = default_codes or None
+        return result
+
+    @staticmethod
+    def apply_vk_lead_action_scope(
+        query,
+        db: Session,
+        client_ids: List[uuid.UUID],
+    ):
+        scope = StatsService.get_vk_lead_action_scope(db, client_ids)
+        clauses = []
+        for integration_id, codes in scope.items():
+            integration_clause = models.Campaign.integration_id == integration_id
+            if codes is not None:
+                integration_clause = and_(
+                    integration_clause,
+                    models.Campaign.vk_goal_action_id.in_(sorted(codes)),
+                )
+            clauses.append(integration_clause)
+        return query.filter(or_(*clauses)) if clauses else query
+
     @staticmethod
     def get_metrika_goal_integration_ids(
         db: Session,
@@ -257,6 +322,12 @@ class StatsService:
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.VKStats.client_id.in_(client_ids)
             )
+            v_lead_q = db.query(
+                func.sum(models.VKStats.cost).label("total_cost"),
+                func.sum(models.VKStats.conversions).label("total_conversions"),
+            ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.VKStats.client_id.in_(client_ids)
+            )
             a_q = db.query(
                 func.sum(models.AvitoStats.cost).label("total_cost"),
                 func.sum(models.AvitoStats.impressions).label("total_impressions"),
@@ -275,6 +346,7 @@ class StatsService:
             if campaign_ids:
                 y_q = y_q.filter(models.Campaign.id.in_(campaign_ids))
                 v_q = v_q.filter(models.Campaign.id.in_(campaign_ids))
+                v_lead_q = v_lead_q.filter(models.Campaign.id.in_(campaign_ids))
                 a_q = a_q.filter(models.Campaign.id.in_(campaign_ids))
 
                 # Get integration_ids for selected campaigns
@@ -286,6 +358,7 @@ class StatsService:
                 if integration_ids:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
+                    v_lead_q = v_lead_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     a_q = a_q.filter(models.Campaign.integration_id.in_(integration_ids))
             else:
                 # При "все кампании" считаем все кампании, где были данные в
@@ -299,10 +372,17 @@ class StatsService:
 
             if vk_goal_action_ids:
                 v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
+                v_lead_q = v_lead_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
                 # Для VK при выборе целей — фильтр по интеграциям клиента
                 if len(client_ids) == 1 and integration_ids:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
                     v_q = v_q.filter(models.Campaign.integration_id.in_(integration_ids))
+            else:
+                v_lead_q = StatsService.apply_vk_lead_action_scope(
+                    v_lead_q,
+                    db,
+                    client_ids,
+                )
             
             # Print the actual query for one of them to see the SQL
             # print(f"DEBUG: Y_QUERY: {y_q}")
@@ -340,11 +420,13 @@ class StatsService:
             if start:
                 y_q = y_q.filter(models.YandexStats.date >= start)
                 v_q = v_q.filter(models.VKStats.date >= start)
+                v_lead_q = v_lead_q.filter(models.VKStats.date >= start)
                 a_q = a_q.filter(models.AvitoStats.date >= start)
                 m_q = m_q.filter(models.MetrikaGoals.date >= start)
             if end:
                 y_q = y_q.filter(models.YandexStats.date <= end)
                 v_q = v_q.filter(models.VKStats.date <= end)
+                v_lead_q = v_lead_q.filter(models.VKStats.date <= end)
                 a_q = a_q.filter(models.AvitoStats.date <= end)
                 m_q = m_q.filter(models.MetrikaGoals.date <= end)
 
@@ -412,6 +494,7 @@ class StatsService:
 
             y_s = y_q.first() if platform in ["all", "yandex"] else None
             v_s = v_q.first() if platform in ["all", "vk"] else None
+            v_lead_s = v_lead_q.first() if platform in ["all", "vk"] else None
             a_s = a_q.first() if platform in ["all", "avito"] else None
             m_s = m_q.first() if platform in ["all", "yandex", "avito"] else None
 
@@ -423,7 +506,7 @@ class StatsService:
             # Direct conversions не подставляем fallback-ом, иначе дашборд расходится
             # со страницей проектов и выбранными целями.
             metrica_convs = int((m_s.total_conversions if m_s else 0) or 0)
-            vk_convs = int((v_s.total_conversions if v_s else 0) or 0)
+            vk_convs = int((v_lead_s.total_conversions if v_lead_s else 0) or 0)
             mixed_goal_types = platform == "all" and not campaign_ids and has_yandex_platform and has_vk_platform
             yandex_cost = float((y_s.total_cost if y_s else 0) or 0)
             avito_cost = float((a_s.total_cost if a_s else 0) or 0)
@@ -486,8 +569,9 @@ class StatsService:
             
             # CRITICAL: Для VK Ads CPC — взвешенное среднее; CPA — все затраты / лиды (как в VK)
             vk_clicks = int((v_s.total_clicks if v_s else 0) or 0)
-            vk_conversions = int((v_s.total_conversions if v_s else 0) or 0)
+            vk_conversions = int((v_lead_s.total_conversions if v_lead_s else 0) or 0)
             vk_cost = float((v_s.total_cost if v_s else 0) or 0)
+            vk_lead_cost = float((v_lead_s.total_cost if v_lead_s else 0) or 0)
             vk_weighted_cpc_sum = float((v_s.weighted_cpc_sum if v_s and v_s.weighted_cpc_sum else 0) or 0)
             avito_clicks = int((a_s.total_clicks if a_s else 0) or 0)
             avito_conversions = int((a_s.total_conversions if a_s else 0) or 0)
@@ -496,7 +580,7 @@ class StatsService:
             # Взвешенное среднее CPC для VK: sum(cpc * clicks) / sum(clicks)
             vk_avg_cpc = vk_weighted_cpc_sum / vk_clicks if vk_clicks > 0 else 0.0
             # CPA для VK: все затраты / количество лидов (совпадает с интерфейсом VK)
-            vk_avg_cpa = vk_cost / vk_conversions if vk_conversions > 0 else 0.0
+            vk_avg_cpa = vk_lead_cost / vk_conversions if vk_conversions > 0 else 0.0
             avito_avg_cpc = avito_weighted_cpc_sum / avito_clicks if avito_clicks > 0 else 0.0
             avito_leads_for_cpa = avito_metrika_convs if platform in ["all", "avito"] else avito_conversions
             avito_avg_cpa = avito_cost / avito_leads_for_cpa if avito_leads_for_cpa > 0 else 0.0
@@ -861,7 +945,7 @@ class StatsService:
                 func.sum(models.VKStats.cost).label("cost"),
                 func.sum(models.VKStats.conversions).label("conversions")
             ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
-                models.VKStats.client_id.in_(client_ids)
+                models.VKStats.client_id.in_(client_ids),
             )
             if campaign_ids:
                 q = q.filter(models.Campaign.id.in_(campaign_ids))

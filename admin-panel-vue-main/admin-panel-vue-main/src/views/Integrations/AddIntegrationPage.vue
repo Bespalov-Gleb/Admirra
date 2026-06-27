@@ -126,7 +126,7 @@
                   </label>
                 </div>
                 <p v-if="!vkCplSelected.length" class="text-xs text-amber-600">
-                  Не выбран ни один тип — CPL будет считаться по умолчанию (лид-формы, конверсии, сообщения, покупки).
+                  Выберите хотя бы один тип результата для расчёта CPL.
                 </p>
               </div>
 
@@ -442,7 +442,7 @@ const isNextDisabled = computed(() => {
   }
   if (currentStep.value === 2) return !form.account_id || loadingStates.profiles
   if (currentStep.value === 3) {
-    if (form.platform === 'VK_ADS') return false // VK: шаг CPL, значения по умолчанию есть
+    if (form.platform === 'VK_ADS') return vkCplSelected.value.length === 0
     return (!allFromProfile.value && selectedCampaignIds.value.length === 0) || loadingStates.campaigns
   }
   // For VK_ADS, counters are not required (VK Ads doesn't use Yandex Metrika)
@@ -499,7 +499,9 @@ const nextStep = async () => {
     try {
       await api.patch(`/integrations/${lastIntegrationId.value}`, {
         account_id: form.account_id,
-        agency_client_login: form.agency_client_login || form.account_id
+        agency_client_login: form.agency_client_login || form.account_id,
+        account_name: form.account_name || null,
+        is_agency: Boolean(form.is_agency)
       })
       // Wait a bit to ensure DB commit is complete
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -576,6 +578,8 @@ const updateFormData = (updates) => {
 const selectProfile = async (profile) => {
   form.account_id = profile.login
   form.agency_client_login = profile.login
+  form.account_name = profile.name || ''
+  form.is_agency = profile.type === 'agency_client'
   isProfileSelectorOpen.value = false
   
   // Patch integration with profile
@@ -583,7 +587,8 @@ const selectProfile = async (profile) => {
     await api.patch(`/integrations/${lastIntegrationId.value}`, {
       account_id: profile.login,
       agency_client_login: profile.login,
-      account_name: profile.name || null
+      account_name: profile.name || null,
+      is_agency: profile.type === 'agency_client'
     })
   } catch (err) {
     error.value = "Ошибка при сохранении профиля"

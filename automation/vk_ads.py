@@ -411,7 +411,6 @@ class VKAdsAPI:
             package.get("objective")
             or package.get("objective_name")
             or package.get("target_action")
-            or package.get("name")
         )
         if objective:
             if isinstance(objective, list):
@@ -543,17 +542,20 @@ class VKAdsAPI:
             logger.error(f"Error fetching VK campaigns: {e}")
             raise e
     
-    async def get_goal_actions_from_statistics(self, campaign_ids: List[str], date_from: str, date_to: str) -> Dict[str, tuple]:
+    async def get_goal_actions_from_statistics(
+        self,
+        campaign_ids: List[str],
+        date_from: str,
+        date_to: str,
+        campaigns: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, tuple]:
         """
-        Получает целевые действия из статистики с группировкой по целям.
-        
-        Согласно документации VK Ads API, статистика может содержать информацию о целях.
-        Endpoint: GET /api/v2/statistics/ad_plans/day.json
-        Параметры:
-        - group_by: "goal" или "objective" для группировки по целям
-        
-        Returns:
-            Dict[str, tuple] - {campaign_id: (goal_id, goal_name)}
+        Возвращает тип результата кампании из официальных сущностей AdPlan/Package.
+
+        Statistics API не поддерживает group_by=goal/objective. Раньше метод
+        перебирал недокументированные параметры и создавал серию HTTP 400.
+        Подневные значения целей приходят в base.vk.goals, а тип результата
+        определяется настройками кампании и Package.objective.
         """
         goal_actions_map = {}
         
@@ -561,149 +563,21 @@ class VKAdsAPI:
             return goal_actions_map
         
         try:
-            async with httpx.AsyncClient() as client:
-                # Пробуем получить статистику с группировкой по целям
-                url = f"{self.base_url}/statistics/ad_plans/day.json"
-                base_params = {
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "id": ",".join(campaign_ids[:50]) if campaign_ids else None,
-                }
+            campaigns = campaigns if campaigns is not None else await self.get_campaigns()
+            campaigns_map = {str(c["id"]): c for c in campaigns}
                 
-                if self.account_id:
-                    base_params["client_id"] = self.account_id
+            for camp_id in campaign_ids:
+                campaign = campaigns_map.get(str(camp_id))
+                if campaign and campaign.get("goal_action_id"):
+                    goal_actions_map[str(camp_id)] = (
+                        campaign["goal_action_id"],
+                        campaign.get("goal_action_name") or campaign["goal_action_id"],
+                    )
                 
-                # Пробуем разные варианты group_by и metrics
-                metrics_options = ["base", "base,goals", "goals"]
-                for group_by_param in ["goal", "objective", "goal_id"]:
-                    try:
-                        for metrics in metrics_options:
-                            test_params = base_params.copy()
-                            test_params["group_by"] = group_by_param
-                            test_params["metrics"] = metrics
-                        
-                            response = await client.get(url, params=test_params, headers=self.headers, timeout=30.0)
-                        
-                            if response.status_code == 200:
-                                data = response.json()
-                                items = data.get("items", [])
-                                if items:
-                                    self._push_debug(
-                                        f"stats ad_plans/day -> 200 group_by={group_by_param} metrics={metrics} items={len(items)}"
-                                    )
-                                if not items:
-                                    logger.info(
-                                        f"ℹ️ VK Ads stats пусто (group_by={group_by_param}, metrics={metrics}), "
-                                        f"keys={list(data.keys())}"
-                                    )
-                                elif len(items) > 0 and not goal_actions_map:
-                                    sample = items[0]
-                                    logger.info(
-                                        f"🔍 VK Ads stats sample (group_by={group_by_param}, metrics={metrics}): "
-                                        f"keys={list(sample.keys())}"
-                                    )
-                            
-                                for item in items:
-                                    campaign_id = str(item.get("id", ""))
-                                    # В статистике с группировкой по целям может быть поле goal или objective
-                                    goal_id = item.get("goal_id") or item.get("goal", {}).get("id") if isinstance(item.get("goal"), dict) else None
-                                    goal_name = item.get("goal_name") or item.get("goal", {}).get("name") if isinstance(item.get("goal"), dict) else None
-                                    
-                                    if goal_id or goal_name:
-                                        if campaign_id not in goal_actions_map:
-                                            goal_actions_map[campaign_id] = (str(goal_id) if goal_id else None, goal_name)
-                                
-                                if goal_actions_map:
-                                    logger.info(
-                                        f"✅ Найдено {len(goal_actions_map)} целевых действий "
-                                        f"в статистике (group_by={group_by_param}, metrics={metrics})"
-                                    )
-                                    break
-                            elif response.status_code == 400:
-                                # Параметр не поддерживается, пробуем следующий
-                                self._push_debug(
-                                    f"stats ad_plans/day -> 400 group_by={group_by_param} metrics={metrics}: "
-                                    f"{response.text[:200] if response.text else 'empty response'}"
-                                )
-                                logger.info(
-                                    f"ℹ️ VK Ads stats 400 (group_by={group_by_param}, metrics={metrics}): "
-                                    f"{response.text[:200] if response.text else 'empty response'}"
-                                )
-                                continue
-                        if goal_actions_map:
-                            break
-                    except Exception as e:
-                        continue
-                
-                # FALLBACK 1: Получаем базовый список кампаний (может содержать objective)
-                campaigns = await self.get_campaigns()
-                campaigns_map = {str(c["id"]): c for c in campaigns}
-                
-                # Используем цели из campaigns как начальные значения
-                for camp_id in campaign_ids:
-                    campaign = campaigns_map.get(str(camp_id))
-                    if campaign and campaign.get("goal_action_id"):
-                        goal_actions_map[str(camp_id)] = (
-                            campaign["goal_action_id"],
-                            campaign.get("goal_action_name") or campaign["goal_action_id"]
-                        )
-                
-                if goal_actions_map:
-                    logger.info(f"✅ Получено {len(goal_actions_map)} целей из базового списка кампаний")
-                
-                # FALLBACK 2: Если не нашли через campaigns, пробуем получить через Packages (AdGroup -> package_id -> objective)
-                missing_goals = set(str(cid) for cid in campaign_ids) - set(goal_actions_map.keys())
-                if missing_goals:
-                    logger.info(f"🔄 Запрашиваем цели через Packages для {len(missing_goals)} кампаний...")
-                    packages_goals = await self.get_goal_actions_from_packages(list(missing_goals))
-                    goal_actions_map.update(packages_goals)
-
-                # FALLBACK 3: Если все еще есть кампании без целей, пробуем индивидуальные запросы AdPlan
-                missing_goals = set(str(cid) for cid in campaign_ids) - set(goal_actions_map.keys())
-                if missing_goals and len(missing_goals) <= 20:  # Ограничиваем, чтобы не делать слишком много запросов
-                    logger.info(f"🔄 Пробуем получить целевые действия через индивидуальные запросы AdPlan для {len(missing_goals)} кампаний...")
-                    self._push_debug(f"FALLBACK 3: ad_plan individual requests for {len(missing_goals)} campaigns")
-                    for idx, camp_id in enumerate(sorted(list(missing_goals))[:20]):  # Ограничиваем до 20
-                        try:
-                            ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
-                            ad_plan_params = {
-                                "fields": "id,name,objective,status"  # Явно запрашиваем objective
-                            }
-                            if self.account_id:
-                                ad_plan_params["client_id"] = self.account_id
-                            
-                            ad_plan_response = await client.get(ad_plan_url, params=ad_plan_params, headers=self.headers, timeout=10.0)
-                            if ad_plan_response.status_code == 200:
-                                ad_plan_data = ad_plan_response.json()
-                                ad_plan_item = ad_plan_data.get("item") or ad_plan_data
-                                
-                                # Логируем структуру первых 3 ответов
-                                if idx < 3:
-                                    self._push_debug(f"ad_plan[{camp_id}] keys -> {list(ad_plan_item.keys())}")
-                                    self._push_debug(f"ad_plan[{camp_id}] FULL -> {str(ad_plan_item)[:300]}")
-                                    if "objective" in ad_plan_item:
-                                        self._push_debug(f"ad_plan[{camp_id}] objective -> {ad_plan_item.get('objective')}")
-                                
-                                goal_id, goal_name = self._extract_goal_action(ad_plan_item)
-                                if goal_id or goal_name:
-                                    # Преобразуем код objective в человекочитаемое название
-                                    if goal_id and not goal_name:
-                                        goal_name = self._get_human_readable_objective(goal_id)
-                                    elif goal_name and not goal_id:
-                                        goal_id = goal_name
-                                    goal_actions_map[camp_id] = (goal_id, goal_name)
-                                    if idx < 3:
-                                        self._push_debug(f"ad_plan[{camp_id}] EXTRACTED -> goal_id={goal_id}, goal_name={goal_name}")
-                            
-                            await asyncio.sleep(0.5)  # Задержка между запросами
-                        except Exception as e:
-                            if idx < 3:
-                                self._push_debug(f"ad_plan[{camp_id}] ERROR -> {str(e)[:200]}")
-                            continue
-                    
-                    self._push_debug(f"FALLBACK: found {len(goal_actions_map)} goals via AdPlan")
-                    if goal_actions_map:
-                        logger.info(f"✅ Найдено {len(goal_actions_map)} целевых действий через AdPlan")
+            missing_goals = set(str(cid) for cid in campaign_ids) - set(goal_actions_map)
+            if missing_goals:
+                package_goals = await self.get_goal_actions_from_packages(sorted(missing_goals))
+                goal_actions_map.update(package_goals)
         except Exception as e:
             logger.warning(f"⚠️ Не удалось получить целевые действия: {e}")
         
@@ -1161,7 +1035,12 @@ class VKAdsAPI:
             logger.warning(f"⚠️ Error fetching VK goals: {e}")
             return {}
 
-    async def get_statistics(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+    async def get_statistics(
+        self,
+        date_from: str,
+        date_to: str,
+        campaigns: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Получает статистику по рекламным кампаниям (AdPlans).
         
@@ -1171,14 +1050,18 @@ class VKAdsAPI:
         - date_from (обязательно) - начальная дата (YYYY-MM-DD)
         - date_to (обязательно) - конечная дата (YYYY-MM-DD)
         - metrics (по умолчанию "base") - набор метрик
-        - id (опционально) - список ID кампаний для фильтрации
-        - client_id (опционально) - ID кабинета для фильтрации
+        - id (обязательно) - список ID кампаний
         
-        Автоматически разбивает диапазон дат на чанки по 90 дней для соблюдения лимитов API.
+        API ограничивает один запрос 200 объектами и последними 366 днями.
+        Профиль определяется OAuth-токеном; client_id в Statistics не передаётся.
         """
         # Получаем названия кампаний для маппинга
-        campaigns = await self.get_campaigns()
-        names_map = {int(c["id"]): c["name"] for c in campaigns}
+        campaigns = campaigns if campaigns is not None else await self.get_campaigns()
+        campaign_ids = [str(c.get("id")) for c in campaigns if c.get("id") is not None]
+        if not campaign_ids:
+            logger.info("VK Ads: статистика не запрашивается — список кампаний пуст")
+            return []
+        names_map = {str(c["id"]): c["name"] for c in campaigns}
         
         # Разбиваем диапазон дат на чанки (максимум 366 дней согласно документации)
         date_chunks = self._split_date_range(date_from, date_to, 90)
@@ -1186,80 +1069,71 @@ class VKAdsAPI:
 
         async with httpx.AsyncClient() as client:
             for d_from, d_to in date_chunks:
+                for id_offset in range(0, len(campaign_ids), 200):
+                    id_chunk = campaign_ids[id_offset:id_offset + 200]
                 # Согласно документации: GET /api/v2/statistics/ad_plans/day.json
-                url = f"{self.base_url}/statistics/ad_plans/day.json"
-                params = {
-                    "date_from": d_from,
-                    "date_to": d_to,
-                    "metrics": "base"  # Базовые метрики: shows, clicks, spent, cpm, cpc, ctr, vk.goals, vk.cpa, vk.cr
-                }
-                
-                # Параметр client_id используется для фильтрации статистики по кабинету
-                if self.account_id:
-                    params["client_id"] = self.account_id
+                    url = f"{self.base_url}/statistics/ad_plans/day.json"
+                    params = {
+                        "date_from": d_from,
+                        "date_to": d_to,
+                        "id": ",".join(id_chunk),
+                        "metrics": "base",
+                    }
 
-                # CRITICAL: Retry logic for 429 Rate Limit errors
-                max_retries = 3
-                retry_delay = 5  # Начальная задержка в секундах
+                    max_retries = 3
+                    retry_delay = 5
+                    last_error: Optional[Exception] = None
                 
-                for attempt in range(max_retries):
-                    try:
-                        # Увеличиваем таймаут для больших периодов (90+ дней)
-                        date_range_days = (datetime.strptime(d_to, "%Y-%m-%d") - datetime.strptime(d_from, "%Y-%m-%d")).days
-                        if date_range_days > 90:
-                            timeout_seconds = min(600.0, 120.0 + (date_range_days - 90) * 2)  # Максимум 10 минут
-                        else:
-                            timeout_seconds = 120.0
+                    for attempt in range(max_retries):
+                        try:
+                            response = await client.get(
+                                url,
+                                params=params,
+                                headers=self.headers,
+                                timeout=120.0,
+                            )
                         
-                        response = await client.get(url, params=params, headers=self.headers, timeout=timeout_seconds)
-                        
-                        if response.status_code == 200:
-                            chunk_data = self._parse_response(response.json(), names_map)
-                            all_results.extend(chunk_data)
-                            break  # Успешно получили данные, выходим из retry цикла
-                        elif response.status_code == 429:
-                            # Rate limit exceeded - ждем и повторяем
-                            try:
-                                error_data = response.json()
-                                remaining = error_data.get("remaining", {}).get("1", 0)
-                                limits = error_data.get("limits", {}).get("1", 2)
-                                logger.warning(f"⚠️ VK Ads API rate limit exceeded for range {d_from}-{d_to}. Remaining: {remaining}/{limits}. Waiting {retry_delay * (attempt + 1)}s before retry {attempt + 1}/{max_retries}...")
-                            except:
-                                logger.warning(f"⚠️ VK Ads API rate limit exceeded for range {d_from}-{d_to}. Waiting {retry_delay * (attempt + 1)}s before retry {attempt + 1}/{max_retries}...")
-                            
-                            if attempt < max_retries - 1:
-                                # Exponential backoff: увеличиваем задержку с каждой попыткой
-                                wait_time = retry_delay * (attempt + 1)
+                            if response.status_code == 200:
+                                all_results.extend(self._parse_response(response.json(), names_map))
+                                last_error = None
+                                break
+
+                            message = (
+                                f"VK Ads statistics HTTP {response.status_code} "
+                                f"for {d_from}..{d_to}, ids {id_offset + 1}-"
+                                f"{id_offset + len(id_chunk)}: {(response.text or '')[:300]}"
+                            )
+                            last_error = RuntimeError(message)
+                            if response.status_code == 429 and attempt < max_retries - 1:
+                                retry_after = response.headers.get("Retry-After")
+                                try:
+                                    wait_time = max(float(retry_after), 1.0)
+                                except (TypeError, ValueError):
+                                    wait_time = retry_delay * (attempt + 1)
+                                logger.warning("%s; retry in %.1fs", message, wait_time)
                                 await asyncio.sleep(wait_time)
                                 continue
-                            else:
-                                logger.error(f"❌ VK Ads API rate limit exceeded after {max_retries} attempts for range {d_from}-{d_to}. Skipping this chunk.")
-                                break
-                        elif response.status_code == 400:
-                            # Согласно документации, 400 может быть для:
-                            # - ERR_WRONG_PARAMETER - некорректное значение параметра
-                            # - ERR_LIMIT_EXCEEDED - превышен лимит запрашиваемых дат или количества объектов
-                            # - ERR_WRONG_DATE - некорректная дата
-                            logger.warning(f"VK Ads API returned 400 for range {d_from}-{d_to}. Likely old data or invalid params. Response: {response.text[:200]}")
-                            break  # Не повторяем для 400 ошибок
-                        else:
-                            logger.error(f"VK Ads API error for range {d_from}-{d_to}: {response.status_code} - {response.text[:200]}")
-                            if attempt < max_retries - 1:
-                                await asyncio.sleep(retry_delay)
+                            if response.status_code >= 500 and attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay * (attempt + 1))
                                 continue
-                            else:
-                                break
-                    except Exception as e:
-                        logger.error(f"VK Ads API Exception for range {d_from}-{d_to} (attempt {attempt + 1}/{max_retries}): {e}")
-                        if attempt < max_retries - 1:
-                            await asyncio.sleep(retry_delay)
-                            continue
-                        else:
-                            break
-                
-                # CRITICAL: Увеличиваем задержку между запросами для избежания 429 ошибок
-                # VK Ads имеет строгие лимиты: обычно 2 запроса в секунду
-                await asyncio.sleep(2)  # Увеличено с 1 до 2 секунд
+                            _log_vk_error_for_support(response, "GET statistics/ad_plans/day.json")
+                            raise last_error
+                        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                            last_error = exc
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay * (attempt + 1))
+                                continue
+                            raise RuntimeError(
+                                f"VK Ads statistics request failed for {d_from}..{d_to}"
+                            ) from exc
+
+                    if last_error is not None:
+                        raise last_error
+
+                    if id_offset + len(id_chunk) < len(campaign_ids):
+                        await asyncio.sleep(0.55)
+                if d_to != date_chunks[-1][1]:
+                    await asyncio.sleep(0.55)
                     
         return all_results
 
@@ -1276,7 +1150,7 @@ class VKAdsAPI:
             curr = chunk_end + timedelta(days=1)
         return chunks
 
-    def _parse_response(self, data: Dict[str, Any], names_map: Dict[int, str]) -> List[Dict[str, Any]]:
+    def _parse_response(self, data: Dict[str, Any], names_map: Dict[str, str]) -> List[Dict[str, Any]]:
         """
         Парсит ответ VK Ads API Statistics.
         
@@ -1307,12 +1181,8 @@ class VKAdsAPI:
         items = data.get("items", [])
         for item in items:
             campaign_id = item.get("id")
-            # names_map ключи — int; campaign_id из API может быть int или str
-            try:
-                cid = int(campaign_id) if campaign_id is not None else None
-            except (TypeError, ValueError):
-                cid = campaign_id
-            campaign_name = names_map.get(cid, f"Campaign {campaign_id}") if cid is not None else f"Campaign {campaign_id}"
+            campaign_key = str(campaign_id) if campaign_id is not None else ""
+            campaign_name = names_map.get(campaign_key, f"Campaign {campaign_id}")
             rows = item.get("rows", [])
             for row in rows:
                 base = row.get("base", {})

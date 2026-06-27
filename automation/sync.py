@@ -954,50 +954,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         elif integration.platform == models.IntegrationPlatform.VK_ADS:
             access_token = security.decrypt_token(integration.access_token)
 
-            # Личный кабинет vs агентство. По документации VK Ads параметр client_id
-            # (id клиента агентства) шлётся ТОЛЬКО для агентского токена; для личного
-            # кабинета его передача возвращает пустую статистику (баг «личный кабинет
-            # подключается, но не вытягивает статистику»). Определяем тип токена по
-            # agency/clients.json и решаем, передавать ли client_id в запросах.
-            vk_send_client_id = True
-            if integration.account_id:
-                try:
-                    _vk_kind = await VKAdsAPI(access_token).detect_token_kind()
-                    if _vk_kind == "personal":
-                        vk_send_client_id = False
-                    elif _vk_kind == "agency":
-                        vk_send_client_id = True
-                    # unknown → сохраняем прежнее поведение (шлём client_id)
-                    logger.info(
-                        f"VK token kind for integration {integration.id}: "
-                        f"{_vk_kind} → send_client_id={vk_send_client_id}"
-                    )
-                except Exception as _vk_kind_err:
-                    logger.info(f"VK token kind detect failed for {integration.id}: {_vk_kind_err}")
-            else:
-                vk_send_client_id = False
-
-            api = VKAdsAPI(access_token, integration.account_id, send_client_id=vk_send_client_id)
-
-            # №4: VK по умолчанию синкается узким окном (воркер сужает days до ~3-7),
-            # из-за чего дашборд не может показать период больше недели. Расширяем окно
-            # запроса статистики ТОЛЬКО для VK до VK_MIN_SYNC_DAYS (по умолчанию 90),
-            # не трогая общий механизм окна и другие платформы. API VK допускает до 92
-            # дней за запрос; get_statistics сам бьёт период на чанки по 90.
-            vk_date_from = date_from
-            try:
-                _vk_min_days = int(os.getenv("VK_MIN_SYNC_DAYS", "90"))
-                _vk_floor = (
-                    datetime.strptime(date_to, "%Y-%m-%d").date() - timedelta(days=_vk_min_days)
-                ).strftime("%Y-%m-%d")
-                if _vk_floor < vk_date_from:
-                    vk_date_from = _vk_floor
-                    logger.info(
-                        f"VK sync window widened to {vk_date_from}..{date_to} "
-                        f"(min {_vk_min_days}d) for integration {integration.id}"
-                    )
-            except Exception as _vk_win_err:
-                logger.info(f"VK window widen skipped for {integration.id}: {_vk_win_err}")
+            # Statistics API скоупится OAuth-токеном. Для клиента агентства здесь
+            # уже должен быть токен agency_client_credentials; client_id в запросы
+            # кампаний/статистики не подставляем.
+            api = VKAdsAPI(access_token, integration.account_id, send_client_id=False)
 
             # Получаем баланс перед синхронизацией статистики
             try:
@@ -1022,11 +982,50 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             goal_actions_synced = 0
             campaigns_updated = 0
 
+            async def _vk_refresh_token():
+                nonlocal api
+                if not integration.refresh_token:
+                    return False
+                from backend_api.integrations import VK_CLIENT_ID, VK_CLIENT_SECRET
+                from backend_api.services import IntegrationService
+
+                refresh_token = security.decrypt_token(integration.refresh_token)
+                token_data = await IntegrationService.refresh_vk_token(
+                    refresh_token,
+                    VK_CLIENT_ID,
+                    VK_CLIENT_SECRET,
+                )
+                if not token_data or not token_data.get("access_token"):
+                    return False
+
+                integration.access_token = security.encrypt_token(token_data["access_token"])
+                if token_data.get("refresh_token"):
+                    integration.refresh_token = security.encrypt_token(
+                        token_data["refresh_token"]
+                    )
+                expires_in = token_data.get("expires_in")
+                if expires_in is not None:
+                    try:
+                        integration.expires_at = datetime.now(timezone.utc) + timedelta(
+                            seconds=int(expires_in)
+                        )
+                    except (TypeError, ValueError):
+                        pass
+                db.commit()
+                api = VKAdsAPI(
+                    token_data["access_token"],
+                    integration.account_id,
+                    send_client_id=False,
+                )
+                return True
+
             async def _vk_get_campaigns_with_agency_fallback():
                 nonlocal api
                 try:
                     return await api.get_campaigns()
                 except Exception as ex:
+                    if ("401" in str(ex) or "expired_token" in str(ex)) and await _vk_refresh_token():
+                        return await api.get_campaigns()
                     if not vk_campaigns_error_needs_agency_client_retry(ex):
                         raise
                     vk_secret = (os.getenv("VK_CLIENT_SECRET") or "").strip()
@@ -1059,9 +1058,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             pass
                     db.commit()
                     new_plain = security.decrypt_token(integration.access_token)
-                    api = VKAdsAPI(new_plain, integration.account_id, send_client_id=vk_send_client_id)
+                    api = VKAdsAPI(new_plain, integration.account_id, send_client_id=False)
                     return await api.get_campaigns()
 
+            vk_campaigns = []
             try:
                 vk_campaigns = await _vk_get_campaigns_with_agency_fallback()
                 campaign_catalog = _upsert_campaign_catalog(db, integration, vk_campaigns)
@@ -1072,21 +1072,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 end_date = datetime.now()
                 start_date = end_date - timedelta(days=30)
                 goal_actions_map = await api.get_goal_actions_from_statistics(
-                    campaign_ids, 
+                    campaign_ids,
                     start_date.strftime("%Y-%m-%d"),
-                    end_date.strftime("%Y-%m-%d")
+                    end_date.strftime("%Y-%m-%d"),
+                    campaigns=vk_campaigns,
                 )
-                
-                # НОВОЕ: Получаем целевые действия через AdGroup → package_id → Packages.objective
-                # (согласно рекомендации поддержки VK Ads)
-                try:
-                    goal_actions_from_packages = await api.get_goal_actions_from_packages(campaign_ids)
-                    
-                    # Объединяем результаты: приоритет у packages (более точный источник)
-                    for camp_id, (pkg_id, pkg_name) in goal_actions_from_packages.items():
-                        goal_actions_map[camp_id] = (pkg_id, pkg_name)
-                except Exception as pkg_err:
-                    logger.error(f"❌ ОШИБКА при вызове get_goal_actions_from_packages: {pkg_err}", exc_info=True)
                 
                 for c in vk_campaigns:
                     external_id = str(c.get("id") or "")
@@ -1114,42 +1104,35 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             except Exception as campaigns_err:
                 logger.error(f"❌ Ошибка синхронизации кампаний VK: {campaigns_err}")
                 db.rollback()
+                raise
             
             try:
                 log_event("sync", f"fetching vk statistics for {integration.id}")
-                stats = await api.get_statistics(vk_date_from, date_to)
+                stats = await api.get_statistics(date_from, date_to, campaigns=vk_campaigns)
                 log_event("sync", f"received {len(stats)} rows from vk")
             except Exception as e:
                 # VK Token Refresh: Try refresh_token first (OAuth flow), then fallback to client_credentials
                 # Согласно документации VK ID: Access token живет 1 час, refresh_token используется для обновления
                 if ("401" in str(e) or "Unauthorized" in str(e)) and integration.refresh_token:
-                    from backend_api.services import IntegrationService
                     logger.info(f"🔄 Refreshing VK token using refresh_token for integration {integration.id}")
-                    rt = security.decrypt_token(integration.refresh_token)
-                    # Используем VK_CLIENT_ID и VK_CLIENT_SECRET из integrations.py
-                    from backend_api.integrations import VK_CLIENT_ID, VK_CLIENT_SECRET
-                    new_token_data = await IntegrationService.refresh_vk_token(rt, VK_CLIENT_ID, VK_CLIENT_SECRET)
-                    
-                    if new_token_data and "access_token" in new_token_data:
-                        integration.access_token = security.encrypt_token(new_token_data["access_token"])
-                        if "refresh_token" in new_token_data:
-                            integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
-                        db.flush()
-                        api = VKAdsAPI(new_token_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
-                        stats = await api.get_statistics(vk_date_from, date_to)
+                    if await _vk_refresh_token():
+                        vk_campaigns = await api.get_campaigns()
+                        stats = await api.get_statistics(date_from, date_to, campaigns=vk_campaigns)
                         logger.info(f"✅ VK token refreshed successfully, retrying statistics fetch")
                     else:
                         logger.warning(f"⚠️ VK refresh_token failed, trying client_credentials fallback")
                         # Fallback to client_credentials if refresh_token fails
                         if integration.platform_client_id and integration.platform_client_secret:
+                            from backend_api.services import IntegrationService
                             cid = security.decrypt_token(integration.platform_client_id)
                             cs = security.decrypt_token(integration.platform_client_secret)
                             vk_data = await IntegrationService.exchange_vk_token(cid, cs)
                             if vk_data and "access_token" in vk_data:
                                 integration.access_token = security.encrypt_token(vk_data["access_token"])
                                 db.flush()
-                                api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
-                                stats = await api.get_statistics(vk_date_from, date_to)
+                                api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=False)
+                                vk_campaigns = await api.get_campaigns()
+                                stats = await api.get_statistics(date_from, date_to, campaigns=vk_campaigns)
                             else:
                                 raise e
                         else:
@@ -1164,8 +1147,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     if vk_data and "access_token" in vk_data:
                         integration.access_token = security.encrypt_token(vk_data["access_token"])
                         db.flush()
-                        api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=vk_send_client_id)
-                        stats = await api.get_statistics(vk_date_from, date_to)
+                        api = VKAdsAPI(vk_data["access_token"], integration.account_id, send_client_id=False)
+                        vk_campaigns = await api.get_campaigns()
+                        stats = await api.get_statistics(date_from, date_to, campaigns=vk_campaigns)
                     else:
                         raise e
                 else:

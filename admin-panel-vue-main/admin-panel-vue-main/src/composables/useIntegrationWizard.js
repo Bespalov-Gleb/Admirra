@@ -18,6 +18,7 @@ const form = reactive({
   account_id: null,
   account_name: '',
   agency_client_login: '',
+  is_agency: false,
   utm_source: 'avito-ads',
   primary_goal_id: null
 })
@@ -82,6 +83,7 @@ export function useIntegrationWizard() {
     form.account_id = null
     form.account_name = ''
     form.agency_client_login = ''
+    form.is_agency = false
     form.utm_source = 'avito-ads'
     form.primary_goal_id = null
     campaigns.value = []
