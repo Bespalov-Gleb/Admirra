@@ -474,11 +474,11 @@
             class="metric-channel-row"
           >
             <span class="metric-channel-row__name">
-              <i :style="{ background: channel.color }"></i>
+              <img v-if="channel.asset" :src="channel.asset" alt="" class="metric-channel-row__icon" />
+              <i v-else :style="{ background: channel.color }"></i>
               {{ channel.shortName }}
             </span>
             <strong>{{ channel.value }}</strong>
-            <span v-if="channel.share !== null">{{ channel.share }}%</span>
           </div>
         </div>
       </article>
@@ -3005,6 +3005,7 @@ const buildMetricBreakdown = (metricKey) => {
     key: item.key,
     shortName: item.shortName,
     color: item.color,
+    asset: item.asset,
     value: formatChannelMetricValue(metricKey, item.rawValue),
     share: additive && total > 0 ? formatNumber((item.rawValue / total) * 100, 0) : null,
   }))
@@ -11242,6 +11243,34 @@ onMounted(() => {
 .kpi-grid--channel-details .metric-head {
   min-width: 0;
   flex: 1 1 55%;
+  gap: 0.75rem;
+}
+
+/* В узкой карточке (режим «Все каналы») уменьшаем иконку и значение, чтобы
+   значение помещалось в одну строку и не наезжало на бейдж тренда. */
+.kpi-grid--channel-details .metric-icon {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 0.9rem;
+}
+
+.kpi-grid--channel-details .metric-icon svg {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.kpi-grid--channel-details .metric-card h3 {
+  font-size: 1.05rem;
+}
+
+.kpi-grid--channel-details .metric-card strong {
+  margin-top: 0.4rem;
+  font-size: 1.55rem;
+  white-space: nowrap;
+}
+
+.kpi-grid--channel-details .metric-head .trend {
+  flex: 0 0 auto;
 }
 
 .kpi-grid--channel-details .metric-channel-breakdown {
@@ -11256,18 +11285,26 @@ onMounted(() => {
 
 .metric-channel-row {
   display: grid;
-  grid-template-columns: minmax(4.2rem, 1fr) auto 2.2rem;
+  grid-template-columns: minmax(4.2rem, 1fr) auto;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   color: #8b93a1;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
 }
 
 .metric-channel-row__name {
   display: inline-flex;
   align-items: center;
-  gap: 0.42rem;
+  gap: 0.45rem;
   min-width: 0;
+}
+
+.metric-channel-row__icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+  border-radius: 0.22rem;
 }
 
 .metric-channel-row__name i,
@@ -11414,9 +11451,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   align-self: flex-start;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
   gap: 0.3rem;
   margin-top: 0.32rem;
-  min-width: 3.6rem;
+  min-width: 3.4rem;
   padding: 0.2rem 0.5rem;
   border-radius: 0.55rem;
   border: 1px solid rgba(15, 23, 42, 0.06);
