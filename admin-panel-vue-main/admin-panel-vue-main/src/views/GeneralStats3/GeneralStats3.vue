@@ -361,6 +361,22 @@
       </div>
     </div>
 
+    <div v-else-if="allChannelsDataLoading" class="all-channels-loading-banner" role="status" aria-live="polite">
+      <span class="all-channels-loading-banner__spinner">
+        <ArrowPathIcon class="spinning" />
+      </span>
+      <div class="all-channels-loading-banner__copy">
+        <strong>Собираем данные по всем каналам</strong>
+        <p>Загружаем общие показатели, динамику, кампании и целевые действия. Пожалуйста, подождите.</p>
+      </div>
+      <div class="all-channels-loading-banner__channels" aria-hidden="true">
+        <span v-for="channel in channelSummaryEntries" :key="channel.key">
+          <img :src="channel.asset" alt="" />
+          {{ channel.shortName }}
+        </span>
+      </div>
+    </div>
+
     <DetectorBanner
       v-if="filters.client_id && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
       :warning-count="detectorSummary?.warning_count || 0"
@@ -420,7 +436,7 @@
       </div>
     </section>
 
-    <div v-if="dashboardSyncInProgress" class="kpi-grid kpi-grid--sync">
+    <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="kpi-grid kpi-grid--sync">
       <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
         <span class="metric-skeleton-icon"></span>
         <div class="metric-skeleton-lines">
@@ -563,7 +579,7 @@
     </section>
 
     <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
-      <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
+      <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
         <div class="chart-panel__header">
           <div class="chart-panel__heading">
             <span>Динамика за период</span>
@@ -729,15 +745,15 @@
             </div>
           </div>
         </div>
-        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+        <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="sync-panel-overlay">
           <ArrowPathIcon class="spinning" />
-          <strong>Выполняется синхронизация</strong>
-          <span>График обновится сразу после завершения.</span>
+          <strong>{{ dashboardSyncInProgress ? 'Выполняется синхронизация' : 'Загружаем все каналы' }}</strong>
+          <span>{{ dashboardSyncInProgress ? 'График обновится сразу после завершения.' : 'Собираем динамику по каждому рекламному источнику.' }}</span>
           <i></i><i></i><i></i>
         </div>
       </article>
 
-      <article class="panel goals-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
+      <article class="panel goals-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
         <div class="goals-panel__header">
           <h2>Целевые действия</h2>
         </div>
@@ -792,16 +808,16 @@
           </div>
         </div>
         </div>
-        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+        <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="sync-panel-overlay">
           <ArrowPathIcon class="spinning" />
-          <strong>Выполняется синхронизация</strong>
-          <span>Цели и CPL обновятся автоматически.</span>
+          <strong>{{ dashboardSyncInProgress ? 'Выполняется синхронизация' : 'Загружаем целевые действия' }}</strong>
+          <span>{{ dashboardSyncInProgress ? 'Цели и CPL обновятся автоматически.' : 'Объединяем цели и CPL по подключенным каналам.' }}</span>
           <i></i><i></i><i></i>
         </div>
       </article>
     </section>
 
-    <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
+    <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
@@ -942,10 +958,10 @@
           </template>
         </div>
       </div>
-      <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+      <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="sync-panel-overlay">
         <ArrowPathIcon class="spinning" />
-        <strong>Выполняется синхронизация</strong>
-        <span>Кампании обновятся автоматически.</span>
+        <strong>{{ dashboardSyncInProgress ? 'Выполняется синхронизация' : 'Загружаем рекламные кампании' }}</strong>
+        <span>{{ dashboardSyncInProgress ? 'Кампании обновятся автоматически.' : 'Формируем общую таблицу по всем источникам.' }}</span>
         <i></i><i></i><i></i>
       </div>
     </section>
@@ -1576,6 +1592,8 @@ const renderMarkdown = (text) => {
 }
 const reportGoals = ref([])
 const reportGoalsByChannel = ref({})
+const reportGoalsLoading = ref(false)
+let reportGoalsRequestId = 0
 const integrations = ref([])
 const topAds = ref([])
 const topAdsLoading = ref(false)
@@ -2992,6 +3010,9 @@ const dashboardTitle = computed(() => {
 })
 
 const isAllChannelsMode = computed(() => filters.channel === 'all')
+const allChannelsDataLoading = computed(() => (
+  isAllChannelsMode.value && (loading.value || reportGoalsLoading.value)
+))
 
 const channelSummaryEntries = computed(() =>
   dashboardChannelKeys.map((key) => ({
@@ -3234,7 +3255,8 @@ const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricK
 
 const buildChartPoints = (values, maxOverride = null) => {
   const normalizedValues = values.map((value) => Math.max(0, Number(value) || 0))
-  const max = Math.max(Number(maxOverride) || 0, ...normalizedValues, 1)
+  const dataMax = Math.max(Number(maxOverride) || 0, ...normalizedValues, 0)
+  const max = dataMax > 0 ? dataMax * 1.08 : 1
   const min = 0
   const span = Math.max(max - min, 1)
   return normalizedValues.map((value, index) => ({
@@ -3552,8 +3574,9 @@ const chartYLabels = computed(() => {
   const values = isAllChannelsMode.value && chartBreakdownMode.value === 'channels'
     ? chartSeries.value.flatMap((series) => series.values)
     : chartSourceValues.value
-  const rawMax = Math.max(...values, 0)
-  if (rawMax === 0) return ['', '', '', '', '0']
+  const dataMax = Math.max(...values, 0)
+  if (dataMax === 0) return ['', '', '', '', '0']
+  const rawMax = dataMax * 1.08
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
@@ -3914,6 +3937,8 @@ const getStatsParams = () => ({
 
 const fetchReportGoals = async () => {
   if (!filters.start_date || !filters.end_date) return
+  const requestId = ++reportGoalsRequestId
+  reportGoalsLoading.value = true
   if (isAllChannelsMode.value) reportGoalsByChannel.value = {}
   try {
     const baseParams = {
@@ -3936,18 +3961,24 @@ const fetchReportGoals = async () => {
       const results = settled
         .filter((result) => result.status === 'fulfilled')
         .map((result) => result.value)
+      if (requestId !== reportGoalsRequestId) return
       reportGoalsByChannel.value = Object.fromEntries(results)
       reportGoals.value = results.flatMap(([, items]) => items)
     } else {
       const { data } = await api.get('dashboard/goals', {
         params: { ...baseParams, platform: filters.channel },
       })
+      if (requestId !== reportGoalsRequestId) return
       reportGoals.value = Array.isArray(data) ? data : (data?.goals || [])
       reportGoalsByChannel.value = {}
     }
   } catch {
-    reportGoals.value = []
-    reportGoalsByChannel.value = {}
+    if (requestId === reportGoalsRequestId) {
+      reportGoals.value = []
+      reportGoalsByChannel.value = {}
+    }
+  } finally {
+    if (requestId === reportGoalsRequestId) reportGoalsLoading.value = false
   }
 }
 
@@ -11850,13 +11881,13 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.42rem;
-  min-height: 2.35rem;
-  padding: 0 0.82rem;
+  min-height: 2.75rem;
+  padding: 0 1.05rem;
   border: 0;
   border-radius: 0.52rem;
   background: transparent;
   color: #7d8796;
-  font-size: 0.75rem;
+  font-size: 0.84rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
@@ -11864,8 +11895,8 @@ onMounted(() => {
 }
 
 .chart-breakdown-switch button svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .chart-breakdown-switch button:hover {
@@ -11890,7 +11921,7 @@ onMounted(() => {
 
 .chart-control-group {
   display: grid;
-  grid-template-columns: 6rem minmax(0, 1fr);
+  grid-template-columns: 6.7rem minmax(0, 1fr);
   align-items: center;
   gap: 0.8rem;
 }
@@ -11902,7 +11933,7 @@ onMounted(() => {
 
 .chart-control-label {
   color: #8992a1;
-  font-size: 0.7rem;
+  font-size: 0.79rem;
   font-weight: 700;
 }
 
@@ -11915,17 +11946,17 @@ onMounted(() => {
 
 .chart-chip {
   display: grid;
-  grid-template-columns: 1.65rem minmax(0, 1fr) 0.86rem;
+  grid-template-columns: 1.9rem minmax(0, 1fr) 1rem;
   align-items: center;
   gap: 0.48rem;
   min-width: 0;
-  height: 2.65rem;
-  padding: 0 0.65rem 0 0.48rem;
+  height: 3.05rem;
+  padding: 0 0.78rem 0 0.55rem;
   border: 1px solid #e2e7ee;
   border-radius: 0.62rem;
   background: #fff;
   color: #697384;
-  font-size: 0.71rem;
+  font-size: 0.81rem;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -11942,21 +11973,21 @@ onMounted(() => {
 .chart-chip__icon {
   display: grid;
   place-items: center;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 0.46rem;
   color: var(--metric-color);
   background: var(--metric-soft);
 }
 
 .chart-chip__icon svg {
-  width: 0.92rem;
-  height: 0.92rem;
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .chart-chip__check {
-  width: 0.86rem;
-  height: 0.86rem;
+  width: 1rem;
+  height: 1rem;
   color: #c5ccd7;
 }
 
@@ -11980,23 +12011,23 @@ onMounted(() => {
 
 .chart-channel-legend button {
   display: inline-grid;
-  grid-template-columns: 1.65rem auto 0.9rem;
+  grid-template-columns: 1.9rem auto 1rem;
   align-items: center;
   gap: 0.48rem;
-  min-height: 2.65rem;
-  padding: 0 0.72rem 0 0.48rem;
+  min-height: 3.05rem;
+  padding: 0 0.82rem 0 0.55rem;
   border: 1px solid #e2e7ee;
   border-radius: 0.62rem;
   background: #fff;
   color: #737d8d;
-  font-size: 0.72rem;
+  font-size: 0.81rem;
   font-weight: 700;
   cursor: pointer;
 }
 
 .chart-channel-legend button > svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 1rem;
+  height: 1rem;
   color: #c5ccd7;
 }
 
@@ -12013,16 +12044,16 @@ onMounted(() => {
 .chart-channel-logo {
   display: grid;
   place-items: center;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 0.46rem;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
 }
 
 .chart-channel-logo img {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: 1.18rem;
+  height: 1.18rem;
   object-fit: contain;
 }
 
@@ -12031,13 +12062,13 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 2.25rem;
-  margin-top: 0.72rem;
+  min-height: 1.8rem;
+  margin-top: 0.5rem;
 }
 
 .chart-scale-label {
   color: #929baa;
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   font-weight: 600;
 }
 
@@ -12055,23 +12086,32 @@ onMounted(() => {
   align-items: center;
   gap: 0.32rem;
   color: #8b94a3;
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
 .chart-series-values i {
-  width: 0.4rem;
-  height: 0.4rem;
+  width: 0.46rem;
+  height: 0.46rem;
   border-radius: 50%;
 }
 
 .chart-series-values strong {
   color: #384456;
+  font-size: 0.8rem;
   font-weight: 800;
 }
 
 .chart-area {
-  margin-top: 0.15rem;
+  margin-top: -0.1rem;
+}
+
+.chart-goals-grid--stacked .chart-area svg {
+  aspect-ratio: auto;
+}
+
+.chart-goals-grid--stacked .chart-area {
+  aspect-ratio: auto;
 }
 
 .chart-plot-background {
@@ -12103,7 +12143,7 @@ onMounted(() => {
 
 .axis-labels text {
   fill: #939caa;
-  font-size: 0.69rem;
+  font-size: 0.76rem;
   font-weight: 600;
 }
 
@@ -12123,14 +12163,14 @@ onMounted(() => {
 }
 
 .chart-tooltip {
-  min-width: 16.75rem;
-  max-width: min(20rem, calc(100vw - 1rem));
-  padding: 0.85rem;
+  min-width: 19rem;
+  max-width: min(23rem, calc(100vw - 1rem));
+  padding: 1rem;
   border: 1px solid #e0e5ec;
   border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.98);
   color: #263244;
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   box-shadow: 0 0.85rem 2.2rem rgba(15, 23, 42, 0.14);
   backdrop-filter: blur(12px);
 }
@@ -12142,38 +12182,38 @@ onMounted(() => {
   gap: 0.8rem;
   margin-bottom: 0.55rem;
   color: #344154;
-  font-size: 0.74rem;
+  font-size: 0.88rem;
   font-weight: 800;
 }
 
 .chart-tooltip__date small {
   color: #9aa3b1;
-  font-size: 0.58rem;
+  font-size: 0.68rem;
   font-weight: 600;
 }
 
 .chart-tooltip__main {
   display: grid;
-  grid-template-columns: 1.55rem minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  min-height: 2rem;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  min-height: 2.35rem;
   margin-top: 0.22rem;
   color: #596577;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
 .chart-tooltip__main strong {
   color: #202b3c;
-  font-size: 0.75rem;
+  font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
 
 .chart-tooltip__marker {
   display: grid;
   place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.72rem;
+  height: 1.72rem;
   border-radius: 0.42rem;
   color: var(--series-color);
   background: color-mix(in srgb, var(--series-color) 10%, #fff);
@@ -12181,8 +12221,8 @@ onMounted(() => {
 
 .chart-tooltip__marker img,
 .chart-tooltip__marker svg {
-  width: 0.92rem;
-  height: 0.92rem;
+  width: 1.05rem;
+  height: 1.05rem;
   object-fit: contain;
 }
 
@@ -12204,13 +12244,87 @@ onMounted(() => {
   justify-content: space-between;
   gap: 1rem;
   color: #929baa;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   line-height: 1.8;
 }
 
 .chart-tooltip__ctx strong {
   color: #566174;
   font-weight: 700;
+}
+
+.all-channels-loading-banner {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid #cfdcfb;
+  border-radius: 0.9rem;
+  background: #f4f7ff;
+  color: #25324a;
+}
+
+.all-channels-loading-banner__spinner {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.72rem;
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.25rem 0.8rem rgba(37, 99, 235, 0.1);
+}
+
+.all-channels-loading-banner__spinner svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.all-channels-loading-banner__copy {
+  min-width: 0;
+}
+
+.all-channels-loading-banner__copy strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.all-channels-loading-banner__copy p {
+  margin: 0.25rem 0 0;
+  color: #6d7890;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.all-channels-loading-banner__channels {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.all-channels-loading-banner__channels span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 2.15rem;
+  padding: 0 0.65rem;
+  border: 1px solid #e1e7f2;
+  border-radius: 0.58rem;
+  background: #fff;
+  color: #637087;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.all-channels-loading-banner__channels img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
 }
 
 .figma-dashboard.is-dark .chart-toolbar,
@@ -12255,6 +12369,23 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.66);
 }
 
+.figma-dashboard.is-dark .all-channels-loading-banner {
+  border-color: rgba(96, 138, 255, 0.22);
+  background: rgba(45, 76, 148, 0.16);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .all-channels-loading-banner__spinner,
+.figma-dashboard.is-dark .all-channels-loading-banner__channels span {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #242b38;
+}
+
+.figma-dashboard.is-dark .all-channels-loading-banner__copy p,
+.figma-dashboard.is-dark .all-channels-loading-banner__channels span {
+  color: rgba(255, 255, 255, 0.58);
+}
+
 @media (max-width: 1100px) {
   .chart-metric-chips {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -12262,6 +12393,14 @@ onMounted(() => {
 
   .chart-series-values {
     max-width: 58%;
+  }
+
+  .all-channels-loading-banner {
+    grid-template-columns: 3rem minmax(0, 1fr);
+  }
+
+  .all-channels-loading-banner__channels {
+    grid-column: 2;
   }
 }
 
@@ -12298,6 +12437,22 @@ onMounted(() => {
     width: 100%;
     overflow-x: auto;
     padding-bottom: 0.2rem;
+  }
+
+  .all-channels-loading-banner {
+    grid-template-columns: 2.65rem minmax(0, 1fr);
+    align-items: start;
+    padding: 0.9rem;
+  }
+
+  .all-channels-loading-banner__spinner {
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+
+  .all-channels-loading-banner__channels {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
   }
 }
 </style>
