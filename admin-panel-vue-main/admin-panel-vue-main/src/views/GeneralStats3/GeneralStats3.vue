@@ -7183,6 +7183,15 @@ onMounted(() => {
   backdrop-filter: blur(0.45rem);
 }
 
+/* Воздух сверху/снизу в строках кампаний, чтобы контент не прижимался к краям
+   бара. Только дата-строки (не шапка); горизонтальный padding каждого правила
+   (.campaign-row) не трогаем — задаём лишь вертикальный. Специфичность
+   .campaign-row:not(.header) перебивает оба определения .campaign-row. */
+.campaign-row:not(.header) {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
 .campaign-header-cell {
   position: relative;
   display: flex;
