@@ -579,8 +579,14 @@
     </section>
 
     <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
-      <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
-        <div class="chart-panel__header">
+      <article
+        class="panel chart-panel"
+        :class="{
+          'chart-panel--all-channels': isAllChannelsMode,
+          'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading
+        }"
+      >
+        <div v-if="isAllChannelsMode" class="chart-panel__header">
           <div class="chart-panel__heading">
             <span>Динамика за период</span>
             <h2>Эффективность кампаний</h2>
@@ -597,7 +603,10 @@
             </button>
           </div>
         </div>
-        <div class="chart-toolbar">
+        <div v-else class="panel-title-row">
+          <h2>Эффективность кампаний</h2>
+        </div>
+        <div v-if="isAllChannelsMode" class="chart-toolbar">
           <div class="chart-control-group">
             <span class="chart-control-label">Показатели</span>
             <div class="chart-metric-chips">
@@ -641,7 +650,21 @@
             </div>
           </div>
         </div>
-        <div class="chart-series-context">
+        <div v-else class="chart-metric-chips">
+          <button
+            v-for="chip in chartMetricChips"
+            :key="chip.key"
+            type="button"
+            class="chart-chip"
+            :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
+            :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
+            @click="toggleChartMetric(chip.key)"
+          >
+            <span class="chart-chip__dot" :style="{ background: chip.legacyColor }"></span>
+            {{ chip.label }}
+          </button>
+        </div>
+        <div v-if="isAllChannelsMode" class="chart-series-context">
           <span class="chart-scale-label">{{ chartScaleLabel }}</span>
           <div class="chart-series-values">
             <span v-for="series in chartLatestValues" :key="series.key">
@@ -667,6 +690,7 @@
               </linearGradient>
             </defs>
             <rect
+              v-if="isAllChannelsMode"
               class="chart-plot-background"
               :x="CHART_GRID_LEFT"
               :y="CHART_TOP"
@@ -693,6 +717,7 @@
               :style="{ stroke: series.color, animationDelay: `${si * 0.12}s` }"
             />
             <circle
+              v-if="isAllChannelsMode"
               v-for="series in chartEndpointSeries"
               :key="`${series.key}-endpoint`"
               class="chart-endpoint-dot"
@@ -713,6 +738,7 @@
             />
             <g class="axis-labels">
               <text v-for="tick in chartYTicks" :key="tick.index" class="axis-label-y" text-anchor="end" :x="CHART_Y_LABEL_X" :y="tick.y">{{ chartYLabels[tick.index] }}</text>
+              <g v-if="isAllChannelsMode">
               <g v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`">
                 <line class="axis-date-tick" :x1="label.x" :x2="label.x" :y1="CHART_BOTTOM + 4" :y2="CHART_BOTTOM + 8" />
                 <text
@@ -722,9 +748,19 @@
                   :class="{ 'axis-label--active': chartHoverIndex === label.index }"
                 >{{ label.text }}</text>
               </g>
+              </g>
+              <template v-else>
+                <text
+                  v-for="label in chartDateAxisLabels"
+                  :key="`${label.text}-${label.index}`"
+                  :x="label.x"
+                  :y="CHART_DATE_LABEL_Y"
+                  :class="{ 'axis-label--active': chartHoverIndex === label.index }"
+                >{{ label.text }}</text>
+              </template>
             </g>
           </svg>
-          <div v-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
+          <div v-if="isAllChannelsMode && chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
             <div class="chart-tooltip__date">
               <span>{{ chartTooltipData.date }}</span>
               <small>{{ chartScaleShortLabel }}</small>
@@ -742,6 +778,17 @@
             <div v-for="ctx in chartTooltipData.context" :key="ctx.label" class="chart-tooltip__ctx">
               <span>{{ ctx.label }}</span>
               <strong>{{ ctx.value }}</strong>
+            </div>
+          </div>
+          <div v-else-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
+            <div class="chart-tooltip__date">{{ chartTooltipData.date }}</div>
+            <div v-for="item in chartTooltipData.main" :key="item.key" class="chart-tooltip__main">
+              <span class="chart-tooltip__dot" :style="{ background: item.color }"></span>
+              {{ item.label }} — {{ item.value }}
+            </div>
+            <div v-if="chartTooltipData.context.length" class="chart-tooltip__divider"></div>
+            <div v-for="ctx in chartTooltipData.context" :key="ctx.label" class="chart-tooltip__ctx">
+              {{ ctx.label }}: <strong>{{ ctx.value }}</strong>
             </div>
           </div>
         </div>
@@ -3165,12 +3212,12 @@ const metrics = computed(() => {
 })
 
 const chartMetricChips = [
-  { key: 'expenses', label: 'Расход', color: '#3464F3', soft: '#edf3ff', money: true, icon: WalletIcon },
-  { key: 'impressions', label: 'Показы', color: '#E8754D', soft: '#fff1ec', money: false, icon: ChartBarIcon },
-  { key: 'clicks', label: 'Клики', color: '#159DCE', soft: '#eaf8fd', money: false, icon: CursorArrowRaysIcon },
-  { key: 'cpc', label: 'CPC', color: '#9461D8', soft: '#f5effc', money: true, icon: CursorArrowRippleIcon },
-  { key: 'cpa', label: 'CPL', color: '#D97706', soft: '#fff6e8', money: true, icon: CheckBadgeIcon },
-  { key: 'leads', label: 'Конверсии', color: '#2F9E58', soft: '#edf9f1', money: false, icon: CheckCircleIcon },
+  { key: 'expenses', label: 'Расход', color: '#3464F3', legacyColor: '#3464F3', soft: '#edf3ff', money: true, icon: WalletIcon },
+  { key: 'impressions', label: 'Показы', color: '#E8754D', legacyColor: '#F0926D', soft: '#fff1ec', money: false, icon: ChartBarIcon },
+  { key: 'clicks', label: 'Клики', color: '#159DCE', legacyColor: '#38BDF8', soft: '#eaf8fd', money: false, icon: CursorArrowRaysIcon },
+  { key: 'cpc', label: 'CPC', color: '#9461D8', legacyColor: '#D38CFF', soft: '#f5effc', money: true, icon: CursorArrowRippleIcon },
+  { key: 'cpa', label: 'CPL', color: '#D97706', legacyColor: '#EB8525', soft: '#fff6e8', money: true, icon: CheckBadgeIcon },
+  { key: 'leads', label: 'Конверсии', color: '#2F9E58', legacyColor: '#8ADA70', soft: '#edf9f1', money: false, icon: CheckCircleIcon },
 ]
 
 const CHART_VIEWBOX_HEIGHT = 300
@@ -3256,7 +3303,7 @@ const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricK
 const buildChartPoints = (values, maxOverride = null) => {
   const normalizedValues = values.map((value) => Math.max(0, Number(value) || 0))
   const dataMax = Math.max(Number(maxOverride) || 0, ...normalizedValues, 0)
-  const max = dataMax > 0 ? dataMax * 1.08 : 1
+  const max = dataMax > 0 ? dataMax * (isAllChannelsMode.value ? 1.08 : 1) : 1
   const min = 0
   const span = Math.max(max - min, 1)
   return normalizedValues.map((value, index) => ({
@@ -3363,7 +3410,7 @@ const chartSeries = computed(() => {
     return {
       key: metricKey,
       label: chip.label || metricKey,
-      color: chip.color || '#3464F3',
+      color: (isAllChannelsMode.value ? chip.color : chip.legacyColor) || '#3464F3',
       icon: chip.icon,
       money: Boolean(chip.money),
       values,
@@ -3494,7 +3541,7 @@ const chartTooltipStyle = computed(() => {
   const viewportX = rect.left + x
   const viewportY = rect.top + y
   const leftPx = viewportX + 12
-  const tooltipWidth = 272
+  const tooltipWidth = isAllChannelsMode.value ? 272 : 220
   const lineCount = (chartTooltipData.value?.main?.length || 1) + (chartTooltipData.value?.context?.length || 0)
   const tooltipHeight = 48 + lineCount * 22
   const flip = leftPx + tooltipWidth > window.innerWidth - 8
@@ -3576,7 +3623,7 @@ const chartYLabels = computed(() => {
     : chartSourceValues.value
   const dataMax = Math.max(...values, 0)
   if (dataMax === 0) return ['', '', '', '', '0']
-  const rawMax = dataMax * 1.08
+  const rawMax = dataMax * (isAllChannelsMode.value ? 1.08 : 1)
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
@@ -12384,6 +12431,153 @@ onMounted(() => {
 .figma-dashboard.is-dark .all-channels-loading-banner__copy p,
 .figma-dashboard.is-dark .all-channels-loading-banner__channels span {
   color: rgba(255, 255, 255, 0.58);
+}
+
+/* Preserve the established chart UI for individual advertising channels. */
+.chart-panel:not(.chart-panel--all-channels) .chart-metric-chips {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: auto;
+  height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10rem;
+  background: #fff;
+  color: #6b7280;
+  font-size: 1.1rem;
+  font-weight: 500;
+  text-align: center;
+  transform: none;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-chip:hover {
+  border-color: #93a8f0;
+  color: #2563eb;
+  background: #f8faff;
+  transform: none;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-chip--active,
+.chart-panel:not(.chart-panel--all-channels) .chart-chip--active:hover {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-chip__dot {
+  display: block;
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.75);
+  flex: 0 0 auto;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-area {
+  margin-top: 0.8rem;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .grid-lines line {
+  stroke: rgba(0, 0, 0, 0.05);
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-line {
+  stroke-width: 2.6;
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.12));
+}
+
+.chart-panel:not(.chart-panel--all-channels) .axis-labels text {
+  fill: rgba(43, 48, 52, 0.45);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-hover-line {
+  stroke: #94a3b8;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip {
+  min-width: 17rem;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 1.1rem 1.4rem;
+  border: 0;
+  border-radius: 1rem;
+  background: #1e293b;
+  color: #fff;
+  font-size: 1.1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__date {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 0;
+  margin-top: 0.35rem;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__dot {
+  display: block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__divider {
+  height: 1px;
+  margin: 0.65rem 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__ctx {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.chart-panel:not(.chart-panel--all-channels) .chart-tooltip__ctx strong {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+}
+
+.figma-dashboard.is-dark .chart-panel:not(.chart-panel--all-channels) .chart-chip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #202632;
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.figma-dashboard.is-dark .chart-panel:not(.chart-panel--all-channels) .chart-chip--active {
+  border-color: #4a7aff;
+  background: #4a7aff;
+  color: #fff;
 }
 
 @media (max-width: 1100px) {
