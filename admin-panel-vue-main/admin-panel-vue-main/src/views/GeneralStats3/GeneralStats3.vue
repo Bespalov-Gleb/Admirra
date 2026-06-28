@@ -598,7 +598,7 @@
           </button>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
-          <svg ref="chartSvgRef" :viewBox="`0 0 ${CHART_VIEWBOX_WIDTH} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
+          <svg ref="chartSvgRef" :viewBox="`0 0 ${chartViewWidth} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <defs>
               <linearGradient
                 v-for="series in chartSeries"
@@ -3080,17 +3080,25 @@ const chartMetricChips = [
   { key: 'leads', label: 'Конверсии', color: '#8ADA70', money: false },
 ]
 
-const CHART_VIEWBOX_WIDTH = 880
 const CHART_VIEWBOX_HEIGHT = 300
 const CHART_LEFT = 44
-const CHART_RIGHT = 868
+const CHART_RIGHT_MARGIN = 12
 const CHART_TOP = 10
 const CHART_BOTTOM = 264
 const CHART_BASELINE = CHART_BOTTOM
 const CHART_GRID_LEFT = 34
-const CHART_GRID_RIGHT = 876
+const CHART_GRID_RIGHT_MARGIN = 4
 const CHART_Y_LABEL_X = 30
 const CHART_DATE_LABEL_Y = 290
+
+// Адаптивная ширина графика. В режиме «Все каналы» график растягивается на всю
+// ширину блока, поэтому viewBox по ширине = ширине контейнера (px). Тогда график
+// сохраняет НОРМАЛЬНУЮ высоту (~300px, height:auto), а точки по оси X разъезжаются
+// по всей ширине — без равномерного «раздувания». В одноканальном режиме — 880.
+const CHART_DEFAULT_WIDTH = 880
+const chartViewWidth = ref(CHART_DEFAULT_WIDTH)
+const CHART_RIGHT = computed(() => chartViewWidth.value - CHART_RIGHT_MARGIN)
+const CHART_GRID_RIGHT = computed(() => chartViewWidth.value - CHART_GRID_RIGHT_MARGIN)
 const chartGridLines = [10, 73.5, 137, 200.5, 264]
 const chartYTicks = chartGridLines.map((y, index) => ({ y: y + 4, index }))
 
@@ -3158,7 +3166,7 @@ const buildChartPoints = (values, maxOverride = null) => {
   const min = 0
   const span = Math.max(max - min, 1)
   return normalizedValues.map((value, index) => ({
-    x: values.length === 1 ? CHART_LEFT : CHART_LEFT + ((CHART_RIGHT - CHART_LEFT) / (values.length - 1)) * index,
+    x: values.length === 1 ? CHART_LEFT : CHART_LEFT + ((CHART_RIGHT.value - CHART_LEFT) / (values.length - 1)) * index,
     y: CHART_BOTTOM - ((value - min) / span) * (CHART_BOTTOM - CHART_TOP),
     value
   }))
@@ -3222,7 +3230,7 @@ const buildSmoothChartPath = (pts) => {
 const buildChartFillPath = (points, path) => {
   if (!points.length || !path) return ''
   const first = points[0] || { x: CHART_LEFT }
-  const last = points[points.length - 1] || { x: CHART_RIGHT }
+  const last = points[points.length - 1] || { x: CHART_RIGHT.value }
   return `${path} L ${last.x} ${CHART_BASELINE} L ${first.x} ${CHART_BASELINE} Z`
 }
 
@@ -3277,7 +3285,7 @@ const smoothChartPath = computed(() => chartSeries.value[0]?.path || chartPath.v
 const handleChartHover = (e) => {
   if (!chartSvgRef.value || !chartPoints.value.length) { chartHoverIndex.value = -1; return }
   const rect = chartSvgRef.value.getBoundingClientRect()
-  const scaleX = CHART_VIEWBOX_WIDTH / rect.width
+  const scaleX = chartViewWidth.value / rect.width
   const svgX = (e.clientX - rect.left) * scaleX
   let closest = 0
   let minDist = Infinity
@@ -3341,7 +3349,7 @@ const chartTooltipStyle = computed(() => {
   const pt = chartPoints.value[idx]
   if (!pt) return {}
   const rect = chartSvgRef.value.getBoundingClientRect()
-  const x = (pt.x / CHART_VIEWBOX_WIDTH) * rect.width
+  const x = (pt.x / chartViewWidth.value) * rect.width
   const y = (pt.y / CHART_VIEWBOX_HEIGHT) * rect.height
   const viewportX = rect.left + x
   const viewportY = rect.top + y
@@ -3378,11 +3386,42 @@ const chartDateAxisLabels = computed(() => {
   const labels = dateLabels.value
   const points = chartPoints.value
   if (!labels.length || !points.length) return []
-  const maxLabels = 8
+  // На широком графике («Все каналы») показываем больше дат — точки разрежены,
+  // поэтому подписи можно располагать свободнее. Ориентир ~1 подпись на 120px.
+  const maxLabels = Math.max(6, Math.min(labels.length, Math.floor(chartViewWidth.value / 120)))
   const step = Math.max(1, Math.ceil(labels.length / maxLabels))
   return labels
     .map((text, index) => ({ text, index, x: points[index]?.x }))
     .filter((item, index) => item.x !== undefined && (index === 0 || index === labels.length - 1 || index % step === 0))
+})
+
+// Адаптивная ширина графика под контейнер — активна только в режиме «Все каналы»
+// (там график на всю ширину). В одноканальном режиме держим прежние 880.
+let chartResizeObserver = null
+const measureChartWidth = () => {
+  if (!isAllChannelsMode.value) {
+    if (chartViewWidth.value !== CHART_DEFAULT_WIDTH) chartViewWidth.value = CHART_DEFAULT_WIDTH
+    return
+  }
+  const w = chartSvgRef.value?.clientWidth
+  if (w && Math.abs(w - chartViewWidth.value) >= 1) chartViewWidth.value = Math.round(w)
+}
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined' && chartSvgRef.value) {
+    chartResizeObserver = new ResizeObserver(() => measureChartWidth())
+    chartResizeObserver.observe(chartSvgRef.value)
+  }
+  nextTick(measureChartWidth)
+})
+
+watch(isAllChannelsMode, () => nextTick(measureChartWidth))
+
+onBeforeUnmount(() => {
+  if (chartResizeObserver) {
+    chartResizeObserver.disconnect()
+    chartResizeObserver = null
+  }
 })
 
 const chartYLabels = computed(() => {
