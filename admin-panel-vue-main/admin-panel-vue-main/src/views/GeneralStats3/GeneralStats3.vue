@@ -564,38 +564,76 @@
 
     <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
       <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-        <div class="panel-title-row">
-          <h2>Эффективность кампаний</h2>
+        <div class="chart-panel__header">
+          <div class="chart-panel__heading">
+            <span>Динамика за период</span>
+            <h2>Эффективность кампаний</h2>
+            <p>{{ dateRangeLabel }}</p>
+          </div>
           <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown" class="chart-breakdown-switch" role="group" aria-label="Режим графика">
-            <button type="button" :class="{ active: chartBreakdownMode === 'total' }" @click="setChartBreakdownMode('total')">Итого</button>
-            <button type="button" :class="{ active: chartBreakdownMode === 'channels' }" @click="setChartBreakdownMode('channels')">По каналам</button>
+            <button type="button" :class="{ active: chartBreakdownMode === 'total' }" @click="setChartBreakdownMode('total')">
+              <ChartBarIcon />
+              Общий тренд
+            </button>
+            <button type="button" :class="{ active: chartBreakdownMode === 'channels' }" @click="setChartBreakdownMode('channels')">
+              <ArrowPathRoundedSquareIcon />
+              Сравнить каналы
+            </button>
           </div>
         </div>
-        <div class="chart-metric-chips">
-          <button
-            v-for="chip in chartMetricChips"
-            :key="chip.key"
-            type="button"
-            class="chart-chip"
-            :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
-            :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
-            @click="toggleChartMetric(chip.key)"
+        <div class="chart-toolbar">
+          <div class="chart-control-group">
+            <span class="chart-control-label">Показатели</span>
+            <div class="chart-metric-chips">
+              <button
+                v-for="chip in chartMetricChips"
+                :key="chip.key"
+                type="button"
+                class="chart-chip"
+                :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
+                :style="{ '--metric-color': chip.color, '--metric-soft': chip.soft }"
+                :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
+                @click="toggleChartMetric(chip.key)"
+              >
+                <span class="chart-chip__icon">
+                  <component :is="chip.icon" />
+                </span>
+                <span>{{ chip.label }}</span>
+                <CheckCircleIcon class="chart-chip__check" />
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="isAllChannelsMode && hasCompleteChannelBreakdown && chartBreakdownMode === 'channels'"
+            class="chart-control-group chart-control-group--channels"
           >
-            <span class="chart-chip__dot" :style="{ background: chip.color }"></span>
-            {{ chip.label }}
-          </button>
+            <span class="chart-control-label">Каналы</span>
+            <div class="chart-channel-legend">
+              <button
+                v-for="channel in availableDashboardChannels"
+                :key="channel.key"
+                type="button"
+                :class="{ active: chartSelectedPlatforms.includes(channel.key) }"
+                :style="{ '--channel-color': channel.color, '--channel-soft': channel.soft }"
+                :aria-pressed="chartSelectedPlatforms.includes(channel.key)"
+                @click="toggleChartPlatform(channel.key)"
+              >
+                <span class="chart-channel-logo"><img :src="channel.asset" alt="" /></span>
+                <span>{{ channel.name }}</span>
+                <CheckCircleIcon />
+              </button>
+            </div>
+          </div>
         </div>
-        <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown && chartBreakdownMode === 'channels'" class="chart-channel-legend">
-          <button
-            v-for="channel in availableDashboardChannels"
-            :key="channel.key"
-            type="button"
-            :class="{ active: chartSelectedPlatforms.includes(channel.key) }"
-            @click="toggleChartPlatform(channel.key)"
-          >
-            <i :style="{ background: channel.color }"></i>
-            {{ channel.name }}
-          </button>
+        <div class="chart-series-context">
+          <span class="chart-scale-label">{{ chartScaleLabel }}</span>
+          <div class="chart-series-values">
+            <span v-for="series in chartLatestValues" :key="series.key">
+              <i :style="{ background: series.color }"></i>
+              {{ series.label }}
+              <strong>{{ series.value }}</strong>
+            </span>
+          </div>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
           <svg ref="chartSvgRef" :viewBox="`0 0 ${chartViewWidth} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
@@ -612,6 +650,14 @@
                 <stop offset="100%" :stop-color="series.color" stop-opacity="0" />
               </linearGradient>
             </defs>
+            <rect
+              class="chart-plot-background"
+              :x="CHART_GRID_LEFT"
+              :y="CHART_TOP"
+              :width="Math.max(0, CHART_GRID_RIGHT - CHART_GRID_LEFT)"
+              :height="CHART_BOTTOM - CHART_TOP"
+              rx="8"
+            />
             <g class="grid-lines">
               <line v-for="y in chartGridLines" :key="y" :x1="CHART_GRID_LEFT" :y1="y" :x2="CHART_GRID_RIGHT" :y2="y" />
             </g>
@@ -621,7 +667,7 @@
               :key="`${series.key}-fill`"
               class="chart-fill"
               :d="series.fillPath"
-              :style="{ fill: `url(#cg-${series.key})`, animationDelay: `${0.2 + si * 0.1}s` }"
+              :style="{ fill: `url(#cg-${series.key})`, animationDelay: `${0.2 + si * 0.1}s`, opacity: isAllChannelsMode && chartBreakdownMode === 'channels' ? 0.42 : 1 }"
             />
             <path
               v-for="(series, si) in chartSeries"
@@ -629,6 +675,15 @@
               class="chart-line"
               :d="series.path"
               :style="{ stroke: series.color, animationDelay: `${si * 0.12}s` }"
+            />
+            <circle
+              v-for="series in chartEndpointSeries"
+              :key="`${series.key}-endpoint`"
+              class="chart-endpoint-dot"
+              :cx="series.point.x"
+              :cy="series.point.y"
+              r="4.5"
+              :style="{ fill: series.color }"
             />
             <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="CHART_TOP" :x2="chartHoverX" :y2="CHART_BOTTOM" />
             <circle
@@ -641,19 +696,36 @@
               :style="{ fill: series.color }"
             />
             <g class="axis-labels">
-              <text v-for="tick in chartYTicks" :key="tick.index" text-anchor="end" :x="CHART_Y_LABEL_X" :y="tick.y">{{ chartYLabels[tick.index] }}</text>
-              <text v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`" :x="label.x" :y="CHART_DATE_LABEL_Y" :class="{ 'axis-label--active': chartHoverIndex === label.index }">{{ label.text }}</text>
+              <text v-for="tick in chartYTicks" :key="tick.index" class="axis-label-y" text-anchor="end" :x="CHART_Y_LABEL_X" :y="tick.y">{{ chartYLabels[tick.index] }}</text>
+              <g v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`">
+                <line class="axis-date-tick" :x1="label.x" :x2="label.x" :y1="CHART_BOTTOM + 4" :y2="CHART_BOTTOM + 8" />
+                <text
+                  :x="label.x"
+                  :y="CHART_DATE_LABEL_Y"
+                  :text-anchor="label.anchor"
+                  :class="{ 'axis-label--active': chartHoverIndex === label.index }"
+                >{{ label.text }}</text>
+              </g>
             </g>
           </svg>
           <div v-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
-            <div class="chart-tooltip__date">{{ chartTooltipData.date }}</div>
+            <div class="chart-tooltip__date">
+              <span>{{ chartTooltipData.date }}</span>
+              <small>{{ chartScaleShortLabel }}</small>
+            </div>
             <div v-for="item in chartTooltipData.main" :key="item.key" class="chart-tooltip__main">
-              <span class="chart-tooltip__dot" :style="{ background: item.color }"></span>
-              {{ item.label }} — {{ item.value }}
+              <span class="chart-tooltip__marker" :style="{ '--series-color': item.color }">
+                <img v-if="item.asset" :src="item.asset" alt="" />
+                <component v-else-if="item.icon" :is="item.icon" />
+                <i v-else></i>
+              </span>
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
             </div>
             <div v-if="chartTooltipData.context.length" class="chart-tooltip__divider"></div>
             <div v-for="ctx in chartTooltipData.context" :key="ctx.label" class="chart-tooltip__ctx">
-              {{ ctx.label }}: <strong>{{ ctx.value }}</strong>
+              <span>{{ ctx.label }}</span>
+              <strong>{{ ctx.value }}</strong>
             </div>
           </div>
         </div>
@@ -3072,12 +3144,12 @@ const metrics = computed(() => {
 })
 
 const chartMetricChips = [
-  { key: 'expenses', label: 'Расход', color: '#3464F3', money: true },
-  { key: 'impressions', label: 'Показы', color: '#F0926D', money: false },
-  { key: 'clicks', label: 'Клики', color: '#38BDF8', money: false },
-  { key: 'cpc', label: 'CPC', color: '#D38CFF', money: true },
-  { key: 'cpa', label: 'CPL', color: '#EB8525', money: true },
-  { key: 'leads', label: 'Конверсии', color: '#8ADA70', money: false },
+  { key: 'expenses', label: 'Расход', color: '#3464F3', soft: '#edf3ff', money: true, icon: WalletIcon },
+  { key: 'impressions', label: 'Показы', color: '#E8754D', soft: '#fff1ec', money: false, icon: ChartBarIcon },
+  { key: 'clicks', label: 'Клики', color: '#159DCE', soft: '#eaf8fd', money: false, icon: CursorArrowRaysIcon },
+  { key: 'cpc', label: 'CPC', color: '#9461D8', soft: '#f5effc', money: true, icon: CursorArrowRippleIcon },
+  { key: 'cpa', label: 'CPL', color: '#D97706', soft: '#fff6e8', money: true, icon: CheckBadgeIcon },
+  { key: 'leads', label: 'Конверсии', color: '#2F9E58', soft: '#edf9f1', money: false, icon: CheckCircleIcon },
 ]
 
 const CHART_VIEWBOX_HEIGHT = 300
@@ -3252,6 +3324,7 @@ const chartSeries = computed(() => {
           metricKey,
           label: channel.name,
           color: channel.color,
+          asset: channel.asset,
           money: Boolean(chartChipByKey.value[metricKey]?.money),
           values,
           points,
@@ -3269,6 +3342,7 @@ const chartSeries = computed(() => {
       key: metricKey,
       label: chip.label || metricKey,
       color: chip.color || '#3464F3',
+      icon: chip.icon,
       money: Boolean(chip.money),
       values,
       points,
@@ -3315,6 +3389,47 @@ const chartHoverSeries = computed(() => {
     .filter((series) => series.point)
 })
 
+const chartEndpointSeries = computed(() =>
+  chartSeries.value
+    .map((series) => ({
+      ...series,
+      point: series.points[series.points.length - 1],
+    }))
+    .filter((series) => series.point)
+)
+
+const chartLatestValues = computed(() =>
+  chartSeries.value.map((series) => {
+    const metricKey = series.metricKey || series.key
+    const lastValue = series.values[series.values.length - 1] || 0
+    return {
+      key: series.key,
+      label: series.label,
+      color: series.color,
+      value: formatChartMetricValue(metricKey, lastValue),
+    }
+  })
+)
+
+const chartScaleLabel = computed(() => {
+  const metric = chartChipByKey.value[activeChartMetricKeys.value[0]] || {}
+  if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
+    return `${metric.label || 'Показатель'} · единая шкала по каналам`
+  }
+  if (activeChartMetricKeys.value.length > 1) {
+    return 'Сравнительный масштаб · каждая линия относительно своего максимума'
+  }
+  return `${metric.label || 'Показатель'} · ${metric.money ? 'в рублях' : 'абсолютное значение'}`
+})
+
+const chartScaleShortLabel = computed(() => (
+  isAllChannelsMode.value && chartBreakdownMode.value === 'channels'
+    ? 'Единая шкала'
+    : activeChartMetricKeys.value.length > 1
+      ? 'Сравнительный масштаб'
+      : 'Значение за день'
+))
+
 const chartTooltipData = computed(() => {
   const idx = chartHoverIndex.value
   if (idx < 0) return null
@@ -3324,6 +3439,8 @@ const chartTooltipData = computed(() => {
     key: series.key,
     label: series.label,
     color: series.color,
+    asset: series.asset,
+    icon: series.icon,
     value: formatChartMetricValue(series.metricKey || series.key, series.values[idx] || 0),
   }))
   if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
@@ -3337,6 +3454,7 @@ const chartTooltipData = computed(() => {
       const values = getChartSourceValues(chip.key)
       return {
         label: chip.label,
+        icon: chip.icon,
         value: formatChartMetricValue(chip.key, values[idx] || 0),
       }
     })
@@ -3354,7 +3472,7 @@ const chartTooltipStyle = computed(() => {
   const viewportX = rect.left + x
   const viewportY = rect.top + y
   const leftPx = viewportX + 12
-  const tooltipWidth = 220
+  const tooltipWidth = 272
   const lineCount = (chartTooltipData.value?.main?.length || 1) + (chartTooltipData.value?.context?.length || 0)
   const tooltipHeight = 48 + lineCount * 22
   const flip = leftPx + tooltipWidth > window.innerWidth - 8
@@ -3391,7 +3509,12 @@ const chartDateAxisLabels = computed(() => {
   const maxLabels = Math.max(6, Math.min(labels.length, Math.floor(chartViewWidth.value / 120)))
   const step = Math.max(1, Math.ceil(labels.length / maxLabels))
   return labels
-    .map((text, index) => ({ text, index, x: points[index]?.x }))
+    .map((text, index) => ({
+      text,
+      index,
+      x: points[index]?.x,
+      anchor: index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle',
+    }))
     .filter((item, index) => item.x !== undefined && (index === 0 || index === labels.length - 1 || index % step === 0))
 })
 
@@ -3426,9 +3549,11 @@ onBeforeUnmount(() => {
 
 const chartYLabels = computed(() => {
   if (activeChartMetricKeys.value.length > 1) return ['', '', '', '', '']
-  const values = chartSourceValues.value
+  const values = isAllChannelsMode.value && chartBreakdownMode.value === 'channels'
+    ? chartSeries.value.flatMap((series) => series.values)
+    : chartSourceValues.value
   const rawMax = Math.max(...values, 0)
-  if (rawMax === 0) return ['0', '0', '0', '0', '0']
+  if (rawMax === 0) return ['', '', '', '', '0']
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
@@ -11673,6 +11798,506 @@ onMounted(() => {
     padding-left: 0;
     border-top: 1px solid #edf0f4;
     border-left: 0;
+  }
+}
+
+/* Campaign efficiency: full-width analytical workspace */
+.chart-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.chart-panel__heading {
+  display: grid;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.chart-panel__heading > span {
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chart-panel__heading h2 {
+  font-size: 1.52rem;
+  letter-spacing: 0;
+}
+
+.chart-panel__heading p {
+  margin: 0;
+  color: #939baa;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.chart-breakdown-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid #e5e9f0;
+  border-radius: 0.72rem;
+  background: #f3f5f8;
+}
+
+.chart-breakdown-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-height: 2.35rem;
+  padding: 0 0.82rem;
+  border: 0;
+  border-radius: 0.52rem;
+  background: transparent;
+  color: #7d8796;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.chart-breakdown-switch button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.chart-breakdown-switch button:hover {
+  color: #2563eb;
+}
+
+.chart-breakdown-switch button.active {
+  color: #1f57d6;
+  background: #fff;
+  box-shadow: 0 0.2rem 0.6rem rgba(15, 23, 42, 0.08);
+}
+
+.chart-toolbar {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.35rem;
+  padding: 0.9rem;
+  border: 1px solid #e9edf3;
+  border-radius: 0.85rem;
+  background: #f8f9fb;
+}
+
+.chart-control-group {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.chart-control-group + .chart-control-group {
+  padding-top: 0.85rem;
+  border-top: 1px solid #e5e9ef;
+}
+
+.chart-control-label {
+  color: #8992a1;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.chart-metric-chips {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin-top: 0;
+}
+
+.chart-chip {
+  display: grid;
+  grid-template-columns: 1.65rem minmax(0, 1fr) 0.86rem;
+  align-items: center;
+  gap: 0.48rem;
+  min-width: 0;
+  height: 2.65rem;
+  padding: 0 0.65rem 0 0.48rem;
+  border: 1px solid #e2e7ee;
+  border-radius: 0.62rem;
+  background: #fff;
+  color: #697384;
+  font-size: 0.71rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.chart-chip:hover {
+  border-color: color-mix(in srgb, var(--metric-color) 35%, #d8dee8);
+  color: #293446;
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.chart-chip__icon {
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.46rem;
+  color: var(--metric-color);
+  background: var(--metric-soft);
+}
+
+.chart-chip__icon svg {
+  width: 0.92rem;
+  height: 0.92rem;
+}
+
+.chart-chip__check {
+  width: 0.86rem;
+  height: 0.86rem;
+  color: #c5ccd7;
+}
+
+.chart-chip--active,
+.chart-chip--active:hover {
+  border-color: color-mix(in srgb, var(--metric-color) 32%, #dfe5ed);
+  color: #273244;
+  background: var(--metric-soft);
+}
+
+.chart-chip--active .chart-chip__check {
+  color: var(--metric-color);
+}
+
+.chart-channel-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.48rem;
+  margin-top: 0;
+}
+
+.chart-channel-legend button {
+  display: inline-grid;
+  grid-template-columns: 1.65rem auto 0.9rem;
+  align-items: center;
+  gap: 0.48rem;
+  min-height: 2.65rem;
+  padding: 0 0.72rem 0 0.48rem;
+  border: 1px solid #e2e7ee;
+  border-radius: 0.62rem;
+  background: #fff;
+  color: #737d8d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-channel-legend button > svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #c5ccd7;
+}
+
+.chart-channel-legend button.active {
+  border-color: color-mix(in srgb, var(--channel-color) 30%, #dfe5ed);
+  color: #263244;
+  background: var(--channel-soft);
+}
+
+.chart-channel-legend button.active > svg {
+  color: var(--channel-color);
+}
+
+.chart-channel-logo {
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.46rem;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
+}
+
+.chart-channel-logo img {
+  width: 1.05rem;
+  height: 1.05rem;
+  object-fit: contain;
+}
+
+.chart-series-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.25rem;
+  margin-top: 0.72rem;
+}
+
+.chart-scale-label {
+  color: #929baa;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.chart-series-values {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chart-series-values span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  color: #8b94a3;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.chart-series-values i {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+}
+
+.chart-series-values strong {
+  color: #384456;
+  font-weight: 800;
+}
+
+.chart-area {
+  margin-top: 0.15rem;
+}
+
+.chart-plot-background {
+  fill: #fbfcfe;
+  stroke: #eef1f5;
+  stroke-width: 1;
+}
+
+.grid-lines line {
+  stroke: #e8ecf2;
+  stroke-dasharray: 3 5;
+}
+
+.grid-lines line:last-child {
+  stroke: #dce2ea;
+  stroke-dasharray: none;
+}
+
+.chart-line {
+  stroke-width: 2.35;
+  filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.08));
+}
+
+.chart-endpoint-dot {
+  stroke: #fff;
+  stroke-width: 2.4;
+  filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.22));
+}
+
+.axis-labels text {
+  fill: #939caa;
+  font-size: 0.69rem;
+  font-weight: 600;
+}
+
+.axis-label-y {
+  font-variant-numeric: tabular-nums;
+}
+
+.axis-date-tick {
+  stroke: #cfd6e0;
+  stroke-width: 1;
+}
+
+.chart-hover-line {
+  stroke: #7f8da1;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.chart-tooltip {
+  min-width: 16.75rem;
+  max-width: min(20rem, calc(100vw - 1rem));
+  padding: 0.85rem;
+  border: 1px solid #e0e5ec;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.98);
+  color: #263244;
+  font-size: 0.72rem;
+  box-shadow: 0 0.85rem 2.2rem rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.chart-tooltip__date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.55rem;
+  color: #344154;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.chart-tooltip__date small {
+  color: #9aa3b1;
+  font-size: 0.58rem;
+  font-weight: 600;
+}
+
+.chart-tooltip__main {
+  display: grid;
+  grid-template-columns: 1.55rem minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  min-height: 2rem;
+  margin-top: 0.22rem;
+  color: #596577;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.chart-tooltip__main strong {
+  color: #202b3c;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip__marker {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.42rem;
+  color: var(--series-color);
+  background: color-mix(in srgb, var(--series-color) 10%, #fff);
+}
+
+.chart-tooltip__marker img,
+.chart-tooltip__marker svg {
+  width: 0.92rem;
+  height: 0.92rem;
+  object-fit: contain;
+}
+
+.chart-tooltip__marker i {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--series-color);
+}
+
+.chart-tooltip__divider {
+  background: #e9edf2;
+  margin: 0.52rem 0;
+}
+
+.chart-tooltip__ctx {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #929baa;
+  font-size: 0.65rem;
+  line-height: 1.8;
+}
+
+.chart-tooltip__ctx strong {
+  color: #566174;
+  font-weight: 700;
+}
+
+.figma-dashboard.is-dark .chart-toolbar,
+.figma-dashboard.is-dark .chart-breakdown-switch {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1d2330;
+}
+
+.figma-dashboard.is-dark .chart-chip,
+.figma-dashboard.is-dark .chart-channel-legend button,
+.figma-dashboard.is-dark .chart-breakdown-switch button.active {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: #242b38;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.figma-dashboard.is-dark .chart-plot-background {
+  fill: #1c222d;
+  stroke: rgba(255, 255, 255, 0.06);
+}
+
+.figma-dashboard.is-dark .grid-lines line {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.figma-dashboard.is-dark .chart-series-values strong,
+.figma-dashboard.is-dark .chart-tooltip__main strong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .chart-tooltip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(28, 34, 45, 0.98);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.figma-dashboard.is-dark .chart-tooltip__date {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .chart-tooltip__main {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+@media (max-width: 1100px) {
+  .chart-metric-chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .chart-series-values {
+    max-width: 58%;
+  }
+}
+
+@media (max-width: 700px) {
+  .chart-panel__header {
+    flex-direction: column;
+  }
+
+  .chart-breakdown-switch {
+    width: 100%;
+  }
+
+  .chart-breakdown-switch button {
+    flex: 1;
+  }
+
+  .chart-control-group {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .chart-metric-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chart-series-context {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chart-series-values {
+    justify-content: flex-start;
+    max-width: 100%;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
   }
 }
 </style>
