@@ -377,6 +377,49 @@
     />
 
     <template v-if="activeView === 'report'">
+    <section v-if="isAllChannelsMode && hasCompleteChannelBreakdown" class="channel-overview panel">
+      <div class="channel-overview__head">
+        <div>
+          <span class="channel-overview__eyebrow">Все каналы</span>
+          <h2>Распределение по источникам</h2>
+        </div>
+        <button
+          type="button"
+          class="channel-detail-toggle"
+          :class="{ active: showChannelDetails }"
+          :aria-pressed="showChannelDetails"
+          @click="showChannelDetails = !showChannelDetails"
+        >
+          <ChartBarIcon />
+          {{ showChannelDetails ? 'Скрыть разбивку' : 'Показать разбивку' }}
+          <ChevronDownIcon :class="{ rotated: showChannelDetails }" />
+        </button>
+      </div>
+      <div class="channel-overview__grid">
+        <article
+          v-for="channel in channelOverview"
+          :key="channel.key"
+          class="channel-overview-card"
+          :style="{ '--channel-color': channel.color, '--channel-soft': channel.soft }"
+        >
+          <div class="channel-overview-card__title">
+            <span><img :src="channel.asset" alt="" /></span>
+            <div>
+              <strong>{{ channel.name }}</strong>
+              <small>{{ channel.campaigns }} {{ channel.campaigns === 1 ? 'кампания' : 'кампаний' }}</small>
+            </div>
+            <b>{{ channel.share }}%</b>
+          </div>
+          <div class="channel-overview-card__value">{{ channel.expenses }}</div>
+          <div class="channel-overview-card__bar"><i :style="{ width: `${channel.share}%` }"></i></div>
+          <div class="channel-overview-card__meta">
+            <span>{{ channel.impressions }} показов</span>
+            <span>{{ channel.leads }}</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <div v-if="dashboardSyncInProgress" class="kpi-grid kpi-grid--sync">
       <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
         <span class="metric-skeleton-icon"></span>
@@ -393,6 +436,7 @@
       v-model="visibleSlots"
       tag="section"
       class="kpi-grid"
+      :class="{ 'kpi-grid--channel-details': isAllChannelsMode && hasCompleteChannelBreakdown && showChannelDetails }"
       :animation="150"
       handle=".drag-handle"
       draggable=".metric-card-item"
@@ -422,6 +466,20 @@
           <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
             <XMarkIcon />
           </button>
+        </div>
+        <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown && showChannelDetails" class="metric-channel-breakdown">
+          <div
+            v-for="channel in metricsMap[key]?.breakdown || []"
+            :key="channel.key"
+            class="metric-channel-row"
+          >
+            <span class="metric-channel-row__name">
+              <i :style="{ background: channel.color }"></i>
+              {{ channel.shortName }}
+            </span>
+            <strong>{{ channel.value }}</strong>
+            <span v-if="channel.share !== null">{{ channel.share }}%</span>
+          </div>
         </div>
       </article>
       <div
@@ -507,6 +565,10 @@
       <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="panel-title-row">
           <h2>Эффективность кампаний</h2>
+          <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown" class="chart-breakdown-switch" role="group" aria-label="Режим графика">
+            <button type="button" :class="{ active: chartBreakdownMode === 'total' }" @click="setChartBreakdownMode('total')">Итого</button>
+            <button type="button" :class="{ active: chartBreakdownMode === 'channels' }" @click="setChartBreakdownMode('channels')">По каналам</button>
+          </div>
         </div>
         <div class="chart-metric-chips">
           <button
@@ -520,6 +582,18 @@
           >
             <span class="chart-chip__dot" :style="{ background: chip.color }"></span>
             {{ chip.label }}
+          </button>
+        </div>
+        <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown && chartBreakdownMode === 'channels'" class="chart-channel-legend">
+          <button
+            v-for="channel in availableDashboardChannels"
+            :key="channel.key"
+            type="button"
+            :class="{ active: chartSelectedPlatforms.includes(channel.key) }"
+            @click="toggleChartPlatform(channel.key)"
+          >
+            <i :style="{ background: channel.color }"></i>
+            {{ channel.name }}
           </button>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
@@ -594,15 +668,24 @@
         <div class="goals-panel__header">
           <h2>Целевые действия</h2>
         </div>
-        <div class="goals-channel-block">
+        <div class="goals-channel-list">
+        <div
+          v-for="group in goalChannelGroups"
+          :key="group.key"
+          class="goals-channel-block"
+          :style="{ '--goal-channel-color': group.color }"
+        >
           <div class="goals-channel-header">
-            <img :src="yandexMetrikaIcon" alt="Яндекс Метрика" class="goals-channel-icon" />
-            <strong class="goals-channel-name">Яндекс Метрика</strong>
-            <span class="goals-channel-expense">{{ formatMoney(withVat(summary?.expenses || 0)) }}</span>
+            <img :src="group.asset" :alt="group.name" class="goals-channel-icon" />
+            <span class="goals-channel-title">
+              <strong class="goals-channel-name">{{ group.name }}</strong>
+              <small>{{ group.source }}</small>
+            </span>
+            <span class="goals-channel-expense">{{ group.expenses }}</span>
           </div>
-          <div v-if="goalBars.length" class="goals-bar-list">
+          <div v-if="group.bars.length" class="goals-bar-list">
             <div
-              v-for="(bar, barIdx) in goalBars"
+              v-for="(bar, barIdx) in group.bars"
               :key="bar.id"
               class="goals-bar-row"
               :class="bar.alertClass"
@@ -625,15 +708,16 @@
           </div>
           <div v-else class="goals-bar-empty">Нет целей за период</div>
           <div class="goals-footer">
-            <div v-if="goalBars.length" class="goals-summary-row goals-summary-row--accent">
+            <div v-if="group.bars.length" class="goals-summary-row goals-summary-row--accent">
               <span>Все конверсии · общий CPL</span>
-              <strong>{{ goalsSummaryCpl }}</strong>
+              <strong>{{ group.cpl }}</strong>
             </div>
-            <div v-if="goalBars.length" class="goals-total-row">
+            <div v-if="group.bars.length" class="goals-total-row">
               <span>Итого расход</span>
-              <strong>{{ formatMoney(withVat(summary?.expenses || 0)) }}</strong>
+              <strong>{{ group.expenses }}</strong>
             </div>
           </div>
+        </div>
         </div>
         <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
           <ArrowPathIcon class="spinning" />
@@ -648,6 +732,18 @@
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
+          <div v-if="isAllChannelsMode" class="campaign-channel-tabs" aria-label="Фильтр каналов в таблице">
+            <button
+              v-for="channel in campaignChannelOptions"
+              :key="channel.key"
+              type="button"
+              :class="{ active: campaignChannelFilter === channel.key }"
+              @click="campaignChannelFilter = channel.key"
+            >
+              <i v-if="channel.color" :style="{ background: channel.color }"></i>
+              {{ channel.label }}
+            </button>
+          </div>
           <span class="campaign-sort-label">Сортировать по</span>
           <button
             v-for="option in campaignSortOptions"
@@ -729,6 +825,10 @@
               <span class="campaign-name-main" :title="campaign.name">
                 {{ campaign.name }}
                 <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
+              </span>
+              <span v-if="isAllChannelsMode && campaign.platformMeta" class="campaign-platform-badge" :style="{ '--platform-color': campaign.platformMeta.color, '--platform-soft': campaign.platformMeta.soft }">
+                <img :src="campaign.platformMeta.asset" alt="" />
+                {{ campaign.platformMeta.shortName }}
               </span>
               <span v-if="campaign.sourceId || campaign.hierarchyUnavailable" class="campaign-meta-line">
                 <button
@@ -1232,6 +1332,8 @@ const { openTelegramBotForLinking } = useTelegramReportLink()
 const {
   summary,
   dynamics,
+  channelSummaries,
+  channelDynamics,
   campaigns,
   clients,
   allCampaigns,
@@ -1304,6 +1406,8 @@ const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
 const chartSelectedMetricKeys = ref(['expenses'])
+const chartBreakdownMode = ref('total')
+const chartSelectedPlatforms = ref(['yandex', 'vk', 'avito'])
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
@@ -1397,6 +1501,7 @@ const renderMarkdown = (text) => {
   return `<p class="ai-md-p">${html}</p>`
 }
 const reportGoals = ref([])
+const reportGoalsByChannel = ref({})
 const integrations = ref([])
 const topAds = ref([])
 const topAdsLoading = ref(false)
@@ -1415,6 +1520,8 @@ const directionSuggestionsLoading = ref(false)
 const directionLabelSaving = ref(false)
 const selectedDirectionLabelKey = ref('directions')
 const directionEditor = ref({ id: null, name: '', masks: [] })
+const showChannelDetails = ref(true)
+const campaignChannelFilter = ref('all')
 
 const directionLabels = {
   directions: { plural: 'Направления', lower: 'направления', singular: 'направление' },
@@ -2013,6 +2120,51 @@ const channels = [
   { name: 'Avito Ads', value: 'avito', color: '#00a871', bg: '#ecfdf5', darkBg: 'rgba(16, 185, 129, 0.14)', asset: avitoAdsIcon, icon: EyeIcon }
 ]
 
+const dashboardChannelMeta = {
+  yandex: {
+    key: 'yandex',
+    name: 'Yandex Direct',
+    shortName: 'Яндекс',
+    color: '#e5ad00',
+    soft: '#fff8e7',
+    asset: yandexDirectIcon,
+  },
+  vk: {
+    key: 'vk',
+    name: 'VK Ads',
+    shortName: 'VK',
+    color: '#2563eb',
+    soft: '#eef5ff',
+    asset: vkAdsIcon,
+  },
+  avito: {
+    key: 'avito',
+    name: 'Avito Ads',
+    shortName: 'Avito',
+    color: '#00a871',
+    soft: '#ecfdf5',
+    asset: avitoAdsIcon,
+  },
+}
+
+const dashboardChannelKeys = Object.keys(dashboardChannelMeta)
+const campaignChannelOptions = [
+  { key: 'all', label: 'Все' },
+  ...dashboardChannelKeys.map((key) => ({
+    key,
+    label: dashboardChannelMeta[key].shortName,
+    color: dashboardChannelMeta[key].color,
+  })),
+]
+
+const normalizeDashboardPlatform = (platform) => {
+  const value = String(platform || '').trim().toLowerCase().replace(/-/g, '_')
+  if (value.includes('yandex')) return 'yandex'
+  if (value.includes('vk')) return 'vk'
+  if (value.includes('avito')) return 'avito'
+  return value
+}
+
 const balancePlatformMeta = {
   yandex_direct: {
     id: 'yandex_direct',
@@ -2529,7 +2681,12 @@ const getCampaignSortValue = (campaign) => {
 }
 
 const sortedCampaignSourceRows = computed(() => {
-  const rows = campaigns.value?.length ? [...campaigns.value] : []
+  const rows = campaigns.value?.length
+    ? campaigns.value.filter((campaign) => (
+        campaignChannelFilter.value === 'all'
+        || normalizeDashboardPlatform(campaign.platform) === campaignChannelFilter.value
+      ))
+    : []
   return rows.sort((a, b) => {
     const aVal = getCampaignSortValue(a)
     const bVal = getCampaignSortValue(b)
@@ -2557,6 +2714,8 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     ? `${parent.rowKey}:${nodeLevel}:${baseId}`
     : `campaign:${baseId}`
   const alert = isRoot ? getAlertForEntity('campaign', campaign.id) : null
+  const platformKey = normalizeDashboardPlatform(campaign.platform || parent?.platform)
+  const platformMeta = dashboardChannelMeta[platformKey] || null
 
   return {
     id: baseId,
@@ -2565,6 +2724,8 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     sourceId,
     sourceLabel: sourceId ? `${campaignLevelLabels[nodeLevel] || 'ID'} · ${sourceId}` : '',
     nodeLevel,
+    platform: platformKey,
+    platformMeta,
     level,
     name: campaign.name || (nodeLevel === 'ad' ? `Объявление ${sourceId || index + 1}` : `Группа ${index + 1}`),
     direction: isRoot
@@ -2747,8 +2908,122 @@ const dashboardTitle = computed(() => {
   return 'Отчет по всем проектам'
 })
 
+const isAllChannelsMode = computed(() => filters.channel === 'all')
+
+const channelSummaryEntries = computed(() =>
+  dashboardChannelKeys.map((key) => ({
+    ...dashboardChannelMeta[key],
+    summary: channelSummaries.value?.[key] || {},
+  }))
+)
+
+const hasCompleteChannelBreakdown = computed(() =>
+  dashboardChannelKeys.every((key) => Boolean(channelSummaries.value?.[key]))
+)
+
+const availableDashboardChannels = computed(() => {
+  const campaignPlatforms = new Set(
+    (campaigns.value || []).map((item) => normalizeDashboardPlatform(item.platform))
+  )
+  const integrationPlatforms = new Set(
+    (integrations.value || []).map((item) => normalizeDashboardPlatform(item.platform))
+  )
+  return channelSummaryEntries.value.filter(({ key, summary: item }) => (
+    campaignPlatforms.has(key)
+    || integrationPlatforms.has(key)
+    || Number(item.expenses || 0) > 0
+    || Number(item.impressions || 0) > 0
+    || Number(item.clicks || 0) > 0
+    || Number(item.leads || 0) > 0
+  ))
+})
+
+const dashboardSummary = computed(() => {
+  if (
+    !isAllChannelsMode.value
+    || !hasCompleteChannelBreakdown.value
+    || !availableDashboardChannels.value.length
+  ) return summary.value || {}
+  const items = availableDashboardChannels.value.map((item) => item.summary)
+  const expenses = items.reduce((sum, item) => sum + Number(item.expenses || 0), 0)
+  const impressions = items.reduce((sum, item) => sum + Number(item.impressions || 0), 0)
+  const clicks = items.reduce((sum, item) => sum + Number(item.clicks || 0), 0)
+  const leads = items.reduce((sum, item) => sum + Number(item.leads || 0), 0)
+  return {
+    ...(summary.value || {}),
+    expenses,
+    impressions,
+    clicks,
+    leads,
+    cpc: clicks > 0 ? expenses / clicks : 0,
+    cpa: leads > 0 ? expenses / leads : 0,
+    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+    cr: clicks > 0 ? (leads / clicks) * 100 : 0,
+    leads_available: true,
+    cpa_available: true,
+    cost_by_platform: Object.fromEntries(
+      availableDashboardChannels.value.map((item) => [item.key, Number(item.summary.expenses || 0)])
+    ),
+  }
+})
+
+const channelAdjustedExpenses = (key, data) =>
+  withVat(Number(data?.expenses || 0), { platform: key })
+
+const channelMetricRawValue = (key, metricKey, data) => {
+  const expenses = channelAdjustedExpenses(key, data)
+  const clicks = Number(data?.clicks || 0)
+  const leads = Number(data?.leads || 0)
+  if (metricKey === 'expenses') return expenses
+  if (metricKey === 'cpc') return clicks > 0 ? expenses / clicks : 0
+  if (metricKey === 'cpa') return leads > 0 ? expenses / leads : 0
+  return Number(data?.[metricKey] || 0)
+}
+
+const formatChannelMetricValue = (metricKey, value) => {
+  if (['expenses', 'cpc', 'cpa'].includes(metricKey)) return value > 0 ? formatMoney(value) : '—'
+  if (metricKey === 'leads') return `${formatNumber(value)} шт.`
+  return formatNumber(value)
+}
+
+const buildMetricBreakdown = (metricKey) => {
+  const additive = ['expenses', 'impressions', 'clicks', 'leads'].includes(metricKey)
+  const rows = availableDashboardChannels.value.map((channel) => ({
+    ...channel,
+    rawValue: channelMetricRawValue(channel.key, metricKey, channel.summary),
+  }))
+  const total = additive ? rows.reduce((sum, item) => sum + item.rawValue, 0) : 0
+  return rows.map((item) => ({
+    key: item.key,
+    shortName: item.shortName,
+    color: item.color,
+    value: formatChannelMetricValue(metricKey, item.rawValue),
+    share: additive && total > 0 ? formatNumber((item.rawValue / total) * 100, 0) : null,
+  }))
+}
+
+const channelOverview = computed(() => {
+  const rows = availableDashboardChannels.value.map((channel) => ({
+    ...channel,
+    adjustedExpenses: channelAdjustedExpenses(channel.key, channel.summary),
+    campaigns: (campaigns.value || []).filter(
+      (item) => normalizeDashboardPlatform(item.platform) === channel.key
+    ).length,
+  }))
+  const totalExpenses = rows.reduce((sum, item) => sum + item.adjustedExpenses, 0)
+  return rows.map((item) => ({
+    ...item,
+    share: totalExpenses > 0 ? Number(((item.adjustedExpenses / totalExpenses) * 100).toFixed(1)) : 0,
+    expenses: formatMoney(item.adjustedExpenses),
+    impressions: formatNumber(item.summary.impressions || 0),
+    leads: item.summary.goals_syncing
+      ? 'цели синхронизируются'
+      : `${formatNumber(item.summary.leads || 0)} лидов`,
+  }))
+})
+
 const metrics = computed(() => {
-  const data = summary.value || {}
+  const data = dashboardSummary.value || {}
   const trends = data.trends || {}
   const hasData = !!summary.value
   const leadsAvailable = data.leads_available !== false
@@ -2775,6 +3050,7 @@ const metrics = computed(() => {
     return {
       ...metric,
       value: values[metric.key],
+      breakdown: isAllChannelsMode.value ? buildMetricBreakdown(metric.key) : [],
       trend: hasData && trendAvailable ? formatTrend(trendRaw) : null,
       trendUp: trendRaw >= 0,
       negative: metric.costMetric ? trendRaw > 0 : trendRaw < 0,
@@ -2816,6 +3092,10 @@ const activeChartMetricKeys = computed(() => {
 })
 
 const toggleChartMetric = (key) => {
+  if (chartBreakdownMode.value === 'channels') {
+    chartSelectedMetricKeys.value = [key]
+    return
+  }
   const active = new Set(chartSelectedMetricKeys.value)
   if (active.has(key)) {
     if (active.size === 1) return
@@ -2828,18 +3108,41 @@ const toggleChartMetric = (key) => {
     .filter((metricKey) => active.has(metricKey))
 }
 
-const getChartSourceValues = (metricKey) => {
+const setChartBreakdownMode = (mode) => {
+  chartBreakdownMode.value = mode
+  chartHoverIndex.value = -1
+  if (mode === 'channels' && chartSelectedMetricKeys.value.length > 1) {
+    chartSelectedMetricKeys.value = [chartSelectedMetricKeys.value[0]]
+  }
+}
+
+const toggleChartPlatform = (key) => {
+  const selected = new Set(chartSelectedPlatforms.value)
+  if (selected.has(key)) {
+    if (selected.size === 1) return
+    selected.delete(key)
+  } else {
+    selected.add(key)
+  }
+  chartSelectedPlatforms.value = dashboardChannelKeys.filter((channel) => selected.has(channel))
+}
+
+const getChartSourceValues = (metricKey, platform = null) => {
   const dynKey = chartDynamicsKeyMap[metricKey] || 'costs'
-  const values = dynamics.value?.[dynKey] || []
+  const source = platform ? channelDynamics.value?.[platform] : dynamics.value
+  const values = source?.[dynKey] || []
   const isMoney = chartChipByKey.value[metricKey]?.money
-  return values.map((v) => Math.max(0, isMoney ? withVat(v) : Number(v) || 0))
+  return values.map((v) => Math.max(
+    0,
+    isMoney ? withVat(v, { platform: platform || currentVatScopePlatform.value }) : Number(v) || 0
+  ))
 }
 
 const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricKeys.value[0] || 'expenses'))
 
-const buildChartPoints = (values) => {
+const buildChartPoints = (values, maxOverride = null) => {
   const normalizedValues = values.map((value) => Math.max(0, Number(value) || 0))
-  const max = Math.max(...normalizedValues, 1)
+  const max = Math.max(Number(maxOverride) || 0, ...normalizedValues, 1)
   const min = 0
   const span = Math.max(max - min, 1)
   return normalizedValues.map((value, index) => ({
@@ -2912,6 +3215,31 @@ const buildChartFillPath = (points, path) => {
 }
 
 const chartSeries = computed(() => {
+  if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
+    const metricKey = activeChartMetricKeys.value[0] || 'expenses'
+    const rows = availableDashboardChannels.value
+      .filter((channel) => chartSelectedPlatforms.value.includes(channel.key))
+      .map((channel) => ({
+        channel,
+        values: getChartSourceValues(metricKey, channel.key),
+      }))
+    const sharedMax = Math.max(...rows.flatMap((row) => row.values), 1)
+    return rows.map(({ channel, values }) => {
+        const points = buildChartPoints(values, sharedMax)
+        const path = buildSmoothChartPath(points)
+        return {
+          key: `${channel.key}-${metricKey}`,
+          metricKey,
+          label: channel.name,
+          color: channel.color,
+          money: Boolean(chartChipByKey.value[metricKey]?.money),
+          values,
+          points,
+          path,
+          fillPath: buildChartFillPath(points, path),
+        }
+      })
+  }
   return activeChartMetricKeys.value.map((metricKey) => {
     const values = getChartSourceValues(metricKey)
     const points = buildChartPoints(values)
@@ -2976,8 +3304,11 @@ const chartTooltipData = computed(() => {
     key: series.key,
     label: series.label,
     color: series.color,
-    value: formatChartMetricValue(series.key, series.values[idx] || 0),
+    value: formatChartMetricValue(series.metricKey || series.key, series.values[idx] || 0),
   }))
+  if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
+    return { date, main, context: [] }
+  }
   const selected = new Set(activeChartMetricKeys.value)
   const context = chartMetricChips
     .filter((chip) => !selected.has(chip.key))
@@ -3148,10 +3479,10 @@ const goalsTotalLabel = computed(() => {
   return `${formatNumber(total || fallback)} шт.`
 })
 
-const goalBars = computed(() => {
+const buildGoalBars = (sourceItems) => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
-  if (!dashboardGoalItems.value.length) return []
-  const items = dashboardGoalItems.value.map((goal, index) => {
+  if (!sourceItems.length) return []
+  const items = sourceItems.map((goal, index) => {
     const count = parseOptionalNumber(goal.count ?? goal.conversions ?? goal.value)
     const safeCount = Number.isFinite(count) ? count : 0
     const trendRaw = parseOptionalNumber(goal.trend ?? goal.trend_pct)
@@ -3177,16 +3508,54 @@ const goalBars = computed(() => {
     trendText: item.trend !== null ? `${item.trend > 0 ? '+' : ''}${formatNumber(item.trend, 1)}%` : null,
     trendClass: item.trend !== null ? (item.trend >= 0 ? 'goals-bar-trend--up' : 'goals-bar-trend--down') : '',
   }))
-})
+}
+
+const goalBars = computed(() => buildGoalBars(dashboardGoalItems.value))
 
 const goalsSummaryCpl = computed(() => {
   const totalGoals = dashboardGoalItems.value.reduce((sum, item) => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
-  const expenses = withCostBreakdownVat(summary.value?.expenses || 0, summary.value?.cost_by_platform)
+  const expenses = withCostBreakdownVat(dashboardSummary.value?.expenses || 0, dashboardSummary.value?.cost_by_platform)
   if (!totalGoals || !expenses) return '—'
   return formatMoney(expenses / totalGoals)
+})
+
+const goalChannelGroups = computed(() => {
+  if (isAllChannelsMode.value) {
+    return availableDashboardChannels.value.map((channel) => {
+      const items = (reportGoalsByChannel.value?.[channel.key] || [])
+        .filter((item) => item.summable !== false)
+      const bars = buildGoalBars(items)
+      const total = bars.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const expenses = channelAdjustedExpenses(channel.key, channel.summary)
+      return {
+        ...channel,
+        source: channel.key === 'vk' ? 'Лидовые действия VK' : 'Конверсии Яндекс Метрики',
+        bars,
+        expenses: formatMoney(expenses),
+        cpl: total > 0 ? formatMoney(expenses / total) : '—',
+      }
+    })
+  }
+
+  const key = normalizeDashboardPlatform(filters.channel) || 'yandex'
+  const meta = dashboardChannelMeta[key] || dashboardChannelMeta.yandex
+  const expenses = withCostBreakdownVat(
+    dashboardSummary.value?.expenses || 0,
+    dashboardSummary.value?.cost_by_platform,
+    key
+  )
+  return [{
+    ...meta,
+    name: key === 'yandex' ? 'Яндекс Метрика' : meta.name,
+    source: key === 'vk' ? 'Лидовые действия VK' : 'Выбранные цели',
+    asset: key === 'yandex' ? yandexMetrikaIcon : meta.asset,
+    bars: goalBars.value,
+    expenses: formatMoney(expenses),
+    cpl: goalsSummaryCpl.value,
+  }]
 })
 
 const campaignRows = computed(() => {
@@ -3369,19 +3738,40 @@ const getStatsParams = () => ({
 
 const fetchReportGoals = async () => {
   if (!filters.start_date || !filters.end_date) return
+  if (isAllChannelsMode.value) reportGoalsByChannel.value = {}
   try {
-    const params = {
+    const baseParams = {
       client_id: filters.client_id || undefined,
       date_from: filters.start_date,
       date_to: filters.end_date,
-      platform: filters.channel !== 'all' ? filters.channel : undefined,
       campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids.join(',') : undefined,
       direction_name: selectedDirection.value?.name || undefined
     }
-    const { data } = await api.get('dashboard/goals', { params })
-    reportGoals.value = Array.isArray(data) ? data : (data?.goals || [])
+    if (isAllChannelsMode.value) {
+      const settled = await Promise.allSettled(
+        dashboardChannelKeys.map(async (channel) => {
+          const { data } = await api.get('dashboard/goals', {
+            params: { ...baseParams, platform: channel },
+          })
+          const items = Array.isArray(data) ? data : (data?.goals || [])
+          return [channel, items.map((item) => ({ ...item, platform: channel }))]
+        })
+      )
+      const results = settled
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value)
+      reportGoalsByChannel.value = Object.fromEntries(results)
+      reportGoals.value = results.flatMap(([, items]) => items)
+    } else {
+      const { data } = await api.get('dashboard/goals', {
+        params: { ...baseParams, platform: filters.channel },
+      })
+      reportGoals.value = Array.isArray(data) ? data : (data?.goals || [])
+      reportGoalsByChannel.value = {}
+    }
   } catch {
     reportGoals.value = []
+    reportGoalsByChannel.value = {}
   }
 }
 
@@ -3996,6 +4386,8 @@ watch(() => filters.period, (period) => {
 
 watch(() => filters.channel, (channel) => {
   if (channel === 'vk') fetchAllCampaignsForGoalsTab()
+  campaignChannelFilter.value = 'all'
+  if (channel !== 'all') chartBreakdownMode.value = 'total'
 })
 
 watch(() => filters.client_id, (clientId) => {
@@ -10653,5 +11045,437 @@ onMounted(() => {
   background: #1e3a5f;
   border-color: #2563eb40;
   color: #93c5fd;
+}
+
+/* Unified multi-channel dashboard */
+.channel-overview {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.4rem;
+  padding: 1.45rem;
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  background: #fff;
+}
+
+.channel-overview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.channel-overview__eyebrow {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: #2563eb;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.channel-overview__head h2 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.28rem;
+  line-height: 1.25;
+}
+
+.channel-overview__head p {
+  margin: 0.35rem 0 0;
+  color: #8b93a1;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.channel-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.65rem;
+  padding: 0 0.9rem;
+  border: 1px solid #dce3ee;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #637083;
+  font-size: 0.83rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.channel-detail-toggle.active {
+  border-color: #bfd2ff;
+  background: #f5f8ff;
+  color: #2563eb;
+}
+
+.channel-detail-toggle svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.channel-detail-toggle svg:last-child {
+  transition: transform 0.18s ease;
+}
+
+.channel-detail-toggle svg.rotated {
+  transform: rotate(180deg);
+}
+
+.channel-overview__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.channel-overview-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--channel-color) 16%, #e8edf4);
+  border-radius: 0.8rem;
+  background: linear-gradient(145deg, #fff 35%, var(--channel-soft));
+}
+
+.channel-overview-card__title {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.channel-overview-card__title > span {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  background: #fff;
+  box-shadow: 0 0.25rem 0.8rem rgba(15, 23, 42, 0.06);
+}
+
+.channel-overview-card__title img {
+  width: 1.35rem;
+  height: 1.35rem;
+  object-fit: contain;
+}
+
+.channel-overview-card__title div {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.channel-overview-card__title strong {
+  overflow: hidden;
+  color: #222936;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-overview-card__title small {
+  color: #99a1ae;
+  font-size: 0.72rem;
+}
+
+.channel-overview-card__title b {
+  color: var(--channel-color);
+  font-size: 0.82rem;
+}
+
+.channel-overview-card__value {
+  margin-top: 0.9rem;
+  color: #171717;
+  font-size: 1.32rem;
+  font-weight: 800;
+}
+
+.channel-overview-card__bar {
+  height: 0.28rem;
+  margin-top: 0.6rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.channel-overview-card__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--channel-color);
+}
+
+.channel-overview-card__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  color: #7f8898;
+  font-size: 0.72rem;
+}
+
+.metric-channel-breakdown {
+  display: grid;
+  gap: 0.42rem;
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #edf0f4;
+}
+
+.kpi-grid--channel-details {
+  grid-auto-rows: 8.15rem;
+}
+
+.kpi-grid--channel-details .metric-card {
+  align-items: stretch;
+  gap: 0.8rem;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.kpi-grid--channel-details .metric-head {
+  min-width: 0;
+  flex: 1 1 55%;
+}
+
+.kpi-grid--channel-details .metric-channel-breakdown {
+  min-width: 8.8rem;
+  flex: 1 1 45%;
+  margin-top: 0;
+  padding-top: 0;
+  padding-left: 0.8rem;
+  border-top: 0;
+  border-left: 1px solid #edf0f4;
+}
+
+.metric-channel-row {
+  display: grid;
+  grid-template-columns: minmax(4.2rem, 1fr) auto 2.2rem;
+  align-items: center;
+  gap: 0.45rem;
+  color: #8b93a1;
+  font-size: 0.72rem;
+}
+
+.metric-channel-row__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.metric-channel-row__name i,
+.chart-channel-legend i,
+.campaign-channel-tabs i {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.metric-channel-row strong {
+  color: #4b5565;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.metric-channel-row > span:last-child {
+  text-align: right;
+}
+
+.chart-breakdown-switch {
+  display: inline-flex;
+  padding: 0.2rem;
+  border-radius: 0.65rem;
+  background: #f2f4f7;
+}
+
+.chart-breakdown-switch button {
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #8b93a1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-breakdown-switch button.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.2rem 0.65rem rgba(15, 23, 42, 0.08);
+}
+
+.chart-channel-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.chart-channel-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2rem;
+  padding: 0 0.65rem;
+  border: 1px solid #e3e8ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #8b93a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-channel-legend button.active {
+  border-color: #c8d7fb;
+  background: #f6f8ff;
+  color: #374151;
+}
+
+.goals-channel-list {
+  display: grid;
+  min-height: 0;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  overflow: auto;
+}
+
+.goals-channel-list .goals-channel-block {
+  margin-top: 0;
+  border-left: 0.22rem solid var(--goal-channel-color);
+}
+
+.goals-channel-title {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.goals-channel-title small {
+  color: #9aa2af;
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.campaign-channel-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 0.65rem;
+  background: #f3f5f8;
+}
+
+.campaign-sort-tabs .campaign-channel-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0 0.55rem;
+  border: 0;
+  background: transparent;
+  color: #8d96a4;
+}
+
+.campaign-sort-tabs .campaign-channel-tabs button.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.2rem 0.6rem rgba(15, 23, 42, 0.07);
+}
+
+.campaign-platform-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  background: var(--platform-soft);
+  color: var(--platform-color);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.campaign-platform-badge img {
+  width: 0.82rem;
+  height: 0.82rem;
+  object-fit: contain;
+}
+
+.figma-dashboard.is-dark .channel-overview,
+.figma-dashboard.is-dark .channel-overview-card,
+.figma-dashboard.is-dark .channel-detail-toggle,
+.figma-dashboard.is-dark .chart-channel-legend button {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: #202632;
+}
+
+.figma-dashboard.is-dark .channel-overview__head h2,
+.figma-dashboard.is-dark .channel-overview-card__value,
+.figma-dashboard.is-dark .channel-overview-card__title strong,
+.figma-dashboard.is-dark .metric-channel-row strong {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.figma-dashboard.is-dark .metric-channel-breakdown {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1100px) {
+  .channel-overview__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-sort-tabs {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 700px) {
+  .channel-overview__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .channel-detail-toggle {
+    justify-content: center;
+  }
+
+  .channel-overview-card__meta {
+    flex-wrap: wrap;
+  }
+
+  .chart-breakdown-switch,
+  .campaign-channel-tabs {
+    width: 100%;
+  }
+
+  .chart-breakdown-switch button,
+  .campaign-sort-tabs .campaign-channel-tabs button {
+    flex: 1;
+  }
+
+  .kpi-grid--channel-details {
+    grid-auto-rows: auto;
+  }
+
+  .kpi-grid--channel-details .metric-card {
+    min-height: 10.5rem;
+    flex-direction: column;
+  }
+
+  .kpi-grid--channel-details .metric-channel-breakdown {
+    width: 100%;
+    padding-top: 0.7rem;
+    padding-left: 0;
+    border-top: 1px solid #edf0f4;
+    border-left: 0;
+  }
 }
 </style>

@@ -14,6 +14,8 @@ const PLACEMENTS_MOCK = [
   { name: 'РСЯ',   value: '—', width: '0%' }
 ]
 
+const DASHBOARD_CHANNELS = ['yandex', 'vk', 'avito']
+
 export function useDashboardStats() {
   const summary = ref({
     expenses: 0,
@@ -36,6 +38,8 @@ export function useDashboardStats() {
     cpc: [],
     cpa: []
   })
+  const channelSummaries = ref({})
+  const channelDynamics = ref({})
 
   const topClients = ref([])
   const campaigns = ref([])
@@ -205,6 +209,10 @@ export function useDashboardStats() {
 
     loading.value = true
     error.value = null
+    if (filters.channel === 'all') {
+      channelSummaries.value = {}
+      channelDynamics.value = {}
+    }
 
     try {
       const params = {
@@ -220,13 +228,27 @@ export function useDashboardStats() {
           : undefined
       }
 
-      const [summaryRes, dynamicsRes, topClientsRes, campaignsRes, deviceStatsRes, placementsRes] = await Promise.allSettled([
+      const channelBreakdownPromise = filters.channel === 'all'
+        ? Promise.allSettled(DASHBOARD_CHANNELS.map(async (channel) => {
+            const channelParams = { ...params, platform: channel, goal_action_ids: undefined }
+            const [channelSummary, channelSeries] = await Promise.all([
+              api.get('dashboard/summary', { params: channelParams }),
+              api.get('dashboard/dynamics', { params: channelParams }),
+            ])
+            return [channel, channelSummary.data, channelSeries.data]
+          })).then((results) => results
+            .filter((result) => result.status === 'fulfilled')
+            .map((result) => result.value))
+        : Promise.resolve([])
+
+      const [summaryRes, dynamicsRes, topClientsRes, campaignsRes, deviceStatsRes, placementsRes, channelBreakdownRes] = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
         api.get('dashboard/top-clients'),
         api.get('dashboard/campaigns', { params }),
         api.get('dashboard/devices', { params }),
-        api.get('dashboard/placements', { params })
+        api.get('dashboard/placements', { params }),
+        channelBreakdownPromise,
       ])
 
       if (summaryRes.status === 'fulfilled') {
@@ -243,6 +265,17 @@ export function useDashboardStats() {
       }
 
       if (dynamicsRes.status === 'fulfilled') dynamics.value = dynamicsRes.value.data
+      if (filters.channel === 'all' && channelBreakdownRes.status === 'fulfilled') {
+        channelSummaries.value = Object.fromEntries(
+          channelBreakdownRes.value.map(([channel, channelSummary]) => [channel, channelSummary])
+        )
+        channelDynamics.value = Object.fromEntries(
+          channelBreakdownRes.value.map(([channel, , channelSeries]) => [channel, channelSeries])
+        )
+      } else if (filters.channel !== 'all') {
+        channelSummaries.value = {}
+        channelDynamics.value = {}
+      }
       if (topClientsRes.status === 'fulfilled') topClients.value = topClientsRes.value.data
       if (campaignsRes.status === 'fulfilled') campaigns.value = campaignsRes.value.data
 
@@ -465,6 +498,8 @@ export function useDashboardStats() {
   return {
     summary,
     dynamics,
+    channelSummaries,
+    channelDynamics,
     topClients,
     allCampaigns,
     allCampaignsForGoalsTab,

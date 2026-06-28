@@ -795,6 +795,9 @@ class GoalStat(BaseModel):
     count: int
     trend: float
     cost: Optional[float] = 0.0  # Cost for this goal (proportional to conversions)
+    category: Optional[str] = None
+    category_label: Optional[str] = None
+    summable: bool = True
     syncing: bool = False
     missing_in_metrika: bool = False
 
