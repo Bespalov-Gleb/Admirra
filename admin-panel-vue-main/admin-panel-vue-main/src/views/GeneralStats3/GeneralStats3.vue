@@ -2165,6 +2165,14 @@ const normalizeDashboardPlatform = (platform) => {
   return value
 }
 
+// Бэкенд добавляет к имени кампании префикс канала ([ЯД]/[VK]/[Avito]). В таблице
+// канал уже показывается отдельным бейджем/иконкой, поэтому дублирующий префикс из
+// названия убираем — чище и не растягивает строку.
+const stripPlatformPrefix = (name) => {
+  if (!name || typeof name !== 'string') return name
+  return name.replace(/^\s*\[(?:ЯД|VK|Avito(?:\s+Ads)?|Яндекс(?:\.Директ)?)\]\s*/i, '').trim() || name.trim()
+}
+
 const balancePlatformMeta = {
   yandex_direct: {
     id: 'yandex_direct',
@@ -2727,7 +2735,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     platform: platformKey,
     platformMeta,
     level,
-    name: campaign.name || (nodeLevel === 'ad' ? `Объявление ${sourceId || index + 1}` : `Группа ${index + 1}`),
+    name: stripPlatformPrefix(campaign.name) || (nodeLevel === 'ad' ? `Объявление ${sourceId || index + 1}` : `Группа ${index + 1}`),
     direction: isRoot
       ? (directionNameByCampaignId.value.get(String(campaign.id)) || '—')
       : (nodeLevel === 'ad' ? 'Объявление' : 'Группа'),
@@ -11338,14 +11346,28 @@ onMounted(() => {
 .goals-channel-list {
   display: grid;
   min-height: 0;
-  gap: 0.75rem;
+  gap: 1.4rem;
   margin-top: 1rem;
   overflow: auto;
 }
 
 .goals-channel-list .goals-channel-block {
   margin-top: 0;
-  border-left: 0.22rem solid var(--goal-channel-color);
+}
+
+/* Разделитель между каналами — тонкая линия вместо тесных вертикальных баров */
+.goals-channel-list .goals-channel-block + .goals-channel-block {
+  padding-top: 1.4rem;
+  border-top: 1px solid #eef0f3;
+}
+
+/* Идентичность канала — аккуратный цветной акцент слева у шапки */
+.goals-channel-list .goals-channel-header {
+  border-left: 3px solid var(--goal-channel-color);
+}
+
+.figma-dashboard.is-dark .goals-channel-list .goals-channel-block + .goals-channel-block {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .goals-channel-title {
@@ -11390,21 +11412,33 @@ onMounted(() => {
 .campaign-platform-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   align-self: flex-start;
-  gap: 0.35rem;
-  margin-top: 0.3rem;
-  padding: 0.22rem 0.48rem;
-  border-radius: 999px;
+  gap: 0.3rem;
+  margin-top: 0.32rem;
+  min-width: 3.6rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.06);
   background: var(--platform-soft);
   color: var(--platform-color);
-  font-size: 0.66rem;
-  font-weight: 700;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .campaign-platform-badge img {
-  width: 0.82rem;
-  height: 0.82rem;
+  width: 0.76rem;
+  height: 0.76rem;
   object-fit: contain;
+}
+
+.figma-dashboard.is-dark .campaign-platform-badge {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .figma-dashboard.is-dark .channel-overview,
