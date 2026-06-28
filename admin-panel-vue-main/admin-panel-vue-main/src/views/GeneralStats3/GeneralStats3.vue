@@ -6456,7 +6456,9 @@ onMounted(() => {
    полноширинным блоком снизу. Это освобождает место графику и убирает
    «letterbox» (SVG масштабируется по ширине, без принудительной высоты от
    высокого блока целей). */
-.chart-goals-grid--stacked {
+/* Специфичность .chart-goals-grid.chart-goals-grid--stacked (0,2,0) — чтобы
+   перебить более поздние одно-классовые .chart-goals-grid (2 колонки). */
+.chart-goals-grid.chart-goals-grid--stacked {
   grid-template-columns: 1fr;
 }
 
@@ -6467,6 +6469,7 @@ onMounted(() => {
 
 .chart-goals-grid--stacked .chart-area {
   flex: 0 0 auto;
+  height: auto;
   min-height: 0;
 }
 
