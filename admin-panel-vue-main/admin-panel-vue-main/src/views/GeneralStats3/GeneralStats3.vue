@@ -741,7 +741,8 @@
               :class="{ active: campaignChannelFilter === channel.key }"
               @click="campaignChannelFilter = channel.key"
             >
-              <i v-if="channel.color" :style="{ background: channel.color }"></i>
+              <img v-if="channel.asset" :src="channel.asset" alt="" class="campaign-channel-tab-icon" />
+              <i v-else-if="channel.color" :style="{ background: channel.color }"></i>
               {{ channel.label }}
             </button>
           </div>
@@ -2155,6 +2156,7 @@ const campaignChannelOptions = [
     key,
     label: dashboardChannelMeta[key].shortName,
     color: dashboardChannelMeta[key].color,
+    asset: dashboardChannelMeta[key].asset,
   })),
 ]
 
@@ -11270,8 +11272,11 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* В режиме активной разбивки тренд-бейдж скрываем (на его месте — разбивка по
+   каналам). Он показывается, когда «Все каналы» включены, но разбивка свёрнута,
+   а также в обычном одноканальном режиме. */
 .kpi-grid--channel-details .metric-head .trend {
-  flex: 0 0 auto;
+  display: none;
 }
 
 .kpi-grid--channel-details .metric-channel-breakdown {
@@ -11447,6 +11452,14 @@ onMounted(() => {
   border: 0;
   background: transparent;
   color: #8d96a4;
+}
+
+.campaign-channel-tab-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  object-fit: contain;
+  border-radius: 0.22rem;
+  flex: 0 0 auto;
 }
 
 .campaign-sort-tabs .campaign-channel-tabs button.active {
