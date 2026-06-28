@@ -562,7 +562,7 @@
       </div>
     </section>
 
-    <section class="chart-goals-grid">
+    <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
       <article class="panel chart-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
         <div class="panel-title-row">
           <h2>Эффективность кампаний</h2>
@@ -6450,6 +6450,56 @@ onMounted(() => {
   margin-top: 1.6rem;
   align-items: stretch;
   overflow: visible;
+}
+
+/* Режим «Все каналы»: график на всю ширину сверху, «Целевые действия» —
+   полноширинным блоком снизу. Это освобождает место графику и убирает
+   «letterbox» (SVG масштабируется по ширине, без принудительной высоты от
+   высокого блока целей). */
+.chart-goals-grid--stacked {
+  grid-template-columns: 1fr;
+}
+
+.chart-goals-grid--stacked .chart-panel,
+.chart-goals-grid--stacked .goals-panel {
+  min-height: 0;
+}
+
+.chart-goals-grid--stacked .chart-area {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.chart-goals-grid--stacked .chart-area svg {
+  height: auto;
+}
+
+/* Цели в растянутом виде — каналы аккуратными карточками в ряд (адаптивно) */
+.chart-goals-grid--stacked .goals-channel-list {
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.chart-goals-grid--stacked .goals-channel-block {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid #eef0f3;
+  border-radius: 1.1rem;
+  background: #fcfcfd;
+}
+
+.chart-goals-grid--stacked .goals-channel-list .goals-channel-block + .goals-channel-block {
+  padding-top: 1.2rem;
+  border-top: 1px solid #eef0f3;
+}
+
+.figma-dashboard.is-dark .chart-goals-grid--stacked .goals-channel-block {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1f2533;
+}
+
+.figma-dashboard.is-dark .chart-goals-grid--stacked .goals-channel-list .goals-channel-block + .goals-channel-block {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .chart-panel,
