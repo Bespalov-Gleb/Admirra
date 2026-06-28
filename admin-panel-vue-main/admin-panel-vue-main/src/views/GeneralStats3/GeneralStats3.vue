@@ -596,6 +596,10 @@
             <i :style="{ background: channel.color }"></i>
             {{ channel.name }}
           </button>
+          <div class="chart-stack-mode" role="group" aria-label="Тип стека">
+            <button type="button" :class="{ active: chartStackMode === 'volume' }" @click="setChartStackMode('volume')">Объём</button>
+            <button type="button" :class="{ active: chartStackMode === 'share' }" @click="setChartStackMode('share')">Доля&nbsp;%</button>
+          </div>
         </div>
         <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
           <svg ref="chartSvgRef" :viewBox="`0 0 ${chartViewWidth} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
@@ -611,35 +615,70 @@
                 <stop offset="85%" :stop-color="series.color" stop-opacity="0.03" />
                 <stop offset="100%" :stop-color="series.color" stop-opacity="0" />
               </linearGradient>
+              <linearGradient
+                v-for="band in chartStackedSeries"
+                :key="`sgrad-${band.key}`"
+                :id="`csk-${band.key}`"
+                x1="0" :y1="CHART_TOP" x2="0" :y2="CHART_BOTTOM"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" :stop-color="band.color" stop-opacity="0.92" />
+                <stop offset="100%" :stop-color="band.color" stop-opacity="0.62" />
+              </linearGradient>
             </defs>
             <g class="grid-lines">
               <line v-for="y in chartGridLines" :key="y" :x1="CHART_GRID_LEFT" :y1="y" :x2="CHART_GRID_RIGHT" :y2="y" />
             </g>
             <line class="axis-y-line" :x1="CHART_GRID_LEFT" :y1="CHART_TOP" :x2="CHART_GRID_LEFT" :y2="CHART_BOTTOM" />
-            <path
-              v-for="(series, si) in chartSeries"
-              :key="`${series.key}-fill`"
-              class="chart-fill"
-              :d="series.fillPath"
-              :style="{ fill: `url(#cg-${series.key})`, animationDelay: `${0.2 + si * 0.1}s` }"
-            />
-            <path
-              v-for="(series, si) in chartSeries"
-              :key="`${series.key}-line`"
-              class="chart-line"
-              :d="series.path"
-              :style="{ stroke: series.color, animationDelay: `${si * 0.12}s` }"
-            />
+            <!-- Стек по каналам (stacked area): красивые накопительные области -->
+            <template v-if="isStackedChart">
+              <path
+                v-for="(band, bi) in chartStackedSeries"
+                :key="`${band.key}-band`"
+                class="chart-stack-band"
+                :class="{ 'chart-stack-band--dim': chartHoverChannel && chartHoverChannel !== band.key }"
+                :d="band.areaPath"
+                :style="{ fill: `url(#csk-${band.key})`, animationDelay: `${0.15 + bi * 0.08}s` }"
+                @mouseenter="chartHoverChannel = band.key"
+                @mouseleave="chartHoverChannel = null"
+              />
+              <path
+                v-for="band in chartStackedSeries"
+                :key="`${band.key}-bandtop`"
+                class="chart-stack-top"
+                :class="{ 'chart-stack-top--dim': chartHoverChannel && chartHoverChannel !== band.key }"
+                :d="band.topPath"
+                :style="{ stroke: band.color }"
+              />
+            </template>
+            <template v-else>
+              <path
+                v-for="(series, si) in chartSeries"
+                :key="`${series.key}-fill`"
+                class="chart-fill"
+                :d="series.fillPath"
+                :style="{ fill: `url(#cg-${series.key})`, animationDelay: `${0.2 + si * 0.1}s` }"
+              />
+              <path
+                v-for="(series, si) in chartSeries"
+                :key="`${series.key}-line`"
+                class="chart-line"
+                :d="series.path"
+                :style="{ stroke: series.color, animationDelay: `${si * 0.12}s` }"
+              />
+            </template>
             <line v-if="chartHoverIndex >= 0 && chartHoverX !== null" class="chart-hover-line" :x1="chartHoverX" :y1="CHART_TOP" :x2="chartHoverX" :y2="CHART_BOTTOM" />
-            <circle
-              v-for="series in chartHoverSeries"
-              :key="`${series.key}-dot`"
-              class="chart-hover-dot"
-              :cx="series.point.x"
-              :cy="series.point.y"
-              r="5.5"
-              :style="{ fill: series.color }"
-            />
+            <template v-if="!isStackedChart">
+              <circle
+                v-for="series in chartHoverSeries"
+                :key="`${series.key}-dot`"
+                class="chart-hover-dot"
+                :cx="series.point.x"
+                :cy="series.point.y"
+                r="5.5"
+                :style="{ fill: series.color }"
+              />
+            </template>
             <g class="axis-labels">
               <text v-for="tick in chartYTicks" :key="tick.index" text-anchor="end" :x="CHART_Y_LABEL_X" :y="tick.y">{{ chartYLabels[tick.index] }}</text>
               <text v-for="label in chartDateAxisLabels" :key="`${label.text}-${label.index}`" :x="label.x" :y="CHART_DATE_LABEL_Y" :class="{ 'axis-label--active': chartHoverIndex === label.index }">{{ label.text }}</text>
@@ -1411,6 +1450,10 @@ const chartSelectedMetricKeys = ref(['expenses'])
 const chartBreakdownMode = ref('total')
 const chartSelectedPlatforms = ref(['yandex', 'vk', 'avito'])
 const chartHoverIndex = ref(-1)
+// Стек по каналам (режим «По каналам»): 'volume' — абсолютный объём, 'share' — доля 100%.
+const chartStackMode = ref('volume')
+// Канал, на который наведён курсор в стеке (для подсветки), null — нет.
+const chartHoverChannel = ref(null)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
 const periodKey = ref(
@@ -3136,6 +3179,10 @@ const setChartBreakdownMode = (mode) => {
   }
 }
 
+const setChartStackMode = (mode) => {
+  chartStackMode.value = mode
+}
+
 const toggleChartPlatform = (key) => {
   const selected = new Set(chartSelectedPlatforms.value)
   if (selected.has(key)) {
@@ -3274,6 +3321,64 @@ const chartSeries = computed(() => {
       points,
       path,
       fillPath: buildChartFillPath(points, path),
+    }
+  })
+})
+
+// Режим «стек по каналам» активен только в «Все каналы» → «По каналам».
+const isStackedChart = computed(() =>
+  isAllChannelsMode.value && hasCompleteChannelBreakdown.value && chartBreakdownMode.value === 'channels'
+)
+
+// Накопительные области по каналам (stacked area). 'volume' — абсолютные значения,
+// 'share' — нормировка к 100% за каждую дату. Геометрия в координатах viewBox,
+// поэтому корректно работает с адаптивной шириной графика.
+const chartStackedSeries = computed(() => {
+  if (!isStackedChart.value) return []
+  const base = chartSeries.value
+  if (!base.length) return []
+  const n = base[0].values.length
+  if (!n) return []
+
+  const totals = []
+  for (let i = 0; i < n; i++) {
+    let s = 0
+    for (const ch of base) s += Math.max(0, Number(ch.values[i]) || 0)
+    totals.push(s)
+  }
+  const share = chartStackMode.value === 'share'
+  const maxTotal = share ? 1 : Math.max(...totals, 1)
+  const yFor = (cum) => CHART_BOTTOM - (cum / maxTotal) * (CHART_BOTTOM - CHART_TOP)
+  const xFor = (i) => (n === 1
+    ? CHART_LEFT
+    : CHART_LEFT + ((CHART_RIGHT.value - CHART_LEFT) / (n - 1)) * i)
+
+  const cumBottom = new Array(n).fill(0)
+  return base.map((ch) => {
+    const topPts = []
+    const botPts = []
+    const segValues = []
+    for (let i = 0; i < n; i++) {
+      const raw = Math.max(0, Number(ch.values[i]) || 0)
+      const v = share ? (totals[i] > 0 ? raw / totals[i] : 0) : raw
+      const bottom = cumBottom[i]
+      const top = bottom + v
+      botPts.push({ x: xFor(i), y: yFor(bottom) })
+      topPts.push({ x: xFor(i), y: yFor(top) })
+      cumBottom[i] = top
+      segValues.push(raw)
+    }
+    const topPath = buildSmoothChartPath(topPts)
+    const botReversed = buildSmoothChartPath([...botPts].reverse())
+    const areaPath = `${topPath} ${botReversed.replace(/^M/, 'L')} Z`
+    return {
+      key: ch.key,
+      platformKey: ch.platformKey || ch.key,
+      color: ch.color,
+      label: ch.label,
+      areaPath,
+      topPath,
+      values: segValues,
     }
   })
 })
@@ -3425,16 +3530,30 @@ onBeforeUnmount(() => {
 })
 
 const chartYLabels = computed(() => {
-  if (activeChartMetricKeys.value.length > 1) return ['', '', '', '', '']
-  const values = chartSourceValues.value
-  const rawMax = Math.max(...values, 0)
-  if (rawMax === 0) return ['0', '0', '0', '0', '0']
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
     if (v >= 1_000) return `${+(v / 1_000).toFixed(1)}k`
     return String(Math.round(v))
   }
+  // Стек по каналам: ось Y — накопительный итог (Объём) или 0–100% (Доля).
+  if (isStackedChart.value) {
+    if (chartStackMode.value === 'share') return ['100%', '75%', '50%', '25%', '0%']
+    const base = chartSeries.value
+    const n = base[0]?.values?.length || 0
+    let maxTotal = 0
+    for (let i = 0; i < n; i++) {
+      let s = 0
+      for (const ch of base) s += Math.max(0, Number(ch.values[i]) || 0)
+      if (s > maxTotal) maxTotal = s
+    }
+    if (maxTotal === 0) return ['0', '0', '0', '0', '0']
+    return [fmt(maxTotal), fmt(maxTotal * 0.75), fmt(maxTotal * 0.5), fmt(maxTotal * 0.25), '0']
+  }
+  if (activeChartMetricKeys.value.length > 1) return ['', '', '', '', '']
+  const values = chartSourceValues.value
+  const rawMax = Math.max(...values, 0)
+  if (rawMax === 0) return ['0', '0', '0', '0', '0']
   return [
     fmt(rawMax),
     fmt(rawMax * 0.75),
@@ -6714,6 +6833,31 @@ onMounted(() => {
   fill: #2563eb;
   stroke: #fff;
   stroke-width: 2.5;
+}
+
+/* Stacked area по каналам */
+.chart-stack-band {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  animation: chart-fill-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.chart-stack-band--dim {
+  opacity: 0.32;
+}
+
+.chart-stack-top {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.9;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.chart-stack-top--dim {
+  opacity: 0.25;
 }
 
 .axis-labels text {
@@ -11456,6 +11600,42 @@ onMounted(() => {
   background: #fff;
   color: #2563eb;
   box-shadow: 0 0.2rem 0.65rem rgba(15, 23, 42, 0.08);
+}
+
+.chart-stack-mode {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 0.2rem;
+  border-radius: 0.65rem;
+  background: #f2f4f7;
+}
+
+.chart-stack-mode button {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #8b93a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-stack-mode button.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 0.2rem 0.65rem rgba(15, 23, 42, 0.08);
+}
+
+.figma-dashboard.is-dark .chart-stack-mode {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.figma-dashboard.is-dark .chart-stack-mode button.active {
+  background: #2a3346;
+  color: #7aa2ff;
+  box-shadow: none;
 }
 
 .chart-channel-legend {
