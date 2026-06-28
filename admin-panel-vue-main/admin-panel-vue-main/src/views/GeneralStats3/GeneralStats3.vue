@@ -479,6 +479,7 @@
               {{ channel.shortName }}
             </span>
             <strong>{{ channel.value }}</strong>
+            <span v-if="channel.share !== null" class="metric-channel-row__share">{{ channel.share }}%</span>
           </div>
         </div>
       </article>
@@ -11263,7 +11264,7 @@ onMounted(() => {
   font-size: 1.05rem;
 }
 
-.kpi-grid--channel-details .metric-card strong {
+.kpi-grid--channel-details .metric-text strong {
   margin-top: 0.4rem;
   font-size: 1.55rem;
   white-space: nowrap;
@@ -11285,11 +11286,11 @@ onMounted(() => {
 
 .metric-channel-row {
   display: grid;
-  grid-template-columns: minmax(4.2rem, 1fr) auto;
+  grid-template-columns: minmax(3.6rem, 1fr) auto 2.4rem;
   align-items: center;
   gap: 0.5rem;
   color: #8b93a1;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .metric-channel-row__name {
@@ -11318,9 +11319,17 @@ onMounted(() => {
 
 .metric-channel-row strong {
   color: #4b5565;
-  font-size: 0.74rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-align: right;
+  white-space: nowrap;
+}
+
+.metric-channel-row__share {
+  text-align: right;
+  color: #aeb6c2;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .metric-channel-row > span:last-child {
