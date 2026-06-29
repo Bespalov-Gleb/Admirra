@@ -102,6 +102,19 @@
                 <line x1="0" y1="0" x2="0" y2="6" :stroke="activeColor" stroke-width="2" opacity="0.6" />
               </pattern>
             </defs>
+            <!-- Сетка + ось Y (значения слева по выбранной метрике) -->
+            <g class="dyn-grid">
+              <line
+                v-for="t in yTicks" :key="`grid-${t.y}`"
+                :x1="PAD_LEFT" :y1="t.y" :x2="CW - PAD_RIGHT" :y2="t.y"
+                class="dyn-grid-line"
+              />
+              <text
+                v-for="t in yTicks" :key="`ylab-${t.y}`"
+                :x="PAD_LEFT - 8" :y="t.y + 4" text-anchor="end"
+                class="dyn-y-label"
+              >{{ t.label }}</text>
+            </g>
             <g v-for="(p, i) in periods" :key="p.start">
               <rect
                 :x="barX(i)" :y="barY(i)" :width="barW" :height="barH(i)"
@@ -117,11 +130,12 @@
               />
               <text
                 v-if="shouldShowAxisLabel(i)"
-                :x="barX(i) + barW / 2"
-                :y="CH - 6"
-                text-anchor="middle"
+                :x="axisLabelX(i)"
+                :y="axisLabelY"
+                :text-anchor="denseAxis ? 'end' : 'middle'"
+                :transform="axisLabelTransform(i)"
                 class="dyn-bar-label"
-                :class="{ 'dyn-bar-label--dense': periods.length > 12 }"
+                :class="{ 'dyn-bar-label--dense': denseAxis }"
               >
                 {{ shortAxisLabel(p.label) }}
               </text>
@@ -175,7 +189,6 @@
               <th v-if="hasYandexSummary">CPL Я</th>
               <template v-for="g in goals" :key="g.id">
                 <th class="dyn-th-goal">{{ g.name }}</th>
-                <th class="dyn-th-goal">{{ g.name }} CPA</th>
               </template>
             </tr>
           </thead>
@@ -194,7 +207,6 @@
               <td v-if="hasYandexSummary" v-html="cell(adjCpl(p), deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
               <template v-for="g in goals" :key="g.id">
                 <td class="dyn-td-goal" v-html="goalCountCell(p, g.id)"></td>
-                <td class="dyn-td-goal" v-html="goalCpaCell(p, g.id)"></td>
               </template>
             </tr>
           </tbody>
@@ -274,7 +286,11 @@ const adjCpl = (p) => {
 const goalCpa = (p, count) => (count > 0 ? adjCost(p) / count : null)
 
 // ── График ──
-const CW = 1000, CH = 320, PAD_TOP = 30, PAD_BOTTOM = 22
+// PAD_LEFT — место под ось Y (значения слева). PAD_BOTTOM — под подписи дат
+// (с запасом, т.к. при плотном графике подписи повёрнуты).
+const CW = 1000, CH = 340, PAD_TOP = 26, PAD_BOTTOM = 64, PAD_LEFT = 56, PAD_RIGHT = 14
+const plotW = CW - PAD_LEFT - PAD_RIGHT
+const plotH = CH - PAD_TOP - PAD_BOTTOM
 const metricValue = (p) => {
   if (metric.value === 'cost') return adjCost(p)
   if (metric.value === 'cpc') return adjCpc(p)
@@ -282,42 +298,57 @@ const metricValue = (p) => {
   return Number(p[metric.value] || 0)
 }
 const maxVal = computed(() => Math.max(1, ...periods.value.map(metricValue)))
-const barW = computed(() => {
-  const n = periods.value.length || 1
-  return (CW / n) * 0.6
+// «Красивый» максимум для оси Y (округляем вверх до 1/2/2.5/5/10 × 10^k),
+// чтобы метки оси были ровными, а столбцы не упирались в потолок.
+const niceMax = computed(() => {
+  const m = maxVal.value
+  if (m <= 1) return 1
+  const pow = Math.pow(10, Math.floor(Math.log10(m)))
+  const r = m / pow
+  const step = r <= 1 ? 1 : r <= 2 ? 2 : r <= 2.5 ? 2.5 : r <= 5 ? 5 : 10
+  return step * pow
 })
-const barGap = computed(() => (CW / (periods.value.length || 1)))
-const barX = (i) => barGap.value * i + (barGap.value - barW.value) / 2
-const barH = (i) => {
-  const v = metricValue(periods.value[i])
-  return Math.max(2, (v / maxVal.value) * (CH - PAD_TOP - PAD_BOTTOM))
-}
+const barW = computed(() => (plotW / (periods.value.length || 1)) * 0.62)
+const barGap = computed(() => (plotW / (periods.value.length || 1)))
+const barX = (i) => PAD_LEFT + barGap.value * i + (barGap.value - barW.value) / 2
+const barH = (i) => Math.max(2, (metricValue(periods.value[i]) / niceMax.value) * plotH)
 const barY = (i) => CH - PAD_BOTTOM - barH(i)
+// Метки оси Y: 5 уровней от 0 до niceMax.
+const yTicks = computed(() => {
+  const out = []
+  for (let f = 0; f <= 4; f++) {
+    const frac = f / 4
+    out.push({ y: CH - PAD_BOTTOM - frac * plotH, label: fmtAxisValue(niceMax.value * frac) })
+  }
+  return out
+})
+const axisBaselineY = CH - PAD_BOTTOM
+// Плотный график (>9 периодов) → подписи дат поворачиваем, чтобы влезли все.
+const denseAxis = computed(() => periods.value.length > 9)
+// Подписи дат: показываем ВСЕ при разумной плотности (≤32, сюда входят 12 месяцев и
+// недели за 3-6 мес); при экстремальной плотности слегка прореживаем (не больше ~30).
 const axisLabelStep = computed(() => {
   const n = periods.value.length
-  if (n <= 6) return 1
-  if (n <= 12) return 2
-  if (n <= 20) return 3
-  if (n <= 32) return 4
-  return Math.ceil(n / 7)
-})
-const valueLabelStep = computed(() => {
-  const n = periods.value.length
-  if (n <= 6) return 1
-  if (n <= 12) return 2
-  if (n <= 24) return 4
-  return Math.ceil(n / 6)
+  return n <= 32 ? 1 : Math.ceil(n / 30)
 })
 const shouldShowAxisLabel = (index) => {
   const n = periods.value.length
   if (!n) return false
   return index === 0 || index === n - 1 || index % axisLabelStep.value === 0
 }
+// Значение на верхушке столбца: на КАЖДОМ при ≤13 периодах; дальше реже, чтобы не
+// наезжали (читаемость плотных случаев обеспечивают ось Y и подсказка при наведении).
 const shouldShowValueLabel = (index) => {
   const n = periods.value.length
   if (!n) return false
-  return index === 0 || index === n - 1 || index % valueLabelStep.value === 0
+  if (n <= 13) return true
+  const step = Math.ceil(n / 12)
+  return index === 0 || index === n - 1 || index % step === 0
 }
+const axisLabelX = (i) => barX(i) + barW.value / 2
+const axisLabelY = computed(() => axisBaselineY + (denseAxis.value ? 12 : 18))
+const axisLabelTransform = (i) =>
+  denseAxis.value ? `rotate(-40 ${axisLabelX(i)} ${axisLabelY.value})` : ''
 const showBarTooltip = (event, period) => {
   const wrap = dynChartWrapRef.value
   if (!wrap || !period) return
@@ -339,8 +370,8 @@ const hideBarTooltip = () => {
 
 // ── Форматирование ──
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
+const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
 const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
-const nfCompact = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 })
 const fmtMoney = (v) => `${nf2.format(Number(v || 0))} ₽`
 const fmtInt = (v) => nf.format(Number(v || 0))
 const fmtPct = (v) => `${nf2.format(Number(v || 0))}%`
@@ -348,14 +379,20 @@ const fmtMetric = (v) => {
   const m = metrics.find((x) => x.key === metric.value)
   return m && m.money ? fmtMoney(v) : fmtInt(v)
 }
-const fmtCompact = (v) => {
-  const num = Number(v || 0)
-  return Math.abs(num) >= 10000 ? nfCompact.format(num) : nf.format(num)
+// Компактный формат для подписей баров и оси Y: 63000 → «63к», 1.2млн → «1,2 млн».
+const compactNum = (v) => {
+  const n = Number(v || 0), a = Math.abs(n)
+  if (a >= 1e9) return `${nf1.format(n / 1e9)} млрд`
+  if (a >= 1e6) return `${nf1.format(n / 1e6)} млн`
+  if (a >= 1000) return `${nf1.format(n / 1000)}к`
+  return nf.format(n)
 }
-const fmtMetricCompact = (v) => {
+// Значение для оси Y / верхушки бара (с ₽ для денежных метрик).
+const fmtAxisValue = (v) => {
   const m = metrics.find((x) => x.key === metric.value)
-  return m && m.money ? `${fmtCompact(v)} ₽` : fmtCompact(v)
+  return m && m.money ? `${compactNum(v)} ₽` : compactNum(v)
 }
+const fmtMetricCompact = (v) => fmtAxisValue(v)
 const shortAxisLabel = (label) => {
   // «Июнь 2026» → «Июнь», недельный диапазон оставляем
   const parts = String(label).split(' ')
@@ -883,7 +920,9 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   position: relative;
 }
 
-.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 320; display: block; overflow: visible; }
+.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 340; display: block; overflow: visible; }
+.dyn-grid-line { stroke: #eef1f5; stroke-width: 1; }
+.dyn-y-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
 .dyn-bar-rect {
   cursor: default;
   transition: opacity 0.16s ease, filter 0.16s ease;
@@ -893,7 +932,7 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   opacity: 0.92;
 }
 .dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 700; }
-.dyn-bar-label--dense { font-size: 10px; }
+.dyn-bar-label--dense { font-size: 9px; }
 .dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 800; }
 .dyn-bar-value--dense { font-size: 9px; }
 .dyn-bar-tooltip {
