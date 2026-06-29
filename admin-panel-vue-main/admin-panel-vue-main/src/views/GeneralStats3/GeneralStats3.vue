@@ -3655,20 +3655,12 @@ const parseOptionalNumber = (value) => {
 }
 
 const dashboardGoalItems = computed(() => {
-  if (!selectedDirection.value && Array.isArray(directionStats.value.items) && directionStats.value.items.length) {
-    return directionStats.value.items
-      .filter((item) => Number(item.leads || 0) > 0 || Number(item.expenses || 0) > 0)
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        count: Number(item.leads || 0),
-        trend: item.trend,
-        cost: Number(item.expenses || 0),
-      }))
-  }
-  // №3: в сводный блок «Цели» (пончик/итог/CPL) для VK берём только суммируемые
-  // типы (лиды). Трафик/охват/просмотры не являются лидами и не складываются в
-  // общий итог — у не-лидовых ЦД с бэкенда summable === false.
+  // «Целевые действия» показывают ЦЕЛИ МЕТРИКИ (выбранные в счётчике интеграции),
+  // а НЕ направления — у направлений есть свой отдельный блок. Ранее здесь
+  // подставлялась разбивка по направлениям (коммит b5a517c), из-за чего направления
+  // «перетекали» в целевые действия. Убрано.
+  // №3: для VK берём только суммируемые типы (лиды); у не-лидовых ЦД (трафик/охват/
+  // просмотры) с бэкенда summable === false — их в общий итог не складываем.
   return reportGoals.value.filter((item) => item.summable !== false)
 })
 
