@@ -340,6 +340,25 @@ async def _sync_metrika_goals_for_direct(
             sync_date_to,
         )
 
+    # Цели Метрики дозачисляются ЗАДНИМ ЧИСЛОМ (окно атрибуции): клик был раньше, а
+    # достижение цели засчитывается позже. При узком инкрементальном окне (3-7 дней)
+    # прошлые дни не перекачиваются и сохранённые цели отстают от реальных. Поэтому
+    # ТОЛЬКО для целей всегда берём окно с запасом назад (METRIKA_GOALS_LOOKBACK_DAYS,
+    # по умолчанию 30). Функция ниже удаляет период и перекачивает заново — идемпотентно,
+    # не двоит. Запрос целей лёгкий, поэтому скорость общего синка не страдает.
+    try:
+        _goals_lookback = int(os.getenv("METRIKA_GOALS_LOOKBACK_DAYS", "30"))
+        _end_obj = datetime.strptime(sync_date_to, "%Y-%m-%d").date()
+        _floor = (_end_obj - timedelta(days=_goals_lookback)).strftime("%Y-%m-%d")
+        if _floor < sync_date_from:
+            sync_date_from = _floor
+            logger.info(
+                "🔄 Metrika goals lookback widened to %s..%s (%sd) for integration %s",
+                sync_date_from, sync_date_to, _goals_lookback, integration.id,
+            )
+    except Exception as _gl_err:
+        logger.info("Metrika goals lookback skip for %s: %s", integration.id, _gl_err)
+
     sync_key = str(integration.id)
     with _metrika_goals_write_lock:
         if sync_key in _metrika_goals_write_in_progress:
@@ -1272,6 +1291,20 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                 logger.info(f"🔄 First sync for integration {integration.id}: fetching 90 days of goals data ({sync_date_from} to {sync_date_to})")
             else:
                 logger.info(f"🔄 Regular sync for integration {integration.id}: fetching goals data ({sync_date_from} to {sync_date_to})")
+
+            # Цели Метрики дозачисляются задним числом (окно атрибуции) — при узком
+            # инкрементальном окне прошлые дни не перекачиваются и цели отстают.
+            # Всегда берём окно с запасом назад (METRIKA_GOALS_LOOKBACK_DAYS, дефолт 30);
+            # период удаляется и перекачивается заново ниже — идемпотентно, не двоит.
+            try:
+                _goals_lookback = int(os.getenv("METRIKA_GOALS_LOOKBACK_DAYS", "30"))
+                _end_obj = datetime.strptime(sync_date_to, "%Y-%m-%d").date()
+                _floor = (_end_obj - timedelta(days=_goals_lookback)).strftime("%Y-%m-%d")
+                if _floor < sync_date_from:
+                    sync_date_from = _floor
+                    logger.info(f"🔄 Metrika goals lookback widened to {sync_date_from}..{sync_date_to} ({_goals_lookback}d) for integration {integration.id}")
+            except Exception as _gl_err:
+                logger.info(f"Metrika goals lookback skip for {integration.id}: {_gl_err}")
 
             from automation.request_queue import get_request_queue
             queue = await get_request_queue()
