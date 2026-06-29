@@ -137,15 +137,15 @@
                 class="dyn-bar-label"
                 :class="{ 'dyn-bar-label--dense': denseAxis }"
               >
-                {{ shortAxisLabel(p.label) }}
+                {{ shortAxisLabel(p) }}
               </text>
               <text
-                v-if="shouldShowValueLabel(i)"
                 :x="barX(i) + barW / 2"
-                :y="barY(i) - 4"
-                text-anchor="middle"
+                :y="valueLabelY(i)"
+                :text-anchor="denseValues ? 'end' : 'middle'"
+                :transform="valueLabelTransform(i)"
                 class="dyn-bar-value"
-                :class="{ 'dyn-bar-value--dense': periods.length > 8 }"
+                :class="{ 'dyn-bar-value--dense': denseValues, 'dyn-bar-value--xdense': periods.length > 28 }"
               >
                 {{ fmtMetricCompact(metricValue(p)) }}
               </text>
@@ -288,7 +288,7 @@ const goalCpa = (p, count) => (count > 0 ? adjCost(p) / count : null)
 // ── График ──
 // PAD_LEFT — место под ось Y (значения слева). PAD_BOTTOM — под подписи дат
 // (с запасом, т.к. при плотном графике подписи повёрнуты).
-const CW = 1000, CH = 340, PAD_TOP = 26, PAD_BOTTOM = 64, PAD_LEFT = 56, PAD_RIGHT = 14
+const CW = 1000, CH = 360, PAD_TOP = 44, PAD_BOTTOM = 64, PAD_LEFT = 56, PAD_RIGHT = 14
 const plotW = CW - PAD_LEFT - PAD_RIGHT
 const plotH = CH - PAD_TOP - PAD_BOTTOM
 const metricValue = (p) => {
@@ -323,8 +323,9 @@ const yTicks = computed(() => {
   return out
 })
 const axisBaselineY = CH - PAD_BOTTOM
-// Плотный график (>9 периодов) → подписи дат поворачиваем, чтобы влезли все.
-const denseAxis = computed(() => periods.value.length > 9)
+// Плотный график (>13 периодов, т.е. недели) → даты цифрами и повёрнуты. До 12-13
+// (месяцы) влезают горизонтально словами — оставляем читаемыми.
+const denseAxis = computed(() => periods.value.length > 13)
 // Подписи дат: показываем ВСЕ при разумной плотности (≤32, сюда входят 12 месяцев и
 // недели за 3-6 мес); при экстремальной плотности слегка прореживаем (не больше ~30).
 const axisLabelStep = computed(() => {
@@ -336,15 +337,14 @@ const shouldShowAxisLabel = (index) => {
   if (!n) return false
   return index === 0 || index === n - 1 || index % axisLabelStep.value === 0
 }
-// Значение на верхушке столбца: на КАЖДОМ при ≤13 периодах; дальше реже, чтобы не
-// наезжали (читаемость плотных случаев обеспечивают ось Y и подсказка при наведении).
-const shouldShowValueLabel = (index) => {
-  const n = periods.value.length
-  if (!n) return false
-  if (n <= 13) return true
-  const step = Math.ceil(n / 12)
-  return index === 0 || index === n - 1 || index % step === 0
-}
+// Значение показываем на КАЖДОМ столбце всегда. При плотности (>14) переводим
+// подпись в ВЕРТИКАЛЬНУЮ (поворот -90°) — так компактное «63к ₽» помещается даже в
+// узкий столбец и читается, а сам график остаётся аккуратным.
+const shouldShowValueLabel = () => true
+const denseValues = computed(() => periods.value.length > 13)
+const valueLabelY = (i) => barY(i) - (denseValues.value ? 5 : 6)
+const valueLabelTransform = (i) =>
+  denseValues.value ? `rotate(-90 ${barX(i) + barW.value / 2} ${barY(i) - 5})` : ''
 const axisLabelX = (i) => barX(i) + barW.value / 2
 const axisLabelY = computed(() => axisBaselineY + (denseAxis.value ? 12 : 18))
 const axisLabelTransform = (i) =>
@@ -393,10 +393,20 @@ const fmtAxisValue = (v) => {
   return m && m.money ? `${compactNum(v)} ₽` : compactNum(v)
 }
 const fmtMetricCompact = (v) => fmtAxisValue(v)
-const shortAxisLabel = (label) => {
-  // «Июнь 2026» → «Июнь», недельный диапазон оставляем
-  const parts = String(label).split(' ')
-  return parts.length === 2 ? parts[0] : label
+const shortAxisLabel = (p) => {
+  const lbl = typeof p === 'string' ? p : (p && p.label) || ''
+  // При плотном графике — компактные ЦИФРОВЫЕ даты (не словами): месяцы → «MM.YY»,
+  // недели → «DD.MM». При разреженном — читаемые названия («Июнь», диапазон недели).
+  if (denseAxis.value && p && p.start) {
+    const d = new Date(p.start)
+    if (!isNaN(d.getTime())) {
+      return granularity.value === 'month'
+        ? d.toLocaleDateString('ru-RU', { month: '2-digit', year: '2-digit' })
+        : d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    }
+  }
+  const parts = String(lbl).split(' ')
+  return parts.length === 2 ? parts[0] : lbl
 }
 
 // ── Ячейка значение + дельта-чип ──
@@ -920,7 +930,7 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   position: relative;
 }
 
-.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 340; display: block; overflow: visible; }
+.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 360; display: block; overflow: visible; }
 .dyn-grid-line { stroke: #eef1f5; stroke-width: 1; }
 .dyn-y-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
 .dyn-bar-rect {
@@ -933,8 +943,9 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
 }
 .dyn-bar-label { font-size: 11px; fill: #9aa3b2; font-weight: 700; }
 .dyn-bar-label--dense { font-size: 9px; }
-.dyn-bar-value { font-size: 10px; fill: #64748b; font-weight: 800; }
-.dyn-bar-value--dense { font-size: 9px; }
+.dyn-bar-value { font-size: 11px; fill: #475569; font-weight: 700; }
+.dyn-bar-value--dense { font-size: 9px; font-weight: 600; }
+.dyn-bar-value--xdense { font-size: 8px; }
 .dyn-bar-tooltip {
   position: absolute;
   z-index: 8;
