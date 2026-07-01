@@ -192,7 +192,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in periods" :key="p.start" :class="{ 'dyn-row--incomplete': p.incomplete }">
+            <tr v-for="p in tablePeriods" :key="p.start" :class="{ 'dyn-row--incomplete': p.incomplete }">
               <td class="dyn-td-sticky">
                 {{ p.label }}
                 <em v-if="p.incomplete" class="dyn-incomplete-badge">неполный</em>
@@ -263,6 +263,10 @@ const activeColor = computed(() => (metrics.find((m) => m.key === metric.value) 
 const activeMetricLabel = computed(() => (metrics.find((m) => m.key === metric.value) || metrics[0]).label)
 const hatchId = 'dyn-hatch'
 const hasYandexSummary = computed(() => periods.value.some((p) => p.yandex_summary))
+// В ТАБЛИЦЕ показываем периоды в обратном порядке — текущий (последний) сверху.
+// График при этом остаётся хронологическим (слева направо). Дельты считаются по
+// исходному массиву periods, поэтому от разворота строк они не ломаются.
+const tablePeriods = computed(() => periods.value.slice().reverse())
 
 // ── НДС (как на дашборде): Яндекс/VK +22%, Авито уже с НДС ──
 const withCostVat = (cbp, raw) => {
