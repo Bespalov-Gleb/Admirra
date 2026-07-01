@@ -2344,7 +2344,13 @@ const reportChannels = [
 // у клиента (по его интеграциям). «Все каналы» — только если каналов больше одного.
 // Пока интеграции не загрузились — временно показываем полный список, чтобы не мигать.
 const clientChannels = computed(() => {
-  const keys = new Set((integrations.value || []).map((i) => normalizeDashboardPlatform(i.platform)))
+  // dashboard/integrations отдаёт ВСЕ платформы с флагом is_connected — берём только
+  // реально подключённые, иначе в списке всегда были бы все каналы.
+  const keys = new Set(
+    (integrations.value || [])
+      .filter((i) => i && i.is_connected)
+      .map((i) => normalizeDashboardPlatform(i.platform))
+  )
   return channels.filter((c) => keys.has(c.value))
 })
 const filterChannels = computed(() => {
