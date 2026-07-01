@@ -141,9 +141,8 @@
               </text>
               <text
                 :x="barX(i) + barW / 2"
-                :y="valueLabelY(i)"
-                :text-anchor="denseValues ? 'end' : 'middle'"
-                :transform="valueLabelTransform(i)"
+                :y="barY(i) - 6"
+                text-anchor="middle"
                 class="dyn-bar-value"
                 :class="{ 'dyn-bar-value--dense': denseValues, 'dyn-bar-value--xdense': periods.length > 28 }"
               >
@@ -288,7 +287,7 @@ const goalCpa = (p, count) => (count > 0 ? adjCost(p) / count : null)
 // ── График ──
 // PAD_LEFT — место под ось Y (значения слева). PAD_BOTTOM — под подписи дат
 // (с запасом, т.к. при плотном графике подписи повёрнуты).
-const CW = 1000, CH = 360, PAD_TOP = 44, PAD_BOTTOM = 64, PAD_LEFT = 56, PAD_RIGHT = 14
+const CW = 1000, CH = 340, PAD_TOP = 30, PAD_BOTTOM = 64, PAD_LEFT = 56, PAD_RIGHT = 14
 const plotW = CW - PAD_LEFT - PAD_RIGHT
 const plotH = CH - PAD_TOP - PAD_BOTTOM
 const metricValue = (p) => {
@@ -341,10 +340,9 @@ const shouldShowAxisLabel = (index) => {
 // подпись в ВЕРТИКАЛЬНУЮ (поворот -90°) — так компактное «63к ₽» помещается даже в
 // узкий столбец и читается, а сам график остаётся аккуратным.
 const shouldShowValueLabel = () => true
+// Значения на барах — всегда ГОРИЗОНТАЛЬНО; при плотности только уменьшаем шрифт
+// (см. классы --dense/--xdense), без поворота.
 const denseValues = computed(() => periods.value.length > 13)
-const valueLabelY = (i) => barY(i) - (denseValues.value ? 5 : 6)
-const valueLabelTransform = (i) =>
-  denseValues.value ? `rotate(-90 ${barX(i) + barW.value / 2} ${barY(i) - 5})` : ''
 const axisLabelX = (i) => barX(i) + barW.value / 2
 const axisLabelY = computed(() => axisBaselineY + (denseAxis.value ? 12 : 18))
 const axisLabelTransform = (i) =>
@@ -930,7 +928,7 @@ onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedo
   position: relative;
 }
 
-.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 360; display: block; overflow: visible; }
+.dyn-chart { width: 100%; height: auto; aspect-ratio: 1000 / 340; display: block; overflow: visible; }
 .dyn-grid-line { stroke: #eef1f5; stroke-width: 1; }
 .dyn-y-label { font-size: 11px; fill: #9aa3b2; font-weight: 600; }
 .dyn-bar-rect {

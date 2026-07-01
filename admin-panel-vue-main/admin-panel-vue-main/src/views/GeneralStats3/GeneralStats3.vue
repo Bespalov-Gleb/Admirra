@@ -848,10 +848,7 @@
               <span>Все конверсии · общий CPL</span>
               <strong>{{ group.cpl }}</strong>
             </div>
-            <div v-if="group.bars.length" class="goals-total-row">
-              <span>Итого расход</span>
-              <strong>{{ group.expenses }}</strong>
-            </div>
+            <!-- Строку «Итого расход» убрали: расход уже показан в шапке канала (goals-channel-expense) -->
           </div>
         </div>
         </div>
@@ -2343,10 +2340,27 @@ const reportChannels = [
   { name: 'Max', value: 'max', bg: '#f3f5f7', darkBg: 'rgba(255, 255, 255, 0.08)', iconClass: 'max-icon', linkable: true }
 ]
 
-const filterChannels = [
-  { name: 'Все каналы', value: 'all', color: '#b3b3b3', icon: ChartBarIcon },
-  ...channels
-]
+// Автодетект каналов: в списке показываем только те каналы, что реально подключены
+// у клиента (по его интеграциям). «Все каналы» — только если каналов больше одного.
+// Пока интеграции не загрузились — временно показываем полный список, чтобы не мигать.
+const clientChannels = computed(() => {
+  const keys = new Set((integrations.value || []).map((i) => normalizeDashboardPlatform(i.platform)))
+  return channels.filter((c) => keys.has(c.value))
+})
+const filterChannels = computed(() => {
+  const present = clientChannels.value
+  const all = { name: 'Все каналы', value: 'all', color: '#b3b3b3', icon: ChartBarIcon }
+  if (!present.length) return [all, ...channels]
+  return present.length > 1 ? [all, ...present] : present
+})
+// Если выбранный канал недоступен у клиента (сменили проект / у клиента один канал) —
+// переключаемся на первый доступный (при одном канале — на него, при нескольких — «Все каналы»).
+watch(filterChannels, (list) => {
+  const values = list.map((c) => c.value)
+  if (values.length && !values.includes(filters.channel)) {
+    filters.channel = values[0]
+  }
+}, { immediate: true })
 
 const reportTemplateOptions = ['Шаблон: Яндекс', 'Шаблон: VK Ads']
 const scheduleDayOptions = [
@@ -3011,7 +3025,7 @@ const toggleExpandAllCampaignRows = () => {
   else expandAllCampaignRows()
 }
 
-const selectedChannel = computed(() => filterChannels.find((item) => item.value === filters.channel)?.name || 'Все каналы')
+const selectedChannel = computed(() => filterChannels.value.find((item) => item.value === filters.channel)?.name || 'Все каналы')
 const selectedFilterChannelLabel = computed(() => selectedChannel.value)
 
 const selectedCampaignLabel = computed(() => {
@@ -12174,10 +12188,21 @@ onMounted(() => {
   filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.08));
 }
 
+/* Режим «Все каналы»: линии тоньше и аккуратнее (legacy-графики не трогаем) */
+.chart-goals-grid--stacked .chart-line {
+  stroke-width: 1.5;
+  filter: none;
+}
+
 .chart-endpoint-dot {
   stroke: #fff;
   stroke-width: 2.4;
   filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.22));
+}
+
+.chart-goals-grid--stacked .chart-endpoint-dot {
+  stroke-width: 1.8;
+  r: 3;
 }
 
 .axis-labels text {
