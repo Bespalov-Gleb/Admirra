@@ -506,6 +506,10 @@ async function onSubscribe(planCode, bp = 'month') {
     }
     toaster.success('Оплата успешно выполнена')
     await fetchCurrentUser()
+    // Статус/карта приходят вебхуком с задержкой — перечитываем подписку пару раз,
+    // чтобы «Карта привязана •••• 1234» и новый тариф появились без перезагрузки.
+    reloadSubscription()
+    setTimeout(reloadSubscription, 4000)
   } catch (e) {
     const d = e?.response?.data?.detail
     const msg = typeof d === 'string' ? d : e?.message
@@ -517,20 +521,29 @@ async function onSubscribe(planCode, bp = 'month') {
 
 const cancellingAutorenew = ref(false)
 
-// Привязка карты в CloudPayments происходит при оплате (виджет сохраняет карту для
-// рекуррента). Отдельной операции «привязать без оплаты» у CP-виджета нет, поэтому
-// ведём к выбору тарифа: новая оплата = привязка/замена карты.
+async function reloadSubscription() {
+  try {
+    const { data } = await api.get('billing/subscription')
+    subscription.value = { ...subscription.value, ...data }
+  } catch { /* не критично: подтянется при следующем открытии */ }
+}
+
+// Привязка/замена карты в CloudPayments — это оплата: отдельной операции «привязать
+// без оплаты» у CP-виджета нет. Открываем платёжный виджет для ТЕКУЩЕГО тарифа —
+// оплата новой картой создаёт новый рекуррент (старый бэкенд отменяет сам, двойного
+// списания не будет), и маска карты обновляется из вебхука.
 function onBindCard() {
-  toaster.info('Карта привязывается автоматически при оплате тарифа. Выберите тариф ниже — при оплате новой картой она заменит текущую.')
-  scrollToPlans()
+  const code = currentPlanCode.value === 'white_label' ? 'standard' : currentPlanCode.value
+  onSubscribe(code, subscription.value?.billing_period === 'year' ? 'year' : 'month')
 }
 
 async function onCancelAutorenew() {
   cancellingAutorenew.value = true
   try {
     await api.post('billing/autorenew/cancel')
-    subscription.value = { ...subscription.value, autorenew: false }
-    toaster.success('Автопродление отключено. Доступ сохранится до конца оплаченного периода.')
+    // Отмена автопродления = отвязка карты (бэкенд чистит маску и рекуррент CP)
+    subscription.value = { ...subscription.value, autorenew: false, payment_method: null }
+    toaster.success('Автопродление отключено, карта отвязана. Доступ сохранится до конца оплаченного периода.')
   } catch (e) {
     const d = e?.response?.data?.detail
     toaster.error(typeof d === 'string' ? d : 'Не удалось отключить автопродление')

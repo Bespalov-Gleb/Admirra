@@ -325,12 +325,18 @@ async def cancel_autorenew(
         except Exception as err:
             logger.warning("CloudPayments cancel_subscription failed for %s: %s", cp_sub_id, err)
     sub.cancel_at_period_end = True
+    # Отмена автопродления = отвязка карты: рекуррент в CP отменён, токен карты больше
+    # не используется — убираем и отображаемую маску, чтобы UI показал «Карта не привязана».
+    sub.card_last4 = None
+    sub.card_type = None
+    sub.card_exp = None
+    sub.cloudpayments_subscription_id = None
     log_history_event(
         db,
         actor=current_user,
         event_type="billing",
         action="autorenew_canceled",
-        description="Автопродление отключено пользователем",
+        description="Автопродление отключено пользователем (карта отвязана)",
         target_type="subscription",
         target_id=str(sub.id),
         meta={"plan_code": sub.plan_code},
@@ -399,12 +405,22 @@ async def cloudpayments_webhook(
         outcome = "pay"
 
     sub.plan_code = plan.code
+    prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
         data.get("SubscriptionId")
         or (data.get("Id") if is_recurrent_report else None)
         or sub.cloudpayments_subscription_id
         or ""
     )
+    # Смена карты/тарифа = новая оплата = НОВАЯ подписка CP. Старый рекуррент при этом
+    # продолжил бы списывать параллельно — отменяем его, чтобы не было двойных списаний.
+    new_cp_sub_id = (str(data.get("SubscriptionId") or "")).strip()
+    if prev_cp_sub_id and new_cp_sub_id and prev_cp_sub_id != new_cp_sub_id:
+        try:
+            await CloudPaymentsService.cancel_subscription(prev_cp_sub_id)
+            logger.info("Cancelled previous CP subscription %s (replaced by %s)", prev_cp_sub_id, new_cp_sub_id)
+        except Exception as _cancel_err:
+            logger.warning("Failed to cancel previous CP subscription %s: %s", prev_cp_sub_id, _cancel_err)
     sub.cloudpayments_transaction_id = str(data.get("TransactionId") or sub.cloudpayments_transaction_id or "")
     # Маска карты из уведомления — чтобы показывать «Карта привязана **** 1234» в кабинете.
     if data.get("CardLastFour"):
