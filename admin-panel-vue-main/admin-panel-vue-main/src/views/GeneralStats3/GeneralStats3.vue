@@ -74,61 +74,14 @@
           </div>
         </div>
 
-        <div class="report-col report-schedule custom-select top-select" :class="{ open: openMenu === 'report-schedule' }" v-click-outside="() => closeMenu('report-schedule')">
-          <p>График отправки</p>
-          <button class="select-like cs-head" type="button" @click="toggleMenu('report-schedule')">
-            <span class="cs-current">{{ selectedSchedule }}</span>
+        <div class="report-col report-schedule">
+          <p>Автоотправка</p>
+          <button class="select-like cs-head" type="button" @click="showReportSchedules = true">
+            <span class="cs-current">{{ reportSchedulesSummary }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
             </span>
           </button>
-          <div class="cs-list schedule-menu" @click.stop>
-            <div class="schedule-field-group">
-              <span>День отправки</span>
-              <div class="schedule-day-list" role="listbox" aria-label="День отправки">
-                <button
-                  v-for="option in scheduleDayOptions"
-                  :key="option.value"
-                  type="button"
-                  class="schedule-day-option"
-                  :class="{ selected: reportSchedule.day === option.value, 'schedule-day-option--wide': option.value === 'daily' }"
-                  role="option"
-                  :aria-selected="reportSchedule.day === option.value"
-                  @click="setScheduleDay(option.value)"
-                >
-                  <span>{{ option.label }}</span>
-                  <span class="schedule-day-check">
-                    <CheckCircleIcon v-if="reportSchedule.day === option.value" />
-                  </span>
-                </button>
-              </div>
-            </div>
-            <label class="schedule-field-group">
-              <span>Время по МСК</span>
-              <input
-                :value="reportSchedule.time"
-                class="schedule-field"
-                type="text"
-                inputmode="numeric"
-                maxlength="5"
-                placeholder="10:00"
-                @input="updateScheduleTime"
-              />
-            </label>
-            <label class="schedule-field-group schedule-toggle-row">
-              <span>Блок «Динамика» (помесячно)</span>
-              <input
-                type="checkbox"
-                class="schedule-toggle"
-                :checked="reportSchedule.include_dynamics"
-                @change="setScheduleDynamics($event.target.checked)"
-              />
-            </label>
-            <div class="schedule-actions">
-              <button type="button" class="schedule-secondary" @click="resetReportSchedule">Сбросить</button>
-              <button type="button" class="schedule-primary" @click="saveReportSchedule">Сохранить</button>
-            </div>
-          </div>
         </div>
 
         <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
@@ -1462,6 +1415,15 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Автоотправка отчётов: правила (скоуп/каналы/время/формат) -->
+    <ReportSchedulesModal
+      v-if="showReportSchedules"
+      :clients="clients"
+      :telegram-bound="Boolean(userReportSettings.telegram_chat_id)"
+      :max-bound="Boolean(userReportSettings.max_chat_id || userReportSettings.max_user_id)"
+      @close="showReportSchedules = false; refreshReportSchedulesCount()"
+    />
   </div>
 </template>
 
@@ -1508,6 +1470,7 @@ import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } fr
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import DynamicsView from './components/DynamicsView.vue'
+import ReportSchedulesModal from './components/ReportSchedulesModal.vue'
 import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
 
@@ -1634,6 +1597,26 @@ const userReportSettings = ref({
   report_schedule: '',
   delivery_channels: []
 })
+
+// ── Автоотправка: правила (report_schedules) ──
+const showReportSchedules = ref(false)
+const reportSchedulesCount = ref(null)
+const reportSchedulesSummary = computed(() => {
+  if (reportSchedulesCount.value === null) return 'Настроить…'
+  if (!reportSchedulesCount.value) return 'Настроить…'
+  const n = reportSchedulesCount.value
+  const noun = n === 1 ? 'правило' : (n >= 2 && n <= 4 ? 'правила' : 'правил')
+  return `${n} ${noun}`
+})
+const refreshReportSchedulesCount = async () => {
+  try {
+    const { data } = await api.get('reports/schedules')
+    reportSchedulesCount.value = Array.isArray(data) ? data.filter((r) => r.enabled).length : 0
+  } catch {
+    reportSchedulesCount.value = null
+  }
+}
+
 const reportComment = ref('')
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
@@ -4850,6 +4833,7 @@ onMounted(() => {
   fetchIntegrations()
   fetchReportGoals()
   loadSavedComment()
+  refreshReportSchedulesCount()
 })
 </script>
 

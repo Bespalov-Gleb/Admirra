@@ -16,6 +16,43 @@ from core import models
 logger = logging.getLogger(__name__)
 
 
+def _daily_series(db: Session, client_ids, d_start, d_end, platform: str = "all"):
+    """Дневная серия (расход/клики/лиды) для главного графика отчёта.
+    Расход отдаём с разбивкой по платформам — НДС применяет рендерер."""
+    from sqlalchemy import func as sa_func
+    out = {}
+
+    def add(rows, key):
+        for stat_date, cost, clicks, leads in rows:
+            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0})
+            item[f"cost_{key}"] += float(cost or 0)
+            item["clicks"] += int(clicks or 0)
+            item["leads"] += int(leads or 0)
+
+    if platform in ("all", "yandex"):
+        add(
+            db.query(models.YandexStats.date, sa_func.sum(models.YandexStats.cost), sa_func.sum(models.YandexStats.clicks), sa_func.sum(models.YandexStats.conversions))
+            .filter(models.YandexStats.client_id.in_(client_ids), models.YandexStats.date >= d_start, models.YandexStats.date <= d_end)
+            .group_by(models.YandexStats.date).all(),
+            "yandex",
+        )
+    if platform in ("all", "vk"):
+        add(
+            db.query(models.VKStats.date, sa_func.sum(models.VKStats.cost), sa_func.sum(models.VKStats.clicks), sa_func.sum(models.VKStats.conversions))
+            .filter(models.VKStats.client_id.in_(client_ids), models.VKStats.date >= d_start, models.VKStats.date <= d_end)
+            .group_by(models.VKStats.date).all(),
+            "vk",
+        )
+    if platform in ("all", "avito"):
+        add(
+            db.query(models.AvitoStats.date, sa_func.sum(models.AvitoStats.cost), sa_func.sum(models.AvitoStats.clicks), sa_func.sum(models.AvitoStats.conversions))
+            .filter(models.AvitoStats.client_id.in_(client_ids), models.AvitoStats.date >= d_start, models.AvitoStats.date <= d_end)
+            .group_by(models.AvitoStats.date).all(),
+            "avito",
+        )
+    return [{"date": d, **vals} for d, vals in sorted(out.items())]
+
+
 def generate_report_pdf(
     db: Session,
     user_id: uuid.UUID,
@@ -85,6 +122,24 @@ def generate_report_pdf(
         "platform": platform or "all",
         "layout": layout or "desktop",
     }
+
+    # Дневная серия для главного графика (как на дашборде) — прямой запрос к витрине
+    try:
+        data["daily"] = _daily_series(db, effective_client_ids, d_start, d_end, platform or "all")
+    except Exception as e:
+        logger.warning("Daily series skipped: %s", e)
+
+    # Разбивка по рекламным каналам (блок «Каналы» как канальные карточки дашборда)
+    if (platform or "all") == "all":
+        try:
+            channels_breakdown = []
+            for ch in ("yandex", "vk", "avito"):
+                ch_summary = StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, ch, None, None)
+                if any(float(ch_summary.get(k) or 0) for k in ("expenses", "impressions", "clicks", "leads")):
+                    channels_breakdown.append({"code": ch, **ch_summary})
+            data["channels"] = channels_breakdown
+        except Exception as e:
+            logger.warning("Channels breakdown skipped: %s", e)
 
     # Опциональный блок «Динамика по месяцам» (трейлинг 6 календарных месяцев до end_date).
     if include_dynamics:

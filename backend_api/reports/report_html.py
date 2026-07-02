@@ -1,7 +1,13 @@
 """
-Общий рендерер HTML-отчёта. Используется для веб-просмотра и экспорта в PDF/PNG.
-Стиль повторяет дашборд GeneralStats3: KPI-карточки 3×2, таблица кампаний
-с цветными строками (orange/green/blue), AI-комментарий.
+Общий рендерер HTML-отчёта. Используется для веб-просмотра и экспорта в PDF/PNG
+(WeasyPrint: HTML+CSS без JS, поэтому вся вёрстка — на таблицах/inline-block,
+CSS Grid WeasyPrint НЕ поддерживает; графики — статический SVG).
+
+Вёрстка повторяет дашборд GeneralStats3: KPI-карточки с иконками и трендами,
+главный график «Расходы и клики по дням», блок «Каналы», таблица кампаний
+с цветными строками, опциональная «Динамика по месяцам», AI-комментарий.
+
+layout: desktop (широкая страница) | mobile (узкая, одна колонка).
 """
 
 VAT_RATE = 1.22
@@ -38,7 +44,7 @@ def _with_cost_breakdown_vat(value, cost_by_platform: dict | None, platform=None
 
 def _summary_platform(data: dict, campaigns: list) -> str:
     platform = data.get("platform") or data.get("channel")
-    if platform:
+    if platform and str(platform) != "all":
         return str(platform)
     if campaigns and all(_is_avito_platform(_campaign_platform(c)) for c in campaigns):
         return "avito"
@@ -63,31 +69,41 @@ def _fmt(value, decimals=0) -> str:
     return f"{value:,.{decimals}f}".replace(",", " ")
 
 
+def _fmt_compact(value) -> str:
+    n = float(value or 0)
+    a = abs(n)
+    if a >= 1_000_000:
+        return f"{n / 1_000_000:.1f} млн".replace(".", ",")
+    if a >= 1000:
+        return f"{n / 1000:.0f}к"
+    return _fmt(n)
+
+
 _KPI_ICONS = {
     "expenses": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3464F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3464F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/>'
         '<path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>'
     ),
     "impressions": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F0926D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F0926D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>'
     ),
     "clicks": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M9 2L9 13L13.5 9.5L16.5 18.5L18.5 17.5L15.5 8.5L21 8.5L9 2Z"/></svg>'
     ),
     "cpc": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D38CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D38CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>'
     ),
     "leads": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8ADA70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8ADA70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>'
         '<line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
     ),
     "cpa": (
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EB8525" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EB8525" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
     ),
 }
@@ -101,25 +117,158 @@ _KPI_COLORS = {
     "cpa": "#EB8525",
 }
 
+# Для CPC/CPL рост — плохо (красный), для остальных рост — хорошо (зелёный)
+_COST_TREND_KEYS = {"cpc", "cpa"}
+
 _ROW_TINTS = ["orange", "green", "blue"]
 _ROW_BACKGROUNDS = {"orange": "#fff4ee", "green": "#eafcf0", "blue": "#e8eefc"}
 
+_CHANNEL_META = {
+    "yandex": {"name": "Яндекс Директ", "color": "#e5ad00", "soft": "#fff8e7", "short": "Я"},
+    "vk": {"name": "VK Реклама", "color": "#2563eb", "soft": "#f3f7ff", "short": "VK"},
+    "avito": {"name": "Avito Ads", "color": "#00a871", "soft": "#ecfdf5", "short": "A"},
+}
 
-def _kpi_card(key: str, label: str, value: str, subtitle: str = "") -> str:
+
+def _trend_badge(trends: dict | None, key: str) -> str:
+    if not isinstance(trends, dict) or trends.get(key) is None:
+        return ""
+    try:
+        value = float(trends.get(key) or 0)
+    except (TypeError, ValueError):
+        return ""
+    up = value >= 0
+    bad = (up and key in _COST_TREND_KEYS) or (not up and key not in _COST_TREND_KEYS)
+    color = "#dc2626" if bad else "#059669"
+    bg = "#fee2e2" if bad else "#d1fae5"
+    arrow = "▲" if up else "▼"
+    sign = "+" if up else ""
+    return (
+        f'<span style="display:inline-block;padding:2px 7px;border-radius:99px;background:{bg};'
+        f'color:{color};font-size:10px;font-weight:700;">{arrow} {sign}{value:.1f}%</span>'
+    )
+
+
+def _kpi_card(key: str, label: str, value: str, subtitle: str, trends: dict | None) -> str:
     icon = _KPI_ICONS.get(key, "")
     color = _KPI_COLORS.get(key, "#3464F3")
+    badge = _trend_badge(trends, key)
     return f"""<div class="kpi-card">
-      <div class="kpi-icon" style="background:{color}14;">{icon}</div>
-      <div class="kpi-body">
-        <span class="kpi-label">{label}</span>
-        <span class="kpi-value">{value}</span>
+      <table class="kpi-inner"><tr>
+        <td class="kpi-icon-cell"><div class="kpi-icon" style="background:{color}14;">{icon}</div></td>
+        <td>
+          <div class="kpi-label">{label}</div>
+          <div class="kpi-value">{value}</div>
+          <div class="kpi-sub">{subtitle} {badge}</div>
+        </td>
+      </tr></table>
+    </div>"""
+
+
+def _main_chart_svg(daily: list, layout: str) -> str:
+    """Главный график дашборда: область «Расход» + линия «Клики» по дням."""
+    if not daily or len(daily) < 2:
+        return ""
+    width = 900 if layout == "desktop" else 420
+    height = 260 if layout == "desktop" else 210
+    pad_l, pad_r, pad_t, pad_b = 52, 16, 14, 34
+    plot_w, plot_h = width - pad_l - pad_r, height - pad_t - pad_b
+
+    points = []
+    for item in daily:
+        cost = (
+            float(item.get("cost_yandex") or 0) * VAT_RATE
+            + float(item.get("cost_vk") or 0) * VAT_RATE
+            + float(item.get("cost_avito") or 0)
+        )
+        points.append({"date": str(item.get("date") or ""), "cost": cost, "clicks": int(item.get("clicks") or 0)})
+
+    max_cost = max([p["cost"] for p in points] + [1.0])
+    max_clicks = max([p["clicks"] for p in points] + [1])
+    n = len(points)
+    step = plot_w / (n - 1)
+
+    def x(i):
+        return pad_l + i * step
+
+    def y_cost(v):
+        return pad_t + plot_h - (v / max_cost) * plot_h
+
+    def y_clicks(v):
+        return pad_t + plot_h - (v / max_clicks) * plot_h
+
+    cost_line = " ".join(f"{x(i):.1f},{y_cost(p['cost']):.1f}" for i, p in enumerate(points))
+    area = f"{pad_l},{pad_t + plot_h} " + cost_line + f" {x(n - 1):.1f},{pad_t + plot_h}"
+    clicks_line = " ".join(f"{x(i):.1f},{y_clicks(p['clicks']):.1f}" for i, p in enumerate(points))
+
+    # Сетка + ось Y (по расходу)
+    grid = ""
+    for f in range(5):
+        gy = pad_t + plot_h - (f / 4) * plot_h
+        label = _fmt_compact(max_cost * f / 4) + " ₽"
+        grid += (
+            f'<line x1="{pad_l}" y1="{gy:.1f}" x2="{width - pad_r}" y2="{gy:.1f}" stroke="#eef1f5" stroke-width="1"/>'
+            f'<text x="{pad_l - 8}" y="{gy + 4:.1f}" text-anchor="end" font-size="10" fill="#9aa3b2">{label}</text>'
+        )
+
+    # Даты по X (7-9 меток)
+    label_step = max(1, (n - 1) // (8 if layout == "desktop" else 5))
+    date_labels = ""
+    for i in range(0, n, label_step):
+        d = points[i]["date"]
+        short = f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d
+        date_labels += f'<text x="{x(i):.1f}" y="{height - 8}" text-anchor="middle" font-size="10" fill="#9aa3b2">{short}</text>'
+
+    return f"""
+    <div class="panel">
+      <h2>Расходы и клики по дням</h2>
+      <svg width="100%" viewBox="0 0 {width} {height}" role="img">
+        {grid}
+        <polygon points="{area}" fill="#2563eb" fill-opacity="0.10"/>
+        <polyline points="{cost_line}" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <polyline points="{clicks_line}" fill="none" stroke="#38BDF8" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>
+        {date_labels}
+      </svg>
+      <div class="chart-legend">
+        <span class="lg"><i style="background:#2563eb;"></i> Расход (₽, левая шкала)</span>
+        <span class="lg"><i style="background:#38BDF8;"></i> Клики (относительная шкала)</span>
       </div>
     </div>"""
 
 
+def _channels_block(channels: list, layout: str) -> str:
+    """Блок «Каналы» — как канальные карточки дашборда: расход / клики / лиды / CPL."""
+    if not channels:
+        return ""
+    rows = ""
+    for ch in channels:
+        meta = _CHANNEL_META.get(str(ch.get("code")), {"name": ch.get("code"), "color": "#64748b", "soft": "#f5f7f9", "short": "?"})
+        expenses = _with_channel_vat(ch.get("expenses"), ch.get("code"))
+        clicks = int(ch.get("clicks") or 0)
+        leads = int(ch.get("leads") or 0)
+        cpl = expenses / leads if leads > 0 else 0
+        rows += f"""<tr>
+          <td class="ch-name">
+            <span class="ch-chip" style="background:{meta['soft']};color:{meta['color']};">{meta['short']}</span>
+            {meta['name']}
+          </td>
+          <td class="num">{_fmt(expenses)} ₽</td>
+          <td class="num">{_fmt(clicks)}</td>
+          <td class="num">{_fmt(leads)} шт.</td>
+          <td class="num">{(_fmt(cpl, 2) + ' ₽') if leads else '—'}</td>
+        </tr>"""
+    return f"""
+    <div class="panel">
+      <h2>Каналы</h2>
+      <table class="channels-table">
+        <thead><tr><th>Канал</th><th class="num">Расход</th><th class="num">Клики</th><th class="num">Лиды</th><th class="num">CPL</th></tr></thead>
+        <tbody>{rows}</tbody>
+      </table>
+    </div>"""
+
+
 def render_report_html(data: dict, layout: str = "desktop") -> str:
-    # layout: desktop | mobile — влияет на ширину страницы и раскладку (см. render ниже)
-    data = {**data, "layout": layout}
+    layout = "mobile" if str(layout).lower() == "mobile" else "desktop"
     s = data.get("summary", {})
     tc = data.get("top_campaigns", [])
     client_name = data.get("client_name", "")
@@ -127,6 +276,7 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     start_date = data.get("start_date", "")
     end_date = data.get("end_date", "")
     generated_at = data.get("generated_at", "")
+    trends = s.get("trends") if isinstance(s.get("trends"), dict) else None
 
     summary_platform = _summary_platform(data, tc)
 
@@ -137,16 +287,27 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     cpc = expenses / clicks if clicks > 0 else _with_channel_vat(s.get("cpc", 0), summary_platform)
     cpa = expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
 
-    kpi_html = "".join([
-        _kpi_card("expenses", "Расходы", f"{_fmt(expenses)} ₽", "За период"),
-        _kpi_card("impressions", "Показы", _fmt(impressions), "По всем каналам"),
-        _kpi_card("clicks", "Клики", _fmt(clicks), "Все переходы"),
-        _kpi_card("cpc", "CPC", f"{_fmt(cpc, 2)} ₽", "Стоимость клика"),
-        _kpi_card("leads", "Лиды", f"{_fmt(leads)} шт.", "По всем каналам"),
-        _kpi_card("cpa", "CPL", f"{_fmt(cpa, 2)} ₽", "Стоимость лида"),
-    ])
+    cards = [
+        _kpi_card("expenses", "Расходы", f"{_fmt(expenses)} ₽", "За период", trends),
+        _kpi_card("impressions", "Показы", _fmt(impressions), "По всем каналам", trends),
+        _kpi_card("clicks", "Клики", _fmt(clicks), "Все переходы", trends),
+        _kpi_card("cpc", "CPC", f"{_fmt(cpc, 2)} ₽", "Стоимость клика", trends),
+        _kpi_card("leads", "Лиды", f"{_fmt(leads)} шт.", "По всем каналам", trends),
+        _kpi_card("cpa", "CPL", f"{_fmt(cpa, 2)} ₽", "Стоимость лида", trends),
+    ]
+    # KPI-сетка на таблице (Grid в WeasyPrint не работает): desktop 3×2, mobile 2×3
+    per_row = 3 if layout == "desktop" else 2
+    kpi_rows = ""
+    for i in range(0, len(cards), per_row):
+        cells = "".join(f'<td class="kpi-cell">{c}</td>' for c in cards[i:i + per_row])
+        kpi_rows += f"<tr>{cells}</tr>"
+    kpi_html = f'<table class="kpi-grid">{kpi_rows}</table>'
+
+    chart_html = _main_chart_svg(data.get("daily") or [], layout)
+    channels_html = _channels_block(data.get("channels") or [], layout)
 
     campaigns_rows = ""
+    mobile = layout == "mobile"
     for i, c in enumerate(tc[:10]):
         name = _escape_html(c.get("name", c.get("campaign_name", "—")))
         c_platform = _campaign_platform(c)
@@ -158,33 +319,41 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         c_cpa = _fmt(_with_channel_vat(c.get("cpa", 0), c_platform), 2) if conv else "—"
         tint = _ROW_TINTS[i % len(_ROW_TINTS)]
         bg = _ROW_BACKGROUNDS[tint]
-        campaigns_rows += (
-            f'<tr style="background:{bg};">'
-            f"<td>{name}</td>"
-            f'<td class="num">{cost} ₽</td>'
-            f'<td class="num">{impr}</td>'
-            f'<td class="num">{clk}</td>'
-            f'<td class="num">{c_cpc} ₽</td>'
-            f'<td class="num">{conv} шт.</td>'
-            f'<td class="num">{c_cpa}{" ₽" if conv else ""}</td>'
-            f"</tr>"
-        )
+        if mobile:
+            campaigns_rows += (
+                f'<tr style="background:{bg};">'
+                f"<td>{name}</td>"
+                f'<td class="num">{cost} ₽</td>'
+                f'<td class="num">{conv} шт.</td>'
+                f'<td class="num">{c_cpa}{" ₽" if conv else ""}</td>'
+                f"</tr>"
+            )
+        else:
+            campaigns_rows += (
+                f'<tr style="background:{bg};">'
+                f"<td>{name}</td>"
+                f'<td class="num">{cost} ₽</td>'
+                f'<td class="num">{impr}</td>'
+                f'<td class="num">{clk}</td>'
+                f'<td class="num">{c_cpc} ₽</td>'
+                f'<td class="num">{conv} шт.</td>'
+                f'<td class="num">{c_cpa}{" ₽" if conv else ""}</td>'
+                f"</tr>"
+            )
 
     campaigns_html = ""
     if tc:
+        head = (
+            "<tr><th>Кампания</th><th class='num'>Расход</th><th class='num'>Лиды</th><th class='num'>CPL</th></tr>"
+            if mobile else
+            "<tr><th>Название кампании</th><th class='num'>Расход</th><th class='num'>Показы</th><th class='num'>Клики</th>"
+            "<th class='num'>CPC</th><th class='num'>Лиды</th><th class='num'>CPL</th></tr>"
+        )
         campaigns_html = f"""
     <div class="panel campaigns-panel">
       <h2>Лучшие рекламные кампании</h2>
-      <table>
-        <thead><tr>
-          <th>Название кампании</th>
-          <th class="num">Расход</th>
-          <th class="num">Показы</th>
-          <th class="num">Клики</th>
-          <th class="num">CPC</th>
-          <th class="num">Лиды</th>
-          <th class="num">CPL</th>
-        </tr></thead>
+      <table class="camp-table">
+        <thead>{head}</thead>
         <tbody>{campaigns_rows}</tbody>
       </table>
     </div>"""
@@ -200,7 +369,7 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
 
     project_line = f'<div class="header-project">{_escape_html(client_name)}</div>' if client_name else ""
 
-    # Опциональный блок «Динамика по месяцам» (Phase 3 — opt-in, помесячно).
+    # Опциональный блок «Динамика по месяцам» (данные из dynamics_service)
     dynamics_html = ""
     dyn_periods = (data.get("dynamics") or {}).get("periods") or []
     if dyn_periods:
@@ -208,20 +377,14 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         has_incomplete = False
         for p in dyn_periods:
             cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("cost_by_platform"))
-            leads = int(p.get("leads", 0) or 0)
-            cpl = cost / leads if leads > 0 else 0
+            dleads = int(p.get("leads", 0) or 0)
+            cpl = cost / dleads if dleads > 0 else 0
             incomplete = bool(p.get("incomplete"))
-            if incomplete:
-                has_incomplete = True
-            points.append({
-                "label": _escape_html(p.get("label", "")),
-                "cost": cost,
-                "leads": leads,
-                "cpl": cpl,
-                "incomplete": incomplete,
-            })
+            has_incomplete = has_incomplete or incomplete
+            points.append({"label": _escape_html(p.get("label", "")), "cost": cost, "leads": dleads, "cpl": cpl, "incomplete": incomplete})
 
-        chart_w, chart_h = 820, 235
+        chart_w = 900 if layout == "desktop" else 420
+        chart_h = 235
         pad_l, pad_r, pad_t, pad_b = 42, 22, 18, 70
         plot_w = chart_w - pad_l - pad_r
         plot_h = chart_h - pad_t - pad_b
@@ -231,15 +394,15 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         bars = ""
         for i, pt in enumerate(points):
             h = max(4, pt["cost"] / max_cost * plot_h)
-            x = pad_l + i * step + (step - bar_w) / 2
-            y = pad_t + plot_h - h
+            bx = pad_l + i * step + (step - bar_w) / 2
+            by = pad_t + plot_h - h
             fill = "#3464F3" if not pt["incomplete"] else "#9DB7FF"
             dash = ' stroke="#3464F3" stroke-dasharray="4 4"' if pt["incomplete"] else ""
             bars += (
-                f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="8" fill="{fill}"{dash}/>'
-                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 22}" text-anchor="middle" font-size="11" fill="#64748b">{pt["label"]}</text>'
-                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 39}" text-anchor="middle" font-size="10" fill="#94a3b8">{pt["leads"]} лид.</text>'
-                f'<text x="{x + bar_w / 2:.1f}" y="{pad_t + plot_h + 55}" text-anchor="middle" font-size="10" fill="#94a3b8">CPL {_fmt(pt["cpl"], 0)} ₽</text>'
+                f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="8" fill="{fill}"{dash}/>'
+                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 22}" text-anchor="middle" font-size="11" fill="#64748b">{pt["label"]}</text>'
+                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 39}" text-anchor="middle" font-size="10" fill="#94a3b8">{pt["leads"]} лид.</text>'
+                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 55}" text-anchor="middle" font-size="10" fill="#94a3b8">CPL {_fmt(pt["cpl"], 0)} ₽</text>'
             )
         note = (
             '<div style="font-size:11px;color:#94a3b8;margin-top:8px;">* — текущий период ещё не завершён</div>'
@@ -253,12 +416,16 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         <line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{chart_w - pad_r}" y2="{pad_t + plot_h}" stroke="#e2e8f0"/>
         {bars}
       </svg>
-      <div style="display:flex;gap:12px;align-items:center;margin-top:10px;color:#64748b;font-size:12px;">
-        <span style="display:inline-flex;width:10px;height:10px;border-radius:4px;background:#3464F3;"></span>
-        <span>Столбцы показывают расход, подписи — лиды и CPL по периоду.</span>
+      <div class="chart-legend">
+        <span class="lg"><i style="background:#3464F3;"></i> Столбцы — расход; подписи — лиды и CPL периода</span>
       </div>
       {note}
     </div>"""
+
+    page_size = "1120px 1584px" if layout == "desktop" else "480px 1040px"
+    max_width = "1040px" if layout == "desktop" else "440px"
+    body_pad = "24px" if layout == "desktop" else "12px"
+    kpi_value_size = "20px" if layout == "desktop" else "16px"
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -266,169 +433,89 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Отчёт за период {start_date} — {end_date}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    @page {{ size: {page_size}; margin: 0; }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #f3f4f8;
       color: #09183F;
       line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-      padding: 24px;
+      padding: {body_pad};
     }}
-    .dashboard {{
-      max-width: 960px;
-      margin: 0 auto;
-    }}
+    .dashboard {{ max-width: {max_width}; margin: 0 auto; }}
 
-    /* Header */
     .header {{
       background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 50%, #1e40af 100%);
       color: #fff;
-      padding: 24px 28px;
+      padding: 22px 26px;
       border-radius: 16px;
-      box-shadow: 0 4px 14px rgba(37,99,235,0.25);
-      margin-bottom: 24px;
+      margin-bottom: 18px;
     }}
-    .header h1 {{
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 6px;
-    }}
-    .header-period {{
-      font-size: 15px;
-      font-weight: 600;
-      opacity: 0.95;
-    }}
-    .header-project {{
-      font-size: 13px;
-      opacity: 0.85;
-      margin-top: 4px;
-    }}
+    .header h1 {{ font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 5px; }}
+    .header-period {{ font-size: 14px; font-weight: 600; opacity: 0.95; }}
+    .header-project {{ font-size: 12px; opacity: 0.85; margin-top: 4px; }}
 
-    /* KPI Grid — matches dashboard 3-column layout */
-    .kpi-grid {{
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 24px;
-    }}
+    /* KPI: таблица вместо grid (WeasyPrint) */
+    .kpi-grid {{ width: 100%; border-collapse: separate; border-spacing: 12px; margin: -12px -12px 8px; }}
+    .kpi-cell {{ width: {100 // per_row}%; vertical-align: top; }}
     .kpi-card {{
       background: #fff;
       border-radius: 16px;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      padding: 14px 16px;
     }}
+    .kpi-inner {{ border-collapse: collapse; width: 100%; }}
+    .kpi-icon-cell {{ width: 46px; vertical-align: top; }}
     .kpi-icon {{
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
+      width: 38px; height: 38px; border-radius: 10px;
+      text-align: center; padding-top: 9px;
     }}
-    .kpi-body {{
-      display: flex;
-      flex-direction: column;
-    }}
-    .kpi-label {{
-      font-size: 11px;
-      color: #64748b;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }}
-    .kpi-value {{
-      font-size: 20px;
-      font-weight: 700;
-      color: #09183F;
-      letter-spacing: -0.02em;
-      margin-top: 2px;
-    }}
+    .kpi-label {{ font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }}
+    .kpi-value {{ font-size: {kpi_value_size}; font-weight: 700; color: #09183F; letter-spacing: -0.02em; margin-top: 1px; }}
+    .kpi-sub {{ font-size: 10px; color: #94a3b8; margin-top: 3px; }}
 
-    /* Panels */
     .panel {{
       background: #fff;
       border-radius: 16px;
-      padding: 24px 28px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      margin-bottom: 20px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
     }}
-    .panel h2 {{
-      font-size: 16px;
-      font-weight: 600;
-      color: #09183F;
-      margin-bottom: 20px;
+    .panel h2 {{ font-size: 15px; font-weight: 600; color: #09183F; margin-bottom: 14px; }}
+
+    .chart-legend {{ margin-top: 8px; color: #64748b; font-size: 11px; }}
+    .chart-legend .lg {{ margin-right: 16px; }}
+    .chart-legend i {{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }}
+
+    .channels-table {{ width: 100%; border-collapse: separate; border-spacing: 0 8px; }}
+    .channels-table th {{ font-size: 11px; color: #b3b3b3; font-weight: 500; padding: 0 12px 2px; text-align: left; }}
+    .channels-table td {{ padding: 12px; font-size: 13px; color: #4b4b4b; background: #f8fafc; }}
+    .channels-table tr td:first-child {{ border-radius: 10px 0 0 10px; font-weight: 600; color: #09183F; }}
+    .channels-table tr td:last-child {{ border-radius: 0 10px 10px 0; }}
+    .ch-chip {{
+      display: inline-block; width: 24px; height: 24px; border-radius: 7px;
+      text-align: center; font-size: 11px; font-weight: 800; padding-top: 3px; margin-right: 8px;
     }}
 
-    /* Campaign table — colored rows like dashboard */
-    .campaigns-panel table {{
-      border-collapse: separate;
-      border-spacing: 0 10px;
-      width: 100%;
-    }}
-    .campaigns-panel th {{
-      font-size: 12px;
-      color: #b3b3b3;
-      font-weight: 500;
-      text-transform: none;
-      padding: 0 16px 4px;
-      border: none;
-      background: transparent;
-    }}
-    .campaigns-panel td {{
-      padding: 14px 16px;
-      font-size: 13px;
-      color: #4b4b4b;
-      border: none;
-    }}
-    .campaigns-panel tr td:first-child {{
-      border-radius: 10px 0 0 10px;
-      font-weight: 500;
-    }}
-    .campaigns-panel tr td:last-child {{
-      border-radius: 0 10px 10px 0;
-    }}
-    .num {{
-      text-align: right;
-    }}
-    th.num {{
-      text-align: right;
-    }}
+    .camp-table {{ border-collapse: separate; border-spacing: 0 8px; width: 100%; }}
+    .camp-table th {{ font-size: 11px; color: #b3b3b3; font-weight: 500; padding: 0 12px 2px; text-align: left; }}
+    .camp-table td {{ padding: 11px 12px; font-size: 12px; color: #4b4b4b; }}
+    .camp-table tr td:first-child {{ border-radius: 10px 0 0 10px; font-weight: 500; }}
+    .camp-table tr td:last-child {{ border-radius: 0 10px 10px 0; }}
+    .num {{ text-align: right; }}
+    th.num {{ text-align: right; }}
 
-    /* AI comment */
     .ai-panel .ai-block {{
-      background: linear-gradient(145deg, #eff6ff, #dbeafe);
+      background: #eff6ff;
       border: 1px solid #93c5fd;
-      padding: 20px 22px;
+      padding: 16px 18px;
       border-radius: 12px;
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1.7;
-      white-space: pre-wrap;
       color: #1e3a5f;
     }}
 
-    /* Footer */
-    .report-footer {{
-      text-align: center;
-      padding: 16px;
-      font-size: 12px;
-      color: #94a3b8;
-      font-weight: 500;
-    }}
-    .report-footer .brand {{
-      margin-top: 4px;
-      font-size: 11px;
-      color: #cbd5e1;
-    }}
+    .report-footer {{ text-align: center; padding: 14px; font-size: 11px; color: #94a3b8; font-weight: 500; }}
+    .report-footer .brand {{ margin-top: 3px; font-size: 10px; color: #cbd5e1; }}
   </style>
 </head>
 <body>
@@ -439,10 +526,10 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
       {project_line}
     </div>
 
-    <section class="kpi-grid">
-      {kpi_html}
-    </section>
+    {kpi_html}
 
+    {chart_html}
+    {channels_html}
     {comment_html}
     {campaigns_html}
     {dynamics_html}
