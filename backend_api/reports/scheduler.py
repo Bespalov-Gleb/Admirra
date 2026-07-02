@@ -322,3 +322,176 @@ async def run_scheduled_reports():
 
     finally:
         db.close()
+
+
+# ══════════ Правила автоотправки (report_schedules) ══════════
+# Новая система: у пользователя МНОГО правил, каждое со своим скоупом
+# (все проекты / проект / папка + рекламный канал), временем, каналами доставки,
+# форматом (desktop/mobile) и периодом данных. Легаси user.report_schedule
+# продолжает работать выше (run_scheduled_reports).
+
+def _rule_matches(rule, now: datetime) -> bool:
+    try:
+        hours, minutes = [int(p) for p in str(rule.send_time or "10:00").split(":", 1)]
+    except Exception:
+        return False
+    if now.hour != hours or now.minute != minutes:
+        return False
+    day = str(rule.day or "daily").lower()
+    if day == "daily":
+        return True
+    if day == "weekdays":
+        return now.weekday() <= 4
+    return DAY_TO_WEEKDAY.get(day) == now.weekday()
+
+
+def _rule_already_sent_today(rule, now: datetime) -> bool:
+    if not rule.last_sent_at:
+        return False
+    last = rule.last_sent_at
+    if last.tzinfo is None:
+        from datetime import timezone as _tz
+        last = last.replace(tzinfo=_tz.utc)
+    return last.astimezone(MSK).date() == now.date()
+
+
+async def send_report_for_schedule(db: Session, rule, user) -> dict:
+    """Формирует и отправляет отчёт по одному правилу. Используется планировщиком
+    и кнопкой «Отправить сейчас» (проверка настройки)."""
+    from backend_api.reports.pdf_service import generate_report_pdf
+
+    now = datetime.now(MSK)
+    end_date = now.date()
+    start_date = end_date - timedelta(days=max(int(rule.period_days or 7) - 1, 0))
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+
+    try:
+        channels = json.loads(rule.channels) if isinstance(rule.channels, str) else (rule.channels or [])
+    except Exception:
+        channels = []
+
+    results = {"telegram": None, "max": None, "email": None}
+    if not channels:
+        return results
+
+    client_id = rule.scope_client_id
+    folder_id = str(rule.scope_folder_id) if rule.scope_folder_id else None
+    platform = rule.platform or "all"
+
+    pdf_bytes = generate_report_pdf(
+        db=db,
+        user_id=user.id,
+        client_id=client_id,
+        start_date=start_str,
+        end_date=end_str,
+        comment=None,
+        include_dynamics=bool(rule.include_dynamics),
+        folder_id=folder_id,
+        platform=platform,
+        layout=rule.report_format or "desktop",
+    )
+
+    # Данные для текстового варианта (MAX) и темы письма
+    summary, top_campaigns, client_name, _, _, _ = _get_report_data(
+        db, user.id, client_id, start_str, end_str, None, folder_id=folder_id,
+    )
+    rule_title = (rule.name or "").strip()
+    caption = f"Отчёт{f' «{rule_title}»' if rule_title else ''} за {start_str} — {end_str}"
+    filename = f"report_{start_str}_{end_str}.pdf"
+
+    telegram_chat_id = (user.report_telegram_chat_id or "").strip()
+    max_chat_id = (getattr(user, "report_max_chat_id", None) or "").strip()
+    max_user_id = (getattr(user, "report_max_user_id", None) or "").strip()
+    email_recipients = _parse_email_recipients(user.report_email_recipients)
+
+    if "telegram" in channels and telegram_chat_id:
+        try:
+            from lead_validator.services.telegram import telegram_notifier
+            results["telegram"] = await telegram_notifier.send_document(
+                chat_id=telegram_chat_id, document=pdf_bytes, filename=filename, caption=caption,
+            )
+        except Exception as e:
+            logger.exception("Rule %s: telegram failed: %s", rule.id, e)
+            results["telegram"] = False
+
+    if "max" in channels and (max_chat_id or max_user_id):
+        try:
+            from backend_api.services import max_reports_bot
+            text_report = _format_text_report(summary, top_campaigns, client_name, start_str, end_str)
+            results["max"] = await max_reports_bot.send_message(
+                text_report, chat_id=max_chat_id or None, user_id=max_user_id or None,
+            )
+        except Exception as e:
+            logger.exception("Rule %s: MAX failed: %s", rule.id, e)
+            results["max"] = False
+
+    if "email" in channels and email_recipients:
+        try:
+            from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+            if unisender_ok():
+                from backend_api.reports.email_template import render_report_email_html
+                email_data = {
+                    "summary": summary,
+                    "top_campaigns": top_campaigns,
+                    "client_name": client_name or "",
+                    "ai_comment": "",
+                    "start_date": start_str,
+                    "end_date": end_str,
+                    "generated_at": now.strftime("%Y-%m-%d %H:%M"),
+                }
+                ok, err = await uni_send(
+                    recipients=email_recipients,
+                    subject=caption,
+                    html_body=render_report_email_html(email_data),
+                    plain_body=_format_text_report(summary, top_campaigns, client_name, start_str, end_str),
+                    pdf_bytes=pdf_bytes,
+                    filename=filename,
+                )
+            else:
+                from lead_validator.services.email_sender import email_sender
+                ok, err = await email_sender.send_report_email(
+                    recipients=email_recipients, subject=caption,
+                    body=f"Отчёт за период {start_str} — {end_str}.",
+                    pdf_bytes=pdf_bytes, filename=filename,
+                )
+            results["email"] = ok
+            if err:
+                logger.warning("Rule %s: email error: %s", rule.id, err)
+        except Exception as e:
+            logger.exception("Rule %s: email failed: %s", rule.id, e)
+            results["email"] = False
+
+    rule.last_sent_at = datetime.now(MSK)
+    return results
+
+
+async def run_scheduled_report_rules():
+    """Запускается каждую минуту рядом с run_scheduled_reports: обрабатывает
+    ПРАВИЛА автоотправки (report_schedules). Одно правило — максимум раз в день."""
+    db: Session = SessionLocal()
+    try:
+        now = datetime.now(MSK)
+        rules = db.query(models.ReportSchedule).filter(
+            models.ReportSchedule.enabled.is_(True),
+        ).all()
+        for rule in rules:
+            if not _rule_matches(rule, now):
+                continue
+            if _rule_already_sent_today(rule, now):
+                continue
+            user = db.query(models.User).filter(
+                models.User.id == rule.user_id,
+                models.User.is_active == True,
+            ).first()
+            if not user:
+                continue
+            try:
+                results = await send_report_for_schedule(db, rule, user)
+                db.commit()
+                logger.info("Report rule %s sent for %s: %s", rule.id, user.email, results)
+            except Exception as e:
+                db.rollback()
+                logger.exception("Report rule %s failed for user %s: %s", rule.id, rule.user_id, e)
+    finally:
+        db.close()

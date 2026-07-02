@@ -216,6 +216,33 @@ class UserOAuthIdentity(Base):
     )
 
 
+class ReportSchedule(Base):
+    """Правило автоотправки отчёта. У пользователя может быть много правил с разными
+    скоупами/каналами/временем — например, «Яндекс проекта X в 16:00 в Telegram» и
+    «Авито того же проекта в 16:30 в MAX»."""
+    __tablename__ = "report_schedules"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    # Скоуп данных: NULL+NULL = все проекты; client_id = проект; folder_id = папка
+    scope_client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True)
+    scope_folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True)
+    platform = Column(String, nullable=False, default="all", server_default="all")  # all|yandex|vk|avito
+    channels = Column(String, nullable=False, default="[]")  # JSON: ["telegram","max","email"]
+    day = Column(String, nullable=False, default="daily", server_default="daily")  # daily|weekdays|monday..sunday
+    send_time = Column(String, nullable=False, default="10:00", server_default="10:00")  # HH:MM МСК
+    period_days = Column(Integer, nullable=False, default=7, server_default="7")  # период данных отчёта
+    report_format = Column(String, nullable=False, default="desktop", server_default="desktop")  # desktop|mobile
+    include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", backref="report_schedules")
+
+
 class Folder(Base):
     """Папка проектов: контейнер над проектами для сети филиалов одного заказчика.
     Сводка папки не хранится — считается на чтение как агрегат по вложенным проектам.

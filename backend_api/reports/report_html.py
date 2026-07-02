@@ -117,7 +117,9 @@ def _kpi_card(key: str, label: str, value: str, subtitle: str = "") -> str:
     </div>"""
 
 
-def render_report_html(data: dict) -> str:
+def render_report_html(data: dict, layout: str = "desktop") -> str:
+    # layout: desktop | mobile — влияет на ширину страницы и раскладку (см. render ниже)
+    data = {**data, "layout": layout}
     s = data.get("summary", {})
     tc = data.get("top_campaigns", [])
     client_name = data.get("client_name", "")

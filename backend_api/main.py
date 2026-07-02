@@ -179,8 +179,10 @@ async def startup_event():
         lead_scheduler.add_job(run_daily_alerts, "cron", hour=9, minute=0, id="lead_daily_alerts")
         lead_scheduler.add_job(run_weekly_report, "cron", day_of_week="mon", hour=9, minute=30, id="lead_weekly_report")
     if REPORTS_AVAILABLE:
-        from backend_api.reports.scheduler import run_scheduled_reports
+        from backend_api.reports.scheduler import run_scheduled_reports, run_scheduled_report_rules
         lead_scheduler.add_job(run_scheduled_reports, "cron", minute="*", id="report_scheduled_send")
+        # Новая система: множественные правила автоотправки (report_schedules)
+        lead_scheduler.add_job(run_scheduled_report_rules, "cron", minute="*", id="report_schedule_rules")
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")

@@ -464,6 +464,50 @@ class ClientResponse(ClientBase):
         from_attributes = True
 
 
+# ── Автоотправка отчётов: правила ──
+
+class ReportScheduleBase(BaseModel):
+    name: Optional[str] = None
+    enabled: bool = True
+    scope_client_id: Optional[UUID] = None
+    scope_folder_id: Optional[UUID] = None
+    platform: str = "all"  # all | yandex | vk | avito
+    channels: List[str] = []  # telegram | max | email
+    day: str = "daily"  # daily | weekdays | monday..sunday
+    send_time: str = "10:00"  # HH:MM МСК
+    period_days: int = 7
+    report_format: str = "desktop"  # desktop | mobile
+    include_dynamics: bool = False
+
+
+class ReportScheduleCreate(ReportScheduleBase):
+    pass
+
+
+class ReportScheduleUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    scope_client_id: Optional[UUID] = None
+    scope_folder_id: Optional[UUID] = None
+    platform: Optional[str] = None
+    channels: Optional[List[str]] = None
+    day: Optional[str] = None
+    send_time: Optional[str] = None
+    period_days: Optional[int] = None
+    report_format: Optional[str] = None
+    include_dynamics: Optional[bool] = None
+
+
+class ReportScheduleResponse(ReportScheduleBase):
+    id: UUID
+    scope_label: Optional[str] = None  # человекочитаемый скоуп для списка правил
+    last_sent_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ── Папки проектов (группировка филиалов одного заказчика) ──
 
 class FolderCreate(BaseModel):

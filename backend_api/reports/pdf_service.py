@@ -25,6 +25,8 @@ def generate_report_pdf(
     comment: Optional[str] = None,
     include_dynamics: bool = False,
     folder_id: Optional[str] = None,
+    platform: str = "all",
+    layout: str = "desktop",
 ) -> bytes:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
@@ -45,10 +47,10 @@ def generate_report_pdf(
         raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
 
     summary = StatsService.aggregate_summary(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     campaigns = StatsService.get_campaign_stats(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     top_campaigns = sorted(
         [c for c in campaigns if c.get("conversions", 0) > 0],
@@ -80,6 +82,8 @@ def generate_report_pdf(
         "start_date": start_date,
         "end_date": end_date,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "platform": platform or "all",
+        "layout": layout or "desktop",
     }
 
     # Опциональный блок «Динамика по месяцам» (трейлинг 6 календарных месяцев до end_date).
@@ -95,7 +99,7 @@ def generate_report_pdf(
         except Exception as e:
             logger.warning("Dynamics block skipped: %s", e)
 
-    html = render_report_html(data)
+    html = render_report_html(data, layout=layout or "desktop")
 
     try:
         from weasyprint import HTML

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from core.database import get_db
-from core import models, security
+from core import models, schemas, security
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.history import log_history_event
 from backend_api.reports.pdf_service import generate_report_pdf
@@ -741,5 +741,204 @@ async def send_report(
             target_type="report_delivery",
             meta={"ok": bool(results.get("max"))},
         )
+    db.commit()
+    return {"ok": True, "results": results}
+
+
+# ══════════ Правила автоотправки отчётов ══════════
+
+VALID_SCHEDULE_DAYS = {"daily", "weekdays", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+VALID_SCHEDULE_CHANNELS = {"telegram", "max", "email"}
+VALID_SCHEDULE_PLATFORMS = {"all", "yandex", "vk", "avito"}
+MAX_SCHEDULES_PER_USER = 20
+
+
+def _validate_schedule_payload(*, day=None, send_time=None, channels=None, platform=None, period_days=None, report_format=None):
+    if day is not None and day not in VALID_SCHEDULE_DAYS:
+        raise HTTPException(status_code=422, detail="Некорректный день отправки")
+    if send_time is not None:
+        import re as _re
+        if not _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(send_time)):
+            raise HTTPException(status_code=422, detail="Время отправки — в формате ЧЧ:ММ")
+    if channels is not None:
+        bad = [c for c in channels if c not in VALID_SCHEDULE_CHANNELS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Неизвестный канал доставки: {bad[0]}")
+        if not channels:
+            raise HTTPException(status_code=422, detail="Выберите хотя бы один канал доставки")
+    if platform is not None and platform not in VALID_SCHEDULE_PLATFORMS:
+        raise HTTPException(status_code=422, detail="Некорректный рекламный канал")
+    if period_days is not None and int(period_days) not in (1, 7, 14, 30):
+        raise HTTPException(status_code=422, detail="Период отчёта: 1, 7, 14 или 30 дней")
+    if report_format is not None and report_format not in ("desktop", "mobile"):
+        raise HTTPException(status_code=422, detail="Формат отчёта: desktop или mobile")
+
+
+def _schedule_scope_label(db: Session, s: models.ReportSchedule) -> str:
+    parts = []
+    if s.scope_folder_id:
+        folder = db.query(models.Folder).filter(models.Folder.id == s.scope_folder_id).first()
+        parts.append(f"Папка «{folder.name}»" if folder else "Папка")
+    elif s.scope_client_id:
+        client = db.query(models.Client).filter(models.Client.id == s.scope_client_id).first()
+        parts.append(f"Проект «{client.name}»" if client else "Проект")
+    else:
+        parts.append("Все проекты")
+    platform_names = {"all": "все каналы", "yandex": "Яндекс Директ", "vk": "VK Реклама", "avito": "Avito"}
+    parts.append(platform_names.get(s.platform or "all", s.platform))
+    return " · ".join(parts)
+
+
+def _schedule_to_response(db: Session, s: models.ReportSchedule) -> schemas.ReportScheduleResponse:
+    import json as _json
+    try:
+        channels = _json.loads(s.channels) if isinstance(s.channels, str) else (s.channels or [])
+    except Exception:
+        channels = []
+    return schemas.ReportScheduleResponse(
+        id=s.id,
+        name=s.name,
+        enabled=bool(s.enabled),
+        scope_client_id=s.scope_client_id,
+        scope_folder_id=s.scope_folder_id,
+        platform=s.platform or "all",
+        channels=channels,
+        day=s.day or "daily",
+        send_time=s.send_time or "10:00",
+        period_days=int(s.period_days or 7),
+        report_format=s.report_format or "desktop",
+        include_dynamics=bool(s.include_dynamics),
+        scope_label=_schedule_scope_label(db, s),
+        last_sent_at=s.last_sent_at,
+        created_at=s.created_at,
+    )
+
+
+@router.get("/schedules", response_model=List[schemas.ReportScheduleResponse])
+def list_report_schedules(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(models.ReportSchedule)
+        .filter(models.ReportSchedule.user_id == current_user.id)
+        .order_by(models.ReportSchedule.created_at)
+        .all()
+    )
+    return [_schedule_to_response(db, s) for s in rows]
+
+
+@router.post("/schedules", response_model=schemas.ReportScheduleResponse)
+def create_report_schedule(
+    body: schemas.ReportScheduleCreate,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    import json as _json
+    count = db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == current_user.id).count()
+    if count >= MAX_SCHEDULES_PER_USER:
+        raise HTTPException(status_code=422, detail=f"Не больше {MAX_SCHEDULES_PER_USER} правил отправки")
+    _validate_schedule_payload(
+        day=body.day, send_time=body.send_time, channels=body.channels,
+        platform=body.platform, period_days=body.period_days, report_format=body.report_format,
+    )
+    s = models.ReportSchedule(
+        user_id=current_user.id,
+        name=(body.name or "").strip() or None,
+        enabled=bool(body.enabled),
+        scope_client_id=body.scope_client_id,
+        scope_folder_id=body.scope_folder_id,
+        platform=body.platform or "all",
+        channels=_json.dumps(body.channels or []),
+        day=body.day or "daily",
+        send_time=body.send_time or "10:00",
+        period_days=int(body.period_days or 7),
+        report_format=body.report_format or "desktop",
+        include_dynamics=bool(body.include_dynamics),
+    )
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return _schedule_to_response(db, s)
+
+
+@router.put("/schedules/{schedule_id}", response_model=schemas.ReportScheduleResponse)
+def update_report_schedule(
+    schedule_id: uuid.UUID,
+    body: schemas.ReportScheduleUpdate,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    import json as _json
+    s = db.query(models.ReportSchedule).filter(
+        models.ReportSchedule.id == schedule_id,
+        models.ReportSchedule.user_id == current_user.id,
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Правило не найдено")
+    _validate_schedule_payload(
+        day=body.day, send_time=body.send_time, channels=body.channels,
+        platform=body.platform, period_days=body.period_days, report_format=body.report_format,
+    )
+    if body.name is not None:
+        s.name = body.name.strip() or None
+    if body.enabled is not None:
+        s.enabled = bool(body.enabled)
+    # Скоуп: явное поле в PUT перезаписывает (None = «все проекты», поэтому
+    # обновляем оба поля вместе, когда хотя бы одно передано)
+    if "scope_client_id" in body.model_fields_set or "scope_folder_id" in body.model_fields_set:
+        s.scope_client_id = body.scope_client_id
+        s.scope_folder_id = body.scope_folder_id
+    if body.platform is not None:
+        s.platform = body.platform
+    if body.channels is not None:
+        s.channels = _json.dumps(body.channels)
+    if body.day is not None:
+        s.day = body.day
+    if body.send_time is not None:
+        s.send_time = body.send_time
+    if body.period_days is not None:
+        s.period_days = int(body.period_days)
+    if body.report_format is not None:
+        s.report_format = body.report_format
+    if body.include_dynamics is not None:
+        s.include_dynamics = bool(body.include_dynamics)
+    db.commit()
+    db.refresh(s)
+    return _schedule_to_response(db, s)
+
+
+@router.delete("/schedules/{schedule_id}")
+def delete_report_schedule(
+    schedule_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(models.ReportSchedule).filter(
+        models.ReportSchedule.id == schedule_id,
+        models.ReportSchedule.user_id == current_user.id,
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Правило не найдено")
+    db.delete(s)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/schedules/{schedule_id}/test")
+async def test_report_schedule(
+    schedule_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отправить отчёт по правилу прямо сейчас (проверка настройки)."""
+    s = db.query(models.ReportSchedule).filter(
+        models.ReportSchedule.id == schedule_id,
+        models.ReportSchedule.user_id == current_user.id,
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Правило не найдено")
+    from backend_api.reports.scheduler import send_report_for_schedule
+    results = await send_report_for_schedule(db, s, current_user)
     db.commit()
     return {"ok": True, "results": results}
