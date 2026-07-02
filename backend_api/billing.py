@@ -368,10 +368,38 @@ async def cloudpayments_webhook(
     billing_period = _normalize_billing_period(json_data.get("billing_period"))
     plan = SubscriptionService.get_plan_from_config(plan_code)
     event_name = (data.get("Type") or data.get("Event") or "").lower()
-    success = bool(data.get("Success", True))
+
+    # Pay/Fail/Recurrent/Cancel приходят на ОДИН URL, а поля Type у CloudPayments нет —
+    # классифицируем по реальному составу уведомления (см. developers.cloudpayments.ru):
+    #  - Recurrent: есть Id подписки и Status (Active/PastDue/Cancelled/...), нет TransactionId
+    #  - Fail: есть ReasonCode != 0 (причина отказа)
+    #  - Pay: успешный платёж (Status Completed/Authorized)
+    status_field = str(data.get("Status") or "").strip().lower()
+    reason_code = str(data.get("ReasonCode") or "").strip()
+    is_recurrent_report = bool(data.get("Id")) and not data.get("TransactionId")
+    failed = (
+        not bool(data.get("Success", True))
+        or (reason_code not in ("", "0"))
+        or status_field == "declined"
+    )
+    if is_recurrent_report and status_field in ("cancelled", "canceled", "rejected", "expired"):
+        outcome = "cancel"
+    elif is_recurrent_report and status_field == "pastdue":
+        outcome = "fail"
+    elif "cancel" in event_name:
+        outcome = "cancel"
+    elif failed or "fail" in event_name:
+        outcome = "fail"
+    else:
+        outcome = "pay"
 
     sub.plan_code = plan.code
-    sub.cloudpayments_subscription_id = str(data.get("SubscriptionId") or sub.cloudpayments_subscription_id or "")
+    sub.cloudpayments_subscription_id = str(
+        data.get("SubscriptionId")
+        or (data.get("Id") if is_recurrent_report else None)
+        or sub.cloudpayments_subscription_id
+        or ""
+    )
     sub.cloudpayments_transaction_id = str(data.get("TransactionId") or sub.cloudpayments_transaction_id or "")
     # Маска карты из уведомления — чтобы показывать «Карта привязана **** 1234» в кабинете.
     if data.get("CardLastFour"):
@@ -380,20 +408,25 @@ async def cloudpayments_webhook(
         sub.card_exp = str(data.get("CardExpDate") or "")[:8] or sub.card_exp
     now = SubscriptionService._now()
 
-    if success and ("pay" in event_name or "recurrent" in event_name or not event_name):
+    if outcome == "pay":
+        # Recurrent(Active) — только статус подписки, период НЕ продлеваем: продление
+        # периода происходит по реальному списанию (уведомление Pay).
+        extend_period = not is_recurrent_report or not sub.current_period_end
         sub.status = models.SubscriptionStatus.ACTIVE
-        sub.current_period_start = now
-        sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
+        if extend_period:
+            sub.current_period_start = now
+            sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
-        create_notification(
-            db,
-            user_id=user.id,
-            type="payment_ok",
-            title=f"Оплата прошла — тариф «{plan.name}»",
-            body=f"Ваша подписка активна до {sub.current_period_end.strftime('%d.%m.%Y')}.",
-            meta={"plan_code": plan.code, "billing_period": billing_period},
-        )
+        if extend_period:
+            create_notification(
+                db,
+                user_id=user.id,
+                type="payment_ok",
+                title=f"Оплата прошла — тариф «{plan.name}»",
+                body=f"Ваша подписка активна до {sub.current_period_end.strftime('%d.%m.%Y')}.",
+                meta={"plan_code": plan.code, "billing_period": billing_period},
+            )
         log_history_event(
             db,
             actor=user,
@@ -406,8 +439,9 @@ async def cloudpayments_webhook(
         )
 
         # Серверная офлайн-конверсия в Метрику (выручка → рекламный источник).
-        # Рекуррент (автосписание) — фоновое, клиента нет: шлём subscription_renewal
-        # и payment_success с сервера. Первое/ручное списание: payment_success шлёт
+        # Повторное списание по подписке CP приходит как Pay с SubscriptionId —
+        # это фоновый рекуррент, клиента нет: шлём subscription_renewal и
+        # payment_success с сервера. Первое/ручное списание: payment_success шлёт
         # клиент на странице успеха, поэтому с сервера шлём только trial_to_paid.
         try:
             from backend_api.services.metrika_conversions import upload_offline_conversion
@@ -416,17 +450,18 @@ async def cloudpayments_webhook(
             _currency = str(data.get("Currency") or "RUB")
             _cid = getattr(user, "metrika_client_id", None)
             _yclid = getattr(user, "metrika_yclid", None)
-            if "recurrent" in event_name:
+            _is_recurring_charge = bool(data.get("SubscriptionId")) or "recurrent" in event_name
+            if _is_recurring_charge and extend_period:
                 await upload_offline_conversion(target="subscription_renewal", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
                 await upload_offline_conversion(target="payment_success", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
-            else:
+            elif extend_period:
                 await upload_offline_conversion(target="trial_to_paid", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
         except Exception as _conv_err:
             logger.warning("Metrika offline conversion hook error: %s", _conv_err)
-    elif "cancel" in event_name:
+    elif outcome == "cancel":
         sub.status = models.SubscriptionStatus.CANCELED
         user.is_subscribed = False
         create_notification(
