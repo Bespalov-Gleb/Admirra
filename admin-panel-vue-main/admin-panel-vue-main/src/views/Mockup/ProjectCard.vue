@@ -91,6 +91,14 @@
 
         <div class="project-sync-meta" v-if="projectSyncStatusText">{{ projectSyncStatusText }}</div>
 
+        <button class="tile-sync-btn folder-create-btn" type="button" @click="openCreateFolder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 10.5v5M9.5 13h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+          Создать папку
+        </button>
+
         <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
           <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -119,13 +127,157 @@
 
     <div v-if="isLoading" class="py-16 text-center text-[0.9722rem] text-gray-400">Загрузка проектов...</div>
 
-    <div v-else-if="filteredProjects.length === 0" class="py-16 text-center text-[0.9722rem] text-gray-400">
+    <div v-else-if="!hasAnyItems" class="py-16 text-center text-[0.9722rem] text-gray-400">
       {{ search ? 'Проекты не найдены' : 'У вас пока нет проектов' }}
     </div>
 
-    <!-- Projects grid -->
+    <!-- Projects grid: папки + проекты -->
     <div v-else class="projects-tile-grid mb-[2.0833rem]">
-      <div v-for="project in filteredProjects" :key="project.id" class="project-card project-card--tile bg-white rounded-[1.0417rem]" :class="{ 'project-card--syncing': isProjectSyncing(project) }">
+      <template v-for="entry in displayItems" :key="entry.type + (entry.folder?.id || entry.project?.id)">
+
+      <!-- ══ Карточка ПАПКИ ══ -->
+      <div
+        v-if="entry.type === 'folder'"
+        class="project-card project-card--tile folder-card bg-white rounded-[1.0417rem]"
+        :class="{ 'folder-card--paused': isFolderPaused(entry.folder), 'folder-card--expanded': expandedFolders[entry.folder.id] }"
+        :style="{ '--folder-color': entry.folder.color || '#2563eb' }"
+      >
+        <div class="project-tile-main">
+          <div class="project-tile-header">
+            <div class="project-tile-identity">
+              <span class="project-avatar folder-avatar" :style="{ background: entry.folder.color || '#2563eb' }">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" fill="#fff" fill-opacity="0.92"/>
+                </svg>
+              </span>
+              <div class="project-tile-title-block">
+                <button type="button" class="project-title-link project-title-link--tile" @click="toggleFolder(entry.folder.id)">
+                  {{ entry.folder.name }}
+                </button>
+                <p class="project-tile-description">
+                  <span class="folder-count-badge">{{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }}</span>
+                  <span v-if="isFolderPaused(entry.folder)" class="folder-paused-note">· все на паузе</span>
+                  <span v-else class="folder-summary-note">· сводка по всем филиалам</span>
+                </p>
+              </div>
+            </div>
+            <div class="project-tile-actions">
+              <div class="project-tile-actions__top">
+                <button class="analytics-open-btn flex-shrink-0" @click="openFolderAnalytics(entry.folder)" title="Аналитика по папке">
+                  <span>Аналитика</span>
+                  <svg width="7" height="7" viewBox="0 0 13 13" fill="none">
+                    <path d="M1 12L12 1M12 1H4.5M12 1V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <button type="button" class="folder-expand-btn" @click="toggleFolder(entry.folder.id)">
+                {{ expandedFolders[entry.folder.id] ? 'Свернуть' : 'Развернуть' }}
+                <svg :class="{ 'folder-expand-icon--open': expandedFolders[entry.folder.id] }" class="folder-expand-icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
+                  <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="project-tile-stats-wrap" :class="{ 'folder-stats--paused': isFolderPaused(entry.folder) }">
+            <div class="project-tile-stats">
+              <div v-for="stat in projectStats(folderAsEntity(entry.folder))" :key="stat.label" class="stat-box">
+                <div class="iconbox flex-shrink-0">
+                  <svg width="12" height="12" fill="#2563eb" aria-hidden="true"><use :href="stat.icon" /></svg>
+                </div>
+                <div class="stat-box__copy">
+                  <h4>{{ stat.label }}</h4>
+                  <p>Сумма по филиалам</p>
+                </div>
+                <b class="stat-box__value">{{ stat.value }}</b>
+                <span :class="trendBadgeClass(getProjectMetric(entry.folder.id), stat.key)">
+                  <svg :class="trendArrowClass(getProjectMetric(entry.folder.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
+                    <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  {{ stat.change }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="project-goals-section">
+            <div class="project-goals-title">
+              <span class="project-goals-title__label">Целевые действия по каналам · вся сеть</span>
+            </div>
+            <div v-if="projectChannelSummaries(folderAsEntity(entry.folder)).length" class="project-channel-list">
+              <div v-for="channel in projectChannelSummaries(folderAsEntity(entry.folder))" :key="channel.code" class="project-channel-card">
+                <div class="project-channel-row">
+                  <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">
+                    <img :src="channel.icon" :alt="channel.name" />
+                  </span>
+                  <div class="project-channel-main"><strong>{{ channel.name }}</strong></div>
+                  <div class="project-channel-metrics">
+                    <div class="project-channel-metric">
+                      <strong>{{ formatNumber(channel.goalTotal) }}</strong>
+                      <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
+                    </div>
+                    <div class="project-channel-metric project-channel-metric--cpl">
+                      <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}</strong>
+                      <span>Общий CPL</span>
+                    </div>
+                    <div class="project-channel-metric project-channel-metric--spend">
+                      <strong>{{ formatMoney(withChannelVat(channel.expenses, channel.code)) }}</strong>
+                      <span>Расход</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="project-channel-empty">
+              <div class="project-channel-empty__copy">
+                <strong>Нет данных по каналам</strong>
+                <span>Добавьте в папку проекты с подключёнными кабинетами.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="project-tile-footer">
+          <div class="project-balance-area">
+            <div class="project-balance-title">Баланс в кабинетах · сводно</div>
+            <div v-if="projectBalances(folderAsEntity(entry.folder)).length" class="project-balance-strip">
+              <div v-for="balance in projectBalances(folderAsEntity(entry.folder))" :key="balance.code" class="balance-chip" :class="`balance-chip--${balance.code}`">
+                <img :src="balance.icon" :alt="balance.name" />
+                <strong>{{ balance.value }}</strong>
+              </div>
+            </div>
+            <div v-else class="project-balance-empty">Нет подключённых кабинетов</div>
+          </div>
+          <div class="project-footer-actions">
+            <button type="button" class="settings-btn" @click.stop="openEditFolder(entry.folder)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+              </svg>
+              Настройки папки
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Пустая папка (раскрыта) ══ -->
+      <div v-else-if="entry.type === 'folder-empty'" class="folder-empty-card" :style="{ '--folder-color': entry.folder.color || '#2563eb' }">
+        <p>В папке пока нет проектов</p>
+        <button type="button" @click="openEditFolder(entry.folder)">Добавить проекты в папку</button>
+      </div>
+
+      <!-- ══ Карточка ПРОЕКТА (как раньше; v-for по одному элементу задаёт локальную
+           переменную project, чтобы не менять существующую разметку карточки) ══ -->
+      <template v-else>
+      <div
+        v-for="project in [entry.project]"
+        :key="project.id"
+        class="project-card project-card--tile bg-white rounded-[1.0417rem]"
+        :class="{
+          'project-card--syncing': isProjectSyncing(project),
+          'project-card--infolder': Boolean(entry.inFolder),
+        }"
+        :style="entry.inFolder ? { '--folder-color': entry.inFolder.color || '#2563eb' } : {}"
+      >
         <div v-if="isProjectSyncing(project)" class="project-sync-overlay">
           <div class="project-sync-overlay__spinner"></div>
           <strong>Выполняется синхронизация</strong>
@@ -151,6 +303,10 @@
                   @click="openProject(project)"
                 >
                   {{ project.name }}
+                  <span v-if="entry.folderName" class="in-folder-chip" :title="`Проект лежит в папке «${entry.folderName}»`">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
+                    {{ entry.folderName }}
+                  </span>
                 </button>
                 <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
               </div>
@@ -317,11 +473,117 @@
               </svg>
               AI-аудит
             </button>
+            <!-- Переместить в папку… -->
+            <div class="folder-move-wrap" v-click-outside="() => { if (moveMenuProjectId === project.id) moveMenuProjectId = null }">
+              <button
+                type="button"
+                class="settings-btn folder-move-btn"
+                :title="project.folder_id ? 'Переместить в другую папку или вынести' : 'Переместить в папку'"
+                @click.stop="moveMenuProjectId = moveMenuProjectId === project.id ? null : project.id"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/>
+                </svg>
+                В папку
+              </button>
+              <div v-if="moveMenuProjectId === project.id" class="folder-move-menu">
+                <div class="folder-move-menu__title">Переместить проект</div>
+                <button
+                  v-for="f in folders"
+                  :key="f.id"
+                  type="button"
+                  class="folder-move-menu__item"
+                  :class="{ 'folder-move-menu__item--current': project.folder_id === f.id }"
+                  :disabled="project.folder_id === f.id"
+                  @click.stop="moveProjectToFolder(project, f.id)"
+                >
+                  <i :style="{ background: f.color || '#2563eb' }"></i>
+                  {{ f.name }}
+                </button>
+                <button v-if="project.folder_id" type="button" class="folder-move-menu__item folder-move-menu__item--out" @click.stop="moveProjectToFolder(project, null)">
+                  Вынести из папки
+                </button>
+                <button type="button" class="folder-move-menu__item folder-move-menu__item--new" @click.stop="moveMenuProjectId = null; openCreateFolder()">
+                  + Новая папка
+                </button>
+                <div v-if="!folders.length" class="folder-move-menu__empty">Папок пока нет</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </template>
+
+      </template>
+    </div>
+
+    <!-- ══ Модал папки: создание / настройки ══ -->
+    <Teleport to="body">
+      <div v-if="folderModal" class="folder-modal-backdrop" @click.self="folderModal = null">
+        <div class="folder-modal">
+          <h4>{{ folderModal.mode === 'create' ? 'Создать папку' : 'Настройки папки' }}</h4>
+          <p class="folder-modal__hint">Папка объединяет проекты (филиалы одного заказчика) и показывает сводную статистику. В лимите тарифа папка считается как 1 проект.</p>
+
+          <label class="folder-modal__label">Название</label>
+          <input v-model="folderForm.name" type="text" class="folder-modal__input" placeholder="Например: Лайк Стор — филиалы" maxlength="80" />
+
+          <label class="folder-modal__label">Цвет</label>
+          <div class="folder-modal__colors">
+            <button
+              v-for="c in FOLDER_COLORS"
+              :key="c"
+              type="button"
+              class="folder-color-dot"
+              :class="{ 'folder-color-dot--active': folderForm.color === c }"
+              :style="{ background: c }"
+              @click="folderForm.color = c"
+            ></button>
+          </div>
+
+          <template v-if="freeProjects.length">
+            <label class="folder-modal__label">
+              {{ folderModal.mode === 'create' ? 'Добавить проекты' : 'Добавить проекты в папку' }}
+              <small>(вне папок: {{ freeProjects.length }})</small>
+            </label>
+            <div class="folder-modal__projects">
+              <label v-for="p in freeProjects" :key="p.id" class="folder-project-check">
+                <input type="checkbox" :checked="folderForm.project_ids.includes(p.id)" @change="toggleFolderFormProject(p.id)" />
+                <span>{{ p.name }}</span>
+              </label>
+            </div>
+          </template>
+
+          <div class="folder-modal__footer">
+            <button
+              v-if="folderModal.mode === 'edit'"
+              type="button"
+              class="folder-modal__delete"
+              @click="folderDeleteTarget = folderModal.folder"
+            >Удалить папку</button>
+            <span class="flex-1"></span>
+            <button type="button" class="folder-modal__cancel" @click="folderModal = null">Отмена</button>
+            <button type="button" class="folder-modal__save" :disabled="folderSaving" @click="saveFolderModal">
+              {{ folderSaving ? 'Сохраняем…' : (folderModal.mode === 'create' ? 'Создать папку' : 'Сохранить') }}
+            </button>
           </div>
         </div>
       </div>
 
-    </div>
+      <!-- Подтверждение удаления папки -->
+      <div v-if="folderDeleteTarget" class="folder-modal-backdrop" @click.self="folderDeleteTarget = null">
+        <div class="folder-modal folder-modal--confirm">
+          <h4>Удалить папку «{{ folderDeleteTarget.name }}»?</h4>
+          <p class="folder-modal__hint">
+            <strong>Проекты сохранятся</strong> — они просто выйдут из папки и вернутся в общий список отдельными карточками. Удаление самих проектов — отдельное действие в настройках проекта.
+          </p>
+          <div class="folder-modal__footer">
+            <span class="flex-1"></span>
+            <button type="button" class="folder-modal__cancel" @click="folderDeleteTarget = null">Отмена</button>
+            <button type="button" class="folder-modal__delete folder-modal__delete--solid" @click="confirmDeleteFolder">Удалить папку</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <ProjectAvatarUploadModal
       v-if="avatarProject"
@@ -379,6 +641,17 @@ const openSelect = ref(null)
 const metricsByProjectId = ref({})
 const projectInsightsById = ref({})
 const expandedGoalsByProjectId = ref({})
+
+// ── Папки проектов ──
+const folders = ref([])
+const expandedFolders = ref({})
+const folderModal = ref(null) // { mode: 'create' | 'edit', folder? }
+const folderDeleteTarget = ref(null)
+const moveMenuProjectId = ref(null)
+const folderForm = ref({ name: '', color: '#2563eb', project_ids: [] })
+const folderSaving = ref(false)
+
+const FOLDER_COLORS = ['#2563eb', '#7c3aed', '#0ea5e9', '#059669', '#ea9942', '#e11d48', '#64748b', '#171717']
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
@@ -412,6 +685,169 @@ const filteredProjects = computed(() => {
   }
   return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
 })
+
+// ── Папки: дерево списка ──
+const folderById = computed(() => Object.fromEntries(folders.value.map((f) => [f.id, f])))
+const folderProjects = (folderId) => filteredProjects.value.filter((p) => p.folder_id === folderId)
+const allFolderProjects = (folderId) => projects.value.filter((p) => p.folder_id === folderId)
+
+// Папка как «сущность карточки»: integrations собираются из вложенных проектов,
+// поэтому существующие функции карточки (статы/каналы/балансы) работают без изменений —
+// метрики папки лежат в тех же metricsByProjectId/projectInsightsById под folder.id.
+const folderAsEntity = (folder) => ({
+  ...folder,
+  __isFolder: true,
+  integrations: allFolderProjects(folder.id).flatMap((p) => p.integrations || []),
+})
+
+const isFolderPaused = (folder) => {
+  const members = allFolderProjects(folder.id)
+  return members.length > 0 && members.every((p) => String(p.status || '').toLowerCase() === 'paused')
+}
+
+// Корневой список: папки (по sort_order) + проекты вне папок. При поиске — плоские
+// совпадения: проекты из папок показываются с подсветкой «в какой папке».
+const displayItems = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  const items = []
+  if (q) {
+    for (const f of folders.value) {
+      if (f.name?.toLowerCase().includes(q)) items.push({ type: 'folder', folder: f })
+    }
+    for (const p of filteredProjects.value) {
+      const folderName = p.folder_id ? folderById.value[p.folder_id]?.name : null
+      items.push({ type: 'project', project: p, folderName })
+    }
+    return items
+  }
+  for (const f of [...folders.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))) {
+    items.push({ type: 'folder', folder: f })
+    if (expandedFolders.value[f.id]) {
+      for (const p of folderProjects(f.id)) {
+        items.push({ type: 'project', project: p, inFolder: f })
+      }
+      if (!allFolderProjects(f.id).length) {
+        items.push({ type: 'folder-empty', folder: f })
+      }
+    }
+  }
+  for (const p of filteredProjects.value.filter((p) => !p.folder_id || !folderById.value[p.folder_id])) {
+    items.push({ type: 'project', project: p })
+  }
+  return items
+})
+
+const hasAnyItems = computed(() => displayItems.value.length > 0)
+
+const toggleFolder = (folderId) => {
+  expandedFolders.value = { ...expandedFolders.value, [folderId]: !expandedFolders.value[folderId] }
+}
+
+async function fetchFolders() {
+  try {
+    const { data } = await api.get('folders/')
+    folders.value = data || []
+  } catch {
+    folders.value = []
+  }
+}
+
+const branchNoun = (n) => {
+  const v = Math.abs(Number(n || 0)); const l2 = v % 100; const l = v % 10
+  if (l2 >= 11 && l2 <= 14) return 'филиалов'
+  if (l === 1) return 'филиал'
+  if (l >= 2 && l <= 4) return 'филиала'
+  return 'филиалов'
+}
+
+// ── Папки: создание/редактирование/удаление ──
+function openCreateFolder() {
+  folderForm.value = { name: '', color: FOLDER_COLORS[0], project_ids: [] }
+  folderModal.value = { mode: 'create' }
+}
+
+function openEditFolder(folder) {
+  folderForm.value = { name: folder.name, color: folder.color || FOLDER_COLORS[0], project_ids: [] }
+  folderModal.value = { mode: 'edit', folder }
+}
+
+const freeProjects = computed(() => projects.value.filter((p) => !p.folder_id))
+
+function toggleFolderFormProject(projectId) {
+  const list = folderForm.value.project_ids
+  const idx = list.indexOf(projectId)
+  if (idx === -1) list.push(projectId)
+  else list.splice(idx, 1)
+}
+
+async function saveFolderModal() {
+  const name = (folderForm.value.name || '').trim()
+  if (!name) { toaster.error('Укажите название папки'); return }
+  folderSaving.value = true
+  try {
+    if (folderModal.value?.mode === 'create') {
+      await api.post('folders/', {
+        name,
+        color: folderForm.value.color,
+        project_ids: folderForm.value.project_ids,
+      })
+      toaster.success(`Папка «${name}» создана`)
+    } else if (folderModal.value?.folder) {
+      const folder = folderModal.value.folder
+      await api.put(`folders/${folder.id}`, { name, color: folderForm.value.color })
+      if (folderForm.value.project_ids.length) {
+        await api.post(`folders/${folder.id}/assign`, { project_ids: folderForm.value.project_ids })
+      }
+      toaster.success('Папка обновлена')
+    }
+    folderModal.value = null
+    await Promise.all([fetchFolders(), fetchProjects()])
+    await loadProjectMetrics()
+  } catch (e) {
+    const d = e?.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось сохранить папку')
+  } finally {
+    folderSaving.value = false
+  }
+}
+
+async function confirmDeleteFolder() {
+  const folder = folderDeleteTarget.value
+  if (!folder) return
+  try {
+    await api.delete(`folders/${folder.id}`)
+    toaster.success(`Папка «${folder.name}» удалена, проекты сохранены и возвращены в список`)
+    folderDeleteTarget.value = null
+    folderModal.value = null
+    await Promise.all([fetchFolders(), fetchProjects()])
+  } catch (e) {
+    const d = e?.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось удалить папку')
+  }
+}
+
+// ── Перемещение проекта в папку / из папки ──
+async function moveProjectToFolder(project, folderId) {
+  moveMenuProjectId.value = null
+  try {
+    if (folderId) {
+      await api.post(`folders/${folderId}/assign`, { project_ids: [project.id] })
+      toaster.success(`«${project.name}» перемещён в папку «${folderById.value[folderId]?.name || ''}»`)
+    } else {
+      await api.post('folders/unassign', { project_ids: [project.id] })
+      toaster.success(`«${project.name}» вынесен из папки`)
+    }
+    await Promise.all([fetchFolders(), fetchProjects()])
+    await loadProjectMetrics()
+  } catch (e) {
+    const d = e?.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось переместить проект')
+  }
+}
+
+const openFolderAnalytics = (folder) => {
+  router.push({ path: '/dashboard/general-3', query: { folder_id: folder.id, folder_name: folder.name } })
+}
 
 const projectFilterLabel = computed(() => {
   return projectFilterOptions.find((option) => option.value === projectFilter.value)?.label || 'Все'
@@ -820,30 +1256,42 @@ const openAiAudit = (project) => {
 const loadProjectMetrics = async () => {
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
 
-  const entries = await Promise.all(
-    projects.value.map(async (project) => {
+  const entries = await Promise.all([
+    ...projects.value.map(async (project) => {
       try {
         const data = await loadProjectInsight(project.id, startDate, endDate)
         return [project.id, data]
       } catch {
         return [project.id, emptyProjectInsights()]
       }
-    })
-  )
+    }),
+    // Сводки папок: те же инсайты, но со скоупом folder_id — лежат под folder.id,
+    // поэтому карточка папки использует те же функции, что и карточка проекта.
+    ...folders.value.map(async (folder) => {
+      try {
+        const data = await loadProjectInsight(null, startDate, endDate, folder.id)
+        return [folder.id, data]
+      } catch {
+        return [folder.id, emptyProjectInsights()]
+      }
+    }),
+  ])
   const insights = Object.fromEntries(entries)
   projectInsightsById.value = insights
   metricsByProjectId.value = Object.fromEntries(entries.map(([projectId, data]) => [projectId, data.all || emptyMetric()]))
 }
 
-const loadProjectInsight = async (projectId, startDate, endDate) => {
+const loadProjectInsight = async (projectId, startDate, endDate, folderId = null) => {
+  // Скоуп: конкретный проект (client_id) или папка (folder_id — сводка по вложенным)
+  const scope = folderId ? { folder_id: folderId } : { client_id: projectId }
   const summaryParams = (platform) => ({
-    client_id: projectId,
+    ...scope,
     platform,
     start_date: startDate,
     end_date: endDate,
   })
   const goalParams = (platform) => ({
-    client_id: projectId,
+    ...scope,
     platform,
     date_from: startDate,
     date_to: endDate,
@@ -972,7 +1420,7 @@ const detectorBadge = (project) => {
 const isProjectWarmingUp = (project) => detectorBadge(project)?.type === 'warmup'
 
 onMounted(async () => {
-  await fetchProjects()
+  await Promise.all([fetchProjects(), fetchFolders()])
   await Promise.all([loadProjectMetrics(), fetchCrossProject()])
 })
 </script>
@@ -2709,4 +3157,245 @@ onMounted(async () => {
   border-color: rgba(59, 130, 246, 0.3);
   color: #60a5fa;
 }
+
+/* ══════════ Папки проектов ══════════ */
+/* Карточка папки визуально отличается от проекта: цветная рамка/фон и иконка папки */
+.folder-card {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--folder-color, #2563eb) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 5%, #fff) 0%, #fff 30%);
+}
+
+.folder-card--expanded {
+  box-shadow: inset 0 0 0 2px var(--folder-color, #2563eb);
+}
+
+.folder-card--paused .project-tile-stats-wrap,
+.folder-card--paused .project-goals-section {
+  opacity: 0.55;
+}
+
+.folder-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.folder-count-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 99rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 14%, transparent);
+  color: var(--folder-color, #2563eb);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.folder-paused-note { color: #b45309; font-weight: 600; }
+.folder-summary-note { color: rgba(105, 105, 105, 0.6); }
+
+.folder-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: none;
+  color: var(--folder-color, #2563eb);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.folder-expand-icon { transition: transform 0.18s ease; }
+.folder-expand-icon--open { transform: rotate(180deg); }
+
+/* Вложенный проект в развёрнутой папке: рамка цвета папки + лёгкий сдвиг */
+.project-card--infolder {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--folder-color, #2563eb) 35%, transparent);
+  position: relative;
+}
+
+.project-card--infolder::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.9rem;
+  bottom: 0.9rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--folder-color, #2563eb);
+}
+
+/* Пустая папка (раскрыта) */
+.folder-empty-card {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.4rem;
+  border-radius: 0.9rem;
+  border: 1.5px dashed color-mix(in srgb, var(--folder-color, #2563eb) 45%, transparent);
+  color: rgba(105, 105, 105, 0.75);
+  font-size: 0.9rem;
+}
+
+.folder-empty-card button {
+  border: none;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 12%, transparent);
+  color: var(--folder-color, #2563eb);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.55rem;
+  cursor: pointer;
+}
+
+/* Бейдж «в папке …» при поиске */
+.in-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 99rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* Кнопка и меню «В папку» */
+.folder-move-wrap { position: relative; }
+
+.folder-move-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4rem);
+  z-index: 30;
+  min-width: 15rem;
+  padding: 0.4rem;
+  border-radius: 0.7rem;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(15, 23, 42, 0.05);
+}
+
+.folder-move-menu__title {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(105, 105, 105, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.folder-move-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  background: none;
+  border-radius: 0.5rem;
+  color: #171717;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-move-menu__item:hover:not(:disabled) { background: rgba(37, 99, 235, 0.07); }
+.folder-move-menu__item:disabled { opacity: 0.45; cursor: default; }
+
+.folder-move-menu__item i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.22rem;
+  flex-shrink: 0;
+}
+
+.folder-move-menu__item--out { color: #b45309; }
+.folder-move-menu__item--new { color: #2563eb; }
+.folder-move-menu__empty { padding: 0.4rem 0.6rem; color: rgba(105,105,105,0.6); font-size: 0.8rem; }
+
+/* Модал папки */
+.folder-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 1rem;
+}
+
+.folder-modal {
+  width: min(30rem, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.4rem 1.5rem 1.2rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.folder-modal h4 { margin: 0 0 0.4rem; font-size: 1.2rem; font-weight: 800; color: #171717; }
+.folder-modal__hint { margin: 0 0 1rem; font-size: 0.83rem; color: rgba(105, 105, 105, 0.75); line-height: 1.45; }
+.folder-modal__label { display: block; margin: 0.9rem 0 0.35rem; font-size: 0.8rem; font-weight: 700; color: #444; }
+.folder-modal__label small { font-weight: 500; color: rgba(105,105,105,0.6); }
+
+.folder-modal__input {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  font-size: 0.9rem;
+  outline: none;
+}
+.folder-modal__input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+
+.folder-modal__colors { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.folder-color-dot {
+  width: 1.55rem; height: 1.55rem; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+}
+.folder-color-dot--active { border-color: #171717; box-shadow: 0 0 0 2px #fff inset; }
+
+.folder-modal__projects {
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.6rem;
+  padding: 0.35rem;
+}
+
+.folder-project-check {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.42rem 0.55rem; border-radius: 0.45rem;
+  font-size: 0.86rem; color: #171717; cursor: pointer;
+}
+.folder-project-check:hover { background: rgba(37, 99, 235, 0.06); }
+.folder-project-check input { accent-color: #2563eb; }
+
+.folder-modal__footer { display: flex; align-items: center; gap: 0.6rem; margin-top: 1.3rem; }
+.folder-modal__cancel {
+  border: none; background: rgba(15,23,42,0.06); color: #444;
+  padding: 0.5rem 1rem; border-radius: 0.6rem; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+}
+.folder-modal__save {
+  border: none; background: #2563eb; color: #fff;
+  padding: 0.5rem 1.1rem; border-radius: 0.6rem; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+}
+.folder-modal__save:disabled { opacity: 0.6; cursor: default; }
+.folder-modal__delete {
+  border: none; background: none; color: #dc2626;
+  font-weight: 700; font-size: 0.83rem; cursor: pointer; padding: 0.5rem 0;
+}
+.folder-modal__delete--solid {
+  background: #dc2626; color: #fff; padding: 0.5rem 1.1rem; border-radius: 0.6rem;
+}
+.flex-1 { flex: 1; }
 </style>

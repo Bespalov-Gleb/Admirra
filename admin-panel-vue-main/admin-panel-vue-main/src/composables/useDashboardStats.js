@@ -132,6 +132,9 @@ export function useDashboardStats() {
     client_id: (saved && typeof saved.client_id === 'string' && saved.client_id.trim())
       ? saved.client_id
       : null,
+    // Режим «аналитика папки»: сводка по проектам папки. Управляется route query
+    // (?folder_id=...), в localStorage сознательно не сохраняется.
+    folder_id: null,
     campaign_ids: Array.isArray(saved?.campaign_ids)
       ? saved.campaign_ids.filter(Boolean)
       : [],
@@ -219,7 +222,9 @@ export function useDashboardStats() {
         start_date: filters.start_date,
         end_date: filters.end_date,
         platform: filters.channel,
-        client_id: filters.client_id || undefined,
+        // Папка и проект взаимоисключающие: в режиме папки client_id не шлём
+        client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
+        folder_id: filters.folder_id || undefined,
         // CRITICAL: Only send campaign_ids if there are any selected
         // Empty array should not be sent (backend treats it as "no filter")
         campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined,
@@ -244,7 +249,7 @@ export function useDashboardStats() {
       const [summaryRes, dynamicsRes, topClientsRes, campaignsRes, deviceStatsRes, placementsRes, channelBreakdownRes] = await Promise.allSettled([
         api.get('dashboard/summary', { params }),
         api.get('dashboard/dynamics', { params }),
-        api.get('dashboard/top-clients'),
+        api.get('dashboard/top-clients', { params: filters.folder_id ? { folder_id: filters.folder_id } : {} }),
         api.get('dashboard/campaigns', { params }),
         api.get('dashboard/devices', { params }),
         api.get('dashboard/placements', { params }),
@@ -444,10 +449,11 @@ export function useDashboardStats() {
   // 2. Any relevant filter change -> Fetch Statistics
   watch(
     () => [
-      filters.start_date, 
-      filters.end_date, 
-      filters.client_id, 
-      filters.channel, 
+      filters.start_date,
+      filters.end_date,
+      filters.client_id,
+      filters.folder_id,
+      filters.channel,
       filters.campaign_ids,
       filters.vk_goal_action_ids
     ],

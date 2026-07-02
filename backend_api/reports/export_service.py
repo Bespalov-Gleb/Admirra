@@ -62,9 +62,12 @@ def _summary_platform(campaigns: list) -> str:
     return ""
 
 
-def _get_report_data(db, user_id, client_id, start_date, end_date, comment):
-    """Общие данные для отчёта (из pdf_service)."""
-    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None):
+    """Общие данные для отчёта (из pdf_service). folder_id — скоуп «папка»."""
+    if folder_id and not client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
     if not effective_client_ids:
         raise ValueError("Нет доступа к данным")
     try:
@@ -99,10 +102,11 @@ def generate_report_png(
     start_date: str,
     end_date: str,
     comment: Optional[str] = None,
+    folder_id=None,
 ) -> bytes:
-    """Генерирует PNG отчёта (первая страница PDF)."""
+    """Генерирует PNG отчёта (первая страница PDF). folder_id — скоуп «папка»."""
     pdf_bytes = generate_report_pdf(
-        db, user_id, client_id, start_date, end_date, comment
+        db, user_id, client_id, start_date, end_date, comment, folder_id=folder_id
     )
     try:
         import fitz
@@ -125,10 +129,11 @@ def generate_report_docx(
     start_date: str,
     end_date: str,
     comment: Optional[str] = None,
+    folder_id=None,
 ) -> bytes:
-    """Генерирует DOCX отчёт."""
+    """Генерирует DOCX отчёт. folder_id — скоуп «папка»."""
     summary, top_campaigns, client_name, ai_comment, sd, ed = _get_report_data(
-        db, user_id, client_id, start_date, end_date, comment
+        db, user_id, client_id, start_date, end_date, comment, folder_id=folder_id
     )
     summary_platform = _summary_platform(top_campaigns)
     summary_expenses = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), summary_platform)

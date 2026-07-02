@@ -24,11 +24,16 @@ def generate_report_pdf(
     end_date: str,
     comment: Optional[str] = None,
     include_dynamics: bool = False,
+    folder_id: Optional[str] = None,
 ) -> bytes:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
+    folder_id — скоуп «папка»: сводный отчёт по всем вложенным проектам.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+    if folder_id and not client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
     if not effective_client_ids:
         raise ValueError("Нет доступа к данным")
 
@@ -56,6 +61,13 @@ def generate_report_pdf(
         client = db.query(models.Client).filter_by(id=client_id).first()
         if client:
             client_name = client.name
+    elif folder_id:
+        try:
+            folder = db.query(models.Folder).filter_by(id=uuid.UUID(str(folder_id))).first()
+            if folder:
+                client_name = f"Папка «{folder.name}» · сводный отчёт по {len(effective_client_ids)} филиалам"
+        except (ValueError, TypeError):
+            pass
 
     ai_comment = (comment or "").strip() if comment else ""
     logger.info("pdf_service: rendering PDF, ai_comment length=%d", len(ai_comment))

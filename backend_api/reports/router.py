@@ -69,6 +69,8 @@ class SendReportRequest(BaseModel):
     max_chat_id: Optional[str] = None
     max_user_id: Optional[str] = None
     client_id: Optional[str] = None
+    folder_id: Optional[str] = None  # скоуп «папка»: сводный отчёт по вложенным проектам
+    folder_per_branch: bool = False  # «комплект по каждому филиалу» + сводный
     start_date: str
     end_date: str
     comment: Optional[str] = None  # готовый текст — если передан, не генерируем заново
@@ -80,6 +82,7 @@ async def get_report_pdf(
     start_date: str = Query(...),
     end_date: str = Query(...),
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     ai: bool = Query(False, description="Генерировать отчёт с ИИ"),
     comment: Optional[str] = Query(None, description="Готовый комментарий (если есть — не генерируем)"),
     current_user: models.User = Depends(security.get_current_user),
@@ -108,6 +111,7 @@ async def get_report_pdf(
                 start_date=start_date,
                 end_date=end_date,
                 report_type="full",
+                folder_id=folder_id,
             )
             if not use_comment or not str(use_comment).strip():
                 logger.warning("PDF report: AI returned empty comment, using fallback")
@@ -127,6 +131,7 @@ async def get_report_pdf(
             end_date=end_date,
             comment=use_comment,
             include_dynamics=_wants_dynamics(current_user),
+            folder_id=folder_id,
         )
         filename = f"report_{start_date}_{end_date}.pdf"
         _log_report_export(db, current_user, "pdf", u_client_id, start_date, end_date)
@@ -148,6 +153,7 @@ async def get_report_png(
     start_date: str = Query(...),
     end_date: str = Query(...),
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     ai: bool = Query(False),
     comment: Optional[str] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
@@ -167,6 +173,7 @@ async def get_report_png(
             use_comment = await generate_report(
                 db=db, user_id=current_user.id, client_id=u_client_id,
                 start_date=start_date, end_date=end_date, report_type="full",
+                folder_id=folder_id,
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
@@ -177,6 +184,7 @@ async def get_report_png(
         png_bytes = generate_report_png(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=start_date, end_date=end_date, comment=use_comment,
+            folder_id=folder_id,
         )
         filename = f"report_{start_date}_{end_date}.png"
         _log_report_export(db, current_user, "png", u_client_id, start_date, end_date)
@@ -198,6 +206,7 @@ async def get_report_docx(
     start_date: str = Query(...),
     end_date: str = Query(...),
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     ai: bool = Query(False),
     comment: Optional[str] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
@@ -217,6 +226,7 @@ async def get_report_docx(
             use_comment = await generate_report(
                 db=db, user_id=current_user.id, client_id=u_client_id,
                 start_date=start_date, end_date=end_date, report_type="full",
+                folder_id=folder_id,
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
@@ -227,6 +237,7 @@ async def get_report_docx(
         docx_bytes = generate_report_docx(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=start_date, end_date=end_date, comment=use_comment,
+            folder_id=folder_id,
         )
         filename = f"report_{start_date}_{end_date}.docx"
         _log_report_export(db, current_user, "docx", u_client_id, start_date, end_date)
@@ -248,6 +259,7 @@ class DownloadReportRequest(BaseModel):
     start_date: str
     end_date: str
     client_id: Optional[str] = None
+    folder_id: Optional[str] = None  # скоуп «папка»
     ai: bool = False
     comment: Optional[str] = None
 
@@ -261,6 +273,7 @@ async def _resolve_report_comment(
     client_id: Optional[uuid.UUID],
     start_date: str,
     end_date: str,
+    folder_id: Optional[str] = None,
 ) -> Optional[str]:
     """Возвращает комментарий: готовый или сгенерированный AI."""
     use_comment = (comment or "").strip() if comment else None
@@ -273,6 +286,7 @@ async def _resolve_report_comment(
             use_comment = await generate_report(
                 db=db, user_id=user_id, client_id=client_id,
                 start_date=start_date, end_date=end_date, report_type="full",
+                folder_id=folder_id,
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
@@ -301,11 +315,13 @@ async def post_report_docx(
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+        folder_id=req.folder_id,
     )
     try:
         docx_bytes = generate_report_docx(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+            folder_id=req.folder_id,
         )
         filename = f"report_{req.start_date}_{req.end_date}.docx"
         _log_report_export(db, current_user, "docx", u_client_id, req.start_date, req.end_date)
@@ -338,12 +354,14 @@ async def post_report_pdf(
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+        folder_id=req.folder_id,
     )
     try:
         pdf_bytes = generate_report_pdf(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
             include_dynamics=_wants_dynamics(current_user),
+            folder_id=req.folder_id,
         )
         filename = f"report_{req.start_date}_{req.end_date}.pdf"
         _log_report_export(db, current_user, "pdf", u_client_id, req.start_date, req.end_date)
@@ -374,11 +392,13 @@ async def post_report_png(
     use_comment = await _resolve_report_comment(
         ai=req.ai, comment=req.comment, db=db, user_id=current_user.id,
         client_id=u_client_id, start_date=req.start_date, end_date=req.end_date,
+        folder_id=req.folder_id,
     )
     try:
         png_bytes = generate_report_png(
             db=db, user_id=current_user.id, client_id=u_client_id,
             start_date=req.start_date, end_date=req.end_date, comment=use_comment,
+            folder_id=req.folder_id,
         )
         filename = f"report_{req.start_date}_{req.end_date}.png"
         _log_report_export(db, current_user, "png", u_client_id, req.start_date, req.end_date)
@@ -521,6 +541,7 @@ async def send_report(
                 start_date=req.start_date,
                 end_date=req.end_date,
                 report_type="full",
+                folder_id=req.folder_id,
             )
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
             db.commit()
@@ -544,9 +565,38 @@ async def send_report(
                 end_date=req.end_date,
                 comment=ai_text,
                 include_dynamics=_wants_dynamics(current_user),
+                folder_id=req.folder_id,
             )
         except Exception as e:
             logger.exception("PDF generation failed: %s", e)
+
+    # «Комплект по каждому филиалу»: к сводному отчёту папки добавляем PDF по каждому
+    # вложенному проекту (email — вложениями в одно письмо, telegram — документами).
+    branch_attachments = []
+    if req.folder_id and req.folder_per_branch:
+        try:
+            from backend_api.stats_service import StatsService as _SS
+            branch_ids = _SS.resolve_folder_client_ids(db, current_user.id, req.folder_id)
+            for _bid in branch_ids:
+                _client = db.query(models.Client).filter(models.Client.id == _bid).first()
+                if not _client:
+                    continue
+                try:
+                    _pdf = generate_report_pdf(
+                        db=db,
+                        user_id=current_user.id,
+                        client_id=_bid,
+                        start_date=req.start_date,
+                        end_date=req.end_date,
+                        comment=None,
+                        include_dynamics=False,
+                    )
+                    _safe = "".join(ch if ch.isalnum() else "_" for ch in (_client.name or "branch"))[:40]
+                    branch_attachments.append((f"report_{_safe}_{req.start_date}_{req.end_date}.pdf", _pdf))
+                except Exception as _branch_err:
+                    logger.warning("Branch report failed for %s: %s", _bid, _branch_err)
+        except Exception as _kit_err:
+            logger.warning("Folder per-branch kit failed: %s", _kit_err)
 
     results = {"email": False, "telegram": False, "max": False, "email_error": None}
 
@@ -561,6 +611,7 @@ async def send_report(
                 report_data = _get_report_data(
                     db, current_user.id, u_client_id,
                     req.start_date, req.end_date, None,
+                    folder_id=req.folder_id,
                 )
                 summary, top_campaigns, client_name, _, _, _ = report_data
                 email_data = {
@@ -581,6 +632,7 @@ async def send_report(
                     plain_body=plain_body,
                     pdf_bytes=pdf_bytes,
                     filename=f"report_{req.start_date}_{req.end_date}.pdf",
+                    extra_attachments=branch_attachments or None,
                 )
             else:
                 from lead_validator.services.email_sender import email_sender
@@ -611,6 +663,16 @@ async def send_report(
                     filename=f"report_{req.start_date}_{req.end_date}.pdf",
                     caption=caption,
                 )
+                for _att_name, _att_bytes in branch_attachments:
+                    try:
+                        await telegram_notifier.send_document(
+                            chat_id=req.telegram_chat_id,
+                            document=_att_bytes,
+                            filename=_att_name,
+                            caption=None,
+                        )
+                    except Exception as _tg_err:
+                        logger.warning("Telegram branch report failed: %s", _tg_err)
             elif ai_text:
                 header = f"📊 AI-отчёт за период {req.start_date} — {req.end_date}\n\n"
                 results["telegram"] = await telegram_notifier.send_message(

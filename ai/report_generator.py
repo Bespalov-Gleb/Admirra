@@ -41,6 +41,7 @@ async def generate_report(
     start_date: str,
     end_date: str,
     report_type: str = "full",
+    folder_id=None,
 ) -> str:
     """
     Генерирует текстовый отчёт на основе данных дашборда.
@@ -50,7 +51,10 @@ async def generate_report(
         logger.error("generate_report: OPENAI_API_KEY не настроен")
         raise ValueError("OPENAI_API_KEY не настроен")
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+    if folder_id and not client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
     if not effective_client_ids:
         return "Нет доступа к данным проектов."
 
@@ -355,7 +359,10 @@ async def chat(
     if not settings.OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY не настроен")
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+    if folder_id and not client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
     if not effective_client_ids:
         return "Нет доступа к данным проектов."
 

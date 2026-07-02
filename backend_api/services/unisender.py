@@ -28,6 +28,7 @@ def _send_sync(
     plain_body: str = "",
     pdf_bytes: Optional[bytes] = None,
     filename: str = "report.pdf",
+    extra_attachments: Optional[list] = None,  # [(filename, bytes)] — «комплект по филиалам»
 ) -> tuple[bool, Optional[str]]:
     cfg = get_config()
     api_key = cfg.unisender.api_key
@@ -45,14 +46,20 @@ def _send_sync(
         "from_name": cfg.unisender.from_name,
     }
 
+    attachments = []
     if pdf_bytes:
-        encoded = base64.b64encode(pdf_bytes).decode("ascii")
+        attachments.append((filename, pdf_bytes))
+    for extra_name, extra_bytes in (extra_attachments or []):
+        if extra_bytes:
+            attachments.append((extra_name, extra_bytes))
+    if attachments:
         message["attachments"] = [
             {
                 "type": "application/pdf",
-                "name": filename,
-                "content": encoded,
+                "name": att_name,
+                "content": base64.b64encode(att_bytes).decode("ascii"),
             }
+            for att_name, att_bytes in attachments
         ]
 
     url = f"{cfg.unisender.api_url.rstrip('/')}/email/send.json"
@@ -96,10 +103,11 @@ async def send_report_email(
     plain_body: str = "",
     pdf_bytes: Optional[bytes] = None,
     filename: str = "report.pdf",
+    extra_attachments: Optional[list] = None,
 ) -> tuple[bool, Optional[str]]:
     try:
         return await asyncio.to_thread(
-            _send_sync, recipients, subject, html_body, plain_body, pdf_bytes, filename,
+            _send_sync, recipients, subject, html_body, plain_body, pdf_bytes, filename, extra_attachments,
         )
     except Exception as e:
         logger.exception("UniSender send error: %s", e)

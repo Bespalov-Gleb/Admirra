@@ -159,6 +159,12 @@
         >Динамика</button>
       </div>
       <div class="filters-row">
+        <!-- Режим «Аналитика папки»: сводка по всем филиалам -->
+        <div v-if="folderMode" class="folder-mode-chip" :title="`Сводная аналитика по папке «${folderMode.name}»`">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
+          <span>Папка: {{ folderMode.name }}</span>
+          <button type="button" aria-label="Выйти из режима папки" @click="exitFolderMode">✕</button>
+        </div>
         <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'channels' }" v-click-outside="() => closeMenu('channels')">
           <button class="filter-btn cs-head" type="button" @click="toggleMenu('channels')">
             <span class="cs-current">{{ selectedFilterChannelLabel }}</span>
@@ -861,6 +867,53 @@
       </article>
     </section>
 
+    <!-- ══ Аналитика папки: разбивка по филиалам (drill-down уровень «филиал») ══ -->
+    <section v-if="folderMode" class="panel folder-branches-panel">
+      <div class="panel-title-row">
+        <h2>Филиалы папки «{{ folderMode.name }}»</h2>
+        <span class="folder-branches-count">{{ folderBreakdown.length }}</span>
+      </div>
+      <div v-if="folderBreakdownLoading" class="folder-branches-empty">Загружаем филиалы…</div>
+      <div v-else-if="!folderBreakdown.length" class="folder-branches-empty">В папке нет доступных проектов</div>
+      <div v-else class="folder-branches-table-wrap">
+        <table class="folder-branches-table">
+          <thead>
+            <tr>
+              <th>Филиал</th>
+              <th>Показы</th>
+              <th>Клики</th>
+              <th>CPC</th>
+              <th>Расход</th>
+              <th>Лиды</th>
+              <th>CPL</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in folderBreakdown" :key="item.client_id" :class="{ 'folder-branch--paused': item.status === 'paused' }">
+              <td class="folder-branch-name">
+                <span class="folder-branch-avatar">
+                  <img v-if="item.avatar_url" :src="item.avatar_url" :alt="item.name" />
+                  <template v-else>{{ (item.name || '?').slice(0, 2).toUpperCase() }}</template>
+                </span>
+                {{ item.name }}
+                <em v-if="item.status === 'paused'">на паузе</em>
+              </td>
+              <td>{{ formatNumber(item.summary?.impressions || 0) }}</td>
+              <td>{{ formatNumber(item.summary?.clicks || 0) }}</td>
+              <td>{{ formatMoney(item.summary?.cpc || 0) }}</td>
+              <td>{{ formatMoney(item.summary?.expenses || 0) }}</td>
+              <td>{{ formatNumber(item.summary?.leads || 0) }}</td>
+              <td>{{ formatMoney(item.summary?.cpa || 0) }}</td>
+              <td>
+                <button type="button" class="folder-branch-open" @click="openFolderBranch(item)">Открыть →</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
@@ -1415,7 +1468,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { reachGoal } from '@/utils/metrika'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -1460,6 +1513,7 @@ import html2canvas from 'html2canvas'
 
 const { isDarkMode } = useTheme()
 const router = useRouter()
+const route = useRoute()
 const toaster = useToaster()
 const { currentProjectId, setCurrentProject } = useProjects()
 const { openTelegramBotForLinking } = useTelegramReportLink()
@@ -3989,7 +4043,8 @@ const getStatsParams = () => ({
   start_date: filters.start_date,
   end_date: filters.end_date,
   platform: filters.channel,
-  client_id: filters.client_id || undefined,
+  client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
+  folder_id: filters.folder_id || undefined,
   campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids : undefined,
   goal_action_ids: filters.channel === 'vk' && filters.vk_goal_action_ids?.length ? filters.vk_goal_action_ids : undefined
 })
@@ -4001,7 +4056,8 @@ const fetchReportGoals = async () => {
   if (isAllChannelsMode.value) reportGoalsByChannel.value = {}
   try {
     const baseParams = {
-      client_id: filters.client_id || undefined,
+      client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
+      folder_id: filters.folder_id || undefined,
       date_from: filters.start_date,
       date_to: filters.end_date,
       campaign_ids: filters.campaign_ids?.length ? filters.campaign_ids.join(',') : undefined,
@@ -4057,7 +4113,9 @@ const fetchTopAds = async () => {
 
 const fetchIntegrations = async () => {
   try {
-    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const params = filters.folder_id
+      ? { folder_id: filters.folder_id }
+      : (filters.client_id ? { client_id: filters.client_id } : {})
     const { data } = await api.get('dashboard/integrations', { params })
     integrations.value = data || []
   } catch {
@@ -4165,7 +4223,9 @@ const handleSyncIntegrations = async () => {
   if (dashboardSyncInProgress.value) return
   manualSyncActive.value = true
   try {
-    const params = filters.client_id ? { client_id: filters.client_id } : {}
+    const params = filters.folder_id
+      ? { folder_id: filters.folder_id }
+      : (filters.client_id ? { client_id: filters.client_id } : {})
     const { data: list } = await api.get('integrations/', { params })
     if (!list?.length) {
       toaster.info('Нет подключенных интеграций для синхронизации')
@@ -4293,7 +4353,8 @@ const downloadBlob = (blob, filename) => {
 const getReportPayload = () => ({
   start_date: filters.start_date,
   end_date: filters.end_date,
-  client_id: filters.client_id || undefined,
+  client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
+  folder_id: filters.folder_id || undefined,
   ai: true,
   ...(reportComment.value?.trim() ? { comment: reportComment.value.trim() } : {})
 })
@@ -4420,7 +4481,8 @@ const executeReportSend = async () => {
       max_chat_id: userReportSettings.value.max_chat_id || undefined,
       max_user_id: userReportSettings.value.max_user_id || undefined,
       email_recipients: channels.includes('email') ? userReportSettings.value.email_recipients : undefined,
-      client_id: filters.client_id || null,
+      client_id: filters.folder_id ? null : (filters.client_id || null),
+      folder_id: filters.folder_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
       ...(text ? { comment: text } : {}),
@@ -4535,7 +4597,8 @@ const handleSendEmail = async () => {
       report_type: 'ai',
       channels: ['email'],
       email_recipients: emails,
-      client_id: filters.client_id || null,
+      client_id: filters.folder_id ? null : (filters.client_id || null),
+      folder_id: filters.folder_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
       ...(text ? { comment: text } : {})
@@ -4594,18 +4657,72 @@ async function confirmReportChannelLinked() {
   }
 }
 
+// ── Режим «Аналитика папки»: активируется route query (?folder_id=...) со страницы
+// «Проекты». Сводка/график/кампании/цели считаются по всем проектам папки.
+const folderMode = ref(null) // { id, name }
+const folderBreakdown = ref([])
+const folderBreakdownLoading = ref(false)
+
+const fetchFolderBreakdown = async () => {
+  if (!filters.folder_id) { folderBreakdown.value = []; return }
+  folderBreakdownLoading.value = true
+  try {
+    const { data } = await api.get(`folders/${filters.folder_id}/breakdown`, {
+      params: { start_date: filters.start_date, end_date: filters.end_date },
+    })
+    folderBreakdown.value = data?.items || []
+    if (data?.folder?.name && folderMode.value) {
+      folderMode.value = { ...folderMode.value, name: data.folder.name }
+    }
+  } catch {
+    folderBreakdown.value = []
+  } finally {
+    folderBreakdownLoading.value = false
+  }
+}
+
+watch(() => route.query.folder_id, (fid) => {
+  if (fid) {
+    folderMode.value = { id: String(fid), name: String(route.query.folder_name || 'Папка') }
+    filters.client_id = null
+    filters.campaign_ids = []
+    filters.folder_id = String(fid)
+    fetchFolderBreakdown()
+  } else {
+    folderMode.value = null
+    filters.folder_id = null
+    folderBreakdown.value = []
+  }
+}, { immediate: true })
+
+const exitFolderMode = () => {
+  router.replace({ path: route.path, query: {} })
+}
+
+const openFolderBranch = (item) => {
+  // Клик по филиалу — обычный дашборд проекта
+  setCurrentProject(item.client_id)
+  router.replace({ path: route.path, query: {} })
+}
+
+watch(() => [filters.start_date, filters.end_date], () => {
+  if (filters.folder_id) fetchFolderBreakdown()
+}, { deep: true })
+
 watch(currentProjectId, (newId) => {
+  // В режиме папки выбранный ранее проект не должен перекрывать сводку папки
+  if (filters.folder_id) return
   if (filters.client_id !== newId) filters.client_id = newId
 }, { immediate: true })
 
 watch(() => filters.client_id, (newId) => {
-  if (currentProjectId.value !== newId) setCurrentProject(newId)
+  if (currentProjectId.value !== newId && !filters.folder_id) setCurrentProject(newId)
   selectedDirectionId.value = null
   fetchIntegrations()
   refreshDirections()
 }, { immediate: true })
 
-watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
+watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.folder_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
   fetchReportGoals()
 }, { deep: true })
 
@@ -12672,4 +12789,100 @@ onMounted(() => {
     flex-wrap: wrap;
   }
 }
+
+/* ══ Папки: бейдж режима и таблица филиалов ══ */
+.folder-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.6rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.folder-mode-chip button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 0 0 0 0.2rem;
+}
+.folder-mode-chip button:hover { opacity: 1; }
+
+.folder-branches-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.4rem;
+  border-radius: 99rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.folder-branches-empty { padding: 1.4rem 0; color: rgba(105,105,105,0.6); font-size: 0.9rem; }
+.folder-branches-table-wrap { overflow-x: auto; }
+
+.folder-branches-table { width: 100%; border-collapse: collapse; }
+.folder-branches-table th {
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(105, 105, 105, 0.6);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+}
+.folder-branches-table td {
+  padding: 0.7rem;
+  font-size: 0.88rem;
+  color: #171717;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  white-space: nowrap;
+}
+
+.folder-branch-name { display: flex; align-items: center; gap: 0.55rem; font-weight: 700; }
+.folder-branch-name em { color: #b45309; font-style: normal; font-size: 0.75rem; font-weight: 600; }
+
+.folder-branch-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem; height: 1.8rem;
+  border-radius: 0.5rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.folder-branch-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.folder-branch--paused td { opacity: 0.6; }
+
+.folder-branch-open {
+  border: none;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.folder-branch-open:hover { background: rgba(37, 99, 235, 0.14); }
+
+.figma-dashboard.is-dark .folder-branches-table td { color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.06); }
+.figma-dashboard.is-dark .folder-branch--paused td { opacity: 0.5; }
+
 </style>
