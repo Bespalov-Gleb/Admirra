@@ -467,6 +467,11 @@ class Subscription(Base):
     current_period_start = Column(DateTime(timezone=True), nullable=True)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    # Маска привязанной карты из вебхука CloudPayments (CardLastFour/CardType/CardExpDate).
+    # Полные данные карты не покидают CloudPayments (PCI DSS) — храним только отображаемое.
+    card_last4 = Column(String, nullable=True)
+    card_type = Column(String, nullable=True)
+    card_exp = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

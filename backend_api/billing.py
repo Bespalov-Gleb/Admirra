@@ -254,7 +254,15 @@ def get_my_subscription(
         ai_reset_date=ai_reset_date,
         period_days=plan.period_days,
         autorenew=not bool(sub.cancel_at_period_end),
-        payment_method=None,
+        payment_method=(
+            {
+                "last4": sub.card_last4,
+                "brand": sub.card_type or "",
+                "exp": sub.card_exp or "",
+            }
+            if getattr(sub, "card_last4", None)
+            else None
+        ),
         whitelabel_available=_plan_has_whitelabel(plan),
     )
 
@@ -296,6 +304,35 @@ async def subscribe(
     )
 
 
+@router.post("/autorenew/cancel")
+async def cancel_autorenew(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отключает автопродление: отменяет рекуррент в CloudPayments (если он был создан),
+    доступ сохраняется до конца оплаченного периода."""
+    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
+    if cp_sub_id:
+        try:
+            await CloudPaymentsService.cancel_subscription(cp_sub_id)
+        except Exception as err:
+            logger.warning("CloudPayments cancel_subscription failed for %s: %s", cp_sub_id, err)
+    sub.cancel_at_period_end = True
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="billing",
+        action="autorenew_canceled",
+        description="Автопродление отключено пользователем",
+        target_type="subscription",
+        target_id=str(sub.id),
+        meta={"plan_code": sub.plan_code},
+    )
+    db.commit()
+    return {"ok": True, "autorenew": False}
+
+
 @router.post("/cloudpayments/webhook", response_model=schemas.CloudPaymentsWebhookResponse)
 async def cloudpayments_webhook(
     request: Request,
@@ -335,6 +372,11 @@ async def cloudpayments_webhook(
     sub.plan_code = plan.code
     sub.cloudpayments_subscription_id = str(data.get("SubscriptionId") or sub.cloudpayments_subscription_id or "")
     sub.cloudpayments_transaction_id = str(data.get("TransactionId") or sub.cloudpayments_transaction_id or "")
+    # Маска карты из уведомления — чтобы показывать «Карта привязана **** 1234» в кабинете.
+    if data.get("CardLastFour"):
+        sub.card_last4 = str(data.get("CardLastFour"))[:4]
+        sub.card_type = str(data.get("CardType") or "")[:32] or sub.card_type
+        sub.card_exp = str(data.get("CardExpDate") or "")[:8] or sub.card_exp
     now = SubscriptionService._now()
 
     if success and ("pay" in event_name or "recurrent" in event_name or not event_name):

@@ -79,8 +79,10 @@
             <div v-if="hasPaymentMethod" class="payment-renewal">Автопродление вкл.</div>
 
             <div class="subscription-footer-actions">
-              <button type="button" disabled>{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
-              <button v-if="hasPaymentMethod" type="button" disabled>Отменить автопрод.</button>
+              <button type="button" @click="onBindCard">{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
+              <button v-if="hasPaymentMethod && subscription.autorenew" type="button" :disabled="cancellingAutorenew" @click="onCancelAutorenew">
+                {{ cancellingAutorenew ? 'Подождите…' : 'Отменить автопрод.' }}
+              </button>
             </div>
           </div>
 
@@ -224,6 +226,7 @@ import {
   yearlyPriceFromMonthly,
   formatRub,
   trialPhrase,
+  perProjectLine,
 } from '@/utils/pricingPlans'
 
 const router = useRouter()
@@ -285,11 +288,13 @@ const daysLeft = computed(() => {
 })
 
 const renewalText = computed(() => {
-  const date = formatDate(subscription.value?.subscription_expires_at) || '11.06.2026'
-  const days = daysLeft.value ?? 13
+  const date = formatDate(subscription.value?.subscription_expires_at)
+  const days = daysLeft.value
   if (subscriptionStatusKey.value === 'past_due') return 'Не удалось списать оплату. Обновите способ оплаты.'
-  if (subscriptionStatusKey.value === 'canceled') return `Доступ сохранится до ${date}`
-  return `Продлится ${date} - <span style="color:#171717;font-weight:500">осталось ${days} дней</span>`
+  if (subscriptionStatusKey.value === 'canceled') return date ? `Доступ сохранится до ${date}` : 'Подписка отменена'
+  if (!date) return 'Срок действия уточняется'
+  const daysPart = days != null ? ` - <span style="color:#171717;font-weight:500">осталось ${days} дней</span>` : ''
+  return `Продлится ${date}${daysPart}`
 })
 
 const planMetaLine = computed(() => {
@@ -344,7 +349,7 @@ const subscriptionUsageTiles = computed(() => {
       label: 'AI - запросы',
       used: s.ai_requests_used ?? 0,
       limit: s.max_ai_requests_per_period ?? currentPlan.value?.max_ai_requests_per_period ?? 30,
-      caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Сброс 01.07',
+      caption: s.ai_reset_date ? `Сброс ${s.ai_reset_date}` : 'Обновляется каждый период',
     },
     {
       key: 'users',
@@ -361,58 +366,47 @@ const subscriptionUsageTiles = computed(() => {
   }))
 })
 
-const availableChannels = computed(() => [
-  { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png', color: '#c7a44d' },
-  { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png', color: '#2563eb' },
-])
+const availableChannels = computed(() => {
+  const base = [
+    { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png', color: '#c7a44d' },
+    { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png', color: '#2563eb' },
+  ]
+  // На «Старте» доступны только Яндекс и VK; с «Базового» — все каналы (+ Авито).
+  if (currentPlanCode.value !== 'start') {
+    base.push({ label: 'Avito Ads', className: 'channel-chip--avito', icon: '/admirra/img/icons/avito.png', color: '#00a871' })
+  }
+  return base
+})
 
-const landingTariffDisplay = {
-  month: {
-    start: {
-      price: '1\u00A0590\u00A0₽',
-      perProject: '1590 руб/проект',
-      features: ['1 Проект', 'Каналы: Яндекс.Директ, ВК', '1 пользователь', '30 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-    basic: {
-      price: '3\u00A0990\u00A0₽',
-      perProject: '498 руб/проект',
-      features: ['До 8 Проектов', 'Все доступные подключения', 'До 5 пользователей', '120 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-    standard: {
-      price: '9\u00A0990\u00A0₽',
-      perProject: '333 руб/проект',
-      features: ['До 30 Проектов', 'Все доступные подключения', 'До 10 пользователей', '450 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-  },
-  year: {
-    start: {
-      price: '11\u00A0590\u00A0₽',
-      perProject: '1590 руб/проект',
-      features: ['1 Проект', 'Каналы: Яндекс.Директ, ВК', '1 пользователь', '30 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-    basic: {
-      price: '31\u00A0990\u00A0₽',
-      perProject: '498 руб/проект',
-      features: ['До 8 Проектов', 'Все доступные подключения', 'До 5 пользователей', '120 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-    standard: {
-      price: '69\u00A0990\u00A0₽',
-      perProject: '333 руб/проект',
-      features: ['До 30 Проектов', 'Все доступные подключения', 'До 10 пользователей', '450 запросов AI', 'Экспорт отчетов,\nотправка по расписанию'],
-    },
-  },
+// Цену и лимиты берём из /billing/plans (реальные значения, по которым бэк и считает
+// списание, и применяет лимиты). Годовая цена — та же формула, что на бэке
+// (×12 −30%), чтобы на карточке была ровно та сумма, которая спишется.
+const planFeatures = (code, plan) => {
+  const projects = Number(plan?.max_projects || 0)
+  const users = Number(plan?.max_users ?? plan?.max_staff ?? 1)
+  const ai = Number(plan?.max_ai_requests_per_period || 0)
+  return [
+    projects === 1 ? '1 Проект' : `До ${projects} Проектов`,
+    code === 'start' ? 'Каналы: Яндекс.Директ, ВК' : 'Все доступные подключения',
+    users === 1 ? '1 пользователь' : `До ${users} пользователей`,
+    `${ai} запросов AI`,
+    'Экспорт отчетов,\nотправка по расписанию',
+  ]
 }
 
 const planCards = computed(() => ['start', 'basic', 'standard'].map((code) => {
   const plan = resolvedPlans.value[code]
-  const display = landingTariffDisplay[billingPeriod.value]?.[code]
+  const monthly = Number(plan?.price_rub || 0)
+  const price = billingPeriod.value === 'year'
+    ? formatRub(yearlyPriceFromMonthly(monthly))
+    : formatRub(monthly)
   return {
     code,
     plan,
     title: code === 'start' ? 'Старт' : code === 'basic' ? 'Базовый' : 'Стандартный',
-    price: display?.price || formatRub(plan?.price_rub),
-    perProject: display?.perProject || '',
-    features: display?.features || [],
+    price,
+    perProject: perProjectLine(monthly, plan?.max_projects),
+    features: planFeatures(code, plan),
   }
 }))
 
@@ -478,6 +472,9 @@ async function onSubscribe(planCode, bp = 'month') {
       plan_code: data.plan_code,
       billing_period: data.billing_period || bp,
       recurrent: data.recurrent || null,
+      // receipt обязателен для фискализации (онлайн-чек CloudKassir): без него
+      // CloudPayments не формирует чек покупателю даже при подключённой кассе.
+      receipt: data.receipt || null,
     })
     if (result.status === 'cancelled') return
     // Успешная оплата — денежная цель с суммой и срезами
@@ -501,6 +498,30 @@ async function onSubscribe(planCode, bp = 'month') {
     if (msg) toaster.error(msg || 'Не удалось начать оплату')
   } finally {
     paying.value = null
+  }
+}
+
+const cancellingAutorenew = ref(false)
+
+// Привязка карты в CloudPayments происходит при оплате (виджет сохраняет карту для
+// рекуррента). Отдельной операции «привязать без оплаты» у CP-виджета нет, поэтому
+// ведём к выбору тарифа: новая оплата = привязка/замена карты.
+function onBindCard() {
+  toaster.info('Карта привязывается автоматически при оплате тарифа. Выберите тариф ниже — при оплате новой картой она заменит текущую.')
+  scrollToPlans()
+}
+
+async function onCancelAutorenew() {
+  cancellingAutorenew.value = true
+  try {
+    await api.post('billing/autorenew/cancel')
+    subscription.value = { ...subscription.value, autorenew: false }
+    toaster.success('Автопродление отключено. Доступ сохранится до конца оплаченного периода.')
+  } catch (e) {
+    const d = e?.response?.data?.detail
+    toaster.error(typeof d === 'string' ? d : 'Не удалось отключить автопродление')
+  } finally {
+    cancellingAutorenew.value = false
   }
 }
 
