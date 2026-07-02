@@ -23,29 +23,30 @@ def _daily_series(db: Session, client_ids, d_start, d_end, platform: str = "all"
     out = {}
 
     def add(rows, key):
-        for stat_date, cost, clicks, leads in rows:
-            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0})
+        for stat_date, cost, clicks, leads, impressions in rows:
+            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0, "impressions": 0})
             item[f"cost_{key}"] += float(cost or 0)
             item["clicks"] += int(clicks or 0)
             item["leads"] += int(leads or 0)
+            item["impressions"] += int(impressions or 0)
 
     if platform in ("all", "yandex"):
         add(
-            db.query(models.YandexStats.date, sa_func.sum(models.YandexStats.cost), sa_func.sum(models.YandexStats.clicks), sa_func.sum(models.YandexStats.conversions))
+            db.query(models.YandexStats.date, sa_func.sum(models.YandexStats.cost), sa_func.sum(models.YandexStats.clicks), sa_func.sum(models.YandexStats.conversions), sa_func.sum(models.YandexStats.impressions))
             .filter(models.YandexStats.client_id.in_(client_ids), models.YandexStats.date >= d_start, models.YandexStats.date <= d_end)
             .group_by(models.YandexStats.date).all(),
             "yandex",
         )
     if platform in ("all", "vk"):
         add(
-            db.query(models.VKStats.date, sa_func.sum(models.VKStats.cost), sa_func.sum(models.VKStats.clicks), sa_func.sum(models.VKStats.conversions))
+            db.query(models.VKStats.date, sa_func.sum(models.VKStats.cost), sa_func.sum(models.VKStats.clicks), sa_func.sum(models.VKStats.conversions), sa_func.sum(models.VKStats.impressions))
             .filter(models.VKStats.client_id.in_(client_ids), models.VKStats.date >= d_start, models.VKStats.date <= d_end)
             .group_by(models.VKStats.date).all(),
             "vk",
         )
     if platform in ("all", "avito"):
         add(
-            db.query(models.AvitoStats.date, sa_func.sum(models.AvitoStats.cost), sa_func.sum(models.AvitoStats.clicks), sa_func.sum(models.AvitoStats.conversions))
+            db.query(models.AvitoStats.date, sa_func.sum(models.AvitoStats.cost), sa_func.sum(models.AvitoStats.clicks), sa_func.sum(models.AvitoStats.conversions), sa_func.sum(models.AvitoStats.impressions))
             .filter(models.AvitoStats.client_id.in_(client_ids), models.AvitoStats.date >= d_start, models.AvitoStats.date <= d_end)
             .group_by(models.AvitoStats.date).all(),
             "avito",
@@ -64,6 +65,8 @@ def generate_report_pdf(
     folder_id: Optional[str] = None,
     platform: str = "all",
     layout: str = "desktop",
+    sections: list | None = None,
+    chart_metrics: list | None = None,
 ) -> bytes:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
@@ -121,16 +124,19 @@ def generate_report_pdf(
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "platform": platform or "all",
         "layout": layout or "desktop",
+        "sections": sections or ["kpi", "chart", "channels", "campaigns"],
+        "chart_metrics": (chart_metrics or ["cost", "clicks"])[:2],
     }
 
     # Дневная серия для главного графика (как на дашборде) — прямой запрос к витрине
-    try:
-        data["daily"] = _daily_series(db, effective_client_ids, d_start, d_end, platform or "all")
-    except Exception as e:
-        logger.warning("Daily series skipped: %s", e)
+    if "chart" in data["sections"]:
+        try:
+            data["daily"] = _daily_series(db, effective_client_ids, d_start, d_end, platform or "all")
+        except Exception as e:
+            logger.warning("Daily series skipped: %s", e)
 
     # Разбивка по рекламным каналам (блок «Каналы» как канальные карточки дашборда)
-    if (platform or "all") == "all":
+    if (platform or "all") == "all" and "channels" in data["sections"]:
         try:
             channels_breakdown = []
             for ch in ("yandex", "vk", "avito"):

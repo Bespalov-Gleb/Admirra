@@ -119,6 +119,33 @@
             </div>
 
             <div class="rs-field">
+              <span>Состав отчёта</span>
+              <div class="rs-chips">
+                <button
+                  v-for="opt in SECTION_OPTIONS"
+                  :key="opt.value"
+                  type="button"
+                  class="rs-chip-toggle"
+                  :class="{ active: form.sections.includes(opt.value) }"
+                  @click="toggleSection(opt.value)"
+                >{{ opt.label }}</button>
+              </div>
+              <template v-if="form.sections.includes('chart')">
+                <span class="rs-subfield">Метрики графика <small>(до двух)</small></span>
+                <div class="rs-chips">
+                  <button
+                    v-for="opt in CHART_METRIC_OPTIONS"
+                    :key="opt.value"
+                    type="button"
+                    class="rs-chip-toggle rs-chip-toggle--metric"
+                    :class="{ active: form.chart_metrics.includes(opt.value) }"
+                    @click="toggleChartMetric(opt.value)"
+                  >{{ opt.label }}</button>
+                </div>
+              </template>
+            </div>
+
+            <div class="rs-field">
               <span>Данные и формат</span>
               <div class="rs-row rs-row--wrap">
                 <select v-model.number="form.period_days" class="rs-select">
@@ -186,7 +213,40 @@ function defaultForm() {
     period_days: 7,
     report_format: 'desktop',
     include_dynamics: false,
+    sections: ['kpi', 'chart', 'channels', 'campaigns'],
+    chart_metrics: ['cost', 'clicks'],
   }
+}
+
+const SECTION_OPTIONS = [
+  { value: 'kpi', label: 'KPI-карточки' },
+  { value: 'chart', label: 'График' },
+  { value: 'channels', label: 'Каналы' },
+  { value: 'campaigns', label: 'Кампании' },
+]
+const CHART_METRIC_OPTIONS = [
+  { value: 'cost', label: 'Расход' },
+  { value: 'clicks', label: 'Клики' },
+  { value: 'impressions', label: 'Показы' },
+  { value: 'leads', label: 'Лиды' },
+]
+
+function toggleSection(value) {
+  const list = form.value.sections
+  const idx = list.indexOf(value)
+  if (idx === -1) list.push(value)
+  else if (list.length > 1) list.splice(idx, 1)
+}
+
+function toggleChartMetric(value) {
+  const list = form.value.chart_metrics
+  const idx = list.indexOf(value)
+  if (idx !== -1) {
+    if (list.length > 1) list.splice(idx, 1)
+    return
+  }
+  if (list.length >= 2) list.shift()
+  list.push(value)
 }
 
 const DAY_LABELS = {
@@ -235,6 +295,8 @@ function openEdit(rule) {
     period_days: Number(rule.period_days || 7),
     report_format: rule.report_format || 'desktop',
     include_dynamics: Boolean(rule.include_dynamics),
+    sections: [...(rule.sections?.length ? rule.sections : ['kpi', 'chart', 'channels', 'campaigns'])],
+    chart_metrics: [...(rule.chart_metrics?.length ? rule.chart_metrics : ['cost', 'clicks'])],
   }
   editing.value = rule.id
 }
@@ -254,6 +316,8 @@ function buildPayload() {
     period_days: form.value.period_days,
     report_format: form.value.report_format,
     include_dynamics: form.value.include_dynamics,
+    sections: form.value.sections,
+    chart_metrics: form.value.chart_metrics,
   }
 }
 
@@ -405,11 +469,13 @@ onMounted(load)
 .rs-row { display: flex; gap: 0.6rem; align-items: center; }
 .rs-row--wrap { flex-wrap: wrap; }
 .rs-select {
-  padding: 0.5rem 0.7rem; border-radius: 0.6rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem; border-radius: 0.6rem;
   border: 1px solid rgba(15,23,42,0.14); font-size: 0.85rem;
-  background: #fff; color: #171717; max-width: 100%;
+  background: #fff; color: #171717;
 }
-.rs-select--platform { min-width: 10rem; }
+.rs-select--platform { flex: 0 0 11rem; }
 .rs-time {
   width: 5.2rem; text-align: center;
   padding: 0.5rem 0.4rem; border-radius: 0.6rem;
@@ -432,6 +498,21 @@ onMounted(load)
   border-radius: 0.45rem; font-size: 0.8rem; font-weight: 700; color: #64748b; cursor: pointer;
 }
 .rs-seg button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 4px rgba(15,23,42,0.12); }
+.rs-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.rs-chip-toggle {
+  border: 1px solid rgba(15,23,42,0.12);
+  background: #fff; color: #64748b;
+  font-size: 0.8rem; font-weight: 700;
+  padding: 0.4rem 0.8rem; border-radius: 99px; cursor: pointer;
+  transition: all 0.13s ease;
+}
+.rs-chip-toggle.active {
+  border-color: #2563eb; background: rgba(37,99,235,0.08); color: #2563eb;
+}
+.rs-chip-toggle--metric.active { border-color: #059669; background: rgba(5,150,105,0.08); color: #059669; }
+.rs-subfield { font-size: 0.74rem; font-weight: 700; color: #64748b; margin-top: 0.2rem; }
+.rs-subfield small { font-weight: 500; color: #94a3b8; }
+
 .rs-form-footer { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.4rem; }
 .rs-flex { flex: 1; }
 </style>

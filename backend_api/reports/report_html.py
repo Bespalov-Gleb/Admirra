@@ -165,10 +165,23 @@ def _kpi_card(key: str, label: str, value: str, subtitle: str, trends: dict | No
     </div>"""
 
 
-def _main_chart_svg(daily: list, layout: str) -> str:
-    """Главный график дашборда: область «Расход» + линия «Клики» по дням."""
+_CHART_METRIC_META = {
+    "cost": {"label": "Расход", "unit": " ₽", "color": "#2563eb"},
+    "clicks": {"label": "Клики", "unit": "", "color": "#38BDF8"},
+    "impressions": {"label": "Показы", "unit": "", "color": "#F0926D"},
+    "leads": {"label": "Лиды", "unit": "", "color": "#8ADA70"},
+}
+
+
+def _main_chart_svg(daily: list, layout: str, metrics: list | None = None) -> str:
+    """Главный график дашборда по выбранным метрикам (1-2): первая — область с осью Y,
+    вторая — пунктирная линия в относительной шкале."""
     if not daily or len(daily) < 2:
         return ""
+    metrics = [m for m in (metrics or ["cost", "clicks"]) if m in _CHART_METRIC_META][:2]
+    if not metrics:
+        metrics = ["cost"]
+
     width = 900 if layout == "desktop" else 420
     height = 260 if layout == "desktop" else 210
     pad_l, pad_r, pad_t, pad_b = 52, 16, 14, 34
@@ -181,37 +194,61 @@ def _main_chart_svg(daily: list, layout: str) -> str:
             + float(item.get("cost_vk") or 0) * VAT_RATE
             + float(item.get("cost_avito") or 0)
         )
-        points.append({"date": str(item.get("date") or ""), "cost": cost, "clicks": int(item.get("clicks") or 0)})
+        points.append({
+            "date": str(item.get("date") or ""),
+            "cost": cost,
+            "clicks": int(item.get("clicks") or 0),
+            "impressions": int(item.get("impressions") or 0),
+            "leads": int(item.get("leads") or 0),
+        })
 
-    max_cost = max([p["cost"] for p in points] + [1.0])
-    max_clicks = max([p["clicks"] for p in points] + [1])
     n = len(points)
     step = plot_w / (n - 1)
 
     def x(i):
         return pad_l + i * step
 
-    def y_cost(v):
-        return pad_t + plot_h - (v / max_cost) * plot_h
+    def series(metric):
+        vals = [float(p.get(metric) or 0) for p in points]
+        vmax = max(vals + [1.0])
+        return vals, vmax
 
-    def y_clicks(v):
-        return pad_t + plot_h - (v / max_clicks) * plot_h
+    svg_layers = ""
+    legend = ""
+    primary = metrics[0]
+    p_meta = _CHART_METRIC_META[primary]
+    p_vals, p_max = series(primary)
 
-    cost_line = " ".join(f"{x(i):.1f},{y_cost(p['cost']):.1f}" for i, p in enumerate(points))
-    area = f"{pad_l},{pad_t + plot_h} " + cost_line + f" {x(n - 1):.1f},{pad_t + plot_h}"
-    clicks_line = " ".join(f"{x(i):.1f},{y_clicks(p['clicks']):.1f}" for i, p in enumerate(points))
+    def y_for(v, vmax):
+        return pad_t + plot_h - (v / vmax) * plot_h
 
-    # Сетка + ось Y (по расходу)
+    line = " ".join(f"{x(i):.1f},{y_for(v, p_max):.1f}" for i, v in enumerate(p_vals))
+    area = f"{pad_l},{pad_t + plot_h} " + line + f" {x(n - 1):.1f},{pad_t + plot_h}"
+    svg_layers += (
+        f'<polygon points="{area}" fill="{p_meta["color"]}" fill-opacity="0.10"/>'
+        f'<polyline points="{line}" fill="none" stroke="{p_meta["color"]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    )
+    legend += f'<span class="lg"><i style="background:{p_meta["color"]};"></i> {p_meta["label"]}{p_meta["unit"] and " (₽, левая шкала)" or " (левая шкала)"}</span>'
+
+    if len(metrics) > 1:
+        secondary = metrics[1]
+        s_meta = _CHART_METRIC_META[secondary]
+        s_vals, s_max = series(secondary)
+        s_line = " ".join(f"{x(i):.1f},{y_for(v, s_max):.1f}" for i, v in enumerate(s_vals))
+        svg_layers += (
+            f'<polyline points="{s_line}" fill="none" stroke="{s_meta["color"]}" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>'
+        )
+        legend += f'<span class="lg"><i style="background:{s_meta["color"]};"></i> {s_meta["label"]} (относительная шкала)</span>'
+
     grid = ""
     for f in range(5):
         gy = pad_t + plot_h - (f / 4) * plot_h
-        label = _fmt_compact(max_cost * f / 4) + " ₽"
+        label = _fmt_compact(p_max * f / 4) + p_meta["unit"]
         grid += (
             f'<line x1="{pad_l}" y1="{gy:.1f}" x2="{width - pad_r}" y2="{gy:.1f}" stroke="#eef1f5" stroke-width="1"/>'
             f'<text x="{pad_l - 8}" y="{gy + 4:.1f}" text-anchor="end" font-size="10" fill="#9aa3b2">{label}</text>'
         )
 
-    # Даты по X (7-9 меток)
     label_step = max(1, (n - 1) // (8 if layout == "desktop" else 5))
     date_labels = ""
     for i in range(0, n, label_step):
@@ -219,20 +256,16 @@ def _main_chart_svg(daily: list, layout: str) -> str:
         short = f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d
         date_labels += f'<text x="{x(i):.1f}" y="{height - 8}" text-anchor="middle" font-size="10" fill="#9aa3b2">{short}</text>'
 
+    title = " и ".join(_CHART_METRIC_META[m]["label"].lower() for m in metrics).capitalize() + " по дням"
     return f"""
     <div class="panel">
-      <h2>Расходы и клики по дням</h2>
+      <h2>{title}</h2>
       <svg width="100%" viewBox="0 0 {width} {height}" role="img">
         {grid}
-        <polygon points="{area}" fill="#2563eb" fill-opacity="0.10"/>
-        <polyline points="{cost_line}" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-        <polyline points="{clicks_line}" fill="none" stroke="#38BDF8" stroke-width="1.6" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>
+        {svg_layers}
         {date_labels}
       </svg>
-      <div class="chart-legend">
-        <span class="lg"><i style="background:#2563eb;"></i> Расход (₽, левая шкала)</span>
-        <span class="lg"><i style="background:#38BDF8;"></i> Клики (относительная шкала)</span>
-      </div>
+      <div class="chart-legend">{legend}</div>
     </div>"""
 
 
@@ -277,6 +310,8 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     end_date = data.get("end_date", "")
     generated_at = data.get("generated_at", "")
     trends = s.get("trends") if isinstance(s.get("trends"), dict) else None
+    sections = data.get("sections") or ["kpi", "chart", "channels", "campaigns"]
+    chart_metrics = data.get("chart_metrics") or ["cost", "clicks"]
 
     summary_platform = _summary_platform(data, tc)
 
@@ -301,10 +336,10 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     for i in range(0, len(cards), per_row):
         cells = "".join(f'<td class="kpi-cell">{c}</td>' for c in cards[i:i + per_row])
         kpi_rows += f"<tr>{cells}</tr>"
-    kpi_html = f'<table class="kpi-grid">{kpi_rows}</table>'
+    kpi_html = f'<table class="kpi-grid">{kpi_rows}</table>' if "kpi" in sections else ""
 
-    chart_html = _main_chart_svg(data.get("daily") or [], layout)
-    channels_html = _channels_block(data.get("channels") or [], layout)
+    chart_html = _main_chart_svg(data.get("daily") or [], layout, chart_metrics) if "chart" in sections else ""
+    channels_html = _channels_block(data.get("channels") or [], layout) if "channels" in sections else ""
 
     campaigns_rows = ""
     mobile = layout == "mobile"
@@ -342,7 +377,7 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
             )
 
     campaigns_html = ""
-    if tc:
+    if tc and "campaigns" in sections:
         head = (
             "<tr><th>Кампания</th><th class='num'>Расход</th><th class='num'>Лиды</th><th class='num'>CPL</th></tr>"
             if mobile else

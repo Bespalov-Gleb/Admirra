@@ -95,6 +95,66 @@ async def send_message(
     return ok
 
 
+async def send_document(
+    document: bytes,
+    filename: str,
+    *,
+    caption: str = "",
+    chat_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> bool:
+    """Отправляет файл (PDF-отчёт) в MAX: /uploads?type=file → multipart → token →
+    /messages с attachment. При неудаче возвращает False (вызывающий может показать текст)."""
+    if not MAX_REPORTS_BOT_TOKEN:
+        logger.warning("MAX send_document skipped: token empty")
+        return False
+    if not chat_id and not user_id:
+        logger.warning("MAX send_document skipped: no chat_id/user_id")
+        return False
+
+    params = {"chat_id": chat_id} if chat_id else {"user_id": user_id}
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            up = await client.post(
+                f"{MAX_API_BASE}/uploads",
+                params={"type": "file"},
+                headers={"Authorization": MAX_REPORTS_BOT_TOKEN},
+            )
+            up_data = up.json() if up.status_code < 400 else {}
+            upload_url = up_data.get("url")
+            if not upload_url:
+                logger.warning("MAX uploads failed: %s %s", up.status_code, up.text[:200])
+                return False
+
+            sent = await client.post(
+                upload_url,
+                files={"data": (filename, document, "application/pdf")},
+            )
+            sent_data = sent.json() if sent.status_code < 400 else {}
+            token = sent_data.get("token") or (sent_data.get("file") or {}).get("token")
+            if not token:
+                logger.warning("MAX file upload failed: %s %s", sent.status_code, sent.text[:200])
+                return False
+
+            body = {
+                "text": (caption or "")[:3900],
+                "attachments": [{"type": "file", "payload": {"token": token}}],
+            }
+            resp = await client.post(
+                f"{MAX_API_BASE}/messages",
+                params=params,
+                json=body,
+                headers={"Authorization": MAX_REPORTS_BOT_TOKEN},
+            )
+            if resp.status_code >= 400:
+                logger.warning("MAX message with file failed: %s %s", resp.status_code, resp.text[:300])
+                return False
+            return True
+    except Exception as e:
+        logger.exception("MAX send_document error: %s", e)
+        return False
+
+
 def _split_text(text: str, limit: int = 3900) -> list[str]:
     value = (text or "").strip()
     if not value:

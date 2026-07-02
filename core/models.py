@@ -236,6 +236,10 @@ class ReportSchedule(Base):
     period_days = Column(Integer, nullable=False, default=7, server_default="7")  # период данных отчёта
     report_format = Column(String, nullable=False, default="desktop", server_default="desktop")  # desktop|mobile
     include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Состав отчёта: JSON-список секций (kpi|chart|channels|campaigns)
+    sections = Column(String, nullable=True)
+    # Метрики главного графика: JSON-список (cost|clicks|impressions|leads), максимум 2
+    chart_metrics = Column(String, nullable=True)
     last_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

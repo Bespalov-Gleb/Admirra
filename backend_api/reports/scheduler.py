@@ -379,6 +379,13 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
     folder_id = str(rule.scope_folder_id) if rule.scope_folder_id else None
     platform = rule.platform or "all"
 
+    def _jlist(raw, default):
+        try:
+            val = json.loads(raw) if isinstance(raw, str) and raw else raw
+            return val if isinstance(val, list) and val else default
+        except Exception:
+            return default
+
     pdf_bytes = generate_report_pdf(
         db=db,
         user_id=user.id,
@@ -390,6 +397,8 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         folder_id=folder_id,
         platform=platform,
         layout=rule.report_format or "desktop",
+        sections=_jlist(getattr(rule, "sections", None), ["kpi", "chart", "channels", "campaigns"]),
+        chart_metrics=_jlist(getattr(rule, "chart_metrics", None), ["cost", "clicks"]),
     )
 
     # Данные для текстового варианта (MAX) и темы письма
@@ -418,10 +427,16 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
     if "max" in channels and (max_chat_id or max_user_id):
         try:
             from backend_api.services import max_reports_bot
-            text_report = _format_text_report(summary, top_campaigns, client_name, start_str, end_str)
-            results["max"] = await max_reports_bot.send_message(
-                text_report, chat_id=max_chat_id or None, user_id=max_user_id or None,
+            # PDF-файлом, как в Telegram; текст — только запасной вариант
+            results["max"] = await max_reports_bot.send_document(
+                pdf_bytes, filename, caption=caption,
+                chat_id=max_chat_id or None, user_id=max_user_id or None,
             )
+            if not results["max"]:
+                text_report = _format_text_report(summary, top_campaigns, client_name, start_str, end_str)
+                results["max"] = await max_reports_bot.send_message(
+                    text_report, chat_id=max_chat_id or None, user_id=max_user_id or None,
+                )
         except Exception as e:
             logger.exception("Rule %s: MAX failed: %s", rule.id, e)
             results["max"] = False

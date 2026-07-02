@@ -54,26 +54,7 @@
           </div>
         </div>
 
-        <div class="report-col report-template custom-select top-select" :class="{ open: openMenu === 'report-template' }" v-click-outside="() => closeMenu('report-template')">
-          <h2>Шаблон отчета</h2>
-          <button class="select-like cs-head" type="button" @click="toggleMenu('report-template')">
-            <span class="cs-current">{{ selectedReportTemplate }}</span>
-            <span class="cs-arrow">
-              <ChevronDownIcon />
-            </span>
-          </button>
-          <div class="cs-list">
-            <button
-              v-for="option in reportTemplateOptions"
-              :key="option"
-              type="button"
-              class="cs-option"
-              :class="{ selected: selectedReportTemplate === option }"
-              @click="selectReportTemplate(option)"
-            >{{ option }}</button>
-          </div>
-        </div>
-
+        <!-- Блок «Шаблон отчета» убран: состав отчёта настраивается в правилах автоотправки -->
         <div class="report-col report-schedule">
           <p>Автоотправка</p>
           <button class="select-like cs-head" type="button" @click="showReportSchedules = true">

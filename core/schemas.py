@@ -478,6 +478,9 @@ class ReportScheduleBase(BaseModel):
     period_days: int = 7
     report_format: str = "desktop"  # desktop | mobile
     include_dynamics: bool = False
+    # Состав отчёта и метрики главного графика (настраиваются в конструкторе правила)
+    sections: List[str] = ["kpi", "chart", "channels", "campaigns"]
+    chart_metrics: List[str] = ["cost", "clicks"]
 
 
 class ReportScheduleCreate(ReportScheduleBase):
@@ -496,6 +499,8 @@ class ReportScheduleUpdate(BaseModel):
     period_days: Optional[int] = None
     report_format: Optional[str] = None
     include_dynamics: Optional[bool] = None
+    sections: Optional[List[str]] = None
+    chart_metrics: Optional[List[str]] = None
 
 
 class ReportScheduleResponse(ReportScheduleBase):
