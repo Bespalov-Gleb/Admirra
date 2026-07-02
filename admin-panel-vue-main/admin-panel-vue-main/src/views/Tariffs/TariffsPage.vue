@@ -81,12 +81,21 @@
               </template>
             </div>
 
-            <div v-if="hasPaymentMethod" class="payment-renewal">Автопродление вкл.</div>
+            <!-- Статус автопродления — виден всегда, как у больших сервисов -->
+            <div class="payment-renewal" :class="{
+              'payment-renewal--on': hasPaymentMethod && subscription.autorenew,
+              'payment-renewal--off': !hasPaymentMethod || !subscription.autorenew,
+            }">
+              <i class="payment-renewal__dot"></i>
+              {{ hasPaymentMethod
+                ? (subscription.autorenew ? 'Автопродление включено' : 'Автопродление отключено')
+                : 'Автопродление неактивно — привяжите карту' }}
+            </div>
 
             <div class="subscription-footer-actions">
               <button type="button" @click="onBindCard">{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
               <button v-if="hasPaymentMethod && subscription.autorenew" type="button" :disabled="cancellingAutorenew" @click="onCancelAutorenew">
-                {{ cancellingAutorenew ? 'Подождите…' : 'Отменить автопрод.' }}
+                {{ cancellingAutorenew ? 'Подождите…' : 'Отключить автопродление' }}
               </button>
             </div>
           </div>
@@ -215,7 +224,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
@@ -461,6 +470,11 @@ onMounted(async () => {
     }
   } finally {
     loading.value = false
+  }
+  // Переход из сайдбара «Тарифы» (?view=plans) — сразу показываем блок со всеми тарифами
+  if (router.currentRoute.value?.query?.view === 'plans') {
+    await nextTick()
+    scrollToPlans()
   }
 })
 
@@ -961,6 +975,25 @@ function onContactWl() {
   letter-spacing: 0.06em;
 }
 
+/* Статус автопродления: зелёная/серая точка + текст */
+.payment-renewal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.payment-renewal__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.payment-renewal--on { color: #059669; font-weight: 600; }
+.payment-renewal--on .payment-renewal__dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
+.payment-renewal--off { color: rgba(105, 105, 105, 0.55); }
+
 .subscription-footer-actions {
   display: flex;
   align-items: center;
@@ -977,7 +1010,18 @@ function onContactWl() {
   color: #2563eb;
   font-size: 0.9722rem;
   font-weight: 600;
-  cursor: not-allowed;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.subscription-footer-actions button:hover:not(:disabled) {
+  border-color: #2563eb;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.14);
+}
+
+.subscription-footer-actions button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .payment-line--empty .subscription-footer-actions button {

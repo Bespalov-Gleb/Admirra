@@ -272,7 +272,7 @@ const menuItems = computed(() => [
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
   { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
   { name: 'Команда', path: '/team', icon: UserGroupIcon },
-  { name: 'Тарифы', path: '/settings', icon: Cog6ToothIcon },
+  { name: 'Тарифы', path: '/settings?tab=tariff&view=plans', icon: Cog6ToothIcon },
 ])
 
 const bottomLinks = computed(() => [
@@ -282,7 +282,9 @@ const bottomLinks = computed(() => [
 
 const isActive = (path) => {
   if (!route?.path || !path) return false
-  return route.path === path || route.path.startsWith(`${path}/`)
+  // Пункты с query (например «Тарифы» → /settings?tab=tariff) сравниваем по чистому пути
+  const purePath = String(path).split('?')[0]
+  return route.path === purePath || route.path.startsWith(`${purePath}/`)
 }
 
 const isSubmenuActive = (item) => {
