@@ -51,6 +51,8 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("DROP INDEX IF EXISTS ix_users_username"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS direction_label VARCHAR(32) NOT NULL DEFAULT 'directions'"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES folders(id) ON DELETE SET NULL"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clients_folder_id ON clients (folder_id)"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS display_status VARCHAR"))
@@ -106,6 +108,7 @@ from backend_api.max_report_link import link_router as max_reports_link_router, 
 from backend_api.integrations import router as integrations_router
 from backend_api.stats import router as stats_router
 from backend_api.clients import router as clients_router
+from backend_api.folders import router as folders_router
 from backend_api.directions import router as directions_router
 from backend_api.campaigns import router as campaigns_router
 from backend_api.phone_projects import router as phone_projects_router
@@ -238,6 +241,7 @@ app.include_router(telegram_webhook_router, prefix="/api")
 app.include_router(max_reports_link_router, prefix="/api")
 app.include_router(max_reports_webhook_router, prefix="/api")
 app.include_router(clients_router, prefix="/api")
+app.include_router(folders_router, prefix="/api")
 app.include_router(directions_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")

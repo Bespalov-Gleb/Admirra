@@ -438,6 +438,7 @@ class ClientResponse(ClientBase):
     status: Optional[str] = "active"
     detector_enabled: Optional[bool] = False
     actual_start_date: Optional[str] = None
+    folder_id: Optional[UUID] = None
     created_at: datetime
     integrations: List[IntegrationResponse] = []
     summary: Optional[StatsSummary] = None
@@ -461,6 +462,52 @@ class ClientResponse(ClientBase):
 
     class Config:
         from_attributes = True
+
+
+# ── Папки проектов (группировка филиалов одного заказчика) ──
+
+class FolderCreate(BaseModel):
+    name: str
+    color: Optional[str] = None
+    avatar_url: Optional[str] = None
+    project_ids: List[UUID] = []
+
+
+class FolderUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    avatar_url: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class FolderAssignRequest(BaseModel):
+    project_ids: List[UUID]
+
+
+class FolderResponse(BaseModel):
+    id: UUID
+    account_id: UUID
+    name: str
+    color: Optional[str] = None
+    avatar_url: Optional[str] = None
+    sort_order: int = 0
+    projects_count: int = 0
+    active_projects_count: int = 0
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FolderTreeItem(FolderResponse):
+    """Папка в дереве списка проектов: сводка — честная сумма по вложенным проектам."""
+    summary: Optional[StatsSummary] = None
+    projects: List[ClientResponse] = []
+
+
+class ProjectsTreeResponse(BaseModel):
+    folders: List[FolderTreeItem] = []
+    root_projects: List[ClientResponse] = []
 
 
 class DirectionMaskResponse(BaseModel):

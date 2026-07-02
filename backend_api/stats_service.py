@@ -162,6 +162,23 @@ class StatsService:
         return goal_ids
 
     @staticmethod
+    def resolve_folder_client_ids(db: Session, user_id: uuid.UUID, folder_id) -> List[uuid.UUID]:
+        """Проекты папки, доступные пользователю (сводка папки = агрегат по ним).
+        Member видит только свою часть папки — пересечение с его доступами."""
+        try:
+            fid = uuid.UUID(str(folder_id))
+        except (ValueError, TypeError):
+            return []
+        accessible = StatsService.get_effective_client_ids(db, user_id, None)
+        if not accessible:
+            return []
+        folder_client_ids = {
+            r[0]
+            for r in db.query(models.Client.id).filter(models.Client.folder_id == fid).all()
+        }
+        return [cid for cid in accessible if cid in folder_client_ids]
+
+    @staticmethod
     def get_effective_client_ids(db: Session, user_id: uuid.UUID, client_id: Optional[uuid.UUID] = None) -> List[uuid.UUID]:
         member = (
             db.query(models.TeamMember)

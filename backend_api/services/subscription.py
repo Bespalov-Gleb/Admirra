@@ -190,16 +190,35 @@ class SubscriptionService:
         return 3
 
     @staticmethod
+    def count_project_slots(db: Session, user_id) -> int:
+        """Слоты тарифа считаются по элементам ВЕРХНЕГО уровня списка проектов:
+        активные проекты вне папок + папки, содержащие хотя бы один активный проект
+        (папка = 1 слот независимо от числа филиалов). Проекты на паузе и папки,
+        где все проекты на паузе, слот не занимают."""
+        outside = db.query(models.Client).filter(
+            models.Client.owner_id == user_id,
+            models.Client.status == models.ClientStatus.ACTIVE,
+            models.Client.folder_id.is_(None),
+        ).count()
+        folders_with_active = (
+            db.query(models.Client.folder_id)
+            .filter(
+                models.Client.owner_id == user_id,
+                models.Client.status == models.ClientStatus.ACTIVE,
+                models.Client.folder_id.isnot(None),
+            )
+            .distinct()
+            .count()
+        )
+        phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user_id).count()
+        return outside + folders_with_active + phone_count
+
+    @staticmethod
     def ensure_can_create_project(db: Session, user: models.User) -> None:
         if SubscriptionService.is_admin_bypass(user):
             return
         plan = SubscriptionService.get_user_plan(db, user)
-        clients_count = db.query(models.Client).filter(
-            models.Client.owner_id == user.id,
-            models.Client.status == models.ClientStatus.ACTIVE,
-        ).count()
-        phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user.id).count()
-        total = clients_count + phone_count
+        total = SubscriptionService.count_project_slots(db, user.id)
         if total < plan.max_projects:
             return
         if not SubscriptionService.billing_enforced():

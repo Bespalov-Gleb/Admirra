@@ -906,6 +906,7 @@ async def get_summary(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all", # 'yandex', 'vk', 'all'
@@ -936,7 +937,11 @@ async def get_summary(
         if not u_goal_action_ids:
             u_goal_action_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        # Сводка папки: агрегат по вложенным проектам (member — только доступная часть)
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"expenses": 0, "impressions": 0, "clicks": 0, "leads": 0, "cpc": 0, "cpa": 0, "balance": 0, "currency": "RUB", "trends": None}
 
@@ -950,6 +955,7 @@ async def get_dynamics(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
@@ -964,7 +970,7 @@ async def get_dynamics(
     if client_id and client_id.strip():
         try: u_client_id = uuid.UUID(client_id)
         except: pass
-    
+
     u_campaign_ids = None
     if campaign_ids:
         u_campaign_ids = []
@@ -980,7 +986,10 @@ async def get_dynamics(
         if not u_goal_action_ids:
             u_goal_action_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {
             "labels": [], 
@@ -1310,6 +1319,7 @@ async def get_dynamics_series_endpoint(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     granularity: str = Query("month"),
@@ -1339,7 +1349,10 @@ async def get_dynamics_series_endpoint(
         if not u_campaign_ids:
             u_campaign_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return {"granularity": granularity, "goals": [], "periods": []}
 
@@ -1522,6 +1535,7 @@ async def get_campaign_stats(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
@@ -1536,7 +1550,7 @@ async def get_campaign_stats(
     if client_id and client_id.strip():
         try: u_client_id = uuid.UUID(client_id)
         except: pass
-    
+
     u_campaign_ids = None
     if campaign_ids:
         u_campaign_ids = []
@@ -1552,7 +1566,10 @@ async def get_campaign_stats(
         if not u_goal_action_ids:
             u_goal_action_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
 
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
@@ -1764,6 +1781,7 @@ async def get_top_ads(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
@@ -1799,7 +1817,10 @@ async def get_top_ads(
         if not u_goal_action_ids:
             u_goal_action_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids:
         return []
 
@@ -2070,13 +2091,21 @@ async def get_group_stats(
 
 @router.get("/top-clients", response_model=List[schemas.TopClient])
 async def get_top_clients(
+    folder_id: Optional[str] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get top projects by total expenses.
+    Get top projects by total expenses. С folder_id — топ филиалов внутри папки.
     """
-    user_clients = db.query(models.Client.id, models.Client.name).filter_by(owner_id=current_user.id).all()
+    if folder_id:
+        fid_clients = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+        user_clients = (
+            db.query(models.Client.id, models.Client.name).filter(models.Client.id.in_(fid_clients)).all()
+            if fid_clients else []
+        )
+    else:
+        user_clients = db.query(models.Client.id, models.Client.name).filter_by(owner_id=current_user.id).all()
     if not user_clients: return []
         
     client_map = {c.id: c.name for c in user_clients}
@@ -2108,6 +2137,7 @@ async def get_top_clients(
 @router.get("/goals", response_model=List[schemas.GoalStat])
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
+    folder_id: Optional[str] = Query(None),
     integration_id: Optional[uuid.UUID] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
@@ -2126,7 +2156,10 @@ async def get_goals(
     
     Cost is calculated by distributing total ad spend proportionally to conversions.
     """
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
+    if folder_id and not client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, client_id)
     if not effective_client_ids: return []
 
     # Default date range: last 14 days if not specified
@@ -2551,6 +2584,7 @@ async def get_goals(
 @router.get("/integrations", response_model=List[schemas.DashboardIntegrationStatus])
 def get_integrations_status(
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2560,7 +2594,10 @@ def get_integrations_status(
             u_client_id = uuid.UUID(client_id)
         except ValueError:
             pass
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     if not effective_client_ids: return []
 
     # Get integrations with balance and last_sync_at for connected platforms

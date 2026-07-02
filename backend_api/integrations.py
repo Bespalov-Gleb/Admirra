@@ -130,12 +130,14 @@ async def remote_log(payload: dict):
 @router.get("/", response_model=List[schemas.IntegrationResponse])
 def get_integrations(
     client_id: Optional[str] = None,
+    folder_id: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     List all active integrations (Yandex, VK, etc.) across all clients owned by the user.
-    Optional client_id filters to a specific project.
+    Optional client_id filters to a specific project; folder_id — к папке проектов
+    (для «Синхронизировать» на уровне папки: синк всех кабинетов вложенных проектов).
     """
     q = db.query(models.Integration).join(models.Client).filter(
         models.Client.owner_id == current_user.id
@@ -147,6 +149,12 @@ def get_integrations(
             q = q.filter(models.Integration.client_id == u)
         except ValueError:
             pass
+    elif folder_id:
+        from backend_api.stats_service import StatsService
+        folder_clients = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+        if not folder_clients:
+            return []
+        q = q.filter(models.Integration.client_id.in_(folder_clients))
     return q.all()
 
 @router.get("/yandex/auth-url")

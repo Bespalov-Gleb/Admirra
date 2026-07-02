@@ -216,6 +216,24 @@ class UserOAuthIdentity(Base):
     )
 
 
+class Folder(Base):
+    """Папка проектов: контейнер над проектами для сети филиалов одного заказчика.
+    Сводка папки не хранится — считается на чтение как агрегат по вложенным проектам.
+    Один уровень вложенности (папка в папке не поддерживается)."""
+    __tablename__ = "folders"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    avatar_url = Column(String, nullable=True)
+    color = Column(String, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    clients = relationship("Client", back_populates="folder")
+
+
 clients_display_id_seq = Sequence("clients_display_id_seq", start=100001)
 
 
@@ -240,11 +258,14 @@ class Client(Base):
     status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="ACTIVE")
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     actual_start_date = Column(Date, nullable=True)
+    # Проект лежит максимум в одной папке; NULL = корень списка (как раньше)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_ai_comment = Column(Text, nullable=True)
     last_ai_comment_at = Column(DateTime, nullable=True)
 
     owner = relationship("User", back_populates="clients")
+    folder = relationship("Folder", back_populates="clients")
     integrations = relationship("Integration", back_populates="client")
     directions = relationship("ProjectDirection", back_populates="client", cascade="all, delete-orphan")
     budgets = relationship("ProjectBudget", back_populates="client", cascade="all, delete-orphan")

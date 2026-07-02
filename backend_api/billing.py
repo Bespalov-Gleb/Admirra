@@ -199,12 +199,9 @@ def get_my_subscription(
     SubscriptionService._ensure_ai_period(current_user, plan)
     used = int(current_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
-    active_status = getattr(models.ClientStatus, "ACTIVE", None)
     paused_status = getattr(models.ClientStatus, "PAUSED", None)
-    projects_used = db.query(models.Client).filter(
-        models.Client.owner_id == current_user.id,
-        models.Client.status == active_status,
-    ).count()
+    # Слоты по правилу папок: проекты вне папок + папки с активными проектами = 1 слот
+    projects_used = SubscriptionService.count_project_slots(db, current_user.id)
     paused_projects = db.query(models.Client).filter(
         models.Client.owner_id == current_user.id,
         models.Client.status == paused_status,
