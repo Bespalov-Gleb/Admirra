@@ -751,7 +751,7 @@ VALID_SCHEDULE_DAYS = {"daily", "weekdays", "monday", "tuesday", "wednesday", "t
 VALID_SCHEDULE_CHANNELS = {"telegram", "max", "email"}
 VALID_SCHEDULE_PLATFORMS = {"all", "yandex", "vk", "avito"}
 VALID_REPORT_SECTIONS = {"kpi", "chart", "channels", "campaigns"}
-VALID_CHART_METRICS = {"cost", "clicks", "impressions", "leads"}
+VALID_CHART_METRICS = {"cost", "impressions", "clicks", "cpc", "cpa", "leads"}
 MAX_SCHEDULES_PER_USER = 20
 
 
@@ -784,8 +784,6 @@ def _validate_schedule_payload(*, day=None, send_time=None, channels=None, platf
         bad = [m for m in chart_metrics if m not in VALID_CHART_METRICS]
         if bad:
             raise HTTPException(status_code=422, detail=f"Неизвестная метрика графика: {bad[0]}")
-        if len(chart_metrics) > 2:
-            raise HTTPException(status_code=422, detail="На графике — не больше двух метрик")
 
 
 def _schedule_scope_label(db: Session, s: models.ReportSchedule) -> str:
@@ -830,6 +828,8 @@ def _schedule_to_response(db: Session, s: models.ReportSchedule) -> schemas.Repo
         include_dynamics=bool(s.include_dynamics),
         sections=_jlist(getattr(s, "sections", None), ["kpi", "chart", "channels", "campaigns"]),
         chart_metrics=_jlist(getattr(s, "chart_metrics", None), ["cost", "clicks"]),
+        dynamics_metrics=_jlist(getattr(s, "dynamics_metrics", None), ["cost"]),
+        chat_targets=_jlist(getattr(s, "chat_targets", None), []),
         scope_label=_schedule_scope_label(db, s),
         last_sent_at=s.last_sent_at,
         created_at=s.created_at,
@@ -865,6 +865,10 @@ def create_report_schedule(
         platform=body.platform, period_days=body.period_days, report_format=body.report_format,
         sections=body.sections, chart_metrics=body.chart_metrics,
     )
+    if body.dynamics_metrics:
+        bad = [m for m in body.dynamics_metrics if m not in VALID_CHART_METRICS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
     s = models.ReportSchedule(
         user_id=current_user.id,
         name=(body.name or "").strip() or None,
@@ -879,7 +883,9 @@ def create_report_schedule(
         report_format=body.report_format or "desktop",
         include_dynamics=bool(body.include_dynamics),
         sections=_json.dumps(body.sections or ["kpi", "chart", "channels", "campaigns"]),
-        chart_metrics=_json.dumps((body.chart_metrics or ["cost", "clicks"])[:2]),
+        chart_metrics=_json.dumps(body.chart_metrics or ["cost", "clicks"]),
+        dynamics_metrics=_json.dumps(body.dynamics_metrics or ["cost"]),
+        chat_targets=_json.dumps([str(t) for t in (body.chat_targets or [])]),
     )
     db.add(s)
     db.commit()
@@ -932,7 +938,18 @@ def update_report_schedule(
     if body.sections is not None:
         s.sections = _json.dumps(body.sections)
     if body.chart_metrics is not None:
-        s.chart_metrics = _json.dumps(body.chart_metrics[:2])
+        s.chart_metrics = _json.dumps(body.chart_metrics)
+    if body.dynamics_metrics is not None:
+        bad = [m for m in body.dynamics_metrics if m not in VALID_CHART_METRICS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
+        s.dynamics_metrics = _json.dumps(body.dynamics_metrics)
+    if body.chat_targets is not None:
+        own = {
+            str(r.id)
+            for r in db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id).all()
+        }
+        s.chat_targets = _json.dumps([str(t) for t in body.chat_targets if str(t) in own])
     db.commit()
     db.refresh(s)
     return _schedule_to_response(db, s)
@@ -972,3 +989,68 @@ async def test_report_schedule(
     results = await send_report_for_schedule(db, s, current_user)
     db.commit()
     return {"ok": True, "results": results}
+
+
+# ══════════ Групповые чаты для отчётов (бот в группе TG/MAX) ══════════
+
+@router.get("/chat-targets", response_model=List[schemas.ReportChatTargetResponse])
+def list_chat_targets(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(models.ReportChatTarget)
+        .filter(models.ReportChatTarget.user_id == current_user.id)
+        .order_by(models.ReportChatTarget.created_at)
+        .all()
+    )
+    return rows
+
+
+@router.post("/chat-targets/link-code")
+def create_chat_target_link_code(
+    body: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Код для подключения ГРУППЫ: пользователь добавляет бота в группу и отправляет
+    там «/link <код>» — webhook сохраняет chat_id группы как цель доставки отчётов."""
+    import secrets as _secrets
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    kind = str((body or {}).get("kind") or "").lower()
+    if kind not in ("telegram", "max"):
+        raise HTTPException(status_code=422, detail="kind: telegram или max")
+    code = _secrets.token_urlsafe(8)[:12]
+    expires = _dt.now(_tz.utc) + _td(minutes=30)
+    if kind == "telegram":
+        db.add(models.TelegramLinkToken(user_id=current_user.id, token=code, expires_at=expires))
+    else:
+        db.add(models.MaxReportLinkToken(user_id=current_user.id, token=code, expires_at=expires))
+    db.commit()
+    from core.config import get_config as _get_config
+    bot_hint = ""
+    try:
+        if kind == "telegram":
+            bot_hint = (_get_config().telegram_bot.bot_username or "").strip().lstrip("@")
+        else:
+            bot_hint = (_get_config().oauth.max_reports_bot_name or "").strip().lstrip("@")
+    except Exception:
+        pass
+    return {"code": code, "command": f"/link {code}", "bot": bot_hint, "expires_in_minutes": 30}
+
+
+@router.delete("/chat-targets/{target_id}")
+def delete_chat_target(
+    target_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.query(models.ReportChatTarget).filter(
+        models.ReportChatTarget.id == target_id,
+        models.ReportChatTarget.user_id == current_user.id,
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Чат не найден")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}

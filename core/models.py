@@ -238,13 +238,33 @@ class ReportSchedule(Base):
     include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
     # Состав отчёта: JSON-список секций (kpi|chart|channels|campaigns)
     sections = Column(String, nullable=True)
-    # Метрики главного графика: JSON-список (cost|clicks|impressions|leads), максимум 2
+    # Метрики графиков: JSON-списки (cost|impressions|clicks|cpc|cpa|leads) — на каждую
+    # выбранную метрику рендерится отдельный график (столбиком, со своими осями)
     chart_metrics = Column(String, nullable=True)
+    dynamics_metrics = Column(String, nullable=True)
+    # Дополнительные цели доставки: JSON-список UUID групп (ReportChatTarget)
+    chat_targets = Column(String, nullable=True)
     last_sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User", backref="report_schedules")
+
+
+class ReportChatTarget(Base):
+    """Групповой чат (Telegram/MAX), куда пользователь подключил бота для отчётов.
+    Привязка: пользователь получает код, добавляет бота в группу и отправляет там
+    команду /link <код> — webhook сохраняет chat_id группы."""
+    __tablename__ = "report_chat_targets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String, nullable=False)  # telegram | max
+    chat_id = Column(String, nullable=False)
+    title = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="report_chat_targets")
 
 
 class Folder(Base):

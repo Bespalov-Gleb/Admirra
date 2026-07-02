@@ -165,12 +165,93 @@ def _kpi_card(key: str, label: str, value: str, subtitle: str, trends: dict | No
     </div>"""
 
 
+# Те же 6 показателей, что на графике дашборда (цвета совпадают с дашбордом)
 _CHART_METRIC_META = {
-    "cost": {"label": "Расход", "unit": " ₽", "color": "#2563eb"},
-    "clicks": {"label": "Клики", "unit": "", "color": "#38BDF8"},
-    "impressions": {"label": "Показы", "unit": "", "color": "#F0926D"},
-    "leads": {"label": "Лиды", "unit": "", "color": "#8ADA70"},
+    "cost": {"label": "Расход", "unit": " ₽", "color": "#2563eb", "decimals": 0},
+    "impressions": {"label": "Показы", "unit": "", "color": "#F0926D", "decimals": 0},
+    "clicks": {"label": "Клики", "unit": "", "color": "#38BDF8", "decimals": 0},
+    "cpc": {"label": "CPC", "unit": " ₽", "color": "#D38CFF", "decimals": 2},
+    "cpa": {"label": "CPL", "unit": " ₽", "color": "#EB8525", "decimals": 2},
+    "leads": {"label": "Конверсии", "unit": "", "color": "#8ADA70", "decimals": 0},
 }
+
+
+def _metric_value_from(item: dict) -> dict:
+    """Значения всех 6 метрик из строки daily/period (cost уже с НДС)."""
+    cost = float(item.get("cost") or 0)
+    clicks = int(item.get("clicks") or 0)
+    impressions = int(item.get("impressions") or 0)
+    leads = int(item.get("leads") or 0)
+    return {
+        "cost": cost,
+        "impressions": impressions,
+        "clicks": clicks,
+        "cpc": (cost / clicks) if clicks > 0 else 0.0,
+        "cpa": (cost / leads) if leads > 0 else 0.0,
+        "leads": leads,
+    }
+
+
+def _single_metric_chart(points: list, metric: str, layout: str, x_labels: list, title_suffix: str) -> str:
+    """Один график = одна метрика: область + линия, ось Y слева со значениями,
+    подписи дат снизу, точные значения над точками (когда точек немного)."""
+    meta = _CHART_METRIC_META[metric]
+    width = 900 if layout == "desktop" else 420
+    height = 230 if layout == "desktop" else 190
+    pad_l, pad_r, pad_t, pad_b = 58, 16, 22, 32
+    plot_w, plot_h = width - pad_l - pad_r, height - pad_t - pad_b
+
+    vals = [float(p.get(metric) or 0) for p in points]
+    vmax = max(vals + [1.0])
+    n = len(vals)
+    if n < 2:
+        return ""
+    step = plot_w / (n - 1)
+
+    def x(i):
+        return pad_l + i * step
+
+    def y(v):
+        return pad_t + plot_h - (v / vmax) * plot_h
+
+    line = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vals))
+    area = f"{pad_l},{pad_t + plot_h} " + line + f" {x(n - 1):.1f},{pad_t + plot_h}"
+
+    grid = ""
+    for g in range(5):
+        gy = pad_t + plot_h - (g / 4) * plot_h
+        glabel = _fmt_compact(vmax * g / 4) + meta["unit"]
+        grid += (
+            f'<line x1="{pad_l}" y1="{gy:.1f}" x2="{width - pad_r}" y2="{gy:.1f}" stroke="#eef1f5" stroke-width="1"/>'
+            f'<text x="{pad_l - 8}" y="{gy + 4:.1f}" text-anchor="end" font-size="10" fill="#9aa3b2">{glabel}</text>'
+        )
+
+    label_step = max(1, (n - 1) // (8 if layout == "desktop" else 5))
+    date_labels = ""
+    for i in range(0, n, label_step):
+        date_labels += f'<text x="{x(i):.1f}" y="{height - 8}" text-anchor="middle" font-size="10" fill="#9aa3b2">{x_labels[i]}</text>'
+
+    # Точные значения над точками — когда их немного (иначе каша)
+    value_labels = ""
+    dots = ""
+    if n <= 16:
+        for i, v in enumerate(vals):
+            txt = _fmt(v, meta["decimals"]) if v < 10000 else _fmt_compact(v)
+            value_labels += f'<text x="{x(i):.1f}" y="{y(v) - 7:.1f}" text-anchor="middle" font-size="9" font-weight="700" fill="#475569">{txt}</text>'
+            dots += f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="2.6" fill="{meta["color"]}" stroke="#fff" stroke-width="1.2"/>'
+
+    return f"""
+    <div class="panel">
+      <h2><span class="metric-dot" style="background:{meta['color']};"></span>{meta['label']}{title_suffix}</h2>
+      <svg width="100%" viewBox="0 0 {width} {height}" role="img">
+        {grid}
+        <polygon points="{area}" fill="{meta['color']}" fill-opacity="0.09"/>
+        <polyline points="{line}" fill="none" stroke="{meta['color']}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        {dots}
+        {value_labels}
+        {date_labels}
+      </svg>
+    </div>"""
 
 
 def _main_chart_svg(daily: list, layout: str, metrics: list | None = None) -> str:
@@ -338,7 +419,22 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         kpi_rows += f"<tr>{cells}</tr>"
     kpi_html = f'<table class="kpi-grid">{kpi_rows}</table>' if "kpi" in sections else ""
 
-    chart_html = _main_chart_svg(data.get("daily") or [], layout, chart_metrics) if "chart" in sections else ""
+    chart_html = ""
+    daily_rows = data.get("daily") or []
+    if "chart" in sections and len(daily_rows) >= 2:
+        day_points = []
+        day_labels = []
+        for item in daily_rows:
+            cost = (
+                float(item.get("cost_yandex") or 0) * VAT_RATE
+                + float(item.get("cost_vk") or 0) * VAT_RATE
+                + float(item.get("cost_avito") or 0)
+            )
+            day_points.append(_metric_value_from({**item, "cost": cost}))
+            d = str(item.get("date") or "")
+            day_labels.append(f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d)
+        for metric in [m for m in chart_metrics if m in _CHART_METRIC_META]:
+            chart_html += _single_metric_chart(day_points, metric, layout, day_labels, " по дням")
     channels_html = _channels_block(data.get("channels") or [], layout) if "channels" in sections else ""
 
     campaigns_rows = ""
@@ -407,55 +503,21 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     # Опциональный блок «Динамика по месяцам» (данные из dynamics_service)
     dynamics_html = ""
     dyn_periods = (data.get("dynamics") or {}).get("periods") or []
-    if dyn_periods:
-        points = []
+    if dyn_periods and len(dyn_periods) >= 2:
+        dynamics_metrics = [m for m in (data.get("dynamics_metrics") or ["cost"]) if m in _CHART_METRIC_META]
+        dyn_points = []
+        dyn_labels = []
         has_incomplete = False
         for p in dyn_periods:
             cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("cost_by_platform"))
-            dleads = int(p.get("leads", 0) or 0)
-            cpl = cost / dleads if dleads > 0 else 0
-            incomplete = bool(p.get("incomplete"))
-            has_incomplete = has_incomplete or incomplete
-            points.append({"label": _escape_html(p.get("label", "")), "cost": cost, "leads": dleads, "cpl": cpl, "incomplete": incomplete})
-
-        chart_w = 900 if layout == "desktop" else 420
-        chart_h = 235
-        pad_l, pad_r, pad_t, pad_b = 42, 22, 18, 70
-        plot_w = chart_w - pad_l - pad_r
-        plot_h = chart_h - pad_t - pad_b
-        max_cost = max([pt["cost"] for pt in points] + [1])
-        step = plot_w / max(len(points), 1)
-        bar_w = min(70, step * 0.55)
-        bars = ""
-        for i, pt in enumerate(points):
-            h = max(4, pt["cost"] / max_cost * plot_h)
-            bx = pad_l + i * step + (step - bar_w) / 2
-            by = pad_t + plot_h - h
-            fill = "#3464F3" if not pt["incomplete"] else "#9DB7FF"
-            dash = ' stroke="#3464F3" stroke-dasharray="4 4"' if pt["incomplete"] else ""
-            bars += (
-                f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bar_w:.1f}" height="{h:.1f}" rx="8" fill="{fill}"{dash}/>'
-                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 22}" text-anchor="middle" font-size="11" fill="#64748b">{pt["label"]}</text>'
-                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 39}" text-anchor="middle" font-size="10" fill="#94a3b8">{pt["leads"]} лид.</text>'
-                f'<text x="{bx + bar_w / 2:.1f}" y="{pad_t + plot_h + 55}" text-anchor="middle" font-size="10" fill="#94a3b8">CPL {_fmt(pt["cpl"], 0)} ₽</text>'
-            )
-        note = (
-            '<div style="font-size:11px;color:#94a3b8;margin-top:8px;">* — текущий период ещё не завершён</div>'
-            if has_incomplete else ""
-        )
-        dynamics_html = f"""
-    <div class="panel campaigns-panel">
-      <h2>Динамика по месяцам</h2>
-      <svg width="100%" viewBox="0 0 {chart_w} {chart_h}" role="img" aria-label="Тренд динамики по месяцам">
-        <rect x="0" y="0" width="{chart_w}" height="{chart_h}" rx="18" fill="#f8fafc"/>
-        <line x1="{pad_l}" y1="{pad_t + plot_h}" x2="{chart_w - pad_r}" y2="{pad_t + plot_h}" stroke="#e2e8f0"/>
-        {bars}
-      </svg>
-      <div class="chart-legend">
-        <span class="lg"><i style="background:#3464F3;"></i> Столбцы — расход; подписи — лиды и CPL периода</span>
-      </div>
-      {note}
-    </div>"""
+            dyn_points.append(_metric_value_from({**p, "cost": cost}))
+            label = str(p.get("label", ""))
+            dyn_labels.append(label if len(label) <= 12 else label[:12])
+            has_incomplete = has_incomplete or bool(p.get("incomplete"))
+        for metric in dynamics_metrics:
+            dynamics_html += _single_metric_chart(dyn_points, metric, layout, dyn_labels, " · динамика по месяцам")
+        if has_incomplete and dynamics_html:
+            dynamics_html += '<div style="font-size:11px;color:#94a3b8;margin:-8px 4px 14px;">* текущий период ещё не завершён</div>' 
 
     page_size = "1120px 1584px" if layout == "desktop" else "480px 1040px"
     max_width = "1040px" if layout == "desktop" else "440px"
@@ -517,6 +579,7 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     }}
     .panel h2 {{ font-size: 15px; font-weight: 600; color: #09183F; margin-bottom: 14px; }}
 
+    .metric-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; }}
     .chart-legend {{ margin-top: 8px; color: #64748b; font-size: 11px; }}
     .chart-legend .lg {{ margin-right: 16px; }}
     .chart-legend i {{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; }}

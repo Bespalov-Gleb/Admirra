@@ -67,6 +67,7 @@ def generate_report_pdf(
     layout: str = "desktop",
     sections: list | None = None,
     chart_metrics: list | None = None,
+    dynamics_metrics: list | None = None,
 ) -> bytes:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
@@ -125,7 +126,8 @@ def generate_report_pdf(
         "platform": platform or "all",
         "layout": layout or "desktop",
         "sections": sections or ["kpi", "chart", "channels", "campaigns"],
-        "chart_metrics": (chart_metrics or ["cost", "clicks"])[:2],
+        "chart_metrics": chart_metrics or ["cost", "clicks"],
+        "dynamics_metrics": dynamics_metrics or ["cost"],
     }
 
     # Дневная серия для главного графика (как на дашборде) — прямой запрос к витрине

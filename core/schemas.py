@@ -478,9 +478,12 @@ class ReportScheduleBase(BaseModel):
     period_days: int = 7
     report_format: str = "desktop"  # desktop | mobile
     include_dynamics: bool = False
-    # Состав отчёта и метрики главного графика (настраиваются в конструкторе правила)
+    # Состав отчёта и метрики графиков (на каждую метрику — отдельный график)
     sections: List[str] = ["kpi", "chart", "channels", "campaigns"]
     chart_metrics: List[str] = ["cost", "clicks"]
+    dynamics_metrics: List[str] = ["cost"]
+    # Дополнительные цели доставки — id подключённых групп (ReportChatTarget)
+    chat_targets: List[UUID] = []
 
 
 class ReportScheduleCreate(ReportScheduleBase):
@@ -501,12 +504,25 @@ class ReportScheduleUpdate(BaseModel):
     include_dynamics: Optional[bool] = None
     sections: Optional[List[str]] = None
     chart_metrics: Optional[List[str]] = None
+    dynamics_metrics: Optional[List[str]] = None
+    chat_targets: Optional[List[UUID]] = None
 
 
 class ReportScheduleResponse(ReportScheduleBase):
     id: UUID
     scope_label: Optional[str] = None  # человекочитаемый скоуп для списка правил
     last_sent_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReportChatTargetResponse(BaseModel):
+    id: UUID
+    kind: str  # telegram | max
+    chat_id: str
+    title: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:

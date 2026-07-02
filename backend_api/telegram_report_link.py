@@ -134,7 +134,60 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     chat = message.get("chat") or {}
     chat_id = chat.get("id")
     text = (message.get("text") or "").strip()
-    if chat_id is None or not text.startswith("/start"):
+    if chat_id is None:
+        return {"ok": True}
+
+    # /link <код> в ГРУППЕ — подключение группового чата для отчётов
+    # (бота добавляют в группу СММ-команды и отправляют там код из модалки автоотправки)
+    if text.startswith("/link"):
+        link_parts = text.split(maxsplit=1)
+        # поддерживаем и «/link@BotName код»
+        code = link_parts[1].strip() if len(link_parts) > 1 else ""
+        if not code or len(code) > 64:
+            await _tg_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": "Отправьте команду в формате: /link КОД (код — в настройках автоотправки AdMirra).",
+            })
+            return {"ok": True}
+        row = (
+            db.query(models.TelegramLinkToken)
+            .filter(
+                models.TelegramLinkToken.token == code,
+                models.TelegramLinkToken.consumed_at.is_(None),
+                models.TelegramLinkToken.expires_at > _now(),
+            )
+            .first()
+        )
+        if not row:
+            await _tg_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": "Код устарел или уже использован. Сгенерируйте новый в настройках автоотправки.",
+            })
+            return {"ok": True}
+        title = chat.get("title") or chat.get("username") or f"Чат {chat_id}"
+        existing = (
+            db.query(models.ReportChatTarget)
+            .filter(
+                models.ReportChatTarget.user_id == row.user_id,
+                models.ReportChatTarget.kind == "telegram",
+                models.ReportChatTarget.chat_id == str(chat_id),
+            )
+            .first()
+        )
+        if not existing:
+            db.add(models.ReportChatTarget(
+                user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
+            ))
+        row.consumed_at = _now()
+        db.commit()
+        await _tg_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": f"✅ Группа «{title}» подключена: отчёты AdMirra по выбранным правилам будут приходить сюда.",
+        })
+        logger.info("Telegram GROUP %s linked to user %s", chat_id, row.user_id)
+        return {"ok": True}
+
+    if not text.startswith("/start"):
         return {"ok": True}
 
     parts = text.split(maxsplit=1)

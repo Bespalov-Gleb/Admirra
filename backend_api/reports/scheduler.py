@@ -399,6 +399,7 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         layout=rule.report_format or "desktop",
         sections=_jlist(getattr(rule, "sections", None), ["kpi", "chart", "channels", "campaigns"]),
         chart_metrics=_jlist(getattr(rule, "chart_metrics", None), ["cost", "clicks"]),
+        dynamics_metrics=_jlist(getattr(rule, "dynamics_metrics", None), ["cost"]),
     )
 
     # Данные для текстового варианта (MAX) и темы письма
@@ -476,6 +477,37 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         except Exception as e:
             logger.exception("Rule %s: email failed: %s", rule.id, e)
             results["email"] = False
+
+    # Групповые чаты (бот добавлен в группу TG/MAX)
+    target_ids = _jlist(getattr(rule, "chat_targets", None), [])
+    if target_ids:
+        targets = (
+            db.query(models.ReportChatTarget)
+            .filter(
+                models.ReportChatTarget.user_id == user.id,
+                models.ReportChatTarget.id.in_([t for t in target_ids]),
+            )
+            .all()
+        )
+        group_ok = 0
+        for target in targets:
+            try:
+                if target.kind == "telegram":
+                    from lead_validator.services.telegram import telegram_notifier
+                    ok = await telegram_notifier.send_document(
+                        chat_id=target.chat_id, document=pdf_bytes, filename=filename, caption=caption,
+                    )
+                elif target.kind == "max":
+                    from backend_api.services import max_reports_bot
+                    ok = await max_reports_bot.send_document(
+                        pdf_bytes, filename, caption=caption, chat_id=target.chat_id,
+                    )
+                else:
+                    ok = False
+                group_ok += 1 if ok else 0
+            except Exception as e:
+                logger.exception("Rule %s: group %s failed: %s", rule.id, target.id, e)
+        results["groups"] = f"{group_ok}/{len(targets)}"
 
     rule.last_sent_at = datetime.now(MSK)
     return results

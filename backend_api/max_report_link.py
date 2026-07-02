@@ -77,6 +77,55 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid MAX reports webhook secret")
 
     body = await request.json()
+
+    # /link <код> в чате/группе MAX — подключение группового чата для отчётов
+    if body.get("update_type") == "message_created":
+        msg = body.get("message") or {}
+        msg_body = msg.get("body") or {}
+        text = str(msg_body.get("text") or "").strip()
+        recipient = msg.get("recipient") or {}
+        group_chat_id = str(recipient.get("chat_id") or "").strip()
+        if text.startswith("/link") and group_chat_id:
+            code = text.split(maxsplit=1)[1].strip() if len(text.split(maxsplit=1)) > 1 else ""
+            if code and len(code) <= 64:
+                row = (
+                    db.query(models.MaxReportLinkToken)
+                    .filter(
+                        models.MaxReportLinkToken.token == code,
+                        models.MaxReportLinkToken.consumed_at.is_(None),
+                        models.MaxReportLinkToken.expires_at > _now(),
+                    )
+                    .first()
+                )
+                if row:
+                    chat_title = str((msg.get("recipient") or {}).get("chat_title") or "Чат MAX")[:120]
+                    existing = (
+                        db.query(models.ReportChatTarget)
+                        .filter(
+                            models.ReportChatTarget.user_id == row.user_id,
+                            models.ReportChatTarget.kind == "max",
+                            models.ReportChatTarget.chat_id == group_chat_id,
+                        )
+                        .first()
+                    )
+                    if not existing:
+                        db.add(models.ReportChatTarget(
+                            user_id=row.user_id, kind="max", chat_id=group_chat_id, title=chat_title,
+                        ))
+                    row.consumed_at = _now()
+                    db.commit()
+                    await max_reports_bot.send_message(
+                        "✅ Чат подключён: отчёты AdMirra по выбранным правилам будут приходить сюда.",
+                        chat_id=group_chat_id,
+                    )
+                    logger.info("MAX GROUP %s linked to user %s", group_chat_id, row.user_id)
+                else:
+                    await max_reports_bot.send_message(
+                        "Код устарел или уже использован. Сгенерируйте новый в настройках автоотправки AdMirra.",
+                        chat_id=group_chat_id,
+                    )
+        return {"ok": True}
+
     if body.get("update_type") != "bot_started":
         return {"ok": True}
 
