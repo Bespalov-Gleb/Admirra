@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from os import getenv
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -102,7 +103,9 @@ class CloudPaymentsConfig:
     webhook_secret: str
     # Параметры онлайн-чека (CloudKassir через CloudPayments receipt).
     receipt_taxation_system: int
-    receipt_vat: int
+    # НДС позиции: None = «без НДС» (УСН/патент), 0 = «НДС 0%» — для налоговой это
+    # разные вещи, поэтому пустое значение переменной трактуем как None.
+    receipt_vat: Optional[int]
     receipt_method: int
     receipt_object: int
 
@@ -277,7 +280,12 @@ def get_config() -> Config:
             currency=_env("CLOUDPAYMENTS_CURRENCY", "RUB"),
             webhook_secret=_env("CLOUDPAYMENTS_WEBHOOK_SECRET"),
             receipt_taxation_system=int(_env("CLOUDPAYMENTS_RECEIPT_TAXATION_SYSTEM", "0")),
-            receipt_vat=int(_env("CLOUDPAYMENTS_RECEIPT_VAT", "0")),
+            # Пусто/none = «без НДС» (null в чеке); число = ставка (0 = «НДС 0%», 20 и т.д.)
+            receipt_vat=(
+                int(_env("CLOUDPAYMENTS_RECEIPT_VAT"))
+                if _env("CLOUDPAYMENTS_RECEIPT_VAT", "").strip().lower() not in ("", "none", "null")
+                else None
+            ),
             receipt_method=int(_env("CLOUDPAYMENTS_RECEIPT_METHOD", "0")),
             receipt_object=int(_env("CLOUDPAYMENTS_RECEIPT_OBJECT", "4")),
         ),

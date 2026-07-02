@@ -133,7 +133,8 @@ def _build_cloudpayments_receipt(
                 "price": total,
                 "quantity": 1.0,
                 "amount": total,
-                "vat": int(cfg.cloudpayments.receipt_vat),
+                # None → null в JSON = «без НДС» (не путать с 0 = «НДС 0%»)
+                "vat": cfg.cloudpayments.receipt_vat,
                 "method": int(cfg.cloudpayments.receipt_method),
                 "object": int(cfg.cloudpayments.receipt_object),
                 "measurementUnit": "услуга",
