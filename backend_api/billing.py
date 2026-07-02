@@ -319,11 +319,29 @@ async def cancel_autorenew(
     доступ сохраняется до конца оплаченного периода."""
     sub = SubscriptionService.ensure_default_subscription(db, current_user)
     cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
+    cancelled_ids = []
     if cp_sub_id:
         try:
             await CloudPaymentsService.cancel_subscription(cp_sub_id)
+            cancelled_ids.append(cp_sub_id)
         except Exception as err:
             logger.warning("CloudPayments cancel_subscription failed for %s: %s", cp_sub_id, err)
+    # Подстраховка: отменяем ВСЕ активные рекурренты аккаунта в CP. Закрывает гонку
+    # «нажал отмену раньше, чем вебхук записал SubscriptionId» и осиротевшие подписки
+    # от смены карты — иначе списания продолжатся, хотя у нас всё выглядит отменённым.
+    try:
+        for cp_sub in await CloudPaymentsService.find_subscriptions(str(current_user.id)):
+            sid = str(cp_sub.get("Id") or "").strip()
+            status = str(cp_sub.get("Status") or "").lower()
+            if sid and sid not in cancelled_ids and status in ("active", "pastdue"):
+                try:
+                    await CloudPaymentsService.cancel_subscription(sid)
+                    cancelled_ids.append(sid)
+                    logger.info("Cancelled orphan CP subscription %s for user %s", sid, current_user.id)
+                except Exception as err:
+                    logger.warning("Failed to cancel orphan CP subscription %s: %s", sid, err)
+    except Exception as err:
+        logger.warning("CloudPayments find_subscriptions failed for %s: %s", current_user.id, err)
     sub.cancel_at_period_end = True
     # Отмена автопродления = отвязка карты: рекуррент в CP отменён, токен карты больше
     # не используется — убираем и отображаемую маску, чтобы UI показал «Карта не привязана».

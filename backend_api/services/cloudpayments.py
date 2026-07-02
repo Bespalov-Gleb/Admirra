@@ -45,7 +45,29 @@ class CloudPaymentsService:
                 headers=headers,
             )
             resp.raise_for_status()
-            return resp.json()
+            body = resp.json()
+            # CP всегда отвечает HTTP 200, ошибка — в Success:false: без этой проверки
+            # неудачная отмена проходила молча и рекуррент продолжал списывать.
+            if not body.get("Success"):
+                raise RuntimeError(f"CloudPayments cancel failed: {body.get('Message') or body}")
+            return body
+
+    @staticmethod
+    async def find_subscriptions(account_id: str) -> list:
+        """Все подписки аккаунта в CP (для отмены рекуррента, когда Id ещё не сохранён у нас)."""
+        headers = {
+            "Authorization": CloudPaymentsService._auth_header(),
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{CloudPaymentsService.BASE_URL}/subscriptions/find",
+                json={"accountId": account_id},
+                headers=headers,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            return body.get("Model") or []
 
     @staticmethod
     def validate_webhook_signature(raw_body: bytes, signature: str | None) -> bool:
