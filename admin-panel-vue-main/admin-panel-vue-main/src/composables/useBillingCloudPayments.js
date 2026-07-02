@@ -53,8 +53,16 @@ export async function payWithCloudPayments(payload) {
         period: Number(payload.recurrent.period) || 1,
       },
     }
-    if (payload.receipt && typeof payload.receipt === 'object') {
-      data.cloudPayments.recurrent.receipt = payload.receipt
+  }
+  // Онлайн-чек («Cloud Чеки»/CloudKassir): по документации CP чек передаётся в
+  // data.cloudPayments.CustomerReceipt (разовый платёж) и recurrent.customerReceipt
+  // (автосписания) — https://developers.cloudpayments.ru/#format-peredachi-dannyh-dlya-onlayn-cheka
+  // Раньше чек клали в options.receipt — виджет его игнорировал, чеки не формировались.
+  if (payload.receipt && typeof payload.receipt === 'object') {
+    data.cloudPayments = data.cloudPayments || {}
+    data.cloudPayments.CustomerReceipt = payload.receipt
+    if (data.cloudPayments.recurrent) {
+      data.cloudPayments.recurrent.customerReceipt = payload.receipt
     }
   }
 
@@ -68,9 +76,6 @@ export async function payWithCloudPayments(payload) {
     language: 'ru-RU',
     skin: 'classic',
     data,
-  }
-  if (payload.receipt && typeof payload.receipt === 'object') {
-    options.receipt = payload.receipt
   }
 
   return new Promise((resolve, reject) => {

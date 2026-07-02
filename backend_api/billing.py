@@ -238,7 +238,12 @@ def get_my_subscription(
         plan_name=plan.name,
         status=sub.status.value,
         is_subscribed=is_active,
-        billing_period="year" if sub.current_period_start and sub.current_period_end and (sub.current_period_end - sub.current_period_start).days >= 330 else "month",
+        billing_period=(
+            _normalize_billing_period(getattr(sub, "billing_period", None))
+            if getattr(sub, "billing_period", None)
+            # Фоллбэк для старых подписок, где период оплаты не сохранён
+            else ("year" if sub.current_period_start and sub.current_period_end and (sub.current_period_end - sub.current_period_start).days >= 330 else "month")
+        ),
         subscription_expires_at=current_user.subscription_expires_at,
         max_projects=plan.max_projects,
         projects_used=projects_used,
@@ -414,6 +419,7 @@ async def cloudpayments_webhook(
         extend_period = not is_recurrent_report or not sub.current_period_end
         sub.status = models.SubscriptionStatus.ACTIVE
         if extend_period:
+            sub.billing_period = billing_period
             sub.current_period_start = now
             sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
         user.is_subscribed = True

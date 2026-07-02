@@ -467,6 +467,9 @@ class Subscription(Base):
     current_period_start = Column(DateTime(timezone=True), nullable=True)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    # Фактический период оплаты (month/year) из платежа — без него период приходилось
+    # угадывать по длине current_period (безлимитные «до 2030» выглядели годовыми).
+    billing_period = Column(String, nullable=True)
     # Маска привязанной карты из вебхука CloudPayments (CardLastFour/CardType/CardExpDate).
     # Полные данные карты не покидают CloudPayments (PCI DSS) — храним только отображаемое.
     card_last4 = Column(String, nullable=True)

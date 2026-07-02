@@ -56,6 +56,7 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS display_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status_synced_at TIMESTAMP WITH TIME ZONE"))
                 conn.execute(text("ALTER TABLE integrations ADD COLUMN IF NOT EXISTS utm_source VARCHAR"))
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_period VARCHAR"))
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR"))
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_type VARCHAR"))
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS card_exp VARCHAR"))

@@ -70,9 +70,14 @@
               <svg width="21" height="11" viewBox="0 0 21 11" fill="none" class="flex-shrink-0"><rect x="0.35" y="0.35" width="20.3" height="10.3" rx="5.15" fill="#F5F7F9" stroke="#CDDAFF" stroke-width="0.7"/><circle v-if="hasPaymentMethod" cx="15.5" cy="5.5" r="5.5" fill="#9AB2FB"/><circle v-else cx="5.5" cy="5.5" r="5.5" fill="#9AB2FB"/></svg>
               <strong>{{ hasPaymentMethod ? 'Карта привязана' : 'Карта не привязана' }}</strong>
               <template v-if="hasPaymentMethod">
-                <span class="payment-brand">{{ cardBrandLabel }}</span>
-                <span class="payment-mask">**** **** **** {{ paymentLast4 }}</span>
-                <span class="payment-exp">{{ paymentExp }}</span>
+                <span class="card-badge" :class="`card-badge--${cardBrandKey}`">
+                  <template v-if="cardBrandKey === 'mastercard'">
+                    <i class="mc-circle mc-circle--red"></i><i class="mc-circle mc-circle--yellow"></i>
+                  </template>
+                  <template v-else>{{ cardBrandLabel }}</template>
+                </span>
+                <span class="payment-mask">•••• {{ paymentLast4 }}</span>
+                <span v-if="paymentExp" class="payment-exp">{{ paymentExp }}</span>
               </template>
             </div>
 
@@ -298,11 +303,11 @@ const renewalText = computed(() => {
 })
 
 const planMetaLine = computed(() => {
-  const period = subscription.value?.billing_period === 'year' ? 'Годовая' : 'Помесячно'
-  const price = subscription.value?.billing_period === 'year'
+  const isYear = subscription.value?.billing_period === 'year'
+  const price = isYear
     ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
     : formatRub(currentPlan.value?.price_rub)
-  return `${period} ${price}/мес.`
+  return isYear ? `Годовая ${price}/год` : `Помесячно ${price}/мес.`
 })
 
 const hasPaymentMethod = computed(() => {
@@ -314,6 +319,15 @@ const paymentMethod = computed(() => subscription.value?.payment_method || {})
 const paymentLast4 = computed(() => paymentMethod.value.last4 || subscription.value?.payment_last4 || '')
 const paymentExp = computed(() => paymentMethod.value.exp || paymentMethod.value.expires || subscription.value?.payment_exp || '')
 const cardBrandLabel = computed(() => String(paymentMethod.value.brand || subscription.value?.payment_brand || 'МИР').toUpperCase())
+// Ключ платёжной системы для стилизованного бейджа (как у крупных сервисов):
+// МИР — зелёная плашка, VISA — синяя, Mastercard — два пересекающихся круга.
+const cardBrandKey = computed(() => {
+  const b = cardBrandLabel.value.toLowerCase()
+  if (b.includes('visa')) return 'visa'
+  if (b.includes('master') || b.includes('mc')) return 'mastercard'
+  if (b.includes('мир') || b.includes('mir')) return 'mir'
+  return 'generic'
+})
 
 const usagePercent = (used, limit) => {
   const safeLimit = Math.max(Number(limit) || 0, 1)
@@ -867,12 +881,71 @@ function onContactWl() {
   font-weight: 900;
 }
 
+/* Бейдж платёжной системы у привязанной карты */
+.card-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 2.8rem;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.42rem;
+  border-radius: 0.28rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  background: #f5f7f9;
+  color: #5f6368;
+}
+
+.card-badge--mir {
+  background: linear-gradient(135deg, #0f754e 0%, #37a86f 100%);
+  color: #fff;
+}
+
+.card-badge--visa {
+  background: #1a1f71;
+  color: #fff;
+  font-style: italic;
+}
+
+.card-badge--mastercard {
+  background: #f5f7f9;
+  padding: 0.1rem 0.5rem;
+}
+
+.mc-circle {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mc-circle--red {
+  background: #eb001b;
+}
+
+.mc-circle--yellow {
+  background: #f79e1b;
+  margin-left: -0.34rem;
+  mix-blend-mode: multiply;
+}
+
 .payment-mask,
 .payment-exp,
 .payment-renewal {
   color: rgba(105, 105, 105, 0.5);
   font-size: 1.0417rem;
   font-weight: 500;
+}
+
+.payment-mask {
+  color: #5f6368;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
 }
 
 .subscription-footer-actions {
