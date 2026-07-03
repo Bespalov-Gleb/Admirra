@@ -125,26 +125,32 @@
             <div class="rs-field">
               <span>Что отправляем</span>
               <div class="rs-row">
-                <div class="rs-select-wrap rs-grow">
-                <select v-model="form.scope" class="rs-select">
-                  <option value="all">Все проекты</option>
-                  <optgroup v-if="folders.length" label="Папки">
-                    <option v-for="f in folders" :key="f.id" :value="`folder:${f.id}`">Папка «{{ f.name }}»</option>
-                  </optgroup>
-                  <optgroup label="Проекты">
-                    <option v-for="c in clients" :key="c.id" :value="`client:${c.id}`">{{ c.name }}</option>
-                  </optgroup>
-                </select>
-                <span class="rs-select-arrow"></span>
+                <div class="rs-dd rs-grow" :class="{ open: openDd === 'scope' }" v-click-outside="() => closeDd('scope')">
+                  <button type="button" class="rs-dd-head" @click="toggleDd('scope')">
+                    <span class="rs-dd-current">{{ scopeLabel }}</span>
+                    <span class="rs-select-arrow"></span>
+                  </button>
+                  <div v-if="openDd === 'scope'" class="rs-dd-list">
+                    <template v-for="opt in scopeOptions" :key="opt.value || opt.label">
+                      <div v-if="opt.group" class="rs-dd-group">{{ opt.label }}</div>
+                      <button v-else type="button" class="rs-dd-option" :class="{ selected: form.scope === opt.value }" @click="pickDd('scope', opt.value)">
+                        {{ opt.label }}
+                        <svg v-if="form.scope === opt.value" class="rs-dd-check" viewBox="0 0 18 14" fill="none"><path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </template>
+                  </div>
                 </div>
-                <div class="rs-select-wrap rs-fix-13">
-                <select v-model="form.platform" class="rs-select">
-                  <option value="all">Все каналы</option>
-                  <option value="yandex">Яндекс Директ</option>
-                  <option value="vk">VK Реклама</option>
-                  <option value="avito">Avito</option>
-                </select>
-                <span class="rs-select-arrow"></span>
+                <div class="rs-dd rs-fix-13" :class="{ open: openDd === 'platform' }" v-click-outside="() => closeDd('platform')">
+                  <button type="button" class="rs-dd-head" @click="toggleDd('platform')">
+                    <span class="rs-dd-current">{{ optLabel(PLATFORM_OPTIONS, form.platform) }}</span>
+                    <span class="rs-select-arrow"></span>
+                  </button>
+                  <div v-if="openDd === 'platform'" class="rs-dd-list">
+                    <button v-for="opt in PLATFORM_OPTIONS" :key="opt.value" type="button" class="rs-dd-option" :class="{ selected: form.platform === opt.value }" @click="pickDd('platform', opt.value)">
+                      {{ opt.label }}
+                      <svg v-if="form.platform === opt.value" class="rs-dd-check" viewBox="0 0 18 14" fill="none"><path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -188,19 +194,17 @@
             <div class="rs-field">
               <span>Когда</span>
               <div class="rs-row">
-                <div class="rs-select-wrap rs-grow">
-                <select v-model="form.day" class="rs-select">
-                  <option value="daily">Ежедневно</option>
-                  <option value="weekdays">По будням</option>
-                  <option value="monday">Понедельник</option>
-                  <option value="tuesday">Вторник</option>
-                  <option value="wednesday">Среда</option>
-                  <option value="thursday">Четверг</option>
-                  <option value="friday">Пятница</option>
-                  <option value="saturday">Суббота</option>
-                  <option value="sunday">Воскресенье</option>
-                </select>
-                <span class="rs-select-arrow"></span>
+                <div class="rs-dd rs-grow" :class="{ open: openDd === 'day' }" v-click-outside="() => closeDd('day')">
+                  <button type="button" class="rs-dd-head" @click="toggleDd('day')">
+                    <span class="rs-dd-current">{{ optLabel(DAY_OPTIONS, form.day) }}</span>
+                    <span class="rs-select-arrow"></span>
+                  </button>
+                  <div v-if="openDd === 'day'" class="rs-dd-list">
+                    <button v-for="opt in DAY_OPTIONS" :key="opt.value" type="button" class="rs-dd-option" :class="{ selected: form.day === opt.value }" @click="pickDd('day', opt.value)">
+                      {{ opt.label }}
+                      <svg v-if="form.day === opt.value" class="rs-dd-check" viewBox="0 0 18 14" fill="none"><path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="rs-time-wrap">
                   <input v-model="form.send_time" type="text" class="rs-time" inputmode="numeric" maxlength="5" placeholder="16:00" />
@@ -260,14 +264,17 @@
             <div class="rs-field">
               <span>Данные и формат</span>
               <div class="rs-row rs-row--wrap">
-                <div class="rs-select-wrap rs-fix-10">
-                <select v-model.number="form.period_days" class="rs-select">
-                  <option :value="1">За 1 день</option>
-                  <option :value="7">За 7 дней</option>
-                  <option :value="14">За 14 дней</option>
-                  <option :value="30">За 30 дней</option>
-                </select>
-                <span class="rs-select-arrow"></span>
+                <div class="rs-dd rs-fix-10" :class="{ open: openDd === 'period' }" v-click-outside="() => closeDd('period')">
+                  <button type="button" class="rs-dd-head" @click="toggleDd('period')">
+                    <span class="rs-dd-current">{{ optLabel(PERIOD_OPTIONS, form.period_days) }}</span>
+                    <span class="rs-select-arrow"></span>
+                  </button>
+                  <div v-if="openDd === 'period'" class="rs-dd-list">
+                    <button v-for="opt in PERIOD_OPTIONS" :key="opt.value" type="button" class="rs-dd-option" :class="{ selected: form.period_days === opt.value }" @click="pickDd('period', opt.value)">
+                      {{ opt.label }}
+                      <svg v-if="form.period_days === opt.value" class="rs-dd-check" viewBox="0 0 18 14" fill="none"><path d="M1.5 7.2 6.5 12 16.5 1.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="rs-seg">
                   <button type="button" :class="{ active: form.report_format === 'desktop' }" @click="form.report_format = 'desktop'">🖥 Десктопный</button>
@@ -356,6 +363,69 @@ function toggleFromList(list, value, minCount = 0) {
   const idx = list.indexOf(value)
   if (idx === -1) list.push(value)
   else if (list.length > minCount) list.splice(idx, 1)
+}
+
+// ── Кастомные дропдауны (в стиле выпадашек дашборда) ──
+const openDd = ref(null)
+const toggleDd = (name) => { openDd.value = openDd.value === name ? null : name }
+const closeDd = (name) => { if (openDd.value === name) openDd.value = null }
+const pickDd = (name, value) => {
+  if (name === 'scope') form.value.scope = value
+  else if (name === 'platform') form.value.platform = value
+  else if (name === 'day') form.value.day = value
+  else if (name === 'period') form.value.period_days = value
+  openDd.value = null
+}
+const optLabel = (options, value) => options.find((o) => o.value === value)?.label || '—'
+
+const PLATFORM_OPTIONS = [
+  { value: 'all', label: 'Все каналы' },
+  { value: 'yandex', label: 'Яндекс Директ' },
+  { value: 'vk', label: 'VK Реклама' },
+  { value: 'avito', label: 'Avito' },
+]
+const DAY_OPTIONS = [
+  { value: 'daily', label: 'Ежедневно' },
+  { value: 'weekdays', label: 'По будням' },
+  { value: 'monday', label: 'Понедельник' },
+  { value: 'tuesday', label: 'Вторник' },
+  { value: 'wednesday', label: 'Среда' },
+  { value: 'thursday', label: 'Четверг' },
+  { value: 'friday', label: 'Пятница' },
+  { value: 'saturday', label: 'Суббота' },
+  { value: 'sunday', label: 'Воскресенье' },
+]
+const PERIOD_OPTIONS = [
+  { value: 1, label: 'За 1 день' },
+  { value: 7, label: 'За 7 дней' },
+  { value: 14, label: 'За 14 дней' },
+  { value: 30, label: 'За 30 дней' },
+]
+const scopeOptions = computed(() => {
+  const out = [{ value: 'all', label: 'Все проекты' }]
+  if (folders.value.length) {
+    out.push({ group: true, label: 'Папки' })
+    for (const f of folders.value) out.push({ value: `folder:${f.id}`, label: `Папка «${f.name}»` })
+  }
+  if (props.clients.length) {
+    out.push({ group: true, label: 'Проекты' })
+    for (const c of props.clients) out.push({ value: `client:${c.id}`, label: c.name })
+  }
+  return out
+})
+const scopeLabel = computed(() => scopeOptions.value.find((o) => o.value === form.value.scope)?.label || 'Все проекты')
+
+// Локальная директива клик-снаружи (как на дашборде)
+const vClickOutside = {
+  mounted(el, binding) {
+    el._outsideHandler = (event) => {
+      if (!el.contains(event.target)) binding.value(event)
+    }
+    document.addEventListener('mousedown', el._outsideHandler)
+  },
+  unmounted(el) {
+    document.removeEventListener('mousedown', el._outsideHandler)
+  },
 }
 
 const DAY_LABELS = {

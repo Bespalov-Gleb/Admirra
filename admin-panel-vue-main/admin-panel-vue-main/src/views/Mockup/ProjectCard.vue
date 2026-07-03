@@ -537,7 +537,9 @@
               :class="{ 'folder-color-dot--active': folderForm.color === c }"
               :style="{ background: c }"
               @click="folderForm.color = c"
-            ></button>
+            >
+              <svg v-if="folderForm.color === c" viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
 
           <template v-if="freeProjects.length">
@@ -546,9 +548,15 @@
               <small>(вне папок: {{ freeProjects.length }})</small>
             </label>
             <div class="folder-modal__projects">
-              <label v-for="p in freeProjects" :key="p.id" class="folder-project-check">
+              <label
+                v-for="p in freeProjects"
+                :key="p.id"
+                class="folder-project-check"
+                :class="{ 'folder-project-check--on': folderForm.project_ids.includes(p.id) }"
+              >
                 <input type="checkbox" :checked="folderForm.project_ids.includes(p.id)" @change="toggleFolderFormProject(p.id)" />
-                <span>{{ p.name }}</span>
+                <span class="fp-box"><svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span class="fp-name">{{ p.name }}</span>
               </label>
             </div>
           </template>
@@ -3333,69 +3341,96 @@ onMounted(async () => {
 }
 
 .folder-modal {
-  width: min(30rem, 94vw);
-  max-height: 88vh;
+  width: min(36rem, 94vw);
+  max-height: 90vh;
   overflow-y: auto;
   background: #fff;
-  border-radius: 1rem;
-  padding: 1.4rem 1.5rem 1.2rem;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+  border-radius: 1.3rem;
+  padding: 1.8rem 1.9rem 1.6rem;
+  box-shadow: 0 32px 80px rgba(9, 24, 63, 0.32);
 }
 
-.folder-modal h4 { margin: 0 0 0.4rem; font-size: 1.2rem; font-weight: 800; color: #171717; }
-.folder-modal__hint { margin: 0 0 1rem; font-size: 0.83rem; color: rgba(105, 105, 105, 0.75); line-height: 1.45; }
-.folder-modal__label { display: block; margin: 0.9rem 0 0.35rem; font-size: 0.8rem; font-weight: 700; color: #444; }
-.folder-modal__label small { font-weight: 500; color: rgba(105,105,105,0.6); }
+.folder-modal h4 { margin: 0 0 0.45rem; font-size: 1.45rem; font-weight: 800; color: #171717; letter-spacing: -0.01em; }
+.folder-modal__hint { margin: 0 0 1.15rem; font-size: 0.95rem; color: rgba(105, 105, 105, 0.75); line-height: 1.5; }
+.folder-modal__label { display: block; margin: 1.1rem 0 0.45rem; font-size: 0.9rem; font-weight: 800; color: #333; }
+.folder-modal__label small { font-weight: 500; color: rgba(105,105,105,0.6); font-size: 0.78rem; }
 
 .folder-modal__input {
   width: 100%;
-  padding: 0.55rem 0.8rem;
-  border-radius: 0.6rem;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  font-size: 0.9rem;
+  height: 2.9rem;
+  padding: 0 0.95rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  font-size: 0.98rem;
+  font-weight: 600;
   outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.13s ease, box-shadow 0.13s ease;
 }
+.folder-modal__input::placeholder { font-weight: 500; color: #b3bcc9; }
 .folder-modal__input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 
-.folder-modal__colors { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.folder-modal__colors { display: flex; gap: 0.55rem; flex-wrap: wrap; }
 .folder-color-dot {
-  width: 1.55rem; height: 1.55rem; border-radius: 50%;
-  border: 2px solid transparent; cursor: pointer; padding: 0;
+  width: 2rem; height: 2rem; border-radius: 50%;
+  border: none; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
-.folder-color-dot--active { border-color: #171717; box-shadow: 0 0 0 2px #fff inset; }
+.folder-color-dot svg { width: 0.85rem; height: 0.7rem; }
+.folder-color-dot:hover { transform: scale(1.1); }
+.folder-color-dot--active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor, 0 4px 12px rgba(15,23,42,0.25); }
 
 .folder-modal__projects {
-  max-height: 12rem;
+  max-height: 14.5rem;
   overflow-y: auto;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 0.6rem;
-  padding: 0.35rem;
+  border-radius: 0.8rem;
+  padding: 0.4rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
 }
 
 .folder-project-check {
-  display: flex; align-items: center; gap: 0.55rem;
-  padding: 0.42rem 0.55rem; border-radius: 0.45rem;
-  font-size: 0.86rem; color: #171717; cursor: pointer;
+  display: flex; align-items: center; gap: 0.65rem;
+  padding: 0.6rem 0.7rem; border-radius: 0.6rem;
+  font-size: 0.95rem; font-weight: 600; color: #171717; cursor: pointer;
+  transition: background 0.12s ease;
 }
 .folder-project-check:hover { background: rgba(37, 99, 235, 0.06); }
-.folder-project-check input { accent-color: #2563eb; }
+.folder-project-check--on { background: rgba(37, 99, 235, 0.07); }
+.folder-project-check input { display: none; }
+.fp-box {
+  width: 1.15rem; height: 1.15rem; border-radius: 0.35rem;
+  border: 1.5px solid rgba(15,23,42,0.25); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; flex-shrink: 0;
+  transition: background 0.13s ease, border-color 0.13s ease;
+}
+.fp-box svg { width: 0.7rem; height: 0.6rem; opacity: 0; }
+.folder-project-check--on .fp-box { background: #2563eb; border-color: #2563eb; }
+.folder-project-check--on .fp-box svg { opacity: 1; }
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.folder-modal__footer { display: flex; align-items: center; gap: 0.6rem; margin-top: 1.3rem; }
+.folder-modal__footer { display: flex; align-items: center; gap: 0.7rem; margin-top: 1.5rem; }
 .folder-modal__cancel {
   border: none; background: rgba(15,23,42,0.06); color: #444;
-  padding: 0.5rem 1rem; border-radius: 0.6rem; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+  padding: 0.65rem 1.2rem; border-radius: 0.75rem; font-weight: 700; font-size: 0.95rem; cursor: pointer;
 }
+.folder-modal__cancel:hover { background: rgba(15,23,42,0.1); }
 .folder-modal__save {
   border: none; background: #2563eb; color: #fff;
-  padding: 0.5rem 1.1rem; border-radius: 0.6rem; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+  padding: 0.65rem 1.35rem; border-radius: 0.75rem; font-weight: 700; font-size: 0.95rem; cursor: pointer;
+  transition: background 0.13s ease, box-shadow 0.13s ease;
 }
+.folder-modal__save:hover:not(:disabled) { background: #1d4ed8; box-shadow: 0 6px 18px rgba(37,99,235,0.35); }
 .folder-modal__save:disabled { opacity: 0.6; cursor: default; }
 .folder-modal__delete {
   border: none; background: none; color: #dc2626;
-  font-weight: 700; font-size: 0.83rem; cursor: pointer; padding: 0.5rem 0;
+  font-weight: 700; font-size: 0.92rem; cursor: pointer; padding: 0.65rem 0;
 }
 .folder-modal__delete--solid {
-  background: #dc2626; color: #fff; padding: 0.5rem 1.1rem; border-radius: 0.6rem;
+  background: #dc2626; color: #fff; padding: 0.65rem 1.35rem; border-radius: 0.75rem;
 }
+.folder-modal__delete--solid:hover { background: #b91c1c; }
 .flex-1 { flex: 1; }
 </style>
