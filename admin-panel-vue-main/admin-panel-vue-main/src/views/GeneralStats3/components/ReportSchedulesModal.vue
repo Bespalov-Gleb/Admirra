@@ -701,10 +701,12 @@ onMounted(load)
 .rs-field > span { font-size: 0.9rem; font-weight: 800; color: #333; }
 .rs-field > span small, .rs-subfield small { font-weight: 500; color: #94a3b8; font-size: 0.78rem; }
 .rs-input {
-  padding: 0.65rem 0.9rem; border-radius: 0.75rem;
-  border: 1px solid rgba(15,23,42,0.14); font-size: 0.98rem; outline: none;
+  height: 2.9rem; padding: 0 0.95rem; border-radius: 0.75rem;
+  border: 1px solid rgba(15,23,42,0.12); font-size: 0.95rem; font-weight: 600; outline: none;
   transition: border-color 0.13s ease, box-shadow 0.13s ease;
+  box-sizing: border-box;
 }
+.rs-input::placeholder { font-weight: 500; color: #b3bcc9; }
 .rs-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 .rs-row { display: flex; gap: 0.7rem; align-items: center; }
 .rs-row--wrap { flex-wrap: wrap; }
