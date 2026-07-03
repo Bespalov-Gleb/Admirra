@@ -68,7 +68,7 @@
 
           <div v-if="targets.length" class="rs-list rs-list--targets">
             <div v-for="t in targets" :key="t.id" class="rs-target">
-              <span class="rs-chip" :class="t.kind === 'telegram' ? 'rs-chip--telegram' : 'rs-chip--max'">{{ channelName(t.kind) }}</span>
+              <span class="rs-target-logo"><img :src="t.kind === 'telegram' ? '/admirra/img/icons/telegram.png' : '/admirra/img/icons/max.png'" :alt="channelName(t.kind)" /></span>
               <strong>{{ t.title || `Чат ${t.chat_id}` }}</strong>
               <span class="rs-target-id">ID {{ t.chat_id }}</span>
               <button type="button" class="rs-mini rs-mini--danger" @click="removeTarget(t)">Отключить</button>
@@ -78,14 +78,38 @@
 
           <div class="rs-connect-box">
             <div class="rs-connect-head">Подключить группу</div>
-            <div class="rs-row">
-              <button type="button" class="rs-secondary" :disabled="linkLoading" @click="createLinkCode('telegram')">
-                <span class="rs-brand-dot rs-brand-dot--tg"></span> Группа Telegram
+            <div class="rs-connect-cards">
+              <button
+                type="button"
+                class="rs-connect-card rs-connect-card--tg"
+                :class="{ active: linkInfo?.kind === 'telegram' }"
+                :disabled="linkLoading"
+                @click="createLinkCode('telegram')"
+              >
+                <span class="rs-connect-logo"><img src="/admirra/img/icons/telegram.png" alt="Telegram" /></span>
+                <span class="rs-connect-copy">
+                  <strong>Группа Telegram</strong>
+                  <small>Отчёты в общий чат команды</small>
+                </span>
+                <span class="rs-connect-arrow">→</span>
               </button>
-              <button type="button" class="rs-secondary" :disabled="linkLoading" @click="createLinkCode('max')">
-                <span class="rs-brand-dot rs-brand-dot--max"></span> Группа MAX
+              <button
+                type="button"
+                class="rs-connect-card rs-connect-card--max"
+                :class="{ active: linkInfo?.kind === 'max' }"
+                :disabled="linkLoading"
+                @click="createLinkCode('max')"
+              >
+                <span class="rs-connect-logo"><img src="/admirra/img/icons/max.png" alt="MAX" /></span>
+                <span class="rs-connect-copy">
+                  <strong>Группа MAX</strong>
+                  <small>Отчёты в беседу в MAX</small>
+                </span>
+                <span class="rs-connect-arrow">→</span>
               </button>
-              <button v-if="linkInfo" type="button" class="rs-mini" @click="refreshTargets">Проверить подключение</button>
+            </div>
+            <div v-if="linkInfo" class="rs-row" style="margin-top: 0.8rem;">
+              <button type="button" class="rs-mini" @click="refreshTargets">Проверить подключение</button>
             </div>
             <div v-if="linkInfo" class="rs-link-steps">
               <template v-if="linkInfo.kind === 'telegram' && linkInfo.group_link">
@@ -738,9 +762,44 @@ onMounted(load)
   background: rgba(37,99,235,0.03);
 }
 .rs-connect-head { font-size: 0.95rem; font-weight: 800; color: #171717; margin-bottom: 0.7rem; }
-.rs-brand-dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; display: inline-block; }
-.rs-brand-dot--tg { background: #2AABEE; }
-.rs-brand-dot--max { background: #7c3aed; }
+/* Карточки выбора мессенджера с логотипами */
+.rs-connect-cards { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.rs-connect-card {
+  flex: 1; min-width: 15rem;
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.95rem 1.05rem;
+  border: 1.5px solid rgba(15,23,42,0.1);
+  border-radius: 1rem; background: #fff;
+  cursor: pointer; text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.rs-connect-card:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(9,24,63,0.12); }
+.rs-connect-card--tg:hover:not(:disabled), .rs-connect-card--tg.active { border-color: #2AABEE; }
+.rs-connect-card--max:hover:not(:disabled), .rs-connect-card--max.active { border-color: #7c3aed; }
+.rs-connect-card.active { box-shadow: 0 8px 24px rgba(9,24,63,0.1); }
+.rs-connect-card:disabled { opacity: 0.6; cursor: default; }
+.rs-connect-logo {
+  width: 2.7rem; height: 2.7rem; border-radius: 0.85rem;
+  background: #f3f5f7;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.rs-connect-logo img { width: 1.7rem; height: 1.7rem; object-fit: contain; }
+.rs-connect-copy { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.rs-connect-copy strong { font-size: 1rem; color: #171717; }
+.rs-connect-copy small { font-size: 0.8rem; color: #94a3b8; }
+.rs-connect-arrow { color: #cbd5e1; font-size: 1.1rem; font-weight: 700; transition: color 0.15s ease, transform 0.15s ease; }
+.rs-connect-card:hover:not(:disabled) .rs-connect-arrow { transform: translateX(3px); }
+.rs-connect-card--tg:hover:not(:disabled) .rs-connect-arrow { color: #2AABEE; }
+.rs-connect-card--max:hover:not(:disabled) .rs-connect-arrow { color: #7c3aed; }
+
+.rs-target-logo {
+  width: 2.1rem; height: 2.1rem; border-radius: 0.65rem;
+  background: #f3f5f7;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.rs-target-logo img { width: 1.3rem; height: 1.3rem; object-fit: contain; }
 .rs-link-steps { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.55rem; }
 .rs-step { display: flex; align-items: center; gap: 0.6rem; font-size: 0.92rem; color: #333; flex-wrap: wrap; }
 .rs-step i {
