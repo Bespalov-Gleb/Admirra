@@ -32,6 +32,18 @@ LINK_TTL_MINUTES = 15
 _cached_bot_username: str | None = None
 
 
+def _tg_api_base() -> str:
+    """База Telegram Bot API. api.telegram.org блокируется с части РФ-хостингов —
+    TELEGRAM_API_BASE позволяет ходить через свой прокси (например, старый сервер)."""
+    import os
+    return (os.getenv("TELEGRAM_API_BASE") or "https://api.telegram.org").rstrip("/")
+
+
+def _tg_api_verify() -> bool:
+    import os
+    return (os.getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false", "0", "no")
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -46,8 +58,8 @@ async def _resolve_bot_username() -> str:
     token = (cfg.telegram_bot.bot_token or "").strip()
     if not token:
         raise HTTPException(status_code=503, detail="Telegram-бот не настроен (TELEGRAM_BOT_TOKEN)")
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+    async with httpx.AsyncClient(timeout=15.0, verify=_tg_api_verify()) as client:
+        r = await client.get(f"{_tg_api_base()}/bot{token}/getMe")
         data = r.json()
         if not data.get("ok"):
             logger.error("getMe failed: %s", data)
@@ -73,9 +85,9 @@ async def _tg_api(method: str, json_body: dict | None = None) -> dict:
     token = (cfg.telegram_bot.bot_token or "").strip()
     if not token:
         return {"ok": False}
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=15.0, verify=_tg_api_verify()) as client:
         r = await client.post(
-            f"https://api.telegram.org/bot{token}/{method}",
+            f"{_tg_api_base()}/bot{token}/{method}",
             json=json_body or {},
         )
         try:
@@ -226,6 +238,32 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.id == row.user_id).first()
     if not user:
+        return {"ok": True}
+
+    # /start в группе (deep-link «добавить бота в группу» ?startgroup=КОД) —
+    # это подключение ГРУППЫ, а не личного чата
+    if str(chat.get("type") or "") in ("group", "supergroup"):
+        title = chat.get("title") or f"Чат {chat_id}"
+        exists = (
+            db.query(models.ReportChatTarget)
+            .filter(
+                models.ReportChatTarget.user_id == row.user_id,
+                models.ReportChatTarget.kind == "telegram",
+                models.ReportChatTarget.chat_id == str(chat_id),
+            )
+            .first()
+        )
+        if not exists:
+            db.add(models.ReportChatTarget(
+                user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
+            ))
+        row.consumed_at = _now()
+        db.commit()
+        await _tg_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": f"✅ Группа «{title}» подключена: отчёты AdMirra будут приходить сюда по выбранным правилам.",
+        })
+        logger.info("Telegram GROUP %s linked (startgroup) to user %s", chat_id, row.user_id)
         return {"ok": True}
 
     user.report_telegram_chat_id = str(chat_id)

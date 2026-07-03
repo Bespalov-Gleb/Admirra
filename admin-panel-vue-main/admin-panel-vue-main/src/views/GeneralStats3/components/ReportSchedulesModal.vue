@@ -88,12 +88,28 @@
               <button v-if="linkInfo" type="button" class="rs-mini" @click="refreshTargets">Проверить подключение</button>
             </div>
             <div v-if="linkInfo" class="rs-link-steps">
-              <div class="rs-step"><i>1</i> Добавьте бота <strong>@{{ linkInfo.bot || 'AdMirra' }}</strong> в вашу группу {{ linkInfo.kind === 'telegram' ? 'Telegram' : 'MAX' }}</div>
-              <div class="rs-step">
-                <i>2</i> Отправьте в группе команду:
-                <code class="rs-code" @click="copyCommand">{{ linkInfo.command }} <span>копировать</span></code>
-              </div>
-              <div class="rs-step"><i>3</i> Готово — группа появится в списке выше (код действует 30 минут)</div>
+              <template v-if="linkInfo.kind === 'telegram' && linkInfo.group_link">
+                <div class="rs-step">
+                  <i>1</i>
+                  <a class="rs-add-bot-link" :href="linkInfo.group_link" target="_blank" rel="noopener">
+                    Добавить бота @{{ linkInfo.bot }} в группу →
+                  </a>
+                  <small>откроется Telegram с выбором группы; привязка произойдёт автоматически</small>
+                </div>
+                <div class="rs-step rs-step--alt">
+                  <i>2</i> Если бот уже в группе — просто отправьте там:
+                  <code class="rs-code" @click="copyCommand">{{ linkInfo.command }} <span>копировать</span></code>
+                </div>
+                <div class="rs-step"><i>3</i> Нажмите «Проверить подключение» — группа появится в списке (код действует 30 минут)</div>
+              </template>
+              <template v-else>
+                <div class="rs-step"><i>1</i> Добавьте бота <strong>{{ linkInfo.bot ? '@' + linkInfo.bot : 'AdMirra (см. настройки MAX)' }}</strong> в вашу группу {{ linkInfo.kind === 'telegram' ? 'Telegram' : 'MAX' }}</div>
+                <div class="rs-step">
+                  <i>2</i> Отправьте в группе команду:
+                  <code class="rs-code" @click="copyCommand">{{ linkInfo.command }} <span>копировать</span></code>
+                </div>
+                <div class="rs-step"><i>3</i> Нажмите «Проверить подключение» — группа появится в списке (код действует 30 минут)</div>
+              </template>
             </div>
           </div>
         </template>
@@ -652,6 +668,15 @@ onMounted(load)
 }
 .rs-code span { color: #64748b; font-size: 0.72rem; font-weight: 600; margin-left: 0.5rem; }
 .rs-code:hover span { color: #94a3b8; }
+.rs-add-bot-link {
+  display: inline-flex; align-items: center;
+  background: #2AABEE; color: #fff; text-decoration: none;
+  padding: 0.45rem 0.95rem; border-radius: 0.65rem;
+  font-size: 0.92rem; font-weight: 700;
+}
+.rs-add-bot-link:hover { background: #1e96d6; }
+.rs-step small { color: #94a3b8; font-size: 0.78rem; }
+.rs-step--alt { opacity: 0.85; }
 
 /* Конструктор */
 .rs-form { display: flex; flex-direction: column; gap: 1.25rem; }

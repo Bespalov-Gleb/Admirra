@@ -1008,7 +1008,7 @@ def list_chat_targets(
 
 
 @router.post("/chat-targets/link-code")
-def create_chat_target_link_code(
+async def create_chat_target_link_code(
     body: dict,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
@@ -1027,16 +1027,28 @@ def create_chat_target_link_code(
     else:
         db.add(models.MaxReportLinkToken(user_id=current_user.id, token=code, expires_at=expires))
     db.commit()
-    from core.config import get_config as _get_config
     bot_hint = ""
+    group_link = None
     try:
         if kind == "telegram":
-            bot_hint = (_get_config().telegram_bot.bot_username or "").strip().lstrip("@")
+            from backend_api.telegram_report_link import _resolve_bot_username
+            bot_hint = await _resolve_bot_username()
+            # Deep-link: открывает выбор группы и сам отправляет /start <код> в неё —
+            # привязка происходит автоматически, команду руками писать не нужно
+            group_link = f"https://t.me/{bot_hint}?startgroup={code}"
         else:
-            bot_hint = (_get_config().oauth.max_reports_bot_name or "").strip().lstrip("@")
-    except Exception:
-        pass
-    return {"code": code, "command": f"/link {code}", "bot": bot_hint, "expires_in_minutes": 30}
+            from backend_api.services.max_reports_bot import resolve_bot_name
+            bot_hint = await resolve_bot_name()
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("link-code bot resolve failed: %s", e)
+    return {
+        "code": code,
+        "command": f"/link {code}",
+        "bot": bot_hint,
+        "group_link": group_link,
+        "expires_in_minutes": 30,
+    }
 
 
 @router.delete("/chat-targets/{target_id}")

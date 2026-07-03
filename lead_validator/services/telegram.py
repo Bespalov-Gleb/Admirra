@@ -18,7 +18,9 @@ class TelegramNotifier:
     Отправка уведомлений в Telegram при получении валидного лида.
     """
     
-    BASE_URL = "https://api.telegram.org/bot"
+    import os as _os
+    # TELEGRAM_API_BASE — обход блокировки api.telegram.org с РФ-хостинга (свой прокси)
+    BASE_URL = (_os.getenv("TELEGRAM_API_BASE") or "https://api.telegram.org").rstrip("/") + "/bot"
     
     def __init__(self):
         self.token = settings.TELEGRAM_BOT_TOKEN
@@ -160,7 +162,7 @@ class TelegramNotifier:
         logger.debug(f"Message content: {message[:100]}...")
         
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(verify=(__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false","0","no"), timeout=10.0) as client:
                 url = self._get_url("sendMessage")
                 payload = {
                     "chat_id": self.chat_id,
@@ -226,7 +228,7 @@ class TelegramNotifier:
             logger.error("chat_id required for send_document")
             return False
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(verify=(__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false","0","no"), timeout=60.0) as client:
                 url = self._get_url("sendDocument")
                 files = {"document": (filename, document, "application/pdf")}
                 data = {"chat_id": chat_id}
@@ -264,7 +266,7 @@ class TelegramNotifier:
             return False
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(verify=(__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false","0","no"), timeout=10.0) as client:
                 payload = {
                     "chat_id": target_chat,
                     "text": text
@@ -301,7 +303,7 @@ class TelegramNotifier:
             return {"ok": False, "error": "Token not configured"}
             
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(verify=(__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false","0","no"), timeout=10.0) as client:
                 # Проверяем бота
                 me_response = await client.get(self._get_url("getMe"))
                 me_data = me_response.json()

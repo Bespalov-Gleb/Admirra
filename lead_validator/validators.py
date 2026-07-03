@@ -892,7 +892,9 @@ class LeadValidator:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     telegram_token = settings.TELEGRAM_BOT_TOKEN
                     if telegram_token:
-                        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                        import os as _os
+                        _tg_base = (_os.getenv("TELEGRAM_API_BASE") or "https://api.telegram.org").rstrip("/")
+                        url = f"{_tg_base}/bot{telegram_token}/sendMessage"
                         await client.post(url, json={
                             "chat_id": project.telegram_chat_id,
                             "text": message,
