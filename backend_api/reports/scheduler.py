@@ -372,12 +372,6 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         channels = []
 
     results = {"telegram": None, "max": None, "email": None}
-    if not channels:
-        return results
-
-    client_id = rule.scope_client_id
-    folder_id = str(rule.scope_folder_id) if rule.scope_folder_id else None
-    platform = rule.platform or "all"
 
     def _jlist(raw, default):
         try:
@@ -385,6 +379,15 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
             return val if isinstance(val, list) and val else default
         except Exception:
             return default
+
+    target_ids = _jlist(getattr(rule, "chat_targets", None), [])
+    # Правило может слать ТОЛЬКО в группу — личные каналы не обязательны
+    if not channels and not target_ids:
+        return results
+
+    client_id = rule.scope_client_id
+    folder_id = str(rule.scope_folder_id) if rule.scope_folder_id else None
+    platform = rule.platform or "all"
 
     pdf_bytes = generate_report_pdf(
         db=db,
@@ -479,7 +482,6 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
             results["email"] = False
 
     # Групповые чаты (бот добавлен в группу TG/MAX)
-    target_ids = _jlist(getattr(rule, "chat_targets", None), [])
     if target_ids:
         targets = (
             db.query(models.ReportChatTarget)

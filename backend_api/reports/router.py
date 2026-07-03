@@ -766,8 +766,6 @@ def _validate_schedule_payload(*, day=None, send_time=None, channels=None, platf
         bad = [c for c in channels if c not in VALID_SCHEDULE_CHANNELS]
         if bad:
             raise HTTPException(status_code=422, detail=f"Неизвестный канал доставки: {bad[0]}")
-        if not channels:
-            raise HTTPException(status_code=422, detail="Выберите хотя бы один канал доставки")
     if platform is not None and platform not in VALID_SCHEDULE_PLATFORMS:
         raise HTTPException(status_code=422, detail="Некорректный рекламный канал")
     if period_days is not None and int(period_days) not in (1, 7, 14, 30):
@@ -869,6 +867,8 @@ def create_report_schedule(
         bad = [m for m in body.dynamics_metrics if m not in VALID_CHART_METRICS]
         if bad:
             raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
+    if not (body.channels or body.chat_targets):
+        raise HTTPException(status_code=422, detail="Выберите, куда отправлять: личный канал или группу")
     s = models.ReportSchedule(
         user_id=current_user.id,
         name=(body.name or "").strip() or None,

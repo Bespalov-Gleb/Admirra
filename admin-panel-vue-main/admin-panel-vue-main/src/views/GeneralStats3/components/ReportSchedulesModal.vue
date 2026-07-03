@@ -125,6 +125,7 @@
             <div class="rs-field">
               <span>Что отправляем</span>
               <div class="rs-row">
+                <div class="rs-select-wrap rs-grow">
                 <select v-model="form.scope" class="rs-select">
                   <option value="all">Все проекты</option>
                   <optgroup v-if="folders.length" label="Папки">
@@ -134,37 +135,46 @@
                     <option v-for="c in clients" :key="c.id" :value="`client:${c.id}`">{{ c.name }}</option>
                   </optgroup>
                 </select>
-                <select v-model="form.platform" class="rs-select rs-select--platform">
+                <span class="rs-select-arrow"></span>
+                </div>
+                <div class="rs-select-wrap rs-fix-13">
+                <select v-model="form.platform" class="rs-select">
                   <option value="all">Все каналы</option>
                   <option value="yandex">Яндекс Директ</option>
                   <option value="vk">VK Реклама</option>
                   <option value="avito">Avito</option>
                 </select>
+                <span class="rs-select-arrow"></span>
+                </div>
               </div>
             </div>
 
             <div class="rs-field">
               <span>Куда отправляем</span>
               <div class="rs-row rs-row--wrap">
-                <label class="rs-check" :class="{ 'rs-check--off': !bound.telegram }">
+                <label class="rs-check" :class="{ 'rs-check--off': !bound.telegram, 'rs-check--on': form.channels.includes('telegram') }">
                   <input type="checkbox" value="telegram" v-model="form.channels" :disabled="!bound.telegram" />
+                  <span class="rs-box"><svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   Telegram <small v-if="!bound.telegram">(не подключён)</small>
                 </label>
-                <label class="rs-check" :class="{ 'rs-check--off': !bound.max }">
+                <label class="rs-check" :class="{ 'rs-check--off': !bound.max, 'rs-check--on': form.channels.includes('max') }">
                   <input type="checkbox" value="max" v-model="form.channels" :disabled="!bound.max" />
+                  <span class="rs-box"><svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   MAX <small v-if="!bound.max">(не подключён)</small>
                 </label>
                 <label class="rs-check rs-check--off" title="Почта временно недоступна">
                   <input type="checkbox" disabled />
+                  <span class="rs-box"></span>
                   Email <small>(временно недоступна)</small>
                 </label>
               </div>
               <template v-if="targets.length">
                 <span class="rs-subfield">Группы и чаты команды</span>
                 <div class="rs-row rs-row--wrap">
-                  <label v-for="t in targets" :key="t.id" class="rs-check">
+                  <label v-for="t in targets" :key="t.id" class="rs-check" :class="{ 'rs-check--on': form.chat_targets.includes(t.id) }">
                     <input type="checkbox" :value="t.id" v-model="form.chat_targets" />
-                    {{ t.title || `Чат ${t.chat_id}` }}
+                    <span class="rs-box"><svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                    👥 {{ t.title || `Чат ${t.chat_id}` }}
                     <small>{{ channelName(t.kind) }}</small>
                   </label>
                 </div>
@@ -172,11 +182,13 @@
               <small v-if="!bound.telegram && !bound.max && !targets.length" class="rs-hint-warn">
                 Подключите Telegram или MAX (лично — в блоке «Отчёты» на дашборде, группу — во вкладке «Группы и чаты»).
               </small>
+              <small v-else class="rs-hint-note">Можно выбрать только группу — в личку тогда приходить не будет.</small>
             </div>
 
             <div class="rs-field">
               <span>Когда</span>
               <div class="rs-row">
+                <div class="rs-select-wrap rs-grow">
                 <select v-model="form.day" class="rs-select">
                   <option value="daily">Ежедневно</option>
                   <option value="weekdays">По будням</option>
@@ -188,6 +200,8 @@
                   <option value="saturday">Суббота</option>
                   <option value="sunday">Воскресенье</option>
                 </select>
+                <span class="rs-select-arrow"></span>
+                </div>
                 <div class="rs-time-wrap">
                   <input v-model="form.send_time" type="text" class="rs-time" inputmode="numeric" maxlength="5" placeholder="16:00" />
                   <span class="rs-msk">МСК</span>
@@ -246,12 +260,15 @@
             <div class="rs-field">
               <span>Данные и формат</span>
               <div class="rs-row rs-row--wrap">
-                <select v-model.number="form.period_days" class="rs-select rs-select--period">
+                <div class="rs-select-wrap rs-fix-10">
+                <select v-model.number="form.period_days" class="rs-select">
                   <option :value="1">За 1 день</option>
                   <option :value="7">За 7 дней</option>
                   <option :value="14">За 14 дней</option>
                   <option :value="30">За 30 дней</option>
                 </select>
+                <span class="rs-select-arrow"></span>
+                </div>
                 <div class="rs-seg">
                   <button type="button" :class="{ active: form.report_format === 'desktop' }" @click="form.report_format = 'desktop'">🖥 Десктопный</button>
                   <button type="button" :class="{ active: form.report_format === 'mobile' }" @click="form.report_format = 'mobile'">📱 Мобильный</button>
@@ -710,14 +727,30 @@ onMounted(load)
 }
 .rs-time:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 .rs-msk { font-size: 0.88rem; color: #94a3b8; font-weight: 700; }
+/* Кастомный чекбокс: скрытый input + стилизованный бокс с галочкой */
 .rs-check {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  font-size: 0.95rem; color: #171717; cursor: pointer;
-  height: 2.9rem; padding: 0 0.9rem; border-radius: 0.75rem; background: rgba(15,23,42,0.04);
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  font-size: 0.95rem; font-weight: 600; color: #171717; cursor: pointer;
+  height: 2.9rem; padding: 0 1rem; border-radius: 0.75rem;
+  background: #fff; border: 1px solid rgba(15,23,42,0.12);
+  transition: border-color 0.13s ease, background 0.13s ease;
 }
-.rs-check input { accent-color: #2563eb; width: 1rem; height: 1rem; }
-.rs-check small { color: #94a3b8; font-size: 0.78rem; }
-.rs-check--off { opacity: 0.6; cursor: default; }
+.rs-check:hover:not(.rs-check--off) { border-color: rgba(37,99,235,0.4); }
+.rs-check--on { border-color: #2563eb; background: rgba(37,99,235,0.06); }
+.rs-check input { display: none; }
+.rs-box {
+  width: 1.15rem; height: 1.15rem; border-radius: 0.35rem;
+  border: 1.5px solid rgba(15,23,42,0.25); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; flex-shrink: 0;
+  transition: background 0.13s ease, border-color 0.13s ease;
+}
+.rs-box svg { width: 0.7rem; height: 0.6rem; opacity: 0; transition: opacity 0.1s ease; }
+.rs-check--on .rs-box { background: #2563eb; border-color: #2563eb; }
+.rs-check--on .rs-box svg { opacity: 1; }
+.rs-check small { color: #94a3b8; font-size: 0.78rem; font-weight: 500; }
+.rs-check--off { opacity: 0.55; cursor: default; }
+.rs-hint-note { color: #94a3b8; font-size: 0.82rem; }
 .rs-hint-warn { color: #b45309; font-size: 0.85rem; }
 .rs-seg { display: inline-flex; background: rgba(15,23,42,0.05); border-radius: 0.75rem; padding: 0.22rem; height: 2.9rem; box-sizing: border-box; }
 .rs-seg button {
