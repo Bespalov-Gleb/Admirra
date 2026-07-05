@@ -663,6 +663,51 @@ class AvitoStats(Base):
     campaign = relationship("Campaign", back_populates="avito_stats")
 
 
+class VKGroups(Base):
+    """Дневная статистика групп объявлений VK Ads (уровень ad_groups) — для
+    drill-down иерархии кампаний, по образцу yandex_groups. Заполняется лениво
+    при первом раскрытии кампании. Конверсии — родные vk.goals уровня группы."""
+    __tablename__ = "vk_groups"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
+    group_name = Column(String)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+
+    client = relationship("Client", backref="vk_groups")
+    campaign = relationship("Campaign", backref="vk_groups")
+
+
+class VKBanners(Base):
+    """Дневная статистика объявлений VK Ads (уровень banners) — третий уровень
+    drill-down, по образцу yandex_ads."""
+    __tablename__ = "vk_banners"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=True, index=True)
+    date = Column(Date, index=True, nullable=False)
+    campaign_name = Column(String)
+    group_id = Column(String, nullable=True, index=True)
+    group_name = Column(String, nullable=True)
+    banner_id = Column(String, nullable=True, index=True)
+    banner_name = Column(String, nullable=True)
+    impressions = Column(BigInteger, default=0)
+    clicks = Column(BigInteger, default=0)
+    cost = Column(Numeric(20, 2), default=0)
+    conversions = Column(BigInteger, default=0)
+
+    client = relationship("Client", backref="vk_banners")
+    campaign = relationship("Campaign", backref="vk_banners")
+
+
 class AvitoGroups(Base):
     __tablename__ = "avito_groups"
 

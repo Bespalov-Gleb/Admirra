@@ -1295,7 +1295,9 @@ class StatsService:
                     "platform": "vk",
                     "level": "campaign",
                     "source_id": ext_id or None,
-                    "has_children": False,
+                    # Иерархия VK (группы → объявления) подгружается лениво при
+                    # раскрытии — у кампании VK всегда есть хотя бы одна группа
+                    "has_children": bool(ext_id),
                     "conversions_attributed": True,
                     "name": f"[VK] {disp_name}",
                     "impressions": imps,
@@ -1488,9 +1490,18 @@ class StatsService:
             return []
 
         platform = campaign.integration.platform
-        if platform not in (models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.AVITO_ADS):
+        if platform not in (
+            models.IntegrationPlatform.YANDEX_DIRECT,
+            models.IntegrationPlatform.AVITO_ADS,
+            models.IntegrationPlatform.VK_ADS,
+        ):
             return []
-        platform_code = "avito" if platform == models.IntegrationPlatform.AVITO_ADS else "yandex"
+        if platform == models.IntegrationPlatform.AVITO_ADS:
+            platform_code = "avito"
+        elif platform == models.IntegrationPlatform.VK_ADS:
+            platform_code = "vk"
+        else:
+            platform_code = "yandex"
 
         def _allocated_conversions_by_cost(total_conversions, rows, cost_getter):
             total = int(round(float(total_conversions or 0)))
@@ -1601,6 +1612,78 @@ class StatsService:
             if sort_key in ("cpa", "cpl") and reverse:
                 sorted_rows = sorted(rows, key=lambda r: (r.get("cpa") in (None, 0), float(r.get("cpa") or 0)))
             return sorted_rows
+
+        if platform == models.IntegrationPlatform.VK_ADS:
+            # VK: конверсии родные (vk.goals) на каждом уровне — attributed, без allocation
+            if level == "campaign":
+                group_q = db.query(
+                    models.VKGroups.group_id,
+                    models.VKGroups.group_name,
+                    func.sum(models.VKGroups.impressions).label("impressions"),
+                    func.sum(models.VKGroups.clicks).label("clicks"),
+                    func.sum(models.VKGroups.cost).label("cost"),
+                    func.sum(models.VKGroups.conversions).label("conversions"),
+                ).filter(
+                    models.VKGroups.client_id.in_(client_ids),
+                    models.VKGroups.campaign_id == campaign.id,
+                    models.VKGroups.group_id.isnot(None),
+                )
+                group_q = apply_dates(group_q, models.VKGroups)
+                group_rows = group_q.group_by(models.VKGroups.group_id, models.VKGroups.group_name).all()
+                rows = []
+                for row in group_rows:
+                    rows.append(metric_row(
+                        raw_id=row.group_id,
+                        parent_id=str(campaign.id),
+                        name=row.group_name or f"Группа {row.group_id}",
+                        lvl="group",
+                        imps=row.impressions,
+                        clicks=row.clicks,
+                        cost=row.cost,
+                        convs=int(row.conversions or 0),
+                        has_children=bool(row.group_id),
+                        attributed=True,
+                        estimated=False,
+                    ))
+                return sort_rows(rows)
+
+            if level == "group" and node_id:
+                banner_q = db.query(
+                    models.VKBanners.banner_id,
+                    models.VKBanners.banner_name,
+                    func.sum(models.VKBanners.impressions).label("impressions"),
+                    func.sum(models.VKBanners.clicks).label("clicks"),
+                    func.sum(models.VKBanners.cost).label("cost"),
+                    func.sum(models.VKBanners.conversions).label("conversions"),
+                ).filter(
+                    models.VKBanners.client_id.in_(client_ids),
+                    models.VKBanners.campaign_id == campaign.id,
+                    models.VKBanners.banner_id.isnot(None),
+                    models.VKBanners.group_id == node_id,
+                )
+                banner_q = apply_dates(banner_q, models.VKBanners)
+                banner_rows = banner_q.group_by(
+                    models.VKBanners.banner_id,
+                    models.VKBanners.banner_name,
+                ).all()
+                rows = []
+                for row in banner_rows:
+                    rows.append(metric_row(
+                        raw_id=row.banner_id,
+                        parent_id=str(node_id),
+                        name=row.banner_name or f"Объявление {row.banner_id}",
+                        lvl="ad",
+                        imps=row.impressions,
+                        clicks=row.clicks,
+                        cost=row.cost,
+                        convs=int(row.conversions or 0),
+                        has_children=False,
+                        attributed=True,
+                        estimated=False,
+                    ))
+                return sort_rows(rows)
+
+            return []
 
         if platform == models.IntegrationPlatform.AVITO_ADS:
             if level == "campaign":

@@ -680,6 +680,119 @@ class VKAdsAPI:
 
         return ad_groups
 
+    async def get_banners(self, campaign_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Объявления (banners) для указанных кампаний — третий уровень иерархии
+        VK Ads (ad_plans → ad_groups → banners). GET /api/v2/banners.json,
+        фильтр _ad_plan_id__in, пагинация limit/offset.
+        """
+        if not campaign_ids:
+            return []
+
+        url = f"{self.base_url}/banners.json"
+        banners: List[Dict[str, Any]] = []
+        limit = 200
+        offset = 0
+        max_pages = 50
+
+        async with httpx.AsyncClient() as client:
+            for _ in range(max_pages):
+                params = {
+                    "_ad_plan_id__in": ",".join(str(c) for c in campaign_ids[:200]),
+                    "fields": "id,name,ad_group_id",
+                    "limit": limit,
+                    "offset": offset,
+                }
+                if self.account_id and self.send_client_id:
+                    params["client_id"] = self.account_id
+                try:
+                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                except Exception as e:
+                    logger.warning(f"⚠️ VK Ads banners request error: {e}")
+                    break
+                if response.status_code != 200:
+                    logger.warning(
+                        f"⚠️ VK Ads banners error {response.status_code}: "
+                        f"{(response.text or '')[:200]}"
+                    )
+                    break
+                items = (response.json() or {}).get("items", [])
+                if not items:
+                    break
+                banners.extend(items)
+                offset += len(items)
+                if len(items) < limit:
+                    break
+
+        if banners:
+            logger.info(f"✅ VK Ads: получено {len(banners)} banners для {len(campaign_ids)} кампаний")
+        return banners
+
+    async def get_level_statistics(
+        self,
+        level: str,
+        object_ids: List[str],
+        date_from: str,
+        date_to: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Дневная статистика произвольного уровня иерархии VK Ads:
+        GET /api/v2/statistics/{ad_plans|ad_groups|banners}/day.json.
+        Возвращает строки: {date, object_id, impressions, clicks, cost, conversions}.
+        Ограничения API: 200 объектов на запрос, чанки дат ~92 дня.
+        """
+        if level not in ("ad_plans", "ad_groups", "banners"):
+            raise ValueError(f"Unknown VK statistics level: {level}")
+        object_ids = [str(i) for i in object_ids if i]
+        if not object_ids:
+            return []
+
+        url = f"{self.base_url}/statistics/{level}/day.json"
+        date_chunks = self._split_date_range(date_from, date_to, 90)
+        results: List[Dict[str, Any]] = []
+
+        async with httpx.AsyncClient() as client:
+            for d_from, d_to in date_chunks:
+                for id_offset in range(0, len(object_ids), 200):
+                    id_chunk = object_ids[id_offset:id_offset + 200]
+                    params = {
+                        "date_from": d_from,
+                        "date_to": d_to,
+                        "id": ",".join(id_chunk),
+                        "metrics": "base",
+                    }
+                    try:
+                        response = await client.get(url, params=params, headers=self.headers, timeout=120.0)
+                    except Exception as e:
+                        logger.warning(f"⚠️ VK Ads {level} statistics error: {e}")
+                        continue
+                    if response.status_code == 429:
+                        await asyncio.sleep(3)
+                        try:
+                            response = await client.get(url, params=params, headers=self.headers, timeout=120.0)
+                        except Exception:
+                            continue
+                    if response.status_code != 200:
+                        logger.warning(
+                            f"⚠️ VK Ads statistics/{level} HTTP {response.status_code}: "
+                            f"{(response.text or '')[:200]}"
+                        )
+                        continue
+                    # Переиспользуем общий парсер (campaign_id в нём = id объекта уровня)
+                    for row in self._parse_response(response.json(), {}):
+                        results.append({
+                            "date": row["date"],
+                            "object_id": row["campaign_id"],
+                            "impressions": row["impressions"],
+                            "clicks": row["clicks"],
+                            "cost": row["cost"],
+                            "conversions": row["conversions"],
+                        })
+                    if id_offset + len(id_chunk) < len(object_ids):
+                        await asyncio.sleep(0.55)
+
+        return results
+
     async def get_packages_map(self) -> Dict[str, Dict[str, Any]]:
         """
         Получает список пакетов (Packages) и возвращает мапу по ID.

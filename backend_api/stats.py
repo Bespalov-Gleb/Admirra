@@ -612,6 +612,209 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
     db.commit()
 
 
+async def _ensure_vk_hierarchy_rows_for_campaign(
+    db: Session,
+    campaign: models.Campaign,
+    d_start: Optional[date],
+    d_end: date,
+    *,
+    include_ads: bool = False,
+) -> None:
+    """
+    Lazy-load VK Ads drill-down rows (ad_groups → banners) for a single campaign
+    and period — по образцу Яндекса. Конверсии берём из родной статистики VK
+    (vk.goals) на каждом уровне, оверрайды не нужны.
+    """
+    if not campaign or not campaign.integration:
+        return
+    if campaign.integration.platform != models.IntegrationPlatform.VK_ADS:
+        return
+    if not campaign.external_id:
+        return
+
+    integration = campaign.integration
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+
+    # Уже загружали этот период? (при include_ads дополнительно проверяем баннеры)
+    groups_exist_q = db.query(models.VKGroups.id).filter(
+        models.VKGroups.campaign_id == campaign.id,
+        models.VKGroups.date <= d_end,
+    )
+    if d_start:
+        groups_exist_q = groups_exist_q.filter(models.VKGroups.date >= d_start)
+    groups_loaded = groups_exist_q.first() is not None
+
+    banners_loaded = True
+    if include_ads:
+        banners_exist_q = db.query(models.VKBanners.id).filter(
+            models.VKBanners.campaign_id == campaign.id,
+            models.VKBanners.date <= d_end,
+        )
+        if d_start:
+            banners_exist_q = banners_exist_q.filter(models.VKBanners.date >= d_start)
+        banners_loaded = banners_exist_q.first() is not None
+
+    if groups_loaded and banners_loaded:
+        return
+
+    try:
+        from automation.vk_ads import VKAdsAPI
+        access_token = security.decrypt_token(integration.access_token)
+        probe = VKAdsAPI(access_token)
+        token_kind = await probe.detect_token_kind()
+        api = VKAdsAPI(
+            access_token,
+            integration.account_id,
+            send_client_id=(token_kind == "agency"),
+        )
+    except Exception as err:
+        logger.warning("Failed to init VK drilldown for campaign %s: %s", campaign.id, err)
+        return
+
+    ext_id = str(campaign.external_id)
+
+    # ── Группы: каталог + дневная статистика ──
+    group_names: dict = {}
+    try:
+        ad_groups = await api.get_ad_groups([ext_id])
+        for g in ad_groups:
+            gid = str(g.get("id") or "").strip()
+            plan_id = str(g.get("ad_plan_id") or g.get("campaign_id") or "").strip()
+            if gid and (not plan_id or plan_id == ext_id):
+                group_names[gid] = g.get("name") or f"Группа {gid}"
+    except Exception as err:
+        logger.warning("Failed to load VK ad_groups for campaign %s: %s", campaign.id, err)
+
+    if not groups_loaded and group_names:
+        try:
+            stat_rows = await api.get_level_statistics("ad_groups", list(group_names.keys()), date_from, date_to)
+        except Exception as err:
+            logger.warning("Failed to load VK ad_groups stats for campaign %s: %s", campaign.id, err)
+            stat_rows = []
+
+        seen_group_ids = set()
+        for row in stat_rows:
+            gid = str(row.get("object_id") or "").strip()
+            if not gid:
+                continue
+            seen_group_ids.add(gid)
+            row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+            filters = {
+                "client_id": integration.client_id,
+                "campaign_id": campaign.id,
+                "date": row_date,
+                "group_id": gid,
+            }
+            data = {
+                "campaign_name": campaign.name,
+                "group_name": group_names.get(gid) or f"Группа {gid}",
+                "impressions": int(row.get("impressions", 0) or 0),
+                "clicks": int(row.get("clicks", 0) or 0),
+                "cost": float(row.get("cost", 0) or 0),
+                "conversions": int(row.get("conversions", 0) or 0),
+            }
+            existing = db.query(models.VKGroups).filter_by(**filters).first()
+            if existing:
+                for key, value in data.items():
+                    setattr(existing, key, value)
+            else:
+                db.add(models.VKGroups(**filters, **data))
+
+        # Каталожные строки для групп без статистики в периоде (нулевые, как у Яндекса)
+        for gid, gname in group_names.items():
+            if gid in seen_group_ids:
+                continue
+            filters = {
+                "client_id": integration.client_id,
+                "campaign_id": campaign.id,
+                "date": d_end,
+                "group_id": gid,
+            }
+            if not db.query(models.VKGroups).filter_by(**filters).first():
+                db.add(models.VKGroups(
+                    **filters,
+                    campaign_name=campaign.name,
+                    group_name=gname,
+                    impressions=0, clicks=0, cost=0, conversions=0,
+                ))
+
+    # ── Баннеры (объявления): каталог + дневная статистика ──
+    if include_ads and not banners_loaded:
+        banner_meta: dict = {}
+        try:
+            banners = await api.get_banners([ext_id])
+            for b in banners:
+                bid = str(b.get("id") or "").strip()
+                if bid:
+                    banner_meta[bid] = {
+                        "name": b.get("name") or f"Объявление {bid}",
+                        "group_id": str(b.get("ad_group_id") or "") or None,
+                    }
+        except Exception as err:
+            logger.warning("Failed to load VK banners for campaign %s: %s", campaign.id, err)
+
+        if banner_meta:
+            try:
+                stat_rows = await api.get_level_statistics("banners", list(banner_meta.keys()), date_from, date_to)
+            except Exception as err:
+                logger.warning("Failed to load VK banners stats for campaign %s: %s", campaign.id, err)
+                stat_rows = []
+
+            seen_banner_ids = set()
+            for row in stat_rows:
+                bid = str(row.get("object_id") or "").strip()
+                if not bid:
+                    continue
+                seen_banner_ids.add(bid)
+                meta = banner_meta.get(bid) or {}
+                row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
+                filters = {
+                    "client_id": integration.client_id,
+                    "campaign_id": campaign.id,
+                    "date": row_date,
+                    "banner_id": bid,
+                }
+                data = {
+                    "campaign_name": campaign.name,
+                    "group_id": meta.get("group_id"),
+                    "group_name": group_names.get(str(meta.get("group_id") or "")),
+                    "banner_name": meta.get("name") or f"Объявление {bid}",
+                    "impressions": int(row.get("impressions", 0) or 0),
+                    "clicks": int(row.get("clicks", 0) or 0),
+                    "cost": float(row.get("cost", 0) or 0),
+                    "conversions": int(row.get("conversions", 0) or 0),
+                }
+                existing = db.query(models.VKBanners).filter_by(**filters).first()
+                if existing:
+                    for key, value in data.items():
+                        setattr(existing, key, value)
+                else:
+                    db.add(models.VKBanners(**filters, **data))
+
+            # Каталожные нулевые строки для баннеров без статистики
+            for bid, meta in banner_meta.items():
+                if bid in seen_banner_ids:
+                    continue
+                filters = {
+                    "client_id": integration.client_id,
+                    "campaign_id": campaign.id,
+                    "date": d_end,
+                    "banner_id": bid,
+                }
+                if not db.query(models.VKBanners).filter_by(**filters).first():
+                    db.add(models.VKBanners(
+                        **filters,
+                        campaign_name=campaign.name,
+                        group_id=meta.get("group_id"),
+                        group_name=group_names.get(str(meta.get("group_id") or "")),
+                        banner_name=meta.get("name"),
+                        impressions=0, clicks=0, cost=0, conversions=0,
+                    ))
+
+    db.commit()
+
+
 def check_data_availability(
     db: Session,
     client_ids: List[uuid.UUID],
@@ -1718,6 +1921,17 @@ async def get_campaign_children(
                 )
                 if group_available:
                     conv_map["__parent_total__"] = int(round(float(group_conv_map.get(str(node_id), 0) or 0)))
+    elif campaign.integration.platform == models.IntegrationPlatform.VK_ADS:
+        # VK: конверсии (vk.goals) лежат в родной статистике каждого уровня —
+        # ленивo подгружаем группы/баннеры, оверрайды конверсий не нужны.
+        await _ensure_vk_hierarchy_rows_for_campaign(
+            db,
+            campaign,
+            d_start,
+            d_end,
+            include_ads=(level == "group"),
+        )
+        conv_map, conv_available = {}, False
     elif campaign.integration.platform == models.IntegrationPlatform.AVITO_ADS:
         campaign_conv_map, creative_conv_map, conv_available = await _avito_metrika_utm_conv_maps(
             db,
