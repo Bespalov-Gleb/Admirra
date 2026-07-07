@@ -32,8 +32,13 @@
       <!-- Right: tab content -->
       <div class="flex-1 min-w-0">
 
+        <!-- ===== Tab: Тариф и оплата ===== -->
+        <div v-if="activeTab === 'tariff'">
+          <TariffsContent />
+        </div>
+
         <!-- ===== Tab: Бренд / White Label ===== -->
-        <div v-if="activeTab === 'brand'" class="wl-page">
+        <div v-else-if="activeTab === 'brand'" class="wl-page">
           <div class="wl-page-head">
             <h4>Бренд / White Label</h4>
             <p>Оформите свой бренд через тех. панель</p>
@@ -151,12 +156,6 @@
             <button type="button" class="wl-plan-button" disabled>По тарифу</button>
           </section>
         </div>
-
-        <!-- ===== Tab: Тариф и оплата ===== -->
-        <div v-else-if="activeTab === 'tariff'">
-          <TariffsContent />
-        </div>
-
       </div>
     </div>
 
@@ -197,26 +196,25 @@ const route = useRoute()
 const router = useRouter()
 const toaster = useToaster()
 
-const activeTab = ref('brand')
+const activeTab = ref('tariff')
 
 const tabs = [
-  { id: 'brand', label: 'Бренд / White Label', icon: SwatchIcon },
   { id: 'tariff', label: 'Тариф и оплата', icon: CreditCardIcon },
+  { id: 'brand', label: 'Бренд / White Label', icon: SwatchIcon },
 ]
 
 const selectTab = (tabId) => {
   activeTab.value = tabId
-  router.replace({ path: '/settings', query: tabId === 'tariff' ? { tab: 'tariff' } : {} })
+  router.replace({ path: '/settings', query: tabId === 'brand' ? { tab: 'brand' } : {} })
 }
 
 onMounted(() => {
-  if (route.query.tab === 'tariff') activeTab.value = 'tariff'
+  activeTab.value = route.query.tab === 'brand' ? 'brand' : 'tariff'
   loadBrand()
 })
 
 watch(() => route.query.tab, (val) => {
-  if (val === 'tariff') activeTab.value = 'tariff'
-  else if (!val) activeTab.value = 'brand'
+  activeTab.value = val === 'brand' ? 'brand' : 'tariff'
 })
 
 const brand = reactive({

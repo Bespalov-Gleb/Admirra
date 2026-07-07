@@ -18,9 +18,8 @@
               <span class="subscription-status" :class="`subscription-status--${subscriptionStatusKey}`">
                 {{ subscriptionStatusLabel }}
               </span>
-              <span class="subscription-period">{{ planMetaLine }}</span>
-              <span v-if="subscription.whitelabel_available" class="subscription-status" style="background:#e8f4ff;color:#2563eb">White Label</span>
             </div>
+            <p class="subscription-meta-line">{{ planMetaLine }}</p>
             <p class="subscription-renewal">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M0.5 6.52894C0.5 4.13566 0.5 2.93902 1.24349 2.19552C1.98699 1.45203 3.18363 1.45203 5.57691 1.45203H8.11536C10.5086 1.45203 11.7053 1.45203 12.4488 2.19552C13.1923 2.93902 13.1923 4.13566 13.1923 6.52894V7.79816C13.1923 10.1914 13.1923 11.3881 12.4488 12.1316C11.7053 12.8751 10.5086 12.8751 8.11536 12.8751H5.57691C3.18363 12.8751 1.98699 12.8751 1.24349 12.1316C0.5 11.3881 0.5 10.1914 0.5 7.79816V6.52894Z" stroke="#696969" stroke-opacity="0.56"/><path d="M3.67285 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.0188 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M0.817139 4.625H12.8748" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.654 9.702C10.654 10.0525 10.3699 10.3366 10.0194 10.3366C9.66888 10.3366 9.38477 10.0525 9.38477 9.702C9.38477 9.3515 9.66888 9.06738 10.0194 9.06738C10.3699 9.06738 10.654 9.3515 10.654 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M10.654 7.16342C10.654 7.51392 10.3699 7.79804 10.0194 7.79804C9.66888 7.79804 9.38477 7.51392 9.38477 7.16342C9.38477 6.81293 9.66888 6.52881 10.0194 6.52881C10.3699 6.52881 10.654 6.81293 10.654 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 9.702C7.48016 10.0525 7.19605 10.3366 6.84555 10.3366C6.49505 10.3366 6.21094 10.0525 6.21094 9.702C6.21094 9.3515 6.49505 9.06738 6.84555 9.06738C7.19605 9.06738 7.48016 9.3515 7.48016 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 7.16342C7.48016 7.51392 7.19605 7.79804 6.84555 7.79804C6.49505 7.79804 6.21094 7.51392 6.21094 7.16342C6.21094 6.81293 6.49505 6.52881 6.84555 6.52881C7.19605 6.52881 7.48016 6.81293 7.48016 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 9.702C4.30731 10.0525 4.02318 10.3366 3.6727 10.3366C3.32222 10.3366 3.03809 10.0525 3.03809 9.702C3.03809 9.3515 3.32222 9.06738 3.6727 9.06738C4.02318 9.06738 4.30731 9.3515 4.30731 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 7.16342C4.30731 7.51392 4.02318 7.79804 3.6727 7.79804C3.32222 7.79804 3.03809 7.51392 3.03809 7.16342C3.03809 6.81293 3.32222 6.52881 3.6727 6.52881C4.02318 6.52881 4.30731 6.81293 4.30731 7.16342Z" fill="#696969" fill-opacity="0.56"/></svg>
               <span v-html="renewalText"></span>
@@ -36,7 +35,7 @@
             v-for="item in subscriptionUsageTiles"
             :key="item.key"
             class="usage-tile"
-            :class="`usage-tile--${item.key}`"
+            :class="[`usage-tile--${item.key}`, { 'usage-tile--warning': item.warning }]"
           >
             <div class="usage-tile__head">
               <span>{{ item.label }}</span>
@@ -65,37 +64,74 @@
         </div>
 
         <div class="subscription-footer">
-          <div class="payment-line" :class="{ 'payment-line--empty': !hasPaymentMethod }">
-            <div class="payment-method">
-              <svg width="21" height="11" viewBox="0 0 21 11" fill="none" class="flex-shrink-0"><rect x="0.35" y="0.35" width="20.3" height="10.3" rx="5.15" fill="#F5F7F9" stroke="#CDDAFF" stroke-width="0.7"/><circle v-if="hasPaymentMethod" cx="15.5" cy="5.5" r="5.5" fill="#9AB2FB"/><circle v-else cx="5.5" cy="5.5" r="5.5" fill="#9AB2FB"/></svg>
-              <strong>{{ hasPaymentMethod ? 'Карта привязана' : 'Карта не привязана' }}</strong>
-              <template v-if="hasPaymentMethod">
-                <span class="card-badge" :class="`card-badge--${cardBrandKey}`">
-                  <template v-if="cardBrandKey === 'mastercard'">
-                    <i class="mc-circle mc-circle--red"></i><i class="mc-circle mc-circle--yellow"></i>
-                  </template>
-                  <template v-else>{{ cardBrandLabel }}</template>
-                </span>
-                <span class="payment-mask">•••• {{ paymentLast4 }}</span>
-                <span v-if="paymentExp" class="payment-exp">{{ paymentExp }}</span>
-              </template>
+          <div class="payment-row">
+            <div class="payment-row__content">
+              <span class="payment-row__label">Способ оплаты</span>
+              <div class="payment-method">
+                <template v-if="hasPaymentMethod">
+                  <span class="card-badge" :class="`card-badge--${cardBrandKey}`">
+                    <template v-if="cardBrandKey === 'mastercard'">
+                      <i class="mc-circle mc-circle--red"></i><i class="mc-circle mc-circle--yellow"></i>
+                    </template>
+                    <template v-else>{{ cardBrandLabel }}</template>
+                  </span>
+                  <span class="payment-mask">•••• {{ paymentLast4 }}</span>
+                  <span v-if="paymentExp" class="payment-exp">· {{ paymentExp }}</span>
+                </template>
+                <template v-else>
+                  <span class="payment-method__empty">Карта не привязана</span>
+                </template>
+              </div>
             </div>
-
-            <!-- Статус автопродления — виден всегда, как у больших сервисов -->
-            <div class="payment-renewal" :class="{
-              'payment-renewal--on': hasPaymentMethod && subscription.autorenew,
-              'payment-renewal--off': !hasPaymentMethod || !subscription.autorenew,
-            }">
-              <i class="payment-renewal__dot"></i>
-              {{ hasPaymentMethod
-                ? (subscription.autorenew ? 'Автопродление включено' : 'Автопродление отключено')
-                : 'Автопродление неактивно — привяжите карту' }}
-            </div>
-
             <div class="subscription-footer-actions">
-              <button type="button" @click="onBindCard">{{ hasPaymentMethod ? 'Изменить карту' : 'Добавить карту' }}</button>
-              <button v-if="hasPaymentMethod && subscription.autorenew" type="button" :disabled="cancellingAutorenew" @click="onCancelAutorenew">
+              <button type="button" :class="{ 'payment-action--primary': !hasPaymentMethod }" @click="onBindCard">
+                {{ hasPaymentMethod ? 'Изменить карту' : 'Привязать карту' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="payment-row" :class="{ 'payment-row--warning': !autorenewEnabled }">
+            <div class="payment-row__content">
+              <span class="payment-row__label">Автопродление</span>
+              <div
+                class="payment-renewal"
+                :class="{
+                  'payment-renewal--on': autorenewEnabled,
+                  'payment-renewal--off': !autorenewEnabled,
+                }"
+              >
+                <i class="payment-renewal__dot"></i>
+                <span>{{ autorenewText }}</span>
+              </div>
+              <p v-if="autorenewEnabled" class="payment-row__hint">
+                Если поменяете карту, следующее списание: {{ nextPaymentLine }} с новой карты.
+              </p>
+            </div>
+            <div class="subscription-footer-actions">
+              <button
+                v-if="autorenewEnabled"
+                type="button"
+                :disabled="cancellingAutorenew"
+                @click="openCancelAutorenewModal"
+              >
                 {{ cancellingAutorenew ? 'Подождите…' : 'Отключить автопродление' }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="payment-action--primary"
+                @click="onBindCard"
+              >
+                {{ hasPaymentMethod ? 'Включить автопродление' : 'Привязать карту' }}
+              </button>
+              <button
+                v-if="hasPaymentMethod && !subscription.autorenew"
+                type="button"
+                class="payment-action--danger"
+                :disabled="cancellingAutorenew"
+                @click="onDetachCard"
+              >
+                Отвязать карту
               </button>
             </div>
           </div>
@@ -105,7 +141,7 @@
             <strong>Будет позже</strong>
           </div>
 
-          <div class="subscription-note">
+          <div v-if="showTrialNote" class="subscription-note">
             После окончания пробного периода подписка продолжится по выбранному тарифу.
           </div>
         </div>
@@ -220,6 +256,30 @@
         </article>
       </section>
     </template>
+
+    <Teleport to="body">
+      <div
+        v-if="cancelAutorenewModalOpen"
+        class="billing-modal-backdrop"
+        @click.self="cancelAutorenewModalOpen = false"
+      >
+        <div class="billing-modal">
+          <h4>Отключить автопродление?</h4>
+          <p>
+            Доступ сохранится до {{ subscriptionEndDate || 'конца оплаченного периода' }},
+            списания не будет. Подписку можно возобновить в любой момент.
+          </p>
+          <div class="billing-modal__actions">
+            <button type="button" class="billing-modal__confirm" :disabled="cancellingAutorenew" @click="onCancelAutorenew">
+              {{ cancellingAutorenew ? 'Отключаем…' : 'Отключить автопродление' }}
+            </button>
+            <button type="button" class="billing-modal__cancel" @click="cancelAutorenewModalOpen = false">
+              Отмена
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -252,6 +312,7 @@ const plans = ref(normalizePlansFromApi([]))
 const paying = ref(null)
 const billingPeriod = ref('month')
 const plansAnchor = ref(null)
+const cancelAutorenewModalOpen = ref(false)
 
 const subscription = ref({
   plan_code: 'start',
@@ -281,7 +342,7 @@ const currentPlan = computed(() => resolvedPlans.value[currentPlanCode.value] ||
 const subscriptionStatusKey = computed(() => String(subscription.value?.status || 'trial').toLowerCase())
 const subscriptionStatusLabel = computed(() => ({
   active: 'Активно',
-  trial: 'Активно',
+  trial: 'Пробная',
   past_due: 'Просрочено',
   canceled: 'Отменено',
   expired: 'Истекло',
@@ -316,13 +377,28 @@ const planMetaLine = computed(() => {
   const price = isYear
     ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
     : formatRub(currentPlan.value?.price_rub)
-  return isYear ? `Годовая ${price}/год` : `Помесячно ${price}/мес.`
+  const period = isYear ? 'годовой' : 'помесячно'
+  const pricePart = isYear ? `${price}/год` : `${price}/мес`
+  const wlPart = subscription.value?.whitelabel_available ? ' · White Label включён' : ''
+  return `${pricePart} · ${period}${wlPart}`
+})
+
+const subscriptionEndDate = computed(() => formatDate(subscription.value?.subscription_expires_at))
+
+const nextPaymentLine = computed(() => {
+  const isYear = subscription.value?.billing_period === 'year'
+  const price = isYear
+    ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
+    : formatRub(currentPlan.value?.price_rub)
+  return subscriptionEndDate.value ? `${price} ${subscriptionEndDate.value}` : price
 })
 
 const hasPaymentMethod = computed(() => {
   const method = subscription.value?.payment_method || {}
   return Boolean(method.last4 || subscription.value?.payment_last4)
 })
+
+const autorenewEnabled = computed(() => hasPaymentMethod.value && Boolean(subscription.value?.autorenew))
 
 const paymentMethod = computed(() => subscription.value?.payment_method || {})
 const paymentLast4 = computed(() => paymentMethod.value.last4 || subscription.value?.payment_last4 || '')
@@ -338,9 +414,33 @@ const cardBrandKey = computed(() => {
   return 'generic'
 })
 
+const showTrialNote = computed(() => subscriptionStatusKey.value === 'trial')
+
+const autorenewText = computed(() => {
+  const end = subscriptionEndDate.value
+  if (autorenewEnabled.value) {
+    return end
+      ? `Включено · спишется ${nextPaymentLine.value}`
+      : 'Включено · дата следующего списания уточняется'
+  }
+  if (!hasPaymentMethod.value) return 'Неактивно · привяжите карту для автопродления'
+  return end
+    ? `Отключено · доступ до ${end}, списаний не будет`
+    : 'Отключено · списаний не будет'
+})
+
 const usagePercent = (used, limit) => {
   const safeLimit = Math.max(Number(limit) || 0, 1)
   return Math.min(100, Math.round(((Number(used) || 0) / safeLimit) * 100))
+}
+
+const pluralRu = (n, one, few, many) => {
+  const v = Math.abs(Number(n) || 0)
+  const mod10 = v % 10
+  const mod100 = v % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
 }
 
 const usageIcons = {
@@ -352,13 +452,16 @@ const usageIcons = {
 
 const subscriptionUsageTiles = computed(() => {
   const s = subscription.value || {}
+  const projectsUsed = Number(s.projects_used ?? 1)
+  const pausedProjects = Number(s.paused_projects ?? 0)
+  const usersUsed = Number(s.users_used ?? 1)
   const tiles = [
     {
       key: 'projects',
       label: 'Проекты',
-      used: s.projects_used ?? 1,
+      used: projectsUsed,
       limit: s.max_projects ?? currentPlan.value?.max_projects ?? 1,
-      caption: `${s.projects_used ?? 1} активных  •  ${s.paused_projects ?? 0} на паузе`,
+      caption: `${projectsUsed} ${pluralRu(projectsUsed, 'активный', 'активных', 'активных')}  •  ${pausedProjects} на паузе`,
     },
     {
       key: 'cabinets',
@@ -377,15 +480,16 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'users',
       label: 'Пользователи',
-      used: s.users_used ?? 1,
+      used: usersUsed,
       limit: s.max_users ?? s.max_staff ?? 1,
-      caption: `${s.users_used ?? 1} активный`,
+      caption: `${usersUsed} ${pluralRu(usersUsed, 'активный', 'активных', 'активных')}`,
     },
   ]
   return tiles.map((item) => ({
     ...item,
     icon: usageIcons[item.key],
     percent: usagePercent(item.used, item.limit),
+    warning: usagePercent(item.used, item.limit) >= 90,
   }))
 })
 
@@ -551,12 +655,24 @@ function onBindCard() {
   onSubscribe(code, subscription.value?.billing_period === 'year' ? 'year' : 'month')
 }
 
+function openCancelAutorenewModal() {
+  cancelAutorenewModalOpen.value = true
+}
+
 async function onCancelAutorenew() {
   cancellingAutorenew.value = true
   try {
     await api.post('billing/autorenew/cancel')
     // Отмена автопродления = отвязка карты (бэкенд чистит маску и рекуррент CP)
-    subscription.value = { ...subscription.value, autorenew: false, payment_method: null }
+    subscription.value = {
+      ...subscription.value,
+      autorenew: false,
+      payment_method: null,
+      payment_last4: '',
+      payment_exp: '',
+      payment_brand: '',
+    }
+    cancelAutorenewModalOpen.value = false
     toaster.success('Автопродление отключено, карта отвязана. Доступ сохранится до конца оплаченного периода.')
   } catch (e) {
     const d = e?.response?.data?.detail
@@ -564,6 +680,14 @@ async function onCancelAutorenew() {
   } finally {
     cancellingAutorenew.value = false
   }
+}
+
+async function onDetachCard() {
+  if (subscription.value?.autorenew) {
+    toaster.info('Сначала отключите автопродление.')
+    return
+  }
+  await onCancelAutorenew()
 }
 
 function onContactWl() {
@@ -639,8 +763,14 @@ function onContactWl() {
   line-height: 1.15;
 }
 
-.subscription-status,
-.subscription-period {
+.subscription-meta-line {
+  margin: 0.4861rem 0 0;
+  color: rgba(105, 105, 105, 0.62);
+  font-size: 1.0417rem;
+  font-weight: 600;
+}
+
+.subscription-status {
   display: inline-flex;
   align-items: center;
   min-height: 1.875rem;
@@ -656,16 +786,16 @@ function onContactWl() {
   color: #13a548;
 }
 
+.subscription-status--trial {
+  background: #e8f4ff;
+  color: #2563eb;
+}
+
 .subscription-status--past_due,
 .subscription-status--canceled,
 .subscription-status--expired {
   background: #fff1d9;
   color: #b45309;
-}
-
-.subscription-period {
-  background: #f4f6f8;
-  color: rgba(105, 105, 105, 0.64);
 }
 
 .subscription-renewal {
@@ -708,13 +838,18 @@ function onContactWl() {
 .usage-tile {
   min-height: 9.0278rem;
   padding: 1.25rem 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 1.1111rem;
+  background: #f8fafc;
+  color: #171717;
+  transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-.usage-tile--projects { background: #FFF2E4; color: #71663E; }
-.usage-tile--cabinets { background: #F0F7FF; color: #254B78; }
-.usage-tile--ai { background: #FFF0F1; color: #662529; }
-.usage-tile--users { background: #F6ECFF; color: #643D87; }
+.usage-tile--warning {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: #fff7ed;
+  color: #92400e;
+}
 
 .usage-tile__head {
   display: flex;
@@ -732,12 +867,13 @@ function onContactWl() {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 0.3472rem;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
-.usage-tile--projects .usage-tile__head i { background: #FFE9D1; }
-.usage-tile--cabinets .usage-tile__head i { background: #E3F0FF; }
-.usage-tile--ai .usage-tile__head i { background: #FFDEE0; }
-.usage-tile--users .usage-tile__head i { background: #F0DEFF; }
+.usage-tile--warning .usage-tile__head i {
+  background: #fff3d6;
+}
 
 .usage-tile__head svg {
   width: 1.25rem;
@@ -769,7 +905,7 @@ function onContactWl() {
   margin-top: 1.1111rem;
   overflow: hidden;
   border-radius: 99rem;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(37, 99, 235, 0.1);
 }
 
 .usage-tile__bar i {
@@ -779,27 +915,21 @@ function onContactWl() {
   border-radius: inherit;
 }
 
-.usage-tile--projects .usage-tile__bar i { background: #FFC07B; }
-.usage-tile--cabinets .usage-tile__bar i { background: #7BADE8; }
-.usage-tile--ai .usage-tile__bar i { background: #ECB2B6; }
-.usage-tile--users .usage-tile__bar i { background: #BCA6CE; }
+.usage-tile__bar i { background: #2563eb; }
+.usage-tile--warning .usage-tile__bar {
+  background: rgba(245, 158, 11, 0.14);
+}
+.usage-tile--warning .usage-tile__bar i { background: #f59e0b; }
 
 .usage-tile p {
   margin: 1.1111rem 0 0;
-  color: currentColor;
+  color: rgba(105, 105, 105, 0.62);
   font-size: 0.9722rem;
   font-weight: 500;
-  opacity: 0.74;
 }
 
-.usage-tile--projects p { color: #C0A86E; opacity: 1; }
-.usage-tile--projects .usage-tile__value span { color: #C0A86E; }
-.usage-tile--cabinets p { color: #71A0D7; opacity: 1; }
-.usage-tile--cabinets .usage-tile__value span { color: #71A0D7; }
-.usage-tile--ai p { color: #D69397; opacity: 1; }
-.usage-tile--ai .usage-tile__value span { color: #D69397; }
-.usage-tile--users p { color: #A987C7; opacity: 1; }
-.usage-tile--users .usage-tile__value span { color: #A987C7; }
+.usage-tile--warning p,
+.usage-tile--warning .usage-tile__value span { color: #b45309; }
 
 .subscription-channel-row {
   display: grid;
@@ -853,25 +983,38 @@ function onContactWl() {
 
 .subscription-footer {
   display: grid;
-  gap: 0.6944rem;
+  gap: 0.8333rem;
   padding: 1.25rem 1.875rem 1.6667rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-.payment-line {
+.payment-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 1.25rem;
-  min-height: 3.4722rem;
+  min-height: 4.1667rem;
+  padding: 0.8333rem 1.25rem;
+  border-radius: 0.9722rem;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.04);
 }
 
-.payment-line--empty {
-  grid-template-columns: minmax(0, 1fr) auto;
+.payment-row--warning {
+  background: #fff7ed;
+  border-color: rgba(245, 158, 11, 0.18);
 }
 
-.payment-line--empty .payment-renewal {
-  display: none;
+.payment-row__content {
+  min-width: 0;
+}
+
+.payment-row__label {
+  display: block;
+  margin-bottom: 0.3472rem;
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 0.9028rem;
+  font-weight: 700;
 }
 
 .payment-method {
@@ -884,17 +1027,13 @@ function onContactWl() {
   font-weight: 600;
 }
 
+.payment-method__empty {
+  color: rgba(105, 105, 105, 0.62);
+}
+
 .payment-method strong {
   color: #5f6368;
   font-weight: 700;
-}
-
-.payment-toggle {
-  width: 1.25rem;
-  height: 0.7639rem;
-  border-radius: 99rem;
-  background: linear-gradient(90deg, #bfcfff 0 45%, #6f8be8 45% 100%);
-  flex-shrink: 0;
 }
 
 .payment-brand {
@@ -963,7 +1102,7 @@ function onContactWl() {
 .payment-mask,
 .payment-exp,
 .payment-renewal {
-  color: rgba(105, 105, 105, 0.5);
+  color: rgba(105, 105, 105, 0.62);
   font-size: 1.0417rem;
   font-weight: 500;
 }
@@ -980,6 +1119,7 @@ function onContactWl() {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  line-height: 1.35;
 }
 
 .payment-renewal__dot {
@@ -992,13 +1132,22 @@ function onContactWl() {
 
 .payment-renewal--on { color: #059669; font-weight: 600; }
 .payment-renewal--on .payment-renewal__dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
-.payment-renewal--off { color: rgba(105, 105, 105, 0.55); }
+.payment-renewal--off { color: #b45309; font-weight: 600; }
+.payment-renewal--off .payment-renewal__dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15); }
+
+.payment-row__hint {
+  margin: 0.3472rem 0 0;
+  color: rgba(105, 105, 105, 0.48);
+  font-size: 0.9028rem;
+  font-weight: 500;
+}
 
 .subscription-footer-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 1.0417rem;
+  flex-wrap: wrap;
+  gap: 0.6944rem;
 }
 
 .subscription-footer-actions button {
@@ -1024,10 +1173,15 @@ function onContactWl() {
   opacity: 0.6;
 }
 
-.payment-line--empty .subscription-footer-actions button {
+.subscription-footer-actions .payment-action--primary {
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;
+}
+
+.subscription-footer-actions .payment-action--danger {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
 }
 
 .documents-line {
@@ -1061,6 +1215,65 @@ function onContactWl() {
   color: rgba(105, 105, 105, 0.58);
   font-size: 1.0417rem;
   font-weight: 500;
+}
+
+.billing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.billing-modal {
+  width: min(100%, 31.25rem);
+  padding: 2.0833rem;
+  border-radius: 1.3889rem;
+  background: #fff;
+  box-shadow: 0 1.3889rem 4.1667rem rgba(15, 23, 42, 0.18);
+}
+
+.billing-modal h4 {
+  margin: 0;
+  color: #171717;
+  font-size: 1.4583rem;
+  font-weight: 700;
+}
+
+.billing-modal p {
+  margin: 0.8333rem 0 1.7361rem;
+  color: rgba(105, 105, 105, 0.72);
+  font-size: 1.0417rem;
+  line-height: 1.45;
+}
+
+.billing-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.8333rem;
+}
+
+.billing-modal__actions button {
+  min-height: 3.125rem;
+  padding: 0 1.3889rem;
+  border-radius: 0.8333rem;
+  font-size: 0.9722rem;
+  font-weight: 700;
+}
+
+.billing-modal__confirm {
+  border: 1px solid #ef4444;
+  background: #ef4444;
+  color: #fff;
+}
+
+.billing-modal__cancel {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #2563eb;
 }
 
 .plans-section {
@@ -1433,7 +1646,7 @@ function onContactWl() {
 @media (max-width: 760px) {
   .subscription-head,
   .tariff-section-head,
-  .payment-line,
+  .payment-row,
   .subscription-channel-row {
     display: flex;
     align-items: flex-start;
