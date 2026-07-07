@@ -1675,7 +1675,8 @@ const toggleGoalSelection = (id) => {
   border: 0;
   border-radius: 1.0417rem;
   background-color: #fff;
-  color: rgba(0, 0, 0, 0.4);
+  /* ТЗ «Правки UI» п.11: у контролов, где значение есть всегда, текст — основной тёмный */
+  color: #171717;
   font-size: 0.9028rem;
   font-weight: 500;
   box-shadow: inset 0 0 0 1px transparent;

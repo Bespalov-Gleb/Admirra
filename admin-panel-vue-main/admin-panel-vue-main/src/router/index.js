@@ -110,7 +110,8 @@ const routes = [
   },
   {
     path: '/projects',
-    redirect: '/project-card'
+    // redirect строкой сбрасывает query (?create=folder от сплит-кнопки хедера)
+    redirect: (to) => ({ path: '/project-card', query: to.query })
   },
   {
     path: '/phone-api',

@@ -190,7 +190,7 @@
                 class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
               >Проект</button>
               <button
-                @click="showAddMenu = false; router.push({ path: '/projects', query: { create: 'folder' } })"
+                @click="showAddMenu = false; router.push({ path: '/project-card', query: { create: 'folder' } })"
                 class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
               >Папку</button>
             </div>

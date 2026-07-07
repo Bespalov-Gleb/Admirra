@@ -449,7 +449,7 @@ const vClickOutside = {
 <style scoped>
 /* Custom select (same as project pages) */
 .custom-select { position: relative; display: inline-flex; flex-direction: column; }
-.cs-head { display: inline-flex; align-items: center; min-height: 3.1944rem; padding: 0.5556rem 1.1806rem; font-size: 0.9028rem; font-weight: 500; color: rgba(0,0,0,0.4); background: #fff; border: 1px solid transparent; border-radius: 1.0417rem; cursor: pointer; outline: none; user-select: none; white-space: nowrap; transition: border-color 0.2s; }
+.cs-head { display: inline-flex; align-items: center; min-height: 3.1944rem; padding: 0.5556rem 1.1806rem; font-size: 0.9028rem; font-weight: 500; color: #171717; background: #fff; border: 1px solid transparent; border-radius: 1.0417rem; cursor: pointer; outline: none; user-select: none; white-space: nowrap; transition: border-color 0.2s; }
 .custom-select.open .cs-head { border-color: rgba(0,0,0,0.1); }
 .cs-current { margin-right: 1.7361rem; }
 .cs-arrow { display: flex; align-items: center; justify-content: center; width: 1.1111rem; height: 1.1111rem; background: #f5f7f9; border-radius: 50%; flex-shrink: 0; transition: transform 0.3s; }

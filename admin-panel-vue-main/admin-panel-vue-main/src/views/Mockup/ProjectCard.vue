@@ -1541,7 +1541,8 @@ onMounted(async () => {
   padding: 0.5556rem 1.1806rem;
   font-size: 0.9028rem;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.4);
+  /* ТЗ «Правки UI» п.11: у контролов, где значение есть всегда, текст — основной тёмный */
+  color: #171717;
   border: 1px solid transparent;
   cursor: pointer;
   outline: none;
@@ -3262,26 +3263,25 @@ onMounted(async () => {
   border-radius: 0.72rem !important;
 }
 
-/* ТЗ п.3: карточка папки — три сигнала: тонированная шапка, метка типа, стопка */
+/* ТЗ п.3: карточка папки — три сигнала: тонированная шапка, метка типа,
+   «язычок» как у физической папки-скоросшивателя (вместо блёклой стопки) */
 .folder-card {
   position: relative;
-}
-.folder-card::before,
-.folder-card::after {
-  content: '';
-  position: absolute;
-  height: 1.1rem;
-  border-radius: 0.85rem 0.85rem 0 0;
-  z-index: -1;
+  margin-top: 0.62rem;
 }
 .folder-card::before {
-  left: 0.95rem; right: 0.95rem; top: -0.42rem;
-  background: #dbeafe;
-}
-.folder-card::after {
-  left: 1.9rem; right: 1.9rem; top: -0.78rem;
-  background: #eff6ff;
-  z-index: -2;
+  content: '';
+  position: absolute;
+  left: 1.1rem;
+  top: -0.58rem;
+  width: 38%;
+  max-width: 11rem;
+  height: 1.3rem;
+  background: linear-gradient(180deg, #cfe3fd 0%, #e4efff 100%);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-bottom: none;
+  border-radius: 0.65rem 1.1rem 0 0;
+  z-index: 0;
 }
 .folder-card .project-tile-header {
   background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);

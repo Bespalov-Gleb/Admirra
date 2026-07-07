@@ -1262,7 +1262,8 @@ onUnmounted(() => {
   padding: 0.5556rem 1.1806rem;
   font-size: 0.9028rem;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.4);
+  /* ТЗ «Правки UI» п.11: у контролов, где значение есть всегда, текст — основной тёмный */
+  color: #171717;
   background-color: #fff;
   border: 1px solid transparent;
   border-radius: 1.0417rem;
