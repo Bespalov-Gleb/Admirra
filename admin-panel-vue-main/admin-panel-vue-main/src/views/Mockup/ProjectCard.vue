@@ -498,13 +498,15 @@
               <button
                 type="button"
                 class="settings-btn folder-move-btn"
+                :class="{ 'folder-move-btn--loading': movingProjectId === project.id }"
                 :title="project.folder_id ? 'Переместить в другую папку или вынести' : 'Переместить в папку'"
+                :disabled="movingProjectId === project.id"
                 @click.stop="moveMenuProjectId = moveMenuProjectId === project.id ? null : project.id"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/>
                 </svg>
-                В папку
+                {{ movingProjectId === project.id ? 'Перемещаем…' : 'В папку' }}
               </button>
               <div v-if="moveMenuProjectId === project.id" class="folder-move-menu">
                 <div class="folder-move-menu__title">Переместить проект</div>
@@ -514,13 +516,13 @@
                   type="button"
                   class="folder-move-menu__item"
                   :class="{ 'folder-move-menu__item--current': project.folder_id === f.id }"
-                  :disabled="project.folder_id === f.id"
+                  :disabled="project.folder_id === f.id || movingProjectId === project.id"
                   @click.stop="moveProjectToFolder(project, f.id)"
                 >
                   <i :style="{ background: f.color || '#2563eb' }"></i>
                   {{ f.name }}
                 </button>
-                <button v-if="project.folder_id" type="button" class="folder-move-menu__item folder-move-menu__item--out" @click.stop="moveProjectToFolder(project, null)">
+                <button v-if="project.folder_id" type="button" class="folder-move-menu__item folder-move-menu__item--out" :disabled="movingProjectId === project.id" @click.stop="moveProjectToFolder(project, null)">
                   Вынести из папки
                 </button>
                 <button type="button" class="folder-move-menu__item folder-move-menu__item--new" @click.stop="moveMenuProjectId = null; openCreateFolder()">
@@ -692,6 +694,7 @@ const expandedFolders = ref({})
 const folderModal = ref(null) // { mode: 'create' | 'edit', folder? }
 const folderDeleteTarget = ref(null)
 const moveMenuProjectId = ref(null)
+const movingProjectId = ref(null)
 const folderForm = ref({ name: '', color: '#2563eb', project_ids: [] })
 const folderSaving = ref(false)
 
@@ -913,6 +916,14 @@ async function confirmDeleteFolder() {
 // ── Перемещение проекта в папку / из папки ──
 async function moveProjectToFolder(project, folderId) {
   moveMenuProjectId.value = null
+  if (movingProjectId.value) return
+  const previousFolderId = project.folder_id || null
+  movingProjectId.value = project.id
+  project.folder_id = folderId || null
+  if (folderId) {
+    expandedFolders.value = { ...expandedFolders.value, [folderId]: true }
+  }
+  toaster.info(folderId ? 'Добавляем проект в папку…' : 'Выносим проект из папки…')
   try {
     if (folderId) {
       await api.post(`folders/${folderId}/assign`, { project_ids: [project.id] })
@@ -924,8 +935,11 @@ async function moveProjectToFolder(project, folderId) {
     await Promise.all([fetchFolders(), fetchProjects()])
     await loadProjectMetrics()
   } catch (e) {
+    project.folder_id = previousFolderId
     const d = e?.response?.data?.detail
     toaster.error(typeof d === 'string' ? d : 'Не удалось переместить проект')
+  } finally {
+    movingProjectId.value = null
   }
 }
 
@@ -1096,6 +1110,7 @@ const emptyProjectInsights = () => ({
   goals: {
     yandex: [],
     vk: [],
+    avito: [],
   },
 })
 const getProjectInsights = (projectId) => projectInsightsById.value[projectId] || emptyProjectInsights()
@@ -1301,6 +1316,7 @@ const topGoalSummary = (goals, platformCode, expenses) => {
 const formatGoalCpl = (goal, platformCode) => goal.hasCost ? formatMoney(withChannelVat(goal.cpl, platformCode)) : '—'
 
 const projectChannelSummaries = (project) => {
+  if (project.__isFolder) return folderChannelSummaries(project)
   const insights = getProjectInsights(project.id)
   return projectPlatformCards(project).map((platform) => {
     const metric = insights[platform.code] || emptyMetric()
@@ -1329,6 +1345,67 @@ const projectChannelSummaries = (project) => {
       summaryText: summary.text,
       prevGoalTotal: prevTotal,
       leadsDelta,
+      cplDeltaPct,
+    }
+  })
+}
+
+const folderChannelSummaries = (folder) => {
+  const members = allFolderProjects(folder.id)
+  return projectPlatformCards(folder).map((platform) => {
+    const goalMap = new Map()
+    let expenses = 0
+    let prevExpenses = 0
+
+    for (const member of members) {
+      const insights = getProjectInsights(member.id)
+      const metric = insights[platform.code] || emptyMetric()
+      expenses += Number(metric.expenses || 0)
+      prevExpenses += Number(metric.prev?.expenses || 0)
+
+      for (const goal of normalizeGoalRows(insights.goals?.[platform.code] || [])) {
+        const key = String(goal.id || goal.name || 'goal')
+        const current = goalMap.get(key) || {
+          ...goal,
+          count: 0,
+          prev_count: 0,
+          cost: goal.hasCost ? 0 : null,
+          syncing: false,
+          missingInMetrika: false,
+        }
+        current.count += Number(goal.count || 0)
+        current.prev_count += Number(goal.prev_count || 0)
+        current.syncing = current.syncing || Boolean(goal.syncing)
+        current.missingInMetrika = current.missingInMetrika || Boolean(goal.missingInMetrika)
+        if (goal.hasCost) current.cost = Number(current.cost || 0) + Number(goal.cost || 0)
+        current.cpl = current.hasCost && current.count > 0 ? Number(current.cost || 0) / current.count : null
+        goalMap.set(key, current)
+      }
+    }
+
+    const goals = Array.from(goalMap.values())
+    const goalTotal = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+    const prevGoalTotal = goals.reduce((sum, goal) => sum + Number(goal.prev_count || 0), 0)
+    const goalNounValue = goalNoun(goalTotal)
+    const avgCpl = ['yandex', 'avito'].includes(platform.code) && goalTotal > 0 ? expenses / goalTotal : null
+    const prevAvgCpl = ['yandex', 'avito'].includes(platform.code) && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
+    let cplDeltaPct = null
+    if (avgCpl !== null && avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
+      cplDeltaPct = Math.round(((avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
+    }
+
+    return {
+      ...platform,
+      expenses,
+      goals,
+      goalTotal,
+      goalNoun: goalNounValue,
+      avgCpl,
+      summaryText: avgCpl
+        ? `${formatNumber(goalTotal)} ${goalNounValue} · CPL ${formatMoney(withChannelVat(avgCpl, platform.code))}`
+        : (goalTotal ? `${formatNumber(goalTotal)} ${goalNounValue}` : 'нет целей за период'),
+      prevGoalTotal,
+      leadsDelta: goalTotal - prevGoalTotal,
       cplDeltaPct,
     }
   })
@@ -3710,6 +3787,12 @@ onMounted(async () => {
 
 /* Кнопка и меню «В папку» */
 .folder-move-wrap { position: relative; }
+
+.folder-move-btn:disabled,
+.folder-move-btn--loading {
+  opacity: 0.72;
+  cursor: wait;
+}
 
 .folder-move-menu {
   position: absolute;
