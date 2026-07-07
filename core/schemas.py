@@ -802,6 +802,11 @@ class DetectorAlertResponse(BaseModel):
     hypothesis_text: Optional[str] = None
     status: str
     opened_at: datetime
+    dismissed_at: Optional[datetime] = None
+    snoozed_until: Optional[datetime] = None
+    not_problem_at: Optional[datetime] = None
+    hidden: bool = False
+    hidden_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -819,18 +824,25 @@ class DetectorAlertResponse(BaseModel):
 class DetectorSummaryResponse(BaseModel):
     warning_count: int = 0
     problem_count: int = 0
+    hidden_count: int = 0
     max_severity: Optional[str] = None
     warmup_status: Optional[str] = None
     warmup_days_left: Optional[int] = None
     alerts: List[DetectorAlertResponse] = []
+    hidden_alerts: List[DetectorAlertResponse] = []
 
 
 class DetectorCrossProjectItem(BaseModel):
     project_id: UUID
     warning_count: int = 0
     problem_count: int = 0
+    hidden_count: int = 0
     max_severity: Optional[str] = None
     warmup_status: Optional[str] = None
+
+
+class DetectorSnoozeRequest(BaseModel):
+    days: int = 1
 
 
 class DynamicsStat(BaseModel):

@@ -43,9 +43,10 @@ METRICS = ["expenses", "impressions", "clicks", "cpc", "conversions", "cpa"]
 # относительно целевого, который агентство задаёт «как на дашборде».
 VAT_RATE = 1.22
 
-# Campaign level: Yandex has no per-campaign conversions (Metrika is counter-level)
-CAMPAIGN_METRICS_YD = ["expenses", "impressions", "clicks", "cpc"]
-CAMPAIGN_METRICS_VK = ["expenses", "impressions", "clicks", "cpc", "conversions", "cpa"]
+# Campaign level is intentionally narrow in iteration 2: only money-without-result
+# signals paint campaign rows. Yandex conversions come from selected Metrika goals.
+CAMPAIGN_METRICS_YD = ["cpa"]
+CAMPAIGN_METRICS_VK = ["cpa"]
 
 BAD_DIRECTIONS = {
     "expenses": {"up", "down"},
@@ -114,28 +115,120 @@ _METRIC_NAMES_RU: dict[str, str] = {
     "clicks": "клики",
     "impressions": "показы",
     "cpc": "CPC",
-    "conversions": "конверсии",
-    "cpa": "CPA",
+    "conversions": "заявки",
+    "cpa": "CPL",
 }
 
 
-def _fmt_num(v: float) -> str:
-    if abs(v) >= 1:
-        return f"{v:,.0f}".replace(",", " ")
-    return f"{v:.2f}"
+def _fmt_plain(v: float) -> str:
+    return f"{round(float(v or 0)):,.0f}".replace(",", " ")
+
+
+def _money_multiplier(channel: Optional[models.IntegrationPlatform]) -> float:
+    # Avito API already returns VAT-inclusive amounts. Other ad APIs are
+    # normalized in our UI as VAT-inclusive (×1.22), and alert copy follows UI.
+    return 1.0 if channel == models.IntegrationPlatform.AVITO_ADS else VAT_RATE
+
+
+def _fmt_money(v: float, channel: Optional[models.IntegrationPlatform] = None) -> str:
+    return f"{_fmt_plain(float(v or 0) * _money_multiplier(channel))} ₽"
+
+
+def _fmt_change_ru(deviation_pct: float, direction: str) -> str:
+    abs_pct = abs(float(deviation_pct or 0))
+    word_more = "больше" if direction == "up" else "меньше"
+    if abs_pct > 100:
+        ratio = 1 + abs_pct / 100
+        return f"в {ratio:.1f} раза {word_more}".replace(".", ",")
+    return f"на {round(abs_pct)}% {word_more}"
+
+
+def _period_ru(days: int) -> str:
+    d = max(int(days or 1), 1)
+    if d == 1:
+        return "за последний день"
+    if d in (2, 3, 4):
+        return f"за последние {d} дня"
+    return f"за последние {d} дней"
 
 
 def _make_hypothesis_text(c: "AlertCandidate", pattern_text: Optional[str] = None) -> str:
+    period = _period_ru(c.consecutive_days)
+    change = _fmt_change_ru(c.deviation_pct, c.direction)
+    base_label = "по плану" if c.mode.startswith("plan") else "обычно для этого проекта"
+    suffix = " Суммы с НДС."
+
+    if c.mode == "plan_spend":
+        expected = _fmt_money(c.baseline_value, c.channel)
+        actual = _fmt_money(c.actual_value, c.channel)
+        if c.direction == "up":
+            return (
+                f"Тратим быстрее плана. К текущей дате ожидалось ~{expected}, "
+                f"по факту — {actual} ({change}). При таком темпе бюджет закончится раньше периода."
+                f"{suffix}"
+            )
+        return (
+            f"Отстаём от плана расхода. К текущей дате должно быть потрачено ~{expected}, "
+            f"по факту — {actual} ({change}). При таком темпе бюджет открутится не полностью."
+            f"{suffix}"
+        )
+
+    if c.mode == "plan_cpa":
+        return (
+            f"Стоимость заявки выше цели. Целевой CPL — {_fmt_money(c.baseline_value, c.channel)}, "
+            f"по факту {period} — {_fmt_money(c.actual_value, c.channel)} ({change}).{suffix}"
+        )
+
+    if c.pattern_key == "empty_spend":
+        return (
+            f"Бюджет тратится без заявок. {period.capitalize()} расход по кампании — "
+            f"{_fmt_money(c.actual_value, c.channel)}, заявок — 0. Проверьте таргетинг, площадки и посадочную страницу."
+            f"{suffix}"
+        )
+
+    if c.metric == "cpa":
+        return (
+            f"Заявки подорожали. {period.capitalize()} заявка стоит ~{_fmt_money(c.actual_value, c.channel)}, "
+            f"{base_label} — ~{_fmt_money(c.baseline_value, c.channel)} ({change}).{suffix}"
+        )
+    if c.metric == "conversions":
+        return (
+            f"Заявок меньше обычного. {period.capitalize()} — {_fmt_plain(c.actual_value)} заявок, "
+            f"{base_label} — около {_fmt_plain(c.baseline_value)} ({change})."
+        )
+    if c.metric == "expenses" and c.direction == "down":
+        return (
+            f"Реклама почти не крутится. Расход {period} — {_fmt_money(c.actual_value, c.channel)}, "
+            f"{base_label} — ~{_fmt_money(c.baseline_value, c.channel)}. "
+            f"Похоже, закончился бюджет или остановились кампании — проверьте баланс или РК.{suffix}"
+        )
+    if c.metric == "expenses" and c.direction == "up":
+        return (
+            f"Бюджет тратится быстрее обычного. Расход {period} — {_fmt_money(c.actual_value, c.channel)}, "
+            f"{base_label} — ~{_fmt_money(c.baseline_value, c.channel)} ({change}).{suffix}"
+        )
+    if c.metric == "cpc":
+        return (
+            f"Клики подорожали. CPC {period} — {_fmt_money(c.actual_value, c.channel)} "
+            f"при обычных ~{_fmt_money(c.baseline_value, c.channel)}: тот же расход даёт меньше трафика. "
+            f"Похоже, подорожал аукцион или выросла конкуренция.{suffix}"
+        )
+    if c.metric == "impressions":
+        return (
+            f"Охват сузился. Показов {period} {change}. "
+            f"Проверьте ставки, статусы кампаний и ограничения показов."
+        )
+    if c.metric == "clicks":
+        return (
+            f"Кликов стало меньше. {period.capitalize()} — {_fmt_plain(c.actual_value)}, "
+            f"{base_label} — около {_fmt_plain(c.baseline_value)} ({change})."
+        )
+
     metric_ru = _METRIC_NAMES_RU.get(c.metric, c.metric)
-    sign = "+" if c.deviation_pct > 0 else ""
-    days_str = f"{c.consecutive_days} дн." if c.consecutive_days > 1 else "1 день"
-    numbers = (
-        f"{metric_ru} {sign}{c.deviation_pct:.0f}%, {days_str}"
-        f" (база {_fmt_num(c.baseline_value)} → факт {_fmt_num(c.actual_value)})"
+    return (
+        f"Изменился показатель «{metric_ru}». Факт {period} — {_fmt_plain(c.actual_value)}, "
+        f"{base_label} — около {_fmt_plain(c.baseline_value)} ({change})."
     )
-    if pattern_text:
-        return f"{pattern_text}: {numbers}"
-    return numbers
 
 
 # ── Thresholds ────────────────────────────────────────────────────
@@ -386,15 +479,58 @@ def _query_all_campaign_metrics(
             .group_by(models.YandexStats.campaign_id, models.YandexStats.date)
             .all()
         )
+        daily_campaign_rows: dict[date, list] = {}
+        for r in rows:
+            daily_campaign_rows.setdefault(r.dt, []).append(r)
+
+        daily_conversions: dict[tuple[uuid.UUID, date], int] = {}
+        try:
+            from backend_api.stats_service import StatsService
+
+            selected_goal_ids = set(StatsService.get_selected_metrika_goal_ids(db, [client_id], "yandex"))
+            goal_scope_ids = StatsService.get_metrika_goal_integration_ids(db, [client_id], "yandex")
+            for dt, day_rows in daily_campaign_rows.items():
+                m_q = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
+                    models.MetrikaGoals.client_id == client_id,
+                    models.MetrikaGoals.goal_id != "all",
+                    models.MetrikaGoals.date == dt,
+                )
+                if selected_goal_ids:
+                    m_q = m_q.filter(models.MetrikaGoals.goal_id.in_(selected_goal_ids))
+                if goal_scope_ids:
+                    m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
+                total_convs = int((m_q.scalar() or 0) or 0)
+                if total_convs <= 0:
+                    continue
+                weights = [(r, max(float(r.expenses or 0), 0.0)) for r in day_rows]
+                total_weight = sum(w for _, w in weights)
+                if total_weight <= 0:
+                    continue
+                raw = [(r, total_convs * w / total_weight) for r, w in weights]
+                base = [(r, int(v), v) for r, v in raw]
+                remainder = total_convs - sum(v for _, v, _ in base)
+                if remainder > 0:
+                    order = sorted(range(len(base)), key=lambda i: (base[i][2] - base[i][1], weights[i][1]), reverse=True)
+                    bump = set(order[:remainder])
+                else:
+                    bump = set()
+                for idx, (r, value, _) in enumerate(base):
+                    daily_conversions[(r.camp_id, dt)] = value + (1 if idx in bump else 0)
+        except Exception:
+            logger.exception("Failed to allocate Yandex Metrika conversions for detector")
+
         for r in rows:
             exp = float(r.expenses or 0)
             clk = int(r.clicks or 0)
+            conv = int(daily_conversions.get((r.camp_id, r.dt), 0) or 0)
             result.setdefault(r.camp_id, []).append({
                 "date": r.dt,
                 "expenses": exp,
                 "impressions": int(r.impressions or 0),
                 "clicks": clk,
                 "cpc": exp / clk if clk > 0 else 0.0,
+                "conversions": conv,
+                "cpa": exp / conv if conv > 0 else 0.0,
             })
 
     elif channel == models.IntegrationPlatform.VK_ADS:
@@ -488,6 +624,42 @@ def check_mode1_campaigns(
             }
 
         total_conv = sum(r.get("conversions", 0) for r in fresh_daily)
+        baseline_conv = sum(r.get("conversions", 0) for r in base_daily)
+
+        zero_lead_points = []
+        for row in fresh_daily:
+            if is_near_holiday(row["date"]):
+                continue
+            exp = float(row.get("expenses", 0) or 0)
+            conv = int(row.get("conversions", 0) or 0)
+            if exp >= cfg.campaign_empty_spend_threshold and conv == 0 and baseline_conv > 0:
+                zero_lead_points.append({
+                    "date": row["date"],
+                    "dev": 1.0,
+                    "direction": "up",
+                    "baseline": 0.0,
+                    "actual": exp,
+                })
+
+        empty_problem = _best_consecutive_run(zero_lead_points, max(cfg.duration_problem, 3))
+        empty_warning = _best_consecutive_run(zero_lead_points, max(cfg.duration_warning, 2))
+        if empty_problem or empty_warning:
+            run = empty_problem or empty_warning
+            candidates.append(AlertCandidate(
+                metric="cpa",
+                detection_level="campaign",
+                entity_id=str(camp_id),
+                channel=channel,
+                mode="baseline",
+                severity="problem" if empty_problem else "warning",
+                deviation_pct=100.0,
+                baseline_value=0,
+                actual_value=round(sum(p["actual"] for p in run) / len(run), 2),
+                direction="up",
+                consecutive_days=len(run),
+                pattern_key="empty_spend",
+            ))
+            continue
 
         for metric in metrics:
             if metric in ("conversions", "cpa") and total_conv < cfg.min_conversions_silence:
@@ -546,7 +718,41 @@ def check_mode1_campaigns(
                 actual_value=round(av_avg, 2),
                 direction=run[-1]["direction"],
                 consecutive_days=len(run),
+                pattern_key="cpa_up" if metric == "cpa" else None,
             ))
+
+    majority_threshold = min(max(float(getattr(cfg, "campaign_majority_threshold", 0.5) or 0.5), 0.1), 1.0)
+    active_count = max(len(active), 1)
+    by_pattern: dict[str, list[AlertCandidate]] = {}
+    for c in candidates:
+        by_pattern.setdefault(c.pattern_key or c.metric, []).append(c)
+    escalated: list[AlertCandidate] = []
+    suppressed: set[int] = set()
+    for pattern, rows in by_pattern.items():
+        if len(rows) / active_count < majority_threshold:
+            continue
+        severity = "problem" if any(c.severity == "problem" for c in rows) else "warning"
+        avg_actual = sum(c.actual_value for c in rows) / len(rows)
+        avg_base = sum(c.baseline_value for c in rows) / len(rows)
+        avg_dev = sum(c.deviation_pct for c in rows) / len(rows)
+        escalated.append(AlertCandidate(
+            metric=rows[0].metric,
+            detection_level="project",
+            entity_id=None,
+            channel=channel,
+            mode="baseline",
+            severity=severity,
+            deviation_pct=round(avg_dev, 2),
+            baseline_value=round(avg_base, 2),
+            actual_value=round(avg_actual, 2),
+            direction=rows[0].direction,
+            consecutive_days=max(c.consecutive_days for c in rows),
+            pattern_key=pattern,
+        ))
+        suppressed.update(id(c) for c in rows)
+
+    if suppressed:
+        candidates = [c for c in candidates if id(c) not in suppressed] + escalated
 
     return candidates
 
@@ -926,6 +1132,9 @@ def upsert_alerts(
                 alert.status = "open"
                 alert.opened_at = now
                 alert.dismissed_at = None
+                alert.snoozed_until = None
+                alert.snooze_source = None
+                alert.not_problem_at = None
                 alert.closed_at = None
                 alert.last_checked_at = now
                 alert.meta = {"recovery_count": 0}

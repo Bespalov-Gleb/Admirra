@@ -28,6 +28,14 @@
           <p class="text-[0.9028rem] font-black uppercase tracking-tight leading-snug" :class="textClasses(toast.type)">
             {{ toast.message }}
           </p>
+          <button
+            v-if="toast.action?.label && toast.action?.handler"
+            type="button"
+            class="mt-2 text-[0.78rem] font-black text-blue-600 hover:text-blue-700"
+            @click="runAction(toast)"
+          >
+            {{ toast.action.label }}
+          </button>
         </div>
 
         <!-- Close -->
@@ -48,6 +56,14 @@
 import { useToaster } from '../../composables/useToaster'
 
 const { toasts, removeToast } = useToaster()
+
+const runAction = async (toast) => {
+  try {
+    await toast.action.handler()
+  } finally {
+    removeToast(toast.id)
+  }
+}
 
 const containerClasses = (type) => {
   switch (type) {

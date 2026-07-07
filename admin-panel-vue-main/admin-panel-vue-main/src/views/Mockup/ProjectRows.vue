@@ -1204,10 +1204,16 @@ const detectorBadge = (project) => {
   if (!status) return null
   if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Накопление' }
   const total = (status.warning_count || 0) + (status.problem_count || 0)
-  if (!total) return null
+  const hidden = status.hidden_count || 0
+  if (!total && !hidden) return null
+  if (!total && hidden) return {
+    type: 'warmup',
+    text: `Скрыто ${hidden}`,
+    count: hidden,
+  }
   return {
     type: status.max_severity || 'warning',
-    text: `${total} ${total === 1 ? 'отклонение' : total < 5 ? 'отклонения' : 'отклонений'}`,
+    text: `${total} ${total === 1 ? 'отклонение' : total < 5 ? 'отклонения' : 'отклонений'}${hidden ? ` · скрыто ${hidden}` : ''}`,
     count: total,
   }
 }

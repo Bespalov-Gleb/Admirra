@@ -83,6 +83,10 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_campaign_id ON avito_creatives (campaign_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_group_id ON avito_creatives (group_id)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_avito_creatives_creative_id ON avito_creatives (creative_id)"))
+                conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS snooze_source JSON"))
+                conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS not_problem_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_alerts_snoozed_until ON detector_alerts (snoozed_until)"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

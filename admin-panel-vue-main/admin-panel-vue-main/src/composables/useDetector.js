@@ -92,6 +92,55 @@ export function useDetector() {
   const summary = ref(null)
   const loading = ref(false)
 
+  const recalculateSummary = () => {
+    if (!summary.value?.alerts) return
+    summary.value.warning_count = summary.value.alerts.filter(a => a.severity === 'warning').length
+    summary.value.problem_count = summary.value.alerts.filter(a => a.severity === 'problem').length
+    summary.value.hidden_count = summary.value.hidden_alerts?.length || 0
+    summary.value.max_severity = summary.value.problem_count > 0
+      ? 'problem'
+      : summary.value.warning_count > 0 ? 'warning' : null
+  }
+
+  const moveAlertToHidden = (alertId, patch = {}) => {
+    if (!summary.value?.alerts) return null
+    const index = summary.value.alerts.findIndex(a => a.id === alertId)
+    if (index === -1) return null
+    const [alert] = summary.value.alerts.splice(index, 1)
+    const hiddenAlert = { ...alert, ...patch, hidden: true }
+    summary.value.hidden_alerts = [hiddenAlert, ...(summary.value.hidden_alerts || [])]
+    recalculateSummary()
+    return hiddenAlert
+  }
+
+  const restoreAlertLocally = (alertId, patch = {}) => {
+    if (!summary.value) return null
+    const hidden = summary.value.hidden_alerts || []
+    const index = hidden.findIndex(a => a.id === alertId)
+    let alert = null
+    if (index !== -1) {
+      ;[alert] = hidden.splice(index, 1)
+    } else if (summary.value.alerts) {
+      alert = summary.value.alerts.find(a => a.id === alertId) || null
+    }
+    if (!alert) return null
+    const restored = {
+      ...alert,
+      ...patch,
+      status: 'open',
+      hidden: false,
+      hidden_reason: null,
+      dismissed_at: null,
+      snoozed_until: null,
+      not_problem_at: null,
+    }
+    if (!summary.value.alerts?.some(a => a.id === alertId)) {
+      summary.value.alerts = [restored, ...(summary.value.alerts || [])]
+    }
+    recalculateSummary()
+    return restored
+  }
+
   async function fetchSummary(clientId) {
     if (!clientId) return
     if (DEMO_MODE) {
@@ -110,17 +159,34 @@ export function useDetector() {
   }
 
   async function dismissAlert(alertId) {
+    return markAlertNotProblem(alertId)
+  }
+
+  async function snoozeAlert(alertId, days) {
     try {
-      await api.post(`detector/alerts/${alertId}/dismiss`)
-      if (summary.value?.alerts) {
-        summary.value.alerts = summary.value.alerts.filter(a => a.id !== alertId)
-        summary.value.warning_count = summary.value.alerts.filter(a => a.severity === 'warning').length
-        summary.value.problem_count = summary.value.alerts.filter(a => a.severity === 'problem').length
-        summary.value.max_severity = summary.value.problem_count > 0
-          ? 'problem'
-          : summary.value.warning_count > 0 ? 'warning' : null
-      }
-      return true
+      const { data } = await api.post(`detector/alerts/${alertId}/snooze`, { days })
+      moveAlertToHidden(alertId, data)
+      return data || true
+    } catch {
+      return false
+    }
+  }
+
+  async function markAlertNotProblem(alertId) {
+    try {
+      const { data } = await api.post(`detector/alerts/${alertId}/not-problem`)
+      moveAlertToHidden(alertId, data)
+      return data || true
+    } catch {
+      return false
+    }
+  }
+
+  async function restoreAlert(alertId) {
+    try {
+      const { data } = await api.post(`detector/alerts/${alertId}/restore`)
+      restoreAlertLocally(alertId, data)
+      return data || true
     } catch {
       return false
     }
@@ -153,6 +219,9 @@ export function useDetector() {
     loading: readonly(loading),
     fetchSummary,
     dismissAlert,
+    snoozeAlert,
+    markAlertNotProblem,
+    restoreAlert,
     getAlertForMetric,
     getAlertForEntity,
   }

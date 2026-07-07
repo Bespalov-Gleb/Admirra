@@ -318,17 +318,21 @@
     </div>
 
     <DetectorBanner
-      v-if="filters.client_id && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
+      v-if="filters.client_id && !detectorBannerCollapsed && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.hidden_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
       :warning-count="detectorSummary?.warning_count || 0"
       :problem-count="detectorSummary?.problem_count || 0"
+      :hidden-count="detectorSummary?.hidden_count || 0"
       :severity="detectorSummary?.max_severity"
       :hypothesis="detectorBannerHypothesis"
       :warmup-status="detectorSummary?.warmup_status"
       :warmup-days-left="detectorSummary?.warmup_days_left"
-      :dismissible="Boolean(detectorBannerAlert)"
-      :action-label="detectorBannerAlert ? 'Спросить AI' : ''"
-      @action="openAssistantForDetectorAlert"
-      @dismiss="handleDismissBanner"
+      :alerts="detectorSummary?.alerts || []"
+      :hidden-alerts="detectorSummary?.hidden_alerts || []"
+      @ask-ai="openAssistantForDetectorAlert"
+      @snooze="handleSnoozeDetectorAlert"
+      @not-problem="handleDetectorNotProblem"
+      @restore="handleRestoreDetectorAlert"
+      @collapse="detectorBannerCollapsed = true"
       class="detector-banner-slot"
     />
 
@@ -399,13 +403,25 @@
       @end="saveKpiConfig"
     >
       <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
-        <span
+        <button
           v-if="getMetricAnomaly(key)"
+          type="button"
           class="anomaly-dot"
           :class="`anomaly-dot--${getMetricAnomaly(key).severity}`"
           :title="getMetricAnomalyTooltip(key)"
-          @click.stop="handleDismissAnomaly(key)"
-        ></span>
+          @click.stop="toggleDetectorMetricPopover(key)"
+        ></button>
+        <div v-if="activeDetectorMetric === key && getMetricAnomaly(key)" class="detector-popover detector-popover--metric" @click.stop>
+          <strong>{{ getMetricAnomaly(key).hypothesis_text || 'Отклонение в показателе' }}</strong>
+          <small>{{ formatDetectorAlertTitle(getMetricAnomaly(key)) }}</small>
+          <div class="detector-popover__actions">
+            <button type="button" @click="openAssistantForDetectorAlert(getMetricAnomaly(key))">Спросить AI</button>
+            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 1)">1 дн.</button>
+            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 3)">3 дн.</button>
+            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 7)">7 дн.</button>
+            <button type="button" class="detector-popover__soft" @click="handleDetectorNotProblem(getMetricAnomaly(key))">Не проблема</button>
+          </div>
+        </div>
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -945,8 +961,26 @@
             <span class="campaign-name-stack">
               <span class="campaign-name-main" :title="campaign.name">
                 {{ campaign.name }}
-                <span v-if="campaign.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${campaign.alert.severity}`"></span>
+                <button
+                  v-if="campaign.alert"
+                  type="button"
+                  class="row-anomaly-dot"
+                  :class="`row-anomaly-dot--${campaign.alert.severity}`"
+                  :title="campaign.alertTitle"
+                  @click.stop="toggleDetectorEntityPopover(campaign.rowKey)"
+                ></button>
               </span>
+              <div v-if="activeDetectorEntity === campaign.rowKey && campaign.alert" class="detector-popover detector-popover--row" @click.stop>
+                <strong>{{ campaign.alert.hypothesis_text || 'Отклонение по кампании' }}</strong>
+                <small>{{ campaign.alertTitle }}</small>
+                <div class="detector-popover__actions">
+                  <button type="button" @click="openAssistantForDetectorAlert(campaign.alert)">Спросить AI</button>
+                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 1)">1 дн.</button>
+                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 3)">3 дн.</button>
+                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 7)">7 дн.</button>
+                  <button type="button" class="detector-popover__soft" @click="handleDetectorNotProblem(campaign.alert)">Не проблема</button>
+                </div>
+              </div>
               <span v-if="isAllChannelsMode && campaign.platformMeta" class="campaign-platform-badge" :style="{ '--platform-color': campaign.platformMeta.color, '--platform-soft': campaign.platformMeta.soft }">
                 <img :src="campaign.platformMeta.asset" alt="" />
                 {{ campaign.platformMeta.shortName }}
@@ -1483,10 +1517,16 @@ const {
 const {
   summary: detectorSummary,
   fetchSummary: fetchDetectorSummary,
-  dismissAlert: dismissDetectorAlert,
+  snoozeAlert: snoozeDetectorAlert,
+  markAlertNotProblem: markDetectorAlertNotProblem,
+  restoreAlert: restoreDetectorAlert,
   getAlertForMetric,
   getAlertForEntity,
 } = useDetector()
+
+const detectorBannerCollapsed = ref(false)
+const activeDetectorMetric = ref(null)
+const activeDetectorEntity = ref(null)
 
 const openMenu = ref('')
 
@@ -2882,10 +2922,8 @@ const sortedCampaignSourceRows = computed(() => {
 })
 
 const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
-  const tints = ['orange', 'green', 'blue']
   const nodeLevel = campaign.level || (level === 0 ? 'campaign' : 'group')
   const isRoot = level === 0
-  const rootTint = parent?.tint || tints[index % tints.length]
   const conversionsEstimated = campaign.conversions_estimated === true || campaign.conversionsEstimated === true
   const conversionsAttributed = campaign.conversions_attributed !== false || conversionsEstimated
   const hierarchyUnavailable = campaign.hierarchy_unavailable === true || campaign.hierarchyUnavailable === true
@@ -2917,7 +2955,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     direction: isRoot
       ? (directionNameByCampaignId.value.get(String(campaign.id)) || '—')
       : (nodeLevel === 'ad' ? 'Объявление' : 'Группа'),
-    tint: rootTint,
+    tint: '',
     alert,
     alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
     alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
@@ -4738,6 +4776,9 @@ watch(() => filters.channel, (channel) => {
 })
 
 watch(() => filters.client_id, (clientId) => {
+  detectorBannerCollapsed.value = false
+  activeDetectorMetric.value = null
+  activeDetectorEntity.value = null
   if (clientId) fetchDetectorSummary(clientId)
 }, { immediate: true })
 
@@ -4770,26 +4811,74 @@ const getMetricAnomaly = (key) => getAlertForMetric(key)
 const getMetricAnomalyTooltip = (key) => {
   const alert = getAlertForMetric(key)
   if (!alert) return ''
-  return `${formatDetectorAlertTitle(alert)}\nКликните чтобы скрыть`
+  return `${formatDetectorAlertTitle(alert)}\nКликните, чтобы открыть действия`
 }
 
-const handleDismissAnomaly = async (key) => {
-  const alert = getAlertForMetric(key)
+const toggleDetectorMetricPopover = (key) => {
+  activeDetectorMetric.value = activeDetectorMetric.value === key ? null : key
+  activeDetectorEntity.value = null
+}
+
+const toggleDetectorEntityPopover = (rowKey) => {
+  activeDetectorEntity.value = activeDetectorEntity.value === rowKey ? null : rowKey
+  activeDetectorMetric.value = null
+}
+
+const showDetectorUndoToast = (message, alert) => {
   if (!alert) return
-  const ok = await dismissDetectorAlert(alert.id)
-  if (ok) toaster.success('Алерт скрыт')
+  toaster.addToast(message, 'info', 8000, {
+    label: 'Вернуть',
+    handler: async () => {
+      const ok = await restoreDetectorAlert(alert.id)
+      if (ok) toaster.success('Алерт восстановлен')
+    },
+  })
 }
 
-const handleDismissBanner = async () => {
-  if (!detectorBannerAlert.value) return
-  const ok = await dismissDetectorAlert(detectorBannerAlert.value.id)
-  if (ok) toaster.success('Алерт скрыт')
+const handleSnoozeDetectorAlert = async (alert, days) => {
+  if (!alert) return
+  const ok = await snoozeDetectorAlert(alert.id, days)
+  if (ok) {
+    activeDetectorMetric.value = null
+    activeDetectorEntity.value = null
+    const word = days === 1 ? 'день' : 'дня'
+    showDetectorUndoToast(`Алерт отложен на ${days} ${word}`, alert)
+  } else {
+    toaster.error('Не удалось отложить алерт')
+  }
 }
 
-const openAssistantForDetectorAlert = () => {
-  const alert = detectorBannerAlert.value
+const handleDetectorNotProblem = async (alert) => {
+  if (!alert) return
+  const ok = await markDetectorAlertNotProblem(alert.id)
+  if (ok) {
+    activeDetectorMetric.value = null
+    activeDetectorEntity.value = null
+    showDetectorUndoToast('Алерт помечен как не проблема', alert)
+  } else {
+    toaster.error('Не удалось обновить алерт')
+  }
+}
+
+const handleRestoreDetectorAlert = async (alert) => {
+  if (!alert) return
+  const ok = await restoreDetectorAlert(alert.id)
+  if (ok) toaster.success('Алерт восстановлен')
+  else toaster.error('Не удалось восстановить алерт')
+}
+
+const openAssistantForDetectorAlert = (selectedAlert = null) => {
+  const alert = selectedAlert || detectorBannerAlert.value
   if (!alert || !filters.client_id) return
-  const metric = String(alert.metric || 'метрику').toUpperCase()
+  const metricLabels = {
+    expenses: 'расходы',
+    impressions: 'показы',
+    clicks: 'клики',
+    cpc: 'CPC',
+    conversions: 'заявки',
+    cpa: 'CPL',
+  }
+  const metric = metricLabels[alert.metric] || String(alert.metric || 'метрику').toUpperCase()
   const deviation = Number(alert.deviation_pct || 0)
   const hypothesis = alert.hypothesis_text ? ` Гипотеза: ${alert.hypothesis_text}` : ''
   const question = `Разбери отклонение ${metric} ${deviation > 0 ? '+' : ''}${deviation.toFixed(0)}% за выбранный период.${hypothesis}`
@@ -6552,10 +6641,12 @@ onMounted(() => {
 .metric-card--anomaly-warning {
   border-color: #fcd34d;
   box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 0.4rem 1rem rgba(251, 191, 36, 0.08);
+  overflow: visible;
 }
 .metric-card--anomaly-problem {
   border-color: #fca5a5;
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0.4rem 1rem rgba(239, 68, 68, 0.08);
+  overflow: visible;
 }
 
 .anomaly-dot {
@@ -6565,9 +6656,76 @@ onMounted(() => {
   width: 0.625rem;
   height: 0.625rem;
   border-radius: 50%;
+  border: 0;
   cursor: pointer;
   z-index: 2;
   animation: anomaly-pulse 2s ease-in-out infinite;
+}
+
+.detector-popover {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(23rem, calc(100vw - 3rem));
+  padding: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1.25rem 3rem rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.detector-popover--metric {
+  top: 2.1rem;
+  right: 0.8rem;
+}
+
+.detector-popover--row {
+  top: calc(100% + 0.35rem);
+  left: var(--tree-indent, 0);
+}
+
+.detector-popover strong {
+  color: #111827;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.detector-popover small {
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
+.detector-popover__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.detector-popover__actions button {
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.42rem 0.62rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.73rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.detector-popover__actions button:hover {
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.detector-popover__actions .detector-popover__soft {
+  color: #6b7280;
 }
 .anomaly-dot--warning {
   background: #f59e0b;
@@ -7465,6 +7623,7 @@ onMounted(() => {
 }
 
 .campaign-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(28rem, 2.35fr) repeat(7, minmax(9rem, 1fr));
   align-items: center;
@@ -7644,6 +7803,7 @@ onMounted(() => {
 }
 
 .campaign-name-stack {
+  position: relative;
   display: grid;
   gap: 0.38rem;
   min-width: 0;
@@ -7763,10 +7923,12 @@ onMounted(() => {
   width: 0.58rem;
   height: 0.58rem;
   margin-left: 0.5rem;
+  border: 0;
   border-radius: 999px;
   vertical-align: middle;
   box-shadow: 0 0 0 0.22rem currentColor;
   opacity: 0.22;
+  cursor: pointer;
 }
 
 .row-anomaly-dot--warning {
@@ -10089,6 +10251,20 @@ onMounted(() => {
   background: rgba(74, 122, 255, 0.1);
   border-color: #4a7aff;
   color: #4a7aff;
+}
+
+@media (max-width: 760px) {
+  .detector-popover,
+  .detector-popover--metric,
+  .detector-popover--row {
+    position: fixed;
+    inset: auto 1rem 1rem 1rem;
+    width: auto;
+    max-height: 70vh;
+    overflow: auto;
+    border-radius: 1.25rem;
+    z-index: 2147483647;
+  }
 }
 .figma-dashboard.is-dark .add-card-dropdown {
   background: #2a2d3c;
