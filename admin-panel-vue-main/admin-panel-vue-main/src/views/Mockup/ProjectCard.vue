@@ -205,11 +205,15 @@
                   <div class="project-channel-main"><strong>{{ channel.name }}</strong></div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
-                      <strong>{{ formatNumber(channel.goalTotal) }}</strong>
+                      <strong>{{ formatNumber(channel.goalTotal) }}
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls">{{ leadsDeltaBadge(channel).text }}</em>
+                      </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
-                      <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}</strong>
+                      <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls">{{ cplDeltaBadge(channel).text }}</em>
+                      </strong>
                       <span>Общий CPL</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--spend">
@@ -399,11 +403,15 @@
                   </div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
-                      <strong>{{ formatNumber(channel.goalTotal) }}</strong>
+                      <strong>{{ formatNumber(channel.goalTotal) }}
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls">{{ leadsDeltaBadge(channel).text }}</em>
+                      </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
-                      <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}</strong>
+                      <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls">{{ cplDeltaBadge(channel).text }}</em>
+                      </strong>
                       <span>Общий CPL</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--spend">
@@ -420,7 +428,9 @@
                     :class="{ 'project-goal-detail-row--simple': channel.code === 'yandex' }"
                   >
                     <span>{{ goal.name }}</span>
-                    <strong>{{ formatNumber(goal.count) }} шт</strong>
+                    <strong>{{ formatNumber(goal.count) }} шт
+                      <em v-if="goalCountDelta(goal)" class="channel-delta" :class="goalCountDelta(goal).cls">{{ goalCountDelta(goal).text }}</em>
+                    </strong>
                     <template v-if="channel.code !== 'yandex'">
                       <b>{{ formatGoalCpl(goal, channel.code) }}</b>
                       <em v-if="goal.hasCost" :class="goalTrendClass(goal.trend)">{{ trendTextFromValue(goal.trend) }}</em>
@@ -635,13 +645,19 @@ import { useSyncStatus } from '../../composables/useSyncStatus'
 const router = useRouter()
 const route = useRoute()
 
-// Сплит-кнопка хедера «Добавить → Папку» ведёт сюда с ?create=folder
+// Сплит-кнопка хедера «Добавить → Папку» ведёт сюда с ?create=folder.
+// Начальный query обрабатываем в onMounted: с immediate-watch openCreateFolder
+// вызывался до инициализации folderModal (TDZ) и ломал setup при заходе извне.
+const openFolderFromQuery = () => {
+  openCreateFolder()
+  router.replace({ query: { ...route.query, create: undefined } })
+}
 watch(() => route.query.create, (val) => {
-  if (val === 'folder') {
-    openCreateFolder()
-    router.replace({ query: { ...route.query, create: undefined } })
-  }
-}, { immediate: true })
+  if (val === 'folder') openFolderFromQuery()
+})
+onMounted(() => {
+  if (route.query.create === 'folder') openFolderFromQuery()
+})
 const toaster = useToaster()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const { fetchCrossProject, getProjectStatus } = useDetectorCrossProject()
@@ -1213,6 +1229,7 @@ const normalizeGoalRows = (goals = []) => goals
       id: goal.id,
       name: goal.name || 'Цель',
       count,
+      prev_count: Number(goal.prev_count || 0),
       trend: Number(goal.trend || 0),
       hasCost,
       cost,
@@ -1281,6 +1298,19 @@ const projectChannelSummaries = (project) => {
     const metric = insights[platform.code] || emptyMetric()
     const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
     const summary = topGoalSummary(goals, platform.code, metric.expenses)
+    // ТЗ «Правки UI» п.8: делты главных метрик строки канала.
+    // База сравнения — предыдущий эквивалентный период (та же, что у KPI-плиток).
+    const prevExpenses = Number(metric.prev?.expenses || 0)
+    const prevTotal = goals.reduce((sum, g) => sum + Number(g.prev_count || 0), 0)
+    const leadsDelta = summary.total - prevTotal
+    // CPL канала считается как расход/цели — та же формула для прошлого периода
+    const prevAvgCpl = (['yandex', 'avito'].includes(platform.code) && prevTotal > 0)
+      ? prevExpenses / prevTotal
+      : null
+    let cplDeltaPct = null
+    if (summary.avgCpl !== null && summary.avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
+      cplDeltaPct = Math.round(((summary.avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
+    }
     return {
       ...platform,
       expenses: Number(metric.expenses || 0),
@@ -1289,8 +1319,44 @@ const projectChannelSummaries = (project) => {
       goalNoun: summary.noun,
       avgCpl: summary.avgCpl,
       summaryText: summary.text,
+      prevGoalTotal: prevTotal,
+      leadsDelta,
+      cplDeltaPct,
     }
   })
+}
+
+// ТЗ п.8, граничные случаи: 0→0 — без пилюли; 0→N — «↑ +N»; N→0 — «↓ −N»
+const goalCountDelta = (goal) => {
+  const cur = Number(goal.count || 0)
+  const prev = Number(goal.prev_count || 0)
+  if (!cur && !prev) return null
+  const d = cur - prev
+  if (d === 0) return null
+  return {
+    text: d > 0 ? `↑ +${formatNumber(d)}` : `↓ −${formatNumber(Math.abs(d))}`,
+    cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
+  }
+}
+
+const leadsDeltaBadge = (channel) => {
+  if (!channel.goalTotal && !channel.prevGoalTotal) return null
+  const d = Number(channel.leadsDelta || 0)
+  if (d === 0) return null
+  return {
+    text: d > 0 ? `↑ +${formatNumber(d)}` : `↓ −${formatNumber(Math.abs(d))}`,
+    cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
+  }
+}
+
+// CPL: окраска инвертирована — снизился (лучше) = зелёный, вырос = красный
+const cplDeltaBadge = (channel) => {
+  const pct = channel.cplDeltaPct
+  if (pct === null || pct === undefined || pct === 0) return null
+  return {
+    text: pct > 0 ? `↑ +${pct}%` : `↓ ${pct}%`,
+    cls: pct < 0 ? 'channel-delta--up' : 'channel-delta--down',
+  }
 }
 
 const projectBalances = (project) => {
@@ -3296,6 +3362,20 @@ onMounted(async () => {
 }
 
 /* ТЗ п.7: карточка на паузе — приглушение + бейдж + строка вместо нулевых KPI */
+.channel-delta {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-style: normal;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.channel-delta--up { background: rgba(34, 197, 94, 0.12); color: #15803d; }
+.channel-delta--down { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
+
 .paused-badge {
   display: inline-flex;
   align-items: center;

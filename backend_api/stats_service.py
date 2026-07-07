@@ -788,7 +788,13 @@ class StatsService:
                 "revenue": 0.0,
                 "profit": -round(curr["costs"], 2),
                 "roi": -100.0 if curr["costs"] > 0 else 0.0,
-                "trends": trends
+                "trends": trends,
+                # ТЗ «Правки UI» п.8: абсолюты прошлого периода — для делты заявок
+                # («22 ↑ +6») и CPL канала на карточках проектов
+                "prev": {
+                    "leads": int(prev["convs"]) if prev else 0,
+                    "expenses": round(float(prev["costs"]), 2) if prev else 0.0,
+                },
             }
         
         # CRITICAL: Запрашиваем балансы ТОЛЬКО из интеграций с активными кампаниями
@@ -868,7 +874,13 @@ class StatsService:
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,
-            "trends": trends
+            "trends": trends,
+            # ТЗ «Правки UI» п.8: абсолюты прошлого периода — для делты заявок
+            # («22 ↑ +6») и CPL канала на карточках проектов
+            "prev": {
+                "leads": int(prev["convs"]) if prev else 0,
+                "expenses": round(float(prev["costs"]), 2) if prev else 0.0,
+            },
         }
 
     @staticmethod

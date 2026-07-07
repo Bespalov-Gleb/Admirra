@@ -34,7 +34,7 @@
                     <span class="hd-project-avatar">
                       <svg viewBox="0 0 16 16" fill="none" class="w-[0.8333rem] h-[0.8333rem]"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
                     </span>
-                    <span class="hd-menu-item-label">Все проекты</span>
+                    <span class="hd-menu-item-label">Сводка по всем проектам</span>
                   </button>
                 </li>
                 <li v-for="project in projects" :key="project.id">
@@ -98,7 +98,7 @@
           aria-label="Использование лимитов тарифа"
           class="usage-chip"
         >
-          <span :class="['usage-gauge', projectsAtLimit ? 'usage-gauge--amber' : '']" title="Папка занимает один проект в лимите тарифа, сколько бы проектов в ней ни было">
+          <span :class="['usage-gauge', (projectsAtLimit || cabinetsAtLimit) ? 'usage-gauge--amber' : '']" title="Папка занимает один проект в лимите тарифа, сколько бы проектов в ней ни было">
             <svg class="usage-icon" viewBox="0 0 16 16" fill="none"><path d="M2.5 5.2V4.1c0-.7.5-1.2 1.2-1.2h3l1.2 1.3h4.4c.7 0 1.2.5 1.2 1.2v6.4c0 .7-.5 1.2-1.2 1.2H3.7c-.7 0-1.2-.5-1.2-1.2V5.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
             <span class="usage-num">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
             <span class="usage-label">проекты</span>
@@ -129,6 +129,16 @@
                 </div>
                 <div class="usage-bar">
                   <div class="usage-bar-fill" :class="projectsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: projectsPct + '%', animationDelay: '0.05s' }"></div>
+                </div>
+              </div>
+
+              <div class="usage-popover-row">
+                <div class="flex items-center justify-between mb-[0.4167rem]">
+                  <span class="text-[0.9028rem] font-semibold text-[#444] dark:text-white/75">Кабинеты</span>
+                  <span class="text-[0.9028rem] font-bold" :class="cabinetsAtLimit ? 'text-[#d97706]' : 'text-[#111827] dark:text-white/88'">{{ usage.cabinetsUsed }} / {{ usage.cabinetsLimit }}</span>
+                </div>
+                <div class="usage-bar">
+                  <div class="usage-bar-fill" :class="cabinetsAtLimit ? 'usage-bar-fill--amber' : ''" :style="{ width: cabinetsPct + '%', animationDelay: '0.12s' }"></div>
                 </div>
               </div>
 
@@ -351,7 +361,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import api from '../api/axios'
 import ConfirmModal from './ConfirmModal.vue'
 import { useSidebar } from '../composables/useSidebar'
@@ -361,6 +371,7 @@ import { useProjects } from '../composables/useProjects'
 import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
 
 const router = useRouter()
+const route = useRoute()
 const { isMobileMenuOpen, toggleMobileMenu } = useSidebar()
 const { user, logout } = useAuth()
 const { isDarkMode, toggleTheme } = useTheme()
@@ -373,9 +384,14 @@ const toggleProjectMenu = () => {
   isProjectMenuOpen.value = !isProjectMenuOpen.value
 }
 
+// ТЗ «Правки UI» п.1: выбор в дропдауне = переход в аналитику среза; если уже
+// в контекстном разделе (аналитика, интеграции, AI) — смена среза на месте.
+const CONTEXT_SECTION_PATHS = ['/dashboard/general-3', '/integrations', '/ai-analysis']
 const handleProjectSelect = (id) => {
   setCurrentProject(id)
   isProjectMenuOpen.value = false
+  const inContext = CONTEXT_SECTION_PATHS.some((p) => route.path.startsWith(p))
+  if (!inContext) router.push('/dashboard/general-3')
 }
 
 const isProfileMenuOpen = ref(false)
@@ -384,7 +400,7 @@ const showAddMenu = ref(false)
 const showLogoutModal = ref(false)
 
 const subscription = ref({ planName: '—', expiresAt: null, expiresAtLabel: '' })
-const usage = ref({ projectsUsed: 0, projectsLimit: 1, aiUsed: 0, aiLimit: 30, aiRemaining: 30, aiResetDate: '' })
+const usage = ref({ projectsUsed: 0, projectsLimit: 1, cabinetsUsed: 0, cabinetsLimit: 1, aiUsed: 0, aiLimit: 30, aiRemaining: 30, aiResetDate: '' })
 const showUsagePopover = ref(false)
 const usageChipRef = ref(null)
 let usageCloseTimer = null
@@ -400,12 +416,18 @@ const displayName = computed(() => {
 const avatarUrl = computed(() => user.value?.avatar_url || '')
 const avatarInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase())
 
+// ТЗ п.1: чип отражает текущий контекст. Страница «Проекты» → «Все проекты»
+// (пользователь смотрит весь реестр); срез проекта → имя; сводная аналитика →
+// короткое «Сводка» (полное «Сводка по всем проектам» — в дропдауне).
+const PROJECTS_PAGE_PATHS = ['/project-card', '/project-rows', '/projects', '/phone-projects']
+const isProjectsPage = computed(() => PROJECTS_PAGE_PATHS.some((p) => route.path.startsWith(p)))
 const headerProjectName = computed(() => {
-  return currentProjectId.value ? currentProjectName.value : 'Трафик агентство'
+  if (isProjectsPage.value) return 'Все проекты'
+  return currentProjectId.value ? currentProjectName.value : 'Сводка'
 })
 
-const headerProjectAvatar = computed(() => currentProjectId.value ? projectAvatarUrl(currentProject.value) : '')
-const headerProjectInitials = computed(() => currentProjectId.value ? projectInitials(currentProject.value) : 'TA')
+const headerProjectAvatar = computed(() => (!isProjectsPage.value && currentProjectId.value) ? projectAvatarUrl(currentProject.value) : '')
+const headerProjectInitials = computed(() => (!isProjectsPage.value && currentProjectId.value) ? projectInitials(currentProject.value) : 'TA')
 
 const notifications = ref([])
 const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)
@@ -449,6 +471,8 @@ const loadSubscription = async () => {
       aiLimit: data?.max_ai_requests_per_period ?? 30,
       aiRemaining: data?.ai_requests_remaining ?? 30,
       aiResetDate: data?.ai_reset_date || '',
+      cabinetsUsed: data?.cabinets_used ?? 0,
+      cabinetsLimit: data?.max_cabinets ?? 1,
     }
   } catch {
     subscription.value = { planName: '—', expiresAt: null, expiresAtLabel: '' }
@@ -456,6 +480,8 @@ const loadSubscription = async () => {
 }
 
 const projectsAtLimit = computed(() => usage.value.projectsUsed >= usage.value.projectsLimit)
+const cabinetsAtLimit = computed(() => usage.value.cabinetsUsed >= usage.value.cabinetsLimit)
+const cabinetsPct = computed(() => Math.min(100, Math.round((usage.value.cabinetsUsed / Math.max(usage.value.cabinetsLimit, 1)) * 100)))
 const aiAtLimit = computed(() => usage.value.aiRemaining <= 0)
 const projectsPct = computed(() => Math.min(100, Math.round((usage.value.projectsUsed / Math.max(usage.value.projectsLimit, 1)) * 100)))
 const aiPct = computed(() => Math.min(100, Math.round((usage.value.aiUsed / Math.max(usage.value.aiLimit, 1)) * 100)))

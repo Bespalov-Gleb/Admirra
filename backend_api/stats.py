@@ -2477,6 +2477,7 @@ async def get_goals(
                         "id": gid,
                         "name": latest_goal_names.get(gid) or f"Goal {gid}",
                         "count": int(current_counts.get(gid, 0) or 0),
+                        "prev_count": int(previous_counts.get(gid, 0) or 0),
                         "trend": (
                             round(((int(current_counts.get(gid, 0) or 0) - int(previous_counts.get(gid, 0) or 0)) / int(previous_counts.get(gid, 0) or 1)) * 100, 1)
                             if int(previous_counts.get(gid, 0) or 0) > 0
@@ -2521,6 +2522,7 @@ async def get_goals(
             "id": "selected_campaigns",
             "name": "Конверсии выбранных кампаний",
             "count": current_count,
+            "prev_count": prev_count,
             "trend": trend,
             "cost": current_cost,
         }]
@@ -2618,6 +2620,7 @@ async def get_goals(
                 "id": str(code or ""),
                 "name": name,
                 "count": current_count,
+                "prev_count": prev_count,
                 "trend": trend,
                 "cost": current_cost,
                 "category": category,
@@ -2788,6 +2791,7 @@ async def get_goals(
             "id": str(goal_id),
             "name": latest_names.get(str(goal_id)) or f"Goal {goal_id}",
             "count": current_count,
+            "prev_count": int(prev_count),
             "trend": count_trend,
             "cost": None,
             "syncing": goals_syncing,
