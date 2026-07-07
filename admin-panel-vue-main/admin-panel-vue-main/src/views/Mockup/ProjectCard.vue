@@ -71,7 +71,7 @@
             v-model="search"
             type="text"
             class="search-input dark:!bg-[#2C2F3D] dark:!text-white/95 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:placeholder:!text-white/55"
-            placeholder="Поиск по проектам, номерам или доменам"
+            placeholder="Название, папка или ID"
           />
           <div class="search-icon-circle dark:!bg-white/10">
             <svg width="7" height="7" viewBox="0 0 16 16" fill="none">
@@ -90,14 +90,6 @@
         </label>
 
         <div class="project-sync-meta" v-if="projectSyncStatusText" :title="projectSyncStatusTitle">{{ projectSyncStatusText }}</div>
-
-        <button class="tile-sync-btn folder-create-btn" type="button" @click="openCreateFolder">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.7"/>
-            <path d="M12 10.5v5M9.5 13h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          </svg>
-          Создать папку
-        </button>
 
         <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
           <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -155,9 +147,9 @@
                   {{ entry.folder.name }}
                 </button>
                 <p class="project-tile-description">
-                  <span class="folder-count-badge">{{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }}</span>
+                  <span class="folder-type-label">Папка · {{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }}</span>
                   <span v-if="isFolderPaused(entry.folder)" class="folder-paused-note">· все на паузе</span>
-                  <span v-else class="folder-summary-note">· сводка по проектам в папке</span>
+                  <span v-else class="folder-summary-note">· сводная статистика</span>
                 </p>
               </div>
             </div>
@@ -275,6 +267,7 @@
         :class="{
           'project-card--syncing': isProjectSyncing(project),
           'project-card--infolder': Boolean(entry.inFolder),
+          'project-card--paused': isProjectPaused(project),
         }"
         :style="entry.inFolder ? { '--folder-color': entry.inFolder.color || '#2563eb' } : {}"
       >
@@ -307,6 +300,7 @@
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
                     {{ entry.folderName }}
                   </span>
+                  <span v-if="isProjectPaused(project)" class="paused-badge">На паузе</span>
                 </button>
                 <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
               </div>
@@ -338,7 +332,15 @@
             </div>
           </div>
 
-          <div class="project-tile-stats-wrap">
+          <div v-if="isProjectPaused(project)" class="project-paused-block">
+            <p class="project-paused-block__text">
+              Проект приостановлен<template v-if="projectFrozenDate(project)"> · данные заморожены на {{ projectFrozenDate(project) }}</template>
+            </p>
+            <button type="button" class="project-paused-block__resume" :disabled="resumingProjectId === project.id" @click="resumeProject(project)">
+              {{ resumingProjectId === project.id ? 'Возобновляем…' : 'Возобновить' }}
+            </button>
+          </div>
+          <div v-else class="project-tile-stats-wrap">
             <div v-if="isProjectWarmingUp(project)" class="project-warmup-pill">накопление данных</div>
             <div class="project-tile-stats">
               <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
@@ -615,8 +617,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
@@ -631,6 +633,15 @@ import { useDetectorCrossProject } from '../../composables/useDetector'
 import { useSyncStatus } from '../../composables/useSyncStatus'
 
 const router = useRouter()
+const route = useRoute()
+
+// Сплит-кнопка хедера «Добавить → Папку» ведёт сюда с ?create=folder
+watch(() => route.query.create, (val) => {
+  if (val === 'folder') {
+    openCreateFolder()
+    router.replace({ query: { ...route.query, create: undefined } })
+  }
+}, { immediate: true })
 const toaster = useToaster()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
 const { fetchCrossProject, getProjectStatus } = useDetectorCrossProject()
@@ -642,7 +653,7 @@ const {
   fetchSyncStatus,
 } = useSyncStatus()
 
-const projectFilter = ref('all')
+const projectFilter = ref('active')
 const periodKey = ref('last_7_days')
 const customPeriodRange = ref({ start: null, end: null })
 const search = ref('')
@@ -670,29 +681,45 @@ const includeVat = ref(true)
 const syncingIntegrations = ref(false)
 const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
 
-const projectFilterOptions = [
+const isProjectPaused = (p) => String(p?.status || '').toLowerCase() === 'paused'
+// Счётчик считает карточки с паузой, включая проекты внутри папок (реком. ТЗ п.7)
+const pausedProjectsCount = computed(() => projects.value.filter(isProjectPaused).length)
+const projectFilterOptions = computed(() => [
   { value: 'all', label: 'Все' },
   { value: 'active', label: 'Активные' },
-  { value: 'inactive', label: 'Неактивные' },
-]
+  { value: 'paused', label: `На паузе (${pausedProjectsCount.value})` },
+])
 
 const filteredProjects = computed(() => {
   let list = projects.value
-  if (projectFilter.value === 'active') {
-    list = list.filter(hasActiveProjectIntegration)
-  } else if (projectFilter.value === 'inactive') {
-    list = list.filter((p) => !hasActiveProjectIntegration(p))
-  }
   const q = search.value.trim().toLowerCase()
   if (q) {
+    // ТЗ п.6: поиск игнорирует фильтр статусов и матчится шире плейсхолдера:
+    // название, ID, описание/домен, название папки проекта
+    const folderNameById = Object.fromEntries(folders.value.map((fl) => [fl.id, (fl.name || '').toLowerCase()]))
     list = list.filter((p) =>
       p.name?.toLowerCase().includes(q) ||
       String(p.display_id || '').toLowerCase().includes(q) ||
       String(p.id || '').toLowerCase().includes(q) ||
-      p.description?.toLowerCase().includes(q)
+      p.description?.toLowerCase().includes(q) ||
+      (p.folder_id && folderNameById[p.folder_id]?.includes(q))
     )
+  } else if (projectFilter.value === 'active') {
+    list = list.filter((p) => !isProjectPaused(p))
+  } else if (projectFilter.value === 'paused') {
+    list = list.filter(isProjectPaused)
   }
   return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
+})
+
+// ТЗ п.6: результат в папке — разворачиваем папку, чтобы карточка была видна
+watch(search, (val) => {
+  const q = String(val || '').trim().toLowerCase()
+  if (!q) return
+  for (const fl of folders.value) {
+    const hasMatch = filteredProjects.value.some((p) => p.folder_id === fl.id)
+    if (hasMatch) expandedFolders.value[fl.id] = true
+  }
 })
 
 // ── Папки: дерево списка ──
@@ -770,6 +797,30 @@ const branchNoun = (n) => {
 }
 
 // ── Папки: создание/редактирование/удаление ──
+// ТЗ п.7: дата «заморозки» данных = последняя синхронизация проекта
+const projectFrozenDate = (project) => {
+  const ts = (project.integrations || [])
+    .map((i) => Date.parse(i.last_sync_at || ''))
+    .filter(Number.isFinite)
+  if (!ts.length) return ''
+  return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit' }).format(new Date(Math.max(...ts)))
+}
+
+const resumingProjectId = ref(null)
+async function resumeProject(project) {
+  if (resumingProjectId.value) return
+  resumingProjectId.value = project.id
+  try {
+    await api.put(`clients/${project.id}`, { status: 'active' })
+    project.status = 'active'
+    toaster.success(`Проект «${project.name}» возобновлён`)
+  } catch (e) {
+    toaster.error(e?.response?.data?.detail || 'Не удалось возобновить проект')
+  } finally {
+    resumingProjectId.value = null
+  }
+}
+
 function openCreateFolder() {
   folderForm.value = { name: '', color: FOLDER_COLORS[0], project_ids: [] }
   folderModal.value = { mode: 'create' }
@@ -859,7 +910,7 @@ const openFolderAnalytics = (folder) => {
 }
 
 const projectFilterLabel = computed(() => {
-  return projectFilterOptions.find((option) => option.value === projectFilter.value)?.label || 'Все'
+  return projectFilterOptions.value.find((option) => option.value === projectFilter.value)?.label || 'Все'
 })
 
 const periodLabel = computed(() => {
@@ -3208,7 +3259,97 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   cursor: default;
+  border-radius: 0.72rem !important;
 }
+
+/* ТЗ п.3: карточка папки — три сигнала: тонированная шапка, метка типа, стопка */
+.folder-card {
+  position: relative;
+}
+.folder-card::before,
+.folder-card::after {
+  content: '';
+  position: absolute;
+  height: 1.1rem;
+  border-radius: 0.85rem 0.85rem 0 0;
+  z-index: -1;
+}
+.folder-card::before {
+  left: 0.95rem; right: 0.95rem; top: -0.42rem;
+  background: #dbeafe;
+}
+.folder-card::after {
+  left: 1.9rem; right: 1.9rem; top: -0.78rem;
+  background: #eff6ff;
+  z-index: -2;
+}
+.folder-card .project-tile-header {
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+  margin: -1.7361rem -1.7361rem 1.1rem;
+  padding: 1.45rem 1.7361rem 1.1rem;
+  border-radius: 1.0417rem 1.0417rem 0 0;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
+}
+.folder-type-label {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+/* ТЗ п.7: карточка на паузе — приглушение + бейдж + строка вместо нулевых KPI */
+.paused-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.66rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.project-card--paused {
+  background: #fafbfc;
+}
+.project-card--paused .project-avatar {
+  filter: grayscale(0.55);
+  opacity: 0.8;
+}
+.project-card--paused .project-tile-description {
+  opacity: 0.75;
+}
+.project-paused-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.3rem;
+  padding: 1rem 1.15rem;
+  border: 1px dashed rgba(180, 83, 9, 0.35);
+  border-radius: 0.85rem;
+  background: rgba(254, 243, 199, 0.35);
+}
+.project-paused-block__text {
+  color: #92600a;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: 0;
+}
+.project-paused-block__resume {
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.13s ease;
+}
+.project-paused-block__resume:hover:not(:disabled) { background: #1d4ed8; }
+.project-paused-block__resume:disabled { opacity: 0.6; cursor: default; }
 
 .folder-count-badge {
   display: inline-block;

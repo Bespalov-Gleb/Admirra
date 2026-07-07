@@ -513,7 +513,7 @@ const {
 const periodKey = ref('last_7_days')
 const customPeriodRange = ref({ start: null, end: null })
 const search = ref('')
-const projectFilter = ref('all')
+const projectFilter = ref('active')
 const openSelect = ref(null)
 const itemsPerPage = ref(10)
 const currentPage = ref(1)
@@ -532,16 +532,18 @@ const periodOptions = projectPeriodOptions
 const avatarProject = ref(null)
 const editingProject = ref(null)
 
-const projectFilterOptions = [
+const isProjectPaused = (p) => String(p?.status || '').toLowerCase() === 'paused'
+const pausedProjectsCount = computed(() => projects.value.filter(isProjectPaused).length)
+const projectFilterOptions = computed(() => [
   { value: 'all', label: 'Все' },
   { value: 'active', label: 'Активные' },
-  { value: 'inactive', label: 'Неактивные' }
-]
+  { value: 'paused', label: `На паузе (${pausedProjectsCount.value})` }
+])
 
 const itemsPerPageOptions = [10, 20, 30]
 
 const projectFilterLabel = computed(() => {
-  return projectFilterOptions.find((option) => option.value === projectFilter.value)?.label || 'Все'
+  return projectFilterOptions.value.find((option) => option.value === projectFilter.value)?.label || 'Все'
 })
 
 const periodLabel = computed(() => {
@@ -650,10 +652,12 @@ const setItemsPerPage = (value) => {
 
 const filteredProjects = computed(() => {
   let list = projects.value
-  if (projectFilter.value === 'active') {
-    list = list.filter(hasActiveProjectIntegration)
-  } else if (projectFilter.value === 'inactive') {
-    list = list.filter((p) => !hasActiveProjectIntegration(p))
+  if (!search.value.trim()) {
+    if (projectFilter.value === 'active') {
+      list = list.filter((p) => !isProjectPaused(p))
+    } else if (projectFilter.value === 'paused') {
+      list = list.filter(isProjectPaused)
+    }
   }
   if (search.value.trim()) {
     const q = search.value.toLowerCase()

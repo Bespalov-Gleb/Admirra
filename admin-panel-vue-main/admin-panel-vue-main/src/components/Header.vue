@@ -98,7 +98,7 @@
           aria-label="Использование лимитов тарифа"
           class="usage-chip"
         >
-          <span :class="['usage-gauge', projectsAtLimit ? 'usage-gauge--amber' : '']">
+          <span :class="['usage-gauge', projectsAtLimit ? 'usage-gauge--amber' : '']" title="Папка занимает один проект в лимите тарифа, сколько бы проектов в ней ни было">
             <svg class="usage-icon" viewBox="0 0 16 16" fill="none"><path d="M2.5 5.2V4.1c0-.7.5-1.2 1.2-1.2h3l1.2 1.3h4.4c.7 0 1.2.5 1.2 1.2v6.4c0 .7-.5 1.2-1.2 1.2H3.7c-.7 0-1.2-.5-1.2-1.2V5.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
             <span class="usage-num">{{ usage.projectsUsed }} / {{ usage.projectsLimit }}</span>
             <span class="usage-label">проекты</span>
@@ -161,19 +161,41 @@
       <!-- Right actions -->
       <div class="flex flex-shrink-0 items-center gap-1.5 2xl:gap-2">
 
-        <!-- Add project -->
-        <button
-          @click="router.push('/projects/create')"
-          class="group relative hidden min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[1.25rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:scale-[1.03] hover:text-white hover:after:opacity-100 active:scale-[0.97] min-[1360px]:inline-flex 2xl:px-[1.6667rem] 2xl:text-[0.9028rem]"
-        >
-          <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
-            Добавить проект
-            <span class="relative inline-flex h-[0.9722rem] w-[0.9722rem] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[1.0417rem] 2xl:w-[1.0417rem]">
-              <span class="absolute left-1/2 top-1/2 h-px w-[0.3472rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
-              <span class="absolute left-1/2 top-1/2 h-[0.3472rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+        <!-- Add project: сплит-кнопка (ТЗ «Правки UI» п.2) — клик = проект, шеврон = меню Проект/Папку -->
+        <div class="relative hidden min-[1360px]:inline-flex" data-add-split>
+          <button
+            @click="router.push('/projects/create')"
+            class="group relative inline-flex min-h-[3.1944rem] items-center justify-center overflow-hidden rounded-l-[0.8333rem] bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] px-[1.25rem] py-2 text-center text-[0.6944rem] font-semibold leading-none text-white transition-all duration-700 after:absolute after:inset-0 after:rounded-l-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity after:duration-1000 hover:text-white hover:after:opacity-100 active:scale-[0.98] 2xl:px-[1.6667rem] 2xl:text-[0.9028rem]"
+          >
+            <span class="relative z-[1] flex items-center gap-1.5 whitespace-nowrap 2xl:gap-2.5">
+              Добавить проект
+              <span class="relative inline-flex h-[0.9722rem] w-[0.9722rem] flex-shrink-0 items-center justify-center rounded-full bg-white/20 2xl:h-[1.0417rem] 2xl:w-[1.0417rem]">
+                <span class="absolute left-1/2 top-1/2 h-px w-[0.3472rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+                <span class="absolute left-1/2 top-1/2 h-[0.3472rem] w-px -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"></span>
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+          <button
+            @click="showAddMenu = !showAddMenu"
+            aria-label="Создать проект или папку"
+            :aria-expanded="showAddMenu ? 'true' : 'false'"
+            class="relative inline-flex min-h-[3.1944rem] w-[2.2rem] items-center justify-center overflow-hidden rounded-r-[0.8333rem] border-l border-white/25 bg-[linear-gradient(270deg,#ff8a2a_0%,#ff6a3d_48%,#f25b2a_100%)] text-white transition-all duration-300 after:absolute after:inset-0 after:rounded-r-[0.8333rem] after:bg-[linear-gradient(270deg,#ffb067_0%,#ff7f52_48%,#ff6637_100%)] after:opacity-0 after:transition-opacity hover:after:opacity-100 active:scale-[0.98]"
+          >
+            <svg class="relative z-[1] h-[0.7rem] w-[0.7rem] transition-transform duration-200" :class="{ 'rotate-180': showAddMenu }" viewBox="0 0 12 8" fill="none"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <Transition name="dropdown">
+            <div v-if="showAddMenu" class="absolute right-0 top-full z-50 mt-[0.4861rem] min-w-[11rem] overflow-hidden rounded-[0.8333rem] bg-white py-[0.35rem] shadow-[0_10px_30px_rgba(9,24,63,0.16),0_0_0_1px_rgba(15,23,42,0.06)] dark:bg-[#2C2F3D] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45),0_0_0_1px_rgba(255,255,255,0.07)]">
+              <button
+                @click="showAddMenu = false; router.push('/projects/create')"
+                class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
+              >Проект</button>
+              <button
+                @click="showAddMenu = false; router.push({ path: '/projects', query: { create: 'folder' } })"
+                class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
+              >Папку</button>
+            </div>
+          </Transition>
+        </div>
 
         <!-- Notifications bell -->
         <div class="relative">
@@ -358,6 +380,7 @@ const handleProjectSelect = (id) => {
 
 const isProfileMenuOpen = ref(false)
 const showNotifications = ref(false)
+const showAddMenu = ref(false)
 const showLogoutModal = ref(false)
 
 const subscription = ref({ planName: '—', expiresAt: null, expiresAtLabel: '' })
@@ -535,6 +558,9 @@ const handleClickOutside = (event) => {
   }
   if (isProjectMenuOpen.value && projectMenuRef.value) {
     if (!projectMenuRef.value.contains(target)) isProjectMenuOpen.value = false
+  }
+  if (showAddMenu.value && !target.closest('[data-add-split]')) {
+    showAddMenu.value = false
   }
 }
 
