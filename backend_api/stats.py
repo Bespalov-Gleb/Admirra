@@ -740,10 +740,11 @@ async def _ensure_vk_hierarchy_rows_for_campaign(
                 ))
 
     # ── Баннеры (объявления): каталог + дневная статистика ──
-    if include_ads and not banners_loaded:
+    # banners.json фильтруется только по группам (_ad_group_id__in)
+    if include_ads and not banners_loaded and group_names:
         banner_meta: dict = {}
         try:
-            banners = await api.get_banners([ext_id])
+            banners = await api.get_banners(list(group_names.keys()))
             for b in banners:
                 bid = str(b.get("id") or "").strip()
                 if bid:

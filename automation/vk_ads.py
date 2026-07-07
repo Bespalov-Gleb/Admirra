@@ -680,52 +680,56 @@ class VKAdsAPI:
 
         return ad_groups
 
-    async def get_banners(self, campaign_ids: List[str]) -> List[Dict[str, Any]]:
+    async def get_banners(self, group_ids: List[str]) -> List[Dict[str, Any]]:
         """
-        Объявления (banners) для указанных кампаний — третий уровень иерархии
-        VK Ads (ad_plans → ad_groups → banners). GET /api/v2/banners.json,
-        фильтр _ad_plan_id__in, пагинация limit/offset.
+        Объявления (banners) для указанных ГРУПП — третий уровень иерархии
+        VK Ads (ad_plans → ad_groups → banners). GET /api/v2/banners.json.
+        Фильтра по кампании у banners.json нет (unknown_filter _ad_plan_id__in) —
+        только по группам: _ad_group_id__in. Чанки по 200 групп + пагинация.
         """
-        if not campaign_ids:
+        group_ids = [str(g) for g in group_ids if g]
+        if not group_ids:
             return []
 
         url = f"{self.base_url}/banners.json"
         banners: List[Dict[str, Any]] = []
         limit = 200
-        offset = 0
         max_pages = 50
 
         async with httpx.AsyncClient() as client:
-            for _ in range(max_pages):
-                params = {
-                    "_ad_plan_id__in": ",".join(str(c) for c in campaign_ids[:200]),
-                    "fields": "id,name,ad_group_id",
-                    "limit": limit,
-                    "offset": offset,
-                }
-                if self.account_id and self.send_client_id:
-                    params["client_id"] = self.account_id
-                try:
-                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
-                except Exception as e:
-                    logger.warning(f"⚠️ VK Ads banners request error: {e}")
-                    break
-                if response.status_code != 200:
-                    logger.warning(
-                        f"⚠️ VK Ads banners error {response.status_code}: "
-                        f"{(response.text or '')[:200]}"
-                    )
-                    break
-                items = (response.json() or {}).get("items", [])
-                if not items:
-                    break
-                banners.extend(items)
-                offset += len(items)
-                if len(items) < limit:
-                    break
+            for chunk_start in range(0, len(group_ids), 200):
+                chunk = group_ids[chunk_start:chunk_start + 200]
+                offset = 0
+                for _ in range(max_pages):
+                    params = {
+                        "_ad_group_id__in": ",".join(chunk),
+                        "fields": "id,name,ad_group_id",
+                        "limit": limit,
+                        "offset": offset,
+                    }
+                    if self.account_id and self.send_client_id:
+                        params["client_id"] = self.account_id
+                    try:
+                        response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                    except Exception as e:
+                        logger.warning(f"⚠️ VK Ads banners request error: {e}")
+                        break
+                    if response.status_code != 200:
+                        logger.warning(
+                            f"⚠️ VK Ads banners error {response.status_code}: "
+                            f"{(response.text or '')[:200]}"
+                        )
+                        break
+                    items = (response.json() or {}).get("items", [])
+                    if not items:
+                        break
+                    banners.extend(items)
+                    offset += len(items)
+                    if len(items) < limit:
+                        break
 
         if banners:
-            logger.info(f"✅ VK Ads: получено {len(banners)} banners для {len(campaign_ids)} кампаний")
+            logger.info(f"✅ VK Ads: получено {len(banners)} banners для {len(group_ids)} групп")
         return banners
 
     async def get_level_statistics(
