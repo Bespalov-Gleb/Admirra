@@ -594,43 +594,60 @@ class VKAdsAPI:
         url = f"{self.base_url}/ad_groups.json"
         ad_groups: List[Dict[str, Any]] = []
 
-        # Пробуем разные варианты параметров фильтрации по кампаниям.
-        param_variants = ["ad_plan_id", "ad_plan_ids", "campaign_id", "campaign_ids"]
+        # Основной рабочий фильтр — _ad_plan_id__in (как _ad_group_id__in у banners).
+        # ВАЖНО: параметры вида ad_plan_id VK молча ИГНОРИРУЕТ (не ошибка, а просто
+        # первые 20 групп всего кабинета без фильтра) — поэтому они только в хвосте
+        # как фолбэк, а результат дополнительно фильтруется по ad_plan_id вызывающим кодом.
+        param_variants = ["_ad_plan_id__in", "ad_plan_id", "ad_plan_ids", "campaign_id", "campaign_ids"]
 
         async with httpx.AsyncClient() as client:
             for param_name in param_variants:
                 try:
-                    params = {
-                        param_name: ",".join(campaign_ids[:50]),
-                        "fields": "id,name,package_id,ad_plan_id"  # Явно запрашиваем нужные поля
-                    }
-                    if self.account_id:
-                        params["client_id"] = self.account_id
+                    # Пагинация: без limit VK отдаёт только первые 20 групп
+                    found_any = False
+                    offset = 0
+                    limit = 200
+                    for _ in range(25):
+                        params = {
+                            param_name: ",".join(campaign_ids[:200]),
+                            "fields": "id,name,package_id,ad_plan_id",  # Явно запрашиваем нужные поля
+                            "limit": limit,
+                            "offset": offset,
+                        }
+                        if self.account_id:
+                            params["client_id"] = self.account_id
 
-                    response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
-                    if response.status_code == 400:
-                        self._push_debug(
-                            f"ad_groups.json {param_name} -> 400: {response.text[:200] if response.text else 'empty response'}"
-                        )
-                        logger.info(
-                            f"ℹ️ VK Ads ad_groups 400 for param {param_name}: "
-                            f"{response.text[:200] if response.text else 'empty response'}"
-                        )
-                        continue
-                    if response.status_code != 200:
-                        logger.warning(
-                            f"⚠️ VK Ads ad_groups error {response.status_code} for param {param_name}: "
-                            f"{response.text[:200] if response.text else 'empty response'}"
-                        )
-                        continue
+                        response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
+                        if response.status_code == 400:
+                            self._push_debug(
+                                f"ad_groups.json {param_name} -> 400: {response.text[:200] if response.text else 'empty response'}"
+                            )
+                            logger.info(
+                                f"ℹ️ VK Ads ad_groups 400 for param {param_name}: "
+                                f"{response.text[:200] if response.text else 'empty response'}"
+                            )
+                            break
+                        if response.status_code != 200:
+                            logger.warning(
+                                f"⚠️ VK Ads ad_groups error {response.status_code} for param {param_name}: "
+                                f"{response.text[:200] if response.text else 'empty response'}"
+                            )
+                            break
 
-                    data = response.json()
-                    items = data.get("items", [])
-                    if items:
+                        data = response.json()
+                        items = data.get("items", [])
+                        if not items:
+                            break
                         ad_groups.extend(items)
-                        logger.info(f"✅ VK Ads: получено {len(items)} AdGroup (param {param_name})")
+                        found_any = True
+                        offset += len(items)
+                        if len(items) < limit:
+                            break
+
+                    if found_any:
+                        logger.info(f"✅ VK Ads: получено {len(ad_groups)} AdGroup (param {param_name})")
                         self._push_debug(
-                            f"ad_groups.json {param_name} -> 200, items={len(items)}"
+                            f"ad_groups.json {param_name} -> 200, items={len(ad_groups)}"
                         )
                         break
                     else:
