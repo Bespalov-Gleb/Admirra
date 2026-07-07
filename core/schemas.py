@@ -832,6 +832,13 @@ class DetectorSummaryResponse(BaseModel):
     hidden_alerts: List[DetectorAlertResponse] = []
 
 
+class DetectorTopAlert(BaseModel):
+    id: UUID
+    severity: str
+    hypothesis_text: Optional[str] = None
+    metric: Optional[str] = None
+
+
 class DetectorCrossProjectItem(BaseModel):
     project_id: UUID
     warning_count: int = 0
@@ -839,6 +846,8 @@ class DetectorCrossProjectItem(BaseModel):
     hidden_count: int = 0
     max_severity: Optional[str] = None
     warmup_status: Optional[str] = None
+    # ТЗ «Детектор, итерация 2» п.2.4: топ-3 отклонения для поповера-превью
+    top_alerts: List[DetectorTopAlert] = []
 
 
 class DetectorSnoozeRequest(BaseModel):

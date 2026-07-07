@@ -353,6 +353,11 @@ def get_cross_project_status(
         w = sum(1 for a in project_alerts if a.severity == "warning")
         p = sum(1 for a in project_alerts if a.severity == "problem")
         max_sev = "problem" if p > 0 else ("warning" if w > 0 else None)
+        # Поповер-превью (ТЗ ит.2, п.2.4): топ-3 короткими фразами, красные сверху
+        top = sorted(
+            project_alerts,
+            key=lambda a: (0 if a.severity == "problem" else 1, -(a.consecutive_days or 0)),
+        )[:3]
         result.append({
             "project_id": client.id,
             "warning_count": w,
@@ -360,6 +365,15 @@ def get_cross_project_status(
             "hidden_count": len(hidden_by_project.get(client.id, [])),
             "max_severity": max_sev,
             "warmup_status": status,
+            "top_alerts": [
+                {
+                    "id": a.id,
+                    "severity": a.severity,
+                    "hypothesis_text": a.hypothesis_text,
+                    "metric": a.metric,
+                }
+                for a in top
+            ],
         })
 
     return result

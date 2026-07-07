@@ -49,10 +49,18 @@
           </div>
           <div class="detector-alert-row__actions">
             <button type="button" @click="$emit('ask-ai', alert)">AI</button>
-            <button type="button" @click="$emit('snooze', alert, 1)">1 дн.</button>
-            <button type="button" @click="$emit('snooze', alert, 3)">3 дн.</button>
-            <button type="button" @click="$emit('snooze', alert, 7)">7 дн.</button>
-            <button type="button" class="detector-alert-row__soft" @click="$emit('not-problem', alert)">Не проблема</button>
+            <span class="detector-alert-row__snoozes">
+              <button type="button" @click="$emit('snooze', alert, 1)">1 дн.</button>
+              <button type="button" @click="$emit('snooze', alert, 3)">3 дн.</button>
+              <button type="button" @click="$emit('snooze', alert, 7)">7 дн.</button>
+            </span>
+            <span class="detector-alert-row__divider" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="detector-alert-row__soft"
+              title="Скроется до конца отклонения, поможет настроить детектор"
+              @click="$emit('not-problem', alert)"
+            >Не проблема<small>скроется до конца отклонения, поможет настроить детектор</small></button>
           </div>
         </article>
 
@@ -385,4 +393,39 @@ const hiddenMeta = (alert) => {
 :root.dark .detector-banner--warmup,
 .dark .detector-banner--warmup,
 .darkmode .detector-banner--warmup { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.28); color: #60a5fa; }
+
+.detector-alert-row__snoozes { display: inline-flex; gap: 0.3rem; }
+.detector-alert-row__divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(15, 23, 42, 0.12);
+  margin: 0 0.35rem;
+}
+.detector-alert-row__soft small {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 0.1rem;
+  white-space: normal;
+  max-width: 13rem;
+  line-height: 1.25;
+  text-align: left;
+}
+
+/* ТЗ ит.2 п.1.8: мобильная версия — баннер компактный, действия вертикально, тап ≥44px */
+@media (max-width: 767px) {
+  .detector-banner__head { flex-wrap: wrap; gap: 0.5rem; }
+  .detector-alert-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .detector-alert-row__actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.4rem;
+  }
+  .detector-alert-row__actions button { min-height: 44px; }
+  .detector-alert-row__snoozes { display: flex; }
+  .detector-alert-row__snoozes button { flex: 1; }
+  .detector-alert-row__divider { width: 100%; height: 1px; margin: 0.2rem 0; }
+}
 </style>

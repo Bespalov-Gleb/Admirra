@@ -414,12 +414,16 @@
         <div v-if="activeDetectorMetric === key && getMetricAnomaly(key)" class="detector-popover detector-popover--metric" @click.stop>
           <strong>{{ getMetricAnomaly(key).hypothesis_text || 'Отклонение в показателе' }}</strong>
           <small>{{ formatDetectorAlertTitle(getMetricAnomaly(key)) }}</small>
+          <small v-if="metricDeltaMismatch(key)" class="detector-popover__mismatch">
+            Дельта на карточке зелёная, потому что сравнивает с прошлым периодом по фильтру.
+            Детектор сравнивает с нормой проекта за 6 недель.
+          </small>
           <div class="detector-popover__actions">
             <button type="button" @click="openAssistantForDetectorAlert(getMetricAnomaly(key))">Спросить AI</button>
             <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 1)">1 дн.</button>
             <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 3)">3 дн.</button>
             <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 7)">7 дн.</button>
-            <button type="button" class="detector-popover__soft" @click="handleDetectorNotProblem(getMetricAnomaly(key))">Не проблема</button>
+            <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(getMetricAnomaly(key))">Не проблема</button>
           </div>
         </div>
         <div class="metric-head">
@@ -973,12 +977,18 @@
               <div v-if="activeDetectorEntity === campaign.rowKey && campaign.alert" class="detector-popover detector-popover--row" @click.stop>
                 <strong>{{ campaign.alert.hypothesis_text || 'Отклонение по кампании' }}</strong>
                 <small>{{ campaign.alertTitle }}</small>
+                <button
+                  v-if="campaign.canExpand"
+                  type="button"
+                  class="detector-popover__drill"
+                  @click="openAlertDrilldown(campaign)"
+                >По объявлениям →</button>
                 <div class="detector-popover__actions">
                   <button type="button" @click="openAssistantForDetectorAlert(campaign.alert)">Спросить AI</button>
                   <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 1)">1 дн.</button>
                   <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 3)">3 дн.</button>
                   <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 7)">7 дн.</button>
-                  <button type="button" class="detector-popover__soft" @click="handleDetectorNotProblem(campaign.alert)">Не проблема</button>
+                  <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(campaign.alert)">Не проблема</button>
                 </div>
               </div>
               <span v-if="isAllChannelsMode && campaign.platformMeta" class="campaign-platform-badge" :style="{ '--platform-color': campaign.platformMeta.color, '--platform-soft': campaign.platformMeta.soft }">
@@ -1525,6 +1535,20 @@ const {
 } = useDetector()
 
 const detectorBannerCollapsed = ref(false)
+
+// «Спросить AI» из кросс-обзора: алерт передан через sessionStorage — откроем
+// ассистента, как только детектор-сводка проекта загрузится
+const pendingAiAlertId = ref(null)
+try {
+  pendingAiAlertId.value = sessionStorage.getItem('admirra_ai_alert') || null
+  if (pendingAiAlertId.value) sessionStorage.removeItem('admirra_ai_alert')
+} catch { /* приватный режим */ }
+watch(() => detectorSummary.value, (s) => {
+  if (!pendingAiAlertId.value || !s?.alerts?.length) return
+  const target = s.alerts.find((a) => String(a.id) === pendingAiAlertId.value) || s.alerts[0]
+  pendingAiAlertId.value = null
+  if (target) openAssistantForDetectorAlert(target)
+}, { deep: false })
 const activeDetectorMetric = ref(null)
 const activeDetectorEntity = ref(null)
 
@@ -2737,7 +2761,9 @@ const campaignTrend = (value, metric) => {
   }
 }
 
+const campaignSortUserTouched = ref(false)
 const campaignSortOptions = [
+  { value: 'alerts', label: 'Отклонения' },
   { value: 'leads', label: 'Лиды' },
   { value: 'cost', label: 'Расход' },
   { value: 'cpl', label: 'CPL' },
@@ -2886,6 +2912,7 @@ const campaignLevelLabels = {
 
 const setCampaignSort = (value) => {
   campaignSort.value = value
+  campaignSortUserTouched.value = true
 }
 
 const resetCampaignTree = () => {
@@ -2903,8 +2930,22 @@ const getCampaignSortValue = (campaign) => {
     const cpa = Number(campaign.cpa || 0)
     return cpa > 0 ? cpa : Number.POSITIVE_INFINITY
   }
+  if (campaignSort.value === 'alerts') {
+    // «Сначала с отклонениями»: проблема > внимание > без алерта; внутри — по лидам
+    const alert = getAlertForEntity('campaign', campaign.id)
+    const weight = alert ? (alert.severity === 'problem' ? 2 : 1) : 0
+    return weight * 1e9 + Number(campaign.conversions ?? campaign.leads ?? 0)
+  }
   return Number(campaign.conversions ?? campaign.leads ?? 0)
 }
+
+// ТЗ ит.2 п.2.3: при наличии кампанийных алертов сортировка «Отклонения» — дефолт
+// (пока пользователь сам не переключил сортировку)
+watch(() => campaigns.value, (rows) => {
+  if (campaignSortUserTouched.value) return
+  const hasAlerts = (rows || []).some((r) => Boolean(getAlertForEntity('campaign', r.id)))
+  if (hasAlerts && campaignSort.value !== 'alerts') campaignSort.value = 'alerts'
+}, { immediate: true })
 
 const sortedCampaignSourceRows = computed(() => {
   const rows = campaigns.value?.length
@@ -3020,7 +3061,7 @@ const fetchCampaignChildren = async (row) => {
       client_id: filters.client_id || undefined,
       level: row.nodeLevel,
       node_id: row.nodeLevel === 'campaign' ? undefined : (row.sourceId || row.id),
-      sort_by: campaignSort.value,
+      sort_by: campaignSort.value === 'alerts' ? 'leads' : campaignSort.value,
       sort_dir: campaignSortDir.value,
     }
     const { data } = await api.get(`dashboard/campaigns/${row.campaignId}/children`, { params })
@@ -3032,6 +3073,35 @@ const fetchCampaignChildren = async (row) => {
     console.error('Failed to load campaign drilldown:', err)
     toaster.error('Не удалось загрузить детализацию кампании')
     campaignChildren.value = { ...campaignChildren.value, [row.rowKey]: [] }
+  } finally {
+    campaignChildrenLoading.value = { ...campaignChildrenLoading.value, [row.rowKey]: false }
+  }
+}
+
+// ТЗ «Детектор ит.2» п.1.4/2.3: мост от алерта к drill-down — раскрыть кампанию,
+// объявления отсортировать по CPL по убыванию (дорогие сверху)
+const openAlertDrilldown = async (row) => {
+  activeDetectorEntity.value = null
+  if (!row?.canExpand) return
+  const next = new Set(expandedCampaignRows.value)
+  next.add(row.rowKey)
+  expandedCampaignRows.value = next
+  campaignChildrenLoading.value = { ...campaignChildrenLoading.value, [row.rowKey]: true }
+  try {
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      client_id: filters.client_id || undefined,
+      level: row.nodeLevel,
+      node_id: row.nodeLevel === 'campaign' ? undefined : (row.sourceId || row.id),
+      sort_by: 'cpl',
+      sort_dir: 'desc',
+    }
+    const { data } = await api.get(`dashboard/campaigns/${row.campaignId}/children`, { params })
+    campaignChildren.value = { ...campaignChildren.value, [row.rowKey]: Array.isArray(data) ? data : [] }
+  } catch (err) {
+    console.error('Failed to open alert drilldown:', err)
+    toaster.error('Не удалось загрузить детализацию кампании')
   } finally {
     campaignChildrenLoading.value = { ...campaignChildrenLoading.value, [row.rowKey]: false }
   }
@@ -4807,6 +4877,19 @@ const metricAnomalyClass = (key) => {
 }
 
 const getMetricAnomaly = (key) => getAlertForMetric(key)
+
+// ТЗ «Детектор ит.2» п.1.7: дельта KPI сравнивает периоды по фильтру, детектор —
+// с нормой за 6 недель; при расхождении направлений поповер обязан это объяснить
+const metricDeltaMismatch = (key) => {
+  const alert = getAlertForMetric(key)
+  if (!alert) return false
+  const trendKeyMap = { expenses: 'expenses', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', leads: 'leads', cpa: 'cpa', ctr: 'ctr', cr: 'cr' }
+  const trend = Number(summary.value?.trends?.[trendKeyMap[key] || key] ?? 0)
+  if (!trend) return false
+  const inverted = ['cpc', 'cpa'].includes(key)
+  const deltaLooksGood = inverted ? trend < 0 : trend > 0
+  return deltaLooksGood
+}
 
 const getMetricAnomalyTooltip = (key) => {
   const alert = getAlertForMetric(key)
@@ -13032,4 +13115,60 @@ onMounted(() => {
 .figma-dashboard.is-dark .folder-branches-table td { color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.06); }
 .figma-dashboard.is-dark .folder-branch--paused td { opacity: 0.5; }
 
+
+.detector-popover__mismatch {
+  display: block;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  background: rgba(37, 99, 235, 0.06);
+  color: #3b5bb8;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+.detector-popover__drill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.5rem;
+  border: none;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.55rem;
+  cursor: pointer;
+}
+.detector-popover__drill:hover { background: rgba(37, 99, 235, 0.14); }
+
+/* ТЗ «Детектор ит.2» п.1.8: на мобильных поповер алерта = нижняя шторка,
+   содержимое то же — меняется только контейнер; действия крупными строками */
+@media (max-width: 767px) {
+  .detector-popover {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 1.1rem 1.1rem 0 0 !important;
+    padding-top: 1.4rem !important;
+    box-shadow: 0 -12px 40px rgba(9, 24, 63, 0.25) !important;
+    z-index: 90 !important;
+  }
+  .detector-popover::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2.6rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.15);
+  }
+  .detector-popover button { min-height: 44px; }
+  .anomaly-dot { min-width: 18px; min-height: 18px; padding: 13px; background-clip: content-box; }
+}
 </style>

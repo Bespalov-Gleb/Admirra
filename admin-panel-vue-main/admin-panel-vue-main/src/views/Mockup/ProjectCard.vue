@@ -319,14 +319,36 @@
             </div>
             <div class="project-tile-actions">
               <div class="project-tile-actions__top">
-                <span
-                  v-if="detectorBadge(project)"
-                  class="detector-badge"
-                  :class="`detector-badge--${detectorBadge(project).type}`"
-                  :title="detectorBadge(project).text"
-                >
-                  <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                  <template v-else>{{ detectorBadge(project).count }}</template>
+                <span v-if="detectorBadge(project)" class="detector-preview-wrap">
+                  <button
+                    type="button"
+                    class="detector-badge detector-badge--pill"
+                    :class="`detector-badge--${detectorBadge(project).type}`"
+                    :title="detectorBadge(project).text"
+                    @click.stop="toggleDetectorPreview(project.id)"
+                  >
+                    <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    <template v-else>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+                      {{ detectorBadge(project).count }}
+                    </template>
+                  </button>
+                  <div v-if="detectorPreviewId === project.id && detectorPreview(project).length" class="detector-preview" @click.stop>
+                    <div
+                      v-for="al in detectorPreview(project)"
+                      :key="al.id"
+                      class="detector-preview__row"
+                      :class="`detector-preview__row--${al.severity}`"
+                    >
+                      <span class="detector-preview__dot"></span>
+                      <span class="detector-preview__text">{{ al.hypothesis_text || 'Отклонение' }}</span>
+                    </div>
+                    <div v-if="detectorPreviewMore(project) > 0" class="detector-preview__more">и ещё {{ detectorPreviewMore(project) }}</div>
+                    <div class="detector-preview__actions">
+                      <button type="button" @click="openProject(project)">Открыть дашборд</button>
+                      <button type="button" class="detector-preview__ai" @click="askAiFromPreview(project)">Спросить AI</button>
+                    </div>
+                  </div>
                 </span>
                 <button class="analytics-open-btn flex-shrink-0" @click="openProject(project)" title="Открыть аналитику">
                   <span>Аналитика</span>
@@ -658,15 +680,23 @@ const route = useRoute()
 // Сплит-кнопка хедера «Добавить → Папку» ведёт сюда с ?create=folder.
 // Начальный query обрабатываем в onMounted: с immediate-watch openCreateFolder
 // вызывался до инициализации folderModal (TDZ) и ломал setup при заходе извне.
+const consumeCreateFolderFlag = () => {
+  let flag = false
+  try {
+    flag = sessionStorage.getItem('admirra_create_folder') === '1'
+    if (flag) sessionStorage.removeItem('admirra_create_folder')
+  } catch { /* приватный режим */ }
+  return flag
+}
 const openFolderFromQuery = () => {
   openCreateFolder()
-  router.replace({ query: { ...route.query, create: undefined } })
+  if (route.query.create) router.replace({ query: { ...route.query, create: undefined } })
 }
 watch(() => route.query.create, (val) => {
   if (val === 'folder') openFolderFromQuery()
 })
 onMounted(() => {
-  if (route.query.create === 'folder') openFolderFromQuery()
+  if (route.query.create === 'folder' || consumeCreateFolderFlag()) openFolderFromQuery()
 })
 const toaster = useToaster()
 const { projects, isLoading, fetchProjects, setCurrentProject } = useProjects()
@@ -1632,6 +1662,34 @@ const handleSyncProjects = async () => {
   } finally {
     syncingIntegrations.value = false
   }
+}
+
+// ТЗ «Детектор ит.2» п.2.4: поповер-превью на пилюле кросс-обзора — только чтение
+const detectorPreviewId = ref(null)
+const toggleDetectorPreview = (projectId) => {
+  detectorPreviewId.value = detectorPreviewId.value === projectId ? null : projectId
+}
+const closeDetectorPreview = (event) => {
+  if (!detectorPreviewId.value) return
+  if (event.target.closest && event.target.closest('.detector-preview-wrap')) return
+  detectorPreviewId.value = null
+}
+onMounted(() => document.addEventListener('mousedown', closeDetectorPreview))
+onUnmounted(() => document.removeEventListener('mousedown', closeDetectorPreview))
+
+const detectorPreview = (project) => getProjectStatus(project.id)?.top_alerts || []
+const detectorPreviewMore = (project) => {
+  const status = getProjectStatus(project.id)
+  if (!status) return 0
+  const total = (status.warning_count || 0) + (status.problem_count || 0)
+  return Math.max(0, total - (status.top_alerts?.length || 0))
+}
+const askAiFromPreview = (project) => {
+  const top = detectorPreview(project)[0]
+  try {
+    if (top?.id) sessionStorage.setItem('admirra_ai_alert', String(top.id))
+  } catch { /* приватный режим */ }
+  openProject(project)
 }
 
 const detectorBadge = (project) => {
@@ -3551,6 +3609,61 @@ onMounted(async () => {
 }
 
 /* ТЗ п.7: карточка на паузе — приглушение + бейдж + строка вместо нулевых KPI */
+.detector-preview-wrap { position: relative; display: inline-flex; }
+.detector-badge--pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-weight: 800;
+}
+.detector-preview {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 40;
+  width: 17rem;
+  background: #fff;
+  border-radius: 0.85rem;
+  padding: 0.65rem;
+  box-shadow: 0 14px 40px rgba(9, 24, 63, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  cursor: default;
+}
+.detector-preview__row {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  padding: 0.3rem 0.2rem;
+}
+.detector-preview__dot {
+  width: 0.5rem; height: 0.5rem; border-radius: 50%;
+  margin-top: 0.3rem; flex-shrink: 0;
+  background: #f59e0b;
+}
+.detector-preview__row--problem .detector-preview__dot { background: #ef4444; }
+.detector-preview__text {
+  font-size: 0.72rem; line-height: 1.35; color: #1f2937; font-weight: 600;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.detector-preview__more { font-size: 0.68rem; color: #94a3b8; font-weight: 600; padding: 0.15rem 0.2rem 0.3rem; }
+.detector-preview__actions { display: flex; gap: 0.45rem; margin-top: 0.35rem; }
+.detector-preview__actions button {
+  flex: 1;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.38rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #171717;
+  cursor: pointer;
+}
+.detector-preview__actions button:hover { border-color: rgba(37, 99, 235, 0.4); }
+.detector-preview__ai { background: #2563eb !important; border-color: #2563eb !important; color: #fff !important; }
+
 .channel-delta {
   display: inline-block;
   margin-left: 0.3rem;

@@ -200,7 +200,7 @@
                 class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
               >Проект</button>
               <button
-                @click="showAddMenu = false; router.push({ path: '/project-card', query: { create: 'folder' } })"
+                @click="startCreateFolder()"
                 class="flex w-full items-center gap-2 px-[1.1rem] py-[0.55rem] text-left text-[0.8333rem] font-semibold text-[#171717] transition-colors hover:bg-[rgba(37,99,235,0.06)] dark:text-white/85 dark:hover:bg-white/5"
               >Папку</button>
             </div>
@@ -387,6 +387,13 @@ const toggleProjectMenu = () => {
 // ТЗ «Правки UI» п.1: выбор в дропдауне = переход в аналитику среза; если уже
 // в контекстном разделе (аналитика, интеграции, AI) — смена среза на месте.
 const CONTEXT_SECTION_PATHS = ['/dashboard/general-3', '/integrations', '/ai-analysis']
+// «Добавить → Папку»: флаг в sessionStorage надёжнее query (redirect'ы его не теряют)
+const startCreateFolder = () => {
+  showAddMenu.value = false
+  try { sessionStorage.setItem('admirra_create_folder', '1') } catch { /* приватный режим */ }
+  router.push({ path: '/project-card', query: { create: 'folder' } })
+}
+
 const handleProjectSelect = (id) => {
   setCurrentProject(id)
   isProjectMenuOpen.value = false
