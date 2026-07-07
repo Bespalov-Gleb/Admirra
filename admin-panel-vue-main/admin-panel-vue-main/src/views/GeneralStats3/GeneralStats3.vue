@@ -93,7 +93,7 @@
         >Динамика</button>
       </div>
       <div class="filters-row">
-        <!-- Режим «Аналитика папки»: сводка по всем филиалам -->
+        <!-- Режим «Аналитика папки»: сводка по проектам в папке -->
         <div v-if="folderMode" class="folder-mode-chip" :title="`Сводная аналитика по папке «${folderMode.name}»`">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
           <span>Папка: {{ folderMode.name }}</span>
@@ -135,7 +135,7 @@
           :class="{ open: openMenu === 'directions' }"
           v-click-outside="() => closeMenu('directions')"
         >
-          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': selectedDirectionId }" @click="toggleMenu('directions')">
+          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': selectedDirectionId, 'cs-head--placeholder': !selectedDirectionId }" @click="toggleMenu('directions')">
             <span class="cs-current">{{ selectedDirectionLabel }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
@@ -167,7 +167,7 @@
         </div>
 
         <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
-          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0 }" @click="openCampaignMenu">
+          <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0, 'cs-head--placeholder': filters.campaign_ids.length === 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
@@ -801,13 +801,13 @@
       </article>
     </section>
 
-    <!-- ══ Аналитика папки: разбивка по филиалам (drill-down уровень «филиал») ══ -->
+    <!-- ══ Аналитика папки: разбивка по проектам (drill-down уровень «проект») ══ -->
     <section v-if="folderMode" class="panel folder-branches-panel">
       <div class="panel-title-row">
-        <h2>Филиалы папки «{{ folderMode.name }}»</h2>
+        <h2>Проекты папки «{{ folderMode.name }}»</h2>
         <span class="folder-branches-count">{{ folderBreakdown.length }}</span>
       </div>
-      <div v-if="folderBreakdownLoading" class="folder-branches-empty">Загружаем филиалы…</div>
+      <div v-if="folderBreakdownLoading" class="folder-branches-empty">Загружаем проекты…</div>
       <div v-else-if="!folderBreakdown.length" class="folder-branches-empty">В папке нет доступных проектов</div>
       <div v-else class="folder-branches-table-wrap">
         <table class="folder-branches-table">
@@ -4664,7 +4664,7 @@ const exitFolderMode = () => {
 }
 
 const openFolderBranch = (item) => {
-  // Клик по филиалу — обычный дашборд проекта
+  // Клик по проекту папки — обычный дашборд проекта
   setCurrentProject(item.client_id)
   router.replace({ path: route.path, query: {} })
 }
@@ -4995,9 +4995,15 @@ onMounted(() => {
   border: 1px solid #ebebeb;
   border-radius: 1.2rem;
   background: #fff;
-  color: #b3b3b3;
+  /* ТЗ «Правки UI» п.11: выбранное значение — основной тёмный, серый читается
+     как плейсхолдер. Серое состояние — только у пустых контролов (см. --placeholder). */
+  color: #171717;
   font-size: 1.3rem;
   font-weight: 500;
+}
+
+.filter-btn.cs-head--placeholder {
+  color: #767676;
 }
 
 .select-like svg,
@@ -12755,7 +12761,7 @@ onMounted(() => {
   }
 }
 
-/* ══ Папки: бейдж режима и таблица филиалов ══ */
+/* ══ Папки: бейдж режима и таблица проектов папки ══ */
 .folder-mode-chip {
   display: inline-flex;
   align-items: center;

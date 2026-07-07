@@ -88,7 +88,7 @@
           <span class="tile-nds-label">С НДС 22%</span>
         </label>
 
-        <div class="project-sync-meta" v-if="projectSyncStatusText">{{ projectSyncStatusText }}</div>
+        <div class="project-sync-meta" v-if="projectSyncStatusText" :title="projectSyncStatusTitle">{{ projectSyncStatusText }}</div>
 
         <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
           <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -488,6 +488,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
+import { relativeSyncLabel } from '../../utils/relativeTime'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform, projectPlatforms } from '../../utils/projectIntegrations'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
@@ -893,8 +894,25 @@ const lastProjectSyncAt = computed(() => {
   return timestamps.length ? Math.max(...timestamps) : null
 })
 
+const nowTick = ref(Date.now())
+let syncLabelTimer = null
+const refreshNowTick = () => { nowTick.value = Date.now() }
+onMounted(() => {
+  syncLabelTimer = setInterval(refreshNowTick, 60 * 1000)
+  document.addEventListener('visibilitychange', refreshNowTick)
+})
+onUnmounted(() => {
+  if (syncLabelTimer) clearInterval(syncLabelTimer)
+  document.removeEventListener('visibilitychange', refreshNowTick)
+})
+
 const projectSyncStatusText = computed(() => {
   if (projectsSyncing.value) return 'Выполняется синхронизация, пожалуйста подождите'
+  const rel = relativeSyncLabel(lastProjectSyncAt.value, nowTick.value)
+  return rel ? `Обновлено ${rel}` : ''
+})
+
+const projectSyncStatusTitle = computed(() => {
   const formatted = formatMoscowSyncDate(lastProjectSyncAt.value)
   return formatted ? `Последняя синхронизация: ${formatted} МСК` : ''
 })

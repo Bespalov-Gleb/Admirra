@@ -108,7 +108,9 @@ def generate_report_pdf(
         try:
             folder = db.query(models.Folder).filter_by(id=uuid.UUID(str(folder_id))).first()
             if folder:
-                client_name = f"Папка «{folder.name}» · сводный отчёт по {len(effective_client_ids)} филиалам"
+                n_projects = len(effective_client_ids)
+                word = "проекту" if n_projects % 10 == 1 and n_projects % 100 != 11 else "проектам"
+                client_name = f"Папка «{folder.name}» · сводный отчёт по {n_projects} {word}"
         except (ValueError, TypeError):
             pass
 

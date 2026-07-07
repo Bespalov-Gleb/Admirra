@@ -89,7 +89,7 @@
           <span class="tile-nds-label">С НДС 22%</span>
         </label>
 
-        <div class="project-sync-meta" v-if="projectSyncStatusText">{{ projectSyncStatusText }}</div>
+        <div class="project-sync-meta" v-if="projectSyncStatusText" :title="projectSyncStatusTitle">{{ projectSyncStatusText }}</div>
 
         <button class="tile-sync-btn folder-create-btn" type="button" @click="openCreateFolder">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -157,7 +157,7 @@
                 <p class="project-tile-description">
                   <span class="folder-count-badge">{{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }}</span>
                   <span v-if="isFolderPaused(entry.folder)" class="folder-paused-note">· все на паузе</span>
-                  <span v-else class="folder-summary-note">· сводка по всем филиалам</span>
+                  <span v-else class="folder-summary-note">· сводка по проектам в папке</span>
                 </p>
               </div>
             </div>
@@ -187,7 +187,7 @@
                 </div>
                 <div class="stat-box__copy">
                   <h4>{{ stat.label }}</h4>
-                  <p>Сумма по филиалам</p>
+                  <p>Сумма по проектам</p>
                 </div>
                 <b class="stat-box__value">{{ stat.value }}</b>
                 <span :class="trendBadgeClass(getProjectMetric(entry.folder.id), stat.key)">
@@ -522,10 +522,10 @@
       <div v-if="folderModal" class="folder-modal-backdrop" @click.self="folderModal = null">
         <div class="folder-modal">
           <h4>{{ folderModal.mode === 'create' ? 'Создать папку' : 'Настройки папки' }}</h4>
-          <p class="folder-modal__hint">Папка объединяет проекты (филиалы одного заказчика) и показывает сводную статистику. В лимите тарифа папка считается как 1 проект.</p>
+          <p class="folder-modal__hint">Папка объединяет проекты и показывает сводную статистику. Папка занимает один проект в лимите тарифа, сколько бы проектов в ней ни было.</p>
 
           <label class="folder-modal__label">Название</label>
-          <input v-model="folderForm.name" type="text" class="folder-modal__input" placeholder="Например: Лайк Стор — филиалы" maxlength="80" />
+          <input v-model="folderForm.name" type="text" class="folder-modal__input" placeholder="Например: Лайк Стор" maxlength="80" />
 
           <label class="folder-modal__label">Цвет</label>
           <div class="folder-modal__colors">
@@ -615,12 +615,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
+import { relativeSyncLabel } from '../../utils/relativeTime'
 import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
 import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
@@ -762,10 +763,10 @@ async function fetchFolders() {
 
 const branchNoun = (n) => {
   const v = Math.abs(Number(n || 0)); const l2 = v % 100; const l = v % 10
-  if (l2 >= 11 && l2 <= 14) return 'филиалов'
-  if (l === 1) return 'филиал'
-  if (l >= 2 && l <= 4) return 'филиала'
-  return 'филиалов'
+  if (l2 >= 11 && l2 <= 14) return 'проектов'
+  if (l === 1) return 'проект'
+  if (l >= 2 && l <= 4) return 'проекта'
+  return 'проектов'
 }
 
 // ── Папки: создание/редактирование/удаление ──
@@ -905,8 +906,27 @@ const lastProjectSyncTrigger = computed(() => {
   return trigger
 })
 
+// ТЗ «Правки UI» п.5: в тулбаре — относительное время, полная дата — в тултипе.
+// nowTick пересчитывает метку раз в минуту и при возврате фокуса на вкладку.
+const nowTick = ref(Date.now())
+let syncLabelTimer = null
+const refreshNowTick = () => { nowTick.value = Date.now() }
+onMounted(() => {
+  syncLabelTimer = setInterval(refreshNowTick, 60 * 1000)
+  document.addEventListener('visibilitychange', refreshNowTick)
+})
+onUnmounted(() => {
+  if (syncLabelTimer) clearInterval(syncLabelTimer)
+  document.removeEventListener('visibilitychange', refreshNowTick)
+})
+
 const projectSyncStatusText = computed(() => {
   if (projectsSyncing.value) return 'Выполняется синхронизация, пожалуйста подождите'
+  const rel = relativeSyncLabel(lastProjectSyncAt.value, nowTick.value)
+  return rel ? `Обновлено ${rel}` : ''
+})
+
+const projectSyncStatusTitle = computed(() => {
   const formatted = formatMoscowSyncDate(lastProjectSyncAt.value)
   if (!formatted) return ''
   const suffix = lastProjectSyncTrigger.value === 'auto' ? ' · авто' : ''
@@ -1774,7 +1794,8 @@ onMounted(async () => {
 }
 
 .project-sync-meta {
-  color: rgba(105, 105, 105, 0.72);
+  color: #767676;
+  cursor: default;
   font-size: 0.7639rem;
   font-weight: 600;
   white-space: nowrap;
