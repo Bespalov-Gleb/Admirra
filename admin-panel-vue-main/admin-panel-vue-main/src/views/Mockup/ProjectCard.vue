@@ -150,8 +150,7 @@
                   {{ entry.folder.name }}
                 </button>
                 <p class="project-tile-description">
-                  <span class="folder-type-label">Папка проектов</span>
-                  <span class="folder-summary-note">· сводная статистика</span>
+                  <span class="folder-type-label">Папка · {{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }} · сводная статистика</span>
                   <span v-if="isFolderPaused(entry.folder)" class="folder-paused-note">· все на паузе</span>
                 </p>
               </div>
@@ -3440,18 +3439,6 @@ onMounted(async () => {
     0 0.5rem 1.1rem color-mix(in srgb, var(--folder-color, #2563eb) 24%, transparent);
 }
 
-.folder-avatar::before {
-  content: '';
-  position: absolute;
-  left: 0.55rem;
-  top: -0.22rem;
-  width: 1.55rem;
-  height: 0.58rem;
-  border-radius: 0.36rem 0.56rem 0 0;
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-}
-
 .folder-type-label {
   display: inline-flex;
   align-items: center;
@@ -3568,8 +3555,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  min-width: 7.4rem;
+  min-width: 8.45rem;
   height: 2rem;
+  padding: 0 0.8rem;
   border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 16%, rgba(15, 23, 42, 0.06));
   border-radius: 999rem;
   background: color-mix(in srgb, var(--folder-color, #2563eb) 7%, #fff);
