@@ -134,8 +134,11 @@
         :class="{ 'folder-card--paused': isFolderPaused(entry.folder), 'folder-card--expanded': expandedFolders[entry.folder.id] }"
         :style="{ '--folder-color': entry.folder.color || '#2563eb' }"
       >
+        <div class="folder-card__tab" aria-hidden="true">
+          <span></span>
+        </div>
         <div class="project-tile-main">
-          <div class="project-tile-header">
+          <div class="project-tile-header folder-card__header">
             <div class="project-tile-identity">
               <span class="project-avatar folder-avatar" :style="{ background: entry.folder.color || '#2563eb' }">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -147,14 +150,20 @@
                   {{ entry.folder.name }}
                 </button>
                 <p class="project-tile-description">
-                  <span class="folder-type-label">Папка · {{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }} {{ branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length) }}</span>
+                  <span class="folder-type-label">Папка проектов</span>
+                  <span class="folder-summary-note">· сводная статистика</span>
                   <span v-if="isFolderPaused(entry.folder)" class="folder-paused-note">· все на паузе</span>
-                  <span v-else class="folder-summary-note">· сводная статистика</span>
                 </p>
               </div>
             </div>
             <div class="project-tile-actions">
               <div class="project-tile-actions__top">
+                <span class="folder-member-cloud" :title="`${entry.folder.projects_count || allFolderProjects(entry.folder.id).length} ${branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length)} внутри папки`">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                  </svg>
+                  {{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }}
+                </span>
                 <button class="analytics-open-btn flex-shrink-0" @click="openFolderAnalytics(entry.folder)" title="Аналитика по папке">
                   <span>Аналитика</span>
                   <svg width="7" height="7" viewBox="0 0 13 13" fill="none">
@@ -163,7 +172,7 @@
                 </button>
               </div>
               <button type="button" class="folder-expand-btn" @click="toggleFolder(entry.folder.id)">
-                {{ expandedFolders[entry.folder.id] ? 'Свернуть' : 'Развернуть' }}
+                {{ expandedFolders[entry.folder.id] ? 'Папка открыта' : 'Открыть папку' }}
                 <svg :class="{ 'folder-expand-icon--open': expandedFolders[entry.folder.id] }" class="folder-expand-icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
                   <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -3306,14 +3315,110 @@ onMounted(async () => {
 }
 
 /* ══════════ Папки проектов ══════════ */
-/* Карточка папки визуально отличается от проекта: цветная рамка/фон и иконка папки */
+/* Folder card should read as a container at a glance, while staying the same visual weight as project cards. */
 .folder-card {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--folder-color, #2563eb) 45%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 5%, #fff) 0%, #fff 30%);
+  position: relative;
+  overflow: visible;
+  margin-top: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 24%, rgba(15, 23, 42, 0.08));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 4%, #fff) 0%, #fff 42%),
+    #fff;
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.02),
+    inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 8%, transparent);
+}
+
+.folder-card::before {
+  content: '';
+  position: absolute;
+  inset: 0.55rem 0.55rem auto auto;
+  width: 5.8rem;
+  height: 3.1rem;
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 13%, transparent), transparent 72%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.folder-card::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: -0.28rem;
+  height: 0.28rem;
+  border-radius: 0 0 0.8rem 0.8rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 24%, transparent);
+  opacity: 0;
+  transform: translateY(-0.15rem);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  pointer-events: none;
 }
 
 .folder-card--expanded {
-  box-shadow: inset 0 0 0 2px var(--folder-color, #2563eb);
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 42%, rgba(15, 23, 42, 0.08));
+  box-shadow:
+    0 10px 26px rgba(37, 99, 235, 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 18%, transparent);
+}
+
+.folder-card--expanded::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.folder-card__tab {
+  position: absolute;
+  left: 1.22rem;
+  top: -0.7rem;
+  z-index: 0;
+  width: min(10.2rem, 38%);
+  height: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 23%, rgba(15, 23, 42, 0.04));
+  border-bottom: 0;
+  border-radius: 0.72rem 1.15rem 0 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 14%, #fff), color-mix(in srgb, var(--folder-color, #2563eb) 7%, #fff));
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.9) inset;
+  pointer-events: none;
+}
+
+.folder-card__tab span {
+  position: absolute;
+  left: 0.72rem;
+  right: 1.55rem;
+  top: 0.38rem;
+  height: 0.18rem;
+  border-radius: 99rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 34%, transparent);
+  opacity: 0.45;
+}
+
+.folder-card__header {
+  position: relative;
+  z-index: 1;
+  min-height: 5.65rem;
+  margin: -1.7361rem -1.7361rem 1.15rem;
+  padding: 1.35rem 1.7361rem 1.1rem;
+  border-radius: 1.0417rem 1.0417rem 0 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 14%, rgba(15, 23, 42, 0.06));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 12%, #fff) 0%, #fff 78%),
+    #fff;
+}
+
+.folder-card__header::after {
+  content: '';
+  position: absolute;
+  left: 1.7361rem;
+  right: 1.7361rem;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 99rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 36%, transparent);
+  opacity: 0.5;
 }
 
 .folder-card--paused .project-tile-stats-wrap,
@@ -3322,43 +3427,57 @@ onMounted(async () => {
 }
 
 .folder-avatar {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 3.25rem !important;
+  height: 3.25rem !important;
   cursor: default;
-  border-radius: 0.72rem !important;
+  border-radius: 0.92rem !important;
+  box-shadow:
+    0 0 0 0.28rem rgba(255, 255, 255, 0.78),
+    0 0.5rem 1.1rem color-mix(in srgb, var(--folder-color, #2563eb) 24%, transparent);
 }
 
-/* ТЗ п.3: карточка папки — три сигнала: тонированная шапка, метка типа,
-   «язычок» как у физической папки-скоросшивателя (вместо блёклой стопки) */
-.folder-card {
-  position: relative;
-  margin-top: 0.62rem;
-}
-.folder-card::before {
+.folder-avatar::before {
   content: '';
   position: absolute;
-  left: 1.1rem;
-  top: -0.58rem;
-  width: 38%;
-  max-width: 11rem;
-  height: 1.3rem;
-  background: linear-gradient(180deg, #cfe3fd 0%, #e4efff 100%);
-  border: 1px solid rgba(37, 99, 235, 0.16);
-  border-bottom: none;
-  border-radius: 0.65rem 1.1rem 0 0;
-  z-index: 0;
+  left: 0.55rem;
+  top: -0.22rem;
+  width: 1.55rem;
+  height: 0.58rem;
+  border-radius: 0.36rem 0.56rem 0 0;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.32);
 }
-.folder-card .project-tile-header {
-  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
-  margin: -1.7361rem -1.7361rem 1.1rem;
-  padding: 1.45rem 1.7361rem 1.1rem;
-  border-radius: 1.0417rem 1.0417rem 0 0;
-  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
-}
+
 .folder-type-label {
-  color: #2563eb;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.16rem 0.5rem;
+  border-radius: 99rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 10%, transparent);
+  color: var(--folder-color, #2563eb);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.folder-member-cloud {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  min-width: 2.55rem;
+  height: 2rem;
+  padding: 0 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(15, 23, 42, 0.06));
+  border-radius: 999rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--folder-color, #2563eb);
+  font-size: 0.82rem;
+  font-weight: 900;
+  box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.05);
 }
 
 /* ТЗ п.7: карточка на паузе — приглушение + бейдж + строка вместо нулевых KPI */
@@ -3447,17 +3566,102 @@ onMounted(async () => {
 .folder-expand-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  border: none;
-  background: none;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 7.4rem;
+  height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 16%, rgba(15, 23, 42, 0.06));
+  border-radius: 999rem;
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 7%, #fff);
   color: var(--folder-color, #2563eb);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 800;
   cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+.folder-expand-btn:hover {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(15, 23, 42, 0.08));
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 11%, #fff);
+}
+
+.folder-card--expanded .folder-expand-btn {
+  background: var(--folder-color, #2563eb);
+  border-color: var(--folder-color, #2563eb);
+  color: #fff;
 }
 
 .folder-expand-icon { transition: transform 0.18s ease; }
 .folder-expand-icon--open { transform: rotate(180deg); }
+
+:global(.dark) .folder-card,
+:global(.darkmode) .folder-card {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(255, 255, 255, 0.1));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 13%, #202632) 0%, #202632 46%),
+    #202632;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02),
+    inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 16%, transparent);
+}
+
+:global(.dark) .folder-card::before,
+:global(.darkmode) .folder-card::before {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 20%, transparent), transparent 72%);
+}
+
+:global(.dark) .folder-card__tab,
+:global(.darkmode) .folder-card__tab {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 36%, rgba(255, 255, 255, 0.08));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--folder-color, #2563eb) 26%, #202632), color-mix(in srgb, var(--folder-color, #2563eb) 14%, #202632));
+  box-shadow: none;
+}
+
+:global(.dark) .folder-card__header,
+:global(.darkmode) .folder-card__header {
+  border-bottom-color: color-mix(in srgb, var(--folder-color, #2563eb) 26%, rgba(255, 255, 255, 0.08));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 20%, #202632) 0%, #202632 80%),
+    #202632;
+}
+
+:global(.dark) .folder-avatar,
+:global(.darkmode) .folder-avatar {
+  box-shadow:
+    0 0 0 0.28rem rgba(32, 38, 50, 0.88),
+    0 0.5rem 1.1rem color-mix(in srgb, var(--folder-color, #2563eb) 30%, transparent);
+}
+
+:global(.dark) .folder-type-label,
+:global(.darkmode) .folder-type-label {
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 18%, transparent);
+  color: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
+}
+
+:global(.dark) .folder-summary-note,
+:global(.darkmode) .folder-summary-note {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+:global(.dark) .folder-member-cloud,
+:global(.darkmode) .folder-member-cloud {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 28%, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.06);
+  color: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
+}
+
+:global(.dark) .folder-expand-btn,
+:global(.darkmode) .folder-expand-btn {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 28%, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 14%, rgba(255, 255, 255, 0.05));
+}
+
+:global(.dark) .folder-card--expanded .folder-expand-btn,
+:global(.darkmode) .folder-card--expanded .folder-expand-btn {
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 82%, #fff);
+  color: #fff;
+}
 
 /* Вложенный проект в развёрнутой папке: рамка цвета папки + лёгкий сдвиг */
 .project-card--infolder {
