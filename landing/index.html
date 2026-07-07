@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- ═══ SEO-ТЗ §1: title/description — финальные, не менять ═══ -->
+  <title>AdMirra — аналитика рекламы и автоотчёты для агентств</title>
+  <meta name="description" content="Аналитика рекламы для агентств: Яндекс.Директ, VK Реклама и Авито Реклама в одном дашборде. Детектор просадок и автоотчёты клиентам. 14 дней бесплатно.">
+  <link rel="canonical" href="https://admirra.ru/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#2F6BFF">
+
+  <!-- ═══ SEO-ТЗ §2: favicon (файлы положить в /landing/) ═══ -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <!-- ═══ SEO-ТЗ §3: Open Graph + Twitter ═══ -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="AdMirra">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="https://admirra.ru/">
+  <meta property="og:title" content="AdMirra — аналитика рекламы и автоотчёты для агентств">
+  <meta property="og:description" content="Яндекс.Директ, VK Реклама и Авито Реклама в одной панели. Детектор просадок и автоотчёты клиентам.">
+  <meta property="og:image" content="https://admirra.ru/og/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Дашборд AdMirra: реклама клиентов в одной панели">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AdMirra — аналитика рекламы и автоотчёты для агентств">
+  <meta name="twitter:description" content="Яндекс.Директ, VK Реклама и Авито Реклама в одной панели. Детектор просадок и автоотчёты клиентам.">
+  <meta name="twitter:image" content="https://admirra.ru/og/og-cover.png">
+
+  <!-- Шрифт из макета: подключить локально (woff2), НЕ с CDN Google — быстрее и без внешних запросов.
+       Обязательно font-display: swap (SEO-ТЗ §8) — правило уже в style.css -->
+  <link rel="stylesheet" href="/assets/style.css">
+
+  <!-- ═══ SEO-ТЗ §6: JSON-LD. {{TODO}} — уточнить у владельца ═══ -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "AdMirra",
+        "url": "https://admirra.ru/",
+        "logo": "https://admirra.ru/assets/img/logo.png",
+        "description": "Сервис аналитики рекламы и автоматических отчётов для агентств: Яндекс.Директ, VK Реклама и Авито Реклама в одной панели.",
+        "email": "{{TODO: hello@admirra.ru}}",
+        "sameAs": ["{{TODO: https://t.me/admirra}}", "{{TODO: https://vk.com/admirra}}"],
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "{{TODO: support@admirra.ru}}",
+          "availableLanguage": ["Russian"]
+        }
+      },
+      {
+        "@type": "WebSite",
+        "name": "AdMirra",
+        "url": "https://admirra.ru/",
+        "inLanguage": "ru"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "AdMirra",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Marketing Analytics",
+        "operatingSystem": "Web",
+        "url": "https://admirra.ru/",
+        "description": "Аналитика рекламы и автоматические отчёты для агентств. Яндекс.Директ, VK Реклама и Авито Реклама в одном дашборде, детектор просадок, отчёты клиентам.",
+        "offers": {
+          "@type": "AggregateOffer",
+          "priceCurrency": "RUB",
+          "lowPrice": "1590",
+          "highPrice": "25900",
+          "offerCount": "4",
+          "offers": [
+            { "@type": "Offer", "name": "Старт", "price": "1590", "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+            { "@type": "Offer", "name": "Базовый", "price": "3990", "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+            { "@type": "Offer", "name": "Стандартный", "price": "9990", "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+            { "@type": "Offer", "name": "White Label", "price": "25900", "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" }
+          ]
+        }
+      }
+    ]
+  }
+  </script>
+  <!-- FAQPage JSON-LD вставлю я после вёрстки — тексты должны совпадать 1:1 с FAQ на странице -->
+</head>
+<body>
+
+  <!-- ═══ ШАПКА: лого + якорное меню + «Демо версия» и «Войти» ═══
+       Лого: <img src="/assets/img/logo.svg" alt="AdMirra — аналитика рекламы для агентств">
+       Меню: #for-whom #demo #features #integrations #pricing (якоря, SEO-ТЗ §8)
+       «Войти» → /login ; «Демо версия» → {{TODO: куда ведёт? уточнить у владельца}} -->
+  <header class="header">
+    <!-- TODO: вёрстка шапки -->
+  </header>
+
+  <main>
+    <!-- ═══ HERO. Ровно один H1 на странице (SEO-ТЗ §4) ═══
+         Мок планшета: это <img> (экспорт из Figma, WebP 2x), НЕ lazy (это LCP!), с width/height.
+         alt: «Дашборд AdMirra: реклама Яндекс.Директ, VK Реклама и Авито Реклама в одной панели» -->
+    <section class="hero">
+      <h1>Вся реклама клиентов — Яндекс.Директ, VK Реклама и Авито Реклама — в одной панели</h1>
+      <!-- подзаголовок-абзац, CTA «Подключить кабинеты» → /register, чипы-бейджи -->
+    </section>
+
+    <!-- ═══ ДЛЯ КОГО: 3 карточки. Названия карточек — <strong>, НЕ h-теги (SEO-ТЗ §4) ═══ -->
+    <section id="for-whom" class="for-whom">
+      <!-- Рекламным агентствам / Специалистам / Инхаус-командам -->
+    </section>
+
+    <!-- ═══ БОЛИ ═══ -->
+    <section class="pains">
+      <h2>Реклама в Яндекс.Директе, VK Рекламе и Авито Рекламе. Клиентов много. А времени и нервов — нет</h2>
+      <!-- 6 карточек-цитат: тексты внутри — <p>, подписи «// разрозненные кабинеты» — <span> -->
+    </section>
+
+    <!-- ═══ КАК РАБОТАЕТ: H2 + три H3 ═══ -->
+    <section id="demo" class="how-it-works">
+      <h2>Подключил → увидел → отправил</h2>
+      <h3>Подключаете кабинеты</h3>
+      <h3>Данные сводятся, система следит</h3>
+      <h3>Отправляете отчёт клиенту</h3>
+      <!-- моки шагов: <img loading="lazy" width height alt="..."> -->
+    </section>
+
+    <!-- ═══ ВОЗМОЖНОСТИ: H2 секции + 6 H3 (SEO-ТЗ §4, тексты финальные) ═══
+         alt моков — по таблице §5 SEO-ТЗ:
+         дашборд: «Кросс-проектный обзор клиентов агентства в AdMirra»
+         детектор: «Детектор просадок AdMirra: оповещение о росте стоимости заявки»
+         направления: «Разбивка рекламных кампаний по направлениям внутри проекта»
+         AI: «Авто-комментарий AI к отчёту по рекламе»
+         отчёты: «Предпросмотр отчёта по рекламе перед отправкой клиенту»
+         WL: «Брендированный отчёт по рекламе под логотипом агентства» -->
+    <section id="features" class="features">
+      <h2>Не «ещё один дашборд». Инструмент, который ведёт клиента от подключения до отчёта</h2>
+      <h3>Яндекс.Директ, VK Реклама и Авито Реклама — в одной картине, по всем клиентам</h3>
+      <h3>Система сама замечает, что пошло не так</h3>
+      <h3>Видно, что именно проседает — услуга, филиал или товар</h3>
+      <h3>AI берёт на себя рутину объяснений</h3>
+      <h3>Собираются сами. Но уходят только с вашей проверкой</h3>
+      <h3>Клиент видит ваш бренд, а не AdMirra</h3>
+    </section>
+
+    <!-- ═══ ИНТЕГРАЦИИ: плашки-логотипы, каждому свой alt (Яндекс.Директ, VK Реклама, …) ═══ -->
+    <section id="integrations" class="integrations">
+      <h2>Подключается к тому, чем вы уже пользуетесь</h2>
+    </section>
+
+    <!-- ═══ ТАРИФЫ: 3 карточки + широкая WL-карточка. Названия тарифов — <strong>/<p> ═══ -->
+    <section id="pricing" class="pricing">
+      <h2>Платите за число проектов, а не за «фичи»</h2>
+      <!-- CTA «Попробовать бесплатно» → /register -->
+    </section>
+
+    <!-- ═══ FAQ: каждый вопрос — H3. Тексты 1:1 из SEO-ТЗ §6.4 (это же пойдёт в разметку) ═══
+         Аккордеон: удобно на <details><summary><h3>…</h3></summary><p>…</p></details> — работает без JS -->
+    <section id="faq" class="faq">
+      <h2>Коротко о главном</h2>
+      <h3>Нужно ли что-то устанавливать?</h3>
+      <h3>Сколько времени занимает настройка?</h3>
+      <h3>Можно вести несколько клиентов в одном аккаунте?</h3>
+      <h3>Отчёт клиенту уходит автоматически?</h3>
+      <h3>С каких площадок собираете данные?</h3>
+      <h3>Клиент увидит, что это AdMirra?</h3>
+    </section>
+
+    <!-- ═══ ФИНАЛЬНЫЙ CTA ═══ -->
+    <section class="final-cta">
+      <h2>Подключите кабинеты и увидите всех клиентов в одной панели</h2>
+    </section>
+
+    <!-- ═══ БЛОГ (карточки-заглушки из макета) ═══ -->
+    <section class="blog">
+      <h2>Наш блог</h2>
+    </section>
+
+    <!-- ═══ SEO-АБЗАЦ «О сервисе» (SEO-ТЗ §4a): виден, но неброский. Текст дословно ═══ -->
+    <section class="about-seo">
+      <h2>AdMirra — аналитика рекламы и автоотчёты для агентств</h2>
+      <p>AdMirra — сервис аналитики рекламы и автоматических отчётов для рекламных агентств и специалистов по контекстной и таргетированной рекламе. Сводит рекламные кабинеты Яндекс.Директа, VK Рекламы и Авито Рекламы в один дашборд, показывает расход, заявки и стоимость лида по всем проектам, следит за просадками и помогает готовить отчёты клиентам — в Telegram, MAX или на почту. Подходит агентствам, которые ведут несколько клиентов и хотят заменить ручные отчёты в Excel единой системой аналитики рекламы.</p>
+    </section>
+  </main>
+
+  <!-- ═══ ФУТЕР: лого, соцсети, подписка, меню, документы ═══ -->
+  <footer class="footer">
+    <!-- TODO -->
+  </footer>
+
+  <script src="/assets/main.js" defer></script>
+</body>
+</html>
