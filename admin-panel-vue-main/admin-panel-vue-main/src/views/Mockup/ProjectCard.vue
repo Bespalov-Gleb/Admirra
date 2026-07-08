@@ -1490,6 +1490,15 @@ const platformConfig = {
   },
 }
 
+const normalizeBalancePlatformCode = (value) => {
+  const raw = String(value || '').trim().toUpperCase()
+  if (!raw || raw.includes('METRIKA') || raw.includes('МЕТРИК')) return ''
+  if (raw.includes('YANDEX') || raw.includes('DIRECT') || raw.includes('ЯНДЕКС') || raw.includes('ДИРЕКТ')) return 'yandex'
+  if (raw.includes('VK') || raw.includes('ВК')) return 'vk'
+  if (raw.includes('AVITO') || raw.includes('АВИТО')) return 'avito'
+  return ''
+}
+
 const projectPlatformCards = (project) => {
   const cards = []
   if (hasPlatform(project, 'YANDEX')) cards.push(platformConfig.yandex)
@@ -1704,6 +1713,25 @@ const cplDeltaBadge = (channel) => {
 }
 
 const projectBalances = (project) => {
+  if (project.__isFolder) {
+    const balancesByPlatform = new Map()
+    for (const integration of project.integrations || []) {
+      if (integration?.is_connected === false || integration?.connected === false) continue
+      const code = normalizeBalancePlatformCode(integration.platform || integration.type || integration.name || integration.provider || integration.channel)
+      const platform = platformConfig[code]
+      if (!platform) continue
+      const rawBalance = integration.balance === null || integration.balance === undefined ? 0 : Number(integration.balance)
+      const amount = Number.isFinite(rawBalance) ? rawBalance : 0
+      balancesByPlatform.set(code, (balancesByPlatform.get(code) || 0) + amount)
+    }
+
+    return projectPlatformCards(project).map((platform) => ({
+      ...platform,
+      name: platform.balanceName,
+      value: formatMoney(withChannelVat(balancesByPlatform.get(platform.code) || 0, platform.code)),
+    }))
+  }
+
   const insights = getProjectInsights(project.id)
   return projectPlatformCards(project).map((platform) => {
     const value = Number(insights[platform.code]?.balance || 0)
@@ -3827,8 +3855,8 @@ onMounted(async () => {
   padding: 0 0.62rem;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.78);
-  color: #2563eb;
+  background: #fff;
+  color: #696969;
   font-size: 0.82rem;
   font-weight: 900;
   box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.05);
@@ -3836,13 +3864,15 @@ onMounted(async () => {
   transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 .folder-member-cloud:hover {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.04);
+  color: #2563eb;
+  box-shadow: 0 0.3472rem 1.0417rem rgba(37, 99, 235, 0.08);
 }
 .folder-member-cloud--open {
-  background: rgba(37, 99, 235, 0.1);
-  border-color: rgba(37, 99, 235, 0.38);
-  color: #1d4ed8;
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #696969;
 }
 .folder-member-cloud__chevron { transition: transform 0.18s ease; }
 .folder-member-cloud__chevron--open { transform: rotate(180deg); }
