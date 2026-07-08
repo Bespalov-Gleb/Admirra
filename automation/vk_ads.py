@@ -295,8 +295,8 @@ class VKAdsAPI:
         self._throttle_lock = asyncio.Lock()
         self._next_request_at = 0.0
 
-    async def _throttle(self, min_interval: float = 1.05) -> None:
-        """Выдерживает паузу между запросами к API (лимит 1 rps)."""
+    async def _throttle(self, min_interval: float = 2.05) -> None:
+        """Пауза между запросами: лимиты приложения 1/сек И 30/мин — интервал 2.05с держит оба."""
         import time
         async with self._throttle_lock:
             now = time.monotonic()
