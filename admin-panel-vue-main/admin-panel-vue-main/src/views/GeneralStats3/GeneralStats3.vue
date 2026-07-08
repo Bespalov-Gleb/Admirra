@@ -4758,7 +4758,9 @@ watch(() => route.query.folder_id, (fid) => {
     folderMode.value = { id: String(fid), name: String(route.query.folder_name || 'Папка') }
     filters.client_id = null
     filters.campaign_ids = []
+    filters.channel = 'all'
     filters.folder_id = String(fid)
+    campaignChannelFilter.value = 'all'
     fetchFolderBreakdown()
   } else {
     folderMode.value = null

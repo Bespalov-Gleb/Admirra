@@ -575,18 +575,31 @@
           <input v-model="folderForm.name" type="text" class="folder-modal__input" placeholder="Например: Лайк Стор" maxlength="80" />
 
           <label class="folder-modal__label">Цвет</label>
-          <div class="folder-modal__colors">
-            <button
-              v-for="c in FOLDER_COLORS"
-              :key="c"
-              type="button"
-              class="folder-color-dot"
-              :class="{ 'folder-color-dot--active': folderForm.color === c }"
-              :style="{ background: c }"
-              @click="folderForm.color = c"
-            >
-              <svg v-if="folderForm.color === c" viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
+          <div class="folder-color-picker" :style="{ '--folder-color': safeFolderColor }">
+            <label class="folder-color-picker__main">
+              <input type="color" :value="safeFolderColor" @input="setFolderColor($event.target.value)" />
+              <span class="folder-color-picker__preview">
+                <svg viewBox="0 0 20 18" fill="none" aria-hidden="true">
+                  <path d="M2.35 3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V3.25Z" fill="currentColor" opacity=".18"/>
+                  <path d="M2.35 6.05h15.3v7.85c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V6.05Z" fill="currentColor" opacity=".34"/>
+                  <path d="M2.35 5.62V3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V5.62Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="folder-color-picker__copy">
+                <strong>Выбрать любой цвет</strong>
+                <small>Откроется системная RGB-палитра</small>
+              </span>
+            </label>
+            <label class="folder-color-picker__hex" aria-label="HEX цвет папки">
+              <span>#</span>
+              <input
+                :value="String(folderForm.color || '').replace('#', '').toUpperCase()"
+                maxlength="6"
+                spellcheck="false"
+                @input="folderForm.color = `#${$event.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)}`"
+                @blur="normalizeFolderColor"
+              />
+            </label>
           </div>
 
           <template v-if="freeProjects.length">
@@ -731,7 +744,23 @@ const movingProjectId = ref(null)
 const folderForm = ref({ name: '', color: '#2563eb', project_ids: [] })
 const folderSaving = ref(false)
 
-const FOLDER_COLORS = ['#2563eb', '#7c3aed', '#0ea5e9', '#059669', '#ea9942', '#e11d48', '#64748b', '#171717']
+const DEFAULT_FOLDER_COLOR = '#2563eb'
+const normalizeFolderHex = (value) => {
+  const raw = String(value || '').trim()
+  const hex = raw.startsWith('#') ? raw : `#${raw}`
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex.toLowerCase()
+  if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
+    return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`.toLowerCase()
+  }
+  return DEFAULT_FOLDER_COLOR
+}
+const safeFolderColor = computed(() => normalizeFolderHex(folderForm.value.color))
+const setFolderColor = (value) => {
+  folderForm.value.color = normalizeFolderHex(value)
+}
+const normalizeFolderColor = () => {
+  folderForm.value.color = normalizeFolderHex(folderForm.value.color)
+}
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
@@ -882,12 +911,12 @@ async function resumeProject(project) {
 }
 
 function openCreateFolder() {
-  folderForm.value = { name: '', color: FOLDER_COLORS[0], project_ids: [] }
+  folderForm.value = { name: '', color: DEFAULT_FOLDER_COLOR, project_ids: [] }
   folderModal.value = { mode: 'create' }
 }
 
 function openEditFolder(folder) {
-  folderForm.value = { name: folder.name, color: folder.color || FOLDER_COLORS[0], project_ids: [] }
+  folderForm.value = { name: folder.name, color: normalizeFolderHex(folder.color || DEFAULT_FOLDER_COLOR), project_ids: [] }
   folderModal.value = { mode: 'edit', folder }
 }
 
@@ -903,18 +932,20 @@ function toggleFolderFormProject(projectId) {
 async function saveFolderModal() {
   const name = (folderForm.value.name || '').trim()
   if (!name) { toaster.error('Укажите название папки'); return }
+  const color = normalizeFolderHex(folderForm.value.color)
+  folderForm.value.color = color
   folderSaving.value = true
   try {
     if (folderModal.value?.mode === 'create') {
       await api.post('folders/', {
         name,
-        color: folderForm.value.color,
+        color,
         project_ids: folderForm.value.project_ids,
       })
       toaster.success(`Папка «${name}» создана`)
     } else if (folderModal.value?.folder) {
       const folder = folderModal.value.folder
-      await api.put(`folders/${folder.id}`, { name, color: folderForm.value.color })
+      await api.put(`folders/${folder.id}`, { name, color })
       if (folderForm.value.project_ids.length) {
         await api.post(`folders/${folder.id}/assign`, { project_ids: folderForm.value.project_ids })
       }
@@ -3995,16 +4026,108 @@ onMounted(async () => {
 .folder-modal__input::placeholder { font-weight: 500; color: #b3bcc9; }
 .folder-modal__input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
 
-.folder-modal__colors { display: flex; gap: 0.55rem; flex-wrap: wrap; }
-.folder-color-dot {
-  width: 2rem; height: 2rem; border-radius: 50%;
-  border: none; cursor: pointer; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+.folder-color-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8.2rem;
+  gap: 0.65rem;
+  align-items: stretch;
 }
-.folder-color-dot svg { width: 0.85rem; height: 0.7rem; }
-.folder-color-dot:hover { transform: scale(1.1); }
-.folder-color-dot--active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor, 0 4px 12px rgba(15,23,42,0.25); }
+.folder-color-picker__main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3.25rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 20%, rgba(15, 23, 42, 0.12));
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 9%, #fff), #fff 72%);
+  cursor: pointer;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+.folder-color-picker__main:hover {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 42%, rgba(15, 23, 42, 0.12));
+  box-shadow: 0 0.55rem 1.4rem color-mix(in srgb, var(--folder-color, #2563eb) 14%, transparent);
+  transform: translateY(-1px);
+}
+.folder-color-picker__main input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.folder-color-picker__preview {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--folder-color, #2563eb);
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 13%, #fff);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 18%, transparent),
+    0 0.35rem 0.9rem color-mix(in srgb, var(--folder-color, #2563eb) 18%, transparent);
+}
+.folder-color-picker__preview svg {
+  width: 1.2rem;
+  height: 1.08rem;
+}
+.folder-color-picker__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+.folder-color-picker__copy strong {
+  font-size: 0.92rem;
+  line-height: 1.15;
+  color: #171717;
+}
+.folder-color-picker__copy small {
+  font-size: 0.76rem;
+  line-height: 1.15;
+  font-weight: 600;
+  color: rgba(105, 105, 105, 0.58);
+}
+.folder-color-picker__hex {
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.85rem;
+  background: #f8fafc;
+  padding: 0 0.72rem;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.folder-color-picker__hex:focus-within {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 48%, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--folder-color, #2563eb) 12%, transparent);
+}
+.folder-color-picker__hex span {
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.folder-color-picker__hex input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #171717;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+@media (max-width: 560px) {
+  .folder-color-picker { grid-template-columns: 1fr; }
+}
 
 .folder-modal__projects {
   max-height: 14.5rem;

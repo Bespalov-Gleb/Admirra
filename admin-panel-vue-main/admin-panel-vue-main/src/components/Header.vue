@@ -440,12 +440,14 @@ const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
 const folderTree = ref({ folders: [], root_projects: [] })
 const folderTreeLoading = ref(false)
+const folderTreeLoaded = ref(false)
+const folderTreeRequestInFlight = ref(false)
 const expandedHeaderFolders = ref({})
 
 const toggleProjectMenu = () => {
   const next = !isProjectMenuOpen.value
   isProjectMenuOpen.value = next
-  if (next) fetchProjectTree()
+  if (next) fetchProjectTree({ silent: folderTreeLoaded.value })
 }
 
 // ТЗ «Правки UI» п.1: выбор в дропдауне = переход в аналитику среза; если уже
@@ -458,19 +460,22 @@ const startCreateFolder = () => {
   router.push({ path: '/project-card', query: { create: 'folder' } })
 }
 
-const fetchProjectTree = async () => {
-  if (folderTreeLoading.value) return
-  folderTreeLoading.value = true
+const fetchProjectTree = async ({ silent = false } = {}) => {
+  if (folderTreeRequestInFlight.value) return
+  folderTreeRequestInFlight.value = true
+  if (!silent) folderTreeLoading.value = true
   try {
     const { data } = await api.get('folders/tree', { params: { with_stats: false } })
     folderTree.value = {
       folders: Array.isArray(data?.folders) ? data.folders : [],
       root_projects: Array.isArray(data?.root_projects) ? data.root_projects : [],
     }
+    folderTreeLoaded.value = true
   } catch {
-    folderTree.value = { folders: [], root_projects: [] }
+    if (!folderTreeLoaded.value) folderTree.value = { folders: [], root_projects: [] }
   } finally {
-    folderTreeLoading.value = false
+    folderTreeRequestInFlight.value = false
+    if (!silent) folderTreeLoading.value = false
   }
 }
 
@@ -510,7 +515,7 @@ const handleFolderSelect = (folder) => {
   isProjectMenuOpen.value = false
   router.push({
     path: '/dashboard/general-3',
-    query: { folder_id: String(folder.id), folder_name: folder.name || 'Папка' },
+    query: { folder_id: String(folder.id), folder_name: folder.name || 'Папка', channel: 'all' },
   })
 }
 
@@ -766,15 +771,21 @@ watch(
 
 .folder-tree-enter-active,
 .folder-tree-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease, max-height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.24s ease,
+    transform 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+    max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    margin 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   max-height: 18rem;
 }
 .folder-tree-enter-from,
 .folder-tree-leave-to {
   opacity: 0;
-  transform: translateY(-0.25rem);
+  transform: translateY(-0.12rem);
   max-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .burger-line {
