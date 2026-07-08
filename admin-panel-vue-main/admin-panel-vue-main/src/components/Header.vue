@@ -8,8 +8,19 @@
           @click="toggleProjectMenu"
           class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
         >
-          <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e8eef9] text-[0.7639rem] font-bold text-[#2563eb] 2xl:h-9 2xl:w-9">
+          <div
+            :class="[
+              'flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden bg-[#e8eef9] text-[0.7639rem] font-bold text-[#2563eb] 2xl:h-9 2xl:w-9',
+              headerFolderMode ? 'rounded-[0.7222rem] hd-header-folder-avatar' : 'rounded-full',
+            ]"
+            :style="headerFolderMode ? { '--folder-color': currentFolderColor } : null"
+          >
             <img v-if="headerProjectAvatar" class="h-full w-full object-cover" :src="headerProjectAvatar" :alt="headerProjectName" />
+            <svg v-else-if="headerFolderMode" class="h-[1rem] w-[1rem]" viewBox="0 0 20 18" fill="none" aria-hidden="true">
+              <path d="M2.35 3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V3.25Z" fill="currentColor" opacity=".18"/>
+              <path d="M2.35 6.05h15.3v7.85c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V6.05Z" fill="currentColor" opacity=".34"/>
+              <path d="M2.35 5.62V3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V5.62Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/>
+            </svg>
             <span v-else>{{ headerProjectInitials }}</span>
           </div>
           <div class="hidden min-w-[4.5833rem] max-w-[7.2222rem] flex-col gap-[0.2083rem] text-left min-[1180px]:flex 2xl:min-w-[6.25rem] 2xl:max-w-none">
@@ -25,20 +36,68 @@
 
         <!-- Project dropdown -->
         <Transition name="dropdown">
-          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[21rem] -translate-x-1/2">
-            <div class="hd-panel">
+          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[24rem] -translate-x-1/2">
+            <div class="hd-panel hd-project-panel">
               <div class="hd-section-label">Мои проекты</div>
               <ul class="hd-menu-list">
                 <li>
-                  <button @click="handleProjectSelect(null)" :class="['hd-menu-item', !currentProjectId ? 'hd-menu-item--active' : '']">
+                  <button @click="handleProjectSelect(null, { forceDashboard: true })" :class="['hd-menu-item', !currentProjectId && !currentFolderId ? 'hd-menu-item--active' : '']">
                     <span class="hd-project-avatar">
                       <svg viewBox="0 0 16 16" fill="none" class="w-[0.8333rem] h-[0.8333rem]"><rect x="1.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="1.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="1.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
                     </span>
                     <span class="hd-menu-item-label">Сводка по всем проектам</span>
                   </button>
                 </li>
-                <li v-for="project in projects" :key="project.id">
-                  <button @click="handleProjectSelect(project.id)" :class="['hd-menu-item', currentProjectId === project.id ? 'hd-menu-item--active' : '']">
+                <li v-if="folderTreeLoading" class="hd-tree-loading">
+                  <span class="hd-tree-loading-line"></span>
+                  <span class="hd-tree-loading-line hd-tree-loading-line--short"></span>
+                </li>
+                <li v-for="folder in headerFolders" :key="`folder-${folder.id}`" class="hd-folder-shell">
+                  <div :class="['hd-folder-row', String(currentFolderId || '') === String(folder.id) ? 'hd-folder-row--active' : '']">
+                    <button class="hd-folder-main" @click="handleFolderSelect(folder)">
+                      <span class="hd-folder-icon" :style="{ '--folder-color': folder.color || '#2563eb' }">
+                        <img v-if="folder.avatar_url" class="h-full w-full object-cover" :src="folder.avatar_url" :alt="folder.name" />
+                        <svg v-else viewBox="0 0 20 18" fill="none" aria-hidden="true">
+                          <path d="M2.35 3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V3.25Z" fill="currentColor" opacity=".18"/>
+                          <path d="M2.35 6.05h15.3v7.85c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V6.05Z" fill="currentColor" opacity=".34"/>
+                          <path d="M2.35 5.62V3.25C2.35 2.28 3.13 1.5 4.1 1.5h3.27c.56 0 1.08.27 1.4.72l.67.95c.32.45.84.72 1.4.72h5.06c.97 0 1.75.78 1.75 1.75v8.26c0 .97-.78 1.75-1.75 1.75H4.1c-.97 0-1.75-.78-1.75-1.75V5.62Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/>
+                        </svg>
+                      </span>
+                      <span class="hd-folder-copy">
+                        <span class="hd-folder-name">{{ folder.name }}</span>
+                        <span class="hd-folder-meta">Папка · {{ folder.projects_count || folder.projects?.length || 0 }} {{ pluralProject(folder.projects_count || folder.projects?.length || 0) }}</span>
+                      </span>
+                    </button>
+                    <button
+                      class="hd-folder-toggle"
+                      :aria-expanded="isFolderExpanded(folder.id) ? 'true' : 'false'"
+                      :aria-label="isFolderExpanded(folder.id) ? 'Свернуть проекты папки' : 'Показать проекты папки'"
+                      @click.stop="toggleHeaderFolder(folder.id)"
+                    >
+                      <svg :class="['h-[0.7rem] w-[0.7rem] transition-transform duration-200', isFolderExpanded(folder.id) ? 'rotate-180' : '']" viewBox="0 0 12 8" fill="none"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                  <Transition name="folder-tree">
+                    <div v-if="isFolderExpanded(folder.id)" class="hd-folder-children">
+                      <button
+                        v-for="project in folder.projects || []"
+                        :key="project.id"
+                        @click="handleProjectSelect(project.id, { forceDashboard: true })"
+                        :class="['hd-child-project', currentProjectId === project.id ? 'hd-child-project--active' : '']"
+                      >
+                        <span class="hd-child-rail"></span>
+                        <span class="hd-project-avatar hd-project-avatar--child">
+                          <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
+                          <span v-else class="text-[0.55rem] font-bold">{{ projectInitials(project) }}</span>
+                        </span>
+                        <span class="min-w-0 truncate">{{ project.name }}</span>
+                      </button>
+                      <div v-if="!(folder.projects || []).length" class="hd-folder-empty">В папке нет доступных проектов</div>
+                    </div>
+                  </Transition>
+                </li>
+                <li v-for="project in headerRootProjects" :key="project.id">
+                  <button @click="handleProjectSelect(project.id, { forceDashboard: true })" :class="['hd-menu-item', currentProjectId === project.id ? 'hd-menu-item--active' : '']">
                     <span class="hd-project-avatar">
                       <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
                       <span v-else class="text-[0.625rem] font-bold">{{ projectInitials(project) }}</span>
@@ -379,9 +438,14 @@ const { projects, currentProjectId, currentProject, currentProjectName, fetchPro
 
 const isProjectMenuOpen = ref(false)
 const projectMenuRef = ref(null)
+const folderTree = ref({ folders: [], root_projects: [] })
+const folderTreeLoading = ref(false)
+const expandedHeaderFolders = ref({})
 
 const toggleProjectMenu = () => {
-  isProjectMenuOpen.value = !isProjectMenuOpen.value
+  const next = !isProjectMenuOpen.value
+  isProjectMenuOpen.value = next
+  if (next) fetchProjectTree()
 }
 
 // ТЗ «Правки UI» п.1: выбор в дропдауне = переход в аналитику среза; если уже
@@ -394,11 +458,68 @@ const startCreateFolder = () => {
   router.push({ path: '/project-card', query: { create: 'folder' } })
 }
 
-const handleProjectSelect = (id) => {
+const fetchProjectTree = async () => {
+  if (folderTreeLoading.value) return
+  folderTreeLoading.value = true
+  try {
+    const { data } = await api.get('folders/tree', { params: { with_stats: false } })
+    folderTree.value = {
+      folders: Array.isArray(data?.folders) ? data.folders : [],
+      root_projects: Array.isArray(data?.root_projects) ? data.root_projects : [],
+    }
+  } catch {
+    folderTree.value = { folders: [], root_projects: [] }
+  } finally {
+    folderTreeLoading.value = false
+  }
+}
+
+const headerFolders = computed(() => folderTree.value.folders || [])
+const headerRootProjects = computed(() => {
+  const treeRoot = folderTree.value.root_projects || []
+  if (treeRoot.length || headerFolders.value.length) return treeRoot
+  return projects.value.filter((project) => !project.folder_id)
+})
+const currentFolderId = computed(() => route.path.startsWith('/dashboard/general-3') ? String(route.query.folder_id || '') : '')
+const currentFolder = computed(() => headerFolders.value.find((folder) => String(folder.id) === currentFolderId.value) || null)
+const currentFolderColor = computed(() => currentFolder.value?.color || '#2563eb')
+const headerFolderMode = computed(() => Boolean(currentFolderId.value))
+
+const pluralProject = (count) => {
+  const n = Math.abs(Number(count) || 0)
+  const n10 = n % 10
+  const n100 = n % 100
+  if (n10 === 1 && n100 !== 11) return 'проект'
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return 'проекта'
+  return 'проектов'
+}
+
+const isFolderExpanded = (folderId) => Boolean(expandedHeaderFolders.value[String(folderId)])
+
+const toggleHeaderFolder = (folderId) => {
+  const key = String(folderId)
+  expandedHeaderFolders.value = {
+    ...expandedHeaderFolders.value,
+    [key]: !expandedHeaderFolders.value[key],
+  }
+}
+
+const handleFolderSelect = (folder) => {
+  if (!folder?.id) return
+  setCurrentProject(null)
+  isProjectMenuOpen.value = false
+  router.push({
+    path: '/dashboard/general-3',
+    query: { folder_id: String(folder.id), folder_name: folder.name || 'Папка' },
+  })
+}
+
+const handleProjectSelect = (id, options = {}) => {
   setCurrentProject(id)
   isProjectMenuOpen.value = false
   const inContext = CONTEXT_SECTION_PATHS.some((p) => route.path.startsWith(p))
-  if (!inContext) router.push('/dashboard/general-3')
+  const shouldOpenDashboard = options.forceDashboard || !inContext || route.path.startsWith('/dashboard/general-3') || route.query.folder_id
+  if (shouldOpenDashboard) router.push('/dashboard/general-3')
 }
 
 const isProfileMenuOpen = ref(false)
@@ -430,11 +551,12 @@ const PROJECTS_PAGE_PATHS = ['/project-card', '/project-rows', '/projects', '/ph
 const isProjectsPage = computed(() => PROJECTS_PAGE_PATHS.some((p) => route.path.startsWith(p)))
 const headerProjectName = computed(() => {
   if (isProjectsPage.value) return 'Все проекты'
+  if (headerFolderMode.value) return currentFolder.value?.name || String(route.query.folder_name || 'Папка')
   return currentProjectId.value ? currentProjectName.value : 'Сводка'
 })
 
-const headerProjectAvatar = computed(() => (!isProjectsPage.value && currentProjectId.value) ? projectAvatarUrl(currentProject.value) : '')
-const headerProjectInitials = computed(() => (!isProjectsPage.value && currentProjectId.value) ? projectInitials(currentProject.value) : 'TA')
+const headerProjectAvatar = computed(() => (!isProjectsPage.value && !headerFolderMode.value && currentProjectId.value) ? projectAvatarUrl(currentProject.value) : '')
+const headerProjectInitials = computed(() => (!isProjectsPage.value && !headerFolderMode.value && currentProjectId.value) ? projectInitials(currentProject.value) : 'TA')
 
 const notifications = ref([])
 const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length)
@@ -608,6 +730,7 @@ const handleKeydown = (event) => {
 
 onMounted(() => {
   fetchProjects()
+  fetchProjectTree()
   loadSubscription()
   fetchNotifications()
   notificationsPollTimer = setInterval(fetchNotifications, 30_000)
@@ -639,6 +762,19 @@ watch(
 .dropdown-leave-to {
   opacity: 0;
   --tw-translate-y: -0.4rem;
+}
+
+.folder-tree-enter-active,
+.folder-tree-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease, max-height 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  max-height: 18rem;
+}
+.folder-tree-enter-from,
+.folder-tree-leave-to {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+  max-height: 0;
 }
 
 .burger-line {
@@ -888,6 +1024,21 @@ watch(
   overflow: hidden;
   padding: 0.4167rem;
 }
+.hd-project-panel {
+  max-height: min(72vh, 39rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.hd-project-panel::-webkit-scrollbar {
+  width: 0.35rem;
+}
+.hd-project-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148,163,184,0.42);
+}
+.hd-project-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
 :global(.dark) .hd-panel {
   background: #2C2F3D;
   box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -903,6 +1054,14 @@ watch(
 :global(.dark) .hd-section-label { color: rgba(255,255,255,0.3); }
 
 .hd-menu-list { list-style: none; padding: 0; margin: 0; }
+
+.hd-header-folder-avatar {
+  color: var(--folder-color, #2563eb);
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 12%, white);
+}
+:global(.dark) .hd-header-folder-avatar {
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 22%, #2C2F3D);
+}
 
 .hd-menu-item {
   display: flex;
@@ -958,6 +1117,217 @@ watch(
 }
 .hd-menu-item--active .hd-project-avatar { background: rgba(37,99,235,0.12); }
 :global(.dark) .hd-project-avatar { background: rgba(255,255,255,0.1); color: #4A7AFF; }
+
+.hd-project-avatar--child {
+  width: 1.58rem;
+  height: 1.58rem;
+  font-size: 0.55rem;
+}
+
+.hd-tree-loading {
+  padding: 0.6111rem 0.75rem;
+}
+.hd-tree-loading-line {
+  display: block;
+  height: 0.65rem;
+  width: 72%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(148,163,184,0.14), rgba(148,163,184,0.26), rgba(148,163,184,0.14));
+  background-size: 200% 100%;
+  animation: header-skeleton 1.2s ease-in-out infinite;
+}
+.hd-tree-loading-line + .hd-tree-loading-line { margin-top: 0.45rem; }
+.hd-tree-loading-line--short { width: 42%; animation-delay: 0.12s; }
+@keyframes header-skeleton {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.hd-folder-shell {
+  margin: 0.18rem 0;
+}
+
+.hd-folder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.05rem;
+  align-items: stretch;
+  border-radius: 0.8611rem;
+  background: linear-gradient(135deg, rgba(37,99,235,0.055), rgba(37,99,235,0.015));
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.08);
+  transition: background 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+.hd-folder-row:hover {
+  background: linear-gradient(135deg, rgba(37,99,235,0.085), rgba(37,99,235,0.03));
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.15);
+}
+.hd-folder-row--active {
+  background: linear-gradient(135deg, rgba(37,99,235,0.14), rgba(37,99,235,0.04));
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,0.22);
+}
+:global(.dark) .hd-folder-row {
+  background: linear-gradient(135deg, rgba(74,122,255,0.14), rgba(74,122,255,0.045));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+}
+:global(.dark) .hd-folder-row:hover,
+:global(.dark) .hd-folder-row--active {
+  background: linear-gradient(135deg, rgba(74,122,255,0.2), rgba(74,122,255,0.07));
+  box-shadow: inset 0 0 0 1px rgba(74,122,255,0.22);
+}
+
+.hd-folder-main,
+.hd-folder-toggle,
+.hd-child-project {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.hd-folder-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6944rem;
+  padding: 0.66rem 0.42rem 0.66rem 0.72rem;
+  text-align: left;
+}
+
+.hd-folder-icon {
+  width: 2.05rem;
+  height: 2.05rem;
+  border-radius: 0.72rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--folder-color, #2563eb);
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 13%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 16%, transparent);
+}
+.hd-folder-icon svg {
+  width: 1.12rem;
+  height: 1.12rem;
+}
+:global(.dark) .hd-folder-icon {
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 26%, #2C2F3D);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--folder-color, #2563eb) 28%, transparent);
+}
+
+.hd-folder-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+.hd-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1f2937;
+}
+.hd-folder-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: rgba(107,114,128,0.88);
+}
+:global(.dark) .hd-folder-name { color: rgba(255,255,255,0.9); }
+:global(.dark) .hd-folder-meta { color: rgba(255,255,255,0.45); }
+
+.hd-folder-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.44rem 0.48rem 0.44rem 0;
+  border-radius: 999px;
+  color: #2563eb;
+  background: rgba(255,255,255,0.86);
+  box-shadow: 0 0 0 1px rgba(37,99,235,0.1), 0 0.2778rem 0.8333rem rgba(37,99,235,0.08);
+  transition: transform 0.14s, background 0.14s, box-shadow 0.14s;
+}
+.hd-folder-toggle:hover {
+  transform: translateY(-1px);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(37,99,235,0.18), 0 0.4167rem 1rem rgba(37,99,235,0.13);
+}
+:global(.dark) .hd-folder-toggle {
+  color: #7da0ff;
+  background: rgba(255,255,255,0.1);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.hd-folder-children {
+  position: relative;
+  margin: 0.25rem 0 0.3rem 1rem;
+  padding-left: 0.72rem;
+}
+.hd-folder-children::before {
+  content: "";
+  position: absolute;
+  left: 0.18rem;
+  top: 0.2rem;
+  bottom: 0.45rem;
+  width: 1px;
+  border-radius: 999px;
+  background: rgba(37,99,235,0.16);
+}
+:global(.dark) .hd-folder-children::before { background: rgba(74,122,255,0.22); }
+
+.hd-child-project {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.62rem;
+  border-radius: 0.68rem;
+  color: #4b5563;
+  text-align: left;
+  font-size: 0.87rem;
+  font-weight: 600;
+  transition: background 0.12s, color 0.12s;
+}
+.hd-child-project:hover {
+  color: #1d4ed8;
+  background: rgba(37,99,235,0.055);
+}
+.hd-child-project--active {
+  color: #2563eb;
+  background: rgba(37,99,235,0.08);
+}
+:global(.dark) .hd-child-project { color: rgba(255,255,255,0.68); }
+:global(.dark) .hd-child-project:hover,
+:global(.dark) .hd-child-project--active {
+  color: #7da0ff;
+  background: rgba(74,122,255,0.12);
+}
+
+.hd-child-rail {
+  position: absolute;
+  left: -0.54rem;
+  top: 50%;
+  width: 0.45rem;
+  height: 1px;
+  background: rgba(37,99,235,0.16);
+}
+:global(.dark) .hd-child-rail { background: rgba(74,122,255,0.22); }
+
+.hd-folder-empty {
+  padding: 0.45rem 0.62rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(107,114,128,0.72);
+}
+:global(.dark) .hd-folder-empty { color: rgba(255,255,255,0.38); }
 
 .hd-divider {
   height: 1px;
