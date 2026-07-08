@@ -930,7 +930,18 @@
           v-for="campaign in campaignTreeRows"
           :key="campaign.rowKey"
           class="campaign-row"
-          :class="[campaign.tint, campaign.alertClass, { 'campaign-row--child': campaign.level > 0, 'campaign-row--ad': campaign.nodeLevel === 'ad', 'campaign-row--empty': campaign.empty, 'campaign-row--loading': campaign.loadingChildren }]"
+          :class="[
+            campaign.tint,
+            campaign.alertClass,
+            {
+              'campaign-row--campaign': campaign.nodeLevel === 'campaign',
+              'campaign-row--group': campaign.nodeLevel === 'group',
+              'campaign-row--child': campaign.level > 0,
+              'campaign-row--ad': campaign.nodeLevel === 'ad',
+              'campaign-row--empty': campaign.empty,
+              'campaign-row--loading': campaign.loadingChildren
+            }
+          ]"
           :title="campaign.alertTitle"
           :style="campaignRowGridStyle"
         >
@@ -7801,14 +7812,59 @@ onMounted(() => {
   background: #e8eefc;
 }
 
+.campaign-row--campaign {
+  isolation: isolate;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055) 0%, rgba(37, 99, 235, 0.026) 34%, rgba(255, 255, 255, 0.96) 100%),
+    #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 0.3rem 0.9rem rgba(15, 23, 42, 0.025);
+}
+
+.campaign-row--campaign::before,
+.campaign-row--group::before,
+.campaign-row--ad::before {
+  content: '';
+  position: absolute;
+  top: 0.72rem;
+  bottom: 0.72rem;
+  left: 1.15rem;
+  width: 0.22rem;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.campaign-row--campaign::before {
+  background: rgba(37, 99, 235, 0.22);
+}
+
+.campaign-row--campaign + .campaign-row--campaign {
+  margin-top: 0.35rem;
+}
+
 .campaign-row--child {
   min-height: 5.45rem;
-  background: #f7f9fd !important;
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.095) 0%, rgba(247, 249, 253, 0.94) 26%, #f7f9fd 100%) !important;
   color: #5c6472;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.campaign-row--group::before {
+  left: 2.7rem;
+  background: rgba(100, 116, 139, 0.18);
 }
 
 .campaign-row--ad {
-  background: #fbfcff !important;
+  background:
+    linear-gradient(90deg, rgba(226, 232, 240, 0.42) 0%, rgba(251, 252, 255, 0.95) 30%, #fbfcff 100%) !important;
+}
+
+.campaign-row--ad::before {
+  left: 4.25rem;
+  background: rgba(148, 163, 184, 0.15);
 }
 
 .campaign-row--empty {
@@ -9920,6 +9976,28 @@ onMounted(() => {
 :global(.dark) .progress-line,
 :global(.darkmode) .progress-line {
   color: rgba(255, 255, 255, 0.78);
+}
+
+:global(.dark) .campaign-row--campaign,
+:global(.darkmode) .campaign-row--campaign {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(90deg, rgba(74, 122, 255, 0.12) 0%, rgba(74, 122, 255, 0.055) 38%, rgba(42, 45, 60, 0.96) 100%),
+    #2a2d3c;
+  box-shadow: none;
+}
+
+:global(.dark) .campaign-row--child,
+:global(.darkmode) .campaign-row--child {
+  border-color: rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.13) 0%, rgba(42, 45, 60, 0.95) 30%, #2a2d3c 100%) !important;
+}
+
+:global(.dark) .campaign-row--ad,
+:global(.darkmode) .campaign-row--ad {
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 0%, rgba(42, 45, 60, 0.93) 30%, #2a2d3c 100%) !important;
 }
 
 :global(.dark) .panel-reports .chip,
