@@ -290,6 +290,21 @@ class VKAdsAPI:
         # Для личного кабинета держим его None, чтобы client_id нигде не подставился.
         self.account_id = account_id if self.send_client_id else None
         self.debug_events: List[str] = []
+        # Лимиты приложения VK Ads: 1 запрос/сек, 30/мин ({"limits":{"1":1,"60":30}}).
+        # Без троттлинга массовые запросы (initial sync, иерархия) ловят 429 подряд.
+        self._throttle_lock = asyncio.Lock()
+        self._next_request_at = 0.0
+
+    async def _throttle(self, min_interval: float = 1.05) -> None:
+        """Выдерживает паузу между запросами к API (лимит 1 rps)."""
+        import time
+        async with self._throttle_lock:
+            now = time.monotonic()
+            wait = self._next_request_at - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+                now = time.monotonic()
+            self._next_request_at = now + min_interval
 
     async def detect_token_kind(self) -> str:
         """
@@ -302,6 +317,7 @@ class VKAdsAPI:
         url = f"{self.base_url}/agency/clients.json"
         try:
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=20.0)
                 if response.status_code == 200:
                     return "agency"
@@ -462,6 +478,7 @@ class VKAdsAPI:
                     if use_fields:
                         page_params["fields"] = "id,name,status,objective"
 
+                    await self._throttle()
                     response = await client.get(url, params=page_params, headers=self.headers, timeout=30.0)
 
                     # Если fields не поддерживается — переключаемся на режим без fields и повторяем текущую страницу
@@ -617,6 +634,7 @@ class VKAdsAPI:
                         if self.account_id:
                             params["client_id"] = self.account_id
 
+                        await self._throttle()
                         response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                         if response.status_code == 400:
                             self._push_debug(
@@ -666,6 +684,7 @@ class VKAdsAPI:
                     params = {"limit": limit, "offset": offset}
                     if self.account_id:
                         params["client_id"] = self.account_id
+                    await self._throttle()
                     response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                     if response.status_code != 200:
                         logger.warning(
@@ -727,6 +746,7 @@ class VKAdsAPI:
                     if self.account_id and self.send_client_id:
                         params["client_id"] = self.account_id
                     try:
+                        await self._throttle()
                         response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                     except Exception as e:
                         logger.warning(f"⚠️ VK Ads banners request error: {e}")
@@ -783,6 +803,7 @@ class VKAdsAPI:
                         "metrics": "base",
                     }
                     try:
+                        await self._throttle()
                         response = await client.get(url, params=params, headers=self.headers, timeout=120.0)
                     except Exception as e:
                         logger.warning(f"⚠️ VK Ads {level} statistics error: {e}")
@@ -790,6 +811,7 @@ class VKAdsAPI:
                     if response.status_code == 429:
                         await asyncio.sleep(3)
                         try:
+                            await self._throttle()
                             response = await client.get(url, params=params, headers=self.headers, timeout=120.0)
                         except Exception:
                             continue
@@ -829,6 +851,7 @@ class VKAdsAPI:
                 params = {"limit": limit, "offset": offset}
                 if self.account_id:
                     params["client_id"] = self.account_id
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code != 200:
                     logger.warning(
@@ -892,6 +915,7 @@ class VKAdsAPI:
                     if self.account_id:
                         params["client_id"] = self.account_id
                     
+                    await self._throttle()
                     response = await client.get(url, params=params, headers=self.headers, timeout=10.0)
                     if response.status_code == 200:
                         data = response.json()
@@ -1142,6 +1166,7 @@ class VKAdsAPI:
         
         try:
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
@@ -1220,6 +1245,7 @@ class VKAdsAPI:
                 
                     for attempt in range(max_retries):
                         try:
+                            await self._throttle()
                             response = await client.get(
                                 url,
                                 params=params,
@@ -1410,6 +1436,7 @@ class VKAdsAPI:
             }
             
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
@@ -1479,6 +1506,7 @@ class VKAdsAPI:
         try:
             url = f"{self.base_url}/ad_accounts.json"
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
@@ -1611,6 +1639,7 @@ class VKAdsAPI:
             }
             
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
                 if response.status_code == 200:
@@ -1681,6 +1710,7 @@ class VKAdsAPI:
         
         try:
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
@@ -1709,6 +1739,7 @@ class VKAdsAPI:
         url = f"{self.base_url}/agency/clients.json"
         try:
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
@@ -1840,6 +1871,7 @@ class VKAdsAPI:
                 params["client_id"] = self.account_id
             
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
@@ -1893,6 +1925,7 @@ class VKAdsAPI:
                 params["client_id"] = self.account_id
             
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
@@ -1949,6 +1982,7 @@ class VKAdsAPI:
                 params["client_id"] = self.account_id
             
             async with httpx.AsyncClient() as client:
+                await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
                     data = response.json()
