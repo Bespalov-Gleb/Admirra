@@ -3,6 +3,8 @@
 """
 import logging
 from typing import Optional, List
+from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -824,6 +826,8 @@ def _schedule_to_response(db: Session, s: models.ReportSchedule) -> schemas.Repo
         period_days=int(s.period_days or 7),
         report_format=s.report_format or "desktop",
         include_dynamics=bool(s.include_dynamics),
+        approval_required=bool(getattr(s, "approval_required", True)),
+        include_ai_comment=bool(getattr(s, "include_ai_comment", True)),
         sections=_jlist(getattr(s, "sections", None), ["kpi", "chart", "channels", "campaigns"]),
         chart_metrics=_jlist(getattr(s, "chart_metrics", None), ["cost", "clicks"]),
         dynamics_metrics=_jlist(getattr(s, "dynamics_metrics", None), ["cost"]),
@@ -832,6 +836,380 @@ def _schedule_to_response(db: Session, s: models.ReportSchedule) -> schemas.Repo
         last_sent_at=s.last_sent_at,
         created_at=s.created_at,
     )
+
+
+def _jlist(raw, default=None):
+    import json as _json
+    if default is None:
+        default = []
+    try:
+        val = _json.loads(raw) if isinstance(raw, str) and raw else raw
+        return val if isinstance(val, list) else default
+    except Exception:
+        return default
+
+
+def _dump_list(value) -> str:
+    import json as _json
+    return _json.dumps([str(v) for v in (value or [])])
+
+
+def _parse_date(value: str) -> date:
+    try:
+        return date.fromisoformat(str(value))
+    except Exception:
+        raise HTTPException(status_code=422, detail="Дата должна быть в формате YYYY-MM-DD")
+
+
+def _scope_filter(query, *, user_id, client_id=None, folder_id=None):
+    query = query.filter(models.ReportSchedule.user_id == user_id)
+    if folder_id:
+        query = query.filter(models.ReportSchedule.scope_folder_id == folder_id)
+    elif client_id:
+        query = query.filter(models.ReportSchedule.scope_client_id == client_id)
+    else:
+        query = query.filter(models.ReportSchedule.scope_client_id.is_(None), models.ReportSchedule.scope_folder_id.is_(None))
+    return query
+
+
+def _assert_scope_access(db: Session, user_id, client_id=None, folder_id=None) -> None:
+    if client_id:
+        ok = db.query(models.Client.id).filter(models.Client.id == client_id, models.Client.owner_id == user_id).first()
+        if not ok:
+            raise HTTPException(status_code=404, detail="Проект не найден")
+    if folder_id:
+        ok = db.query(models.Folder.id).filter(models.Folder.id == folder_id, models.Folder.account_id == user_id).first()
+        if not ok:
+            raise HTTPException(status_code=404, detail="Папка не найдена")
+
+
+def _delivery_scope_label(db: Session, d: models.ReportDelivery) -> str:
+    if d.folder_id:
+        folder = db.query(models.Folder).filter(models.Folder.id == d.folder_id).first()
+        return f"Папка «{folder.name}»" if folder else "Папка"
+    if d.client_id:
+        client = db.query(models.Client).filter(models.Client.id == d.client_id).first()
+        return f"Проект «{client.name}»" if client else "Проект"
+    return "Все проекты"
+
+
+def _delivery_to_response(db: Session, d: models.ReportDelivery) -> schemas.ReportDeliveryResponse:
+    return schemas.ReportDeliveryResponse(
+        id=d.id,
+        status=d.status,
+        source=d.source,
+        client_id=d.client_id,
+        folder_id=d.folder_id,
+        schedule_id=d.schedule_id,
+        scope_label=_delivery_scope_label(db, d),
+        platform=d.platform or "all",
+        start_date=d.start_date.isoformat(),
+        end_date=d.end_date.isoformat(),
+        channels=_jlist(d.channels),
+        chat_targets=_jlist(d.chat_targets),
+        report_format=d.report_format or "desktop",
+        include_dynamics=bool(d.include_dynamics),
+        include_ai_comment=bool(d.include_ai_comment),
+        sections=_jlist(d.sections, ["kpi", "chart", "channels", "campaigns"]),
+        chart_metrics=_jlist(d.chart_metrics, ["cost", "clicks"]),
+        dynamics_metrics=_jlist(d.dynamics_metrics, ["cost"]),
+        comment=d.comment,
+        anomaly_reason=d.anomaly_reason,
+        delivery_results=d.delivery_results,
+        approved_at=d.approved_at,
+        sent_at=d.sent_at,
+        created_at=d.created_at,
+    )
+
+
+def _default_project_settings_response(db: Session, current_user: models.User, client_id=None, folder_id=None):
+    targets = (
+        db.query(models.ReportChatTarget)
+        .filter(models.ReportChatTarget.user_id == current_user.id)
+        .order_by(models.ReportChatTarget.created_at)
+        .all()
+    )
+    connected = []
+    if (current_user.report_telegram_chat_id or "").strip():
+        connected.append("telegram")
+    if (getattr(current_user, "report_max_chat_id", None) or getattr(current_user, "report_max_user_id", None) or ""):
+        connected.append("max")
+    if _jlist(current_user.report_email_recipients):
+        connected.append("email")
+    return schemas.ReportProjectSettingsResponse(
+        id=None,
+        enabled=False,
+        scope_client_id=client_id,
+        scope_folder_id=folder_id,
+        platform="all",
+        channels=connected[:1] if connected else [],
+        day="daily",
+        send_time="10:00",
+        period_days=7,
+        report_format="desktop",
+        include_dynamics=False,
+        approval_required=True,
+        include_ai_comment=True,
+        sections=["kpi", "chart", "channels", "campaigns"],
+        chart_metrics=["cost", "clicks"],
+        dynamics_metrics=["cost"],
+        chat_targets=[],
+        scope_label="Проект" if client_id else ("Папка" if folder_id else "Все проекты"),
+        connected_channels=connected,
+        available_chat_targets=targets,
+    )
+
+
+@router.get("/project-settings", response_model=schemas.ReportProjectSettingsResponse)
+def get_project_report_settings(
+    client_id: Optional[uuid.UUID] = Query(None),
+    folder_id: Optional[uuid.UUID] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
+    s = _scope_filter(
+        db.query(models.ReportSchedule),
+        user_id=current_user.id,
+        client_id=client_id,
+        folder_id=folder_id,
+    ).order_by(models.ReportSchedule.created_at.desc()).first()
+    base = _default_project_settings_response(db, current_user, client_id=client_id, folder_id=folder_id)
+    if not s:
+        return base
+    resp = _schedule_to_response(db, s).model_dump()
+    resp["connected_channels"] = base.connected_channels
+    resp["available_chat_targets"] = base.available_chat_targets
+    return schemas.ReportProjectSettingsResponse(**resp)
+
+
+@router.put("/project-settings", response_model=schemas.ReportProjectSettingsResponse)
+def save_project_report_settings(
+    body: schemas.ReportScheduleUpdate,
+    client_id: Optional[uuid.UUID] = Query(None),
+    folder_id: Optional[uuid.UUID] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
+    _validate_schedule_payload(
+        day=body.day, send_time=body.send_time, channels=body.channels,
+        platform=body.platform, period_days=body.period_days, report_format=body.report_format,
+        sections=body.sections, chart_metrics=body.chart_metrics,
+    )
+    if body.dynamics_metrics:
+        bad = [m for m in body.dynamics_metrics if m not in VALID_CHART_METRICS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
+    s = _scope_filter(
+        db.query(models.ReportSchedule),
+        user_id=current_user.id,
+        client_id=client_id,
+        folder_id=folder_id,
+    ).order_by(models.ReportSchedule.created_at.desc()).first()
+    if not s:
+        s = models.ReportSchedule(
+            user_id=current_user.id,
+            scope_client_id=client_id,
+            scope_folder_id=folder_id,
+            name=None,
+        )
+        db.add(s)
+    if body.enabled is not None:
+        s.enabled = bool(body.enabled)
+    if body.platform is not None:
+        s.platform = body.platform
+    if body.channels is not None:
+        s.channels = _dump_list(body.channels)
+    if body.day is not None:
+        s.day = body.day
+    if body.send_time is not None:
+        s.send_time = body.send_time
+    if body.period_days is not None:
+        s.period_days = int(body.period_days)
+    if body.report_format is not None:
+        s.report_format = body.report_format
+    if body.include_dynamics is not None:
+        s.include_dynamics = bool(body.include_dynamics)
+    if body.approval_required is not None:
+        s.approval_required = bool(body.approval_required)
+    if body.include_ai_comment is not None:
+        s.include_ai_comment = bool(body.include_ai_comment)
+    if body.sections is not None:
+        s.sections = _dump_list(body.sections)
+    if body.chart_metrics is not None:
+        s.chart_metrics = _dump_list(body.chart_metrics)
+    if body.dynamics_metrics is not None:
+        s.dynamics_metrics = _dump_list(body.dynamics_metrics)
+    if body.chat_targets is not None:
+        own = {
+            str(r.id)
+            for r in db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id).all()
+        }
+        s.chat_targets = _dump_list([t for t in body.chat_targets if str(t) in own])
+    db.commit()
+    db.refresh(s)
+    return get_project_report_settings(client_id=client_id, folder_id=folder_id, current_user=current_user, db=db)
+
+
+@router.get("/deliveries", response_model=List[schemas.ReportDeliveryResponse])
+def list_report_deliveries(
+    status: Optional[str] = Query(None, description="pending | sent | failed"),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.ReportDelivery).filter(models.ReportDelivery.user_id == current_user.id)
+    if status:
+        if status == "history":
+            q = q.filter(models.ReportDelivery.status.in_(["sent", "failed", "cancelled"]))
+        else:
+            q = q.filter(models.ReportDelivery.status == status)
+    rows = q.order_by(models.ReportDelivery.created_at.desc()).limit(100).all()
+    return [_delivery_to_response(db, row) for row in rows]
+
+
+@router.post("/deliveries", response_model=schemas.ReportDeliveryResponse)
+async def create_report_delivery(
+    body: schemas.ReportDeliveryCreate,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_scope_access(db, current_user.id, client_id=body.client_id, folder_id=body.folder_id)
+    _validate_schedule_payload(
+        channels=body.channels,
+        platform=body.platform,
+        period_days=7,
+        report_format=body.report_format,
+        sections=body.sections,
+        chart_metrics=body.chart_metrics,
+    )
+    comment = (body.comment or "").strip() or None
+    if body.include_ai_comment and not comment:
+        comment = await _resolve_report_comment(
+            ai=True,
+            comment=None,
+            db=db,
+            user_id=current_user.id,
+            client_id=body.client_id,
+            start_date=body.start_date,
+            end_date=body.end_date,
+            folder_id=str(body.folder_id) if body.folder_id else None,
+        )
+    d = models.ReportDelivery(
+        user_id=current_user.id,
+        schedule_id=body.schedule_id,
+        client_id=body.client_id,
+        folder_id=body.folder_id,
+        status="pending",
+        source=body.source,
+        platform=body.platform or "all",
+        start_date=_parse_date(body.start_date),
+        end_date=_parse_date(body.end_date),
+        channels=_dump_list(body.channels),
+        chat_targets=_dump_list(body.chat_targets),
+        report_format=body.report_format or "desktop",
+        include_dynamics=bool(body.include_dynamics),
+        include_ai_comment=bool(body.include_ai_comment),
+        sections=_dump_list(body.sections),
+        chart_metrics=_dump_list(body.chart_metrics),
+        dynamics_metrics=_dump_list(body.dynamics_metrics),
+        comment=comment,
+        anomaly_reason=body.anomaly_reason,
+    )
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
+@router.get("/deliveries/{delivery_id}", response_model=schemas.ReportDeliveryResponse)
+def get_report_delivery(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    return _delivery_to_response(db, d)
+
+
+@router.post("/deliveries/{delivery_id}/approve", response_model=schemas.ReportDeliveryResponse)
+async def approve_report_delivery(
+    delivery_id: uuid.UUID,
+    body: schemas.ReportDeliveryApprove,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("pending", "failed"):
+        raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
+    if body.comment is not None:
+        d.comment = body.comment.strip() or None
+
+    channels = _jlist(d.channels)
+    chat_targets = _jlist(d.chat_targets)
+    try:
+        if chat_targets:
+            from backend_api.reports.scheduler import send_report_for_schedule
+            fake_rule = SimpleNamespace(
+                id=d.schedule_id or d.id,
+                name=None,
+                user_id=current_user.id,
+                scope_client_id=d.client_id,
+                scope_folder_id=d.folder_id,
+                platform=d.platform,
+                channels=d.channels,
+                chat_targets=d.chat_targets,
+                period_days=max((d.end_date - d.start_date).days + 1, 1),
+                report_format=d.report_format,
+                include_dynamics=d.include_dynamics,
+                sections=d.sections,
+                chart_metrics=d.chart_metrics,
+                dynamics_metrics=d.dynamics_metrics,
+                comment=d.comment,
+                last_sent_at=None,
+            )
+            results = await send_report_for_schedule(db, fake_rule, current_user)
+        else:
+            req = SendReportRequest(
+                report_type="ai" if d.include_ai_comment else "pdf",
+                channels=channels,
+                email_recipients=_jlist(current_user.report_email_recipients) if "email" in channels else None,
+                telegram_chat_id=current_user.report_telegram_chat_id if "telegram" in channels else None,
+                max_chat_id=current_user.report_max_chat_id if "max" in channels else None,
+                max_user_id=current_user.report_max_user_id if "max" in channels else None,
+                client_id=str(d.client_id) if d.client_id else None,
+                folder_id=str(d.folder_id) if d.folder_id else None,
+                start_date=d.start_date.isoformat(),
+                end_date=d.end_date.isoformat(),
+                comment=d.comment,
+            )
+            sent = await send_report(req, current_user=current_user, db=db)
+            results = sent.get("results") if isinstance(sent, dict) else {}
+        d.status = "sent" if any(bool(v) for v in (results or {}).values()) else "failed"
+        d.delivery_results = results
+        d.approved_by_user_id = current_user.id
+        d.approved_at = datetime.now(timezone.utc)
+        d.sent_at = datetime.now(timezone.utc) if d.status == "sent" else None
+        db.commit()
+        db.refresh(d)
+        return _delivery_to_response(db, d)
+    except Exception as e:
+        logger.exception("Report delivery approve failed: %s", e)
+        d.status = "failed"
+        d.delivery_results = {"error": str(e)}
+        db.commit()
+        db.refresh(d)
+        return _delivery_to_response(db, d)
 
 
 @router.get("/schedules", response_model=List[schemas.ReportScheduleResponse])
@@ -882,6 +1260,8 @@ def create_report_schedule(
         period_days=int(body.period_days or 7),
         report_format=body.report_format or "desktop",
         include_dynamics=bool(body.include_dynamics),
+        approval_required=bool(body.approval_required),
+        include_ai_comment=bool(body.include_ai_comment),
         sections=_json.dumps(body.sections or ["kpi", "chart", "channels", "campaigns"]),
         chart_metrics=_json.dumps(body.chart_metrics or ["cost", "clicks"]),
         dynamics_metrics=_json.dumps(body.dynamics_metrics or ["cost"]),
@@ -935,6 +1315,10 @@ def update_report_schedule(
         s.report_format = body.report_format
     if body.include_dynamics is not None:
         s.include_dynamics = bool(body.include_dynamics)
+    if body.approval_required is not None:
+        s.approval_required = bool(body.approval_required)
+    if body.include_ai_comment is not None:
+        s.include_ai_comment = bool(body.include_ai_comment)
     if body.sections is not None:
         s.sections = _json.dumps(body.sections)
     if body.chart_metrics is not None:
@@ -1010,6 +1394,8 @@ def list_chat_targets(
 @router.post("/chat-targets/link-code")
 async def create_chat_target_link_code(
     body: dict,
+    client_id: Optional[uuid.UUID] = Query(None),
+    folder_id: Optional[uuid.UUID] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1020,12 +1406,19 @@ async def create_chat_target_link_code(
     kind = str((body or {}).get("kind") or "").lower()
     if kind not in ("telegram", "max"):
         raise HTTPException(status_code=422, detail="kind: telegram или max")
+    _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
     code = _secrets.token_urlsafe(8)[:12]
     expires = _dt.now(_tz.utc) + _td(minutes=30)
     if kind == "telegram":
-        db.add(models.TelegramLinkToken(user_id=current_user.id, token=code, expires_at=expires))
+        db.add(models.TelegramLinkToken(
+            user_id=current_user.id, client_id=client_id, folder_id=folder_id,
+            token=code, expires_at=expires,
+        ))
     else:
-        db.add(models.MaxReportLinkToken(user_id=current_user.id, token=code, expires_at=expires))
+        db.add(models.MaxReportLinkToken(
+            user_id=current_user.id, client_id=client_id, folder_id=folder_id,
+            token=code, expires_at=expires,
+        ))
     db.commit()
     bot_hint = ""
     group_link = None

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -46,6 +47,34 @@ def _tg_api_verify() -> bool:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _attach_target_to_project_schedule(db: Session, token_row, target: models.ReportChatTarget) -> None:
+    if not getattr(token_row, "client_id", None) and not getattr(token_row, "folder_id", None):
+        return
+    q = db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == token_row.user_id)
+    if token_row.folder_id:
+        q = q.filter(models.ReportSchedule.scope_folder_id == token_row.folder_id)
+    else:
+        q = q.filter(models.ReportSchedule.scope_client_id == token_row.client_id)
+    schedule = q.order_by(models.ReportSchedule.created_at.desc()).first()
+    if not schedule:
+        schedule = models.ReportSchedule(
+            user_id=token_row.user_id,
+            scope_client_id=token_row.client_id,
+            scope_folder_id=token_row.folder_id,
+            enabled=False,
+            platform="all",
+        )
+        db.add(schedule)
+    try:
+        targets = json.loads(schedule.chat_targets) if schedule.chat_targets else []
+    except Exception:
+        targets = []
+    target_id = str(target.id)
+    if target_id not in [str(item) for item in targets]:
+        targets.append(target_id)
+    schedule.chat_targets = json.dumps(targets)
 
 
 async def _resolve_bot_username() -> str:
@@ -186,10 +215,14 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             )
             .first()
         )
-        if not existing:
-            db.add(models.ReportChatTarget(
+        target = existing
+        if not target:
+            target = models.ReportChatTarget(
                 user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
-            ))
+            )
+            db.add(target)
+            db.flush()
+        _attach_target_to_project_schedule(db, row, target)
         row.consumed_at = _now()
         db.commit()
         await _tg_api("sendMessage", {
@@ -253,10 +286,14 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             )
             .first()
         )
-        if not exists:
-            db.add(models.ReportChatTarget(
+        target = exists
+        if not target:
+            target = models.ReportChatTarget(
                 user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
-            ))
+            )
+            db.add(target)
+            db.flush()
+        _attach_target_to_project_schedule(db, row, target)
         row.consumed_at = _now()
         db.commit()
         await _tg_api("sendMessage", {

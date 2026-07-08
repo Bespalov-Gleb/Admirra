@@ -54,11 +54,10 @@
           </div>
         </div>
 
-        <!-- Блок «Шаблон отчета» убран: состав отчёта настраивается в правилах автоотправки -->
         <div class="report-col report-schedule">
-          <p>Автоотправка</p>
-          <button class="select-like cs-head" type="button" @click="showReportSchedules = true">
-            <span class="cs-current">{{ reportSchedulesSummary }}</span>
+          <p>Отчёты проекта</p>
+          <button class="select-like cs-head" type="button" @click="showProjectReportSettings = true">
+            <span class="cs-current">{{ projectReportSummary }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
             </span>
@@ -68,6 +67,21 @@
         <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
           {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить отчет сейчас' }}
           <CheckCircleIcon />
+        </button>
+        <button class="secondary-report" type="button" :disabled="sendingExport" @click="handleDownloadPdf">
+          {{ sendingExport ? 'Экспорт...' : 'Экспорт PDF' }}
+          <DocumentArrowDownIcon />
+        </button>
+
+        <button
+          v-if="pendingProjectDelivery"
+          type="button"
+          class="report-pending-row"
+          @click="openDeliveryPreview(pendingProjectDelivery)"
+        >
+          <span>Ожидает проверки</span>
+          <strong>{{ pendingProjectDelivery.scope_label }}</strong>
+          <small>{{ formatReportDate(pendingProjectDelivery.start_date) }} — {{ formatReportDate(pendingProjectDelivery.end_date) }}</small>
         </button>
       </div>
     </section>
@@ -1452,13 +1466,20 @@
       </div>
     </Teleport>
 
-    <!-- Автоотправка отчётов: правила (скоуп/каналы/время/формат) -->
-    <ReportSchedulesModal
-      v-if="showReportSchedules"
-      :clients="clients"
-      :telegram-bound="Boolean(userReportSettings.telegram_chat_id)"
-      :max-bound="Boolean(userReportSettings.max_chat_id || userReportSettings.max_user_id)"
-      @close="showReportSchedules = false; refreshReportSchedulesCount()"
+    <ProjectReportSettingsModal
+      v-if="showProjectReportSettings"
+      :client-id="filters.folder_id ? null : (filters.client_id || null)"
+      :folder-id="filters.folder_id || null"
+      :title="dashboardTitle"
+      @close="showProjectReportSettings = false"
+      @saved="handleProjectReportSettingsSaved"
+    />
+
+    <ReportApprovalModal
+      v-if="activeReportDelivery"
+      :delivery="activeReportDelivery"
+      @close="activeReportDelivery = null"
+      @sent="handleReportDeliveryChanged"
     />
   </div>
 </template>
@@ -1506,7 +1527,8 @@ import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } fr
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import DynamicsView from './components/DynamicsView.vue'
-import ReportSchedulesModal from './components/ReportSchedulesModal.vue'
+import ProjectReportSettingsModal from './components/ProjectReportSettingsModal.vue'
+import ReportApprovalModal from './components/ReportApprovalModal.vue'
 import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
 
@@ -1654,23 +1676,66 @@ const userReportSettings = ref({
   delivery_channels: []
 })
 
-// ── Автоотправка: правила (report_schedules) ──
-const showReportSchedules = ref(false)
-const reportSchedulesCount = ref(null)
-const reportSchedulesSummary = computed(() => {
-  if (reportSchedulesCount.value === null) return 'Настроить…'
-  if (!reportSchedulesCount.value) return 'Настроить…'
-  const n = reportSchedulesCount.value
-  const noun = n === 1 ? 'правило' : (n >= 2 && n <= 4 ? 'правила' : 'правил')
-  return `${n} ${noun}`
+// ── Отчёты проекта: одна настройка автоотправки + очередь проверки ──
+const showProjectReportSettings = ref(false)
+const projectReportSettings = ref(null)
+const pendingReportDeliveries = ref([])
+const activeReportDelivery = ref(null)
+const projectReportSummary = computed(() => {
+  const s = projectReportSettings.value
+  if (!s) return 'Настроить…'
+  if (!s.enabled) return 'Автоотправка выкл.'
+  const channels = [
+    ...(s.channels || []),
+    ...((s.chat_targets || []).length ? ['группы'] : []),
+  ]
+  return channels.length ? `Включена · ${channels.length} канал` : 'Включена · без каналов'
 })
-const refreshReportSchedulesCount = async () => {
+const currentReportScopeParams = computed(() => ({
+  ...(filters.folder_id ? { folder_id: filters.folder_id } : {}),
+  ...(!filters.folder_id && filters.client_id ? { client_id: filters.client_id } : {}),
+}))
+const sameScopeDelivery = (delivery) => {
+  const clientId = filters.folder_id ? null : (filters.client_id || null)
+  const folderId = filters.folder_id || null
+  return String(delivery?.client_id || '') === String(clientId || '')
+    && String(delivery?.folder_id || '') === String(folderId || '')
+}
+const pendingProjectDelivery = computed(() => pendingReportDeliveries.value.find(sameScopeDelivery) || null)
+const refreshProjectReportSettings = async () => {
   try {
-    const { data } = await api.get('reports/schedules')
-    reportSchedulesCount.value = Array.isArray(data) ? data.filter((r) => r.enabled).length : 0
+    const { data } = await api.get('reports/project-settings', { params: currentReportScopeParams.value })
+    projectReportSettings.value = data
+    const channels = Array.isArray(data?.channels) ? data.channels : []
+    if (channels.length) reportDeliveryChannels.value = channels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   } catch {
-    reportSchedulesCount.value = null
+    projectReportSettings.value = null
   }
+}
+const refreshPendingReportDeliveries = async () => {
+  try {
+    const { data } = await api.get('reports/deliveries', { params: { status: 'pending' } })
+    pendingReportDeliveries.value = Array.isArray(data) ? data : []
+  } catch {
+    pendingReportDeliveries.value = []
+  }
+}
+const handleProjectReportSettingsSaved = async (settings) => {
+  projectReportSettings.value = settings
+  if (Array.isArray(settings?.channels)) {
+    reportDeliveryChannels.value = settings.channels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
+  }
+}
+const openDeliveryPreview = (delivery) => {
+  activeReportDelivery.value = delivery
+}
+const handleReportDeliveryChanged = async () => {
+  await refreshPendingReportDeliveries()
+}
+const formatReportDate = (value) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ru-RU')
 }
 
 const reportComment = ref('')
@@ -4531,9 +4596,14 @@ const captureDashboardScreenshot = async () => {
 }
 
 const executeReportSend = async () => {
-  const channels = reportDeliveryChannels.value.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
-  if (!channels.length) {
+  const savedSettings = projectReportSettings.value
+  const channels = (
+    savedSettings?.channels?.length ? savedSettings.channels : reportDeliveryChannels.value
+  ).filter((channel) => ['telegram', 'max', 'email'].includes(channel))
+  const chatTargets = Array.isArray(savedSettings?.chat_targets) ? savedSettings.chat_targets : []
+  if (!channels.length && !chatTargets.length) {
     toaster.error('Выберите канал доставки отчёта')
+    showProjectReportSettings.value = true
     return
   }
   if (channels.includes('telegram') && !userReportSettings.value.telegram_chat_id) {
@@ -4556,24 +4626,28 @@ const executeReportSend = async () => {
   sendingEmail.value = channels.includes('email')
   try {
     const text = await getOrGenerateComment()
-    const screenshot = await captureDashboardScreenshot()
-    await api.post('reports/send', {
-      report_type: 'ai',
+    const { data } = await api.post('reports/deliveries', {
+      source: 'manual',
+      platform: savedSettings?.platform || filters.channel || 'all',
       channels,
-      telegram_chat_id: userReportSettings.value.telegram_chat_id || undefined,
-      max_chat_id: userReportSettings.value.max_chat_id || undefined,
-      max_user_id: userReportSettings.value.max_user_id || undefined,
-      email_recipients: channels.includes('email') ? userReportSettings.value.email_recipients : undefined,
+      chat_targets: chatTargets,
       client_id: filters.folder_id ? null : (filters.client_id || null),
       folder_id: filters.folder_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
+      report_format: savedSettings?.report_format || 'desktop',
+      include_dynamics: Boolean(savedSettings?.include_dynamics),
+      include_ai_comment: savedSettings?.include_ai_comment !== false,
+      sections: savedSettings?.sections || ['kpi', 'chart', 'channels', 'campaigns'],
+      chart_metrics: savedSettings?.chart_metrics || ['cost', 'clicks'],
+      dynamics_metrics: savedSettings?.dynamics_metrics || ['cost'],
       ...(text ? { comment: text } : {}),
-      ...(screenshot ? { screenshot_base64: screenshot } : {}),
     })
-    toaster.success('Отчёт отправлен')
+    activeReportDelivery.value = data
+    await refreshPendingReportDeliveries()
+    toaster.info('Отчёт подготовлен. Проверьте перед отправкой')
   } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Ошибка отправки')
+    toaster.error(err.response?.data?.detail || 'Ошибка подготовки отчёта')
   } finally {
     sendingTg.value = false
     sendingMax.value = false
@@ -4612,7 +4686,7 @@ const openReportBotLink = async () => {
 }
 
 const saveReportDeliveryChannels = async (nextChannels) => {
-  reportDeliveryChannels.value = nextChannels.filter((channel) => ['telegram', 'max'].includes(channel))
+  reportDeliveryChannels.value = nextChannels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   await saveReportSettings({ silent: true })
 }
 
@@ -4994,12 +5068,21 @@ watch(() => filters.client_id, () => {
   loadSavedComment()
 })
 
+watch(
+  () => [filters.client_id, filters.folder_id],
+  () => {
+    refreshProjectReportSettings()
+    refreshPendingReportDeliveries()
+  }
+)
+
 onMounted(() => {
   refreshUserReportSettings()
   fetchIntegrations()
   fetchReportGoals()
   loadSavedComment()
-  refreshReportSchedulesCount()
+  refreshProjectReportSettings()
+  refreshPendingReportDeliveries()
 })
 </script>
 
@@ -5203,7 +5286,8 @@ onMounted(() => {
   flex: 0 0 auto;
 }
 
-.primary-report {
+.primary-report,
+.secondary-report {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5216,6 +5300,54 @@ onMounted(() => {
   color: #fff;
   font-size: 1.3rem;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.secondary-report {
+  background: #fff;
+  color: #2563eb;
+  border: 1px solid #e5eaf3;
+}
+
+.report-pending-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3.4rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 1.1rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  text-align: left;
+}
+
+.report-pending-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.report-pending-row strong {
+  min-width: 0;
+  color: #7c2d12;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-pending-row small {
+  color: #9a3412;
+  font-weight: 700;
   white-space: nowrap;
 }
 

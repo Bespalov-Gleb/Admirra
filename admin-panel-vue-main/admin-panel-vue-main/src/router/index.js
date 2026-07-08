@@ -194,6 +194,12 @@ const routes = [
     meta: { layout: 'mockup' }
   },
   {
+    path: '/reports',
+    name: 'Reports',
+    component: () => import('../views/Reports/Reports.vue'),
+    meta: { layout: 'mockup' }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile/Profile.vue'),

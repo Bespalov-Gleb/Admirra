@@ -355,6 +355,81 @@ def _rule_already_sent_today(rule, now: datetime) -> bool:
     return last.astimezone(MSK).date() == now.date()
 
 
+def _jlist(raw, default=None):
+    if default is None:
+        default = []
+    try:
+        val = json.loads(raw) if isinstance(raw, str) and raw else raw
+        return val if isinstance(val, list) else default
+    except Exception:
+        return default
+
+
+def _rule_blocking_anomaly(db: Session, rule) -> str | None:
+    """Возвращает причину остановки автоотправки, если детектор нашёл проблему."""
+    q = db.query(models.DetectorAlert).filter(
+        models.DetectorAlert.owner_id == rule.user_id,
+        models.DetectorAlert.status == "open",
+        models.DetectorAlert.severity == "problem",
+    )
+    if rule.scope_client_id:
+        q = q.filter(models.DetectorAlert.client_id == rule.scope_client_id)
+    elif rule.scope_folder_id:
+        client_ids = [
+            row.id for row in db.query(models.Client.id).filter(
+                models.Client.folder_id == rule.scope_folder_id,
+                models.Client.owner_id == rule.user_id,
+            ).all()
+        ]
+        if not client_ids:
+            return None
+        q = q.filter(models.DetectorAlert.client_id.in_(client_ids))
+    alert = q.order_by(models.DetectorAlert.opened_at.desc()).first()
+    if not alert:
+        return None
+    metric = alert.metric or "метрика"
+    pct = f" {alert.deviation_pct}%" if alert.deviation_pct is not None else ""
+    return f"Детектор остановил автоотправку: {metric}{pct}"
+
+
+def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | None = None, source: str = "auto"):
+    now = datetime.now(MSK)
+    end_date = now.date()
+    start_date = end_date - timedelta(days=max(int(rule.period_days or 7) - 1, 0))
+    existing = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.user_id == rule.user_id,
+        models.ReportDelivery.schedule_id == rule.id,
+        models.ReportDelivery.start_date == start_date,
+        models.ReportDelivery.end_date == end_date,
+        models.ReportDelivery.status == "pending",
+    ).first()
+    if existing:
+        return existing
+    delivery = models.ReportDelivery(
+        user_id=rule.user_id,
+        schedule_id=rule.id,
+        client_id=rule.scope_client_id,
+        folder_id=rule.scope_folder_id,
+        status="pending",
+        source="detector" if reason else source,
+        platform=rule.platform or "all",
+        start_date=start_date,
+        end_date=end_date,
+        channels=rule.channels or "[]",
+        chat_targets=rule.chat_targets,
+        report_format=rule.report_format or "desktop",
+        include_dynamics=bool(rule.include_dynamics),
+        include_ai_comment=bool(getattr(rule, "include_ai_comment", True)),
+        sections=rule.sections,
+        chart_metrics=rule.chart_metrics,
+        dynamics_metrics=rule.dynamics_metrics,
+        anomaly_reason=reason,
+    )
+    db.add(delivery)
+    rule.last_sent_at = datetime.now(MSK)
+    return delivery
+
+
 async def send_report_for_schedule(db: Session, rule, user) -> dict:
     """Формирует и отправляет отчёт по одному правилу. Используется планировщиком
     и кнопкой «Отправить сейчас» (проверка настройки)."""
@@ -388,6 +463,7 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
     client_id = rule.scope_client_id
     folder_id = str(rule.scope_folder_id) if rule.scope_folder_id else None
     platform = rule.platform or "all"
+    approved_comment = (getattr(rule, "comment", None) or "").strip() or None
 
     pdf_bytes = generate_report_pdf(
         db=db,
@@ -395,7 +471,7 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         client_id=client_id,
         start_date=start_str,
         end_date=end_str,
-        comment=None,
+        comment=approved_comment,
         include_dynamics=bool(rule.include_dynamics),
         folder_id=folder_id,
         platform=platform,
@@ -407,7 +483,7 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
 
     # Данные для текстового варианта (MAX) и темы письма
     summary, top_campaigns, client_name, _, _, _ = _get_report_data(
-        db, user.id, client_id, start_str, end_str, None, folder_id=folder_id,
+        db, user.id, client_id, start_str, end_str, approved_comment, folder_id=folder_id,
     )
     rule_title = (rule.name or "").strip()
     caption = f"Отчёт{f' «{rule_title}»' if rule_title else ''} за {start_str} — {end_str}"
@@ -536,9 +612,37 @@ async def run_scheduled_report_rules():
             if not user:
                 continue
             try:
-                results = await send_report_for_schedule(db, rule, user)
-                db.commit()
-                logger.info("Report rule %s sent for %s: %s", rule.id, user.email, results)
+                reason = _rule_blocking_anomaly(db, rule)
+                if bool(getattr(rule, "approval_required", True)) or reason:
+                    delivery = create_pending_delivery_for_schedule(db, rule, reason=reason)
+                    db.commit()
+                    logger.info("Report rule %s queued for approval: delivery=%s reason=%s", rule.id, delivery.id, reason)
+                else:
+                    results = await send_report_for_schedule(db, rule, user)
+                    delivery = models.ReportDelivery(
+                        user_id=rule.user_id,
+                        schedule_id=rule.id,
+                        client_id=rule.scope_client_id,
+                        folder_id=rule.scope_folder_id,
+                        status="sent" if any(bool(v) for v in (results or {}).values()) else "failed",
+                        source="auto",
+                        platform=rule.platform or "all",
+                        start_date=(now.date() - timedelta(days=max(int(rule.period_days or 7) - 1, 0))),
+                        end_date=now.date(),
+                        channels=rule.channels or "[]",
+                        chat_targets=rule.chat_targets,
+                        report_format=rule.report_format or "desktop",
+                        include_dynamics=bool(rule.include_dynamics),
+                        include_ai_comment=bool(getattr(rule, "include_ai_comment", True)),
+                        sections=rule.sections,
+                        chart_metrics=rule.chart_metrics,
+                        dynamics_metrics=rule.dynamics_metrics,
+                        delivery_results=results,
+                        sent_at=datetime.now(MSK),
+                    )
+                    db.add(delivery)
+                    db.commit()
+                    logger.info("Report rule %s sent for %s: %s", rule.id, user.email, results)
             except Exception as e:
                 db.rollback()
                 logger.exception("Report rule %s failed for user %s: %s", rule.id, rule.user_id, e)

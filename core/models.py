@@ -168,6 +168,8 @@ class TelegramLinkToken(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
     token = Column(String(64), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
@@ -186,6 +188,8 @@ class MaxReportLinkToken(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
     token = Column(String(64), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
@@ -236,6 +240,8 @@ class ReportSchedule(Base):
     period_days = Column(Integer, nullable=False, default=7, server_default="7")  # период данных отчёта
     report_format = Column(String, nullable=False, default="desktop", server_default="desktop")  # desktop|mobile
     include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
+    approval_required = Column(Boolean, nullable=False, default=True, server_default="true")
+    include_ai_comment = Column(Boolean, nullable=False, default=True, server_default="true")
     # Состав отчёта: JSON-список секций (kpi|chart|channels|campaigns)
     sections = Column(String, nullable=True)
     # Метрики графиков: JSON-списки (cost|impressions|clicks|cpc|cpa|leads) — на каждую
@@ -249,6 +255,47 @@ class ReportSchedule(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User", backref="report_schedules")
+
+
+class ReportDelivery(Base):
+    """Снимок/задание отправки отчёта.
+
+    Используется для очереди «ждёт проверки» и истории доставок. Сам файл отчёта
+    не хранится в БД: при утверждении он генерируется по зафиксированным
+    параметрам периода, проекта/папки и состава.
+    """
+    __tablename__ = "report_deliveries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    schedule_id = Column(UUID(as_uuid=True), ForeignKey("report_schedules.id", ondelete="SET NULL"), nullable=True, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String(24), nullable=False, default="pending", server_default="pending", index=True)
+    source = Column(String(24), nullable=False, default="manual", server_default="manual")  # manual|auto|detector
+    platform = Column(String, nullable=False, default="all", server_default="all")
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    channels = Column(String, nullable=False, default="[]", server_default="[]")
+    chat_targets = Column(String, nullable=True)
+    report_format = Column(String, nullable=False, default="desktop", server_default="desktop")
+    include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
+    include_ai_comment = Column(Boolean, nullable=False, default=True, server_default="true")
+    sections = Column(String, nullable=True)
+    chart_metrics = Column(String, nullable=True)
+    dynamics_metrics = Column(String, nullable=True)
+    comment = Column(Text, nullable=True)
+    anomaly_reason = Column(Text, nullable=True)
+    delivery_results = Column(JSON, nullable=True)
+    approved_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id], backref="report_deliveries")
+    approved_by = relationship("User", foreign_keys=[approved_by_user_id])
+    schedule = relationship("ReportSchedule", backref="deliveries")
 
 
 class ReportChatTarget(Base):

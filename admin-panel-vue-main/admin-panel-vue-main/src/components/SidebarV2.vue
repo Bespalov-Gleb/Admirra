@@ -236,6 +236,7 @@ import {
   SparklesIcon,
   LightBulbIcon,
   LinkIcon,
+  DocumentTextIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
@@ -259,6 +260,7 @@ const logoSrc = computed(() => {
 const menuItems = computed(() => [
   { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon, sectionLabel: 'Работа' },
   { name: 'Аналитика', path: '/dashboard/general-3', icon: Squares2X2Icon },
+  { name: 'Отчёты', path: '/reports', icon: DocumentTextIcon },
   {
     name: 'AI',
     icon: SparklesIcon,
@@ -266,7 +268,6 @@ const menuItems = computed(() => [
     children: [
       { name: 'Ассистент', path: '/ai-analysis' },
       { name: 'Аудит', path: '/ai-audit' },
-      { name: 'Отчёты', path: '/reports' },
     ],
   },
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
@@ -309,7 +310,7 @@ const toggleSubmenu = (key) => {
 }
 
 watch(() => route?.path, (path) => {
-  if (path?.startsWith('/ai-') || path === '/reports') {
+  if (path?.startsWith('/ai-')) {
     isAISubmenuOpen.value = true
   }
 }, { immediate: true })

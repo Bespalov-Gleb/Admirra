@@ -478,6 +478,8 @@ class ReportScheduleBase(BaseModel):
     period_days: int = 7
     report_format: str = "desktop"  # desktop | mobile
     include_dynamics: bool = False
+    approval_required: bool = True
+    include_ai_comment: bool = True
     # Состав отчёта и метрики графиков (на каждую метрику — отдельный график)
     sections: List[str] = ["kpi", "chart", "channels", "campaigns"]
     chart_metrics: List[str] = ["cost", "clicks"]
@@ -502,6 +504,8 @@ class ReportScheduleUpdate(BaseModel):
     period_days: Optional[int] = None
     report_format: Optional[str] = None
     include_dynamics: Optional[bool] = None
+    approval_required: Optional[bool] = None
+    include_ai_comment: Optional[bool] = None
     sections: Optional[List[str]] = None
     chart_metrics: Optional[List[str]] = None
     dynamics_metrics: Optional[List[str]] = None
@@ -527,6 +531,67 @@ class ReportChatTargetResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ReportProjectSettingsResponse(ReportScheduleBase):
+    id: Optional[UUID] = None
+    scope_label: Optional[str] = None
+    connected_channels: List[str] = []
+    available_chat_targets: List[ReportChatTargetResponse] = []
+
+
+class ReportDeliveryCreate(BaseModel):
+    client_id: Optional[UUID] = None
+    folder_id: Optional[UUID] = None
+    schedule_id: Optional[UUID] = None
+    source: str = "manual"
+    platform: str = "all"
+    start_date: str
+    end_date: str
+    channels: List[str] = []
+    chat_targets: List[UUID] = []
+    report_format: str = "desktop"
+    include_dynamics: bool = False
+    include_ai_comment: bool = True
+    sections: List[str] = ["kpi", "chart", "channels", "campaigns"]
+    chart_metrics: List[str] = ["cost", "clicks"]
+    dynamics_metrics: List[str] = ["cost"]
+    comment: Optional[str] = None
+    anomaly_reason: Optional[str] = None
+
+
+class ReportDeliveryResponse(BaseModel):
+    id: UUID
+    status: str
+    source: str
+    client_id: Optional[UUID] = None
+    folder_id: Optional[UUID] = None
+    schedule_id: Optional[UUID] = None
+    scope_label: Optional[str] = None
+    platform: str = "all"
+    start_date: str
+    end_date: str
+    channels: List[str] = []
+    chat_targets: List[UUID] = []
+    report_format: str = "desktop"
+    include_dynamics: bool = False
+    include_ai_comment: bool = True
+    sections: List[str] = []
+    chart_metrics: List[str] = []
+    dynamics_metrics: List[str] = []
+    comment: Optional[str] = None
+    anomaly_reason: Optional[str] = None
+    delivery_results: Optional[dict] = None
+    approved_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReportDeliveryApprove(BaseModel):
+    comment: Optional[str] = None
 
 
 # ── Папки проектов (группировка филиалов одного заказчика) ──
