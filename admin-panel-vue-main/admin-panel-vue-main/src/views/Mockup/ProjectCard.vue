@@ -1851,9 +1851,15 @@ function handleSettingsSaved(updatedProject) {
   settingsProject.value = null
 }
 
-function handleProjectDeleted(projectId) {
+async function handleProjectDeleted(projectId) {
   projects.value = projects.value.filter((p) => p.id !== projectId)
   settingsProject.value = null
+  // Проект мог лежать в папке: без обновления папок карточка покажет устаревшее
+  // «N проектов» и старую сводную статистику/KPI (балансы и каналы самопочинятся,
+  // т.к. считаются из projects.value, а вот projects_count и метрики папки под
+  // folder.id — с бэка, поэтому перезагружаем их как в остальных хендлерах папок).
+  await Promise.all([fetchFolders(), fetchProjects()])
+  await loadProjectMetrics()
 }
 
 function handleSettingsAddChannel() {
