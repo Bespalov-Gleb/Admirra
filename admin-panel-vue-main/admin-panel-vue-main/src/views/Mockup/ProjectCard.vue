@@ -157,12 +157,21 @@
             </div>
             <div class="project-tile-actions">
               <div class="project-tile-actions__top">
-                <span class="folder-member-cloud" :title="`${entry.folder.projects_count || allFolderProjects(entry.folder.id).length} ${branchNoun(entry.folder.projects_count || allFolderProjects(entry.folder.id).length)} внутри папки`">
+                <button
+                  type="button"
+                  class="folder-member-cloud"
+                  :class="{ 'folder-member-cloud--open': expandedFolders[entry.folder.id] }"
+                  @click="toggleFolder(entry.folder.id)"
+                  :title="expandedFolders[entry.folder.id] ? 'Свернуть папку' : 'Открыть папку'"
+                >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                   </svg>
                   {{ entry.folder.projects_count || allFolderProjects(entry.folder.id).length }}
-                </span>
+                  <svg class="folder-member-cloud__chevron" :class="{ 'folder-member-cloud__chevron--open': expandedFolders[entry.folder.id] }" width="11" height="7" viewBox="0 0 12 8" fill="none" aria-hidden="true">
+                    <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
                 <button class="analytics-open-btn flex-shrink-0" @click="openFolderAnalytics(entry.folder)" title="Аналитика по папке">
                   <span>Аналитика</span>
                   <svg width="7" height="7" viewBox="0 0 13 13" fill="none">
@@ -170,12 +179,6 @@
                   </svg>
                 </button>
               </div>
-              <button type="button" class="folder-expand-btn" @click="toggleFolder(entry.folder.id)">
-                {{ expandedFolders[entry.folder.id] ? 'Папка открыта' : 'Открыть папку' }}
-                <svg :class="{ 'folder-expand-icon--open': expandedFolders[entry.folder.id] }" class="folder-expand-icon" width="11" height="7" viewBox="0 0 12 8" fill="none">
-                  <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
             </div>
           </div>
 
@@ -214,13 +217,13 @@
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
                       <strong>{{ formatNumber(channel.goalTotal) }}
-                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls">{{ leadsDeltaBadge(channel).text }}</em>
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
-                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls">{{ cplDeltaBadge(channel).text }}</em>
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>Общий CPL</span>
                     </div>
@@ -434,13 +437,13 @@
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
                       <strong>{{ formatNumber(channel.goalTotal) }}
-                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls">{{ leadsDeltaBadge(channel).text }}</em>
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
-                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls">{{ cplDeltaBadge(channel).text }}</em>
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>Общий CPL</span>
                     </div>
@@ -459,7 +462,7 @@
                   >
                     <span>{{ goal.name }}</span>
                     <strong>{{ formatNumber(goal.count) }} шт
-                      <em v-if="goalCountDelta(goal)" class="channel-delta" :class="goalCountDelta(goal).cls">{{ goalCountDelta(goal).text }}</em>
+                      <em v-if="goalCountDelta(goal)" class="channel-delta" :class="goalCountDelta(goal).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': goalCountDelta(goal).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ goalCountDelta(goal).text }}</em>
                     </strong>
                     <template v-if="channel.code !== 'yandex'">
                       <b>{{ formatGoalCpl(goal, channel.code) }}</b>
@@ -1449,7 +1452,8 @@ const goalCountDelta = (goal) => {
   const d = cur - prev
   if (d === 0) return null
   return {
-    text: d > 0 ? `↑ +${formatNumber(d)}` : `↓ −${formatNumber(Math.abs(d))}`,
+    text: d > 0 ? `+${formatNumber(d)}` : `−${formatNumber(Math.abs(d))}`,
+    dir: d > 0 ? 'up' : 'down',
     cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
   }
 }
@@ -1459,17 +1463,20 @@ const leadsDeltaBadge = (channel) => {
   const d = Number(channel.leadsDelta || 0)
   if (d === 0) return null
   return {
-    text: d > 0 ? `↑ +${formatNumber(d)}` : `↓ −${formatNumber(Math.abs(d))}`,
+    text: d > 0 ? `+${formatNumber(d)}` : `−${formatNumber(Math.abs(d))}`,
+    dir: d > 0 ? 'up' : 'down',
     cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
   }
 }
 
-// CPL: окраска инвертирована — снизился (лучше) = зелёный, вырос = красный
+// CPL: окраска инвертирована — снизился (лучше) = зелёный, вырос = красный.
+// Стрелка (dir) показывает фактическое движение, цвет (cls) — хорошо/плохо.
 const cplDeltaBadge = (channel) => {
   const pct = channel.cplDeltaPct
   if (pct === null || pct === undefined || pct === 0) return null
   return {
-    text: pct > 0 ? `↑ +${pct}%` : `↓ ${pct}%`,
+    text: pct > 0 ? `+${pct}%` : `${pct}%`,
+    dir: pct > 0 ? 'up' : 'down',
     cls: pct < 0 ? 'channel-delta--up' : 'channel-delta--down',
   }
 }
@@ -3583,12 +3590,9 @@ onMounted(async () => {
 .folder-type-label {
   display: inline-flex;
   align-items: center;
-  padding: 0.16rem 0.5rem;
-  border-radius: 99rem;
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 10%, transparent);
-  color: var(--folder-color, #2563eb);
+  color: #6b7280;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .folder-member-cloud {
@@ -3600,13 +3604,26 @@ onMounted(async () => {
   height: 2rem;
   padding: 0 0.62rem;
   border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(15, 23, 42, 0.06));
-  border-radius: 999rem;
+  border-radius: 0.5rem;
   background: rgba(255, 255, 255, 0.78);
   color: var(--folder-color, #2563eb);
   font-size: 0.82rem;
   font-weight: 900;
   box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
+.folder-member-cloud:hover {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(15, 23, 42, 0.08));
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 8%, #fff);
+}
+.folder-member-cloud--open {
+  background: var(--folder-color, #2563eb);
+  border-color: var(--folder-color, #2563eb);
+  color: #fff;
+}
+.folder-member-cloud__chevron { transition: transform 0.18s ease; }
+.folder-member-cloud__chevron--open { transform: rotate(180deg); }
 
 /* ТЗ п.7: карточка на паузе — приглушение + бейдж + строка вместо нулевых KPI */
 .detector-preview-wrap { position: relative; display: inline-flex; }
@@ -3665,7 +3682,9 @@ onMounted(async () => {
 .detector-preview__ai { background: #2563eb !important; border-color: #2563eb !important; color: #fff !important; }
 
 .channel-delta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
   margin-left: 0.3rem;
   padding: 0.08rem 0.4rem;
   border-radius: 999px;
@@ -3675,6 +3694,8 @@ onMounted(async () => {
   vertical-align: middle;
   white-space: nowrap;
 }
+.channel-delta__arrow { transition: transform 0.18s ease; }
+.channel-delta__arrow--down { transform: rotate(180deg); }
 .channel-delta--up { background: rgba(34, 197, 94, 0.12); color: #15803d; }
 .channel-delta--down { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
 
@@ -3746,38 +3767,6 @@ onMounted(async () => {
 .folder-paused-note { color: #b45309; font-weight: 600; }
 .folder-summary-note { color: rgba(105, 105, 105, 0.6); }
 
-.folder-expand-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  min-width: 8.45rem;
-  height: 2rem;
-  padding: 0 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 16%, rgba(15, 23, 42, 0.06));
-  border-radius: 999rem;
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 7%, #fff);
-  color: var(--folder-color, #2563eb);
-  font-size: 0.76rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
-}
-
-.folder-expand-btn:hover {
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(15, 23, 42, 0.08));
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 11%, #fff);
-}
-
-.folder-card--expanded .folder-expand-btn {
-  background: var(--folder-color, #2563eb);
-  border-color: var(--folder-color, #2563eb);
-  color: #fff;
-}
-
-.folder-expand-icon { transition: transform 0.18s ease; }
-.folder-expand-icon--open { transform: rotate(180deg); }
-
 :global(.dark) .folder-card,
 :global(.darkmode) .folder-card {
   border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(255, 255, 255, 0.1));
@@ -3819,8 +3808,7 @@ onMounted(async () => {
 
 :global(.dark) .folder-type-label,
 :global(.darkmode) .folder-type-label {
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 18%, transparent);
-  color: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 :global(.dark) .folder-summary-note,
@@ -3835,15 +3823,16 @@ onMounted(async () => {
   color: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
 }
 
-:global(.dark) .folder-expand-btn,
-:global(.darkmode) .folder-expand-btn {
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 28%, rgba(255, 255, 255, 0.08));
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 14%, rgba(255, 255, 255, 0.05));
+:global(.dark) .folder-member-cloud:hover,
+:global(.darkmode) .folder-member-cloud:hover {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 40%, rgba(255, 255, 255, 0.1));
+  background: color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(255, 255, 255, 0.05));
 }
 
-:global(.dark) .folder-card--expanded .folder-expand-btn,
-:global(.darkmode) .folder-card--expanded .folder-expand-btn {
+:global(.dark) .folder-member-cloud--open,
+:global(.darkmode) .folder-member-cloud--open {
   background: color-mix(in srgb, var(--folder-color, #2563eb) 82%, #fff);
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 82%, #fff);
   color: #fff;
 }
 
