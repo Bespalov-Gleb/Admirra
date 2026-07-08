@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import httpx
 
-from automation.vk_ads import VKAdsAPI
+from automation.vk_ads import VKAdsAPI, vk_agency_exchange_hints
 
 
 class _FakeResponse:
@@ -105,6 +105,31 @@ class VKAdsStatisticsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["campaign_name"], "Lead campaign")
         self.assertEqual(rows[0]["conversions"], 2)
         self.assertEqual(rows[0]["cpa"], 250)
+
+    def test_nested_agency_client_profile_uses_username_as_login(self):
+        profile = VKAdsAPI._profile_from_client_item(
+            {
+                "user": {
+                    "id": 13034808,
+                    "username": "vkads_355780568@vk@1241124",
+                    "status": "active",
+                    "additional_info": {"client_name": "X-Fit Сормово"},
+                }
+            },
+            "agency_client",
+        )
+
+        self.assertEqual(profile["id"], "13034808")
+        self.assertEqual(profile["login"], "vkads_355780568@vk@1241124")
+        self.assertEqual(profile["type"], "agency_client")
+        self.assertIn("X-Fit Сормово", profile["name"])
+
+    def test_same_numeric_vk_profile_id_is_tried_before_cabinet_fallback(self):
+        name, uid, cabinet_only = vk_agency_exchange_hints("13034808", "13034808")
+
+        self.assertIsNone(name)
+        self.assertEqual(uid, "13034808")
+        self.assertEqual(cabinet_only, "13034808")
 
 
 if __name__ == "__main__":

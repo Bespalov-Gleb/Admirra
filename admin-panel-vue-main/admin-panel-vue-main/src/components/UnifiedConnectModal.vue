@@ -377,6 +377,9 @@ const form = reactive({
   access_token: '',
   refresh_token: '',
   account_id: '',
+  account_name: '',
+  agency_client_login: '',
+  is_agency: false,
   client_id_platform: '', // Rename if needed, but the backend might expect 'client_id' for some platforms
   client_secret: '',
   sync_depth: 90, // Days of history to sync initially
@@ -530,8 +533,12 @@ const fetchProfiles = async (integrationId) => {
 
 const selectProfile = async (profile) => {
   if (form.account_id === profile.login) return // No change
+  const isDelegatedVkProfile = ['agency_client', 'manager_client'].includes(profile.type)
   
   form.account_id = profile.login
+  form.account_name = profile.name || ''
+  form.agency_client_login = profile.login
+  form.is_agency = isDelegatedVkProfile
   // Reset dependent state
   error.value = null
   campaigns.value = []
@@ -546,7 +553,8 @@ const selectProfile = async (profile) => {
     await api.patch(`integrations/${lastIntegrationId.value}`, { 
       account_id: profile.login,
       agency_client_login: profile.login,
-      account_name: profile.name || null
+      account_name: profile.name || null,
+      is_agency: isDelegatedVkProfile
     })
     sendRemoteLog('Profile Selected', { login: profile.login })
     

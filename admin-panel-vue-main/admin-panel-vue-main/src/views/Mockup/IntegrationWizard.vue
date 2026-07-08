@@ -947,8 +947,11 @@ const selectProject = (id) => {
 const isStepVisible = (idx) => step.value >= idx
 
 const selectProfile = (cabinet) => {
+  const isDelegatedVkProfile = ['agency_client', 'manager_client'].includes(cabinet.type)
   form.account_id = cabinet.login
   form.agency_client_login = cabinet.login
+  form.account_name = cabinet.name || ''
+  form.is_agency = isDelegatedVkProfile
 }
 
 watch(
@@ -990,7 +993,9 @@ const goToStep3 = async () => {
   try {
     await api.patch(`/integrations/${lastIntegrationId.value}`, {
       account_id: form.account_id,
-      agency_client_login: form.agency_client_login || form.account_id
+      agency_client_login: form.agency_client_login || form.account_id,
+      account_name: form.account_name || null,
+      is_agency: Boolean(form.is_agency)
     })
     await new Promise(r => setTimeout(r, 100))
   } catch (err) {

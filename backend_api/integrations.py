@@ -753,6 +753,20 @@ async def exchange_vk_token_oauth(
     if not vk_account_id:
         logger.info(f"ℹ️ VK Account ID not detected. Integration will work with token's default account.")
 
+    is_delegated_vk_account = False
+    try:
+        vk_probe = VKAdsAPI(access_token, vk_account_id, send_client_id=False)
+        agency_profiles = await vk_probe.get_agency_clients()
+        manager_profiles = await vk_probe.get_manager_clients()
+        is_delegated_vk_account = bool(agency_profiles or manager_profiles)
+        logger.info(
+            "VK Ads delegated profile probe: agency_clients=%s, manager_clients=%s",
+            len(agency_profiles),
+            len(manager_profiles),
+        )
+    except Exception as probe_err:
+        logger.info("VK Ads delegated profile probe skipped/failed: %s", probe_err)
+
     # Determine Client Name
     client_name = client_name_input or "VK Ads Project"
     
@@ -805,6 +819,7 @@ async def exchange_vk_token_oauth(
         db_integration.refresh_token = encrypted_refresh
         db_integration.account_id = vk_account_id
         db_integration.vk_user_id = vk_user_id or db_integration.vk_user_id
+        db_integration.is_agency = is_delegated_vk_account
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db_integration.error_message = None
     else:
@@ -816,6 +831,7 @@ async def exchange_vk_token_oauth(
             refresh_token=encrypted_refresh,
             account_id=vk_account_id,
             vk_user_id=vk_user_id,
+            is_agency=is_delegated_vk_account,
             sync_status=models.IntegrationSyncStatus.NEVER,
         )
         db.add(db_integration)
@@ -834,7 +850,7 @@ async def exchange_vk_token_oauth(
     return {
         "status": "success", 
         "integration_id": str(db_integration.id),
-        "is_agency": False # VK usually doesn't have the same agency structure as Yandex in this flow
+        "is_agency": is_delegated_vk_account
     }
 
 @router.post("/mytarget/exchange")
@@ -1561,17 +1577,19 @@ async def get_integration_profiles(
             profiles = []
             for vk_profile in vk_profiles:
                 profile_id = vk_profile.get("id")
+                profile_login = vk_profile.get("login") or profile_id
                 profile_name = vk_profile.get("name", f"Аккаунт {profile_id}")
                 profile_type = vk_profile.get("type", "personal")
                 
                 # Используем id как login для совместимости с существующей логикой
                 profiles.append({
-                    "id": profile_id,  # VK использует ID, а не login
-                    "login": profile_id,  # Для совместимости с Yandex форматом
+                    "id": profile_id or profile_login,  # VK использует ID, а не login
+                    "login": profile_login,  # Для совместимости с Yandex форматом
                     "name": profile_name,
-                    "type": profile_type
+                    "type": profile_type,
+                    "status": vk_profile.get("status"),
                 })
-                logger.info(f"✅ Added VK profile: {profile_id} ({profile_name})")
+                logger.info(f"✅ Added VK profile: {profile_login} ({profile_name}, type={profile_type})")
             
             # Fallback если ничего не найдено
             if not profiles and integration.account_id:

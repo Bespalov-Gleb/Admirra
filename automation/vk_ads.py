@@ -47,8 +47,10 @@ def vk_agency_exchange_hints(
     """
     (agency_client_name, agency_client_id, cabinet_id_only).
 
-    Если в БД один и тот же числовой ID кабинета в account_id и agency_client_login —
-    это не user id из AgencyClients; для OAuth нужен разбор через GET agency/clients.json.
+    Если в БД один и тот же числовой ID в account_id и agency_client_login, это
+    может быть как user id клиента агентства/менеджера, так и id кабинета из
+    старых записей. Сначала пробуем его как agency_client_id; если VK отклонит,
+    ниже сработает старый разбор через GET agency/clients.json.
     """
     login = (agency_client_login or "").strip()
     aid = (account_id or "").strip()
@@ -57,7 +59,7 @@ def vk_agency_exchange_hints(
     if aid.lower() in ("unknown", "none", ""):
         aid = ""
     if login == aid and login.isdigit():
-        return None, None, login
+        return None, login, login
     # Только числовой кабинет в account_id без отдельного логина клиента агентства
     if not login and aid.isdigit():
         return None, None, aid
@@ -204,11 +206,14 @@ async def exchange_vk_agency_client_credentials_for_integration(
         cabinet_only,
     )
     api = VKAdsAPI(agency_access_token, account_id=None)
-    raw = await api.get_agency_clients_raw()
+    raw = []
+    raw.extend(await api.get_agency_clients_raw())
+    raw.extend(await api.get_manager_clients_raw())
     if not raw:
         logger.warning(
-            "VK Ads: agency/clients.json пуст или недоступен. Нужен scope read_clients и аккаунт агентства; "
-            "либо вручную укажите клиента агентства (user id из AgencyClients), а не только ID кабинета."
+            "VK Ads: agency/clients.json и manager/clients.json пусты или недоступны. "
+            "Нужен scope read_clients/read_manager_clients и аккаунт агентства/менеджера; "
+            "либо вручную укажите клиента агентства/менеджера, а не только ID кабинета."
         )
         return None
 
@@ -228,7 +233,11 @@ async def exchange_vk_agency_client_credentials_for_integration(
         raw_sorted = raw_sorted[:max_items]
 
     for item in raw_sorted:
-        aid = item.get("id")
+        profile = (
+            VKAdsAPI._profile_from_client_item(item, "agency_client")
+            or VKAdsAPI._profile_from_client_item(item, "manager_client")
+        )
+        aid = (profile or {}).get("raw_client_id") or (profile or {}).get("id") or item.get("id")
         if aid is None:
             continue
         sid = str(aid)
@@ -248,7 +257,7 @@ async def exchange_vk_agency_client_credentials_for_integration(
             )
             return td
         user = item.get("user")
-        uname = item.get("username") or item.get("user_name")
+        uname = (profile or {}).get("raw_username") or item.get("username") or item.get("user_name")
         if not uname and isinstance(user, dict):
             uname = user.get("username")
         if uname:
@@ -308,24 +317,45 @@ class VKAdsAPI:
 
     async def detect_token_kind(self) -> str:
         """
-        Определяет тип токена по агентскому endpoint: "agency" | "personal" | "unknown".
+        Определяет тип токена по delegated endpoints: "agency" | "manager" | "personal" | "unknown".
 
         GET /agency/clients.json: 200 (агентство, в т.ч. с items) → agency;
-        403 → личный/рекламодатель (personal); прочее/ошибка → unknown.
+        GET /api/v3/manager/clients.json: 200 → manager;
+        403/404 на обоих → личный/рекламодатель (personal); прочее/ошибка → unknown.
         Нужен, чтобы решить, передавать ли client_id в запросах статистики.
         """
         url = f"{self.base_url}/agency/clients.json"
+        agency_unavailable = False
         try:
             async with httpx.AsyncClient() as client:
                 await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=20.0)
                 if response.status_code == 200:
                     return "agency"
-                if response.status_code == 403:
-                    return "personal"
-                logger.info("VK Ads detect_token_kind: HTTP %s", response.status_code)
+                if response.status_code in (403, 404):
+                    agency_unavailable = True
+                else:
+                    logger.info("VK Ads detect_token_kind agency: HTTP %s", response.status_code)
         except Exception as ex:
-            logger.info("VK Ads detect_token_kind error: %s", ex)
+            logger.info("VK Ads detect_token_kind agency error: %s", ex)
+
+        manager_url = "https://ads.vk.com/api/v3/manager/clients.json"
+        manager_unavailable = False
+        try:
+            async with httpx.AsyncClient() as client:
+                await self._throttle()
+                response = await client.get(manager_url, headers=self.headers, timeout=20.0)
+                if response.status_code == 200:
+                    return "manager"
+                if response.status_code in (403, 404):
+                    manager_unavailable = True
+                else:
+                    logger.info("VK Ads detect_token_kind manager: HTTP %s", response.status_code)
+        except Exception as ex:
+            logger.info("VK Ads detect_token_kind manager error: %s", ex)
+
+        if agency_unavailable and manager_unavailable:
+            return "personal"
         return "unknown"
 
     def _push_debug(self, message: str, limit: int = 60) -> None:
@@ -1612,6 +1642,112 @@ class VKAdsAPI:
                         logger.debug(f"Could not enrich account {account_id} with name: {e}")
         except Exception as e:
             logger.debug(f"Error enriching accounts with names: {e}")
+
+    @staticmethod
+    def _first_present(*values: Any) -> Optional[str]:
+        for value in values:
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text and text.lower() not in ("none", "unknown", "null"):
+                return text
+        return None
+
+    @classmethod
+    def _profile_from_client_item(cls, item: Dict[str, Any], profile_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Нормализует элементы agency/clients.json и manager/clients.json.
+
+        VK в разных ответах может класть данные клиента либо в корень элемента,
+        либо в item.user / item.user.additional_info. Для OAuth client credentials
+        надёжнее хранить username, если он есть; числовой id оставляем как fallback.
+        """
+        user = item.get("user") if isinstance(item.get("user"), dict) else {}
+        additional = item.get("additional_info") if isinstance(item.get("additional_info"), dict) else {}
+        user_additional = user.get("additional_info") if isinstance(user.get("additional_info"), dict) else {}
+
+        client_id = cls._first_present(
+            user.get("id"),
+            item.get("user_id"),
+            item.get("_user__id"),
+            item.get("client_user_id"),
+            item.get("client_id"),
+            item.get("id"),
+        )
+        username = cls._first_present(
+            user.get("username"),
+            item.get("username"),
+            item.get("user_name"),
+            item.get("login"),
+        )
+        display_name = cls._first_present(
+            user_additional.get("client_name"),
+            additional.get("client_name"),
+            item.get("client_name"),
+            item.get("name"),
+            user.get("firstname") and user.get("lastname") and f"{user.get('firstname')} {user.get('lastname')}",
+            username,
+            client_id and f"Клиент {client_id}",
+        )
+        status = cls._first_present(item.get("status"), user.get("status"), "unknown")
+
+        if not client_id and not username:
+            return None
+
+        login = username or client_id
+        label = "Клиент агентства" if profile_type == "agency_client" else "Клиент менеджера"
+        return {
+            "id": client_id or login,
+            "login": login,
+            "name": f"{label} ({display_name})" if display_name else f"{label} ({login})",
+            "status": status,
+            "type": profile_type,
+            "raw_username": username,
+            "raw_client_id": client_id,
+        }
+
+    async def _get_paginated_vk_items(self, url: str, endpoint_name: str) -> List[Dict[str, Any]]:
+        items: List[Dict[str, Any]] = []
+        limit = 50
+        offset = 0
+        max_items = 1000
+
+        try:
+            async with httpx.AsyncClient() as client:
+                while offset < max_items:
+                    await self._throttle()
+                    response = await client.get(
+                        url,
+                        headers=self.headers,
+                        params={"limit": limit, "offset": offset},
+                        timeout=30.0,
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        batch = list(data.get("items") or [])
+                        if not batch:
+                            break
+                        items.extend(batch)
+                        if len(batch) < limit:
+                            break
+                        offset += len(batch)
+                        continue
+                    if response.status_code in (403, 404):
+                        logger.debug("VK Ads %s unavailable: HTTP %s", endpoint_name, response.status_code)
+                        break
+                    logger.warning(
+                        "VK Ads %s failed: HTTP %s %s",
+                        endpoint_name,
+                        response.status_code,
+                        (response.text or "")[:300],
+                    )
+                    break
+        except Exception as e:
+            logger.debug("VK Ads %s fetch error: %s", endpoint_name, e)
+
+        if len(items) >= max_items:
+            logger.warning("VK Ads %s returned at least %s items; list was capped", endpoint_name, max_items)
+        return items
     
     async def _get_accounts_from_statistics(self) -> List[Dict[str, Any]]:
         """
@@ -1706,52 +1842,35 @@ class VKAdsAPI:
             - name: str - название клиента
             - status: str - статус клиента
         """
-        url = f"{self.base_url}/agency/clients.json"
-        
-        try:
-            async with httpx.AsyncClient() as client:
-                await self._throttle()
-                response = await client.get(url, headers=self.headers, timeout=30.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    items = data.get("items", [])
-                    return [
-                        {
-                            "id": str(item.get("id")),
-                            "name": item.get("name", f"Клиент {item.get('id')}"),
-                            "status": item.get("status", "unknown")
-                        }
-                        for item in items
-                    ]
-                elif response.status_code == 403:
-                    # 403 означает, что это не агентский аккаунт - это нормально
-                    logger.debug("VK account is not an agency account (403)")
-                    return []
-                else:
-                    logger.warning(f"Failed to fetch VK agency clients: {response.status_code} - {response.text[:200]}")
-                    return []
-        except Exception as e:
-            logger.debug(f"Error fetching VK agency clients (may not be agency): {e}")
-            return []
+        items = await self.get_agency_clients_raw()
+        clients: List[Dict[str, Any]] = []
+        for item in items:
+            profile = self._profile_from_client_item(item, "agency_client")
+            if profile:
+                clients.append(profile)
+        return clients
 
     async def get_agency_clients_raw(self) -> List[Dict[str, Any]]:
         """Сырые элементы из GET /agency/clients.json (для сопоставления кабинета с user id клиента)."""
         url = f"{self.base_url}/agency/clients.json"
-        try:
-            async with httpx.AsyncClient() as client:
-                await self._throttle()
-                response = await client.get(url, headers=self.headers, timeout=30.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    return list(data.get("items") or [])
-                logger.warning(
-                    "VK Ads get_agency_clients_raw: HTTP %s %s",
-                    response.status_code,
-                    (response.text or "")[:300],
-                )
-        except Exception as e:
-            logger.warning("VK Ads get_agency_clients_raw: %s", e)
-        return []
+        return await self._get_paginated_vk_items(url, "agency/clients.json")
+
+    async def get_manager_clients_raw(self) -> List[Dict[str, Any]]:
+        """Сырые элементы из GET /api/v3/manager/clients.json."""
+        url = "https://ads.vk.com/api/v3/manager/clients.json"
+        return await self._get_paginated_vk_items(url, "manager/clients.json")
+
+    async def get_manager_clients(self) -> List[Dict[str, Any]]:
+        """
+        Получает клиентов менеджерского аккаунта (если токен принадлежит менеджеру).
+        """
+        items = await self.get_manager_clients_raw()
+        clients: List[Dict[str, Any]] = []
+        for item in items:
+            profile = self._profile_from_client_item(item, "manager_client")
+            if profile:
+                clients.append(profile)
+        return clients
     
     async def get_profiles(self) -> List[Dict[str, Any]]:
         """
@@ -1777,6 +1896,7 @@ class VKAdsAPI:
                     account_name = account.get("name", f"Аккаунт {account_id}")
                     profiles.append({
                         "id": account_id,
+                        "login": account_id,
                         "name": account_name,  # Показываем оригинальное название кабинета
                         "type": "personal"
                     })
@@ -1789,28 +1909,50 @@ class VKAdsAPI:
         try:
             agency_clients = await self.get_agency_clients()
             for client in agency_clients:
-                client_id = client.get("id")
+                client_id = client.get("login") or client.get("id")
                 if client_id and client_id not in seen_ids:
                     profiles.append({
-                        "id": client_id,
-                        "name": f"Клиент агентства ({client.get('name', client_id)})",
-                        "type": "agency_client"
+                        "id": client.get("id") or client_id,
+                        "login": client_id,
+                        "name": client.get("name") or f"Клиент агентства ({client_id})",
+                        "type": "agency_client",
+                        "status": client.get("status"),
                     })
                     seen_ids.add(client_id)
                     logger.info(f"✅ Added VK agency client: {client_id}")
         except Exception as e:
             logger.debug(f"No agency clients found or error: {e}")
+
+        # 3. Получаем клиентов менеджера (если есть). Агентский сценарий выше не меняем:
+        # manager_clients добавляются только отдельным типом и не влияют на agency_clients.
+        try:
+            manager_clients = await self.get_manager_clients()
+            for client in manager_clients:
+                client_id = client.get("login") or client.get("id")
+                if client_id and client_id not in seen_ids:
+                    profiles.append({
+                        "id": client.get("id") or client_id,
+                        "login": client_id,
+                        "name": client.get("name") or f"Клиент менеджера ({client_id})",
+                        "type": "manager_client",
+                        "status": client.get("status"),
+                    })
+                    seen_ids.add(client_id)
+                    logger.info(f"✅ Added VK manager client: {client_id}")
+        except Exception as e:
+            logger.debug(f"No manager clients found or error: {e}")
         
-        # 3. Fallback: Если ничего не найдено, используем account_id из интеграции
+        # 4. Fallback: Если ничего не найдено, используем account_id из интеграции
         if not profiles and self.cabinet_id:
             profiles.append({
                 "id": str(self.cabinet_id),
+                "login": str(self.cabinet_id),
                 "name": f"Аккаунт ({self.cabinet_id})",
                 "type": "personal"
             })
             logger.info(f"✅ Added fallback VK profile from account_id: {self.cabinet_id}")
         
-        # 4. Fallback: Если account_id не определен, пытаемся получить его из первой кампании
+        # 5. Fallback: Если account_id не определен, пытаемся получить его из первой кампании
         if not profiles:
             try:
                 campaigns = await self.get_campaigns()
@@ -1820,17 +1962,19 @@ class VKAdsAPI:
                     logger.info(f"⚠️ No profiles found, but {len(campaigns)} campaigns available. Using default account.")
                     profiles.append({
                         "id": "default",
+                        "login": "default",
                         "name": "Аккаунт по умолчанию",
                         "type": "personal"
                     })
             except Exception as e:
                 logger.warning(f"Failed to get campaigns for fallback profile: {e}")
         
-        # 5. Final fallback: Создаем профиль "default" если ничего не найдено
+        # 6. Final fallback: Создаем профиль "default" если ничего не найдено
         if not profiles:
             logger.warning("⚠️ No VK profiles found, creating default profile")
             profiles.append({
                 "id": "default",
+                "login": "default",
                 "name": "Аккаунт по умолчанию",
                 "type": "personal"
             })

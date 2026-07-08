@@ -576,10 +576,11 @@ const updateFormData = (updates) => {
 
 // Selection Handlers (Step 1 handled inline now)
 const selectProfile = async (profile) => {
+  const isDelegatedVkProfile = ['agency_client', 'manager_client'].includes(profile.type)
   form.account_id = profile.login
   form.agency_client_login = profile.login
   form.account_name = profile.name || ''
-  form.is_agency = profile.type === 'agency_client'
+  form.is_agency = isDelegatedVkProfile
   isProfileSelectorOpen.value = false
   
   // Patch integration with profile
@@ -588,7 +589,7 @@ const selectProfile = async (profile) => {
       account_id: profile.login,
       agency_client_login: profile.login,
       account_name: profile.name || null,
-      is_agency: profile.type === 'agency_client'
+      is_agency: isDelegatedVkProfile
     })
   } catch (err) {
     error.value = "Ошибка при сохранении профиля"

@@ -666,7 +666,7 @@ async def _ensure_vk_hierarchy_rows_for_campaign(
         api = VKAdsAPI(
             access_token,
             integration.account_id,
-            send_client_id=(token_kind == "agency"),
+            send_client_id=(token_kind in {"agency", "manager"}),
         )
     except Exception as err:
         logger.warning("Failed to init VK drilldown for campaign %s: %s", campaign.id, err)
