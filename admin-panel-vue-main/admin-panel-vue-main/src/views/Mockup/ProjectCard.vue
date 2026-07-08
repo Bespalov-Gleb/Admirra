@@ -579,10 +579,24 @@
             class="folder-color-picker"
             :style="{
               '--folder-color': safeFolderColor,
+              '--folder-palette-color': folderPaletteBaseColor,
               '--folder-hue': folderHsl.h,
               '--folder-saturation': `${folderHsl.s}%`,
+              '--folder-lightness': `${folderHsl.l}%`,
             }"
           >
+            <button
+              ref="folderPaletteRef"
+              type="button"
+              class="folder-color-palette"
+              aria-label="Палитра выбора цвета папки"
+              @pointerdown="startFolderPalettePick"
+            >
+              <span
+                class="folder-color-palette__marker"
+                :style="{ left: `${folderHsl.s}%`, top: `${100 - folderHsl.l}%` }"
+              ></span>
+            </button>
             <div class="folder-color-picker__main">
               <span class="folder-color-picker__preview">
                 <svg viewBox="0 0 20 18" fill="none" aria-hidden="true">
@@ -609,39 +623,31 @@
                   @input="setFolderColorFromHsl({ h: Number($event.target.value) })"
                 />
               </label>
-              <label class="folder-color-slider">
-                <span>Насыщенность</span>
+            </div>
+            <div class="folder-color-inputs">
+              <label class="folder-color-picker__hex" aria-label="HEX цвет папки">
+                <span>#</span>
                 <input
-                  class="folder-color-range folder-color-range--saturation"
-                  type="range"
-                  min="0"
-                  max="100"
-                  :value="folderHsl.s"
-                  @input="setFolderColorFromHsl({ s: Number($event.target.value) })"
+                  v-model="folderHexDraft"
+                  maxlength="6"
+                  spellcheck="false"
+                  @input="folderHexDraft = folderHexDraft.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase()"
+                  @blur="applyFolderHexDraft"
                 />
               </label>
-              <label class="folder-color-slider">
-                <span>Светлота</span>
-                <input
-                  class="folder-color-range folder-color-range--lightness"
-                  type="range"
-                  min="18"
-                  :max="MAX_FOLDER_LIGHTNESS"
-                  :value="folderHsl.l"
-                  @input="setFolderColorFromHsl({ l: Number($event.target.value) })"
-                />
+              <label class="folder-rgb-input" aria-label="Красный канал">
+                <span>R</span>
+                <input :value="folderRgb.r" inputmode="numeric" maxlength="3" @input="setFolderRgbChannel('r', $event.target.value)" />
+              </label>
+              <label class="folder-rgb-input" aria-label="Зелёный канал">
+                <span>G</span>
+                <input :value="folderRgb.g" inputmode="numeric" maxlength="3" @input="setFolderRgbChannel('g', $event.target.value)" />
+              </label>
+              <label class="folder-rgb-input" aria-label="Синий канал">
+                <span>B</span>
+                <input :value="folderRgb.b" inputmode="numeric" maxlength="3" @input="setFolderRgbChannel('b', $event.target.value)" />
               </label>
             </div>
-            <label class="folder-color-picker__hex" aria-label="HEX цвет папки">
-              <span>#</span>
-              <input
-                v-model="folderHexDraft"
-                maxlength="6"
-                spellcheck="false"
-                @input="folderHexDraft = folderHexDraft.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase()"
-                @blur="applyFolderHexDraft"
-              />
-            </label>
           </div>
 
           <template v-if="freeProjects.length">
@@ -786,6 +792,8 @@ const movingProjectId = ref(null)
 const folderForm = ref({ name: '', color: '#2563eb', project_ids: [] })
 const folderHexDraft = ref('2563EB')
 const folderHsl = ref({ h: 217, s: 91, l: 55 })
+const folderPaletteRef = ref(null)
+const folderPaletteDragging = ref(false)
 const folderSaving = ref(false)
 
 const DEFAULT_FOLDER_COLOR = '#2563eb'
@@ -885,6 +893,8 @@ const syncFolderColorState = (value) => {
 }
 
 const safeFolderColor = computed(() => constrainFolderColor(folderForm.value.color))
+const folderRgb = computed(() => hexToRgb(safeFolderColor.value))
+const folderPaletteBaseColor = computed(() => rgbToHex(hslToRgb({ h: folderHsl.value.h, s: 100, l: 50 })))
 const setFolderColor = (value) => {
   syncFolderColorState(value)
 }
@@ -908,6 +918,38 @@ const applyFolderHexDraft = () => {
   }
   syncFolderColorState(folderForm.value.color)
 }
+const setFolderRgbChannel = (channel, value) => {
+  const rgb = { ...folderRgb.value }
+  rgb[channel] = Math.round(clamp(String(value).replace(/\D/g, ''), 0, 255))
+  syncFolderColorState(rgbToHex(rgb))
+}
+const pickFolderColorFromPalette = (event) => {
+  const rect = folderPaletteRef.value?.getBoundingClientRect()
+  if (!rect) return
+  const x = clamp((event.clientX - rect.left) / rect.width, 0, 1)
+  const y = clamp((event.clientY - rect.top) / rect.height, 0, 1)
+  setFolderColorFromHsl({
+    s: Math.round(x * 100),
+    l: Math.round(MAX_FOLDER_LIGHTNESS - y * (MAX_FOLDER_LIGHTNESS - 18)),
+  })
+}
+const stopFolderPalettePick = () => {
+  folderPaletteDragging.value = false
+  if (typeof window === 'undefined') return
+  window.removeEventListener('pointermove', pickFolderColorFromPalette)
+  window.removeEventListener('pointerup', stopFolderPalettePick)
+  window.removeEventListener('pointercancel', stopFolderPalettePick)
+}
+const startFolderPalettePick = (event) => {
+  event.preventDefault()
+  folderPaletteDragging.value = true
+  pickFolderColorFromPalette(event)
+  if (typeof window === 'undefined') return
+  window.addEventListener('pointermove', pickFolderColorFromPalette)
+  window.addEventListener('pointerup', stopFolderPalettePick)
+  window.addEventListener('pointercancel', stopFolderPalettePick)
+}
+onUnmounted(stopFolderPalettePick)
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
@@ -3783,10 +3825,10 @@ onMounted(async () => {
   min-width: 2.55rem;
   height: 2rem;
   padding: 0 0.62rem;
-  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(15, 23, 42, 0.06));
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 0.5rem;
   background: rgba(255, 255, 255, 0.78);
-  color: var(--folder-color, #2563eb);
+  color: #2563eb;
   font-size: 0.82rem;
   font-weight: 900;
   box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.05);
@@ -3794,13 +3836,13 @@ onMounted(async () => {
   transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
 .folder-member-cloud:hover {
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 34%, rgba(15, 23, 42, 0.08));
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 8%, #fff);
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(37, 99, 235, 0.06);
 }
 .folder-member-cloud--open {
-  background: var(--folder-color, #2563eb);
-  border-color: var(--folder-color, #2563eb);
-  color: #fff;
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.38);
+  color: #1d4ed8;
 }
 .folder-member-cloud__chevron { transition: transform 0.18s ease; }
 .folder-member-cloud__chevron--open { transform: rotate(180deg); }
@@ -3998,22 +4040,22 @@ onMounted(async () => {
 
 :global(.dark) .folder-member-cloud,
 :global(.darkmode) .folder-member-cloud {
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 28%, rgba(255, 255, 255, 0.08));
+  border-color: rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.06);
-  color: color-mix(in srgb, var(--folder-color, #2563eb) 72%, #fff);
+  color: #67a8ff;
 }
 
 :global(.dark) .folder-member-cloud:hover,
 :global(.darkmode) .folder-member-cloud:hover {
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 40%, rgba(255, 255, 255, 0.1));
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(255, 255, 255, 0.05));
+  border-color: rgba(103, 168, 255, 0.32);
+  background: rgba(103, 168, 255, 0.1);
 }
 
 :global(.dark) .folder-member-cloud--open,
 :global(.darkmode) .folder-member-cloud--open {
-  background: color-mix(in srgb, var(--folder-color, #2563eb) 82%, #fff);
-  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 82%, #fff);
-  color: #fff;
+  background: rgba(103, 168, 255, 0.15);
+  border-color: rgba(103, 168, 255, 0.4);
+  color: #8ec1ff;
 }
 
 /* Вложенный проект в развёрнутой папке: рамка цвета папки + лёгкий сдвиг */
@@ -4177,7 +4219,7 @@ onMounted(async () => {
 
 .folder-color-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 8.2rem;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.7rem;
   align-items: stretch;
   padding: 0.75rem;
@@ -4185,6 +4227,35 @@ onMounted(async () => {
   border-radius: 1rem;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--folder-color, #2563eb) 7%, #fff), #fff 70%);
+}
+.folder-color-palette {
+  position: relative;
+  width: 100%;
+  height: 7.7rem;
+  border: 1px solid color-mix(in srgb, var(--folder-color, #2563eb) 18%, rgba(15, 23, 42, 0.1));
+  border-radius: 0.92rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(0, 0, 0, 0.68) 100%),
+    linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0) 100%),
+    var(--folder-palette-color, #2563eb);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0.5rem 1.25rem color-mix(in srgb, var(--folder-color, #2563eb) 12%, transparent);
+  cursor: crosshair;
+  overflow: hidden;
+}
+.folder-color-palette__marker {
+  position: absolute;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 0.18rem solid #ffffff;
+  border-radius: 999px;
+  background: var(--folder-color, #2563eb);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.18),
+    0 0.22rem 0.72rem rgba(15, 23, 42, 0.28);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 .folder-color-picker__main {
   position: relative;
@@ -4244,10 +4315,9 @@ onMounted(async () => {
   letter-spacing: 0.02em;
 }
 .folder-color-sliders {
-  grid-column: 1 / -1;
   display: grid;
   gap: 0.55rem;
-  padding: 0.25rem 0.08rem 0.05rem;
+  padding: 0.05rem 0.08rem 0.05rem;
 }
 .folder-color-slider {
   display: grid;
@@ -4293,10 +4363,15 @@ onMounted(async () => {
 .folder-color-range--lightness {
   background: linear-gradient(90deg, #171717, hsl(var(--folder-hue) var(--folder-saturation) 48%), #d8dee8);
 }
+.folder-color-inputs {
+  display: grid;
+  grid-template-columns: minmax(7.8rem, 1.15fr) repeat(3, minmax(3.45rem, 0.55fr));
+  gap: 0.55rem;
+}
 .folder-color-picker__hex {
   display: flex;
   align-items: center;
-  min-height: 3.25rem;
+  min-height: 2.95rem;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.85rem;
   background: #f8fafc;
@@ -4324,9 +4399,40 @@ onMounted(async () => {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
+.folder-rgb-input {
+  display: flex;
+  align-items: center;
+  min-height: 2.95rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.85rem;
+  background: #f8fafc;
+  padding: 0 0.58rem;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.folder-rgb-input:focus-within {
+  border-color: color-mix(in srgb, var(--folder-color, #2563eb) 48%, #2563eb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--folder-color, #2563eb) 12%, transparent);
+}
+.folder-rgb-input span {
+  color: rgba(105, 105, 105, 0.58);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+.folder-rgb-input input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #171717;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: right;
+}
 @media (max-width: 560px) {
   .folder-color-picker { grid-template-columns: 1fr; }
   .folder-color-slider { grid-template-columns: 1fr; gap: 0.35rem; }
+  .folder-color-inputs { grid-template-columns: 1fr 1fr; }
 }
 
 .folder-modal__projects {
