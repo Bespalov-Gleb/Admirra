@@ -1755,6 +1755,22 @@ async def get_integration_counters(
                         logger.info(f"✅ Priority 1 SUCCESS: Found {len(counters_list)} counters from {len(all_counter_ids)} CounterIds for campaigns")
                     except Exception as e:
                         logger.error(f"❌ Priority 1 FAILED: Failed to fetch counter details from Metrika: {e}")
+
+                    # Счётчики, привязанные к кампаниям, но отсутствующие в get_counters()
+                    # (гостевой/расшаренный доступ или другой профиль Метрики): их цели всё
+                    # равно тянутся напрямую через /goals, поэтому счётчик обязан быть в списке.
+                    # Иначе баг — «цели без счётчика». Дописываем недостающие с fallback-именем.
+                    matched_ids = {c["id"] for c in counters_list}
+                    for cid in sorted(all_counter_ids):
+                        if cid not in matched_ids:
+                            counters_list.append({
+                                "id": cid,
+                                "name": f"Счётчик {cid}",
+                                "site": "",
+                                "owner_login": "",
+                                "source": "campaign",
+                            })
+                            logger.info(f"➕ Priority 1: added campaign counter {cid} missing from get_counters() (fallback name)")
                 else:
                     logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
             else:
@@ -1764,8 +1780,12 @@ async def get_integration_counters(
         
         # Priority 2: Fallback to profile-based counters
         # Use fallback if no counters found from campaigns (either no campaign_ids or no CounterIds in campaigns)
-        if not counters_list and target_account:
-            logger.info(f"🔵 Priority 2: No counters from campaigns, falling back to profile-based counters")
+        # ВАЖНО: не гейтим на target_account — после правки Авито account_id/agency_client_login
+        # может быть внутренним porg-id, который _clean_metrika_target_account обнуляет в None.
+        # Раньше фолбэк при этом молча пропускался и счётчики Метрики исчезали. Если профиль
+        # не резолвится (target_account=None) — грузим все доступные счётчики токена без фильтра.
+        if not counters_list:
+            logger.info(f"🔵 Priority 2: No counters from campaigns, falling back to profile-based counters (target_account={target_account!r})")
             from automation.yandex_metrica import YandexMetricaAPI
             metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
             
