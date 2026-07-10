@@ -65,7 +65,7 @@
         </div>
 
         <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
-          {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить отчет сейчас' }}
+          {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить сейчас' }}
           <CheckCircleIcon />
         </button>
         <div
@@ -75,7 +75,7 @@
         >
           <button class="secondary-report cs-head" type="button" @click="toggleMenu('export')">
             <DocumentArrowDownIcon />
-            <span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
+            <span>{{ sendingExport ? 'Экспорт...' : 'Экспорт' }}</span>
             <ChevronDownIcon class="report-export-caret" />
           </button>
           <div class="cs-list dropdown-panel export">
@@ -86,7 +86,7 @@
         </div>
 
         <div v-if="reportsBlockEmpty" class="report-empty-row">
-          <span class="report-empty-row__text">Каналы не подключены — подключите Telegram, MAX или email, чтобы отправлять отчёты клиенту</span>
+          <span class="report-empty-row__text">Каналы не подключены — настройте доставку отчётов</span>
           <button type="button" class="report-empty-row__btn" @click="showProjectReportSettings = true">Настроить</button>
         </div>
 
@@ -96,7 +96,7 @@
           class="report-pending-row"
           @click="openDeliveryPreview(pendingProjectDelivery)"
         >
-          <span>Ожидает проверки</span>
+          <span>На проверке</span>
           <strong>{{ pendingProjectDelivery.scope_label }}</strong>
           <small>{{ formatReportDate(pendingProjectDelivery.start_date) }} — {{ formatReportDate(pendingProjectDelivery.end_date) }}</small>
         </button>
@@ -5252,16 +5252,18 @@ onMounted(() => {
 
 .panel-reports {
   display: grid;
-  grid-template-columns: minmax(30rem, auto) minmax(17rem, auto) minmax(25rem, auto) auto;
-  gap: 2rem;
+  grid-template-columns: minmax(24rem, 1fr) minmax(18rem, 0.8fr) auto auto;
+  gap: 1.2rem;
   align-items: end;
 }
 
 .report-schedule p {
-  margin: 0 0 2rem;
-  color: #b3b3b3;
-  font-size: 1.3rem;
-  font-weight: 500;
+  margin: 0 0 0.8rem;
+  color: #8a94a6;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .select-like,
@@ -5305,25 +5307,41 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  height: 4.6rem;
-  padding: 0 1rem;
+  gap: 0.8rem;
+  height: 4.2rem;
+  min-width: 0;
+  padding: 0 1.35rem;
   border: 0;
-  border-radius: 1.2rem;
-  background: #2563eb;
+  border-radius: 1rem;
+  background: linear-gradient(270deg, #06b5d4 0.35%, #1f9de4 32.08%, #2563eb 96.51%);
   color: #fff;
-  font-size: 1.3rem;
+  font-size: 1.18rem;
   font-weight: 600;
   white-space: nowrap;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.18s, opacity 0.18s, border-color 0.18s, box-shadow 0.18s, background-color 0.18s;
+}
+
+.primary-report:hover:not(:disabled),
+.secondary-report:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primary-report:disabled,
+.secondary-report:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .secondary-report {
   background: #fff;
-  color: #2563eb;
-  border: 1px solid #e5eaf3;
+  color: #334155;
+  border: 1px solid rgba(105, 105, 105, 0.14);
+  box-shadow: none;
 }
 
-/* Экспорт-меню в блоке «Отчёты» (ТЗ отчётов, экран 1 — переехало из строки фильтров) */
 .report-export-select {
   position: relative;
   align-self: end;
@@ -5331,8 +5349,8 @@ onMounted(() => {
 
 .report-export-select .secondary-report {
   justify-content: space-between;
-  gap: 0.8rem;
-  width: 100%;
+  min-width: 13.2rem;
+  width: auto;
 }
 
 .report-export-select .report-export-caret {
@@ -5349,39 +5367,39 @@ onMounted(() => {
 .report-export-select .cs-list {
   right: 0;
   left: auto;
-  min-width: 22rem;
+  min-width: 20rem;
 }
 
 .report-empty-row {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 1.2rem;
-  min-height: 3.4rem;
-  padding: 0.7rem 1.2rem;
-  border-radius: 1.1rem;
-  background: #f7f9fc;
-  border: 1px solid #e5eaf3;
+  gap: 1rem;
+  min-height: 3.6rem;
+  padding: 0.7rem 0.9rem 0.7rem 1.1rem;
+  border-radius: 0.95rem;
+  background: #f8fafc;
+  border: 1px solid rgba(105, 105, 105, 0.1);
 }
 
 .report-empty-row__text {
   flex: 1;
   min-width: 0;
-  color: #767676;
-  font-size: 1.2rem;
+  color: #64748b;
+  font-size: 1.12rem;
   font-weight: 500;
 }
 
 .report-empty-row__btn {
   flex: 0 0 auto;
-  height: 3.4rem;
-  padding: 0 1.5rem;
+  height: 2.8rem;
+  padding: 0 1.15rem;
   border: 0;
-  border-radius: 1rem;
-  background: #2563eb;
-  color: #fff;
-  font-size: 1.2rem;
-  font-weight: 600;
+  border-radius: 0.8rem;
+  background: #eef4ff;
+  color: #2563eb;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .report-pending-row {
@@ -5389,40 +5407,51 @@ onMounted(() => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 1rem;
-  min-height: 3.4rem;
+  gap: 0.9rem;
+  min-height: 3.6rem;
   padding: 0.65rem 0.9rem;
-  border-radius: 1.1rem;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
+  border-radius: 0.95rem;
+  background: #fff8ed;
+  border: 1px solid rgba(239, 168, 39, 0.32);
+  color: #9a6a12;
   text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s, border-color 0.18s, background-color 0.18s;
+}
+
+.report-pending-row:hover {
+  transform: translateY(-1px);
+  border-color: rgba(239, 168, 39, 0.48);
+  background: #fff5e4;
 }
 
 .report-pending-row span {
   display: inline-flex;
   align-items: center;
   min-height: 1.8rem;
-  padding: 0 0.7rem;
+  padding: 0 0.65rem;
   border-radius: 999px;
-  background: #ffedd5;
-  color: #c2410c;
-  font-size: 0.9rem;
-  font-weight: 800;
+  background: rgba(239, 168, 39, 0.15);
+  color: #9a6a12;
+  font-size: 0.92rem;
+  font-weight: 750;
   white-space: nowrap;
 }
 
 .report-pending-row strong {
   min-width: 0;
-  color: #7c2d12;
+  color: #583c0e;
+  font-size: 1.12rem;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .report-pending-row small {
-  color: #9a3412;
-  font-weight: 700;
+  color: #9a6a12;
+  font-size: 1.05rem;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -10368,6 +10397,60 @@ onMounted(() => {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
+:global(.dark) .secondary-report,
+:global(.darkmode) .secondary-report,
+:global(.dark) .report-empty-row,
+:global(.darkmode) .report-empty-row {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+:global(.dark) .secondary-report:hover:not(:disabled),
+:global(.darkmode) .secondary-report:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .report-empty-row__text,
+:global(.darkmode) .report-empty-row__text {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+:global(.dark) .report-empty-row__btn,
+:global(.darkmode) .report-empty-row__btn {
+  background: rgba(74, 122, 255, 0.16);
+  color: #67a8ff;
+}
+
+:global(.dark) .report-pending-row,
+:global(.darkmode) .report-pending-row {
+  border-color: rgba(239, 168, 39, 0.26);
+  background: rgba(239, 168, 39, 0.1);
+}
+
+:global(.dark) .report-pending-row:hover,
+:global(.darkmode) .report-pending-row:hover {
+  border-color: rgba(239, 168, 39, 0.42);
+  background: rgba(239, 168, 39, 0.14);
+}
+
+:global(.dark) .report-pending-row span,
+:global(.darkmode) .report-pending-row span {
+  background: rgba(239, 168, 39, 0.16);
+  color: #f0b74e;
+}
+
+:global(.dark) .report-pending-row strong,
+:global(.darkmode) .report-pending-row strong {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+:global(.dark) .report-pending-row small,
+:global(.darkmode) .report-pending-row small {
+  color: rgba(240, 183, 78, 0.9);
+}
+
 :global(.dark) .custom-select .cs-arrow,
 :global(.darkmode) .custom-select .cs-arrow {
   background: rgba(255, 255, 255, 0.08);
@@ -10558,10 +10641,11 @@ onMounted(() => {
   .panel-reports {
     height: auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 1.3889rem;
+    gap: 1.2rem;
   }
 
-  .primary-report {
+  .primary-report,
+  .report-export-select .secondary-report {
     width: 100%;
     margin-top: 0;
   }
