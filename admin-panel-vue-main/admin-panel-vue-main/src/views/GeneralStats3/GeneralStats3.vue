@@ -73,7 +73,7 @@
           :class="{ open: openMenu === 'export' }"
           v-click-outside="() => closeMenu('export')"
         >
-          <button class="secondary-report cs-head" type="button" @click="toggleMenu('export')">
+          <button class="select-like cs-head report-export-head" type="button" @click="toggleMenu('export')">
             <span class="cs-current">{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
@@ -5348,14 +5348,18 @@ onMounted(() => {
   align-self: end;
 }
 
-/* Кнопка экспорта — в паттерне селектов дашборда: текст + шеврон в круге */
-.report-export-select .secondary-report {
-  justify-content: space-between;
-  min-width: 14rem;
+/* Кнопка экспорта — тот же .select-like, что у соседних контролов панели,
+   поэтому высота/рамка/hover совпадают. Здесь только ширина и цвет текста. */
+.report-export-select .report-export-head {
   width: auto;
-  gap: 1.2rem;
-  padding: 0 1.5rem;
-  font-weight: 500;
+  min-width: 12.5rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+:global(.dark) .report-export-select .report-export-head,
+:global(.darkmode) .report-export-select .report-export-head {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .report-export-select .cs-list {
@@ -10649,7 +10653,7 @@ onMounted(() => {
   }
 
   .primary-report,
-  .report-export-select .secondary-report {
+  .report-export-select .report-export-head {
     width: 100%;
     margin-top: 0;
   }
