@@ -5351,12 +5351,21 @@ onMounted(() => {
   justify-content: space-between;
   min-width: 13.2rem;
   width: auto;
+  gap: 0.8rem;
+}
+
+/* Иконка документа в кнопке экспорта — без явного размера heroicon растягивается */
+.report-export-select .secondary-report > svg {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 auto;
 }
 
 .report-export-select .report-export-caret {
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.2rem !important;
+  height: 1.2rem !important;
   flex: 0 0 auto;
+  color: #94a3b8;
   transition: transform 0.3s;
 }
 
@@ -5374,32 +5383,40 @@ onMounted(() => {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  min-height: 3.6rem;
-  padding: 0.7rem 0.9rem 0.7rem 1.1rem;
-  border-radius: 0.95rem;
+  gap: 0.9rem;
+  min-height: 2.9rem;
+  padding: 0.3rem 0.35rem 0.3rem 1rem;
+  border-radius: 0.85rem;
   background: #f8fafc;
-  border: 1px solid rgba(105, 105, 105, 0.1);
+  border: 1px dashed rgba(105, 105, 105, 0.18);
 }
 
 .report-empty-row__text {
   flex: 1;
   min-width: 0;
-  color: #64748b;
-  font-size: 1.12rem;
+  color: #8a93a3;
+  font-size: 1.02rem;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .report-empty-row__btn {
   flex: 0 0 auto;
-  height: 2.8rem;
-  padding: 0 1.15rem;
+  height: 2.3rem;
+  padding: 0 1rem;
   border: 0;
-  border-radius: 0.8rem;
+  border-radius: 0.65rem;
   background: #eef4ff;
   color: #2563eb;
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
+  transition: background 0.15s;
+}
+
+.report-empty-row__btn:hover {
+  background: #dfeafe;
 }
 
 .report-pending-row {
