@@ -883,6 +883,39 @@ def _assert_scope_access(db: Session, user_id, client_id=None, folder_id=None) -
             raise HTTPException(status_code=404, detail="Папка не найдена")
 
 
+def _delivery_succeeded(results: Optional[dict]) -> bool:
+    """Успешна ли доставка. Групповой результат приходит строкой «N/M» —
+    считаем успехом, только если доставлена хотя бы одна группа (N>0)."""
+    if not results:
+        return False
+    for key, value in results.items():
+        if key == "groups":
+            try:
+                delivered = int(str(value).split("/", 1)[0])
+                if delivered > 0:
+                    return True
+            except Exception:
+                continue
+        elif key == "error":
+            continue
+        elif bool(value):
+            return True
+    return False
+
+
+def _delivery_approver_name(db: Session, d: models.ReportDelivery) -> Optional[str]:
+    """Человекочитаемое имя утвердившего. None → отправлено автоматически."""
+    if not d.approved_by_user_id:
+        return None
+    u = db.query(models.User).filter(models.User.id == d.approved_by_user_id).first()
+    if not u:
+        return None
+    parts = [p for p in [(u.first_name or "").strip(), (u.last_name or "").strip()] if p]
+    if parts:
+        return " ".join(parts)
+    return (u.username or "").strip() or (u.email or "").split("@", 1)[0] or None
+
+
 def _delivery_scope_label(db: Session, d: models.ReportDelivery) -> str:
     if d.folder_id:
         folder = db.query(models.Folder).filter(models.Folder.id == d.folder_id).first()
@@ -916,6 +949,7 @@ def _delivery_to_response(db: Session, d: models.ReportDelivery) -> schemas.Repo
         comment=d.comment,
         anomaly_reason=d.anomaly_reason,
         delivery_results=d.delivery_results,
+        approved_by_name=_delivery_approver_name(db, d),
         approved_at=d.approved_at,
         sent_at=d.sent_at,
         created_at=d.created_at,
@@ -1054,7 +1088,9 @@ def save_project_report_settings(
 
 @router.get("/deliveries", response_model=List[schemas.ReportDeliveryResponse])
 def list_report_deliveries(
-    status: Optional[str] = Query(None, description="pending | sent | failed"),
+    status: Optional[str] = Query(None, description="pending | sent | failed | history"),
+    client_id: Optional[uuid.UUID] = Query(None),
+    folder_id: Optional[uuid.UUID] = Query(None),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1064,6 +1100,11 @@ def list_report_deliveries(
             q = q.filter(models.ReportDelivery.status.in_(["sent", "failed", "cancelled"]))
         else:
             q = q.filter(models.ReportDelivery.status == status)
+    # Скоуп проекта/папки — для жёлтой строки на дашборде конкретного проекта
+    if folder_id:
+        q = q.filter(models.ReportDelivery.folder_id == folder_id)
+    elif client_id:
+        q = q.filter(models.ReportDelivery.client_id == client_id)
     rows = q.order_by(models.ReportDelivery.created_at.desc()).limit(100).all()
     return [_delivery_to_response(db, row) for row in rows]
 
@@ -1137,6 +1178,105 @@ def get_report_delivery(
     return _delivery_to_response(db, d)
 
 
+@router.get("/deliveries/{delivery_id}/preview", response_model=schemas.ReportDeliveryPreview)
+def get_report_delivery_preview(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Данные «отчёт глазами клиента» для экрана превью (KPI + топ кампаний)."""
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    try:
+        summary, top_campaigns, client_name, _, _, _ = _get_report_data(
+            db, current_user.id, d.client_id,
+            d.start_date.isoformat(), d.end_date.isoformat(), d.comment,
+            folder_id=str(d.folder_id) if d.folder_id else None,
+        )
+    except Exception as e:
+        logger.warning("Preview data failed for delivery %s: %s", delivery_id, e)
+        summary, top_campaigns, client_name = {}, [], None
+    cost = float(summary.get("expenses", 0) or 0)
+    leads = int(summary.get("leads", 0) or 0)
+    cpl = (cost / leads) if leads else float(summary.get("cpa", 0) or 0)
+    kpi = schemas.ReportDeliveryPreviewKpi(
+        cost=round(cost, 2),
+        leads=leads,
+        cpl=round(cpl, 2),
+        impressions=int(summary.get("impressions", 0) or 0),
+        clicks=int(summary.get("clicks", 0) or 0),
+    )
+    camps = []
+    for c in (top_campaigns or [])[:5]:
+        camps.append(schemas.ReportDeliveryPreviewCampaign(
+            name=str(c.get("name") or c.get("campaign_name") or "—"),
+            leads=int(c.get("conversions", 0) or 0),
+            cost=round(float(c.get("cost", 0) or 0), 2),
+        ))
+    return schemas.ReportDeliveryPreview(
+        scope_label=_delivery_scope_label(db, d),
+        client_name=client_name,
+        start_date=d.start_date.isoformat(),
+        end_date=d.end_date.isoformat(),
+        kpi=kpi,
+        top_campaigns=camps,
+        comment=d.comment,
+    )
+
+
+@router.post("/deliveries/{delivery_id}/regenerate-comment", response_model=schemas.ReportDeliveryResponse)
+async def regenerate_delivery_comment(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Пересобрать AI-комментарий отчёта (кнопка «Сгенерировать заново» в превью)."""
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("pending", "failed"):
+        raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
+    new_comment = await _resolve_report_comment(
+        ai=True, comment=None, db=db, user_id=current_user.id,
+        client_id=d.client_id, start_date=d.start_date.isoformat(),
+        end_date=d.end_date.isoformat(),
+        folder_id=str(d.folder_id) if d.folder_id else None,
+    )
+    d.comment = (new_comment or "").strip() or None
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
+@router.put("/deliveries/{delivery_id}", response_model=schemas.ReportDeliveryResponse)
+def save_report_delivery_draft(
+    delivery_id: uuid.UUID,
+    body: schemas.ReportDeliveryDraft,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Сохранить отредактированный комментарий без отправки («Сохранить черновик»)."""
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("pending", "failed"):
+        raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
+    d.comment = (body.comment or "").strip() or None
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
 @router.post("/deliveries/{delivery_id}/approve", response_model=schemas.ReportDeliveryResponse)
 async def approve_report_delivery(
     delivery_id: uuid.UUID,
@@ -1195,7 +1335,7 @@ async def approve_report_delivery(
             )
             sent = await send_report(req, current_user=current_user, db=db)
             results = sent.get("results") if isinstance(sent, dict) else {}
-        d.status = "sent" if any(bool(v) for v in (results or {}).values()) else "failed"
+        d.status = "sent" if _delivery_succeeded(results) else "failed"
         d.delivery_results = results
         d.approved_by_user_id = current_user.id
         d.approved_at = datetime.now(timezone.utc)

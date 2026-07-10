@@ -582,6 +582,7 @@ class ReportDeliveryResponse(BaseModel):
     comment: Optional[str] = None
     anomaly_reason: Optional[str] = None
     delivery_results: Optional[dict] = None
+    approved_by_name: Optional[str] = None  # кто утвердил (человек) или None → «авто»
     approved_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -591,6 +592,36 @@ class ReportDeliveryResponse(BaseModel):
 
 
 class ReportDeliveryApprove(BaseModel):
+    comment: Optional[str] = None
+
+
+class ReportDeliveryDraft(BaseModel):
+    """Сохранение отредактированного AI-комментария без отправки."""
+    comment: Optional[str] = None
+
+
+class ReportDeliveryPreviewKpi(BaseModel):
+    cost: float = 0
+    leads: int = 0
+    cpl: float = 0
+    impressions: int = 0
+    clicks: int = 0
+
+
+class ReportDeliveryPreviewCampaign(BaseModel):
+    name: str
+    leads: int = 0
+    cost: float = 0
+
+
+class ReportDeliveryPreview(BaseModel):
+    """Данные «отчёт глазами клиента» для экрана превью."""
+    scope_label: Optional[str] = None
+    client_name: Optional[str] = None
+    start_date: str
+    end_date: str
+    kpi: ReportDeliveryPreviewKpi
+    top_campaigns: List[ReportDeliveryPreviewCampaign] = []
     comment: Optional[str] = None
 
 

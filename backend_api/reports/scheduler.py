@@ -430,6 +430,24 @@ def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | Non
     return delivery
 
 
+def _delivery_succeeded(results) -> bool:
+    """Успешна ли доставка. Групповой результат — строка «N/M»; успех при N>0."""
+    if not results:
+        return False
+    for key, value in results.items():
+        if key == "groups":
+            try:
+                if int(str(value).split("/", 1)[0]) > 0:
+                    return True
+            except Exception:
+                continue
+        elif key == "error":
+            continue
+        elif bool(value):
+            return True
+    return False
+
+
 async def send_report_for_schedule(db: Session, rule, user) -> dict:
     """Формирует и отправляет отчёт по одному правилу. Используется планировщиком
     и кнопкой «Отправить сейчас» (проверка настройки)."""
@@ -624,7 +642,7 @@ async def run_scheduled_report_rules():
                         schedule_id=rule.id,
                         client_id=rule.scope_client_id,
                         folder_id=rule.scope_folder_id,
-                        status="sent" if any(bool(v) for v in (results or {}).values()) else "failed",
+                        status="sent" if _delivery_succeeded(results) else "failed",
                         source="auto",
                         platform=rule.platform or "all",
                         start_date=(now.date() - timedelta(days=max(int(rule.period_days or 7) - 1, 0))),

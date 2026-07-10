@@ -68,10 +68,27 @@
           {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить отчет сейчас' }}
           <CheckCircleIcon />
         </button>
-        <button class="secondary-report" type="button" :disabled="sendingExport" @click="handleDownloadPdf">
-          {{ sendingExport ? 'Экспорт...' : 'Экспорт PDF' }}
-          <DocumentArrowDownIcon />
-        </button>
+        <div
+          class="custom-select report-export-select"
+          :class="{ open: openMenu === 'export' }"
+          v-click-outside="() => closeMenu('export')"
+        >
+          <button class="secondary-report cs-head" type="button" @click="toggleMenu('export')">
+            <DocumentArrowDownIcon />
+            <span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
+            <ChevronDownIcon class="report-export-caret" />
+          </button>
+          <div class="cs-list dropdown-panel export">
+            <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
+            <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+            <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
+          </div>
+        </div>
+
+        <div v-if="reportsBlockEmpty" class="report-empty-row">
+          <span class="report-empty-row__text">Каналы не подключены — подключите Telegram, MAX или email, чтобы отправлять отчёты клиенту</span>
+          <button type="button" class="report-empty-row__btn" @click="showProjectReportSettings = true">Настроить</button>
+        </div>
 
         <button
           v-if="pendingProjectDelivery"
@@ -282,19 +299,6 @@
             {{ dashboardSyncInProgress ? 'Синхронизация...' : 'Синхронизация' }}
           </button>
 
-          <div class="filter-wrap custom-select dashboard-select export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
-            <button class="export-btn cs-head" type="button" @click="toggleMenu('export')">
-              <span class="cs-current">Экспорт отчета</span>
-              <span class="cs-arrow">
-                <ChevronDownIcon />
-              </span>
-            </button>
-            <div class="cs-list dropdown-panel export">
-              <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
-              <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-              <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Получить ссылку</button>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -1520,6 +1524,7 @@ import { useTheme } from '@/composables/useTheme'
 import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useProjects } from '@/composables/useProjects'
 import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
+import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
@@ -1691,6 +1696,14 @@ const projectReportSummary = computed(() => {
   ]
   return channels.length ? `Включена · ${channels.length} канал` : 'Включена · без каналов'
 })
+// Пустое состояние блока «Отчёты»: ни одного подключённого канала/группы (ТЗ экран 1)
+const reportsBlockEmpty = computed(() => {
+  const s = projectReportSettings.value
+  if (!s) return false
+  const connected = Array.isArray(s.connected_channels) ? s.connected_channels : []
+  const targets = Array.isArray(s.available_chat_targets) ? s.available_chat_targets : []
+  return connected.length === 0 && targets.length === 0
+})
 const currentReportScopeParams = computed(() => ({
   ...(filters.folder_id ? { folder_id: filters.folder_id } : {}),
   ...(!filters.folder_id && filters.client_id ? { client_id: filters.client_id } : {}),
@@ -1731,6 +1744,7 @@ const openDeliveryPreview = (delivery) => {
 }
 const handleReportDeliveryChanged = async () => {
   await refreshPendingReportDeliveries()
+  refreshReportsQueue()
 }
 const formatReportDate = (value) => {
   if (!value) return '—'
@@ -5307,6 +5321,67 @@ onMounted(() => {
   background: #fff;
   color: #2563eb;
   border: 1px solid #e5eaf3;
+}
+
+/* Экспорт-меню в блоке «Отчёты» (ТЗ отчётов, экран 1 — переехало из строки фильтров) */
+.report-export-select {
+  position: relative;
+  align-self: end;
+}
+
+.report-export-select .secondary-report {
+  justify-content: space-between;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.report-export-select .report-export-caret {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: 0 0 auto;
+  transition: transform 0.3s;
+}
+
+.report-export-select.open .report-export-caret {
+  transform: rotate(180deg);
+}
+
+.report-export-select .cs-list {
+  right: 0;
+  left: auto;
+  min-width: 22rem;
+}
+
+.report-empty-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  min-height: 3.4rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 1.1rem;
+  background: #f7f9fc;
+  border: 1px solid #e5eaf3;
+}
+
+.report-empty-row__text {
+  flex: 1;
+  min-width: 0;
+  color: #767676;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.report-empty-row__btn {
+  flex: 0 0 auto;
+  height: 3.4rem;
+  padding: 0 1.5rem;
+  border: 0;
+  border-radius: 1rem;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .report-pending-row {

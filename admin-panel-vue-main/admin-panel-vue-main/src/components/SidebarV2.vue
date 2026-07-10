@@ -149,11 +149,16 @@
                     : 'hover:bg-[#ecf3fe]/60 dark:hover:bg-white/5',
                 ]"
               >
-                <span class="w-[3.4028rem] flex-shrink-0 flex items-center justify-center">
+                <span class="relative w-[3.4028rem] flex-shrink-0 flex items-center justify-center">
                   <component
                     :is="item.icon"
                     class="w-5 h-5 transition-colors duration-500"
                     :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
+                  />
+                  <!-- Точка-индикатор очереди отчётов в свёрнутом сайдбаре -->
+                  <span
+                    v-if="isCollapsed && item.path === '/reports' && reportsPendingCount > 0"
+                    class="absolute top-[0.55rem] right-[0.9rem] h-2 w-2 rounded-full bg-[#EFA827] ring-2 ring-white dark:ring-[#1C1F2E]"
                   />
                 </span>
                 <span
@@ -161,6 +166,11 @@
                   class="flex-1 text-[0.9722rem] font-bold leading-none transition-colors duration-500"
                   :class="isActive(item.path) ? 'text-[#2563eb] dark:text-[#4A7AFF]' : 'text-[#696969]/75 group-hover:text-[#2563eb] dark:text-white/72 dark:group-hover:text-[#4A7AFF]'"
                 >{{ item.name }}</span>
+                <!-- Бейдж-счётчик «ждут одобрения» (ТЗ отчётов, экран 6) -->
+                <span
+                  v-if="!isCollapsed && item.path === '/reports' && reportsPendingCount > 0"
+                  class="mr-[1.25rem] ml-[0.6944rem] inline-flex items-center justify-center min-w-[1.35rem] h-[1.35rem] px-[0.4rem] rounded-full bg-[#EFA827] text-white text-[0.7292rem] font-bold leading-none flex-shrink-0"
+                >{{ reportsPendingCount }}</span>
               </button>
             </div>
           </template>
@@ -241,11 +251,14 @@ import {
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
+import { useReportsQueue } from '../composables/useReportsQueue'
 import ConfirmModal from './ConfirmModal.vue'
 
 const { isCollapsed, toggleCollapse, isMobileViewport, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()
 const { logout } = useAuth()
+// Бейдж-счётчик очереди отчётов «ждут одобрения» (ТЗ отчётов, экран 6)
+const { pendingCount: reportsPendingCount } = useReportsQueue({ poll: true })
 
 const route = useRoute()
 const router = useRouter()
