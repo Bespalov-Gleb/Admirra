@@ -96,6 +96,7 @@ const props = defineProps({
   warmupDaysLeft: { type: Number, default: null },
   alerts: { type: Array, default: () => [] },
   hiddenAlerts: { type: Array, default: () => [] },
+  syncIssues: { type: Array, default: () => [] },
 })
 
 defineEmits(['collapse', 'ask-ai', 'snooze', 'not-problem', 'restore'])
@@ -107,6 +108,7 @@ watch(() => [props.warningCount, props.problemCount, props.hiddenCount], () => {
 })
 
 const visible = computed(() => {
+  if (props.syncIssues.length) return true
   if (props.warmupStatus === 'warming_up') return true
   return props.warningCount > 0 || props.problemCount > 0 || props.hiddenCount > 0
 })
@@ -115,7 +117,8 @@ const hasAlertRows = computed(() => props.alerts.length > 0 || props.hiddenAlert
 const primaryAlert = computed(() => props.alerts[0] || null)
 
 const title = computed(() => {
-  if (props.warmupStatus === 'warming_up') {
+  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'Нет свежих данных по подключению'
+  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') {
     const days = props.warmupDaysLeft ?? '?'
     return `Детектор накапливает данные, заработает через ${days} дн.`
   }
@@ -126,13 +129,15 @@ const title = computed(() => {
 })
 
 const subtitle = computed(() => {
-  if (props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
+  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return props.syncIssues.map(issue => issue.text).join(' ')
+  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
   const hidden = props.hiddenCount ? ` · скрыто ${props.hiddenCount}` : ''
   return `${props.hypothesis || 'Проверьте динамику проекта и кампаний.'}${hidden}`
 })
 
 const bannerClass = computed(() => {
-  if (props.warmupStatus === 'warming_up') return 'detector-banner--warmup'
+  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'detector-banner--sync'
+  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') return 'detector-banner--warmup'
   if (props.severity === 'problem') return 'detector-banner--problem'
   return 'detector-banner--warning'
 })
@@ -189,6 +194,7 @@ const hiddenMeta = (alert) => {
   border: 1px solid #bfdbfe;
   color: #1e40af;
 }
+.detector-banner--sync { background:#f4f6f9;border:1px solid #dce3ed;color:#69758a; }
 
 .detector-banner__icon {
   flex-shrink: 0;

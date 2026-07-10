@@ -355,6 +355,7 @@ class Client(Base):
     direction_label = Column(String(32), nullable=False, default="directions", server_default="directions")
     status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="ACTIVE")
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
+    detector_onboarding_dismissed_until = Column(DateTime(timezone=True), nullable=True)
     actual_start_date = Column(Date, nullable=True)
     # Проект лежит максимум в одной папке; NULL = корень списка (как раньше)
     folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -835,8 +836,11 @@ class ProjectBudget(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
-    channel = Column(Enum(IntegrationPlatform), nullable=False)
+    # NULL is a project-wide plan.  Per-channel budgets take precedence over it.
+    channel = Column(Enum(IntegrationPlatform), nullable=True)
     amount = Column(Numeric(14, 2), nullable=False)
+    # A manually agreed lead count.  NULL means "derive it from budget / summary CPL".
+    manual_leads = Column(Integer, nullable=True)
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

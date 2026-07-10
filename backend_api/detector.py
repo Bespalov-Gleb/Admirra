@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core import models, schemas, security
-from backend_api.access_control import get_accessible_client_ids, assert_project_access
+from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.project_settings import get_detector_state
 
 router = APIRouter(prefix="/detector", tags=["Detector"])
@@ -16,6 +16,13 @@ router = APIRouter(prefix="/detector", tags=["Detector"])
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _assert_detector_access(db: Session, user: models.User, client_id: uuid.UUID, *, write: bool = False) -> None:
+    """Detector information is an agency-only workspace, never client-facing."""
+    context = assert_project_access(db, user, client_id, write=write)
+    if context.team_role == models.TeamMemberRole.CLIENT.value:
+        raise HTTPException(status_code=403, detail="Детектор доступен только команде агентства")
 
 
 def _is_snoozed(alert: models.DetectorAlert, now: datetime | None = None) -> bool:
@@ -82,7 +89,31 @@ def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None)
         "not_problem_at": getattr(alert, "not_problem_at", None),
         "hidden": hidden,
         "hidden_reason": hidden_reason,
+        "meta": alert.meta,
     }
+
+
+def _plan_status(db: Session, client_id: uuid.UUID, today) -> str:
+    from backend_api.services.detector_iteration3 import _latest_budgets, _latest_targets
+    budgets = _latest_budgets(db, client_id, today)
+    targets = _latest_targets(db, client_id, today)
+    active_budget_channels = {
+        channel for channel, row in budgets.items()
+        if row and float(row.amount or 0) > 0 and channel is not None
+    }
+    active_target_channels = {
+        row.channel for row in targets
+        if row.channel is not None and row.control_enabled and float(row.target_cpa or 0) > 0
+    }
+    if active_budget_channels or active_target_channels:
+        return "configured" if active_budget_channels == active_target_channels else "incomplete"
+    latest_end = (
+        db.query(models.ProjectBudget.period_end)
+        .filter(models.ProjectBudget.client_id == client_id)
+        .order_by(models.ProjectBudget.period_end.desc())
+        .first()
+    )
+    return "expired" if latest_end and latest_end[0] < today else "missing"
 
 
 @router.get("/{client_id}/summary", response_model=schemas.DetectorSummaryResponse)
@@ -91,7 +122,7 @@ def get_detector_summary(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    assert_project_access(db, current_user, client_id, write=False)
+    _assert_detector_access(db, current_user, client_id, write=False)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Проект не найден")
@@ -112,9 +143,13 @@ def get_detector_summary(
             "hidden_count": 0,
             "alerts": [],
             "hidden_alerts": [],
+            "plan_status": _plan_status(db, client_id, _now().date()),
+            "sync_issues": [],
+            "onboarding_dismissed_until": getattr(client, "detector_onboarding_dismissed_until", None),
         }
 
     now = _now()
+    from backend_api.services.detector_iteration3 import sync_issues_for_client
     alerts = (
         db.query(models.DetectorAlert)
         .filter(
@@ -146,8 +181,7 @@ def get_detector_summary(
 
     warmup_days_left = None
     if warmup_status == "warming_up" and det_state.get("days_since_start") is not None:
-        from core.config import get_config
-        warmup_days_left = max(0, get_config().detector.warmup_days - det_state["days_since_start"])
+        warmup_days_left = max(0, int(det_state.get("warmup_days") or 7) - det_state["days_since_start"])
 
     return {
         "warning_count": warning_count,
@@ -158,6 +192,9 @@ def get_detector_summary(
         "warmup_days_left": warmup_days_left,
         "alerts": [_alert_to_response(a, now) for a in alerts],
         "hidden_alerts": [_alert_to_response(a, now) for a in hidden_alerts],
+        "plan_status": _plan_status(db, client_id, now.date()),
+        "sync_issues": sync_issues_for_client(db, client_id, now.date()),
+        "onboarding_dismissed_until": getattr(client, "detector_onboarding_dismissed_until", None),
     }
 
 
@@ -168,7 +205,7 @@ def get_detector_alerts(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    assert_project_access(db, current_user, client_id, write=False)
+    _assert_detector_access(db, current_user, client_id, write=False)
 
     now = _now()
     q = db.query(models.DetectorAlert).filter(models.DetectorAlert.client_id == client_id)
@@ -178,6 +215,26 @@ def get_detector_alerts(
         q = q.filter(models.DetectorAlert.status.in_(["open", "dismissed"]))
 
     return [_alert_to_response(a, now) for a in q.order_by(models.DetectorAlert.opened_at.desc()).limit(50).all()]
+
+
+@router.get("/{client_id}/campaign-highlights")
+def get_campaign_highlights(
+    client_id: uuid.UUID,
+    start_date: str,
+    end_date: str,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    _assert_detector_access(db, current_user, client_id, write=False)
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Даты должны быть в формате YYYY-MM-DD")
+    if end < start:
+        raise HTTPException(status_code=400, detail="Дата окончания не может быть раньше даты начала")
+    from backend_api.services.detector_iteration3 import campaign_highlights
+    return {"items": campaign_highlights(db, client_id, start, end)}
 
 
 @router.post("/alerts/{alert_id}/dismiss")
@@ -190,7 +247,7 @@ def dismiss_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Алерт не найден")
 
-    assert_project_access(db, current_user, alert.client_id, write=True)
+    _assert_detector_access(db, current_user, alert.client_id, write=True)
 
     if alert.status != "open":
         raise HTTPException(status_code=400, detail="Алерт уже закрыт или скрыт")
@@ -215,7 +272,7 @@ def snooze_alert(
     alert = db.query(models.DetectorAlert).filter(models.DetectorAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Алерт не найден")
-    assert_project_access(db, current_user, alert.client_id, write=True)
+    _assert_detector_access(db, current_user, alert.client_id, write=True)
     if alert.status not in ("open", "dismissed"):
         raise HTTPException(status_code=400, detail="Алерт уже закрыт")
 
@@ -246,7 +303,7 @@ def mark_alert_not_problem(
     alert = db.query(models.DetectorAlert).filter(models.DetectorAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Алерт не найден")
-    assert_project_access(db, current_user, alert.client_id, write=True)
+    _assert_detector_access(db, current_user, alert.client_id, write=True)
     if alert.status == "closed":
         raise HTTPException(status_code=400, detail="Алерт уже закрыт")
 
@@ -271,7 +328,7 @@ def restore_alert(
     alert = db.query(models.DetectorAlert).filter(models.DetectorAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Алерт не найден")
-    assert_project_access(db, current_user, alert.client_id, write=True)
+    _assert_detector_access(db, current_user, alert.client_id, write=True)
     if alert.status == "closed":
         raise HTTPException(status_code=400, detail="Алерт уже закрыт")
 
@@ -285,16 +342,36 @@ def restore_alert(
     return _alert_to_response(alert)
 
 
+@router.post("/{client_id}/onboarding/dismiss")
+def dismiss_plan_onboarding(
+    client_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Hide the plan onboarding for its configured, finite period."""
+    _assert_detector_access(db, current_user, client_id, write=True)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+    from core.config import get_config
+    client.detector_onboarding_dismissed_until = _now() + timedelta(days=get_config().detector.onboarding_dismiss_days)
+    db.commit()
+    return {"dismissed_until": client.detector_onboarding_dismissed_until}
+
+
 @router.get("/cross-project", response_model=List[schemas.DetectorCrossProjectItem])
 def get_cross_project_status(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
+    if get_team_context(db, current_user).team_role == models.TeamMemberRole.CLIENT.value:
+        return []
     accessible_ids = get_accessible_client_ids(db, current_user)
     if not accessible_ids:
         return []
 
     now = _now()
+    from backend_api.services.detector_iteration3 import sync_issues_for_client
     alerts = (
         db.query(models.DetectorAlert)
         .filter(
@@ -346,6 +423,8 @@ def get_cross_project_status(
                 "hidden_count": 0,
                 "max_severity": None,
                 "warmup_status": "disabled",
+                "plan_status": _plan_status(db, client.id, now.date()),
+                "sync_issue_count": 0,
             })
             continue
 
@@ -365,6 +444,8 @@ def get_cross_project_status(
             "hidden_count": len(hidden_by_project.get(client.id, [])),
             "max_severity": max_sev,
             "warmup_status": status,
+            "plan_status": _plan_status(db, client.id, now.date()),
+            "sync_issue_count": len(sync_issues_for_client(db, client.id, now.date())),
             "top_alerts": [
                 {
                     "id": a.id,

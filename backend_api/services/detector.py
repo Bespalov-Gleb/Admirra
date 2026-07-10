@@ -108,6 +108,9 @@ class AlertCandidate:
     consecutive_days: int = 1
     pattern_key: Optional[str] = None
     hypothesis_text: Optional[str] = None
+    # Structured context is consumed by the UI/AI, while the deterministic
+    # text above remains safe to show when AI is unavailable.
+    meta: Optional[dict] = None
 
 
 _METRIC_NAMES_RU: dict[str, str] = {
@@ -1066,7 +1069,16 @@ def apply_correlations(candidates: list[AlertCandidate]) -> list[AlertCandidate]
 
 def _alert_key(c: AlertCandidate) -> tuple:
     ch_val = c.channel.value if c.channel else None
-    return (c.metric, c.detection_level, c.entity_id, ch_val, c.mode)
+    # A composite P alert remains the same episode when its leading check
+    # changes from CPL to spend (or vice versa).
+    metric = "plan" if c.mode == "plan" else c.metric
+    return (metric, c.detection_level, c.entity_id, ch_val, c.mode)
+
+
+def _stored_alert_key(alert: models.DetectorAlert) -> tuple:
+    ch_val = alert.channel.value if alert.channel else None
+    metric = "plan" if alert.mode == "plan" else alert.metric
+    return (metric, alert.detection_level, alert.entity_id, ch_val, alert.mode)
 
 
 def upsert_alerts(
@@ -1096,8 +1108,7 @@ def upsert_alerts(
     active_map = {}
     latest_map = {}
     for a in open_alerts:
-        ch_val = a.channel.value if a.channel else None
-        key = (a.metric, a.detection_level, a.entity_id, ch_val, a.mode)
+        key = _stored_alert_key(a)
         latest_map.setdefault(key, a)
         if a.status in ("open", "dismissed"):
             active_map.setdefault(key, a)
@@ -1110,6 +1121,7 @@ def upsert_alerts(
         existing = active_map.get(key)
         if existing:
             existing.severity = c.severity
+            existing.metric = c.metric
             existing.deviation_pct = Decimal(str(c.deviation_pct))
             existing.baseline_value = Decimal(str(c.baseline_value))
             existing.actual_value = Decimal(str(c.actual_value))
@@ -1117,12 +1129,13 @@ def upsert_alerts(
             existing.pattern_key = c.pattern_key
             existing.hypothesis_text = c.hypothesis_text
             existing.last_checked_at = now
-            existing.meta = {**(existing.meta or {}), "recovery_count": 0}
+            existing.meta = {**(existing.meta or {}), **(c.meta or {}), "recovery_count": 0}
         else:
             alert = latest_map.get(key)
             if alert:
                 alert.owner_id = owner_id
                 alert.severity = c.severity
+                alert.metric = c.metric
                 alert.deviation_pct = Decimal(str(c.deviation_pct))
                 alert.baseline_value = Decimal(str(c.baseline_value))
                 alert.actual_value = Decimal(str(c.actual_value))
@@ -1137,7 +1150,7 @@ def upsert_alerts(
                 alert.not_problem_at = None
                 alert.closed_at = None
                 alert.last_checked_at = now
-                alert.meta = {"recovery_count": 0}
+                alert.meta = {**(c.meta or {}), "recovery_count": 0}
             else:
                 alert = models.DetectorAlert(
                     client_id=client_id,
@@ -1157,7 +1170,7 @@ def upsert_alerts(
                     status="open",
                     opened_at=now,
                     last_checked_at=now,
-                    meta={"recovery_count": 0},
+                    meta={**(c.meta or {}), "recovery_count": 0},
                 )
                 db.add(alert)
             if notify:
@@ -1195,8 +1208,24 @@ def run_detector_for_client(
     db: Session,
     client_id: uuid.UUID,
     reference_date: date | None = None,
+    immediate_plan_recalculation: bool = False,
 ):
-    """Run all detector checks for a single project."""
+    """Run the iteration-3 detector for a single project.
+
+    The original baseline helpers are deliberately kept in this module: the
+    product still calculates the baseline in the background for diagnostics and
+    AI, but it must no longer create user-facing alerts from it.
+    """
+    from backend_api.services.detector_iteration3 import run_detector_iteration3
+    return run_detector_iteration3(db, client_id, reference_date, immediate_plan_recalculation=immediate_plan_recalculation)
+
+
+def _run_detector_for_client_legacy(
+    db: Session,
+    client_id: uuid.UUID,
+    reference_date: date | None = None,
+):
+    """Previous v1/v2 implementation retained only as a migration reference."""
     cfg = get_config().detector
     if not cfg.enabled:
         return

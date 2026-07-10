@@ -17,8 +17,10 @@ from backend_api.services.directions import normalize_label
 from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.history import log_history_event
 from automation.google_sheets import GoogleSheetsService, extract_spreadsheet_id
+import logging
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
+logger = logging.getLogger(__name__)
 
 AVATAR_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 AVATAR_MAX_BYTES = 5 * 1024 * 1024
@@ -144,21 +146,21 @@ def get_project_settings(
     budgets = (
         db.query(models.ProjectBudget)
         .filter(models.ProjectBudget.client_id == client_id)
-        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel)
+        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel, models.ProjectBudget.created_at.desc())
         .all()
     )
     target_cpa = (
         db.query(models.ProjectTargetCPA)
         .filter(models.ProjectTargetCPA.client_id == client_id)
-        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel)
+        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel, models.ProjectTargetCPA.created_at.desc())
         .all()
     )
     return {
         "project": client,
         "integration_state": get_integration_state(client),
         "detector_state": get_detector_state(client),
-        "budgets": budgets,
-        "target_cpa": target_cpa,
+        "budgets": _latest_plan_rows(budgets, lambda row: (row.channel, row.period_start, row.period_end)),
+        "target_cpa": _latest_plan_rows(target_cpa, lambda row: (row.channel, row.goal_id, bool(row.is_summary), row.period_start, row.period_end)),
     }
 
 
@@ -555,6 +557,27 @@ def _default_period() -> tuple[date, date]:
     return period_start, period_end
 
 
+def _latest_plan_rows(rows, key_fn):
+    """Collapse append-only plan versions for read APIs."""
+    latest = {}
+    for row in rows:
+        latest.setdefault(key_fn(row), row)
+    return list(latest.values())
+
+
+def _recalculate_detector_now(db: Session, client: models.Client) -> None:
+    """Plan saves are visible to the detector immediately, never tomorrow."""
+    try:
+        from backend_api.services.detector import run_detector_for_client
+        run_detector_for_client(db, client.id, immediate_plan_recalculation=True)
+        db.commit()
+    except Exception:
+        db.rollback()
+        # Saving a commercially agreed plan must not fail because a secondary
+        # detector recomputation encountered transient data/API trouble.
+        logger.exception("Immediate detector recalculation failed for project %s", client.id)
+
+
 def _parse_uuid(value, field_name: str) -> uuid.UUID:
     try:
         return uuid.UUID(str(value))
@@ -595,10 +618,10 @@ def get_budgets(
     rows = (
         db.query(models.ProjectBudget)
         .filter(models.ProjectBudget.client_id == client_id)
-        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel)
+        .order_by(models.ProjectBudget.period_start.desc(), models.ProjectBudget.channel, models.ProjectBudget.created_at.desc())
         .all()
     )
-    return rows
+    return _latest_plan_rows(rows, lambda row: (row.channel, row.period_start, row.period_end))
 
 
 @router.put("/{client_id}/budgets", response_model=List[schemas.ProjectBudgetResponse])
@@ -621,18 +644,29 @@ def set_budgets(
         p_end = _parse_date(item.period_end, default_end, "period_end")
         if p_end < p_start:
             raise HTTPException(status_code=400, detail="period_end не может быть раньше period_start")
-        db.query(models.ProjectBudget).filter(
-            models.ProjectBudget.client_id == client_id,
-            models.ProjectBudget.channel == channel_enum,
-            models.ProjectBudget.period_start == p_start,
-            models.ProjectBudget.period_end == p_end,
-        ).delete(synchronize_session=False)
-        if item.amount <= 0:
+        current = (
+            db.query(models.ProjectBudget)
+            .filter(
+                models.ProjectBudget.client_id == client_id,
+                models.ProjectBudget.channel == channel_enum,
+                models.ProjectBudget.period_start == p_start,
+                models.ProjectBudget.period_end == p_end,
+            )
+            .order_by(models.ProjectBudget.created_at.desc(), models.ProjectBudget.id.desc())
+            .first()
+        )
+        # Plans are append-only versions.  Re-saving unchanged values must not
+        # reset the clean CPL window, while zero creates a superseding version
+        # that explicitly removes an older budget.
+        if current and float(current.amount or 0) == float(item.amount or 0) and current.manual_leads == item.manual_leads:
+            continue
+        if item.amount <= 0 and not current:
             continue
         row = models.ProjectBudget(
             client_id=client_id,
             channel=channel_enum,
             amount=item.amount,
+            manual_leads=item.manual_leads if item.amount > 0 else None,
             period_start=p_start,
             period_end=p_end,
         )
@@ -651,6 +685,7 @@ def set_budgets(
         meta={"count": len(created)},
     )
     db.commit()
+    _recalculate_detector_now(db, client)
     for row in created:
         db.refresh(row)
     return created
@@ -668,10 +703,10 @@ def get_target_cpa(
     rows = (
         db.query(models.ProjectTargetCPA)
         .filter(models.ProjectTargetCPA.client_id == client_id)
-        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel)
+        .order_by(models.ProjectTargetCPA.period_start.desc(), models.ProjectTargetCPA.channel, models.ProjectTargetCPA.created_at.desc())
         .all()
     )
-    return rows
+    return _latest_plan_rows(rows, lambda row: (row.channel, row.goal_id, bool(row.is_summary), row.period_start, row.period_end))
 
 
 @router.put("/{client_id}/target-cpa", response_model=List[schemas.ProjectTargetCPAResponse])
@@ -705,15 +740,26 @@ def set_target_cpa(
         if p_end < p_start:
             raise HTTPException(status_code=400, detail="period_end не может быть раньше period_start")
 
-        db.query(models.ProjectTargetCPA).filter(
-            models.ProjectTargetCPA.client_id == client_id,
-            models.ProjectTargetCPA.channel == channel_enum,
-            models.ProjectTargetCPA.goal_id == item.goal_id,
-            models.ProjectTargetCPA.is_summary == item.is_summary,
-            models.ProjectTargetCPA.period_start == p_start,
-            models.ProjectTargetCPA.period_end == p_end,
-        ).delete(synchronize_session=False)
-        if item.target_cpa is None and not item.control_enabled:
+        current = (
+            db.query(models.ProjectTargetCPA)
+            .filter(
+                models.ProjectTargetCPA.client_id == client_id,
+                models.ProjectTargetCPA.channel == channel_enum,
+                models.ProjectTargetCPA.goal_id == item.goal_id,
+                models.ProjectTargetCPA.is_summary == item.is_summary,
+                models.ProjectTargetCPA.period_start == p_start,
+                models.ProjectTargetCPA.period_end == p_end,
+            )
+            .order_by(models.ProjectTargetCPA.created_at.desc(), models.ProjectTargetCPA.id.desc())
+            .first()
+        )
+        unchanged = current and (
+            (float(current.target_cpa) if current.target_cpa is not None else None) == item.target_cpa
+            and bool(current.control_enabled) == bool(item.control_enabled)
+        )
+        if unchanged:
+            continue
+        if item.target_cpa is None and not item.control_enabled and not current:
             continue
 
         row = models.ProjectTargetCPA(
@@ -742,6 +788,7 @@ def set_target_cpa(
         meta={"count": len(created)},
     )
     db.commit()
+    _recalculate_detector_now(db, client)
     for row in created:
         db.refresh(row)
     return created

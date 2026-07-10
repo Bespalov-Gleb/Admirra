@@ -1202,7 +1202,9 @@ watch([filteredProjects, itemsPerPage], () => {
 const detectorBadge = (project) => {
   const status = getProjectStatus(project.id)
   if (!status) return null
+  if (status.sync_issue_count) return { type: 'warmup', text: 'Нет данных' }
   if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Накопление' }
+  if (['missing', 'incomplete', 'expired'].includes(status.plan_status)) return { type: 'warmup', text: status.plan_status === 'incomplete' ? 'Дозаполните план' : 'План не задан' }
   const total = (status.warning_count || 0) + (status.problem_count || 0)
   const hidden = status.hidden_count || 0
   if (!total && !hidden) return null

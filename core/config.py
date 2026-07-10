@@ -160,6 +160,38 @@ class DetectorCfg:
     campaign_majority_threshold: float
     thresholds_json: str
     holidays_json: str
+    # Iteration 3 — plan/fact and critical failures.  Every product threshold
+    # lives here so a calibration never requires a code deployment.
+    plan_start_pause_days: int
+    plan_spend_warning_deviation: float
+    plan_spend_problem_deviation: float
+    plan_min_expected_spend: float
+    plan_exhausted_min_days_remaining: int
+    plan_cpl_window_days: int
+    plan_cpl_warning_ratio: float
+    plan_cpl_problem_ratio: float
+    plan_cpl_problem_target_multiplier: float
+    plan_cpl_warning_target_multiplier: float
+    plan_cpl_problem_budget_share: float
+    plan_cpl_warning_budget_share: float
+    plan_leads_warning_deviation: float
+    plan_leads_problem_deviation: float
+    plan_min_expected_leads: int
+    balance_spend_window_days: int
+    balance_warning_days: float
+    balance_problem_days: float
+    balance_zero_history_days: int
+    stopped_spend_zero_days: int
+    stopped_prior_spend_days: int
+    stopped_min_daily_spend: float
+    tracking_zero_leads_days: int
+    tracking_min_clicks: int
+    tracking_history_days: int
+    tracking_history_active_days: int
+    sync_stale_days: int
+    campaign_cpl_problem_target_multiplier: float
+    campaign_cpl_budget_share: float
+    onboarding_dismiss_days: int
 
 
 @dataclass
@@ -330,6 +362,36 @@ def get_config() -> Config:
             campaign_majority_threshold=float(_env("DETECTOR_CAMPAIGN_MAJORITY_THRESHOLD", "0.5")),
             thresholds_json=_env("DETECTOR_THRESHOLDS_JSON"),
             holidays_json=_env("DETECTOR_HOLIDAYS_JSON"),
+            plan_start_pause_days=int(_env("DETECTOR_PLAN_START_PAUSE_DAYS", "3")),
+            plan_spend_warning_deviation=float(_env("DETECTOR_PLAN_SPEND_WARNING_DEVIATION", "0.20")),
+            plan_spend_problem_deviation=float(_env("DETECTOR_PLAN_SPEND_PROBLEM_DEVIATION", "0.40")),
+            plan_min_expected_spend=float(_env("DETECTOR_PLAN_MIN_EXPECTED_SPEND", "1000")),
+            plan_exhausted_min_days_remaining=int(_env("DETECTOR_PLAN_EXHAUSTED_MIN_DAYS_REMAINING", "2")),
+            plan_cpl_window_days=int(_env("DETECTOR_PLAN_CPL_WINDOW_DAYS", "7")),
+            plan_cpl_warning_ratio=float(_env("DETECTOR_PLAN_CPL_WARNING_RATIO", "1.3")),
+            plan_cpl_problem_ratio=float(_env("DETECTOR_PLAN_CPL_PROBLEM_RATIO", "1.8")),
+            plan_cpl_problem_target_multiplier=float(_env("DETECTOR_PLAN_CPL_PROBLEM_TARGET_MULTIPLIER", "5")),
+            plan_cpl_warning_target_multiplier=float(_env("DETECTOR_PLAN_CPL_WARNING_TARGET_MULTIPLIER", "10")),
+            plan_cpl_problem_budget_share=float(_env("DETECTOR_PLAN_CPL_PROBLEM_BUDGET_SHARE", "0.15")),
+            plan_cpl_warning_budget_share=float(_env("DETECTOR_PLAN_CPL_WARNING_BUDGET_SHARE", "0.30")),
+            plan_leads_warning_deviation=float(_env("DETECTOR_PLAN_LEADS_WARNING_DEVIATION", "0.20")),
+            plan_leads_problem_deviation=float(_env("DETECTOR_PLAN_LEADS_PROBLEM_DEVIATION", "0.40")),
+            plan_min_expected_leads=int(_env("DETECTOR_PLAN_MIN_EXPECTED_LEADS", "10")),
+            balance_spend_window_days=int(_env("DETECTOR_BALANCE_SPEND_WINDOW_DAYS", "7")),
+            balance_warning_days=float(_env("DETECTOR_BALANCE_WARNING_DAYS", "3")),
+            balance_problem_days=float(_env("DETECTOR_BALANCE_PROBLEM_DAYS", "1")),
+            balance_zero_history_days=int(_env("DETECTOR_BALANCE_ZERO_HISTORY_DAYS", "7")),
+            stopped_spend_zero_days=int(_env("DETECTOR_STOPPED_SPEND_ZERO_DAYS", "2")),
+            stopped_prior_spend_days=int(_env("DETECTOR_STOPPED_PRIOR_SPEND_DAYS", "7")),
+            stopped_min_daily_spend=float(_env("DETECTOR_STOPPED_MIN_DAILY_SPEND", "200")),
+            tracking_zero_leads_days=int(_env("DETECTOR_TRACKING_ZERO_LEADS_DAYS", "3")),
+            tracking_min_clicks=int(_env("DETECTOR_TRACKING_MIN_CLICKS", "100")),
+            tracking_history_days=int(_env("DETECTOR_TRACKING_HISTORY_DAYS", "14")),
+            tracking_history_active_days=int(_env("DETECTOR_TRACKING_HISTORY_ACTIVE_DAYS", "10")),
+            sync_stale_days=int(_env("DETECTOR_SYNC_STALE_DAYS", "2")),
+            campaign_cpl_problem_target_multiplier=float(_env("DETECTOR_CAMPAIGN_CPL_TARGET_MULTIPLIER", "3")),
+            campaign_cpl_budget_share=float(_env("DETECTOR_CAMPAIGN_CPL_BUDGET_SHARE", "0.10")),
+            onboarding_dismiss_days=int(_env("DETECTOR_ONBOARDING_DISMISS_DAYS", "30")),
         ),
     )
 

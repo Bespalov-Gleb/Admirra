@@ -202,7 +202,7 @@
             </div>
 
             <div class="psm-card__body">
-              <p class="psm-hint mb-4">Детектор по истории работает и без заполнения — поля ниже добавляют план-факт.</p>
+              <p class="psm-hint mb-4">Без плана детектор следит только за критическими поломками — реклама встала, заканчивается баланс. Заполните план, чтобы включить контроль темпа расхода и стоимости заявки.</p>
 
               <!-- State A: no integrations -->
               <div v-if="integrationState === 'A'" class="psm-detector-stub">
@@ -273,6 +273,8 @@
                           <input type="text" class="psm-input psm-input--compact psm-input--has-suffix" placeholder="0" v-model="budgets[ch.id]" @input="formatBudgetInput(ch.id)" />
                           <span class="psm-input-suffix">₽</span>
                         </div>
+                        <label class="psm-hint block mt-2">План заявок <span v-if="calculatedPlanLeads(ch)">≈ {{ calculatedPlanLeads(ch) }} автоматически</span></label>
+                        <input v-model.number="manualLeads[ch.id]" type="number" min="0" step="1" class="psm-input psm-input--compact" placeholder="не переопределять" />
                         <div class="psm-hint mt-1.5">период: {{ currentPeriodLabel }}</div>
                       </div>
                     </div>
@@ -280,7 +282,7 @@
 
                   <!-- Target CPA table -->
                   <div>
-                    <h4 class="psm-subsection-title">Целевая стоимость действия (CPA)</h4>
+                    <h4 class="psm-subsection-title">Целевая стоимость заявки / действия (CPL/CPA)</h4>
                     <p class="psm-hint mb-3">Заполняйте только цели с KPI от клиента. Контроль включается тумблером по каждой строке.</p>
 
                     <div v-if="goalRows.length === 0" class="psm-empty">
@@ -293,7 +295,7 @@
                       <div class="psm-goals-table__header">
                         <span>Канал</span>
                         <span>Цель</span>
-                        <span>Целевой CPA</span>
+                        <span>Целевой CPL / CPA</span>
                         <span>Контроль</span>
                       </div>
                       <div
@@ -307,6 +309,7 @@
                         </div>
                         <div class="min-w-0">
                           <div class="psm-goal-name truncate">{{ goal.name }}</div>
+                          <div v-if="goal.missing" class="psm-field-error">Цель не найдена в Метрике</div>
                           <div v-if="goal.goalId && goal.goalId !== '__summary__'" class="psm-hint" style="font-size:0.7639rem;color:rgba(105,105,105,0.4)">ID: {{ goal.goalId }}</div>
                           <div v-else-if="goal.hint" class="psm-hint">{{ goal.hint }}</div>
                         </div>
@@ -317,13 +320,14 @@
                               class="psm-input psm-input--compact psm-input--has-suffix"
                               placeholder="не задано"
                               v-model="goal.targetCpa"
+                              :disabled="goal.missing"
                             />
                             <span class="psm-input-suffix">₽</span>
                           </div>
                         </div>
                         <div class="flex justify-center">
                           <label class="psm-toggle psm-toggle--sm">
-                            <input type="checkbox" v-model="goal.controlEnabled" class="sr-only" :disabled="!goal.targetCpa" />
+                            <input type="checkbox" v-model="goal.controlEnabled" class="sr-only" :disabled="!goal.targetCpa || goal.missing" />
                             <span class="psm-toggle__track" :class="{ 'psm-toggle__track--on': goal.controlEnabled && goal.targetCpa, 'psm-toggle__track--disabled': !goal.targetCpa }">
                               <span class="psm-toggle__thumb" :class="{ 'psm-toggle__thumb--on': goal.controlEnabled && goal.targetCpa }"></span>
                             </span>
@@ -479,6 +483,7 @@ const deleteConfirmText = ref('')
 const channelToDelete = ref(null)
 const channelDeleting = ref(false)
 const budgets = reactive({})
+const manualLeads = reactive({})
 const containerRef = ref(null)
 const idCopied = ref(false)
 const initialFormSnapshot = ref('')
@@ -764,6 +769,19 @@ async function loadGoals() {
         if (row) {
           row.targetCpa = saved.target_cpa != null ? String(saved.target_cpa) : ''
           row.controlEnabled = saved.control_enabled || false
+        } else if (!saved.is_summary && samePeriod(saved)) {
+          rows.push({
+            id: `missing-${saved.id}`,
+            integrationId: '',
+            goalId: saved.goal_id,
+            platform: saved.channel,
+            name: saved.goal_name || `Цель ${saved.goal_id}`,
+            hint: '',
+            targetCpa: saved.target_cpa != null ? String(saved.target_cpa) : '',
+            controlEnabled: false,
+            isSummary: false,
+            missing: true,
+          })
         }
       }
     }
@@ -772,12 +790,16 @@ async function loadGoals() {
 
 async function loadBudgets() {
   Object.keys(budgets).forEach((key) => { delete budgets[key] })
+  Object.keys(manualLeads).forEach((key) => { delete manualLeads[key] })
   try {
     const { data } = await api.get(`clients/${props.project.id}/budgets`)
     if (Array.isArray(data)) {
       for (const b of data) {
         const ch = projectChannels.value.find((c) => samePlatform(c.platform, b.channel))
-        if (ch && samePeriod(b)) budgets[ch.id] = b.amount != null ? String(b.amount) : ''
+        if (ch && samePeriod(b)) {
+          budgets[ch.id] = b.amount != null ? String(b.amount) : ''
+          manualLeads[ch.id] = b.manual_leads ?? null
+        }
       }
     }
   } catch { /* API not ready yet */ }
@@ -891,6 +913,13 @@ function formatBudgetInput(chId) {
   budgets[chId] = raw ? Number(raw).toLocaleString('ru-RU') : ''
 }
 
+function calculatedPlanLeads(channel) {
+  const budget = Number(String(budgets[channel.id] || '').replace(/\s/g, '').replace(/,/g, '.')) || 0
+  const summary = goalRows.value.find((goal) => goal.isSummary && samePlatform(goal.platform, channel.platform) && goal.controlEnabled && goal.targetCpa)
+  const cpl = Number(String(summary?.targetCpa || '').replace(/\s/g, '').replace(/,/g, '.')) || 0
+  return budget > 0 && cpl > 0 ? Math.floor(budget / cpl) : null
+}
+
 function normalizeSelectedGoals(value) {
   let selectedGoals = []
   if (Array.isArray(value)) {
@@ -956,6 +985,7 @@ async function save() {
       .map((ch) => ({
         integration_id: ch.id,
         amount: Number(String(budgets[ch.id]).replace(/\s/g, '').replace(/,/g, '.')) || 0,
+        manual_leads: manualLeads[ch.id] === '' || manualLeads[ch.id] == null ? null : Number(manualLeads[ch.id]),
         period_start: form.period_start,
         period_end: form.period_end,
       }))
@@ -966,6 +996,7 @@ async function save() {
 
     // 3. Save target CPAs
     const cpaPayload = goalRows.value
+      .filter((g) => !g.missing)
       .map((g) => ({
         integration_id: g.integrationId,
         goal_id: g.goalId,
@@ -981,8 +1012,15 @@ async function save() {
       await api.put(`clients/${props.project.id}/target-cpa`, cpaPayload)
     }
 
+    // Plan endpoints recalculate P-checks synchronously.  Make retrospective
+    // saves explicit instead of leaving newly appeared flags unexplained.
+    const detector = await api.get(`detector/${props.project.id}/summary`).then((res) => res.data).catch(() => null)
+    const planAlerts = detector?.alerts?.filter((alert) => alert.mode === 'plan') || []
+
     emit('saved', data)
-    toaster.success('Настройки сохранены')
+    toaster.success(planAlerts.length
+      ? `План сохранён. По текущим данным обнаружено ${planAlerts.length} ${planAlerts.length === 1 ? 'отклонение' : 'отклонения'} — смотрите на дашборде.`
+      : 'Настройки сохранены')
     close()
   } catch (err) {
     error.value = err.response?.data?.detail || 'Не удалось сохранить изменения.'

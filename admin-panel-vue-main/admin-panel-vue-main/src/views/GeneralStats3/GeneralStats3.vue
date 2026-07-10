@@ -337,7 +337,7 @@
     </div>
 
     <DetectorBanner
-      v-if="filters.client_id && !detectorBannerCollapsed && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.hidden_count > 0 || detectorSummary?.warmup_status === 'warming_up')"
+      v-if="filters.client_id && !detectorBannerCollapsed && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.hidden_count > 0 || detectorSummary?.warmup_status === 'warming_up' || detectorSummary?.sync_issues?.length)"
       :warning-count="detectorSummary?.warning_count || 0"
       :problem-count="detectorSummary?.problem_count || 0"
       :hidden-count="detectorSummary?.hidden_count || 0"
@@ -347,11 +347,24 @@
       :warmup-days-left="detectorSummary?.warmup_days_left"
       :alerts="detectorSummary?.alerts || []"
       :hidden-alerts="detectorSummary?.hidden_alerts || []"
+      :sync-issues="detectorSummary?.sync_issues || []"
       @ask-ai="openAssistantForDetectorAlert"
       @snooze="handleSnoozeDetectorAlert"
       @not-problem="handleDetectorNotProblem"
       @restore="handleRestoreDetectorAlert"
       @collapse="detectorBannerCollapsed = true"
+      class="detector-banner-slot"
+    />
+
+    <PlanOnboardingBanner
+      v-if="filters.client_id"
+      :plan-status="detectorSummary?.plan_status"
+      :detector-enabled="detectorSummary?.warmup_status !== 'disabled'"
+      :warming-up="detectorSummary?.warmup_status === 'warming_up'"
+      :has-critical="hasCriticalDetectorAlert"
+      :dismissed-until="detectorSummary?.onboarding_dismissed_until"
+      @set-plan="openPlanSettings"
+      @dismiss="dismissPlanOnboarding"
       class="detector-banner-slot"
     />
 
@@ -1014,11 +1027,7 @@
                   @click="openAlertDrilldown(campaign)"
                 >По объявлениям →</button>
                 <div class="detector-popover__actions">
-                  <button type="button" @click="openAssistantForDetectorAlert(campaign.alert)">Спросить AI</button>
-                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 1)">1 дн.</button>
-                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 3)">3 дн.</button>
-                  <button type="button" @click="handleSnoozeDetectorAlert(campaign.alert, 7)">7 дн.</button>
-                  <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(campaign.alert)">Не проблема</button>
+                  <button type="button" @click="openAssistantForCampaignHighlight(campaign)">Спросить AI</button>
                 </div>
               </div>
               <span v-if="isAllChannelsMode && campaign.platformMeta" class="campaign-platform-badge" :style="{ '--platform-color': campaign.platformMeta.color, '--platform-soft': campaign.platformMeta.soft }">
@@ -1532,6 +1541,7 @@ import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
+import PlanOnboardingBanner from '@/components/PlanOnboardingBanner.vue'
 import DynamicsView from './components/DynamicsView.vue'
 import ProjectReportSettingsModal from './components/ProjectReportSettingsModal.vue'
 import ReportApprovalModal from './components/ReportApprovalModal.vue'
@@ -1574,6 +1584,25 @@ const {
 } = useDetector()
 
 const detectorBannerCollapsed = ref(false)
+const campaignHighlights = ref({})
+const hasCriticalDetectorAlert = computed(() => Boolean(
+  detectorSummary.value?.alerts?.some((alert) => String(alert.mode || '').startsWith('critical_'))
+))
+
+const fetchCampaignHighlights = async () => {
+  if (!filters.client_id || !filters.start_date || !filters.end_date) {
+    campaignHighlights.value = {}
+    return
+  }
+  try {
+    const { data } = await api.get(`detector/${filters.client_id}/campaign-highlights`, {
+      params: { start_date: filters.start_date, end_date: filters.end_date },
+    })
+    campaignHighlights.value = data?.items || {}
+  } catch {
+    campaignHighlights.value = {}
+  }
+}
 
 // «Спросить AI» из кросс-обзора: алерт передан через sessionStorage — откроем
 // ассистента, как только детектор-сводка проекта загрузится
@@ -3022,8 +3051,9 @@ const getCampaignSortValue = (campaign) => {
     return cpa > 0 ? cpa : Number.POSITIVE_INFINITY
   }
   if (campaignSort.value === 'alerts') {
-    // «Сначала с отклонениями»: проблема > внимание > без алерта; внутри — по лидам
-    const alert = getAlertForEntity('campaign', campaign.id)
+    // Row highlighting is not a detector alert: it is a direct CPL-vs-plan
+    // diagnostic for exactly the period selected in this table.
+    const alert = campaignHighlights.value[String(campaign.id)]
     const weight = alert ? (alert.severity === 'problem' ? 2 : 1) : 0
     return weight * 1e9 + Number(campaign.conversions ?? campaign.leads ?? 0)
   }
@@ -3032,9 +3062,9 @@ const getCampaignSortValue = (campaign) => {
 
 // ТЗ ит.2 п.2.3: при наличии кампанийных алертов сортировка «Отклонения» — дефолт
 // (пока пользователь сам не переключил сортировку)
-watch(() => campaigns.value, (rows) => {
+watch(() => [campaigns.value, campaignHighlights.value], ([rows]) => {
   if (campaignSortUserTouched.value) return
-  const hasAlerts = (rows || []).some((r) => Boolean(getAlertForEntity('campaign', r.id)))
+  const hasAlerts = (rows || []).some((r) => Boolean(campaignHighlights.value[String(r.id)]))
   if (hasAlerts && campaignSort.value !== 'alerts') campaignSort.value = 'alerts'
 }, { immediate: true })
 
@@ -3069,7 +3099,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
   const rowKey = parent
     ? `${parent.rowKey}:${nodeLevel}:${baseId}`
     : `campaign:${baseId}`
-  const alert = isRoot ? getAlertForEntity('campaign', campaign.id) : null
+  const alert = isRoot ? campaignHighlights.value[String(campaign.id)] || null : null
   const platformKey = normalizeDashboardPlatform(campaign.platform || parent?.platform)
   const platformMeta = dashboardChannelMeta[platformKey] || null
 
@@ -3090,7 +3120,7 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     tint: '',
     alert,
     alertClass: alert ? `campaign-row--anomaly-${alert.severity}` : '',
-    alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
+    alertTitle: alert ? (alert.hypothesis_text || 'Заявка дороже плана') : null,
     cost: formatMoney(withVat(campaign.cost, { platform: campaign.platform })),
     impressions: formatNumber(campaign.impressions),
     clicks: formatNumber(campaign.clicks),
@@ -4951,8 +4981,15 @@ watch(() => filters.client_id, (clientId) => {
   detectorBannerCollapsed.value = false
   activeDetectorMetric.value = null
   activeDetectorEntity.value = null
-  if (clientId) fetchDetectorSummary(clientId)
+  if (clientId) {
+    fetchDetectorSummary(clientId)
+    fetchCampaignHighlights()
+  }
 }, { immediate: true })
+
+watch(() => [filters.start_date, filters.end_date], () => {
+  fetchCampaignHighlights()
+})
 
 const detectorBannerHypothesis = computed(() => {
   if (!detectorSummary.value?.alerts?.length) return ''
@@ -4960,6 +4997,22 @@ const detectorBannerHypothesis = computed(() => {
 })
 
 const detectorBannerAlert = computed(() => detectorSummary.value?.alerts?.[0] || null)
+
+const dismissPlanOnboarding = async () => {
+  if (!filters.client_id) return
+  try {
+    await api.post(`detector/${filters.client_id}/onboarding/dismiss`)
+    await fetchDetectorSummary(filters.client_id)
+  } catch {
+    toaster.error('Не удалось скрыть плашку')
+  }
+}
+
+const openPlanSettings = () => {
+  if (!filters.client_id) return
+  setCurrentProject(filters.client_id)
+  router.push({ path: '/project-card', query: { settings: filters.client_id } })
+}
 
 const formatDetectorAlertTitle = (alert) => {
   if (!alert) return ''
@@ -4969,7 +5022,8 @@ const formatDetectorAlertTitle = (alert) => {
   const baseline = alert.baseline_value != null && alert.actual_value != null
     ? `\nБаза: ${Number(alert.baseline_value).toLocaleString('ru')}, факт: ${Number(alert.actual_value).toLocaleString('ru')}`
     : ''
-  return `Отклонение ${deviation}, ${days} дн. подряд${baseline}${hypothesis}\nСчитает детектор по истории · не AI`
+  const source = String(alert.mode || '').startsWith('plan') ? 'Считает детектор по плану · не AI' : 'Считает детектор по критической проверке · не AI'
+  return `Отклонение ${deviation}, ${days} дн. подряд${baseline}${hypothesis}\n${source}`
 }
 
 const metricAnomalyClass = (key) => {
@@ -5074,6 +5128,20 @@ const openAssistantForDetectorAlert = (selectedAlert = null) => {
       start_date: filters.start_date,
       end_date: filters.end_date,
       question,
+    },
+  })
+}
+
+const openAssistantForCampaignHighlight = (campaign) => {
+  if (!campaign || !filters.client_id) return
+  const text = campaign.alert?.hypothesis_text || 'Заявка по кампании дороже плана.'
+  router.push({
+    path: '/ai-analysis',
+    query: {
+      project: filters.client_id,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      question: `Разбери кампанию «${campaign.name}»: ${text}`,
     },
   })
 }

@@ -955,6 +955,15 @@ const periodPopoverRef = ref(null)
 const periodOptions = projectPeriodOptions
 const avatarProject = ref(null)
 const settingsProject = ref(null)
+const openSettingsFromQuery = () => {
+  const id = String(route.query.settings || '')
+  if (!id) return
+  const project = projects.value.find((item) => String(item.id) === id)
+  if (!project) return
+  settingsProject.value = project
+  router.replace({ query: { ...route.query, settings: undefined } })
+}
+watch(() => route.query.settings, () => openSettingsFromQuery())
 const includeVat = ref(true)
 const syncingIntegrations = ref(false)
 const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
@@ -1958,7 +1967,9 @@ const askAiFromPreview = (project) => {
 const detectorBadge = (project) => {
   const status = getProjectStatus(project.id)
   if (!status) return null
+  if (status.sync_issue_count) return { type: 'warmup', text: 'Нет свежих данных' }
   if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Детектор накапливает данные' }
+  if (['missing', 'incomplete', 'expired'].includes(status.plan_status)) return { type: 'warmup', text: status.plan_status === 'incomplete' ? 'дозаполните план' : 'план не задан' }
   const total = (status.warning_count || 0) + (status.problem_count || 0)
   const hidden = status.hidden_count || 0
   if (!total && !hidden) return null
@@ -1978,6 +1989,7 @@ const isProjectWarmingUp = (project) => detectorBadge(project)?.type === 'warmup
 
 onMounted(async () => {
   await Promise.all([fetchProjects(), fetchFolders()])
+  openSettingsFromQuery()
   await Promise.all([loadProjectMetrics(), fetchCrossProject()])
 })
 </script>

@@ -438,6 +438,7 @@ class ClientResponse(ClientBase):
     status: Optional[str] = "active"
     detector_enabled: Optional[bool] = False
     actual_start_date: Optional[str] = None
+    detector_onboarding_dismissed_until: Optional[datetime] = None
     folder_id: Optional[UUID] = None
     created_at: datetime
     integrations: List[IntegrationResponse] = []
@@ -780,13 +781,15 @@ class ProjectBudgetItem(BaseModel):
     integration_id: Optional[str] = None
     channel: Optional[str] = None
     amount: float = Field(ge=0)
+    manual_leads: Optional[int] = Field(default=None, ge=0)
     period_start: Optional[str] = None
     period_end: Optional[str] = None
 
 class ProjectBudgetResponse(BaseModel):
     id: UUID
-    channel: str
+    channel: Optional[str] = None
     amount: float
+    manual_leads: Optional[int] = None
     period_start: str
     period_end: str
     created_at: Optional[datetime] = None
@@ -903,6 +906,7 @@ class DetectorAlertResponse(BaseModel):
     not_problem_at: Optional[datetime] = None
     hidden: bool = False
     hidden_reason: Optional[str] = None
+    meta: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -926,6 +930,9 @@ class DetectorSummaryResponse(BaseModel):
     warmup_days_left: Optional[int] = None
     alerts: List[DetectorAlertResponse] = []
     hidden_alerts: List[DetectorAlertResponse] = []
+    plan_status: Optional[str] = None  # configured|missing|incomplete|expired
+    sync_issues: List[dict] = []
+    onboarding_dismissed_until: Optional[datetime] = None
 
 
 class DetectorTopAlert(BaseModel):
@@ -942,6 +949,8 @@ class DetectorCrossProjectItem(BaseModel):
     hidden_count: int = 0
     max_severity: Optional[str] = None
     warmup_status: Optional[str] = None
+    plan_status: Optional[str] = None
+    sync_issue_count: int = 0
     # ТЗ «Детектор, итерация 2» п.2.4: топ-3 отклонения для поповера-превью
     top_alerts: List[DetectorTopAlert] = []
 

@@ -97,6 +97,10 @@ async def refresh_hypothesis_texts_for_client(db: Session, client_id: uuid.UUID)
         .filter(
             models.DetectorAlert.client_id == client_id,
             models.DetectorAlert.status == "open",
+            # P/C wording contains contractual thresholds, forecasts and
+            # operational instructions.  It is deterministic by design and
+            # must not be paraphrased by an LLM into a weaker hypothesis.
+            ~models.DetectorAlert.mode.in_(("plan", "critical_balance", "critical_stopped", "critical_tracking")),
         )
         .all()
     )

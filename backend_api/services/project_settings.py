@@ -28,6 +28,9 @@ def get_integration_state(client: models.Client | None) -> str:
 
 
 def get_detector_state(client: models.Client | None) -> dict:
+    # Iteration 3 does not need 21 days of history.  A new project displays a
+    # gentle state for its first week, while P-1 can already work from day 4.
+    warmup_days = min(get_config().detector.warmup_days, 7)
     actual_start = getattr(client, "actual_start_date", None)
     if not getattr(client, "detector_enabled", False):
         status = "disabled"
@@ -37,7 +40,7 @@ def get_detector_state(client: models.Client | None) -> dict:
         status = "waiting_for_data"
     else:
         days_since_start = max((date.today() - actual_start).days + 1, 0)
-        status = "ready" if days_since_start >= get_config().detector.warmup_days else "warming_up"
+        status = "ready" if days_since_start >= warmup_days else "warming_up"
 
     days_since_start = None
     if actual_start:
@@ -47,14 +50,14 @@ def get_detector_state(client: models.Client | None) -> dict:
         "disabled": "Детектор выключен.",
         "paused": "Проект на паузе, детектор остановлен.",
         "waiting_for_data": "Ждём первые данные интеграций для запуска прогрева.",
-        "warming_up": f"Идёт прогрев детектора: нужно {get_config().detector.warmup_days} дней данных.",
+        "warming_up": f"Идёт накопление данных: нужно {warmup_days} дней данных.",
         "ready": "Детектор готов к работе.",
     }
     return {
         "status": status,
         "actual_start_date": str(actual_start) if actual_start else None,
         "days_since_start": days_since_start,
-        "warmup_days": get_config().detector.warmup_days,
+        "warmup_days": warmup_days,
         "message": messages[status],
     }
 

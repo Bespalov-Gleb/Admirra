@@ -371,6 +371,9 @@ def _rule_blocking_anomaly(db: Session, rule) -> str | None:
         models.DetectorAlert.owner_id == rule.user_id,
         models.DetectorAlert.status == "open",
         models.DetectorAlert.severity == "problem",
+        # Iteration 3: only a red plan/fact or actual critical failure blocks
+        # an unattended client report. Historical/baseline noise never does.
+        models.DetectorAlert.mode.in_(("plan", "critical_balance", "critical_stopped", "critical_tracking")),
     )
     if rule.scope_client_id:
         q = q.filter(models.DetectorAlert.client_id == rule.scope_client_id)
