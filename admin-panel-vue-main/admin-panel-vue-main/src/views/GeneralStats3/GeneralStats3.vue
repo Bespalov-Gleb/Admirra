@@ -74,9 +74,10 @@
           v-click-outside="() => closeMenu('export')"
         >
           <button class="secondary-report cs-head" type="button" @click="toggleMenu('export')">
-            <DocumentArrowDownIcon />
-            <span>{{ sendingExport ? 'Экспорт...' : 'Экспорт' }}</span>
-            <ChevronDownIcon class="report-export-caret" />
+            <span class="cs-current">{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
+            <span class="cs-arrow">
+              <ChevronDownIcon />
+            </span>
           </button>
           <div class="cs-list dropdown-panel export">
             <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
@@ -5347,30 +5348,14 @@ onMounted(() => {
   align-self: end;
 }
 
+/* Кнопка экспорта — в паттерне селектов дашборда: текст + шеврон в круге */
 .report-export-select .secondary-report {
   justify-content: space-between;
-  min-width: 13.2rem;
+  min-width: 14rem;
   width: auto;
-  gap: 0.8rem;
-}
-
-/* Иконка документа в кнопке экспорта — без явного размера heroicon растягивается */
-.report-export-select .secondary-report > svg {
-  width: 1.6rem;
-  height: 1.6rem;
-  flex: 0 0 auto;
-}
-
-.report-export-select .report-export-caret {
-  width: 1.2rem !important;
-  height: 1.2rem !important;
-  flex: 0 0 auto;
-  color: #94a3b8;
-  transition: transform 0.3s;
-}
-
-.report-export-select.open .report-export-caret {
-  transform: rotate(180deg);
+  gap: 1.2rem;
+  padding: 0 1.5rem;
+  font-weight: 500;
 }
 
 .report-export-select .cs-list {
@@ -5383,10 +5368,11 @@ onMounted(() => {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  min-height: 2.9rem;
-  padding: 0.3rem 0.35rem 0.3rem 1rem;
-  border-radius: 0.85rem;
+  gap: 1rem;
+  min-height: 3.2rem;
+  margin-top: 0.7rem;
+  padding: 0.4rem 0.4rem 0.4rem 1.2rem;
+  border-radius: 999px;
   background: #f8fafc;
   border: 1px dashed rgba(105, 105, 105, 0.18);
 }
@@ -5395,7 +5381,7 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   color: #8a93a3;
-  font-size: 1.02rem;
+  font-size: 1.05rem;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5404,19 +5390,20 @@ onMounted(() => {
 
 .report-empty-row__btn {
   flex: 0 0 auto;
-  height: 2.3rem;
-  padding: 0 1rem;
+  height: 2.5rem;
+  padding: 0 1.4rem;
   border: 0;
-  border-radius: 0.65rem;
-  background: #eef4ff;
-  color: #2563eb;
-  font-size: 0.98rem;
-  font-weight: 700;
-  transition: background 0.15s;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
 .report-empty-row__btn:hover {
-  background: #dfeafe;
+  background: #1d4ed8;
+  box-shadow: 0 0.4rem 1.2rem rgba(37, 99, 235, 0.3);
 }
 
 .report-pending-row {

@@ -33,9 +33,7 @@
                 @click="toggleChannel(ch)"
               >
                 <span class="rp-capsule__ic" :class="`rp-capsule__ic--${ch.value}`">
-                  <svg v-if="ch.value === 'telegram'" viewBox="0 0 24 24" fill="none"><path d="M21.7 4.3c.3-1.1-.8-2-1.8-1.6L2.9 9.4c-1.1.4-1 2 .1 2.3l4.6 1.3 1.7 5.4c.3 1 1.6 1.3 2.3.5l2.4-2.6 4.7 3.4c.9.6 2.1.1 2.3-1l2.7-14.4ZM9.3 13.7l8.1-6.9-6.6 7.9-.2 2.4-1.3-3.4Z" fill="#fff"/></svg>
-                  <svg v-else-if="ch.value === 'max'" viewBox="0 0 24 24" fill="none"><path d="M12 3.2c-4.9 0-8.8 3.4-8.8 7.7 0 2.4 1.2 4.5 3.1 5.9l-.7 3.5c-.1.4.4.8.8.6l3.7-1.8c.6.1 1.3.2 1.9.2 4.9 0 8.8-3.4 8.8-7.7S16.9 3.2 12 3.2Z" fill="#fff"/><path d="M8 10.7h8M8 13.4h5.2" stroke="#6C5CE7" stroke-width="1.6" stroke-linecap="round"/></svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none"><rect x="3" y="5.2" width="18" height="13.6" rx="2.4" fill="#fff"/><path d="m4.4 6.8 7.6 5.6 7.6-5.6" stroke="#8896AC" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span class="rp-mask" :class="`rp-mask--${ch.value}`"></span>
                 </span>
                 <span class="rp-capsule__txt">
                   <strong>{{ ch.label }}</strong>
@@ -430,7 +428,7 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 
 .rp-modal {
   position: relative;
-  width: min(38rem, 94vw);
+  width: min(42rem, 94vw);
   max-height: 90vh;
   overflow-y: auto;
   background: #fff;
@@ -571,18 +569,18 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-mini-btn:hover:not(:disabled) { background: rgba(37, 99, 235, 0.14); }
 .rp-mini-btn:disabled { opacity: 0.6; cursor: default; }
 
-/* ── Капсулы личных каналов ── */
+/* ── Капсулы личных каналов (списком) ── */
 .rp-capsules {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .rp-capsule {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.62rem 0.7rem;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
   border: 1.5px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.85rem;
   background: #fff;
@@ -618,16 +616,44 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 0.65rem;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.7rem;
   flex-shrink: 0;
 }
 
-.rp-capsule__ic svg { width: 1.25rem; height: 1.25rem; }
-.rp-capsule__ic--telegram { background: #2aa5e0; }
-.rp-capsule__ic--max { background: #6c5ce7; }
-.rp-capsule__ic--email { background: #8896ac; }
+.rp-capsule__ic--telegram { background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%); }
+.rp-capsule__ic--max { background: linear-gradient(135deg, #6d3df5 0%, #a45cf0 100%); }
+.rp-capsule__ic--email { background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); }
+
+/* Фирменные mask-иконки каналов (как на дашборде) */
+.rp-mask {
+  display: block;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.rp-mask--telegram {
+  width: 1.2rem;
+  height: 1.2rem;
+  transform: translateX(-0.08rem);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.rp-mask--max {
+  width: 1.4rem;
+  height: 1.4rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.rp-mask--email {
+  width: 1.3rem;
+  height: 0.96rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 
 .rp-capsule__txt {
   display: grid;
@@ -1203,7 +1229,6 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-save:disabled { opacity: 0.6; cursor: default; }
 
 @media (max-width: 620px) {
-  .rp-capsules { grid-template-columns: 1fr; }
   .rp-grid { grid-template-columns: 1fr; }
 }
 </style>
