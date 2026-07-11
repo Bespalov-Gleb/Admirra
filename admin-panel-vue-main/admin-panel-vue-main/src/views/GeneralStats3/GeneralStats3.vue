@@ -9873,18 +9873,24 @@ onMounted(() => {
   align-items: center;
   gap: 1.0417rem;
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
 }
 
 .reports-toolbar__left h2 {
   white-space: nowrap;
 }
 
+/* Контейнер действий обязан уметь сжиматься (flex-shrink), иначе внутренние
+   ellipsis/min-width не активируются и ряд вылезает за панель целиком.
+   Занимает остаток строки, содержимое прижато вправо, при пределе — перенос. */
 .reports-toolbar__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.8333rem;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Главная кнопка не сжимается никогда; селекты умеют ужиматься (ellipsis),
