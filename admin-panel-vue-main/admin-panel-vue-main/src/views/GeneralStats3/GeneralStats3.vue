@@ -92,7 +92,7 @@
           <div class="cs-list dropdown-panel export">
             <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
             <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-            <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
+            <button type="button" class="cs-option" :disabled="sendingExport" @click="handleExportAction('link')"><LinkIcon /> {{ sendingExport ? 'Формируем ссылку…' : 'Ссылка для клиента' }}</button>
           </div>
         </div>
 
@@ -4645,6 +4645,9 @@ const handleDownloadPng = async () => {
 
 const handleGetLink = async () => {
   sendingExport.value = true
+  // Снимок собирается на бэке мгновенно, но сеть/данные бывают медленными —
+  // говорим пользователю, что процесс пошёл (ТЗ: без «немых» ожиданий)
+  toaster.info('Формируем ссылку…')
   try {
     const { data } = await api.post('reports/link', {
       start_date: filters.start_date,
@@ -4656,7 +4659,7 @@ const handleGetLink = async () => {
     const fullUrl = `${base}${data.url.startsWith('/') ? '' : '/'}${data.url}`
     await navigator.clipboard.writeText(fullUrl)
     window.open(fullUrl, '_blank', 'noopener,noreferrer')
-    toaster.success('Ссылка скопирована')
+    toaster.success('Ссылка скопирована · действует 24 часа')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось создать ссылку')
   } finally {

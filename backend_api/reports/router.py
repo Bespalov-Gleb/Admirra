@@ -436,22 +436,12 @@ async def create_report_link(
             u_client_id = uuid.UUID(req.client_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Неверный client_id")
+    # ТЗ «Отчёты» (экран 1): экспорт — отдельная ЛЁГКАЯ ветка, без превью и
+    # утверждений. В ссылку попадает только готовый комментарий, переданный с
+    # дашборда. Синхронная LLM-генерация здесь делала «Получить ссылку»
+    # операцией на 15–30 секунд и незаметно списывала AI-кредит; без
+    # комментария страница просто не показывает этот блок.
     use_comment = (req.comment or "").strip() if req.comment else None
-    if not use_comment:
-        try:
-            SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
-            from ai.report_generator import generate_report
-            use_comment = await generate_report(
-                db=db, user_id=current_user.id, client_id=u_client_id,
-                start_date=req.start_date, end_date=req.end_date, report_type="full",
-            )
-            if not use_comment or not str(use_comment).strip():
-                use_comment = "AI не удалось сформировать комментарий."
-            SubscriptionService.increment_ai_usage(db, current_user, requested=1)
-            db.commit()
-        except Exception as e:
-            logger.exception("AI report failed: %s", e)
-            raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
     try:
         summary, top_campaigns, client_name, _, sd, ed = _get_report_data(
             db, current_user.id, u_client_id,
