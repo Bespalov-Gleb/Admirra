@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence, LargeBinary, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -170,6 +170,7 @@ class TelegramLinkToken(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
+    target_type = Column(String(24), nullable=True)  # group | client; NULL = personal account binding
     token = Column(String(64), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
@@ -190,6 +191,7 @@ class MaxReportLinkToken(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True)
+    target_type = Column(String(24), nullable=True)  # group | client; NULL = personal account binding
     token = Column(String(64), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
@@ -221,9 +223,7 @@ class UserOAuthIdentity(Base):
 
 
 class ReportSchedule(Base):
-    """Правило автоотправки отчёта. У пользователя может быть много правил с разными
-    скоупами/каналами/временем — например, «Яндекс проекта X в 16:00 в Telegram» и
-    «Авито того же проекта в 16:30 в MAX»."""
+    """Единственная настройка автоотправки для конкретного проекта/папки."""
     __tablename__ = "report_schedules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -235,6 +235,7 @@ class ReportSchedule(Base):
     scope_folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True)
     platform = Column(String, nullable=False, default="all", server_default="all")  # all|yandex|vk|avito
     channels = Column(String, nullable=False, default="[]")  # JSON: ["telegram","max","email"]
+    email_recipients = Column(String, nullable=False, default="[]", server_default="[]")
     day = Column(String, nullable=False, default="daily", server_default="daily")  # daily|weekdays|monday..sunday
     send_time = Column(String, nullable=False, default="10:00", server_default="10:00")  # HH:MM МСК
     period_days = Column(Integer, nullable=False, default=7, server_default="7")  # период данных отчёта
@@ -255,6 +256,12 @@ class ReportSchedule(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User", backref="report_schedules")
+
+    __table_args__ = (
+        Index("ix_report_schedules_due_lookup", "enabled", "send_time", "day"),
+        Index("uq_report_schedules_project_scope", "user_id", "scope_client_id", unique=True, postgresql_where=text("scope_client_id IS NOT NULL AND scope_folder_id IS NULL")),
+        Index("uq_report_schedules_folder_scope", "user_id", "scope_folder_id", unique=True, postgresql_where=text("scope_folder_id IS NOT NULL AND scope_client_id IS NULL")),
+    )
 
 
 class ReportDelivery(Base):
@@ -277,6 +284,7 @@ class ReportDelivery(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     channels = Column(String, nullable=False, default="[]", server_default="[]")
+    email_recipients = Column(String, nullable=False, default="[]", server_default="[]")
     chat_targets = Column(String, nullable=True)
     report_format = Column(String, nullable=False, default="desktop", server_default="desktop")
     include_dynamics = Column(Boolean, nullable=False, default=False, server_default="false")
@@ -287,6 +295,13 @@ class ReportDelivery(Base):
     comment = Column(Text, nullable=True)
     anomaly_reason = Column(Text, nullable=True)
     delivery_results = Column(JSON, nullable=True)
+    # Неизменяемый снимок: превью и все каналы используют одни и те же цифры/файлы.
+    snapshot_data = Column(JSON, nullable=True)
+    pdf_snapshot = Column(LargeBinary, nullable=True)
+    png_snapshot = Column(LargeBinary, nullable=True)
+    public_token = Column(String(64), nullable=True, unique=True, index=True)
+    public_expires_at = Column(DateTime(timezone=True), nullable=True)
+    snapshot_created_at = Column(DateTime(timezone=True), nullable=True)
     approved_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
@@ -297,6 +312,15 @@ class ReportDelivery(Base):
     approved_by = relationship("User", foreign_keys=[approved_by_user_id])
     schedule = relationship("ReportSchedule", backref="deliveries")
 
+    __table_args__ = (
+        Index(
+            "uq_report_deliveries_schedule_period",
+            "schedule_id", "start_date", "end_date",
+            unique=True,
+            postgresql_where=text("schedule_id IS NOT NULL"),
+        ),
+    )
+
 
 class ReportChatTarget(Base):
     """Групповой чат (Telegram/MAX), куда пользователь подключил бота для отчётов.
@@ -306,6 +330,9 @@ class ReportChatTarget(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True, index=True)
+    target_type = Column(String(24), nullable=False, default="group", server_default="group")  # group | client
     kind = Column(String, nullable=False)  # telegram | max
     chat_id = Column(String, nullable=False)
     title = Column(String, nullable=True)

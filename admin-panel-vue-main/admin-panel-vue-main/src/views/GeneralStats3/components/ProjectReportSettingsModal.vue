@@ -20,7 +20,7 @@
           <!-- ───── Вкладка «Каналы» ───── -->
           <div v-if="tab === 'channels'">
             <label class="rp-label">Личные каналы аккаунта</label>
-            <p class="rp-sub">Куда отправлять отчёты лично вам. Привязка каналов — в профиле.</p>
+            <p class="rp-sub">Telegram и MAX привязываются один раз к аккаунту; выбор действует только для этого проекта.</p>
 
             <div class="rp-capsules">
               <button
@@ -37,7 +37,7 @@
                 </span>
                 <span class="rp-capsule__txt">
                   <strong>{{ ch.label }}</strong>
-                  <small>{{ ch.connected ? (settings.channels.includes(ch.value) ? 'Включён' : 'Подключён') : 'Не подключён' }}</small>
+                  <small>{{ ch.connected ? (settings.channels.includes(ch.value) ? 'Включён' : 'Подключён') : 'Нажмите, чтобы привязать' }}</small>
                 </span>
                 <span class="rp-box rp-capsule__box">
                   <svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -46,10 +46,29 @@
             </div>
 
             <div class="rp-label-row">
+              <label class="rp-label">Email-получатели проекта</label>
+            </div>
+            <p class="rp-sub">Эти адреса не используются в других проектах.</p>
+            <div class="rp-email-add">
+              <input v-model.trim="newEmail" class="rp-input" type="email" placeholder="client@example.ru" @keyup.enter="addEmail" />
+              <button type="button" class="rp-mini-btn" @click="addEmail">+ Добавить</button>
+            </div>
+            <div v-if="settings.email_recipients.length" class="rp-list">
+              <div v-for="email in settings.email_recipients" :key="email" class="rp-check on">
+                <span class="rp-capsule__ic rp-capsule__ic--email">@</span>
+                <span class="rp-check__name">{{ email }}</span>
+                <button type="button" class="rp-target-unlink" @click="removeEmail(email)">Удалить</button>
+              </div>
+            </div>
+
+            <div class="rp-label-row">
               <label class="rp-label">Группы проекта</label>
-              <button type="button" class="rp-mini-btn" :disabled="linkLoading" @click="createLink">
-                {{ linkLoading ? 'Создаём…' : '+ Создать ссылку' }}
-              </button>
+              <div class="rp-link-actions">
+                <button type="button" class="rp-mini-btn" :disabled="linkLoading" @click="createLink('telegram', 'group')">+ Группа TG</button>
+                <button type="button" class="rp-mini-btn" :disabled="linkLoading" @click="createLink('max', 'group')">+ Группа MAX</button>
+                <button type="button" class="rp-mini-btn" :disabled="linkLoading" @click="createLink('telegram', 'client')">+ Клиент TG</button>
+                <button type="button" class="rp-mini-btn" :disabled="linkLoading" @click="createLink('max', 'client')">+ Клиент MAX</button>
+              </div>
             </div>
             <p class="rp-sub">Ссылка привязывает чат Telegram/MAX к этому проекту.</p>
 
@@ -57,6 +76,7 @@
               <span>{{ inviteLink }}</span>
               <button type="button" @click="copyInvite">Скопировать</button>
             </div>
+            <p v-if="inviteInstruction" class="rp-sub rp-invite-instruction">{{ inviteInstruction }}</p>
 
             <div class="rp-list">
               <label
@@ -70,7 +90,8 @@
                   <svg viewBox="0 0 12 10" fill="none"><path d="M1 5.2 4.4 8.6 11 1.4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </span>
                 <span class="rp-check__name">{{ target.title || target.chat_id }}</span>
-                <span class="rp-check__kind">{{ target.kind === 'max' ? 'MAX' : 'Telegram' }}</span>
+                <span class="rp-check__kind">{{ target.kind === 'max' ? 'MAX' : 'Telegram' }} · {{ target.target_type === 'client' ? 'клиент' : 'группа' }}</span>
+                <button type="button" class="rp-target-unlink" @click.prevent="unlinkTarget(target)">Отвязать</button>
               </label>
               <div v-if="!settings.available_chat_targets?.length" class="rp-empty">Группы ещё не привязаны</div>
             </div>
@@ -87,6 +108,12 @@
                 <small>Отчёт формируется и отправляется по расписанию</small>
               </span>
             </label>
+
+            <div class="rp-label-row">
+              <label class="rp-label">Куда</label>
+              <button type="button" class="rp-mini-btn" @click="tab = 'channels'">Изменить получателей</button>
+            </div>
+            <p class="rp-sub">{{ recipientsSummary }}</p>
 
             <div class="rp-grid">
               <div class="rp-field">
@@ -206,12 +233,16 @@ const props = defineProps({
   title: { type: String, default: 'Текущий проект' },
 })
 
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['close', 'saved', 'link-personal'])
 const toaster = useToaster()
 const loading = ref(false)
 const saving = ref(false)
 const linkLoading = ref(false)
 const inviteLink = ref('')
+const inviteInstruction = ref('')
+const newEmail = ref('')
+let invitePollTimer = null
+let inviteBaselineIds = new Set()
 const tab = ref('channels')
 const openSelect = ref(null)
 
@@ -222,6 +253,7 @@ const settings = reactive({
   enabled: false,
   platform: 'all',
   channels: [],
+  email_recipients: [],
   chat_targets: [],
   day: 'daily',
   send_time: '10:00',
@@ -273,7 +305,10 @@ const handleDocClick = (e) => {
 }
 
 onMounted(() => document.addEventListener('mousedown', handleDocClick))
-onBeforeUnmount(() => document.removeEventListener('mousedown', handleDocClick))
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDocClick)
+  if (invitePollTimer) clearInterval(invitePollTimer)
+})
 
 const params = computed(() => ({
   ...(props.clientId ? { client_id: props.clientId } : {}),
@@ -283,14 +318,43 @@ const params = computed(() => ({
 const personalChannels = computed(() => [
   { value: 'telegram', label: 'Telegram', connected: settings.connected_channels.includes('telegram') },
   { value: 'max', label: 'MAX', connected: settings.connected_channels.includes('max') },
-  { value: 'email', label: 'Email', connected: settings.connected_channels.includes('email') },
 ])
 
+const recipientsSummary = computed(() => {
+  const labels = []
+  if (settings.channels.includes('telegram')) labels.push('Telegram — мне лично')
+  if (settings.channels.includes('max')) labels.push('MAX — мне лично')
+  if (settings.channels.includes('email')) labels.push(`Email · ${settings.email_recipients.length}`)
+  if (settings.chat_targets.length) labels.push(`чаты проекта · ${settings.chat_targets.length}`)
+  return labels.length ? labels.join(' · ') : 'Получатели не выбраны'
+})
+
 const toggleChannel = (ch) => {
-  if (!ch.connected) return
+  if (!ch.connected) {
+    emit('link-personal', ch.value)
+    return
+  }
   const idx = settings.channels.indexOf(ch.value)
   if (idx >= 0) settings.channels.splice(idx, 1)
   else settings.channels.push(ch.value)
+}
+
+const addEmail = () => {
+  const value = newEmail.value.trim().toLowerCase()
+  if (!/^\S+@\S+\.\S+$/.test(value)) {
+    toaster.error('Введите корректный email')
+    return
+  }
+  if (!settings.email_recipients.includes(value)) settings.email_recipients.push(value)
+  if (!settings.channels.includes('email')) settings.channels.push('email')
+  newEmail.value = ''
+}
+
+const removeEmail = (email) => {
+  settings.email_recipients = settings.email_recipients.filter((value) => value !== email)
+  if (!settings.email_recipients.length) {
+    settings.channels = settings.channels.filter((value) => value !== 'email')
+  }
 }
 
 const toggleTarget = (id) => {
@@ -332,6 +396,7 @@ const applySettings = (data = {}) => {
     enabled: Boolean(data.enabled),
     platform: data.platform || 'all',
     channels: Array.isArray(data.channels) ? data.channels : [],
+    email_recipients: Array.isArray(data.email_recipients) ? data.email_recipients : [],
     chat_targets: Array.isArray(data.chat_targets) ? data.chat_targets : [],
     day: data.day || 'daily',
     send_time: data.send_time || '10:00',
@@ -359,12 +424,18 @@ const load = async () => {
 }
 
 const save = async () => {
+  if (settings.enabled && !settings.channels.length && !settings.chat_targets.length) {
+    toaster.error('Добавьте хотя бы одного получателя перед включением автоотправки')
+    tab.value = 'channels'
+    return
+  }
   saving.value = true
   try {
     const { data } = await api.put('reports/project-settings', {
       enabled: settings.enabled,
       platform: settings.platform,
       channels: settings.channels,
+      email_recipients: settings.email_recipients,
       chat_targets: settings.chat_targets,
       day: settings.day,
       send_time: settings.send_time,
@@ -387,17 +458,50 @@ const save = async () => {
   }
 }
 
-const createLink = async () => {
+const createLink = async (kind, targetType) => {
   linkLoading.value = true
   try {
-    const { data } = await api.post('reports/chat-targets/link-code', { kind: 'telegram' }, { params: params.value })
-    const path = data?.group_link || data?.telegram_url || data?.url || data?.code
+    const { data } = await api.post('reports/chat-targets/link-code', { kind, target_type: targetType }, { params: params.value })
+    const path = data?.group_link || data?.telegram_url || data?.url || (kind === 'max' && targetType === 'group' ? data?.command : data?.code)
     inviteLink.value = path ? String(path) : ''
     if (!inviteLink.value) throw new Error('empty link')
+    inviteInstruction.value = targetType === 'client'
+      ? 'Отправьте ссылку клиенту. После Start его личный чат появится только в этом проекте.'
+      : (kind === 'max' ? `Добавьте бота ${data?.bot || ''} в группу и отправьте команду ${data?.command || ''}` : 'Откройте ссылку и выберите нужную группу.')
+    inviteBaselineIds = new Set((settings.available_chat_targets || []).map((item) => String(item.id)))
+    if (invitePollTimer) clearInterval(invitePollTimer)
+    invitePollTimer = setInterval(async () => {
+      try {
+        const response = await api.get('reports/project-settings', { params: params.value })
+        const targets = Array.isArray(response.data?.available_chat_targets) ? response.data.available_chat_targets : []
+        const added = targets.find((item) => !inviteBaselineIds.has(String(item.id)))
+        if (!added) return
+        settings.available_chat_targets = targets
+        if (!settings.chat_targets.includes(added.id)) settings.chat_targets.push(added.id)
+        inviteLink.value = ''
+        inviteInstruction.value = ''
+        clearInterval(invitePollTimer)
+        invitePollTimer = null
+        toaster.success('Получатель подключён к проекту')
+      } catch {
+        // Следующая проверка через 5 секунд.
+      }
+    }, 5000)
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось создать ссылку')
   } finally {
     linkLoading.value = false
+  }
+}
+
+const unlinkTarget = async (target) => {
+  try {
+    await api.delete(`reports/chat-targets/${target.id}`)
+    settings.available_chat_targets = settings.available_chat_targets.filter((item) => item.id !== target.id)
+    settings.chat_targets = settings.chat_targets.filter((id) => id !== target.id)
+    toaster.success('Получатель отвязан')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отвязать получателя')
   }
 }
 
@@ -625,6 +729,13 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-capsule__ic--telegram { background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%); }
 .rp-capsule__ic--max { background: linear-gradient(135deg, #6d3df5 0%, #a45cf0 100%); }
 .rp-capsule__ic--email { background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); }
+
+.rp-email-add { display: flex; gap: 0.6rem; margin-bottom: 0.7rem; }
+.rp-email-add .rp-input { flex: 1; }
+.rp-link-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
+.rp-target-unlink { margin-left: auto; border: 0; background: transparent; color: #94a3b8; font-size: 0.75rem; cursor: pointer; }
+.rp-target-unlink:hover { color: #dc2626; }
+.rp-invite-instruction { margin-top: 0.4rem; }
 
 /* Фирменные mask-иконки каналов (как на дашборде) */
 .rp-mask {

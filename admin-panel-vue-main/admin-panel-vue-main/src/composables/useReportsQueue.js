@@ -6,23 +6,21 @@
  * (после утверждения/отправки) через refreshReportsQueue().
  */
 
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../api/axios'
 
-const pending = ref([])
+const pendingCount = ref(0)
 const isLoading = ref(false)
 const pollSubscribers = ref(0)
 let pollInterval = null
 
-const pendingCount = computed(() => pending.value.length)
-
 const fetchPending = async () => {
   isLoading.value = true
   try {
-    const { data } = await api.get('reports/deliveries', { params: { status: 'pending' } })
-    pending.value = Array.isArray(data) ? data : []
+    const { data } = await api.get('reports/deliveries/pending-count')
+    pendingCount.value = Number(data?.count || 0)
   } catch {
-    // молча — бейдж не критичен; при 401 интерсептор axios разрулит
+    pendingCount.value = 0
   } finally {
     isLoading.value = false
   }
@@ -68,7 +66,6 @@ export function useReportsQueue({ poll = false } = {}) {
   })
 
   return {
-    pending,
     pendingCount,
     isLoading,
     refresh: fetchPending,

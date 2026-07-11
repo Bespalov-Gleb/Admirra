@@ -68,7 +68,8 @@ def generate_report_pdf(
     sections: list | None = None,
     chart_metrics: list | None = None,
     dynamics_metrics: list | None = None,
-) -> bytes:
+    return_data: bool = False,
+) -> bytes | tuple[bytes, dict]:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
     folder_id — скоуп «папка»: сводный отчёт по всем вложенным проектам.
@@ -170,7 +171,21 @@ def generate_report_pdf(
         from weasyprint import HTML
         from io import BytesIO
         pdf_bytes = HTML(string=html).write_pdf()
-        return pdf_bytes
+        return (pdf_bytes, data) if return_data else pdf_bytes
+    except ImportError as e:
+        logger.error("WeasyPrint not installed: %s", e)
+        raise ImportError("Установите weasyprint: pip install weasyprint")
+
+
+def generate_report_pdf_from_snapshot(snapshot_data: dict, comment: Optional[str] = None) -> bytes:
+    """Перерисовывает PDF после правки комментария, не перечитывая статистику."""
+    data = dict(snapshot_data or {})
+    data["ai_comment"] = (comment or "").strip()
+    layout = data.get("layout") or "desktop"
+    html = render_report_html(data, layout=layout)
+    try:
+        from weasyprint import HTML
+        return HTML(string=html).write_pdf()
     except ImportError as e:
         logger.error("WeasyPrint not installed: %s", e)
         raise ImportError("Установите weasyprint: pip install weasyprint")

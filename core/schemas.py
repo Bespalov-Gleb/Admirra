@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, field_serializer
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 from uuid import UUID
 from datetime import datetime, timezone
 import json
@@ -474,6 +474,7 @@ class ReportScheduleBase(BaseModel):
     scope_folder_id: Optional[UUID] = None
     platform: str = "all"  # all | yandex | vk | avito
     channels: List[str] = []  # telegram | max | email
+    email_recipients: List[EmailStr] = []  # получатели email только этого проекта/папки
     day: str = "daily"  # daily | weekdays | monday..sunday
     send_time: str = "10:00"  # HH:MM МСК
     period_days: int = 7
@@ -500,6 +501,7 @@ class ReportScheduleUpdate(BaseModel):
     scope_folder_id: Optional[UUID] = None
     platform: Optional[str] = None
     channels: Optional[List[str]] = None
+    email_recipients: Optional[List[EmailStr]] = None
     day: Optional[str] = None
     send_time: Optional[str] = None
     period_days: Optional[int] = None
@@ -526,6 +528,9 @@ class ReportScheduleResponse(ReportScheduleBase):
 class ReportChatTargetResponse(BaseModel):
     id: UUID
     kind: str  # telegram | max
+    client_id: Optional[UUID] = None
+    folder_id: Optional[UUID] = None
+    target_type: str = "group"
     chat_id: str
     title: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -545,11 +550,12 @@ class ReportDeliveryCreate(BaseModel):
     client_id: Optional[UUID] = None
     folder_id: Optional[UUID] = None
     schedule_id: Optional[UUID] = None
-    source: str = "manual"
+    source: Literal["manual"] = "manual"
     platform: str = "all"
     start_date: str
     end_date: str
     channels: List[str] = []
+    email_recipients: List[EmailStr] = []
     chat_targets: List[UUID] = []
     report_format: str = "desktop"
     include_dynamics: bool = False
@@ -573,7 +579,9 @@ class ReportDeliveryResponse(BaseModel):
     start_date: str
     end_date: str
     channels: List[str] = []
+    email_recipients: List[EmailStr] = []
     chat_targets: List[UUID] = []
+    chat_target_details: List[dict] = []
     report_format: str = "desktop"
     include_dynamics: bool = False
     include_ai_comment: bool = True

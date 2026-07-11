@@ -247,6 +247,31 @@ class TelegramNotifier:
             logger.error(f"send_document error: {e}")
         return False
 
+    async def send_photo(
+        self,
+        chat_id: str,
+        photo: bytes,
+        caption: Optional[str] = None,
+    ) -> bool:
+        """Отправляет PNG-превью отчёта с текстом и ссылкой на PDF."""
+        if not self.token or not chat_id:
+            logger.error("Telegram token/chat_id required for send_photo")
+            return False
+        try:
+            verify = (__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false", "0", "no")
+            async with httpx.AsyncClient(verify=verify, timeout=60.0) as client:
+                response = await client.post(
+                    self._get_url("sendPhoto"),
+                    data={"chat_id": chat_id, **({"caption": caption[:1024]} if caption else {})},
+                    files={"photo": ("report.png", photo, "image/png")},
+                )
+                if response.status_code == 200 and (response.json() or {}).get("ok"):
+                    return True
+                logger.error("sendPhoto failed: %s - %s", response.status_code, response.text)
+        except Exception as e:
+            logger.error("send_photo error: %s", e)
+        return False
+
     async def send_message(self, text: str, parse_mode: str = "Markdown", chat_id: Optional[str] = None) -> bool:
         """
         Отправка произвольного сообщения (для отладки/уведомлений/алертов).
@@ -336,4 +361,3 @@ class TelegramNotifier:
 
 # Глобальный экземпляр
 telegram_notifier = TelegramNotifier()
-

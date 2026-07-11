@@ -4,6 +4,7 @@
 """
 import json
 import logging
+import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -324,11 +325,9 @@ async def run_scheduled_reports():
         db.close()
 
 
-# ══════════ Правила автоотправки (report_schedules) ══════════
-# Новая система: у пользователя МНОГО правил, каждое со своим скоупом
-# (все проекты / проект / папка + рекламный канал), временем, каналами доставки,
-# форматом (desktop/mobile) и периодом данных. Легаси user.report_schedule
-# продолжает работать выше (run_scheduled_reports).
+# ══════════ Проектная автоотправка (report_schedules) ══════════
+# Финальная система: ровно одна настройка на проект/папку. Legacy-функция выше
+# оставлена только для совместимости импорта и не регистрируется в приложении.
 
 def _rule_matches(rule, now: datetime) -> bool:
     try:
@@ -353,6 +352,13 @@ def _rule_already_sent_today(rule, now: datetime) -> bool:
         from datetime import timezone as _tz
         last = last.replace(tzinfo=_tz.utc)
     return last.astimezone(MSK).date() == now.date()
+
+
+def _rule_already_processed_today(db: Session, rule, now: datetime) -> bool:
+    return db.query(models.ReportDelivery.id).filter(
+        models.ReportDelivery.schedule_id == rule.id,
+        models.ReportDelivery.end_date == now.date(),
+    ).first() is not None
 
 
 def _jlist(raw, default=None):
@@ -419,6 +425,7 @@ def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | Non
         start_date=start_date,
         end_date=end_date,
         channels=rule.channels or "[]",
+        email_recipients=getattr(rule, "email_recipients", None) or "[]",
         chat_targets=rule.chat_targets,
         report_format=rule.report_format or "desktop",
         include_dynamics=bool(rule.include_dynamics),
@@ -429,26 +436,332 @@ def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | Non
         anomaly_reason=reason,
     )
     db.add(delivery)
-    rule.last_sent_at = datetime.now(MSK)
     return delivery
 
 
+def delivery_status_from_results(results: dict | None, channels=None, target_ids=None) -> str:
+    """Итог по всем запрошенным маршрутам: sent только когда успешны все."""
+    results = results or {}
+    outcomes = []
+    for channel in (channels or []):
+        outcomes.append(results.get(channel) is True)
+    target_results = results.get("targets") if isinstance(results.get("targets"), dict) else {}
+    for target_id in (target_ids or []):
+        item = target_results.get(str(target_id)) or {}
+        outcomes.append(item.get("ok") is True)
+    if not outcomes:
+        return "failed"
+    succeeded = sum(1 for value in outcomes if value)
+    if succeeded == len(outcomes):
+        return "sent"
+    if succeeded:
+        return "partial"
+    return "failed"
+
+
 def _delivery_succeeded(results) -> bool:
-    """Успешна ли доставка. Групповой результат — строка «N/M»; успех при N>0."""
+    """Backward-compatible helper: error metadata never counts as delivery."""
     if not results:
         return False
-    for key, value in results.items():
-        if key == "groups":
-            try:
-                if int(str(value).split("/", 1)[0]) > 0:
-                    return True
-            except Exception:
-                continue
-        elif key == "error":
-            continue
-        elif bool(value):
+    for key in ("telegram", "max", "email"):
+        if results.get(key) is True:
             return True
-    return False
+    targets = results.get("targets") if isinstance(results.get("targets"), dict) else {}
+    if any(isinstance(value, dict) and value.get("ok") is True for value in targets.values()):
+        return True
+    try:
+        return int(str(results.get("groups") or "0/0").split("/", 1)[0]) > 0
+    except Exception:
+        return False
+
+
+def _json_safe(value):
+    return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+
+
+async def build_delivery_snapshot(db: Session, delivery, user) -> None:
+    """Фиксирует комментарий, данные превью и файлы до очереди/отправки."""
+    if delivery.pdf_snapshot and delivery.snapshot_data:
+        return
+    if bool(delivery.include_ai_comment) and not (delivery.comment or "").strip():
+        try:
+            from backend_api.services.subscription import SubscriptionService
+            from ai.report_generator import generate_report
+            SubscriptionService.ensure_can_use_ai(db, user, requested=1)
+            delivery.comment = await generate_report(
+                db=db,
+                user_id=user.id,
+                client_id=delivery.client_id,
+                start_date=delivery.start_date.isoformat(),
+                end_date=delivery.end_date.isoformat(),
+                report_type="full",
+                folder_id=str(delivery.folder_id) if delivery.folder_id else None,
+            )
+            SubscriptionService.increment_ai_usage(db, user, requested=1)
+        except Exception as exc:
+            logger.warning("Delivery %s AI comment skipped: %s", delivery.id, exc)
+            delivery.comment = "AI-комментарий временно недоступен. Отчёт сформирован без аналитического вывода."
+
+    sections = _jlist(delivery.sections, ["kpi", "chart", "channels", "campaigns"])
+    chart_metrics = _jlist(delivery.chart_metrics, ["cost", "clicks"])
+    dynamics_metrics = _jlist(delivery.dynamics_metrics, ["cost"])
+    folder_id = str(delivery.folder_id) if delivery.folder_id else None
+    start_str = delivery.start_date.isoformat()
+    end_str = delivery.end_date.isoformat()
+    delivery.pdf_snapshot, render_data = generate_report_pdf(
+        db=db,
+        user_id=user.id,
+        client_id=delivery.client_id,
+        start_date=start_str,
+        end_date=end_str,
+        comment=delivery.comment,
+        include_dynamics=bool(delivery.include_dynamics),
+        folder_id=folder_id,
+        platform=delivery.platform or "all",
+        layout=delivery.report_format or "desktop",
+        sections=sections,
+        chart_metrics=chart_metrics,
+        dynamics_metrics=dynamics_metrics,
+        return_data=True,
+    )
+    try:
+        from backend_api.reports.export_service import pdf_first_page_png
+        delivery.png_snapshot = pdf_first_page_png(delivery.pdf_snapshot)
+    except Exception as exc:
+        logger.warning("Delivery %s PNG snapshot skipped: %s", delivery.id, exc)
+        delivery.png_snapshot = None
+    target_ids = [str(value) for value in _jlist(delivery.chat_targets, [])]
+    target_details = []
+    if target_ids:
+        for target in db.query(models.ReportChatTarget).filter(
+            models.ReportChatTarget.user_id == user.id,
+            models.ReportChatTarget.id.in_(target_ids),
+        ).all():
+            target_details.append({
+                "id": str(target.id), "kind": target.kind, "title": target.title,
+                "target_type": target.target_type,
+            })
+    render_data["delivery_targets"] = target_details
+    delivery.snapshot_data = _json_safe(render_data)
+    delivery.public_token = delivery.public_token or secrets.token_urlsafe(32)
+    delivery.public_expires_at = datetime.now(MSK) + timedelta(days=30)
+    delivery.snapshot_created_at = datetime.now(MSK)
+
+
+def _snapshot_caption(delivery) -> str:
+    data = delivery.snapshot_data or {}
+    summary = data.get("summary") or {}
+    from backend_api.reports.export_service import _with_cost_breakdown_vat
+    expenses = _with_cost_breakdown_vat(
+        summary.get("expenses"), summary.get("cost_by_platform"), delivery.platform,
+    )
+    leads = int(summary.get("leads") or 0)
+    clicks = int(summary.get("clicks") or 0)
+    return "\n".join([
+        f"📊 Отчёт за {delivery.start_date.isoformat()} — {delivery.end_date.isoformat()}",
+        f"Расходы: {expenses:,.0f} ₽".replace(",", " "),
+        f"Клики: {clicks:,}".replace(",", " "),
+        f"Лиды: {leads:,}".replace(",", " "),
+    ])
+
+
+def _retry_channels(delivery, retry_failed_only: bool) -> tuple[list[str], list[str]]:
+    channels = _jlist(delivery.channels, [])
+    targets = [str(value) for value in _jlist(delivery.chat_targets, [])]
+    if not retry_failed_only or not delivery.delivery_results:
+        return channels, targets
+    previous = delivery.delivery_results or {}
+    channels = [channel for channel in channels if previous.get(channel) is not True]
+    target_results = previous.get("targets") if isinstance(previous.get("targets"), dict) else {}
+    targets = [target_id for target_id in targets if (target_results.get(target_id) or {}).get("ok") is not True]
+    return channels, targets
+
+
+async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only: bool = False) -> dict:
+    """Отправляет строго сохранённый снимок; при retry — только упавшие маршруты."""
+    await build_delivery_snapshot(db, delivery, user)
+    channels, target_ids = _retry_channels(delivery, retry_failed_only)
+    previous = dict(delivery.delivery_results or {}) if retry_failed_only else {}
+    results = {
+        "telegram": previous.get("telegram"),
+        "max": previous.get("max"),
+        "email": previous.get("email"),
+        "targets": dict(previous.get("targets") or {}),
+        "errors": dict(previous.get("errors") or {}),
+    }
+    def checkpoint() -> None:
+        delivery.delivery_results = _json_safe(results)
+        db.commit()
+    caption = _snapshot_caption(delivery)
+    expires = delivery.public_expires_at
+    if expires and expires.tzinfo is None:
+        from datetime import timezone as _timezone
+        expires = expires.replace(tzinfo=_timezone.utc)
+    if not delivery.public_token or not expires or expires <= datetime.now(MSK):
+        delivery.public_token = secrets.token_urlsafe(32)
+        delivery.public_expires_at = datetime.now(MSK) + timedelta(days=30)
+        db.commit()
+    from core.public_domain import resolve_frontend_url
+    pdf_url = f"{resolve_frontend_url().rstrip('/')}/api/reports/deliveries/public/{delivery.public_token}/pdf"
+
+    if "telegram" in channels:
+        results["errors"].pop("telegram", None)
+        chat_id = (user.report_telegram_chat_id or "").strip()
+        if not chat_id:
+            results["telegram"] = False
+            results["errors"]["telegram"] = "Telegram не привязан"
+        else:
+            try:
+                from lead_validator.services.telegram import telegram_notifier
+                if delivery.png_snapshot:
+                    results["telegram"] = await telegram_notifier.send_photo(
+                        chat_id=chat_id,
+                        photo=delivery.png_snapshot,
+                        caption=f"{caption}\n\nPDF: {pdf_url}",
+                    )
+                else:
+                    results["telegram"] = await telegram_notifier.send_document(
+                        chat_id=chat_id, document=delivery.pdf_snapshot,
+                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf", caption=caption,
+                    )
+                if results["telegram"] is not True:
+                    results["errors"]["telegram"] = "Telegram не подтвердил отправку"
+            except Exception as exc:
+                results["telegram"] = False
+                results["errors"]["telegram"] = str(exc)
+        checkpoint()
+
+    if "max" in channels:
+        results["errors"].pop("max", None)
+        max_chat_id = (getattr(user, "report_max_chat_id", None) or "").strip()
+        max_user_id = (getattr(user, "report_max_user_id", None) or "").strip()
+        if not max_chat_id and not max_user_id:
+            results["max"] = False
+            results["errors"]["max"] = "MAX не привязан"
+        else:
+            try:
+                from backend_api.services import max_reports_bot
+                results["max"] = await max_reports_bot.send_document(
+                    delivery.pdf_snapshot,
+                    f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                    caption=caption,
+                    chat_id=max_chat_id or None,
+                    user_id=max_user_id or None,
+                )
+                if results["max"] is not True:
+                    results["errors"]["max"] = "MAX не подтвердил отправку"
+            except Exception as exc:
+                results["max"] = False
+                results["errors"]["max"] = str(exc)
+        checkpoint()
+
+    if "email" in channels:
+        results["errors"].pop("email", None)
+        recipients = _parse_email_recipients(getattr(delivery, "email_recipients", None))
+        if not recipients:
+            results["email"] = False
+            results["errors"]["email"] = "Email-получатели проекта не указаны"
+        else:
+            try:
+                data = delivery.snapshot_data or {}
+                from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+                if unisender_ok():
+                    from backend_api.reports.email_template import render_report_email_html
+                    email_data = {
+                        "summary": data.get("summary") or {},
+                        "top_campaigns": data.get("top_campaigns") or [],
+                        "client_name": data.get("client_name") or "",
+                        "ai_comment": delivery.comment or "",
+                        "start_date": delivery.start_date.isoformat(),
+                        "end_date": delivery.end_date.isoformat(),
+                        "generated_at": delivery.snapshot_created_at.strftime("%Y-%m-%d %H:%M"),
+                    }
+                    ok, err = await uni_send(
+                        recipients=recipients,
+                        subject=f"Отчёт за {delivery.start_date} — {delivery.end_date}",
+                        html_body=render_report_email_html(email_data),
+                        plain_body=f"{caption}\n\n{delivery.comment or ''}",
+                        pdf_bytes=delivery.pdf_snapshot,
+                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                    )
+                else:
+                    from lead_validator.services.email_sender import email_sender
+                    ok, err = await email_sender.send_report_email(
+                        recipients=recipients,
+                        subject=f"Отчёт за {delivery.start_date} — {delivery.end_date}",
+                        body=f"{caption}\n\n{delivery.comment or ''}",
+                        pdf_bytes=delivery.pdf_snapshot,
+                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                    )
+                results["email"] = bool(ok)
+                if err:
+                    results["errors"]["email"] = str(err)
+                elif not ok:
+                    results["errors"]["email"] = "Email-провайдер не подтвердил отправку"
+            except Exception as exc:
+                results["email"] = False
+                results["errors"]["email"] = str(exc)
+        checkpoint()
+
+    if target_ids:
+        targets_query = db.query(models.ReportChatTarget).filter(
+            models.ReportChatTarget.user_id == user.id,
+            models.ReportChatTarget.id.in_(target_ids),
+        )
+        if delivery.folder_id:
+            targets_query = targets_query.filter(models.ReportChatTarget.folder_id == delivery.folder_id)
+        elif delivery.client_id:
+            targets_query = targets_query.filter(models.ReportChatTarget.client_id == delivery.client_id)
+        else:
+            targets_query = targets_query.filter(
+                models.ReportChatTarget.client_id.is_(None), models.ReportChatTarget.folder_id.is_(None)
+            )
+        targets = targets_query.all()
+        by_id = {str(target.id): target for target in targets}
+        for target_id in target_ids:
+            target = by_id.get(str(target_id))
+            ok = False
+            error = None
+            if not target:
+                error = "Получатель не найден или отвязан"
+            else:
+                try:
+                    if target.kind == "telegram":
+                        from lead_validator.services.telegram import telegram_notifier
+                        if delivery.png_snapshot:
+                            ok = await telegram_notifier.send_photo(
+                                chat_id=target.chat_id,
+                                photo=delivery.png_snapshot,
+                                caption=f"{caption}\n\nPDF: {pdf_url}",
+                            )
+                        else:
+                            ok = await telegram_notifier.send_document(
+                                chat_id=target.chat_id, document=delivery.pdf_snapshot,
+                                filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf", caption=caption,
+                            )
+                    elif target.kind == "max":
+                        from backend_api.services import max_reports_bot
+                        is_user_target = str(target.chat_id).startswith("user:")
+                        ok = await max_reports_bot.send_document(
+                            delivery.pdf_snapshot,
+                            f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                            caption=caption,
+                            chat_id=None if is_user_target else target.chat_id,
+                            user_id=str(target.chat_id).split(":", 1)[1] if is_user_target else None,
+                        )
+                    if not ok and not error:
+                        error = "Провайдер не подтвердил отправку"
+                except Exception as exc:
+                    error = str(exc)
+            results["targets"][str(target_id)] = {
+                "ok": bool(ok),
+                "kind": getattr(target, "kind", None),
+                "title": getattr(target, "title", None),
+                **({"error": error} if error else {}),
+            }
+            checkpoint()
+    results["groups"] = f"{sum(1 for v in results['targets'].values() if v.get('ok'))}/{len(results['targets'])}"
+    return results
 
 
 async def send_report_for_schedule(db: Session, rule, user) -> dict:
@@ -613,18 +926,37 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
 
 
 async def run_scheduled_report_rules():
-    """Запускается каждую минуту рядом с run_scheduled_reports: обрабатывает
-    ПРАВИЛА автоотправки (report_schedules). Одно правило — максимум раз в день."""
+    """Каждую минуту обрабатывает единственную настройку каждого проекта/папки."""
     db: Session = SessionLocal()
     try:
         now = datetime.now(MSK)
+        stale_before = now - timedelta(minutes=15)
+        stale_deliveries = db.query(models.ReportDelivery).filter(
+            models.ReportDelivery.status == "sending",
+            models.ReportDelivery.updated_at < stale_before,
+        ).all()
+        for delivery in stale_deliveries:
+            delivery.status = "failed"
+            previous = dict(delivery.delivery_results or {})
+            errors = dict(previous.get("errors") or {})
+            errors["system"] = "Отправка прервана. Можно безопасно повторить неуспешные маршруты."
+            previous["errors"] = errors
+            delivery.delivery_results = previous
+        if stale_deliveries:
+            db.commit()
+        weekday_name = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")[now.weekday()]
+        allowed_days = ["daily", weekday_name]
+        if now.weekday() <= 4:
+            allowed_days.append("weekdays")
         rules = db.query(models.ReportSchedule).filter(
             models.ReportSchedule.enabled.is_(True),
+            models.ReportSchedule.send_time == now.strftime("%H:%M"),
+            models.ReportSchedule.day.in_(allowed_days),
         ).all()
         for rule in rules:
             if not _rule_matches(rule, now):
                 continue
-            if _rule_already_sent_today(rule, now):
+            if _rule_already_processed_today(db, rule, now):
                 continue
             user = db.query(models.User).filter(
                 models.User.id == rule.user_id,
@@ -634,36 +966,26 @@ async def run_scheduled_report_rules():
                 continue
             try:
                 reason = _rule_blocking_anomaly(db, rule)
+                delivery = create_pending_delivery_for_schedule(db, rule, reason=reason)
+                db.flush()
+                await build_delivery_snapshot(db, delivery, user)
                 if bool(getattr(rule, "approval_required", True)) or reason:
-                    delivery = create_pending_delivery_for_schedule(db, rule, reason=reason)
+                    delivery.status = "pending"
                     db.commit()
                     logger.info("Report rule %s queued for approval: delivery=%s reason=%s", rule.id, delivery.id, reason)
                 else:
-                    results = await send_report_for_schedule(db, rule, user)
-                    delivery = models.ReportDelivery(
-                        user_id=rule.user_id,
-                        schedule_id=rule.id,
-                        client_id=rule.scope_client_id,
-                        folder_id=rule.scope_folder_id,
-                        status="sent" if _delivery_succeeded(results) else "failed",
-                        source="auto",
-                        platform=rule.platform or "all",
-                        start_date=(now.date() - timedelta(days=max(int(rule.period_days or 7) - 1, 0))),
-                        end_date=now.date(),
-                        channels=rule.channels or "[]",
-                        chat_targets=rule.chat_targets,
-                        report_format=rule.report_format or "desktop",
-                        include_dynamics=bool(rule.include_dynamics),
-                        include_ai_comment=bool(getattr(rule, "include_ai_comment", True)),
-                        sections=rule.sections,
-                        chart_metrics=rule.chart_metrics,
-                        dynamics_metrics=rule.dynamics_metrics,
-                        delivery_results=results,
-                        sent_at=datetime.now(MSK),
-                    )
-                    db.add(delivery)
+                    delivery.status = "sending"
                     db.commit()
-                    logger.info("Report rule %s sent for %s: %s", rule.id, user.email, results)
+                    results = await send_report_delivery(db, delivery, user)
+                    delivery.delivery_results = results
+                    delivery.status = delivery_status_from_results(
+                        results, _jlist(delivery.channels, []), _jlist(delivery.chat_targets, []),
+                    )
+                    delivery.sent_at = datetime.now(MSK) if delivery.status in ("sent", "partial") else None
+                    if delivery.status in ("sent", "partial"):
+                        rule.last_sent_at = datetime.now(MSK)
+                    db.commit()
+                    logger.info("Report rule %s completed for %s: status=%s", rule.id, user.email, delivery.status)
             except Exception as e:
                 db.rollback()
                 logger.exception("Report rule %s failed for user %s: %s", rule.id, rule.user_id, e)

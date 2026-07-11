@@ -22,10 +22,10 @@
 
       <div class="panel panel-reports">
         <div class="report-col report-main">
-          <h2>Отчеты и уведомления</h2>
+          <h2>Отчёты</h2>
           <div class="chips-row report-icons-row">
             <button
-              v-for="item in reportChannels"
+              v-for="item in visibleProjectReportChannels"
               :key="item.name"
               class="report-icon-btn"
               :data-channel="item.value"
@@ -37,7 +37,7 @@
               }"
               type="button"
               :title="reportChannelTitle(item)"
-              @click="handleReportChannelClick(item)"
+              @click="openProjectReportSettings"
             >
               <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
                 <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
@@ -51,12 +51,22 @@
                 <component v-else :is="item.icon" class="chip-icon" />
               </span>
             </button>
+            <button
+              v-for="target in visibleProjectChatTargets"
+              :key="target.id"
+              class="report-icon-btn active connected"
+              type="button"
+              :title="`${target.kind === 'max' ? 'MAX' : 'Telegram'} · ${target.title || 'получатель проекта'}`"
+              @click="openProjectReportSettings"
+            >
+              <span class="report-icon-circle"><span class="chip-letter">{{ target.kind === 'max' ? 'M' : 'T' }}</span></span>
+            </button>
           </div>
         </div>
 
         <div class="report-col report-schedule">
           <p>Отчёты проекта</p>
-          <button class="select-like cs-head" type="button" @click="showProjectReportSettings = true">
+          <button class="select-like cs-head" type="button" @click="openProjectReportSettings">
             <span class="cs-current">{{ projectReportSummary }}</span>
             <span class="cs-arrow">
               <ChevronDownIcon />
@@ -65,7 +75,7 @@
         </div>
 
         <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
-          {{ sendingTg || sendingEmail || sendingMax ? 'Отправка...' : 'Отправить сейчас' }}
+          {{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}
           <CheckCircleIcon />
         </button>
         <div
@@ -88,7 +98,7 @@
 
         <div v-if="reportsBlockEmpty" class="report-empty-row">
           <span class="report-empty-row__text">Каналы не подключены — настройте доставку отчётов</span>
-          <button type="button" class="report-empty-row__btn" @click="showProjectReportSettings = true">Настроить</button>
+          <button type="button" class="report-empty-row__btn" @click="openProjectReportSettings">Настроить</button>
         </div>
 
         <button
@@ -97,7 +107,7 @@
           class="report-pending-row"
           @click="openDeliveryPreview(pendingProjectDelivery)"
         >
-          <span>На проверке</span>
+          <span>Ждёт одобрения</span>
           <strong>{{ pendingProjectDelivery.scope_label }}</strong>
           <small>{{ formatReportDate(pendingProjectDelivery.start_date) }} — {{ formatReportDate(pendingProjectDelivery.end_date) }}</small>
         </button>
@@ -1416,7 +1426,7 @@
               <strong>{{ reportLinkAccountLabel }}</strong>
             </div>
             <p>
-              {{ reportLinkEnabled ? 'Отчёты по расписанию будут приходить в этот канал.' : 'Аккаунт привязан, но доставка по расписанию сейчас выключена.' }}
+              Канал привязан к аккаунту. В каких проектах его использовать — выберите в настройках отчётов проекта.
             </p>
           </div>
 
@@ -1463,9 +1473,9 @@
               type="button"
               class="report-link-check"
               :disabled="reportLinkChecking"
-              @click="toggleReportChannelDelivery"
+              @click="openProjectSettingsFromLink"
             >
-              {{ reportLinkEnabled ? 'Выключить доставку' : 'Включить доставку' }}
+              Настройки проекта
             </button>
           </div>
 
@@ -1489,6 +1499,7 @@
       :title="dashboardTitle"
       @close="showProjectReportSettings = false"
       @saved="handleProjectReportSettingsSaved"
+      @link-personal="handleProjectPersonalLink"
     />
 
     <ReportApprovalModal
@@ -1703,6 +1714,8 @@ const reportLinkChannel = ref('')
 const reportLinkOpening = ref(false)
 const reportLinkChecking = ref(false)
 const pendingSendAfterLink = ref(false)
+const linkReturnToProjectSettings = ref(false)
+let reportLinkPollTimer = null
 const userReportSettings = ref({
   telegram_chat_id: '',
   max_chat_id: '',
@@ -1718,23 +1731,42 @@ const showProjectReportSettings = ref(false)
 const projectReportSettings = ref(null)
 const pendingReportDeliveries = ref([])
 const activeReportDelivery = ref(null)
+const openProjectReportSettings = () => {
+  if (!filters.client_id && !filters.folder_id) {
+    toaster.info('Сначала выберите проект или папку')
+    return
+  }
+  showProjectReportSettings.value = true
+}
 const projectReportSummary = computed(() => {
   const s = projectReportSettings.value
-  if (!s) return 'Настроить…'
-  if (!s.enabled) return 'Автоотправка выкл.'
-  const channels = [
-    ...(s.channels || []),
-    ...((s.chat_targets || []).length ? ['группы'] : []),
-  ]
-  return channels.length ? `Включена · ${channels.length} канал` : 'Включена · без каналов'
+  if (!s || !s.enabled) return 'Настройки отчётов'
+  const dayLabels = { daily: 'ежедневно', weekdays: 'по будням', monday: 'по понедельникам', friday: 'по пятницам' }
+  const mode = s.approval_required === false ? 'без проверки' : 'с проверкой'
+  return `${dayLabels[s.day] || s.day} ${s.send_time || '10:00'} · ${mode}`
+})
+const visibleProjectReportChannels = computed(() => {
+  const selected = new Set(projectReportSettings.value?.channels || [])
+  return reportChannels.filter((item) => {
+    if (!selected.has(item.value)) return false
+    if (item.value === 'email') return Boolean(projectReportSettings.value?.email_recipients?.length)
+    return isReportChannelValueConnected(item.value)
+  })
+})
+const visibleProjectChatTargets = computed(() => {
+  const selected = new Set((projectReportSettings.value?.chat_targets || []).map(String))
+  return (projectReportSettings.value?.available_chat_targets || []).filter((target) => selected.has(String(target.id)))
 })
 // Пустое состояние блока «Отчёты»: ни одного подключённого канала/группы (ТЗ экран 1)
 const reportsBlockEmpty = computed(() => {
   const s = projectReportSettings.value
   if (!s) return false
-  const connected = Array.isArray(s.connected_channels) ? s.connected_channels : []
-  const targets = Array.isArray(s.available_chat_targets) ? s.available_chat_targets : []
-  return connected.length === 0 && targets.length === 0
+  const connected = new Set(Array.isArray(s.connected_channels) ? s.connected_channels : [])
+  const selectedChannels = Array.isArray(s.channels) ? s.channels : []
+  const hasPersonal = selectedChannels.some((channel) => channel === 'email'
+    ? Boolean(s.email_recipients?.length)
+    : connected.has(channel))
+  return !hasPersonal && !(s.chat_targets || []).length
 })
 const currentReportScopeParams = computed(() => ({
   ...(filters.folder_id ? { folder_id: filters.folder_id } : {}),
@@ -1752,14 +1784,16 @@ const refreshProjectReportSettings = async () => {
     const { data } = await api.get('reports/project-settings', { params: currentReportScopeParams.value })
     projectReportSettings.value = data
     const channels = Array.isArray(data?.channels) ? data.channels : []
-    if (channels.length) reportDeliveryChannels.value = channels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
+    reportDeliveryChannels.value = channels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   } catch {
     projectReportSettings.value = null
   }
 }
 const refreshPendingReportDeliveries = async () => {
   try {
-    const { data } = await api.get('reports/deliveries', { params: { status: 'pending' } })
+    const { data } = await api.get('reports/deliveries', {
+      params: { status: 'pending', ...currentReportScopeParams.value },
+    })
     pendingReportDeliveries.value = Array.isArray(data) ? data : []
   } catch {
     pendingReportDeliveries.value = []
@@ -1770,6 +1804,11 @@ const handleProjectReportSettingsSaved = async (settings) => {
   if (Array.isArray(settings?.channels)) {
     reportDeliveryChannels.value = settings.channels.filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   }
+}
+const handleProjectPersonalLink = (channel) => {
+  showProjectReportSettings.value = false
+  linkReturnToProjectSettings.value = true
+  reportLinkChannel.value = channel
 }
 const openDeliveryPreview = (delivery) => {
   activeReportDelivery.value = delivery
@@ -2406,6 +2445,7 @@ onBeforeUnmount(() => {
   stopCampaignColumnResize()
   clearSyncJobPolling()
   clearIntegrationStatusPolling()
+  if (reportLinkPollTimer) clearInterval(reportLinkPollTimer)
 })
 
 const applyPeriodRange = () => {
@@ -2641,12 +2681,8 @@ const parseReportSchedule = (raw) => {
 }
 
 const saveReportSettings = async ({ silent = false } = {}) => {
-  const normalized = normalizeReportSchedule(reportSchedule.value)
-  reportSchedule.value = normalized
-  userReportSettings.value.report_schedule = JSON.stringify(normalized)
   userReportSettings.value.delivery_channels = [...reportDeliveryChannels.value]
   await api.put('/auth/me', {
-    report_schedule: JSON.stringify(normalized),
     report_delivery_channels: reportDeliveryChannels.value,
   })
   if (!silent) toaster.success('Настройки отчётов сохранены')
@@ -2673,7 +2709,7 @@ const reportLinkChannelLabel = computed(() => {
 const isReportChannelValueConnected = (channel) => {
   if (channel === 'telegram') return Boolean(userReportSettings.value.telegram_chat_id)
   if (channel === 'max') return Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
-  if (channel === 'email') return Boolean(userReportSettings.value.email_recipients?.length)
+  if (channel === 'email') return Boolean(projectReportSettings.value?.email_recipients?.length)
   return false
 }
 
@@ -4645,7 +4681,7 @@ const captureDashboardScreenshot = async () => {
 const executeReportSend = async () => {
   const savedSettings = projectReportSettings.value
   const channels = (
-    savedSettings?.channels?.length ? savedSettings.channels : reportDeliveryChannels.value
+    Array.isArray(savedSettings?.channels) ? savedSettings.channels : reportDeliveryChannels.value
   ).filter((channel) => ['telegram', 'max', 'email'].includes(channel))
   const chatTargets = Array.isArray(savedSettings?.chat_targets) ? savedSettings.chat_targets : []
   if (!channels.length && !chatTargets.length) {
@@ -4663,8 +4699,9 @@ const executeReportSend = async () => {
     pendingSendAfterLink.value = true
     return
   }
-  if (channels.includes('email') && !userReportSettings.value.email_recipients?.length) {
-    toaster.error('Укажите email для получения отчётов в настройках профиля')
+  if (channels.includes('email') && !savedSettings?.email_recipients?.length) {
+    toaster.error('Добавьте email получателя в настройках отчётов проекта')
+    showProjectReportSettings.value = true
     return
   }
 
@@ -4677,6 +4714,7 @@ const executeReportSend = async () => {
       source: 'manual',
       platform: savedSettings?.platform || filters.channel || 'all',
       channels,
+      email_recipients: savedSettings?.email_recipients || [],
       chat_targets: chatTargets,
       client_id: filters.folder_id ? null : (filters.client_id || null),
       folder_id: filters.folder_id || null,
@@ -4725,6 +4763,8 @@ const openReportBotLink = async () => {
       }
     }
     toaster.info(copiedToClipboard ? 'Ссылка скопирована. Откройте её в новой вкладке и нажмите Start' : 'Откройте бота и нажмите Start')
+    if (reportLinkPollTimer) clearInterval(reportLinkPollTimer)
+    reportLinkPollTimer = setInterval(() => confirmReportChannelLinked({ silent: true }), 5000)
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось открыть бота')
   } finally {
@@ -4754,13 +4794,17 @@ const toggleReportChannelDelivery = async () => {
   }
 }
 
+const openProjectSettingsFromLink = () => {
+  closeReportLinkModal()
+  showProjectReportSettings.value = true
+}
+
 const unlinkReportChannel = async () => {
   if (!reportLinkChannel.value || !reportLinkConnected.value) return
   reportLinkChecking.value = true
   const channel = reportLinkChannel.value
   try {
     const payload = {
-      report_schedule: JSON.stringify(normalizeReportSchedule(reportSchedule.value)),
       report_delivery_channels: reportDeliveryChannels.value.filter((item) => item !== channel),
     }
     if (channel === 'telegram') {
@@ -4828,11 +4872,15 @@ const refreshReportSettingsFromServer = async () => {
 }
 
 function closeReportLinkModal() {
+  if (reportLinkPollTimer) clearInterval(reportLinkPollTimer)
+  reportLinkPollTimer = null
   reportLinkChannel.value = ''
   pendingSendAfterLink.value = false
+  linkReturnToProjectSettings.value = false
 }
 
-async function confirmReportChannelLinked() {
+async function confirmReportChannelLinked({ silent = false } = {}) {
+  if (reportLinkChecking.value) return
   reportLinkChecking.value = true
   try {
     const channel = reportLinkChannel.value
@@ -4841,21 +4889,24 @@ async function confirmReportChannelLinked() {
       ? Boolean(userReportSettings.value.telegram_chat_id)
       : Boolean(userReportSettings.value.max_chat_id || userReportSettings.value.max_user_id)
     if (!linked) {
-      toaster.error(`Сначала нажмите Start в ${reportLinkChannelLabel.value}`)
+      if (!silent) toaster.error(`Сначала нажмите Start в ${reportLinkChannelLabel.value}`)
       return
     }
-    if (!reportDeliveryChannels.value.includes(channel)) {
-      reportDeliveryChannels.value = [...reportDeliveryChannels.value, channel]
-      await saveReportSettings({ silent: true })
-    }
+    if (reportLinkPollTimer) clearInterval(reportLinkPollTimer)
+    reportLinkPollTimer = null
     const sendNow = pendingSendAfterLink.value
+    const returnToSettings = linkReturnToProjectSettings.value
     pendingSendAfterLink.value = false
+    linkReturnToProjectSettings.value = false
     if (sendNow) {
       reportLinkChannel.value = ''
       await executeReportSend()
       return
     }
     toaster.success(`${reportLinkChannelLabel.value} привязан`)
+    reportLinkChannel.value = ''
+    await refreshProjectReportSettings()
+    if (returnToSettings) showProjectReportSettings.value = true
   } finally {
     reportLinkChecking.value = false
   }

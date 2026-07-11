@@ -52,6 +52,9 @@ def _now() -> datetime:
 def _attach_target_to_project_schedule(db: Session, token_row, target: models.ReportChatTarget) -> None:
     if not getattr(token_row, "client_id", None) and not getattr(token_row, "folder_id", None):
         return
+    target.client_id = getattr(token_row, "client_id", None)
+    target.folder_id = getattr(token_row, "folder_id", None)
+    target.target_type = getattr(token_row, "target_type", None) or "group"
     q = db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == token_row.user_id)
     if token_row.folder_id:
         q = q.filter(models.ReportSchedule.scope_folder_id == token_row.folder_id)
@@ -75,6 +78,20 @@ def _attach_target_to_project_schedule(db: Session, token_row, target: models.Re
     if target_id not in [str(item) for item in targets]:
         targets.append(target_id)
     schedule.chat_targets = json.dumps(targets)
+
+
+def _notify_target_linked(db: Session, token_row, target: models.ReportChatTarget) -> None:
+    from backend_api.services.notifications import create_notification
+    create_notification(
+        db, token_row.user_id, "report_recipient_linked",
+        "Получатель отчётов подключён",
+        body=f"{target.title or 'Telegram-чат'} добавлен к выбранному проекту.",
+        meta={
+            "client_id": str(token_row.client_id) if token_row.client_id else None,
+            "folder_id": str(token_row.folder_id) if token_row.folder_id else None,
+            "target_id": str(target.id),
+        },
+    )
 
 
 async def _resolve_bot_username() -> str:
@@ -144,6 +161,9 @@ async def create_telegram_link(
     exp = _now() + timedelta(minutes=LINK_TTL_MINUTES)
     db.query(models.TelegramLinkToken).filter(
         models.TelegramLinkToken.user_id == current_user.id,
+        models.TelegramLinkToken.target_type.is_(None),
+        models.TelegramLinkToken.client_id.is_(None),
+        models.TelegramLinkToken.folder_id.is_(None),
         models.TelegramLinkToken.consumed_at.is_(None),
         models.TelegramLinkToken.expires_at > _now(),
     ).delete(synchronize_session=False)
@@ -206,23 +226,31 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             })
             return {"ok": True}
         title = chat.get("title") or chat.get("username") or f"Чат {chat_id}"
+        if getattr(row, "target_type", None) not in (None, "group"):
+            await _tg_api("sendMessage", {"chat_id": chat_id, "text": "Эта ссылка предназначена для личного чата клиента."})
+            return {"ok": True}
         existing = (
             db.query(models.ReportChatTarget)
             .filter(
                 models.ReportChatTarget.user_id == row.user_id,
                 models.ReportChatTarget.kind == "telegram",
                 models.ReportChatTarget.chat_id == str(chat_id),
+                models.ReportChatTarget.client_id == row.client_id,
+                models.ReportChatTarget.folder_id == row.folder_id,
+                models.ReportChatTarget.target_type == "group",
             )
             .first()
         )
         target = existing
         if not target:
             target = models.ReportChatTarget(
-                user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
+                user_id=row.user_id, client_id=row.client_id, folder_id=row.folder_id,
+                target_type="group", kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
             )
             db.add(target)
             db.flush()
         _attach_target_to_project_schedule(db, row, target)
+        _notify_target_linked(db, row, target)
         row.consumed_at = _now()
         db.commit()
         await _tg_api("sendMessage", {
@@ -276,6 +304,9 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     # /start в группе (deep-link «добавить бота в группу» ?startgroup=КОД) —
     # это подключение ГРУППЫ, а не личного чата
     if str(chat.get("type") or "") in ("group", "supergroup"):
+        if getattr(row, "target_type", None) == "client":
+            await _tg_api("sendMessage", {"chat_id": chat_id, "text": "Эта ссылка предназначена для личного чата клиента."})
+            return {"ok": True}
         title = chat.get("title") or f"Чат {chat_id}"
         exists = (
             db.query(models.ReportChatTarget)
@@ -283,17 +314,22 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
                 models.ReportChatTarget.user_id == row.user_id,
                 models.ReportChatTarget.kind == "telegram",
                 models.ReportChatTarget.chat_id == str(chat_id),
+                models.ReportChatTarget.client_id == row.client_id,
+                models.ReportChatTarget.folder_id == row.folder_id,
+                models.ReportChatTarget.target_type == "group",
             )
             .first()
         )
         target = exists
         if not target:
             target = models.ReportChatTarget(
-                user_id=row.user_id, kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
+                user_id=row.user_id, client_id=row.client_id, folder_id=row.folder_id,
+                target_type="group", kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
             )
             db.add(target)
             db.flush()
         _attach_target_to_project_schedule(db, row, target)
+        _notify_target_linked(db, row, target)
         row.consumed_at = _now()
         db.commit()
         await _tg_api("sendMessage", {
@@ -301,6 +337,33 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             "text": f"✅ Группа «{title}» подключена: отчёты AdMirra будут приходить сюда по выбранным правилам.",
         })
         logger.info("Telegram GROUP %s linked (startgroup) to user %s", chat_id, row.user_id)
+        return {"ok": True}
+
+    if getattr(row, "target_type", None) == "client" and (row.client_id or row.folder_id):
+        sender = message.get("from") or {}
+        title = sender.get("username") or " ".join(
+            part for part in [sender.get("first_name"), sender.get("last_name")] if part
+        ) or f"Клиент {chat_id}"
+        target = db.query(models.ReportChatTarget).filter(
+            models.ReportChatTarget.user_id == row.user_id,
+            models.ReportChatTarget.kind == "telegram",
+            models.ReportChatTarget.chat_id == str(chat_id),
+            models.ReportChatTarget.client_id == row.client_id,
+            models.ReportChatTarget.folder_id == row.folder_id,
+            models.ReportChatTarget.target_type == "client",
+        ).first()
+        if not target:
+            target = models.ReportChatTarget(
+                user_id=row.user_id, client_id=row.client_id, folder_id=row.folder_id,
+                target_type="client", kind="telegram", chat_id=str(chat_id), title=str(title)[:120],
+            )
+            db.add(target)
+            db.flush()
+        _attach_target_to_project_schedule(db, row, target)
+        _notify_target_linked(db, row, target)
+        row.consumed_at = _now()
+        db.commit()
+        await _tg_api("sendMessage", {"chat_id": chat_id, "text": "✅ Чат подключён к отчётам выбранного проекта AdMirra."})
         return {"ok": True}
 
     user.report_telegram_chat_id = str(chat_id)

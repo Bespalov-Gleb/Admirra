@@ -75,9 +75,9 @@
               <span v-if="!channelBadges(item).length" class="history-channels-empty">—</span>
             </span>
             <span class="history-status-cell">
-              <span :class="['history-status', item.status]">{{ item.status === 'sent' ? 'Доставлен' : 'Ошибка' }}</span>
+              <span :class="['history-status', item.status]">{{ statusLabel(item.status) }}</span>
               <button
-                v-if="item.status === 'failed'"
+                v-if="item.status === 'failed' || item.status === 'partial'"
                 type="button"
                 class="history-retry"
                 :disabled="retryingId === item.id"
@@ -150,12 +150,21 @@ const channelBadges = (item) => {
     if (!meta) continue
     const raw = res[ch]
     const ok = raw == null ? null : Boolean(raw)
-    out.push({ key: ch, glyph: meta.glyph, cls: meta.cls, ok, title: `${meta.label}${ok === false ? ' — ошибка' : ''}` })
+    const error = res.errors?.[ch]
+    out.push({ key: ch, glyph: meta.glyph, cls: meta.cls, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
   }
-  if ((item.chat_targets || []).length) {
-    let ok = null
-    if (typeof res.groups === 'string') ok = parseInt(res.groups.split('/')[0], 10) > 0
-    out.push({ key: 'groups', glyph: 'G', cls: 'tg', ok, title: `Группы${ok === false ? ' — ошибка' : ''}` })
+  const targetResults = res.targets || {}
+  for (const targetId of (item.chat_targets || [])) {
+    const target = targetResults[String(targetId)] || {}
+    const ok = target.ok == null ? null : Boolean(target.ok)
+    const isMax = target.kind === 'max'
+    out.push({
+      key: `target-${targetId}`,
+      glyph: isMax ? 'M' : 'T',
+      cls: isMax ? 'mx' : 'tg',
+      ok,
+      title: `${target.title || 'Получатель проекта'}${ok === false ? ` — ${target.error || 'ошибка'}` : ''}`,
+    })
   }
   return out
 }
@@ -165,7 +174,8 @@ const retryDelivery = async (item) => {
   retryingId.value = item.id
   try {
     const { data } = await api.post(`reports/deliveries/${item.id}/approve`, { comment: item.comment })
-    if (data?.status === 'sent') toaster.success('Отчёт отправлен повторно')
+    if (data?.status === 'sent') toaster.success('Неуспешные маршруты отправлены повторно')
+    else if (data?.status === 'partial') toaster.warning('Часть маршрутов по-прежнему недоступна')
     else toaster.error('Повторная отправка не удалась. Проверьте каналы')
     await load()
   } catch (err) {
@@ -185,6 +195,13 @@ const formatDate = (value) => {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ru-RU')
 }
+
+const statusLabel = (status) => ({
+  sent: 'Отправлен',
+  partial: 'Частично отправлен',
+  failed: 'Ошибка',
+  cancelled: 'Отменён',
+}[status] || status)
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -484,7 +501,7 @@ onMounted(load)
 .reports-page.is-dark .history-approver { color: rgba(255, 255, 255, 0.5); }
 .reports-page.is-dark .history-scope { color: #e6ebf3; }
 
-.history-channels { display: inline-flex; align-items: center; gap: 0.4rem; }
+.history-channels { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
 
 .history-channel-ic {
   width: 1.65rem;
@@ -508,8 +525,10 @@ onMounted(load)
 .history-status-cell { display: inline-flex; align-items: center; gap: 0.6rem; }
 
 .history-status.sent { background: #e6f6ed; color: #188a4c; }
+.history-status.partial { background: #fff4db; color: #9a6700; }
 .history-status.failed { background: #fceaea; color: #c23a3a; }
 .reports-page.is-dark .history-status.sent { background: rgba(24, 138, 76, 0.2); color: #6cd39a; }
+.reports-page.is-dark .history-status.partial { background: rgba(239, 168, 39, 0.18); color: #f6c768; }
 .reports-page.is-dark .history-status.failed { background: rgba(226, 75, 74, 0.18); color: #ff8a87; }
 
 .history-retry {

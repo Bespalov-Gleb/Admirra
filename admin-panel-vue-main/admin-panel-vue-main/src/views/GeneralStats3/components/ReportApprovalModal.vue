@@ -154,27 +154,40 @@ const statusLabel = computed(() => ({
 
 const channelTabs = computed(() => {
   const used = new Set(Array.isArray(props.delivery?.channels) ? props.delivery.channels : [])
-  const targets = Array.isArray(props.delivery?.chat_targets) ? props.delivery.chat_targets : []
+  const targets = Array.isArray(props.delivery?.chat_target_details) ? props.delivery.chat_target_details : []
   return [
-    { value: 'telegram', label: 'Telegram', used: used.has('telegram') || targets.length > 0 },
-    { value: 'max', label: 'MAX', used: used.has('max') },
+    { value: 'telegram', label: 'Telegram', used: used.has('telegram') || targets.some((target) => target.kind === 'telegram') },
+    { value: 'max', label: 'MAX', used: used.has('max') || targets.some((target) => target.kind === 'max') },
     { value: 'email', label: 'Email', used: used.has('email') },
   ]
 })
 
 const activeChannelHint = computed(() => {
   if (activeTab.value === 'email') return 'Письмо клиенту: выжимка отчёта в теле + PDF во вложении.'
-  return 'Сообщение в чат: выжимка 4–6 строк + PNG-картинка и ссылка на PDF.'
+  if (activeTab.value === 'max') return 'Сообщение в MAX: выжимка показателей + PDF во вложении.'
+  return 'Сообщение в Telegram: выжимка 4–6 строк + PNG-превью и ссылка на PDF.'
 })
 
 const deliveryTargets = computed(() => {
   const channels = Array.isArray(props.delivery?.channels) ? props.delivery.channels : []
-  const targets = Array.isArray(props.delivery?.chat_targets) ? props.delivery.chat_targets : []
+  const targets = Array.isArray(props.delivery?.chat_target_details) ? props.delivery.chat_target_details : []
   const rows = []
   if (channels.includes('telegram')) rows.push({ key: 'tg', icon: 'tg', glyph: 'T', text: 'Telegram — мне лично', used: true })
   if (channels.includes('max')) rows.push({ key: 'mx', icon: 'mx', glyph: 'M', text: 'MAX — мне лично', used: true })
-  if (channels.includes('email')) rows.push({ key: 'em', icon: 'em', glyph: '@', text: 'Email клиенту', used: true })
-  if (targets.length) rows.push({ key: 'gr', icon: 'tg', glyph: 'G', text: `Группы проекта · ${targets.length}`, used: true })
+  if (channels.includes('email')) {
+    const emails = Array.isArray(props.delivery?.email_recipients) ? props.delivery.email_recipients : []
+    rows.push({ key: 'em', icon: 'em', glyph: '@', text: emails.join(', ') || 'Email проекта', used: true })
+  }
+  for (const target of targets) {
+    const isMax = target.kind === 'max'
+    rows.push({
+      key: `target-${target.id}`,
+      icon: isMax ? 'mx' : 'tg',
+      glyph: isMax ? 'M' : 'T',
+      text: target.title || (target.target_type === 'client' ? 'Личный чат клиента' : 'Группа проекта'),
+      used: true,
+    })
+  }
   return rows
 })
 
@@ -230,7 +243,6 @@ const saveDraft = async () => {
     await api.put(`reports/deliveries/${props.delivery.id}`, { comment: comment.value })
     commentStatus.value = 'edited'
     toaster.success('Черновик сохранён')
-    emit('sent', { ...props.delivery, comment: comment.value, _draft: true })
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось сохранить черновик')
   } finally {
@@ -260,6 +272,11 @@ const approve = async () => {
     if (data?.status === 'sent') {
       commentStatus.value = 'approved'
       toaster.success('Отчёт отправлен')
+      emit('sent', data)
+      emit('close')
+    } else if (data?.status === 'partial') {
+      commentStatus.value = 'approved'
+      toaster.warning('Отчёт отправлен частично. Неуспешные маршруты можно повторить в истории')
       emit('sent', data)
       emit('close')
     } else {

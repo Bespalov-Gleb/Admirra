@@ -38,6 +38,9 @@ def _now() -> datetime:
 def _attach_target_to_project_schedule(db: Session, token_row, target: models.ReportChatTarget) -> None:
     if not getattr(token_row, "client_id", None) and not getattr(token_row, "folder_id", None):
         return
+    target.client_id = getattr(token_row, "client_id", None)
+    target.folder_id = getattr(token_row, "folder_id", None)
+    target.target_type = getattr(token_row, "target_type", None) or "group"
     q = db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == token_row.user_id)
     if token_row.folder_id:
         q = q.filter(models.ReportSchedule.scope_folder_id == token_row.folder_id)
@@ -63,6 +66,20 @@ def _attach_target_to_project_schedule(db: Session, token_row, target: models.Re
     schedule.chat_targets = json.dumps(targets)
 
 
+def _notify_target_linked(db: Session, token_row, target: models.ReportChatTarget) -> None:
+    from backend_api.services.notifications import create_notification
+    create_notification(
+        db, token_row.user_id, "report_recipient_linked",
+        "Получатель отчётов подключён",
+        body=f"{target.title or 'MAX-чат'} добавлен к выбранному проекту.",
+        meta={
+            "client_id": str(token_row.client_id) if token_row.client_id else None,
+            "folder_id": str(token_row.folder_id) if token_row.folder_id else None,
+            "target_id": str(target.id),
+        },
+    )
+
+
 @link_router.post("/link", response_model=schemas.TelegramDeepLinkResponse)
 async def create_max_reports_link(
     db: Session = Depends(get_db),
@@ -77,6 +94,9 @@ async def create_max_reports_link(
 
     db.query(models.MaxReportLinkToken).filter(
         models.MaxReportLinkToken.user_id == current_user.id,
+        models.MaxReportLinkToken.target_type.is_(None),
+        models.MaxReportLinkToken.client_id.is_(None),
+        models.MaxReportLinkToken.folder_id.is_(None),
         models.MaxReportLinkToken.consumed_at.is_(None),
         models.MaxReportLinkToken.expires_at > _now(),
     ).delete(synchronize_session=False)
@@ -126,7 +146,7 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
                     )
                     .first()
                 )
-                if row:
+                if row and getattr(row, "target_type", None) in (None, "group"):
                     chat_title = str((msg.get("recipient") or {}).get("chat_title") or "Чат MAX")[:120]
                     existing = (
                         db.query(models.ReportChatTarget)
@@ -134,17 +154,22 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
                             models.ReportChatTarget.user_id == row.user_id,
                             models.ReportChatTarget.kind == "max",
                             models.ReportChatTarget.chat_id == group_chat_id,
+                            models.ReportChatTarget.client_id == row.client_id,
+                            models.ReportChatTarget.folder_id == row.folder_id,
+                            models.ReportChatTarget.target_type == "group",
                         )
                         .first()
                     )
                     target = existing
                     if not target:
                         target = models.ReportChatTarget(
-                            user_id=row.user_id, kind="max", chat_id=group_chat_id, title=chat_title,
+                            user_id=row.user_id, client_id=row.client_id, folder_id=row.folder_id,
+                            target_type="group", kind="max", chat_id=group_chat_id, title=chat_title,
                         )
                         db.add(target)
                         db.flush()
                     _attach_target_to_project_schedule(db, row, target)
+                    _notify_target_linked(db, row, target)
                     row.consumed_at = _now()
                     db.commit()
                     await max_reports_bot.send_message(
@@ -190,6 +215,34 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.id == row.user_id).first()
     if not user:
+        return {"ok": True}
+
+    if getattr(row, "target_type", None) == "client" and (row.client_id or row.folder_id):
+        target_chat_id = chat_id or f"user:{max_uid}"
+        title = username or str(user_info.get("name") or "").strip() or f"Клиент {max_uid}"
+        target = db.query(models.ReportChatTarget).filter(
+            models.ReportChatTarget.user_id == row.user_id,
+            models.ReportChatTarget.kind == "max",
+            models.ReportChatTarget.chat_id == target_chat_id,
+            models.ReportChatTarget.client_id == row.client_id,
+            models.ReportChatTarget.folder_id == row.folder_id,
+            models.ReportChatTarget.target_type == "client",
+        ).first()
+        if not target:
+            target = models.ReportChatTarget(
+                user_id=row.user_id, client_id=row.client_id, folder_id=row.folder_id,
+                target_type="client", kind="max", chat_id=target_chat_id, title=title[:120],
+            )
+            db.add(target)
+            db.flush()
+        _attach_target_to_project_schedule(db, row, target)
+        _notify_target_linked(db, row, target)
+        row.consumed_at = _now()
+        db.commit()
+        await max_reports_bot.send_message(
+            "✅ Чат подключён к отчётам выбранного проекта AdMirra.",
+            chat_id=chat_id, user_id=max_uid,
+        )
         return {"ok": True}
 
     user.report_max_chat_id = chat_id

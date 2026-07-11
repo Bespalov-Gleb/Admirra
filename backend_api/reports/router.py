@@ -4,12 +4,11 @@
 import logging
 from typing import Optional, List
 from datetime import date, datetime, timedelta, timezone
-from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 import uuid
 
 from core.database import get_db
@@ -821,6 +820,7 @@ def _schedule_to_response(db: Session, s: models.ReportSchedule) -> schemas.Repo
         scope_folder_id=s.scope_folder_id,
         platform=s.platform or "all",
         channels=channels,
+        email_recipients=_jlist(getattr(s, "email_recipients", None), []),
         day=s.day or "daily",
         send_time=s.send_time or "10:00",
         period_days=int(s.period_days or 7),
@@ -854,6 +854,11 @@ def _dump_list(value) -> str:
     return _json.dumps([str(v) for v in (value or [])])
 
 
+def _dump_emails(value) -> str:
+    normalized = dict.fromkeys(str(item).strip().lower() for item in (value or []) if str(item).strip())
+    return _dump_list(normalized.keys())
+
+
 def _parse_date(value: str) -> date:
     try:
         return date.fromisoformat(str(value))
@@ -873,6 +878,8 @@ def _scope_filter(query, *, user_id, client_id=None, folder_id=None):
 
 
 def _assert_scope_access(db: Session, user_id, client_id=None, folder_id=None) -> None:
+    if client_id and folder_id:
+        raise HTTPException(status_code=422, detail="Выберите проект или папку, но не оба сразу")
     if client_id:
         ok = db.query(models.Client.id).filter(models.Client.id == client_id, models.Client.owner_id == user_id).first()
         if not ok:
@@ -884,23 +891,8 @@ def _assert_scope_access(db: Session, user_id, client_id=None, folder_id=None) -
 
 
 def _delivery_succeeded(results: Optional[dict]) -> bool:
-    """Успешна ли доставка. Групповой результат приходит строкой «N/M» —
-    считаем успехом, только если доставлена хотя бы одна группа (N>0)."""
-    if not results:
-        return False
-    for key, value in results.items():
-        if key == "groups":
-            try:
-                delivered = int(str(value).split("/", 1)[0])
-                if delivered > 0:
-                    return True
-            except Exception:
-                continue
-        elif key == "error":
-            continue
-        elif bool(value):
-            return True
-    return False
+    from backend_api.reports.scheduler import _delivery_succeeded as succeeded
+    return succeeded(results)
 
 
 def _delivery_approver_name(db: Session, d: models.ReportDelivery) -> Optional[str]:
@@ -926,7 +918,25 @@ def _delivery_scope_label(db: Session, d: models.ReportDelivery) -> str:
     return "Все проекты"
 
 
-def _delivery_to_response(db: Session, d: models.ReportDelivery) -> schemas.ReportDeliveryResponse:
+def _delivery_to_response(
+    db: Session,
+    d: models.ReportDelivery,
+    *,
+    client_names: Optional[dict] = None,
+    folder_names: Optional[dict] = None,
+    approver_names: Optional[dict] = None,
+) -> schemas.ReportDeliveryResponse:
+    if d.folder_id and folder_names is not None:
+        scope_label = f"Папка «{folder_names.get(d.folder_id)}»" if folder_names.get(d.folder_id) else "Папка"
+    elif d.client_id and client_names is not None:
+        scope_label = f"Проект «{client_names.get(d.client_id)}»" if client_names.get(d.client_id) else "Проект"
+    elif client_names is not None or folder_names is not None:
+        scope_label = "Все проекты"
+    else:
+        scope_label = _delivery_scope_label(db, d)
+    approver_name = approver_names.get(d.approved_by_user_id) if approver_names is not None and d.approved_by_user_id else (
+        _delivery_approver_name(db, d) if approver_names is None else None
+    )
     return schemas.ReportDeliveryResponse(
         id=d.id,
         status=d.status,
@@ -934,12 +944,14 @@ def _delivery_to_response(db: Session, d: models.ReportDelivery) -> schemas.Repo
         client_id=d.client_id,
         folder_id=d.folder_id,
         schedule_id=d.schedule_id,
-        scope_label=_delivery_scope_label(db, d),
+        scope_label=scope_label,
         platform=d.platform or "all",
         start_date=d.start_date.isoformat(),
         end_date=d.end_date.isoformat(),
         channels=_jlist(d.channels),
+        email_recipients=_jlist(getattr(d, "email_recipients", None)),
         chat_targets=_jlist(d.chat_targets),
+        chat_target_details=(d.snapshot_data or {}).get("delivery_targets") or [],
         report_format=d.report_format or "desktop",
         include_dynamics=bool(d.include_dynamics),
         include_ai_comment=bool(d.include_ai_comment),
@@ -949,34 +961,56 @@ def _delivery_to_response(db: Session, d: models.ReportDelivery) -> schemas.Repo
         comment=d.comment,
         anomaly_reason=d.anomaly_reason,
         delivery_results=d.delivery_results,
-        approved_by_name=_delivery_approver_name(db, d),
+        approved_by_name=approver_name,
         approved_at=d.approved_at,
         sent_at=d.sent_at,
         created_at=d.created_at,
     )
 
 
+def _refresh_delivery_comment_snapshot(d: models.ReportDelivery) -> None:
+    """Обновляет комментарий в файлах, сохраняя исходные цифры снимка."""
+    if not d.snapshot_data:
+        return
+    from backend_api.reports.pdf_service import generate_report_pdf_from_snapshot
+    from backend_api.reports.export_service import pdf_first_page_png
+    snapshot = dict(d.snapshot_data)
+    snapshot["ai_comment"] = (d.comment or "").strip()
+    d.snapshot_data = snapshot
+    d.pdf_snapshot = generate_report_pdf_from_snapshot(snapshot, d.comment)
+    try:
+        d.png_snapshot = pdf_first_page_png(d.pdf_snapshot)
+    except Exception as exc:
+        logger.warning("Delivery %s PNG refresh skipped: %s", d.id, exc)
+
+
 def _default_project_settings_response(db: Session, current_user: models.User, client_id=None, folder_id=None):
-    targets = (
+    targets_query = (
         db.query(models.ReportChatTarget)
         .filter(models.ReportChatTarget.user_id == current_user.id)
-        .order_by(models.ReportChatTarget.created_at)
-        .all()
     )
+    if folder_id:
+        targets_query = targets_query.filter(models.ReportChatTarget.folder_id == folder_id)
+    elif client_id:
+        targets_query = targets_query.filter(models.ReportChatTarget.client_id == client_id)
+    else:
+        targets_query = targets_query.filter(
+            models.ReportChatTarget.client_id.is_(None), models.ReportChatTarget.folder_id.is_(None)
+        )
+    targets = targets_query.order_by(models.ReportChatTarget.created_at).all()
     connected = []
     if (current_user.report_telegram_chat_id or "").strip():
         connected.append("telegram")
     if (getattr(current_user, "report_max_chat_id", None) or getattr(current_user, "report_max_user_id", None) or ""):
         connected.append("max")
-    if _jlist(current_user.report_email_recipients):
-        connected.append("email")
     return schemas.ReportProjectSettingsResponse(
         id=None,
         enabled=False,
         scope_client_id=client_id,
         scope_folder_id=folder_id,
         platform="all",
-        channels=connected[:1] if connected else [],
+        channels=[],
+        email_recipients=[],
         day="daily",
         send_time="10:00",
         period_days=7,
@@ -1025,6 +1059,8 @@ def save_project_report_settings(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not client_id and not folder_id:
+        raise HTTPException(status_code=422, detail="Выберите проект или папку для настройки автоотправки")
     _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
     _validate_schedule_payload(
         day=body.day, send_time=body.send_time, channels=body.channels,
@@ -1049,12 +1085,31 @@ def save_project_report_settings(
             name=None,
         )
         db.add(s)
+    next_channels = body.channels if body.channels is not None else _jlist(getattr(s, "channels", None), [])
+    next_targets = body.chat_targets if body.chat_targets is not None else _jlist(getattr(s, "chat_targets", None), [])
+    next_emails = body.email_recipients if body.email_recipients is not None else _jlist(getattr(s, "email_recipients", None), [])
+    next_enabled = bool(body.enabled) if body.enabled is not None else bool(s.enabled)
+    if body.chat_targets is not None:
+        scoped_check = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
+        if folder_id:
+            scoped_check = scoped_check.filter(models.ReportChatTarget.folder_id == folder_id)
+        else:
+            scoped_check = scoped_check.filter(models.ReportChatTarget.client_id == client_id)
+        allowed = {str(row.id) for row in scoped_check.all()}
+        if any(str(target) not in allowed for target in body.chat_targets):
+            raise HTTPException(status_code=422, detail="Получатель не относится к выбранному проекту")
+    if "email" in next_channels and not next_emails:
+        raise HTTPException(status_code=422, detail="Добавьте хотя бы один email получателя проекта")
+    if next_enabled and not (next_channels or next_targets):
+        raise HTTPException(status_code=422, detail="Нельзя включить автоотправку без получателей")
     if body.enabled is not None:
         s.enabled = bool(body.enabled)
     if body.platform is not None:
         s.platform = body.platform
     if body.channels is not None:
         s.channels = _dump_list(body.channels)
+    if body.email_recipients is not None:
+        s.email_recipients = _dump_emails(body.email_recipients)
     if body.day is not None:
         s.day = body.day
     if body.send_time is not None:
@@ -1076,9 +1131,16 @@ def save_project_report_settings(
     if body.dynamics_metrics is not None:
         s.dynamics_metrics = _dump_list(body.dynamics_metrics)
     if body.chat_targets is not None:
+        scoped = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
+        if folder_id:
+            scoped = scoped.filter(models.ReportChatTarget.folder_id == folder_id)
+        elif client_id:
+            scoped = scoped.filter(models.ReportChatTarget.client_id == client_id)
+        else:
+            scoped = scoped.filter(models.ReportChatTarget.client_id.is_(None), models.ReportChatTarget.folder_id.is_(None))
         own = {
             str(r.id)
-            for r in db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id).all()
+            for r in scoped.all()
         }
         s.chat_targets = _dump_list([t for t in body.chat_targets if str(t) in own])
     db.commit()
@@ -1094,10 +1156,13 @@ def list_report_deliveries(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.ReportDelivery).filter(models.ReportDelivery.user_id == current_user.id)
+    q = db.query(models.ReportDelivery).options(
+        defer(models.ReportDelivery.pdf_snapshot),
+        defer(models.ReportDelivery.png_snapshot),
+    ).filter(models.ReportDelivery.user_id == current_user.id)
     if status:
         if status == "history":
-            q = q.filter(models.ReportDelivery.status.in_(["sent", "failed", "cancelled"]))
+            q = q.filter(models.ReportDelivery.status.in_(["sent", "partial", "failed", "cancelled"]))
         else:
             q = q.filter(models.ReportDelivery.status == status)
     # Скоуп проекта/папки — для жёлтой строки на дашборде конкретного проекта
@@ -1106,7 +1171,34 @@ def list_report_deliveries(
     elif client_id:
         q = q.filter(models.ReportDelivery.client_id == client_id)
     rows = q.order_by(models.ReportDelivery.created_at.desc()).limit(100).all()
-    return [_delivery_to_response(db, row) for row in rows]
+    client_ids = {row.client_id for row in rows if row.client_id}
+    folder_ids = {row.folder_id for row in rows if row.folder_id}
+    approver_ids = {row.approved_by_user_id for row in rows if row.approved_by_user_id}
+    client_names = {row.id: row.name for row in db.query(models.Client.id, models.Client.name).filter(models.Client.id.in_(client_ids)).all()} if client_ids else {}
+    folder_names = {row.id: row.name for row in db.query(models.Folder.id, models.Folder.name).filter(models.Folder.id.in_(folder_ids)).all()} if folder_ids else {}
+    approver_names = {}
+    if approver_ids:
+        for user in db.query(models.User).filter(models.User.id.in_(approver_ids)).all():
+            parts = [part for part in [(user.first_name or "").strip(), (user.last_name or "").strip()] if part]
+            approver_names[user.id] = " ".join(parts) or (user.username or "").strip() or (user.email or "").split("@", 1)[0]
+    return [
+        _delivery_to_response(
+            db, row, client_names=client_names, folder_names=folder_names, approver_names=approver_names,
+        )
+        for row in rows
+    ]
+
+
+@router.get("/deliveries/pending-count")
+def get_pending_report_delivery_count(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    count = db.query(models.ReportDelivery.id).filter(
+        models.ReportDelivery.user_id == current_user.id,
+        models.ReportDelivery.status == "pending",
+    ).count()
+    return {"count": count}
 
 
 @router.post("/deliveries", response_model=schemas.ReportDeliveryResponse)
@@ -1124,6 +1216,31 @@ async def create_report_delivery(
         sections=body.sections,
         chart_metrics=body.chart_metrics,
     )
+    start_date = _parse_date(body.start_date)
+    end_date = _parse_date(body.end_date)
+    if start_date > end_date:
+        raise HTTPException(status_code=422, detail="Дата начала не может быть позже даты окончания")
+    if not (body.channels or body.chat_targets):
+        raise HTTPException(status_code=422, detail="Выберите хотя бы одного получателя")
+    if "email" in body.channels and not body.email_recipients:
+        raise HTTPException(status_code=422, detail="Добавьте email получателя проекта")
+    if body.schedule_id:
+        own_schedule = db.query(models.ReportSchedule.id).filter(
+            models.ReportSchedule.id == body.schedule_id,
+            models.ReportSchedule.user_id == current_user.id,
+        ).first()
+        if not own_schedule:
+            raise HTTPException(status_code=404, detail="Настройка автоотправки не найдена")
+    target_query = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
+    if body.folder_id:
+        target_query = target_query.filter(models.ReportChatTarget.folder_id == body.folder_id)
+    elif body.client_id:
+        target_query = target_query.filter(models.ReportChatTarget.client_id == body.client_id)
+    else:
+        target_query = target_query.filter(models.ReportChatTarget.client_id.is_(None), models.ReportChatTarget.folder_id.is_(None))
+    allowed_targets = {str(row.id) for row in target_query.all()}
+    if any(str(target) not in allowed_targets for target in body.chat_targets):
+        raise HTTPException(status_code=422, detail="Получатель не относится к выбранному проекту")
     comment = (body.comment or "").strip() or None
     if body.include_ai_comment and not comment:
         comment = await _resolve_report_comment(
@@ -1144,9 +1261,10 @@ async def create_report_delivery(
         status="pending",
         source=body.source,
         platform=body.platform or "all",
-        start_date=_parse_date(body.start_date),
-        end_date=_parse_date(body.end_date),
+        start_date=start_date,
+        end_date=end_date,
         channels=_dump_list(body.channels),
+        email_recipients=_dump_emails(body.email_recipients),
         chat_targets=_dump_list(body.chat_targets),
         report_format=body.report_format or "desktop",
         include_dynamics=bool(body.include_dynamics),
@@ -1158,9 +1276,35 @@ async def create_report_delivery(
         anomaly_reason=body.anomaly_reason,
     )
     db.add(d)
+    db.flush()
+    try:
+        from backend_api.reports.scheduler import build_delivery_snapshot
+        await build_delivery_snapshot(db, d, current_user)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Report snapshot failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Не удалось сформировать снимок отчёта")
     db.commit()
     db.refresh(d)
     return _delivery_to_response(db, d)
+
+
+@router.get("/deliveries/public/{token}/pdf")
+def get_public_delivery_pdf(token: str, db: Session = Depends(get_db)):
+    """Стабильная секретная ссылка на зафиксированный PDF (30 дней)."""
+    d = db.query(models.ReportDelivery).filter(models.ReportDelivery.public_token == token).first()
+    if not d or not d.pdf_snapshot or not d.public_expires_at:
+        raise HTTPException(status_code=404, detail="Ссылка недействительна")
+    expires = d.public_expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=404, detail="Ссылка истекла")
+    return Response(
+        content=d.pdf_snapshot,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
+    )
 
 
 @router.get("/deliveries/{delivery_id}", response_model=schemas.ReportDeliveryResponse)
@@ -1191,16 +1335,23 @@ def get_report_delivery_preview(
     ).first()
     if not d:
         raise HTTPException(status_code=404, detail="Отчёт не найден")
-    try:
-        summary, top_campaigns, client_name, _, _, _ = _get_report_data(
-            db, current_user.id, d.client_id,
-            d.start_date.isoformat(), d.end_date.isoformat(), d.comment,
-            folder_id=str(d.folder_id) if d.folder_id else None,
-        )
-    except Exception as e:
-        logger.warning("Preview data failed for delivery %s: %s", delivery_id, e)
-        summary, top_campaigns, client_name = {}, [], None
-    cost = float(summary.get("expenses", 0) or 0)
+    snapshot = d.snapshot_data or {}
+    summary = snapshot.get("summary") or {}
+    top_campaigns = snapshot.get("top_campaigns") or []
+    client_name = snapshot.get("client_name")
+    if not summary and not top_campaigns:  # совместимость со старыми записями
+        try:
+            summary, top_campaigns, client_name, _, _, _ = _get_report_data(
+                db, current_user.id, d.client_id,
+                d.start_date.isoformat(), d.end_date.isoformat(), d.comment,
+                folder_id=str(d.folder_id) if d.folder_id else None,
+                platform=d.platform or "all",
+            )
+        except Exception as e:
+            logger.warning("Preview data failed for delivery %s: %s", delivery_id, e)
+            summary, top_campaigns, client_name = {}, [], None
+    from backend_api.reports.export_service import _with_cost_breakdown_vat, _with_channel_vat, _campaign_platform
+    cost = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), d.platform)
     leads = int(summary.get("leads", 0) or 0)
     cpl = (cost / leads) if leads else float(summary.get("cpa", 0) or 0)
     kpi = schemas.ReportDeliveryPreviewKpi(
@@ -1215,7 +1366,7 @@ def get_report_delivery_preview(
         camps.append(schemas.ReportDeliveryPreviewCampaign(
             name=str(c.get("name") or c.get("campaign_name") or "—"),
             leads=int(c.get("conversions", 0) or 0),
-            cost=round(float(c.get("cost", 0) or 0), 2),
+            cost=round(_with_channel_vat(c.get("cost", 0), _campaign_platform(c)), 2),
         ))
     return schemas.ReportDeliveryPreview(
         scope_label=_delivery_scope_label(db, d),
@@ -1241,7 +1392,7 @@ async def regenerate_delivery_comment(
     ).first()
     if not d:
         raise HTTPException(status_code=404, detail="Отчёт не найден")
-    if d.status not in ("pending", "failed"):
+    if d.status not in ("pending", "failed", "partial"):
         raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
     new_comment = await _resolve_report_comment(
         ai=True, comment=None, db=db, user_id=current_user.id,
@@ -1250,6 +1401,7 @@ async def regenerate_delivery_comment(
         folder_id=str(d.folder_id) if d.folder_id else None,
     )
     d.comment = (new_comment or "").strip() or None
+    _refresh_delivery_comment_snapshot(d)
     db.commit()
     db.refresh(d)
     return _delivery_to_response(db, d)
@@ -1269,9 +1421,10 @@ def save_report_delivery_draft(
     ).first()
     if not d:
         raise HTTPException(status_code=404, detail="Отчёт не найден")
-    if d.status not in ("pending", "failed"):
+    if d.status not in ("pending", "failed", "partial"):
         raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
     d.comment = (body.comment or "").strip() or None
+    _refresh_delivery_comment_snapshot(d)
     db.commit()
     db.refresh(d)
     return _delivery_to_response(db, d)
@@ -1290,63 +1443,46 @@ async def approve_report_delivery(
     ).first()
     if not d:
         raise HTTPException(status_code=404, detail="Отчёт не найден")
-    if d.status not in ("pending", "failed"):
+    if d.status not in ("pending", "failed", "partial"):
         raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
+    claimed_from_status = d.status
+    retry_failed_only = d.status in ("failed", "partial") and bool(d.delivery_results)
     if body.comment is not None:
         d.comment = body.comment.strip() or None
+        _refresh_delivery_comment_snapshot(d)
 
-    channels = _jlist(d.channels)
-    chat_targets = _jlist(d.chat_targets)
     try:
-        if chat_targets:
-            from backend_api.reports.scheduler import send_report_for_schedule
-            fake_rule = SimpleNamespace(
-                id=d.schedule_id or d.id,
-                name=None,
-                user_id=current_user.id,
-                scope_client_id=d.client_id,
-                scope_folder_id=d.folder_id,
-                platform=d.platform,
-                channels=d.channels,
-                chat_targets=d.chat_targets,
-                period_days=max((d.end_date - d.start_date).days + 1, 1),
-                report_format=d.report_format,
-                include_dynamics=d.include_dynamics,
-                sections=d.sections,
-                chart_metrics=d.chart_metrics,
-                dynamics_metrics=d.dynamics_metrics,
-                comment=d.comment,
-                last_sent_at=None,
-            )
-            results = await send_report_for_schedule(db, fake_rule, current_user)
-        else:
-            req = SendReportRequest(
-                report_type="ai" if d.include_ai_comment else "pdf",
-                channels=channels,
-                email_recipients=_jlist(current_user.report_email_recipients) if "email" in channels else None,
-                telegram_chat_id=current_user.report_telegram_chat_id if "telegram" in channels else None,
-                max_chat_id=current_user.report_max_chat_id if "max" in channels else None,
-                max_user_id=current_user.report_max_user_id if "max" in channels else None,
-                client_id=str(d.client_id) if d.client_id else None,
-                folder_id=str(d.folder_id) if d.folder_id else None,
-                start_date=d.start_date.isoformat(),
-                end_date=d.end_date.isoformat(),
-                comment=d.comment,
-            )
-            sent = await send_report(req, current_user=current_user, db=db)
-            results = sent.get("results") if isinstance(sent, dict) else {}
-        d.status = "sent" if _delivery_succeeded(results) else "failed"
+        from backend_api.reports.scheduler import send_report_delivery, delivery_status_from_results
+        if not d.approved_by_user_id:
+            d.approved_by_user_id = current_user.id
+            d.approved_at = datetime.now(timezone.utc)
+        db.flush()
+        claimed = db.query(models.ReportDelivery).filter(
+            models.ReportDelivery.id == d.id,
+            models.ReportDelivery.status == claimed_from_status,
+        ).update({models.ReportDelivery.status: "sending"}, synchronize_session=False)
+        if claimed != 1:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Отчёт уже отправляется или обработан")
+        d.status = "sending"
+        db.commit()
+        results = await send_report_delivery(db, d, current_user, retry_failed_only=retry_failed_only)
         d.delivery_results = results
-        d.approved_by_user_id = current_user.id
-        d.approved_at = datetime.now(timezone.utc)
-        d.sent_at = datetime.now(timezone.utc) if d.status == "sent" else None
+        d.status = delivery_status_from_results(results, _jlist(d.channels), _jlist(d.chat_targets))
+        d.sent_at = datetime.now(timezone.utc) if d.status in ("sent", "partial") else None
+        if d.schedule_id and d.status in ("sent", "partial"):
+            schedule = db.query(models.ReportSchedule).filter(models.ReportSchedule.id == d.schedule_id).first()
+            if schedule:
+                schedule.last_sent_at = d.sent_at
         db.commit()
         db.refresh(d)
         return _delivery_to_response(db, d)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Report delivery approve failed: %s", e)
         d.status = "failed"
-        d.delivery_results = {"error": str(e)}
+        d.delivery_results = {"errors": {"system": str(e)}}
         db.commit()
         db.refresh(d)
         return _delivery_to_response(db, d)
@@ -1373,9 +1509,15 @@ def create_report_schedule(
     db: Session = Depends(get_db),
 ):
     import json as _json
-    count = db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == current_user.id).count()
-    if count >= MAX_SCHEDULES_PER_USER:
-        raise HTTPException(status_code=422, detail=f"Не больше {MAX_SCHEDULES_PER_USER} правил отправки")
+    if not body.scope_client_id and not body.scope_folder_id:
+        raise HTTPException(status_code=422, detail="Автоотправка настраивается только для проекта или папки")
+    _assert_scope_access(db, current_user.id, client_id=body.scope_client_id, folder_id=body.scope_folder_id)
+    existing = _scope_filter(
+        db.query(models.ReportSchedule), user_id=current_user.id,
+        client_id=body.scope_client_id, folder_id=body.scope_folder_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="У проекта уже есть настройка автоотправки")
     _validate_schedule_payload(
         day=body.day, send_time=body.send_time, channels=body.channels,
         platform=body.platform, period_days=body.period_days, report_format=body.report_format,
@@ -1385,8 +1527,18 @@ def create_report_schedule(
         bad = [m for m in body.dynamics_metrics if m not in VALID_CHART_METRICS]
         if bad:
             raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
-    if not (body.channels or body.chat_targets):
+    if "email" in body.channels and not body.email_recipients:
+        raise HTTPException(status_code=422, detail="Добавьте email получателя проекта")
+    if body.enabled and not (body.channels or body.chat_targets):
         raise HTTPException(status_code=422, detail="Выберите, куда отправлять: личный канал или группу")
+    scoped_targets = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
+    if body.scope_folder_id:
+        scoped_targets = scoped_targets.filter(models.ReportChatTarget.folder_id == body.scope_folder_id)
+    else:
+        scoped_targets = scoped_targets.filter(models.ReportChatTarget.client_id == body.scope_client_id)
+    allowed_target_ids = {str(row.id) for row in scoped_targets.all()}
+    if any(str(target) not in allowed_target_ids for target in body.chat_targets):
+        raise HTTPException(status_code=422, detail="Получатель не относится к выбранному проекту")
     s = models.ReportSchedule(
         user_id=current_user.id,
         name=(body.name or "").strip() or None,
@@ -1395,6 +1547,7 @@ def create_report_schedule(
         scope_folder_id=body.scope_folder_id,
         platform=body.platform or "all",
         channels=_json.dumps(body.channels or []),
+        email_recipients=_dump_emails(body.email_recipients),
         day=body.day or "daily",
         send_time=body.send_time or "10:00",
         period_days=int(body.period_days or 7),
@@ -1427,6 +1580,7 @@ def update_report_schedule(
     ).first()
     if not s:
         raise HTTPException(status_code=404, detail="Правило не найдено")
+    _assert_scope_access(db, current_user.id, client_id=s.scope_client_id, folder_id=s.scope_folder_id)
     _validate_schedule_payload(
         day=body.day, send_time=body.send_time, channels=body.channels,
         platform=body.platform, period_days=body.period_days, report_format=body.report_format,
@@ -1439,12 +1593,26 @@ def update_report_schedule(
     # Скоуп: явное поле в PUT перезаписывает (None = «все проекты», поэтому
     # обновляем оба поля вместе, когда хотя бы одно передано)
     if "scope_client_id" in body.model_fields_set or "scope_folder_id" in body.model_fields_set:
+        if not body.scope_client_id and not body.scope_folder_id:
+            raise HTTPException(status_code=422, detail="Автоотправка настраивается только для проекта или папки")
+        _assert_scope_access(
+            db, current_user.id,
+            client_id=body.scope_client_id, folder_id=body.scope_folder_id,
+        )
+        duplicate = _scope_filter(
+            db.query(models.ReportSchedule), user_id=current_user.id,
+            client_id=body.scope_client_id, folder_id=body.scope_folder_id,
+        ).filter(models.ReportSchedule.id != s.id).first()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="У проекта уже есть настройка автоотправки")
         s.scope_client_id = body.scope_client_id
         s.scope_folder_id = body.scope_folder_id
     if body.platform is not None:
         s.platform = body.platform
     if body.channels is not None:
         s.channels = _json.dumps(body.channels)
+    if body.email_recipients is not None:
+        s.email_recipients = _dump_emails(body.email_recipients)
     if body.day is not None:
         s.day = body.day
     if body.send_time is not None:
@@ -1469,11 +1637,23 @@ def update_report_schedule(
             raise HTTPException(status_code=422, detail=f"Неизвестная метрика динамики: {bad[0]}")
         s.dynamics_metrics = _json.dumps(body.dynamics_metrics)
     if body.chat_targets is not None:
+        scoped = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
+        if s.scope_folder_id:
+            scoped = scoped.filter(models.ReportChatTarget.folder_id == s.scope_folder_id)
+        elif s.scope_client_id:
+            scoped = scoped.filter(models.ReportChatTarget.client_id == s.scope_client_id)
         own = {
             str(r.id)
-            for r in db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id).all()
+            for r in scoped.all()
         }
         s.chat_targets = _json.dumps([str(t) for t in body.chat_targets if str(t) in own])
+    next_channels = _jlist(s.channels, [])
+    next_targets = _jlist(s.chat_targets, [])
+    next_emails = _jlist(s.email_recipients, [])
+    if "email" in next_channels and not next_emails:
+        raise HTTPException(status_code=422, detail="Добавьте email получателя проекта")
+    if s.enabled and not (next_channels or next_targets):
+        raise HTTPException(status_code=422, detail="Нельзя включить автоотправку без получателей")
     db.commit()
     db.refresh(s)
     return _schedule_to_response(db, s)
@@ -1509,10 +1689,20 @@ async def test_report_schedule(
     ).first()
     if not s:
         raise HTTPException(status_code=404, detail="Правило не найдено")
-    from backend_api.reports.scheduler import send_report_for_schedule
-    results = await send_report_for_schedule(db, s, current_user)
+    from backend_api.reports.scheduler import (
+        create_pending_delivery_for_schedule, build_delivery_snapshot,
+        send_report_delivery, delivery_status_from_results,
+    )
+    delivery = create_pending_delivery_for_schedule(db, s, source="manual")
+    db.flush()
+    await build_delivery_snapshot(db, delivery, current_user)
+    results = await send_report_delivery(db, delivery, current_user)
+    delivery.delivery_results = results
+    delivery.status = delivery_status_from_results(results, _jlist(delivery.channels), _jlist(delivery.chat_targets))
+    delivery.sent_at = datetime.now(timezone.utc) if delivery.status in ("sent", "partial") else None
+    s.last_sent_at = datetime.now(timezone.utc)
     db.commit()
-    return {"ok": True, "results": results}
+    return {"ok": delivery.status == "sent", "status": delivery.status, "results": results}
 
 
 # ══════════ Групповые чаты для отчётов (бот в группе TG/MAX) ══════════
@@ -1544,20 +1734,25 @@ async def create_chat_target_link_code(
     import secrets as _secrets
     from datetime import datetime as _dt, timedelta as _td, timezone as _tz
     kind = str((body or {}).get("kind") or "").lower()
+    target_type = str((body or {}).get("target_type") or "group").lower()
     if kind not in ("telegram", "max"):
         raise HTTPException(status_code=422, detail="kind: telegram или max")
+    if target_type not in ("group", "client"):
+        raise HTTPException(status_code=422, detail="target_type: group или client")
+    if not client_id and not folder_id:
+        raise HTTPException(status_code=422, detail="Ссылка получателя должна относиться к проекту или папке")
     _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
     code = _secrets.token_urlsafe(8)[:12]
     expires = _dt.now(_tz.utc) + _td(minutes=30)
     if kind == "telegram":
         db.add(models.TelegramLinkToken(
             user_id=current_user.id, client_id=client_id, folder_id=folder_id,
-            token=code, expires_at=expires,
+            target_type=target_type, token=code, expires_at=expires,
         ))
     else:
         db.add(models.MaxReportLinkToken(
             user_id=current_user.id, client_id=client_id, folder_id=folder_id,
-            token=code, expires_at=expires,
+            target_type=target_type, token=code, expires_at=expires,
         ))
     db.commit()
     bot_hint = ""
@@ -1568,10 +1763,16 @@ async def create_chat_target_link_code(
             bot_hint = await _resolve_bot_username()
             # Deep-link: открывает выбор группы и сам отправляет /start <код> в неё —
             # привязка происходит автоматически, команду руками писать не нужно
-            group_link = f"https://t.me/{bot_hint}?startgroup={code}"
+            group_link = (
+                f"https://t.me/{bot_hint}?startgroup={code}"
+                if target_type == "group"
+                else f"https://t.me/{bot_hint}?start={code}"
+            )
         else:
             from backend_api.services.max_reports_bot import resolve_bot_name
             bot_hint = await resolve_bot_name()
+            if target_type == "client":
+                group_link = f"https://max.ru/{bot_hint}?start={code}"
     except Exception as e:
         import logging as _logging
         _logging.getLogger(__name__).warning("link-code bot resolve failed: %s", e)
@@ -1580,6 +1781,7 @@ async def create_chat_target_link_code(
         "command": f"/link {code}",
         "bot": bot_hint,
         "group_link": group_link,
+        "target_type": target_type,
         "expires_in_minutes": 30,
     }
 
@@ -1596,6 +1798,11 @@ def delete_chat_target(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="Чат не найден")
+    target_id_text = str(row.id)
+    for schedule in db.query(models.ReportSchedule).filter(models.ReportSchedule.user_id == current_user.id).all():
+        target_ids = [str(value) for value in _jlist(schedule.chat_targets, [])]
+        if target_id_text in target_ids:
+            schedule.chat_targets = _dump_list([value for value in target_ids if value != target_id_text])
     db.delete(row)
     db.commit()
     return {"ok": True}

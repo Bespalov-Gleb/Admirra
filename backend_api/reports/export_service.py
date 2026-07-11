@@ -62,7 +62,7 @@ def _summary_platform(campaigns: list) -> str:
     return ""
 
 
-def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None):
+def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None, platform="all"):
     """Общие данные для отчёта (из pdf_service). folder_id — скоуп «папка»."""
     if folder_id and not client_id:
         effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
@@ -76,10 +76,10 @@ def _get_report_data(db, user_id, client_id, start_date, end_date, comment, fold
     except ValueError:
         raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
     summary = StatsService.aggregate_summary(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     campaigns = StatsService.get_campaign_stats(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     top_campaigns = sorted(
         [c for c in campaigns if c.get("conversions", 0) > 0],
@@ -119,6 +119,20 @@ def generate_report_png(
         return png_bytes
     except ImportError:
         logger.error("PyMuPDF (fitz) not installed")
+        raise ImportError("Установите pymupdf: pip install pymupdf")
+
+
+def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
+    """Детерминированный PNG первой страницы уже зафиксированного PDF."""
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            return pix.tobytes("png")
+        finally:
+            doc.close()
+    except ImportError:
         raise ImportError("Установите pymupdf: pip install pymupdf")
 
 
