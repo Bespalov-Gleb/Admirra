@@ -1788,7 +1788,7 @@ const toggleGoalSelection = (id) => {
 }
 .wizard-grid {
   display: grid;
-  grid-template-columns: minmax(19.4444rem, 22.9167rem) minmax(22.2222rem, 29.8611rem);
+  grid-template-columns: minmax(19.4444rem, 22.9167rem) minmax(22.2222rem, 33rem);
   align-items: stretch;
   gap: 1.3889rem;
 }
@@ -2204,7 +2204,7 @@ const toggleGoalSelection = (id) => {
   cursor: not-allowed;
 }
 .channel-card {
-  width: min(100%, 29.8611rem);
+  width: min(100%, 33rem);
   min-height: 22.9167rem;
   display: flex;
   flex-direction: column;
@@ -2275,9 +2275,9 @@ const toggleGoalSelection = (id) => {
 .vk-link-mode {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
+  gap: 0.75rem;
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.9722rem 1.0417rem;
   border: 1px solid rgba(255,255,255,0.14);
   border-radius: 0.8333rem;
   color: rgba(255,255,255,0.75);
@@ -2291,10 +2291,10 @@ const toggleGoalSelection = (id) => {
   background: rgba(37,99,235,0.2);
 }
 .vk-link-mode__radio {
-  width: 0.9028rem;
-  height: 0.9028rem;
+  width: 1.0417rem;
+  height: 1.0417rem;
   flex: 0 0 auto;
-  margin-top: 0.15rem;
+  margin-top: 0.2rem;
   border: 0.1389rem solid rgba(255,255,255,0.55);
   border-radius: 50%;
 }
@@ -2302,62 +2302,64 @@ const toggleGoalSelection = (id) => {
   border-color: #5ca8ff;
   box-shadow: inset 0 0 0 0.1667rem #26324a, inset 0 0 0 0.3611rem #5ca8ff;
 }
-.vk-link-mode b { display: block; font-size: 0.8333rem; line-height: 1.25; }
-.vk-link-mode small { display: block; margin-top: 0.25rem; color: rgba(255,255,255,0.55); font-size: 0.6944rem; line-height: 1.35; }
-.vk-link-mode em { margin-left: 0.35rem; color: #8dc0ff; font-size: 0.5556rem; font-style: normal; letter-spacing: 0.08em; }
+.vk-link-mode b { display: block; font-size: 1.0417rem; line-height: 1.3; }
+.vk-link-mode small { display: block; margin-top: 0.3rem; color: rgba(255,255,255,0.55); font-size: 0.8681rem; line-height: 1.4; }
+.vk-link-mode em { margin-left: 0.4rem; color: #8dc0ff; font-size: 0.6944rem; font-style: normal; letter-spacing: 0.08em; }
 .vk-link-box {
   margin-top: 0.9028rem;
   padding-top: 0.9028rem;
   border-top: 1px solid rgba(255,255,255,0.12);
 }
-.vk-link-project-hint { margin-top: 0.8333rem !important; color: #e8c56e !important; font-size: 0.6944rem !important; }
-.vk-link-box__label { font-size: 0.6944rem; font-weight: 700; color: rgba(255,255,255,0.8); }
-.vk-link-box__row { display: flex; gap: 0.4167rem; margin-top: 0.4167rem; }
+.vk-link-project-hint { margin-top: 0.8333rem !important; color: #e8c56e !important; font-size: 0.8681rem !important; }
+.vk-link-box__label { font-size: 0.9028rem; font-weight: 700; color: rgba(255,255,255,0.85); }
+.vk-link-box__row { display: flex; gap: 0.5556rem; margin-top: 0.5556rem; }
 .vk-link-box__row input {
   min-width: 0;
   flex: 1;
-  padding: 0.4861rem 0.5556rem;
+  padding: 0.6944rem 0.8333rem;
   border: 1px solid rgba(255,255,255,0.13);
-  border-radius: 0.5556rem;
-  color: rgba(255,255,255,0.8);
+  border-radius: 0.6944rem;
+  color: rgba(255,255,255,0.82);
   background: rgba(0,0,0,0.17);
-  font-size: 0.625rem;
+  font-size: 0.8333rem;
 }
 .vk-link-box__row button,
 .vk-link-actions button {
   border: 0;
-  border-radius: 0.5556rem;
-  padding: 0.4861rem 0.625rem;
+  border-radius: 0.6944rem;
+  padding: 0.6944rem 1.0417rem;
   color: #fff;
   background: rgba(92,168,255,0.3);
-  font-size: 0.6944rem;
+  font-size: 0.8681rem;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
-.vk-link-box small { display: block; margin-top: 0.4167rem; color: rgba(255,255,255,0.48); font-size: 0.625rem; line-height: 1.35; }
+.vk-link-box small { display: block; margin-top: 0.5556rem; color: rgba(255,255,255,0.52); font-size: 0.7639rem; line-height: 1.45; }
 .vk-link-state {
   display: inline-flex;
   align-items: center;
   gap: 0.4167rem;
-  margin-top: 0.8333rem;
+  margin-top: 0.9722rem;
   color: #e8c56e;
-  font-size: 0.6944rem;
+  font-size: 0.8333rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.035em;
 }
-.vk-link-state span { width: 0.4167rem; height: 0.4167rem; border-radius: 50%; background: currentColor; }
+.vk-link-state span { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
 .vk-link-state--authorized { color: #6fe69a; }
 .vk-link-state--link_expired { color: #ff9696; }
-.vk-link-actions { display: flex; gap: 0.4861rem; margin-top: 0.6944rem; }
+.vk-link-actions { display: flex; gap: 0.5556rem; margin-top: 0.8333rem; }
 .vk-link-actions button:last-child { background: rgba(255,255,255,0.12); }
 .vk-link-close {
   align-self: flex-start;
   margin-top: 0.6944rem;
   padding: 0;
   border: 0;
-  color: rgba(255,255,255,0.52);
+  color: rgba(255,255,255,0.55);
   background: transparent;
-  font-size: 0.6944rem;
+  font-size: 0.8333rem;
   cursor: pointer;
 }
 .panel-head {

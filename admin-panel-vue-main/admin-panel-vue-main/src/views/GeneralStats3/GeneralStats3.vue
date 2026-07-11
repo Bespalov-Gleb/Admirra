@@ -70,9 +70,6 @@
           <div class="reports-toolbar__actions">
             <button class="select-like cs-head reports-settings-head" type="button" :title="projectReportSummary" @click="openProjectReportSettings">
               <span class="cs-current">{{ projectReportSummary }}</span>
-              <span class="cs-arrow">
-                <ChevronDownIcon />
-              </span>
             </button>
             <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
               {{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}
@@ -9901,9 +9898,11 @@ onMounted(() => {
   padding: 0 1.6rem;
 }
 
+/* Порядок сжатия: сначала ужимаются «Настройки отчётов», экспорт держит
+   полный текст «Экспорт отчёта» до последнего */
 .reports-toolbar__actions .reports-settings-head {
-  flex: 0 1 auto;
-  min-width: 9rem;
+  flex: 0 3 auto;
+  min-width: 7rem;
 }
 
 .reports-toolbar__actions .report-export-select {
@@ -9913,14 +9912,18 @@ onMounted(() => {
 
 .reports-toolbar__actions .report-export-head {
   width: 100%;
-  min-width: 9.5rem;
+  min-width: 13.5rem;
 }
 
-/* Селект «Настройки отчётов»: одна строка, стабильная ширина */
+/* «Настройки отчётов» — компактная капсула по содержимому, без стрелки:
+   освобождает место под полный текст «Экспорт отчёта» */
 .reports-settings-head {
   width: auto;
-  min-width: 13rem;
-  max-width: 16.5rem;
+  min-width: 0;
+  max-width: 15rem;
+  justify-content: center;
+  gap: 0;
+  padding: 0 1.2rem;
 }
 
 .reports-settings-head .cs-current {

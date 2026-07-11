@@ -532,7 +532,7 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 
 .rp-modal {
   position: relative;
-  width: min(42rem, 94vw);
+  width: min(46rem, 94vw);
   max-height: 90vh;
   overflow-y: auto;
   background: #fff;
