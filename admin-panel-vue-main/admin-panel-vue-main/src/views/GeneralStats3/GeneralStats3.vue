@@ -21,78 +21,80 @@
       </div>
 
       <div class="panel panel-reports">
-        <div class="report-col report-main">
-          <h2>Отчёты</h2>
-          <div class="chips-row report-icons-row">
-            <button
-              v-for="item in visibleProjectReportChannels"
-              :key="item.name"
-              class="report-icon-btn"
-              :data-channel="item.value"
-              :class="{
-                active: isReportChannelEnabled(item),
-                connected: isReportChannelConnected(item),
-                unlinked: item.linkable && !isReportChannelConnected(item),
-                disabled: item.disabled
-              }"
-              type="button"
-              :title="reportChannelTitle(item)"
-              @click="openProjectReportSettings"
-            >
-              <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
-                <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
-                <img
-                  v-else-if="item.asset"
-                  :src="item.asset"
-                  alt=""
-                  :class="['chip-img', item.imageClass]"
-                />
-                <span v-else-if="item.letter" class="chip-letter">{{ item.letter }}</span>
-                <component v-else :is="item.icon" class="chip-icon" />
+        <!-- Один тулбар: заголовок + живые чипы каналов слева, действия справа
+             на общей оси — вместо четырёх колонок с «висящим» лейблом -->
+        <div class="reports-toolbar">
+          <div class="reports-toolbar__left">
+            <h2>Отчёты</h2>
+            <div class="chips-row report-icons-row">
+              <button
+                v-for="item in visibleProjectReportChannels"
+                :key="item.name"
+                class="report-icon-btn"
+                :data-channel="item.value"
+                :class="{
+                  active: isReportChannelEnabled(item),
+                  connected: isReportChannelConnected(item),
+                  unlinked: item.linkable && !isReportChannelConnected(item),
+                  disabled: item.disabled
+                }"
+                type="button"
+                :title="reportChannelTitle(item)"
+                @click="openProjectReportSettings"
+              >
+                <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
+                  <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
+                  <img
+                    v-else-if="item.asset"
+                    :src="item.asset"
+                    alt=""
+                    :class="['chip-img', item.imageClass]"
+                  />
+                  <span v-else-if="item.letter" class="chip-letter">{{ item.letter }}</span>
+                  <component v-else :is="item.icon" class="chip-icon" />
+                </span>
+              </button>
+              <button
+                v-for="target in visibleProjectChatTargets"
+                :key="target.id"
+                class="report-icon-btn active connected"
+                type="button"
+                :title="`${target.kind === 'max' ? 'MAX' : 'Telegram'} · ${target.title || 'получатель проекта'}`"
+                @click="openProjectReportSettings"
+              >
+                <span class="report-icon-circle"><span class="chip-letter">{{ target.kind === 'max' ? 'M' : 'T' }}</span></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="reports-toolbar__actions">
+            <button class="select-like cs-head reports-settings-head" type="button" :title="projectReportSummary" @click="openProjectReportSettings">
+              <span class="cs-current">{{ projectReportSummary }}</span>
+              <span class="cs-arrow">
+                <ChevronDownIcon />
               </span>
             </button>
-            <button
-              v-for="target in visibleProjectChatTargets"
-              :key="target.id"
-              class="report-icon-btn active connected"
-              type="button"
-              :title="`${target.kind === 'max' ? 'MAX' : 'Telegram'} · ${target.title || 'получатель проекта'}`"
-              @click="openProjectReportSettings"
-            >
-              <span class="report-icon-circle"><span class="chip-letter">{{ target.kind === 'max' ? 'M' : 'T' }}</span></span>
+            <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
+              {{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}
+              <CheckCircleIcon />
             </button>
-          </div>
-        </div>
-
-        <div class="report-col report-schedule">
-          <p>Отчёты проекта</p>
-          <button class="select-like cs-head" type="button" @click="openProjectReportSettings">
-            <span class="cs-current">{{ projectReportSummary }}</span>
-            <span class="cs-arrow">
-              <ChevronDownIcon />
-            </span>
-          </button>
-        </div>
-
-        <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
-          {{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}
-          <CheckCircleIcon />
-        </button>
-        <div
-          class="custom-select report-export-select"
-          :class="{ open: openMenu === 'export' }"
-          v-click-outside="() => closeMenu('export')"
-        >
-          <button class="select-like cs-head report-export-head" type="button" @click="toggleMenu('export')">
-            <span class="cs-current">{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
-            <span class="cs-arrow">
-              <ChevronDownIcon />
-            </span>
-          </button>
-          <div class="cs-list dropdown-panel export">
-            <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
-            <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-            <button type="button" class="cs-option" :disabled="sendingExport" @click="handleExportAction('link')"><LinkIcon /> {{ sendingExport ? 'Формируем ссылку…' : 'Ссылка для клиента' }}</button>
+            <div
+              class="custom-select report-export-select"
+              :class="{ open: openMenu === 'export' }"
+              v-click-outside="() => closeMenu('export')"
+            >
+              <button class="select-like cs-head report-export-head" type="button" @click="toggleMenu('export')">
+                <span class="cs-current">{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
+                <span class="cs-arrow">
+                  <ChevronDownIcon />
+                </span>
+              </button>
+              <div class="cs-list dropdown-panel export">
+                <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
+                <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+                <button type="button" class="cs-option" :disabled="sendingExport" @click="handleExportAction('link')"><LinkIcon /> {{ sendingExport ? 'Формируем ссылку…' : 'Ссылка для клиента' }}</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -5488,7 +5490,7 @@ onMounted(() => {
 
 .report-export-select {
   position: relative;
-  align-self: end;
+  align-self: center;
 }
 
 /* Кнопка экспорта — тот же .select-like, что у соседних контролов панели,
@@ -9807,7 +9809,8 @@ onMounted(() => {
 
 /* Figma top-panel alignment */
 .top-grid {
-  grid-template-columns: minmax(25rem, 34.3056rem) minmax(52.7778rem, 1fr);
+  /* Отчёты пересобраны в компактный тулбар — каналам отдаём больше ширины */
+  grid-template-columns: minmax(30rem, 42rem) minmax(46rem, 1fr);
   gap: 1.3889rem;
   align-items: stretch;
 }
@@ -9829,11 +9832,52 @@ onMounted(() => {
 }
 
 .panel-reports {
-  display: grid;
-  grid-template-columns: minmax(20.8333rem, auto) 12.8472rem 17.7083rem auto;
-  column-gap: 1.3889rem;
-  row-gap: 0;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* stretch перебивает align-items:end из ранних grid-правил */
+  align-items: stretch;
+  gap: 1.1rem;
+}
+
+/* Тулбар отчётов: заголовок + чипы каналов слева, действия справа, одна ось */
+.reports-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1.3889rem;
+  min-height: 3.1944rem;
+}
+
+.reports-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 1.0417rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.reports-toolbar__left h2 {
+  white-space: nowrap;
+}
+
+.reports-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8333rem;
+  flex: 0 0 auto;
+}
+
+/* Селект «Настройки отчётов»: одна строка, стабильная ширина */
+.reports-settings-head {
+  width: auto;
+  min-width: 13rem;
+  max-width: 16.5rem;
+}
+
+.reports-settings-head .cs-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .report-main,
@@ -9850,11 +9894,19 @@ onMounted(() => {
   line-height: 1;
 }
 
-.panel-channels .chips-row,
-.panel-reports .chips-row {
+.panel-channels .chips-row {
   flex-wrap: nowrap;
   gap: 1.0417rem;
   margin-top: 1.3889rem;
+}
+
+/* Чипы отчётов живут в тулбаре на одной оси с заголовком — без отступа сверху */
+.panel-reports .chips-row {
+  flex-wrap: nowrap;
+  gap: 0.6944rem;
+  margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .panel-channels .chip,
@@ -10004,11 +10056,11 @@ onMounted(() => {
 }
 
 .primary-report {
-  align-self: start;
+  align-self: center;
   width: auto;
   height: 3.1944rem;
-  margin-top: 2.7778rem;
-  padding: 0 0.6944rem;
+  margin-top: 0;
+  padding: 0 1.1rem;
   justify-content: center;
   white-space: nowrap;
   line-height: 1;
@@ -10791,12 +10843,28 @@ onMounted(() => {
 
   .panel-reports {
     height: auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.2rem;
   }
 
-  .primary-report,
-  .report-export-select .report-export-head {
+  /* Узкие экраны: действия переносятся под заголовок и растягиваются */
+  .reports-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .reports-toolbar__actions {
+    width: 100%;
+  }
+
+  .reports-toolbar__actions .primary-report,
+  .reports-toolbar__actions .reports-settings-head {
+    flex: 1;
+    max-width: none;
+  }
+
+  .reports-toolbar__actions .report-export-select {
+    flex: 1;
+  }
+
+  .reports-toolbar__actions .report-export-head {
     width: 100%;
     margin-top: 0;
   }
@@ -10813,8 +10881,8 @@ onMounted(() => {
     flex-wrap: wrap;
   }
 
-  .panel-reports {
-    grid-template-columns: 1fr;
+  .reports-toolbar__actions {
+    flex-wrap: wrap;
   }
 
   .panel-channels .channel-balance-list {
