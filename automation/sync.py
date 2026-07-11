@@ -617,6 +617,13 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
     Syncs a single integration for a given date range.
     """
     logger.info(f"Syncing {integration.platform} for client {integration.client_id}")
+    if (
+        integration.platform == models.IntegrationPlatform.VK_ADS
+        and getattr(integration, "connection_status", "active") != "active"
+    ):
+        raise ValueError("VK Ads ещё не завершил подключение: требуется авторизация клиента и выбор кабинета")
+    if not integration.access_token:
+        raise ValueError("У интеграции отсутствует токен доступа")
     from backend_api.services.project_settings import is_project_paused, update_actual_start_date
     if is_project_paused(integration.client):
         raise ValueError("Проект на паузе: синхронизация остановлена")
@@ -1119,6 +1126,36 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         goal_actions_synced += 1
                     campaigns_updated += 1
                 
+                # A configured VK composition acknowledges the types that were
+                # present when it was saved. If a new campaign objective appears
+                # later, surface it once instead of silently mixing it into CPL.
+                if integration.lead_action_types is not None:
+                    try:
+                        known = set(json.loads(integration.vk_known_lead_action_types or "[]"))
+                    except (TypeError, ValueError):
+                        known = set()
+                    observed = {
+                        str(campaign.vk_goal_action_id)
+                        for campaign in campaign_catalog.values()
+                        if campaign.vk_goal_action_id
+                    }
+                    new_action_types = observed - known
+                    if new_action_types:
+                        integration.vk_known_lead_action_types = json.dumps(sorted(observed))
+                        integration.vk_new_lead_actions_pending = True
+                        try:
+                            from backend_api.services.notifications import create_notification
+
+                            create_notification(
+                                db,
+                                integration.client.owner_id,
+                                "vk_lead_action_new",
+                                f"В VK Ads появились новые типы действий · {integration.client.name}",
+                                "Проверьте, нужно ли включить их в расчёт заявок и CPL.",
+                                meta={"route": "/integrations", "integration_id": str(integration.id)},
+                            )
+                        except Exception as notification_error:
+                            logger.warning("Failed to notify about new VK action types: %s", notification_error)
                 db.commit()
             except Exception as campaigns_err:
                 logger.error(f"❌ Ошибка синхронизации кампаний VK: {campaigns_err}")

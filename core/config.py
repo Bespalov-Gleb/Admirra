@@ -24,6 +24,10 @@ class OAuthConfig:
     yandex_client_secret: str
     vk_client_id: str
     vk_client_secret: str
+    # Отдельная пара приложения VK Ads. Старые VK_CLIENT_* остаются fallback,
+    # чтобы не ломать уже развёрнутые обычные OAuth-подключения.
+    vk_ads_client_id: str
+    vk_ads_client_secret: str
     vk_ads_oauth_scope: str
     # Вход на сайт через OAuth 2.1 VK ID (id.vk.ru). Если пусто — vk_client_id. Секрет для обмена кода не требуется (дока VK ID).
     vk_login_client_id: str
@@ -246,6 +250,8 @@ def get_config() -> Config:
             yandex_client_secret=_env("YANDEX_CLIENT_SECRET"),
             vk_client_id=_env("VK_CLIENT_ID"),
             vk_client_secret=_env("VK_CLIENT_SECRET"),
+            vk_ads_client_id=_env("VK_ADS_CLIENT_ID") or _env("VK_CLIENT_ID"),
+            vk_ads_client_secret=_env("VK_ADS_CLIENT_SECRET") or _env("VK_CLIENT_SECRET"),
             vk_ads_oauth_scope=getenv("VK_ADS_OAUTH_SCOPE", "read_ads,read_payments,create_ads"),
             vk_login_client_id=_env("VK_LOGIN_CLIENT_ID"),
             vk_login_client_secret=_env("VK_LOGIN_CLIENT_SECRET"),

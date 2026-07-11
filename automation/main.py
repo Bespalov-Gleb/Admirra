@@ -38,7 +38,12 @@ async def enqueue_auto_sync():
             for row in (
                 db.query(models.Integration.id)
                 .join(models.Client, models.Client.id == models.Integration.client_id)
-                .filter(models.Client.status == models.ClientStatus.ACTIVE)
+                .filter(
+                    models.Client.status == models.ClientStatus.ACTIVE,
+                    # Pending personal VK links have no token and must not
+                    # enter the nightly queue before a cabinet is selected.
+                    models.Integration.connection_status == "active",
+                )
                 .all()
             )
         ]

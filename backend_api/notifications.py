@@ -24,6 +24,7 @@ class NotificationOut(BaseModel):
     body: Optional[str] = None
     is_read: bool
     created_at: datetime
+    meta: Optional[dict] = None
 
     class Config:
         from_attributes = True

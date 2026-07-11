@@ -191,6 +191,16 @@ async def startup_event():
         # Финальная система: только одно проектное расписание. Legacy user.report_schedule
         # намеренно не запускается — иначе оно обходит очередь одобрения и дублирует отправки.
         lead_scheduler.add_job(run_scheduled_report_rules, "cron", minute="*", id="report_schedule_rules")
+    # Pending personal VK links are not integrations yet: expire their public
+    # capability promptly and remove abandoned drafts after the retention window.
+    from backend_api.integrations import maintain_vk_client_links
+    lead_scheduler.add_job(
+        maintain_vk_client_links,
+        "interval",
+        hours=1,
+        id="vk_client_link_maintenance",
+        replace_existing=True,
+    )
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")

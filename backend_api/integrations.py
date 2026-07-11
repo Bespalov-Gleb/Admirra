@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
 from core.database import get_db, SessionLocal
 from core import models, schemas, security
 from automation.yandex_direct import YandexDirectAPI, organization_name_from_client, cabinet_display_name
@@ -21,13 +22,18 @@ import uuid
 import httpx
 import logging
 import asyncio
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 import os
 import json
+from urllib.parse import urlencode
 from core.logging_utils import log_event
 from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
+from core.public_domain import resolve_frontend_url
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from core.campaign_status import apply_platform_status
@@ -42,8 +48,8 @@ YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
-VK_CLIENT_ID = cfg.oauth.vk_client_id
-VK_CLIENT_SECRET = cfg.oauth.vk_client_secret
+VK_CLIENT_ID = cfg.oauth.vk_ads_client_id
+VK_CLIENT_SECRET = cfg.oauth.vk_ads_client_secret
 # Authorization Code Grant для VK Ads API
 # Auth URL: https://ads.vk.com/hq/settings/access?action=oauth2
 # Token URL: https://ads.vk.com/api/v2/oauth2/token.json
@@ -55,6 +61,13 @@ VK_ADS_TOKEN_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 # Менеджер: read_manager_clients, edit_manager_clients, read_payments.
 # Поле required_permission в JSON ошибки API (например view_campaigns) — внутренний код метода, не имя в scope.
 VK_ADS_OAUTH_SCOPE = cfg.oauth.vk_ads_oauth_scope
+# Ссылка для личного кабинета всегда запрашивает только чтение. Агентские
+# права здесь не нужны и могут сделать OAuth личного кабинета недоступным.
+VK_ADS_CLIENT_LINK_SCOPE = "read_ads,read_payments"
+VK_CLIENT_LINK_TTL = timedelta(days=7)
+VK_CLIENT_LINK_RETENTION = timedelta(days=30)
+VK_CLIENT_LINK_STATUS_COOLDOWN = timedelta(seconds=3)
+_vk_client_link_status_checks: dict[tuple[str, str], datetime] = {}
 
 # myTarget Credentials (Authorization Code Grant)
 # Для песочницы используем target-sandbox.my.com
@@ -67,6 +80,210 @@ MYTARGET_TOKEN_URL = cfg.oauth.mytarget_token_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _vk_client_link_state_secret() -> bytes:
+    """Secret for the signed OAuth state, never exposed in a URL or response."""
+    secret = (cfg.security.secret_key or "").strip()
+    if not secret:
+        # A configured encryption key is still a cryptographically strong
+        # process secret and keeps old installations working. Production must
+        # nevertheless have SECRET_KEY set for the application as a whole.
+        secret = (cfg.security.encryption_key or "").strip()
+    if not secret:
+        raise RuntimeError("SECRET_KEY is required for VK client-link OAuth")
+    return secret.encode("utf-8")
+
+
+def _vk_client_link_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _sign_vk_client_link_state(token: str) -> str:
+    signature = hmac.new(
+        _vk_client_link_state_secret(), token.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{token}.{signature}"
+
+
+def _parse_vk_client_link_state(state: object) -> Optional[str]:
+    """Return the raw opaque token only for an authentic, well-formed state."""
+    if not isinstance(state, str):
+        return None
+    token, separator, signature = state.partition(".")
+    if not separator or not token or not signature or "." in signature:
+        return None
+    expected = hmac.new(
+        _vk_client_link_state_secret(), token.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        return None
+    return token
+
+
+def is_vk_client_link_state(state: object) -> bool:
+    """Cheap frontend-compatible shape check; full validation stays server-side."""
+    if not isinstance(state, str):
+        return False
+    token, separator, signature = state.partition(".")
+    return bool(separator and token and len(signature) == 64 and "." not in signature)
+
+
+def _vk_client_link_redirect_uri() -> str:
+    return f"{resolve_frontend_url().rstrip('/')}/auth/vk/callback"
+
+
+def _build_vk_client_link_url(token: str) -> str:
+    if not VK_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="VK Ads OAuth не настроен")
+    params = {
+        "action": "oauth2",
+        "response_type": "code",
+        "client_id": VK_CLIENT_ID,
+        "state": _sign_vk_client_link_state(token),
+        "scope": VK_ADS_CLIENT_LINK_SCOPE,
+        "redirect_uri": _vk_client_link_redirect_uri(),
+    }
+    return f"{VK_ADS_AUTH_URL}?{urlencode(params)}"
+
+
+def _expire_vk_client_link_if_needed(
+    integration: models.Integration, now: Optional[datetime] = None
+) -> bool:
+    """Move an unconsumed expired link into its final non-authorizable state."""
+    now = now or _utcnow()
+    expires_at = getattr(integration, "link_expires_at", None)
+    if (
+        integration.connection_status == "awaiting_auth"
+        and expires_at is not None
+        and expires_at <= now
+    ):
+        integration.connection_status = "link_expired"
+        integration.link_token = None
+        integration.link_token_hash = None
+        return True
+    return False
+
+
+def _issue_vk_client_link(integration: models.Integration, now: Optional[datetime] = None) -> str:
+    """Replace any old link with a fresh single-use link and seven-day TTL."""
+    now = now or _utcnow()
+    token = secrets.token_urlsafe(32)
+    integration.link_token = security.encrypt_token(token)
+    integration.link_token_hash = _vk_client_link_token_hash(token)
+    integration.link_created_at = now
+    integration.link_expires_at = now + VK_CLIENT_LINK_TTL
+    integration.link_authorized_at = None
+    integration.connection_status = "awaiting_auth"
+    return _build_vk_client_link_url(token)
+
+
+def _vk_client_link_url_from_integration(integration: models.Integration) -> Optional[str]:
+    if integration.connection_status != "awaiting_auth" or not integration.link_token:
+        return None
+    try:
+        token = security.decrypt_token(integration.link_token)
+    except Exception:
+        logger.exception("Could not decrypt VK client link token for integration %s", integration.id)
+        return None
+    return _build_vk_client_link_url(token)
+
+
+def _vk_client_link_response(integration: models.Integration, include_url: bool = False) -> dict:
+    result = {
+        "integration_id": str(integration.id),
+        "project_id": str(integration.client_id),
+        "status": integration.connection_status,
+        "link_expires_at": integration.link_expires_at,
+        "link_created_at": integration.link_created_at,
+        "link_authorized_at": integration.link_authorized_at,
+    }
+    if include_url:
+        result["url"] = _vk_client_link_url_from_integration(integration)
+    return result
+
+
+def maintain_vk_client_links() -> dict[str, int]:
+    """Expire seven-day links and remove abandoned pending drafts after 30 days."""
+    db = SessionLocal()
+    expired = 0
+    removed = 0
+    try:
+        now = _utcnow()
+        drafts = db.query(models.Integration).filter(
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+            models.Integration.connection_status.in_({"awaiting_auth", "link_expired"}),
+        ).all()
+        for integration in drafts:
+            if _expire_vk_client_link_if_needed(integration, now):
+                expired += 1
+            created_at = integration.link_created_at
+            if created_at and created_at <= now - VK_CLIENT_LINK_RETENTION:
+                db.delete(integration)
+                removed += 1
+        db.commit()
+        if expired or removed:
+            logger.info("VK client links maintained: expired=%s removed=%s", expired, removed)
+        return {"expired": expired, "removed": removed}
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to maintain VK client links")
+        return {"expired": expired, "removed": removed}
+    finally:
+        db.close()
+
+
+async def _exchange_vk_ads_authorization_code(code: str, redirect_uri: str) -> dict:
+    """Exchange a VK Ads Authorization Code without ever logging credentials."""
+    if not code:
+        raise HTTPException(status_code=400, detail="Код авторизации VK Ads не получен")
+    if not VK_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="VK Ads OAuth не настроен")
+
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": VK_CLIENT_ID,
+    }
+    # VK Ads documents the same redirect URI for the authorization and token
+    # steps; including it avoids a mismatch for clients configured strictly.
+    if redirect_uri:
+        payload["redirect_uri"] = redirect_uri
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(VK_ADS_TOKEN_URL, data=payload, timeout=30.0)
+    except httpx.HTTPError as exc:
+        logger.warning("VK Ads client-link token exchange network error: %s", exc)
+        raise HTTPException(status_code=502, detail="Не удалось связаться с VK Ads") from exc
+
+    if response.status_code != 200:
+        error_code = ""
+        try:
+            error_code = str(response.json().get("error") or "")
+        except Exception:
+            pass
+        logger.warning(
+            "VK Ads client-link token exchange failed: status=%s error=%s",
+            response.status_code,
+            error_code or "unknown",
+        )
+        if error_code == "token_limit_exceeded":
+            raise HTTPException(
+                status_code=409,
+                detail="Для приложения VK Ads достигнут лимит токенов. Обратитесь к администратору AdMirra.",
+            )
+        raise HTTPException(status_code=400, detail="VK Ads не принял код авторизации")
+
+    token_data = response.json()
+    if not token_data.get("access_token"):
+        logger.warning("VK Ads client-link token response has no access_token")
+        raise HTTPException(status_code=502, detail="VK Ads не вернул токен доступа")
+    return token_data
 
 
 def _clean_metrika_target_account(value: Optional[str]) -> Optional[str]:
@@ -244,6 +461,305 @@ def get_vk_auth_url(redirect_uri: str):
         "state": state,
         "scope": scope
     }
+
+@router.post("/vk/link")
+async def create_vk_client_link(
+    payload: dict = Body(...),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create or return the one-time OAuth link for a personal VK Ads cabinet."""
+    SubscriptionService.require_active_subscription(db, current_user)
+    raw_project_id = payload.get("project_id") or payload.get("client_id")
+    try:
+        project_id = uuid.UUID(str(raw_project_id))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Некорректный project_id")
+
+    project = db.query(models.Client).filter(
+        models.Client.id == project_id,
+        models.Client.owner_id == current_user.id,
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден")
+
+    # One project must never accumulate invisible pending drafts. A live link is
+    # idempotent; an authorized draft must be completed, not replaced.
+    integration = (
+        db.query(models.Integration)
+        .filter(
+            models.Integration.client_id == project.id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        )
+        .order_by(models.Integration.link_created_at.desc().nullslast())
+        .first()
+    )
+    if integration:
+        changed = _expire_vk_client_link_if_needed(integration)
+        if changed:
+            db.commit()
+            db.refresh(integration)
+        if integration.connection_status == "awaiting_auth":
+            return _vk_client_link_response(integration, include_url=True)
+        if integration.connection_status == "authorized":
+            return _vk_client_link_response(integration)
+        if integration.connection_status == "link_expired":
+            return _vk_client_link_response(integration)
+        raise HTTPException(
+            status_code=409,
+            detail="VK Ads уже подключён к этому проекту. Откройте настройки существующей интеграции.",
+        )
+
+    SubscriptionService.ensure_can_create_cabinet(db, current_user)
+    integration = models.Integration(
+        client_id=project.id,
+        platform=models.IntegrationPlatform.VK_ADS,
+        access_token=None,
+        sync_status=models.IntegrationSyncStatus.NEVER,
+        connection_status="awaiting_auth",
+        auto_sync=True,
+    )
+    url = _issue_vk_client_link(integration)
+    db.add(integration)
+    db.commit()
+    db.refresh(integration)
+    response = _vk_client_link_response(integration)
+    response["url"] = url
+    return response
+
+
+@router.post("/{integration_id}/link/reissue")
+async def reissue_vk_client_link(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invalidate the previous client link and issue a new seven-day one."""
+    integration = (
+        db.query(models.Integration)
+        .join(models.Client)
+        .filter(
+            models.Integration.id == integration_id,
+            models.Client.owner_id == current_user.id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        )
+        .first()
+    )
+    if not integration:
+        raise HTTPException(status_code=404, detail="VK Ads интеграция не найдена")
+    _expire_vk_client_link_if_needed(integration)
+    if integration.connection_status not in {"awaiting_auth", "link_expired"}:
+        raise HTTPException(status_code=409, detail="Ссылку можно перевыпустить только до авторизации клиента")
+
+    url = _issue_vk_client_link(integration)
+    db.commit()
+    db.refresh(integration)
+    response = _vk_client_link_response(integration)
+    response["url"] = url
+    return response
+
+
+@router.get("/{integration_id}/status")
+def get_integration_connection_status(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Small, rate-limited status endpoint for link polling and manual checks."""
+    integration = (
+        db.query(models.Integration)
+        .join(models.Client)
+        .filter(models.Integration.id == integration_id, models.Client.owner_id == current_user.id)
+        .first()
+    )
+    if not integration:
+        raise HTTPException(status_code=404, detail="Интеграция не найдена")
+
+    key = (str(current_user.id), str(integration_id))
+    now = _utcnow()
+    last_check = _vk_client_link_status_checks.get(key)
+    if last_check and now - last_check < VK_CLIENT_LINK_STATUS_COOLDOWN:
+        retry_after = max(1, int((VK_CLIENT_LINK_STATUS_COOLDOWN - (now - last_check)).total_seconds()))
+        raise HTTPException(status_code=429, detail=f"Проверяйте статус не чаще одного раза в {int(VK_CLIENT_LINK_STATUS_COOLDOWN.total_seconds())} секунды", headers={"Retry-After": str(retry_after)})
+    _vk_client_link_status_checks[key] = now
+
+    if _expire_vk_client_link_if_needed(integration, now):
+        db.commit()
+        db.refresh(integration)
+    return _vk_client_link_response(integration, include_url=True)
+
+
+@router.post("/vk/link/callback")
+async def complete_vk_client_link_callback(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """
+    Complete a client-link callback without requiring a product session.
+
+    The browser first lands on the already registered SPA callback URI. The SPA
+    forwards only code/state here; all signature, TTL and one-time checks remain
+    on the server, so a client can never attach a cabinet to somebody else's
+    project by forging a callback.
+    """
+    state = payload.get("state")
+    token = _parse_vk_client_link_state(state)
+    if not token:
+        return {"outcome": "invalid"}
+
+    token_hash = _vk_client_link_token_hash(token)
+    integration = (
+        db.query(models.Integration)
+        .join(models.Client)
+        .filter(
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+            models.Integration.link_token_hash == token_hash,
+        )
+        .with_for_update()
+        .first()
+    )
+    if not integration:
+        return {"outcome": "invalid"}
+
+    if _expire_vk_client_link_if_needed(integration):
+        db.commit()
+        return {"outcome": "invalid"}
+    if integration.connection_status != "awaiting_auth" or not integration.link_token:
+        return {"outcome": "invalid"}
+    try:
+        stored_token = security.decrypt_token(integration.link_token)
+    except Exception:
+        logger.exception("Could not decrypt VK client-link token during callback")
+        return {"outcome": "invalid"}
+    if not hmac.compare_digest(stored_token, token):
+        return {"outcome": "invalid"}
+
+    oauth_error = str(payload.get("error") or "").strip()
+    if oauth_error:
+        if oauth_error == "access_denied":
+            return {"outcome": "declined"}
+        return {"outcome": "error"}
+
+    code = str(payload.get("code") or "").strip()
+    if not code:
+        return {"outcome": "invalid"}
+
+    try:
+        token_data = await _exchange_vk_ads_authorization_code(code, _vk_client_link_redirect_uri())
+    except HTTPException as exc:
+        logger.info("VK client-link code exchange was not completed: %s", exc.detail)
+        # A transient or expired OAuth code must not consume a still-valid link.
+        return {"outcome": "error"}
+
+    integration.access_token = security.encrypt_token(token_data["access_token"])
+    integration.refresh_token = (
+        security.encrypt_token(token_data["refresh_token"])
+        if token_data.get("refresh_token")
+        else None
+    )
+    integration.vk_user_id = str(token_data.get("user_id")) if token_data.get("user_id") is not None else None
+    integration.expires_at = None
+    if token_data.get("expires_in") is not None:
+        try:
+            integration.expires_at = _utcnow() + timedelta(seconds=int(token_data["expires_in"]))
+        except (TypeError, ValueError):
+            pass
+    integration.connection_status = "authorized"
+    integration.link_authorized_at = _utcnow()
+    # A successful exchange consumes the link permanently.
+    integration.link_token = None
+    integration.link_token_hash = None
+    integration.link_expires_at = None
+    integration.sync_status = models.IntegrationSyncStatus.NEVER
+    integration.error_message = None
+
+    try:
+        from backend_api.services.notifications import create_notification
+
+        create_notification(
+            db,
+            integration.client.owner_id,
+            "vk_client_link_authorized",
+            f"Клиент выдал доступ к VK Ads · {integration.client.name}",
+            "Выберите рекламный кабинет, чтобы завершить подключение.",
+            meta={
+                "integration_id": str(integration.id),
+                "route": f"/integrations/wizard?resume_integration_id={integration.id}&initial_step=2",
+            },
+        )
+    except Exception:
+        logger.exception("Failed to create VK client-link authorization notification")
+
+    db.commit()
+    return {"outcome": "authorized", "integration_id": str(integration.id)}
+
+
+@router.get("/{integration_id}/vk-lead-actions")
+def get_vk_lead_actions(
+    integration_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Only expose result types actually observed in this VK Ads cabinet."""
+    integration = (
+        db.query(models.Integration)
+        .join(models.Client)
+        .filter(
+            models.Integration.id == integration_id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+            models.Client.owner_id == current_user.id,
+        )
+        .first()
+    )
+    if not integration:
+        raise HTTPException(status_code=404, detail="VK Ads интеграция не найдена")
+
+    # Before first sync there are no reliable thirty-day counters. Returning a
+    # deliberate loading state is safer than offering a global static catalogue.
+    if not integration.last_sync_at:
+        return {
+            "items": [],
+            "syncing": True,
+            "has_new_actions": bool(integration.vk_new_lead_actions_pending),
+        }
+
+    from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+
+    since = (_utcnow() - timedelta(days=30)).date()
+    rows = (
+        db.query(
+            models.Campaign.vk_goal_action_id.label("code"),
+            models.Campaign.vk_goal_action_name.label("stored_name"),
+            func.count(func.distinct(models.Campaign.id)).label("campaigns_count"),
+            func.coalesce(func.sum(models.VKStats.conversions), 0).label("actions_count"),
+        )
+        .outerjoin(
+            models.VKStats,
+            and_(
+                models.VKStats.campaign_id == models.Campaign.id,
+                models.VKStats.date >= since,
+            ),
+        )
+        .filter(
+            models.Campaign.integration_id == integration.id,
+            models.Campaign.vk_goal_action_id.isnot(None),
+            models.Campaign.vk_goal_action_id != "",
+        )
+        .group_by(models.Campaign.vk_goal_action_id, models.Campaign.vk_goal_action_name)
+        .order_by(func.count(func.distinct(models.Campaign.id)).desc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": str(row.code),
+                "name": get_vk_goal_action_name_ru(str(row.code)) or row.stored_name or str(row.code),
+                "campaigns_count": int(row.campaigns_count or 0),
+                "actions_count": int(row.actions_count or 0),
+            }
+            for row in rows
+        ],
+        "syncing": integration.sync_status == models.IntegrationSyncStatus.PENDING,
+        "has_new_actions": bool(integration.vk_new_lead_actions_pending),
+    }
+
 
 @router.get("/mytarget/auth-url")
 def get_mytarget_auth_url(redirect_uri: str):
@@ -820,6 +1336,14 @@ async def exchange_vk_token_oauth(
         db_integration.account_id = vk_account_id
         db_integration.vk_user_id = vk_user_id or db_integration.vk_user_id
         db_integration.is_agency = is_delegated_vk_account
+        # If an agency chooses the normal flow after starting a client link,
+        # this successful OAuth replaces that unfinished draft cleanly.
+        db_integration.connection_status = "active"
+        db_integration.link_token = None
+        db_integration.link_token_hash = None
+        db_integration.link_expires_at = None
+        db_integration.link_created_at = None
+        db_integration.link_authorized_at = None
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db_integration.error_message = None
     else:
@@ -832,6 +1356,7 @@ async def exchange_vk_token_oauth(
             account_id=vk_account_id,
             vk_user_id=vk_user_id,
             is_agency=is_delegated_vk_account,
+            connection_status="active",
             sync_status=models.IntegrationSyncStatus.NEVER,
         )
         db.add(db_integration)
@@ -1455,6 +1980,8 @@ async def get_integration_profiles(
 
     log_event("get_integration_profiles", f"User {current_user.id} requesting profiles for integration {integration_id}")
 
+    if not integration.access_token:
+        raise HTTPException(status_code=409, detail="Сначала завершите авторизацию VK Ads")
     access_token = security.decrypt_token(integration.access_token)
     
     if integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
@@ -2708,6 +3235,7 @@ async def update_integration(
         "agency_client_login",
         "is_agency",
         "selected_goals",
+        "lead_action_types",
         "selected_counters",
         "primary_goal_id",
         "utm_source",
@@ -2721,6 +3249,28 @@ async def update_integration(
             status_code=400,
             detail=f"Unsupported integration settings: {', '.join(sorted(rejected_fields))}",
         )
+
+    if "lead_action_types" in integration_in:
+        if integration.platform != models.IntegrationPlatform.VK_ADS:
+            raise HTTPException(status_code=400, detail="Типы целевых действий доступны только для VK Ads")
+        raw_types = integration_in.get("lead_action_types")
+        if raw_types is None:
+            integration_in["lead_action_types"] = []
+        elif not isinstance(raw_types, list):
+            raise HTTPException(status_code=400, detail="lead_action_types должен быть списком")
+        else:
+            normalized_types = []
+            for action_type in raw_types:
+                code = str(action_type or "").strip()
+                if code and code not in normalized_types:
+                    normalized_types.append(code)
+            integration_in["lead_action_types"] = normalized_types
+
+    if integration_in.get("is_active") is True and integration.platform == models.IntegrationPlatform.VK_ADS:
+        if integration.connection_status not in {"authorized", "active"}:
+            raise HTTPException(status_code=409, detail="Сначала дождитесь авторизации клиента VK Ads")
+        if not integration.account_id:
+            raise HTTPException(status_code=400, detail="Выберите рекламный кабинет VK Ads")
 
     logger.info(
         "Updating integration %s fields=%s",
@@ -2767,10 +3317,31 @@ async def update_integration(
             # Special handling for JSON fields if they come as lists/dicts
             if key == 'selected_goals' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
+            elif key == 'lead_action_types' and isinstance(value, list):
+                value = json.dumps(value)
             elif key == 'selected_counters' and (isinstance(value, list) or isinstance(value, dict)):
                 value = json.dumps(value)
             setattr(integration, key, value)
             logger.info("Updated integration field %s", key)
+
+    if "lead_action_types" in integration_in:
+        # Saving the composition acknowledges every objective currently present
+        # in the cabinet. A later sync can therefore flag only genuinely new
+        # campaign types, not types the agency deliberately left unchecked.
+        observed_types = [
+            str(row[0])
+            for row in db.query(models.Campaign.vk_goal_action_id)
+            .filter(
+                models.Campaign.integration_id == integration.id,
+                models.Campaign.vk_goal_action_id.isnot(None),
+                models.Campaign.vk_goal_action_id != "",
+            )
+            .distinct()
+            .all()
+            if row[0]
+        ]
+        integration.vk_known_lead_action_types = json.dumps(sorted(set(observed_types)))
+        integration.vk_new_lead_actions_pending = False
 
     # 2. Обновляем признак активности кампаний по selected_campaign_ids / all_campaigns
     try:
@@ -2817,6 +3388,9 @@ async def update_integration(
             logger.info(f"Explicitly set agency_client_login to {integration_in['agency_client_login']} for integration {integration_id}")
     
     logger.info(f"After update (before commit): agency_client_login={integration.agency_client_login}, account_id={integration.account_id}")
+
+    if integration_in.get("is_active") is True and integration.platform == models.IntegrationPlatform.VK_ADS:
+        integration.connection_status = "active"
     
     log_event("backend", f"updated integration {integration_id}", integration_in)
     log_history_event(
@@ -3175,6 +3749,13 @@ async def discover_campaigns(
                 campaign.name = incoming_name
             updated_count += 1
             logger.info(f"   💾 Updated existing campaign: ID={dc['id']}, Name='{dc['name']}'")
+        if integration.platform == models.IntegrationPlatform.VK_ADS:
+            # AdPlan.objective is the source of the VK result type. Persist it
+            # already during discovery so the post-sync lead-action selector is
+            # based on this cabinet's real campaigns, never a global catalogue.
+            if dc.get("goal_action_id"):
+                campaign.vk_goal_action_id = str(dc["goal_action_id"])
+                campaign.vk_goal_action_name = dc.get("goal_action_name") or str(dc["goal_action_id"])
         apply_platform_status(campaign, dc)
             
     db.commit()
@@ -3625,7 +4206,7 @@ async def delete_integration(
         raise HTTPException(status_code=404, detail="Integration not found")
     
     # CRITICAL: For VK Ads, revoke the token before deletion to free up token slots
-    if integration.platform == models.IntegrationPlatform.VK_ADS:
+    if integration.platform == models.IntegrationPlatform.VK_ADS and integration.access_token:
         logger.info(f"🔄 Attempting to revoke VK Ads token before deleting integration {integration_id}...")
         try:
             access_token = None

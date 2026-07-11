@@ -143,8 +143,8 @@ cp .env.example .env
    - **Менеджер:** `read_manager_clients`, `edit_manager_clients`, `read_payments`
 5. Скопируйте `Client ID` и `Client Secret` в `.env`:
    ```
-   VK_CLIENT_ID=your_client_id
-   VK_CLIENT_SECRET=your_client_secret
+   VK_ADS_CLIENT_ID=your_client_id
+   VK_ADS_CLIENT_SECRET=your_client_secret
    ```
 
 **Важно:** 
@@ -332,7 +332,7 @@ db.commit()
 
 **Обязательно для каждой платформы:**
 - Яндекс.Директ: `YANDEX_CLIENT_ID` и `YANDEX_CLIENT_SECRET`
-- VK Ads: `VK_CLIENT_ID` и `VK_CLIENT_SECRET`
+- VK Ads: `VK_ADS_CLIENT_ID` и `VK_ADS_CLIENT_SECRET` (старые `VK_CLIENT_*` поддерживаются как fallback)
 - myTarget: `MYTARGET_CLIENT_ID` и `MYTARGET_CLIENT_SECRET`
 
 ## 📁 Структура проекта

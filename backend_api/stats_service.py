@@ -27,18 +27,23 @@ class StatsService:
         ).all()
         result: dict[uuid.UUID, Optional[set[str]]] = {}
         for integration in integrations:
+            # VK selection intentionally has its own field. selected_goals is
+            # still read only as a compatibility bridge for integrations made
+            # before the client-link/lead-actions flow was introduced.
+            raw = integration.lead_action_types
+            explicit_empty_selection = raw is not None
+            if raw is None and integration.selected_goals:
+                raw = integration.selected_goals
             configured: set[str] = set()
-            if integration.selected_goals:
+            if raw is not None:
                 try:
-                    raw = (
-                        json.loads(integration.selected_goals)
-                        if isinstance(integration.selected_goals, str)
-                        else integration.selected_goals
-                    )
-                    configured = {str(code) for code in (raw or []) if code}
+                    parsed = json.loads(raw) if isinstance(raw, str) else raw
+                    configured = {str(code) for code in (parsed or []) if code}
                 except (TypeError, ValueError):
                     configured = set()
-            if configured:
+            if configured or explicit_empty_selection:
+                # An explicitly empty VK selection means no synthetic total
+                # "Заявки"/CPL, exactly as chosen by the agency.
                 result[integration.id] = configured
                 continue
 

@@ -98,8 +98,8 @@
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-[0.625rem] mb-[0.8333rem]">
                   <div class="integration-title">{{ platformLabel(item.platform) }}</div>
-                  <span class="status-badge" :class="syncBadgeClass(item.sync_status)" :title="item.error_message || ''">
-                    {{ syncLabel(item.sync_status) }}
+                  <span class="status-badge" :class="integrationBadgeClass(item)" :title="item.error_message || ''">
+                    {{ integrationStatusLabel(item) }}
                   </span>
                   <span
                     v-if="isAvitoIntegration(item)"
@@ -109,9 +109,22 @@
                     <img src="/admirra/img/integrations/yandex-metrika.png" alt="" />
                     Метрика
                   </span>
+                  <span v-if="isVkIntegration(item) && item.vk_new_lead_actions_pending" class="metrika-source-badge" title="В VK Ads появились новые типы действий — проверьте состав лидов">
+                    Новые действия
+                  </span>
                 </div>
 
-                <div class="sync-meta-grid">
+                <div v-if="isVkLinkDraft(item)" class="vk-link-card-meta">
+                  <template v-if="item.connection_status === 'awaiting_auth'">
+                    Ссылка отправлена клиенту · истекает {{ formatLinkExpiry(item.link_expires_at) }}
+                  </template>
+                  <template v-else-if="item.connection_status === 'authorized'">
+                    Клиент выдал доступ {{ formatLinkAuthorized(item.link_authorized_at) }} · кабинет ещё не выбран
+                  </template>
+                  <template v-else>Срок ссылки истёк. Перевыпустите ссылку для клиента.</template>
+                </div>
+
+                <div v-else class="sync-meta-grid">
                   <div>
                     <div class="sync-meta-label">Последняя синхронизация</div>
                     <div class="sync-meta-value">
@@ -125,14 +138,14 @@
                   </div>
                 </div>
 
-                <div class="auto-sync-line">
+                <div v-if="!isVkLinkDraft(item)" class="auto-sync-line">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                   <span>{{ formatAutoSyncText(item) }}</span>
                 </div>
 
-                <div class="integration-id-row">
+                <div v-if="!isVkLinkDraft(item)" class="integration-id-row">
                   <span>{{ integrationIdLabel(item) }}: {{ integrationDisplayId(item) }}</span>
                   <button
                     type="button"
@@ -150,6 +163,15 @@
             </div>
 
             <div class="integration-actions flex flex-col items-stretch gap-[0.625rem] flex-shrink-0">
+              <template v-if="isVkLinkDraft(item)">
+                <button v-if="item.connection_status === 'awaiting_auth'" class="sync-now-btn" @click="copyPendingVkLink(item)">
+                  <span>Скопировать ссылку</span>
+                </button>
+                <button v-if="item.connection_status !== 'authorized'" class="configure-btn" @click="reissuePendingVkLink(item)">Перевыпустить</button>
+                <button v-if="item.connection_status === 'authorized'" class="configure-btn configure-btn--active" @click="continueVkLink(item)">Выбрать кабинет</button>
+                <button v-if="item.connection_status !== 'authorized'" class="delete-vk-link-btn" @click="cancelPendingVkLink(item)">Отменить</button>
+              </template>
+              <template v-else>
               <button class="sync-now-btn" :disabled="syncingId === item.id || isSyncingIntegration(item.id)" @click="syncNow(item)">
                 <svg :class="{ 'animate-spin': syncingId === item.id || isSyncingIntegration(item.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M4 4v5h5M20 20v-5h-5M6.5 17.5a8 8 0 0 0 12-2.5M17.5 6.5a8 8 0 0 0-12 2.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -157,6 +179,7 @@
                 <span>{{ syncingId === item.id || isSyncingIntegration(item.id) ? 'Синхронизация…' : 'Синхронизировать сейчас' }}</span>
               </button>
               <button class="configure-btn" :class="{ 'configure-btn--active': isPanelOpenFor(item) }" @click="toggleSettings(item)">{{ isPanelOpenFor(item) ? 'Свернуть' : 'Настроить' }}</button>
+              </template>
             </div>
           </div>
         </div>
@@ -182,6 +205,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
@@ -190,6 +214,7 @@ import IntegrationSettingsPanel from './IntegrationSettingsPanel.vue'
 
 const { currentProjectId } = useProjects()
 const toaster = useToaster()
+const router = useRouter()
 const {
   fetchSyncStatus,
   startIntegrationSync,
@@ -358,6 +383,44 @@ const platformIcon = (platform) => {
 
 const isAvitoIntegration = (integration) =>
   normalizePlatform(integration?.platform) === 'AVITO_ADS'
+const isVkIntegration = (integration) =>
+  normalizePlatform(integration?.platform) === 'VK_ADS'
+
+const isVkLinkDraft = (integration) =>
+  normalizePlatform(integration?.platform) === 'VK_ADS' &&
+  ['awaiting_auth', 'authorized', 'link_expired'].includes(integration?.connection_status)
+
+const integrationStatusLabel = (integration) => {
+  if (!isVkLinkDraft(integration)) return syncLabel(integration.sync_status)
+  return {
+    awaiting_auth: 'Ожидает авторизации клиента',
+    authorized: 'Клиент выдал доступ',
+    link_expired: 'Срок ссылки истёк',
+  }[integration.connection_status]
+}
+
+const integrationBadgeClass = (integration) => {
+  if (!isVkLinkDraft(integration)) return syncBadgeClass(integration.sync_status)
+  return {
+    awaiting_auth: 'status-badge--warning',
+    authorized: 'status-badge--success',
+    link_expired: 'status-badge--danger',
+  }[integration.connection_status]
+}
+
+const formatLinkExpiry = (value) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Moscow' })
+}
+
+const formatLinkAuthorized = (value) => {
+  if (!value) return 'только что'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'только что'
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Moscow' })
+}
 
 const syncClass = (status) => ({
   'sync-dot--success': status === 'SUCCESS',
@@ -457,6 +520,51 @@ const syncNow = async (item) => {
   } finally {
     syncingId.value = null
   }
+}
+
+const updateListedIntegration = (id, values) => {
+  const index = integrations.value.findIndex((item) => item.id === id)
+  if (index >= 0) integrations.value[index] = { ...integrations.value[index], ...values }
+}
+
+const copyPendingVkLink = async (item) => {
+  try {
+    const { data } = await api.get(`integrations/${item.id}/status`)
+    updateListedIntegration(item.id, data)
+    if (data.status !== 'awaiting_auth' || !data.url) {
+      toaster.warning('Эта ссылка больше недействительна. Перевыпустите новую.')
+      return
+    }
+    await navigator.clipboard.writeText(data.url)
+    toaster.success('Ссылка для клиента скопирована')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось получить ссылку')
+  }
+}
+
+const reissuePendingVkLink = async (item) => {
+  try {
+    const { data } = await api.post(`integrations/${item.id}/link/reissue`)
+    updateListedIntegration(item.id, data)
+    if (data.url) await navigator.clipboard.writeText(data.url)
+    toaster.success(data.url ? 'Новая ссылка создана и скопирована' : 'Новая ссылка создана')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось перевыпустить ссылку')
+  }
+}
+
+const cancelPendingVkLink = async (item) => {
+  try {
+    await api.delete(`integrations/${item.id}`)
+    integrations.value = integrations.value.filter((current) => current.id !== item.id)
+    toaster.success('Ожидающее подключение отменено')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отменить подключение')
+  }
+}
+
+const continueVkLink = (item) => {
+  router.push(`/integrations/wizard?resume_integration_id=${item.id}&initial_step=2`)
 }
 
 const saveIntegrationSettings = async (payload = {}) => {
@@ -837,6 +945,17 @@ const deleteIntegration = async () => {
   margin-bottom: 0.7639rem;
   max-width: 23.6111rem;
 }
+.vk-link-card-meta {
+  min-height: 4.1667rem;
+  display: flex;
+  align-items: center;
+  padding: 0.8333rem 1rem;
+  border-radius: 0.8333rem;
+  color: #8a5a12;
+  background: #fff7ed;
+  font-size: 0.8333rem;
+  line-height: 1.4;
+}
 .sync-meta-label {
   color: #777973;
   font-size: 0.7639rem;
@@ -951,6 +1070,17 @@ const deleteIntegration = async () => {
 .configure-btn:active { transform: scale(0.97); transition: transform 0s; }
 .configure-btn--active { background-color: #2563eb; border-color: #2563eb; color: #fff; }
 .configure-btn--active:hover { background-color: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.delete-vk-link-btn {
+  min-height: 2.5rem;
+  padding: 0.4861rem 0.8333rem;
+  border: 1px solid #fecaca;
+  border-radius: 0.8333rem;
+  color: #b91c1c;
+  background: #fff;
+  font-size: 0.8333rem;
+  cursor: pointer;
+}
+.delete-vk-link-btn:hover { background: #fff1f2; }
 :global(.dark) .configure-btn,
 :global(.darkmode) .configure-btn {
   background-color: rgba(255,255,255,0.06);

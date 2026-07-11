@@ -115,14 +115,14 @@
               type="button"
               class="primary-btn mt-auto"
               :class="{ 'primary-btn--vk': form.platform === 'VK_ADS', 'primary-btn--avito': form.platform === 'AVITO_ADS' }"
-              :disabled="loadingAuth"
+              :disabled="loadingAuth || (isVkClientLink && !form.client_id)"
               @click="handleConnectClick"
             >
               <span>{{ loadingAuth ? 'Перенаправление...' : connectButtonText }}</span>
             </button>
           </div>
 
-          <div class="channel-card">
+          <div v-if="form.platform !== 'VK_ADS'" class="channel-card">
             <div class="channel-card__icon">
               <img :src="platformIcon" :alt="platformName" />
             </div>
@@ -132,6 +132,59 @@
               <span></span>
               API: СОЕДИНЕНО
             </div>
+          </div>
+
+          <div v-else class="channel-card channel-card--vk-link">
+            <div class="channel-card__icon">
+              <img :src="platformIcon" :alt="platformName" />
+            </div>
+            <h4>Интеграция с VK Ads</h4>
+            <p>Выберите способ подключения рекламного кабинета.</p>
+
+            <div class="vk-link-modes">
+              <button
+                type="button"
+                class="vk-link-mode"
+                :class="{ 'vk-link-mode--selected': vkConnectionMode === 'self' }"
+                @click="selectVkConnectionMode('self')"
+              >
+                <span class="vk-link-mode__radio"></span>
+                <span><b>Авторизоваться самому</b><small>Кабинеты, доступные вашему аккаунту VK.</small></span>
+              </button>
+              <button
+                type="button"
+                class="vk-link-mode"
+                :class="{ 'vk-link-mode--selected': vkConnectionMode === 'client' }"
+                @click="selectVkConnectionMode('client')"
+              >
+                <span class="vk-link-mode__radio"></span>
+                <span><b>Личный кабинет клиента <em>НОВОЕ</em></b><small>Клиент авторизуется по ссылке, без входа в AdMirra.</small></span>
+              </button>
+            </div>
+
+            <template v-if="isVkClientLink">
+              <p v-if="!form.client_id" class="vk-link-project-hint">Выберите существующий проект слева — ссылка создаётся для конкретного проекта.</p>
+              <div v-if="vkClientLink?.url" class="vk-link-box">
+                <div class="vk-link-box__label">Ссылка для клиента</div>
+                <div class="vk-link-box__row">
+                  <input :value="vkClientLink.url" readonly aria-label="Ссылка для клиента" />
+                  <button type="button" @click="copyVkClientLink">Скопировать</button>
+                </div>
+                <small>Одноразовая ссылка действует 7 дней. После согласия клиента мы пришлём уведомление.</small>
+              </div>
+
+              <div class="vk-link-state" :class="`vk-link-state--${vkClientLink?.status || 'awaiting_auth'}`">
+                <span></span>{{ vkClientLinkLabel }}
+              </div>
+
+              <div class="vk-link-actions">
+                <button v-if="vkClientLink?.status === 'link_expired'" type="button" @click="reissueVkClientLink">Перевыпустить</button>
+                <button v-if="vkClientLink?.status === 'authorized'" type="button" @click="continueAuthorizedVkLink">Выбрать кабинет</button>
+                <button v-if="vkClientLink?.status === 'awaiting_auth' || vkClientLink?.status === 'link_expired'" type="button" @click="cancelVkClientLink">Отменить</button>
+              </div>
+
+              <button type="button" class="vk-link-close" @click="closeVkLinkWizard">Закрыть, вернусь позже</button>
+            </template>
           </div>
           </div>
           </div>
@@ -316,12 +369,48 @@
           @click="goToVisibleStep(3)"
         >
           <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">3</span>
-          <span class="wizard-step__label">Счетчики и цели</span>
+          <span class="wizard-step__label">{{ isVk ? 'Целевые действия' : 'Счетчики и цели' }}</span>
         </button>
 
         <Transition name="step-expand">
           <div v-if="isStepVisible(3)" class="wizard-content">
-        <div v-if="form.platform !== 'AVITO_ADS'" class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="isVk" class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+          <div class="panel-head">
+            <div>
+              <h4 class="dark:!text-white/90">Целевые действия VK Ads</h4>
+              <p class="dark:!text-white/55">Отметьте, какие фактические результаты кампаний считать лидами. Их сумма попадёт в «Заявки» и общий CPL.</p>
+            </div>
+          </div>
+
+          <div v-if="loadingVkLeadActions || vkLeadActionsSyncing" class="empty-line dark:!text-white/55">
+            Загружаем данные, действия появятся после синхронизации.
+          </div>
+          <div v-else-if="vkLeadActions.length === 0" class="empty-line dark:!text-white/55">
+            В этом кабинете пока нет результатов кампаний. Этот шаг можно пропустить и настроить позже.
+          </div>
+          <div v-else class="cards-grid">
+            <label
+              v-for="action in vkLeadActions"
+              :key="action.id"
+              class="select-tile dark:!border-white/10 dark:!bg-white/5"
+              :class="{ 'select-tile--active': vkLeadActionTypes.includes(action.id) }"
+            >
+              <input type="checkbox" :checked="vkLeadActionTypes.includes(action.id)" @change="toggleVkLeadActionType(action.id)" />
+              <span class="select-tile__top">
+                <span class="select-tile__avatar select-tile__avatar--text dark:!bg-white/10 dark:!text-white/65">VK</span>
+                <span class="select-tile__check dark:!bg-white/10">✓</span>
+              </span>
+              <span class="select-tile__title dark:!text-white/85">{{ action.name }}</span>
+              <span class="select-tile__meta dark:!text-white/50">{{ action.campaigns_count }} {{ action.campaigns_count === 1 ? 'кампания' : 'кампании' }} · {{ action.actions_count }} действий за 30 дней</span>
+            </label>
+          </div>
+          <div class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
+            <span class="disclaimer-banner__icon">!</span>
+            <span>Отмечайте только сопоставимые действия: заявка и вступление в сообщество — разные по ценности события.</span>
+          </div>
+        </div>
+
+        <div v-else-if="form.platform !== 'AVITO_ADS'" class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div>
             <h4 class="dark:!text-white/90">Рекламные кампании</h4>
             <p class="dark:!text-white/55">Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
@@ -561,6 +650,14 @@
               <span class="summary-card__label dark:!text-white/50">Кампании</span>
               <strong class="dark:!text-white/85">{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
             </div>
+            <div v-if="isVk" class="summary-card summary-card--cyan dark:!bg-white/5">
+              <span class="summary-card__icon dark:!bg-white/10">VK</span>
+              <span class="summary-card__label dark:!text-white/50">Целевые действия</span>
+              <strong class="dark:!text-white/85">{{ vkLeadActionTypes.length ? `Выбрано: ${vkLeadActionTypes.length}` : 'Не выбраны' }}</strong>
+              <ul v-if="vkLeadActionLabels.length">
+                <li v-for="name in vkLeadActionLabels" :key="name">{{ name }}</li>
+              </ul>
+            </div>
             <div v-if="usesMetrikaWizard" class="summary-card summary-card--yellow dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">#</span>
               <span class="summary-card__label dark:!text-white/50">Счетчики</span>
@@ -628,7 +725,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjects } from '../../composables/useProjects'
 import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
@@ -668,6 +765,15 @@ const stepRefs = ref({})
 const isNewProject = ref(false)
 const loadingAuth = ref(false)
 const loadingMetrikaAuth = ref(false)
+const vkConnectionMode = ref('self')
+const vkClientLink = ref(null)
+const vkLinkCopied = ref(false)
+const checkingVkClientLink = ref(false)
+const vkLeadActions = ref([])
+const vkLeadActionTypes = ref([])
+const loadingVkLeadActions = ref(false)
+const vkLeadActionsSyncing = ref(false)
+let vkLinkPollTimer = null
 const metrikaIntegrationId = ref(null)
 const openSelect = ref(null)
 const profileSearch = ref('')
@@ -735,8 +841,20 @@ const platformIcon = computed(() => {
 const connectButtonText = computed(() => {
   if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
   if (form.platform === 'AVITO_ADS') return 'Далее'
+  if (isVkClientLink.value) return 'Проверить подключение'
   return 'Подключить VK Ads'
 })
+
+const isVk = computed(() => form.platform === 'VK_ADS')
+const isVkClientLink = computed(() => isVk.value && vkConnectionMode.value === 'client')
+const vkClientLinkLabel = computed(() => ({
+  awaiting_auth: 'Ожидает авторизации клиента',
+  authorized: 'Клиент выдал доступ',
+  link_expired: 'Срок ссылки истёк',
+}[vkClientLink.value?.status] || 'Ожидает авторизации клиента'))
+const vkLeadActionLabels = computed(() =>
+  vkLeadActionTypes.value.map((id) => vkLeadActions.value.find((item) => item.id === id)?.name || id)
+)
 
 const usesMetrikaWizard = computed(() =>
   form.platform === 'YANDEX_DIRECT' || form.platform === 'AVITO_ADS'
@@ -819,6 +937,175 @@ const summaryAdditionalGoalLines = computed(() => {
     .map((id) => goals.value.find((g) => g.id === id)?.name || String(id))
 })
 
+const stopVkClientLinkPolling = () => {
+  if (vkLinkPollTimer) {
+    clearInterval(vkLinkPollTimer)
+    vkLinkPollTimer = null
+  }
+}
+
+const applyVkClientLink = (data) => {
+  if (!data) return
+  vkClientLink.value = data
+  if (data.integration_id) {
+    lastIntegrationId.value = data.integration_id
+    try { localStorage.setItem('wizard_integration_id', String(data.integration_id)) } catch (e) {}
+  }
+  if (data.status !== 'awaiting_auth') stopVkClientLinkPolling()
+}
+
+const refreshVkClientLinkStatus = async ({ quiet = false } = {}) => {
+  if (!lastIntegrationId.value) return null
+  try {
+    const { data } = await api.get(`integrations/${lastIntegrationId.value}/status`)
+    applyVkClientLink(data)
+    return data
+  } catch (err) {
+    // Polling can legitimately hit the server-side debounce after a manual
+    // check; it should not show an error toast every few seconds.
+    if (!quiet && err.response?.status !== 429) {
+      toaster.error(err.response?.data?.detail || 'Не удалось проверить подключение')
+    }
+    return null
+  }
+}
+
+const startVkClientLinkPolling = () => {
+  stopVkClientLinkPolling()
+  if (vkClientLink.value?.status !== 'awaiting_auth') return
+  vkLinkPollTimer = setInterval(() => {
+    refreshVkClientLinkStatus({ quiet: true })
+  }, 5000)
+}
+
+const createVkClientLink = async () => {
+  if (!form.client_id) {
+    toaster.warning('Для ссылки клиенту сначала выберите существующий проект')
+    return null
+  }
+  checkingVkClientLink.value = true
+  error.value = null
+  try {
+    const { data } = await api.post('integrations/vk/link', { project_id: form.client_id })
+    applyVkClientLink(data)
+    if (data.status === 'authorized') {
+      toaster.success('Клиент уже выдал доступ. Выберите кабинет.')
+    } else if (data.status === 'link_expired') {
+      toaster.warning('Срок предыдущей ссылки истёк. Перевыпустите её.')
+    } else {
+      startVkClientLinkPolling()
+    }
+    return data
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Не удалось создать ссылку для клиента'
+    return null
+  } finally {
+    checkingVkClientLink.value = false
+  }
+}
+
+const selectVkConnectionMode = async (mode) => {
+  if (mode === vkConnectionMode.value) return
+  if (mode === 'client' && !form.client_id) {
+    toaster.warning('Сначала выберите существующий проект, затем создайте ссылку')
+    return
+  }
+  vkConnectionMode.value = mode
+  if (mode === 'client') await createVkClientLink()
+  else stopVkClientLinkPolling()
+}
+
+const copyVkClientLink = async () => {
+  if (!vkClientLink.value?.url) return
+  try {
+    await navigator.clipboard.writeText(vkClientLink.value.url)
+    vkLinkCopied.value = true
+    toaster.success('Ссылка для клиента скопирована')
+  } catch (err) {
+    toaster.error('Не удалось скопировать ссылку')
+  }
+}
+
+const reissueVkClientLink = async () => {
+  if (!lastIntegrationId.value) return
+  try {
+    const { data } = await api.post(`integrations/${lastIntegrationId.value}/link/reissue`)
+    vkLinkCopied.value = false
+    applyVkClientLink(data)
+    startVkClientLinkPolling()
+    toaster.success('Новая ссылка для клиента готова')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось перевыпустить ссылку')
+  }
+}
+
+const continueAuthorizedVkLink = () => {
+  if (!lastIntegrationId.value) return
+  stopVkClientLinkPolling()
+  router.push(`/integrations/wizard?resume_integration_id=${lastIntegrationId.value}&initial_step=2`)
+}
+
+const checkVkClientLink = async () => {
+  if (checkingVkClientLink.value) return
+  checkingVkClientLink.value = true
+  try {
+    const data = await refreshVkClientLinkStatus()
+    if (!data) return
+    if (data.status === 'authorized') {
+      continueAuthorizedVkLink()
+    } else if (data.status === 'awaiting_auth') {
+      toaster.info('Клиент ещё не авторизовался. Можно закрыть визард — мы пришлём уведомление.')
+    }
+  } finally {
+    checkingVkClientLink.value = false
+  }
+}
+
+const cancelVkClientLink = async () => {
+  if (!lastIntegrationId.value) return
+  try {
+    await api.delete(`integrations/${lastIntegrationId.value}`)
+    stopVkClientLinkPolling()
+    vkClientLink.value = null
+    lastIntegrationId.value = null
+    try { localStorage.removeItem('wizard_integration_id') } catch (e) {}
+    toaster.success('Ожидающее подключение отменено')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отменить подключение')
+  }
+}
+
+const closeVkLinkWizard = () => {
+  if (!vkLinkCopied.value && vkClientLink.value?.status === 'awaiting_auth') {
+    toaster.info('Не забудьте отправить ссылку клиенту — она доступна в разделе интеграций.')
+  }
+  stopVkClientLinkPolling()
+  resetStore()
+  router.push('/integrations')
+}
+
+const loadVkLeadActions = async (integrationId) => {
+  if (!integrationId) return
+  loadingVkLeadActions.value = true
+  try {
+    const { data } = await api.get(`integrations/${integrationId}/vk-lead-actions`)
+    vkLeadActions.value = data?.items || []
+    vkLeadActionsSyncing.value = Boolean(data?.syncing)
+  } catch (err) {
+    console.warn('Failed to load VK lead actions', err)
+    vkLeadActions.value = []
+    vkLeadActionsSyncing.value = false
+  } finally {
+    loadingVkLeadActions.value = false
+  }
+}
+
+const toggleVkLeadActionType = (id) => {
+  const index = vkLeadActionTypes.value.indexOf(id)
+  if (index >= 0) vkLeadActionTypes.value.splice(index, 1)
+  else vkLeadActionTypes.value.push(id)
+}
+
 let counterGoalsDebounce = null
 watch(
   selectedCounterIds,
@@ -886,12 +1173,32 @@ onMounted(async () => {
     // интеграцию, если query-параметр пропадёт (перезагрузка/навигация).
     try { localStorage.setItem('wizard_integration_id', String(resumeId)) } catch (e) {}
     const s = parseInt(startStep) || 2
-    await fetchIntegration(resumeId)
+    const resumedIntegration = await fetchIntegration(resumeId)
+    if (resumedIntegration?.platform === 'VK_ADS') {
+      vkLeadActionTypes.value = Array.isArray(resumedIntegration.lead_action_types)
+        ? [...resumedIntegration.lead_action_types]
+        : []
+      if (['awaiting_auth', 'link_expired'].includes(resumedIntegration.connection_status)) {
+        vkConnectionMode.value = 'client'
+        step.value = 1
+        const linkStatus = await refreshVkClientLinkStatus({ quiet: true })
+        if (linkStatus?.status === 'awaiting_auth') startVkClientLinkPolling()
+        await nextTick()
+        suppressPlatformReset.value = false
+        return
+      }
+      if (resumedIntegration.connection_status === 'authorized') {
+        vkConnectionMode.value = 'client'
+      }
+    }
     await resolveMetrikaIntegrationId()
 
     if (s >= 3) {
       step.value = 3
       await fetchCampaigns(resumeId)
+      if (resumedIntegration?.platform === 'VK_ADS') {
+        await loadVkLeadActions(resumeId)
+      }
       if (usesMetrikaWizard.value && (metrikaIntegrationId.value || metrikaConnected)) {
         await fetchCounters(resumeId)
         // Цели грузим только если счётчики авто-выбраны (мало). При большом числе
@@ -900,7 +1207,7 @@ onMounted(async () => {
       }
     } else if (s >= 2) {
       step.value = 2
-      fetchProfiles(resumeId)
+      await fetchProfiles(resumeId)
     }
   }
   await nextTick()
@@ -980,6 +1287,12 @@ watch(
     goals.value = []
     selectedGoalIds.value = []
     profiles.value = []
+    vkConnectionMode.value = 'self'
+    vkClientLink.value = null
+    vkLeadActions.value = []
+    vkLeadActionTypes.value = []
+    vkLeadActionsSyncing.value = false
+    stopVkClientLinkPolling()
     try {
       localStorage.removeItem('wizard_integration_id')
       localStorage.removeItem('metrika_integration_id')
@@ -987,6 +1300,10 @@ watch(
     } catch (e) {}
   }
 )
+
+onBeforeUnmount(() => {
+  stopVkClientLinkPolling()
+})
 
 const goToStep3 = async () => {
   if (!form.account_id) return
@@ -1007,6 +1324,9 @@ const goToStep3 = async () => {
   scrollToStep(3)
   await fetchCampaigns(lastIntegrationId.value)
   allFromProfile.value = true
+  if (isVk.value) {
+    await loadVkLeadActions(lastIntegrationId.value)
+  }
   if (usesMetrikaWizard.value) {
     await resolveMetrikaIntegrationId()
     if (form.platform === 'AVITO_ADS' && !metrikaIntegrationId.value) {
@@ -1134,6 +1454,12 @@ const doFinish = async () => {
         selected_counters: [...selectedCounterIds.value],
         primary_goal_id: form.primary_goal_id,
         selected_goals: [...selectedGoalIds.value],
+      }),
+      ...(isVk.value && {
+        // VK result types are independent from Metrika's selected_goals.
+        // An empty list is valid: the dashboard will show actions separately
+        // without inventing a combined "Заявки"/CPL.
+        lead_action_types: [...vkLeadActionTypes.value],
       }),
       ...(form.platform === 'AVITO_ADS' && {
         utm_source: form.utm_source || 'avito-ads',
@@ -1268,7 +1594,8 @@ const handleConnectClick = async () => {
     step.value = 2
     scrollToStep(2)
   } else {
-    await initVKAuth()
+    if (isVkClientLink.value) await checkVkClientLink()
+    else await initVKAuth()
   }
 }
 
@@ -1936,6 +2263,102 @@ const toggleGoalSelection = (id) => {
   height: 0.4861rem;
   border-radius: 50%;
   background: #5bff7c;
+}
+.channel-card--vk-link {
+  min-height: 22.9167rem;
+}
+.vk-link-modes {
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 1.25rem;
+}
+.vk-link-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 0.8333rem;
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.04);
+  text-align: left;
+  cursor: pointer;
+}
+.vk-link-mode:hover,
+.vk-link-mode--selected {
+  border-color: rgba(78, 158, 255, 0.95);
+  background: rgba(37,99,235,0.2);
+}
+.vk-link-mode__radio {
+  width: 0.9028rem;
+  height: 0.9028rem;
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  border: 0.1389rem solid rgba(255,255,255,0.55);
+  border-radius: 50%;
+}
+.vk-link-mode--selected .vk-link-mode__radio {
+  border-color: #5ca8ff;
+  box-shadow: inset 0 0 0 0.1667rem #26324a, inset 0 0 0 0.3611rem #5ca8ff;
+}
+.vk-link-mode b { display: block; font-size: 0.8333rem; line-height: 1.25; }
+.vk-link-mode small { display: block; margin-top: 0.25rem; color: rgba(255,255,255,0.55); font-size: 0.6944rem; line-height: 1.35; }
+.vk-link-mode em { margin-left: 0.35rem; color: #8dc0ff; font-size: 0.5556rem; font-style: normal; letter-spacing: 0.08em; }
+.vk-link-box {
+  margin-top: 0.9028rem;
+  padding-top: 0.9028rem;
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+.vk-link-project-hint { margin-top: 0.8333rem !important; color: #e8c56e !important; font-size: 0.6944rem !important; }
+.vk-link-box__label { font-size: 0.6944rem; font-weight: 700; color: rgba(255,255,255,0.8); }
+.vk-link-box__row { display: flex; gap: 0.4167rem; margin-top: 0.4167rem; }
+.vk-link-box__row input {
+  min-width: 0;
+  flex: 1;
+  padding: 0.4861rem 0.5556rem;
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 0.5556rem;
+  color: rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.17);
+  font-size: 0.625rem;
+}
+.vk-link-box__row button,
+.vk-link-actions button {
+  border: 0;
+  border-radius: 0.5556rem;
+  padding: 0.4861rem 0.625rem;
+  color: #fff;
+  background: rgba(92,168,255,0.3);
+  font-size: 0.6944rem;
+  cursor: pointer;
+}
+.vk-link-box small { display: block; margin-top: 0.4167rem; color: rgba(255,255,255,0.48); font-size: 0.625rem; line-height: 1.35; }
+.vk-link-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4167rem;
+  margin-top: 0.8333rem;
+  color: #e8c56e;
+  font-size: 0.6944rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+.vk-link-state span { width: 0.4167rem; height: 0.4167rem; border-radius: 50%; background: currentColor; }
+.vk-link-state--authorized { color: #6fe69a; }
+.vk-link-state--link_expired { color: #ff9696; }
+.vk-link-actions { display: flex; gap: 0.4861rem; margin-top: 0.6944rem; }
+.vk-link-actions button:last-child { background: rgba(255,255,255,0.12); }
+.vk-link-close {
+  align-self: flex-start;
+  margin-top: 0.6944rem;
+  padding: 0;
+  border: 0;
+  color: rgba(255,255,255,0.52);
+  background: transparent;
+  font-size: 0.6944rem;
+  cursor: pointer;
 }
 .panel-head {
   display: flex;

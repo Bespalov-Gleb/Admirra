@@ -287,6 +287,8 @@ class IntegrationBase(BaseModel):
     sync_interval: Optional[int] = 1440
     selected_goals: Optional[List[str]] = None # List of goal IDs
     primary_goal_id: Optional[str] = None
+    lead_action_types: Optional[List[str]] = None
+    vk_new_lead_actions_pending: Optional[bool] = None
     utm_source: Optional[str] = None
 
     @field_validator('selected_goals', mode='before')
@@ -296,6 +298,16 @@ class IntegrationBase(BaseModel):
             try:
                 return json.loads(v)
             except:
+                return []
+        return v
+
+    @field_validator('lead_action_types', mode='before')
+    @classmethod
+    def parse_lead_action_types(cls, v: Any) -> Any:
+        if isinstance(v, str) and v:
+            try:
+                return json.loads(v)
+            except Exception:
                 return []
         return v
 
@@ -319,7 +331,7 @@ class IntegrationResponse(IntegrationBase):
     client_name: Optional[str] = None  # Project name for frontend display
     client_display_id: Optional[int] = None
     # Токен платформы хранится зашифрованным и никогда не должен уходить в API.
-    access_token: str = Field(exclude=True)
+    access_token: Optional[str] = Field(default=None, exclude=True)
     expires_at: Optional[datetime] = None
     agency_client_login: Optional[str] = None
     is_agency: Optional[bool] = None
@@ -333,6 +345,10 @@ class IntegrationResponse(IntegrationBase):
     last_sync_at: Optional[datetime] = None
     last_sync_trigger: Optional[str] = None  # auto | manual | None
     error_message: Optional[str] = None
+    connection_status: Optional[str] = None
+    link_expires_at: Optional[datetime] = None
+    link_created_at: Optional[datetime] = None
+    link_authorized_at: Optional[datetime] = None
 
     @field_validator('selected_counters', mode='before')
     @classmethod

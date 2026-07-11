@@ -271,8 +271,10 @@ export function useIntegrationWizard() {
         // Fallback: fetch client name separately if not in response
         console.warn('client_name not found in integration response, this should not happen')
       }
+      return integration
     } catch (err) {
       error.value = "Ошибка при загрузке данных интеграции"
+      return null
     }
   }
 

@@ -2553,19 +2553,28 @@ async def get_goals(
         prev_date_from = date_from_obj - timedelta(days=period_days)
         prev_date_to = date_from_obj - timedelta(days=1)
 
-        # №5: настраиваемый CPL. Какие коды ЦД считаются лидом для этих кабинетов,
-        # берём из Integration.selected_goals (для VK это поле хранит выбор лид-типов
-        # из шага «что считать CPL»). Если не настроено — дефолтные лид-типы
+        # Настраиваемый CPL: новые VK-интеграции хранят выбор в
+        # Integration.lead_action_types. selected_goals — только переходный
+        # fallback для данных, созданных до этой миграции. Если не настроено —
+        # дефолтные лид-типы.
         # (is_vk_lead_action). Это определяет флаг summable ниже, по которому
         # дашборд считает сводный CPL и не суммирует не-лидовые типы.
         vk_lead_codes: set[str] = set()
-        for (sg,) in db.query(models.Integration.selected_goals).filter(
+        vk_has_explicit_selection = False
+        for lead_types, legacy_selected_goals in db.query(
+            models.Integration.lead_action_types,
+            models.Integration.selected_goals,
+        ).filter(
             models.Integration.client_id.in_(effective_client_ids),
             models.Integration.platform == models.IntegrationPlatform.VK_ADS,
         ).all():
-            if sg:
+            if lead_types is not None:
+                vk_has_explicit_selection = True
+            raw_types = lead_types if lead_types is not None else legacy_selected_goals
+            if raw_types:
                 try:
-                    for c in json.loads(sg):
+                    parsed = json.loads(raw_types) if isinstance(raw_types, str) else raw_types
+                    for c in parsed or []:
                         if c:
                             vk_lead_codes.add(str(c))
                 except Exception:
@@ -2611,7 +2620,7 @@ async def get_goals(
             # №5: если CPL настроен (vk_lead_codes) — summable по выбору пользователя,
             # иначе — по дефолтной классификации лид-типов.
             category = get_vk_goal_action_category(code)
-            if vk_lead_codes:
+            if vk_has_explicit_selection or vk_lead_codes:
                 summable = str(code) in vk_lead_codes
             else:
                 summable = is_vk_lead_action(code)

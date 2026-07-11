@@ -481,7 +481,9 @@ class Integration(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), index=True)
     platform = Column(Enum(IntegrationPlatform), nullable=False)
-    access_token = Column(String, nullable=False) # Should be encrypted in production
+    # Pending VK client-link integrations are deliberately created before OAuth,
+    # therefore an access token appears only after the client authorizes it.
+    access_token = Column(String, nullable=True) # Should be encrypted in production
     refresh_token = Column(String)
     platform_client_id = Column(String) # For platforms like VK Ads
     platform_client_secret = Column(String) # For platforms like VK Ads
@@ -506,6 +508,20 @@ class Integration(Base):
     # Goals Support
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)
+    # VK Ads: explicitly selected objective/result types that count as leads.
+    # Kept separate from selected_goals, which belongs to Metrika integrations.
+    lead_action_types = Column(String, nullable=True) # JSON list of VK objective codes
+    vk_known_lead_action_types = Column(String, nullable=True) # JSON of types already reviewed by agency
+    vk_new_lead_actions_pending = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    # VK Ads personal-client OAuth link lifecycle. Existing integrations retain
+    # the default active status and do not enter this flow.
+    connection_status = Column(String(24), nullable=False, default="active", server_default="active", index=True)
+    link_token = Column(String, nullable=True)  # encrypted opaque one-time token
+    link_token_hash = Column(String(64), nullable=True, index=True)
+    link_expires_at = Column(DateTime(timezone=True), nullable=True)
+    link_created_at = Column(DateTime(timezone=True), nullable=True)
+    link_authorized_at = Column(DateTime(timezone=True), nullable=True)
     
     # Metrika Counters Support (for Direct integrations)
     selected_counters = Column(String, nullable=True) # JSON list of counter IDs

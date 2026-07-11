@@ -295,7 +295,7 @@
                   <a
                     v-for="notification in notifications"
                     :key="notification.id"
-                    @click.prevent="markAsRead(notification.id)"
+                    @click.prevent="openNotification(notification)"
                     href="#"
                     :class="['flex w-full items-center px-0 py-1 text-[0.9722rem] transition-colors hover:text-[#2563eb]', !notification.is_read ? 'text-[#2563eb]' : 'text-[#696969] dark:text-white/75']"
                   >
@@ -693,6 +693,15 @@ const markAsRead = async (id) => {
   if (notification && !notification.is_read) {
     notification.is_read = true
     try { await api.post(`notifications/${id}/read`) } catch (e) { /* ignore */ }
+  }
+}
+
+const openNotification = async (notification) => {
+  await markAsRead(notification.id)
+  const routeTo = notification?.meta?.route
+  if (routeTo) {
+    showNotifications.value = false
+    router.push(routeTo)
   }
 }
 

@@ -849,7 +849,7 @@
           <div v-else class="goals-bar-empty">Нет целей за период</div>
           <div class="goals-footer">
             <div v-if="group.bars.length" class="goals-summary-row goals-summary-row--accent">
-              <span>Все конверсии · общий CPL</span>
+              <span>{{ group.summaryLabel }}</span>
               <strong>{{ group.cpl }}</strong>
             </div>
             <!-- Строку «Итого расход» убрали: расход уже показан в шапке канала (goals-channel-expense) -->
@@ -3964,10 +3964,15 @@ const dashboardGoalItems = computed(() => {
   // а НЕ направления — у направлений есть свой отдельный блок. Ранее здесь
   // подставлялась разбивка по направлениям (коммит b5a517c), из-за чего направления
   // «перетекали» в целевые действия. Убрано.
-  // №3: для VK берём только суммируемые типы (лиды); у не-лидовых ЦД (трафик/охват/
-  // просмотры) с бэкенда summable === false — их в общий итог не складываем.
+  // Для VK показываем все фактические типы раздельно. В общий CPL ниже
+  // попадают только отмеченные агентством (summable !== false).
+  if (normalizeDashboardPlatform(filters.channel) === 'vk') return reportGoals.value
   return reportGoals.value.filter((item) => item.summable !== false)
 })
+
+const selectedDashboardGoalItems = computed(() =>
+  reportGoals.value.filter((item) => item.summable !== false)
+)
 
 const goals = computed(() => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
@@ -4056,7 +4061,7 @@ const buildGoalBars = (sourceItems) => {
 const goalBars = computed(() => buildGoalBars(dashboardGoalItems.value))
 
 const goalsSummaryCpl = computed(() => {
-  const totalGoals = dashboardGoalItems.value.reduce((sum, item) => {
+  const totalGoals = selectedDashboardGoalItems.value.reduce((sum, item) => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
@@ -4068,17 +4073,21 @@ const goalsSummaryCpl = computed(() => {
 const goalChannelGroups = computed(() => {
   if (isAllChannelsMode.value) {
     return availableDashboardChannels.value.map((channel) => {
-      const items = (reportGoalsByChannel.value?.[channel.key] || [])
-        .filter((item) => item.summable !== false)
-      const bars = buildGoalBars(items)
-      const total = bars.reduce((sum, item) => sum + Number(item.count || 0), 0)
+      const rawItems = reportGoalsByChannel.value?.[channel.key] || []
+      const selectedItems = rawItems.filter((item) => item.summable !== false)
+      const displayItems = channel.key === 'vk' ? rawItems : selectedItems
+      const bars = buildGoalBars(displayItems)
+      const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const expenses = channelAdjustedExpenses(channel.key, channel.summary)
       return {
         ...channel,
-        source: channel.key === 'vk' ? 'Лидовые действия VK' : 'Конверсии Яндекс Метрики',
+        source: channel.key === 'vk' ? 'Действия VK Ads' : 'Конверсии Яндекс Метрики',
         bars,
         expenses: formatMoney(expenses),
         cpl: total > 0 ? formatMoney(expenses / total) : '—',
+        summaryLabel: channel.key === 'vk'
+          ? (total > 0 ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
+          : 'Все конверсии · общий CPL',
       }
     })
   }
@@ -4098,6 +4107,9 @@ const goalChannelGroups = computed(() => {
     bars: goalBars.value,
     expenses: formatMoney(expenses),
     cpl: goalsSummaryCpl.value,
+    summaryLabel: key === 'vk'
+      ? (selectedDashboardGoalItems.value.length ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
+      : 'Все конверсии · общий CPL',
   }]
 })
 

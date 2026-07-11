@@ -78,7 +78,41 @@
           />
         </div>
 
-        <!-- ── New goal notice (only when new goals exist) ── -->
+        <div v-if="isVkIntegration" class="ip-main">
+          <h4 class="ip-section-title mb-[0.4167rem]">Целевые действия VK Ads</h4>
+          <p class="ip-section-sub">Выберите только те реальные результаты кампаний, которые считать лидами. Изменение не требует повторной авторизации.</p>
+          <div v-if="loadingVkLeadActions" class="ip-goals-loading">Загружаем действия…</div>
+          <div v-else-if="vkLeadActionsSyncing || !vkLeadActions.length" class="ip-counter-empty">
+            Действия появятся после первой синхронизации кабинета.
+          </div>
+          <div v-else class="ip-goals">
+            <div
+              v-for="action in vkLeadActions"
+              :key="action.id"
+              class="ip-goal"
+              :class="{ 'ip-goal--selected': selectedVkLeadActionTypes.includes(action.id) }"
+              @click="toggleVkLeadAction(action.id)"
+            >
+              <button class="ip-goal__icon flex-shrink-0" type="button" @click.stop="toggleVkLeadAction(action.id)">
+                <svg v-if="selectedVkLeadActionTypes.includes(action.id)" width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9.5" stroke="#4b4535" stroke-width="1.5"/>
+                  <path d="M7.5 12.5l3 3 6-6" stroke="#4b4535" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#2563eb" stroke-width="1.5"/></svg>
+              </button>
+              <div class="ip-goal__info min-w-0">
+                <span class="ip-goal__name">{{ action.name }}</span>
+                <span class="ip-goal__meta"> · {{ action.campaigns_count }} камп. · {{ action.actions_count }} действий за 30 дней</span>
+              </div>
+            </div>
+          </div>
+          <div class="ip-warning">
+            <span>Неотмеченные типы останутся видны раздельно, но не войдут в сводные «Заявки» и CPL.</span>
+          </div>
+        </div>
+
+        <template v-else>
+        <!-- ── New goal notice (only when new goals exist) ─- -->
         <div v-if="hasNewGoals" class="ip-notice">
           В Метрике появилась новая цель, ещё не отслеживается. Отметьте, если нужна.
         </div>
@@ -220,6 +254,7 @@
           </div>
 
         </div>
+        </template>
       </div>
 
       <!-- ── Footer ── -->
@@ -281,6 +316,10 @@ const deleteConfirmText = ref('')
 const counterSearch = ref('')
 const addingCounter = ref(false)
 const utmSource = ref('avito-ads')
+const vkLeadActions = ref([])
+const selectedVkLeadActionTypes = ref([])
+const loadingVkLeadActions = ref(false)
+const vkLeadActionsSyncing = ref(false)
 const counterChipLimit = 40
 
 const props = defineProps({
@@ -316,10 +355,14 @@ const channelName = computed(() => {
 
 const platformCode = computed(() => String(props.integration?.platform || '').toUpperCase())
 const isAvitoIntegration = computed(() => platformCode.value === 'AVITO_ADS' || platformCode.value === 'AVITO')
+const isVkIntegration = computed(() => platformCode.value === 'VK_ADS' || platformCode.value === 'VK')
 
 const panelSubtitle = computed(() => {
   if (isAvitoIntegration.value) {
     return 'Avito Ads уже подключён. Здесь меняются счётчик Метрики и цели, по которым считаются лиды Avito.'
+  }
+  if (isVkIntegration.value) {
+    return 'Авторизация и кабинет VK Ads уже подключены. Здесь меняется только набор результатов, которые считать лидами.'
   }
   return 'Авторизация и кабинет уже подключены — повторно входить в Яндекс не нужно, меняется только состав целей.'
 })
@@ -388,7 +431,7 @@ const hiddenAvailableCounterCount = computed(() => Math.max(filteredAvailableCou
 // ── New-goal notice ───────────────────────────────────────────────────────────
 
 const hasNewGoals = computed(() => goals.value.some(g => g.state === 'new'))
-const canSave = computed(() => selectedGoalIds.value.length > 0 && Boolean(primaryGoalId.value))
+const canSave = computed(() => isVkIntegration.value || (selectedGoalIds.value.length > 0 && Boolean(primaryGoalId.value)))
 const deleteConfirmPhrase = computed(() => channelName.value)
 
 const isGoalSelected = (goalId) => selectedGoalIds.value.includes(String(goalId))
@@ -420,13 +463,41 @@ const toggleCounter = (counterId) => {
   loadGoalsForSelectedCounters(props.integration?.id, props.integration?.account_id || null)
 }
 
+const toggleVkLeadAction = (actionId) => {
+  const id = String(actionId)
+  if (selectedVkLeadActionTypes.value.includes(id)) {
+    selectedVkLeadActionTypes.value = selectedVkLeadActionTypes.value.filter((item) => item !== id)
+  } else {
+    selectedVkLeadActionTypes.value = [...selectedVkLeadActionTypes.value, id]
+  }
+}
+
 const emitSave = () => {
+  if (isVkIntegration.value) {
+    emit('save', { lead_action_types: selectedVkLeadActionTypes.value })
+    return
+  }
   emit('save', {
     selected_goals: selectedGoalIds.value,
     primary_goal_id: primaryGoalId.value,
     selected_counters: selectedCounterIds.value,
     ...(isAvitoIntegration.value && { utm_source: utmSource.value || 'avito-ads' }),
   })
+}
+
+const loadVkLeadActions = async (integrationId) => {
+  loadingVkLeadActions.value = true
+  try {
+    const { data } = await api.get(`integrations/${integrationId}/vk-lead-actions`)
+    vkLeadActions.value = data?.items || []
+    vkLeadActionsSyncing.value = Boolean(data?.syncing)
+  } catch (err) {
+    console.warn('[IntegrationSettingsPanel] VK action fetch error:', err)
+    vkLeadActions.value = []
+    vkLeadActionsSyncing.value = false
+  } finally {
+    loadingVkLeadActions.value = false
+  }
 }
 
 const loadGoalsForSelectedCounters = async (integrationId, accountId) => {
@@ -475,6 +546,12 @@ const loadGoalsForSelectedCounters = async (integrationId, accountId) => {
 const fetchData = async () => {
   const integrationId = props.integration?.id
   if (!integrationId) return
+
+  if (isVkIntegration.value) {
+    selectedVkLeadActionTypes.value = parseJsonList(props.integration?.lead_action_types).map(String)
+    await loadVkLeadActions(integrationId)
+    return
+  }
 
   // selected_goals comes as List[str] from the API (already parsed)
   const initialSelectedGoalIds = parseJsonList(props.integration?.selected_goals)
