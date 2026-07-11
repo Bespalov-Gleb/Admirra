@@ -71,7 +71,7 @@
                 class="history-channel-ic"
                 :class="[ch.cls, { failed: ch.ok === false }]"
                 :title="ch.title"
-              >{{ ch.glyph }}</span>
+              ><span class="hc-mask" :class="`hc-mask--${ch.cls}`"></span></span>
               <span v-if="!channelBadges(item).length" class="history-channels-empty">—</span>
             </span>
             <span class="history-status-cell">
@@ -137,9 +137,9 @@ const load = async () => {
 }
 
 const CHANNEL_META = {
-  telegram: { glyph: 'T', cls: 'tg', label: 'Telegram' },
-  max: { glyph: 'M', cls: 'mx', label: 'MAX' },
-  email: { glyph: '@', cls: 'em', label: 'Email' },
+  telegram: { cls: 'tg', label: 'Telegram' },
+  max: { cls: 'mx', label: 'MAX' },
+  email: { cls: 'em', label: 'Email' },
 }
 
 const channelBadges = (item) => {
@@ -151,17 +151,15 @@ const channelBadges = (item) => {
     const raw = res[ch]
     const ok = raw == null ? null : Boolean(raw)
     const error = res.errors?.[ch]
-    out.push({ key: ch, glyph: meta.glyph, cls: meta.cls, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
+    out.push({ key: ch, cls: meta.cls, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
   }
   const targetResults = res.targets || {}
   for (const targetId of (item.chat_targets || [])) {
     const target = targetResults[String(targetId)] || {}
     const ok = target.ok == null ? null : Boolean(target.ok)
-    const isMax = target.kind === 'max'
     out.push({
       key: `target-${targetId}`,
-      glyph: isMax ? 'M' : 'T',
-      cls: isMax ? 'mx' : 'tg',
+      cls: target.kind === 'max' ? 'mx' : 'tg',
       ok,
       title: `${target.title || 'Получатель проекта'}${ok === false ? ` — ${target.error || 'ошибка'}` : ''}`,
     })
@@ -504,21 +502,48 @@ onMounted(load)
 .history-channels { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
 
 .history-channel-ic {
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 0.5rem;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 0.55rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #fff;
 }
 
-.history-channel-ic.tg { background: #2aa5e0; }
-.history-channel-ic.mx { background: #6c5ce7; }
-.history-channel-ic.em { background: #8896ac; }
+/* Фирменные градиентные подложки — как у капсул каналов на дашборде */
+.history-channel-ic.tg { background: linear-gradient(135deg, #2f6df6 0%, #14b8d5 100%); }
+.history-channel-ic.mx { background: linear-gradient(135deg, #6d3df5 0%, #a45cf0 100%); }
+.history-channel-ic.em { background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); }
 .history-channel-ic.failed { opacity: 0.35; }
+
+/* Фирменные mask-иконки каналов (те же, что на дашборде и в настройках отчётов) */
+.hc-mask {
+  display: block;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.hc-mask--tg {
+  width: 1rem;
+  height: 1rem;
+  transform: translateX(-0.06rem);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='21' height='21' viewBox='0 0 21 21' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18.42 3.05 2.54 9.17c-1.08.43-1.07 1.03-.2 1.3l4.08 1.27 1.56 4.79c.2.55.1.77.68.77.45 0 .65-.2.9-.45l2.16-2.1 4.5 3.32c.83.46 1.43.22 1.64-.77l2.97-13.98c.3-1.22-.47-1.77-1.41-1.27ZM6.95 11.45l9.47-5.97c.47-.28.9-.13.55.18l-8.1 7.3-.31 3.31-1.61-4.82Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.hc-mask--mx {
+  width: 1.15rem;
+  height: 1.15rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='23' height='23' viewBox='0 0 23 23' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M11.3262 0.526703C9.97595 0.644538 9.03042 0.858842 7.96223 1.28911C4.58971 2.64757 2.17288 5.63667 1.5882 9.17233C1.46913 9.89246 1.44765 10.1918 1.45045 11.0932C1.45635 13.0195 1.63889 14.1725 2.40714 17.1368C2.76373 18.5127 2.9304 19.5394 2.9304 20.3602C2.9304 20.9016 3.20825 21.2516 3.73877 21.3784C4.01264 21.4438 4.54202 21.4188 4.92334 21.3224C5.78836 21.1037 6.61078 20.6623 7.15586 20.1242C7.29619 19.9857 7.41359 19.8723 7.41673 19.8723C7.41989 19.8722 7.5789 19.9796 7.77008 20.111C9.10923 21.0308 9.9351 21.2986 11.5948 21.3512C14.4847 21.4427 17.1617 20.3757 19.1852 18.3258C21.6244 15.8548 22.6485 12.3498 21.9555 8.84481C21.5449 6.76834 20.5412 4.89959 19.0401 3.41648C17.4445 1.83999 15.5146 0.897223 13.2626 0.59407C12.8572 0.539506 11.6576 0.497774 11.3262 0.526703ZM11.3121 5.65698C10.2161 5.75895 9.1042 6.28998 8.31739 7.08719C7.04926 8.37209 6.45516 10.2727 6.57709 12.6546C6.64454 13.9728 6.86458 15.0956 7.19728 15.8193C7.32036 16.087 7.42922 16.2273 7.55541 16.2807C7.68149 16.3341 7.8597 16.2766 8.13184 16.0949C8.35149 15.9482 8.82063 15.5607 8.96161 15.4096L9.04223 15.3231L9.21603 15.4376C9.47259 15.6068 10.0304 15.8764 10.3364 15.9792C11.3635 16.3241 12.443 16.3182 13.4976 15.9618C14.3646 15.6688 15.2018 15.1074 15.7963 14.4203C16.7195 13.3535 17.208 11.9255 17.0986 10.6135C17.0368 9.87193 16.8818 9.29636 16.5722 8.65863C15.7542 6.97365 14.1951 5.87211 12.3379 5.66715C12.0796 5.63862 11.5643 5.63352 11.3121 5.65698Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.hc-mask--em {
+  width: 1.05rem;
+  height: 0.78rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg width='26' height='19' viewBox='0 0 26 19' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.25 0H23.14C24.38 0 25.39 1.01 25.39 2.25V16.56C25.39 17.8 24.38 18.81 23.14 18.81H2.25C1.01 18.81 0 17.8 0 16.56V2.25C0 1.01 1.01 0 2.25 0ZM2.12 2.52V16.3C2.12 16.55 2.32 16.75 2.57 16.75H22.82C23.07 16.75 23.27 16.55 23.27 16.3V2.52L13.56 10.4C13.06 10.81 12.33 10.81 11.83 10.4L2.12 2.52ZM21.02 2.06H4.36L12.69 8.8L21.02 2.06Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
 
 .history-channels-empty { color: #c0c8d6; }
 

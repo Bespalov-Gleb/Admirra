@@ -985,7 +985,8 @@
               'campaign-row--child': campaign.level > 0,
               'campaign-row--ad': campaign.nodeLevel === 'ad',
               'campaign-row--empty': campaign.empty,
-              'campaign-row--loading': campaign.loadingChildren
+              'campaign-row--loading': campaign.loadingChildren,
+              'campaign-row--popover-open': activeDetectorEntity === campaign.rowKey
             }
           ]"
           :title="campaign.alertTitle"
@@ -1020,8 +1021,9 @@
             </button>
             <span v-else class="campaign-tree-placeholder"></span>
             <span class="campaign-name-stack">
-              <span class="campaign-name-main" :title="campaign.name">
-                {{ campaign.name }}
+              <!-- Маячок вне ellipsis-обрезки имени: имя усечётся, точка всегда видна целиком -->
+              <span class="campaign-name-line">
+                <span class="campaign-name-main" :title="campaign.name">{{ campaign.name }}</span>
                 <button
                   v-if="campaign.alert"
                   type="button"
@@ -7149,7 +7151,7 @@ onMounted(() => {
 
 .detector-popover {
   position: absolute;
-  z-index: 30;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -8448,11 +8450,30 @@ onMounted(() => {
   box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
 }
 
+/* Имя (усекается) + маячок (никогда не режется) на одной строке */
+.campaign-name-line {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.campaign-name-line .campaign-name-main {
+  flex: 0 1 auto;
+}
+
+/* Строка с открытым поповером детектора — поверх соседних строк,
+   иначе следующие positioned-строки перекрывают всплывашку */
+.campaign-row--popover-open {
+  z-index: 46;
+}
+
 .row-anomaly-dot {
   display: inline-block;
+  flex: 0 0 auto;
   width: 0.58rem;
   height: 0.58rem;
-  margin-left: 0.5rem;
+  margin-right: 0.3rem;
   border: 0;
   border-radius: 999px;
   vertical-align: middle;
@@ -9865,6 +9886,15 @@ onMounted(() => {
   align-items: center;
   gap: 0.8333rem;
   flex: 0 0 auto;
+}
+
+/* Кнопки действий не сжимаются — иначе «Отправить отчёт» обрезает текст */
+.reports-toolbar__actions > * {
+  flex: 0 0 auto;
+}
+
+.reports-toolbar__actions .primary-report {
+  padding: 0 1.6rem;
 }
 
 /* Селект «Настройки отчётов»: одна строка, стабильная ширина */
