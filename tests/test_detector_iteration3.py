@@ -121,6 +121,50 @@ def test_plan_checks_are_one_alert_and_cpl_has_priority():
     assert merged[0].meta["checks"] == ["P-1", "P-2"]
 
 
+def test_diagnostic_layer_names_the_auction_and_funnel_patterns():
+    thr = 0.2
+    prior = {"spend": 10_000, "impressions": 10_000, "clicks": 1_000, "leads": 50}
+    # CPC вырос, кликов меньше, CR в норме → аукцион
+    auction = iteration3._diagnose_pattern(
+        "P-2", "up", {"spend": 10_000, "impressions": 9_500, "clicks": 700, "leads": 35}, prior, thr,
+    )
+    assert auction and "аукцион" in auction
+    # Клики/CPC в норме, конверсия просела → посадочная
+    landing = iteration3._diagnose_pattern(
+        "P-2", "up", {"spend": 10_000, "impressions": 10_000, "clicks": 1_000, "leads": 30}, prior, thr,
+    )
+    assert landing and "посадочной" in landing
+    # Недокрут: показы упали → охват
+    reach = iteration3._diagnose_pattern(
+        "P-1", "down", {"spend": 6_000, "impressions": 6_000, "clicks": 600, "leads": 30}, prior, thr,
+    )
+    assert reach and "охват" in reach
+    # Перерасход: расход растёт, заявки нет → открут в пустоту
+    waste = iteration3._diagnose_pattern(
+        "P-1", "up", {"spend": 15_000, "impressions": 11_000, "clicks": 1_050, "leads": 51}, prior, thr,
+    )
+    assert waste and "пустоту" in waste
+    # Движение второстепенных метрик без паттерна — диагноза нет
+    assert iteration3._diagnose_pattern(
+        "P-2", "up", {"spend": 10_500, "impressions": 10_200, "clicks": 1_020, "leads": 49}, prior, thr,
+    ) is None
+
+
+def test_total_project_budget_is_judged_across_channels(monkeypatch):
+    spends = {models.IntegrationPlatform.YANDEX_DIRECT: 90_000, models.IntegrationPlatform.VK_ADS: 55_000}
+    monkeypatch.setattr(
+        iteration3, "_sum_channel_stats",
+        lambda db, cid, channel, *rest: (spends.get(channel, 0), 0, 0),
+    )
+    candidate = iteration3._make_plan_spend(
+        None, "p", None, budget(200_000), date(2026, 7, 15), client(), cfg(),
+        None, channels=list(spends),
+    )
+    assert candidate is not None
+    assert candidate.channel is None
+    assert candidate.severity == "problem"  # 145 000 при ожидаемых ~100 000
+
+
 def test_c0_balance_warning_and_c3_stale_sync_are_distinct(monkeypatch):
     integration = SimpleNamespace(balance=3_400, platform=models.IntegrationPlatform.YANDEX_DIRECT)
     monkeypatch.setattr(

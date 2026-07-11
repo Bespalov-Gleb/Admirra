@@ -192,6 +192,9 @@ class DetectorCfg:
     campaign_cpl_problem_target_multiplier: float
     campaign_cpl_budget_share: float
     onboarding_dismiss_days: int
+    # §4: сколько должна измениться второстепенная метрика (окно к окну),
+    # чтобы диагностика посчитала это «вырос/упал», а не колебанием.
+    diagnostic_change_threshold: float
 
 
 @dataclass
@@ -392,6 +395,7 @@ def get_config() -> Config:
             campaign_cpl_problem_target_multiplier=float(_env("DETECTOR_CAMPAIGN_CPL_TARGET_MULTIPLIER", "3")),
             campaign_cpl_budget_share=float(_env("DETECTOR_CAMPAIGN_CPL_BUDGET_SHARE", "0.10")),
             onboarding_dismiss_days=int(_env("DETECTOR_ONBOARDING_DISMISS_DAYS", "30")),
+            diagnostic_change_threshold=float(_env("DETECTOR_DIAGNOSTIC_CHANGE_THRESHOLD", "0.20")),
         ),
     )
 

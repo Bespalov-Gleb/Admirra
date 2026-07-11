@@ -14,6 +14,14 @@
 | Онбординг без плана | `PlanOnboardingBanner`, dismiss на 30 дней, CTA в настройки | фронтенд-сборка |
 | Детектор скрыт от клиентов | agency-only guard на всех detector API, отчёты не получают данные | API-code review |
 | Автоотчёт блокируют только красные P/C | `_rule_blocking_anomaly` | code review |
+| §4 диагностический слой: паттерны показов/кликов/CPC + «основной вклад — кампании X, Y» | `_diagnose_pattern`, `_campaign_contributors`, `_apply_diagnostics` (порог `DETECTOR_DIAGNOSTIC_CHANGE_THRESHOLD`) | `test_diagnostic_layer_*` |
+| §6 «план выполнен на N%» в expired-плашке | `plan_completion` + `plan_completion_pct` в summary + `PlanOnboardingBanner` | code review |
+| §6 возврат плашки при новом периоде независимо от скрытия | `_effective_onboarding_dismissed` | code review |
+| §8 аналитика плашки (показы/клики/скрытия) | `POST /detector/{id}/onboarding/event` + history-события, фронт шлёт shown/clicked | code review |
+| §2 общий бюджет проекта (channel=NULL): P-1 суммарно, без дублей | `_make_plan_spend(channels=...)` в `run_detector_iteration3` | `test_total_project_budget_*` |
+| §2 подсказки формы: фактический CPL при ручном плане заявок; «строки дублируют друг друга» | `manualLeadsCplHint`, `duplicateRowHints` в `ProjectSettingsModal` | фронтенд-сборка |
+| §4.1 подсветка при CPL без бюджета (лимитер → ∞, как в P-2) | `campaign_highlights` | code review |
+| Оптимизация: одна выборка целей на прогон, GROUP BY по дням вместо запроса-на-день | `selected`-кэш, `_daily_channel_values`, `_daily_goal_leads` | code review |
 
 Выполненные команды перед коммитом:
 

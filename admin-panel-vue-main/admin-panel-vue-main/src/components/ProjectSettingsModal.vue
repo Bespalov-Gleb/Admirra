@@ -275,6 +275,8 @@
                         </div>
                         <label class="psm-hint block mt-2">План заявок <span v-if="calculatedPlanLeads(ch)">≈ {{ calculatedPlanLeads(ch) }} автоматически</span></label>
                         <input v-model.number="manualLeads[ch.id]" type="number" min="0" step="1" class="psm-input psm-input--compact" placeholder="не переопределять" />
+                        <!-- §2 P-3: расхождение ручного плана заявок с арифметикой бюджет/CPL -->
+                        <div v-if="manualLeadsCplHint(ch)" class="psm-hint mt-1" style="color:#9a6a12">{{ manualLeadsCplHint(ch) }}</div>
                         <div class="psm-hint mt-1.5">период: {{ currentPeriodLabel }}</div>
                       </div>
                     </div>
@@ -284,6 +286,8 @@
                   <div>
                     <h4 class="psm-subsection-title">Целевая стоимость заявки / действия (CPL/CPA)</h4>
                     <p class="psm-hint mb-3">Заполняйте только цели с KPI от клиента. Контроль включается тумблером по каждой строке.</p>
+                    <!-- §2 P-2: мягкая подсказка о дублирующих строках, без запрета -->
+                    <p v-for="hint in duplicateRowHints" :key="hint" class="psm-hint mb-3" style="color:#9a6a12">{{ hint }}</p>
 
                     <div v-if="goalRows.length === 0" class="psm-empty">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(105,105,105,0.3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="mb-2">
@@ -919,6 +923,45 @@ function calculatedPlanLeads(channel) {
   const cpl = Number(String(summary?.targetCpa || '').replace(/\s/g, '').replace(/,/g, '.')) || 0
   return budget > 0 && cpl > 0 ? Math.floor(budget / cpl) : null
 }
+
+// §2 P-3: ручной план заявок расходится с арифметикой — показываем фактический CPL
+function manualLeadsCplHint(channel) {
+  const manual = Number(manualLeads[channel.id])
+  if (!manual || manual <= 0) return null
+  const computed = calculatedPlanLeads(channel)
+  if (!computed || manual === computed) return null
+  const budget = Number(String(budgets[channel.id] || '').replace(/\s/g, '').replace(/,/g, '.')) || 0
+  if (budget <= 0) return null
+  const effectiveCpl = Math.round(budget / manual)
+  return `при бюджете ${budget.toLocaleString('ru-RU')} ₽ и цели ${manual} заявок фактический целевой CPL — ${effectiveCpl.toLocaleString('ru-RU')} ₽`
+}
+
+// §2 P-2 (вырожденный случай): в канале одна конверсионная цель + «Все конверсии»
+// с разными числами — одна метрика с двумя порогами. Мягкая подсказка, без запрета.
+const duplicateRowHints = computed(() => {
+  const hints = []
+  const byPlatform = {}
+  for (const goal of goalRows.value) {
+    if (goal.missing) continue
+    const key = String(goal.platform || '')
+    byPlatform[key] = byPlatform[key] || { summary: null, goals: [] }
+    if (goal.isSummary) byPlatform[key].summary = goal
+    else byPlatform[key].goals.push(goal)
+  }
+  for (const [, group] of Object.entries(byPlatform)) {
+    const activeGoals = group.goals.filter((goal) => goal.controlEnabled && goal.targetCpa)
+    const summaryOn = group.summary && group.summary.controlEnabled && group.summary.targetCpa
+    if (summaryOn && activeGoals.length === 1) {
+      const single = activeGoals[0]
+      const summaryValue = Number(String(group.summary.targetCpa).replace(/\s/g, '').replace(/,/g, '.'))
+      const goalValue = Number(String(single.targetCpa).replace(/\s/g, '').replace(/,/g, '.'))
+      if (summaryValue && goalValue && summaryValue !== goalValue) {
+        hints.push(`«${single.name}» — единственная контролируемая цель канала: строки «${single.name}» и «Все конверсии» дублируют друг друга с разными порогами.`)
+      }
+    }
+  }
+  return hints
+})
 
 function normalizeSelectedGoals(value) {
   let selectedGoals = []

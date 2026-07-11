@@ -363,8 +363,10 @@
       :warming-up="detectorSummary?.warmup_status === 'warming_up'"
       :has-critical="hasCriticalDetectorAlert"
       :dismissed-until="detectorSummary?.onboarding_dismissed_until"
+      :completion-pct="detectorSummary?.plan_completion_pct ?? null"
       @set-plan="openPlanSettings"
       @dismiss="dismissPlanOnboarding"
+      @shown="trackPlanOnboarding('shown')"
       class="detector-banner-slot"
     />
 
@@ -5010,8 +5012,15 @@ const dismissPlanOnboarding = async () => {
 
 const openPlanSettings = () => {
   if (!filters.client_id) return
+  trackPlanOnboarding('clicked')
   setCurrentProject(filters.client_id)
   router.push({ path: '/project-card', query: { settings: filters.client_id } })
+}
+
+// §8 ТЗ детектора ит.3: показы и клики плашки — метрика успеха итерации
+const trackPlanOnboarding = (event) => {
+  if (!filters.client_id) return
+  api.post(`detector/${filters.client_id}/onboarding/event`, { event }).catch(() => {})
 }
 
 const formatDetectorAlertTitle = (alert) => {

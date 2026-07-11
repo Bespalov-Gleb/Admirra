@@ -11,7 +11,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   planStatus: { type: String, default: 'configured' },
@@ -19,14 +19,31 @@ const props = defineProps({
   warmingUp: { type: Boolean, default: false },
   hasCritical: { type: Boolean, default: false },
   dismissedUntil: { type: [String, Date], default: null },
+  completionPct: { type: Number, default: null },
 })
 
-defineEmits(['set-plan', 'dismiss'])
+const emit = defineEmits(['set-plan', 'dismiss', 'shown'])
 
 const dismissed = computed(() => props.dismissedUntil && new Date(props.dismissedUntil) > new Date())
 const visible = computed(() => props.detectorEnabled && !props.warmingUp && !props.hasCritical && !dismissed.value && ['missing', 'incomplete', 'expired'].includes(props.planStatus))
+
+// §8: показ плашки — событие аналитики; одно на появление, не на каждый рендер
+const shownReported = ref(false)
+watch(visible, (value) => {
+  if (value && !shownReported.value) {
+    shownReported.value = true
+    emit('shown')
+  }
+  if (!value) shownReported.value = false
+}, { immediate: true })
+
 const title = computed(() => {
-  if (props.planStatus === 'expired') return 'План на прошлый период завершён'
+  if (props.planStatus === 'expired') {
+    // §6: итог периода — точка удержания в фиче
+    return props.completionPct != null
+      ? `План на прошлый период выполнен на ${Math.round(props.completionPct)}%`
+      : 'План на прошлый период завершён'
+  }
   if (props.planStatus === 'incomplete') return 'Дозаполните план по бюджету и стоимости заявки'
   return 'Задайте план по бюджету и стоимости заявки'
 })

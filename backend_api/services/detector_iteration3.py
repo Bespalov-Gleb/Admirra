@@ -85,8 +85,13 @@ def _sum_channel_stats(
     channel: models.IntegrationPlatform,
     start: date,
     end: date,
+    selected: set[str] | None = None,
 ) -> tuple[float, int, int]:
-    """Spend (including project display VAT), clicks and all configured leads."""
+    """Spend (including project display VAT), clicks and all configured leads.
+
+    ``selected`` lets one detector run reuse the goal configuration instead of
+    re-reading integrations on every window.
+    """
     table = _table_for(channel)
     if not table or end < start:
         return 0.0, 0, 0
@@ -106,11 +111,47 @@ def _sum_channel_stats(
             models.MetrikaGoals.date <= end,
             models.MetrikaGoals.goal_id != "all",
         )
-        selected = _selected_goal_ids(_ad_integrations(db, client_id))
+        if selected is None:
+            selected = _selected_goal_ids(_ad_integrations(db, client_id))
         if selected:
             query = query.filter(models.MetrikaGoals.goal_id.in_(selected))
         leads = int(query.scalar() or 0)
     return raw_spend * _money_factor(channel), clicks, leads
+
+
+def _window_funnel(
+    db: Session,
+    client_id: uuid.UUID,
+    channel: models.IntegrationPlatform,
+    start: date,
+    end: date,
+    selected: set[str] | None = None,
+) -> dict:
+    """Full funnel for the diagnostic layer: spend, impressions, clicks, leads."""
+    table = _table_for(channel)
+    if not table or end < start:
+        return {"spend": 0.0, "impressions": 0, "clicks": 0, "leads": 0}
+    row = (
+        db.query(func.sum(table.cost), func.sum(table.impressions), func.sum(table.clicks), func.sum(table.conversions))
+        .filter(table.client_id == client_id, table.date >= start, table.date <= end)
+        .one()
+    )
+    spend = float(row[0] or 0) * _money_factor(channel)
+    impressions = int(row[1] or 0)
+    clicks = int(row[2] or 0)
+    if channel == models.IntegrationPlatform.VK_ADS:
+        leads = int(row[3] or 0)
+    else:
+        query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
+            models.MetrikaGoals.client_id == client_id,
+            models.MetrikaGoals.date >= start,
+            models.MetrikaGoals.date <= end,
+            models.MetrikaGoals.goal_id != "all",
+        )
+        if selected:
+            query = query.filter(models.MetrikaGoals.goal_id.in_(selected))
+        leads = int(query.scalar() or 0)
+    return {"spend": spend, "impressions": impressions, "clicks": clicks, "leads": leads}
 
 
 def _sum_goal_leads(
@@ -121,6 +162,7 @@ def _sum_goal_leads(
     is_summary: bool,
     start: date,
     end: date,
+    selected: set[str] | None = None,
 ) -> int:
     if end < start:
         return 0
@@ -144,7 +186,8 @@ def _sum_goal_leads(
     if not is_summary:
         query = query.filter(models.MetrikaGoals.goal_id == str(goal_id))
     else:
-        selected = _selected_goal_ids(_ad_integrations(db, client_id))
+        if selected is None:
+            selected = _selected_goal_ids(_ad_integrations(db, client_id))
         if selected:
             query = query.filter(models.MetrikaGoals.goal_id.in_(selected))
     return int(query.scalar() or 0)
@@ -156,15 +199,85 @@ def _daily_channel_values(
     channel: models.IntegrationPlatform,
     start: date,
     end: date,
+    selected: set[str] | None = None,
 ) -> list[tuple[date, float, int, int]]:
-    """Dense daily values. Missing data is a genuine zero only after sync is fresh."""
+    """Dense daily values. Missing data is a genuine zero only after sync is fresh.
+
+    A single grouped query per source instead of one round-trip per day: the
+    detector runs on every synchronization for every project.
+    """
+    table = _table_for(channel)
+    if not table or end < start:
+        return []
+    factor = _money_factor(channel)
+    stat_rows = {
+        row[0]: (float(row[1] or 0) * factor, int(row[2] or 0), int(row[3] or 0))
+        for row in (
+            db.query(table.date, func.sum(table.cost), func.sum(table.clicks), func.sum(table.conversions))
+            .filter(table.client_id == client_id, table.date >= start, table.date <= end)
+            .group_by(table.date)
+            .all()
+        )
+    }
+    goal_rows: dict[date, int] = {}
+    if channel != models.IntegrationPlatform.VK_ADS:
+        query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
+            models.MetrikaGoals.client_id == client_id,
+            models.MetrikaGoals.date >= start,
+            models.MetrikaGoals.date <= end,
+            models.MetrikaGoals.goal_id != "all",
+        )
+        if selected is None:
+            selected = _selected_goal_ids(_ad_integrations(db, client_id))
+        if selected:
+            query = query.filter(models.MetrikaGoals.goal_id.in_(selected))
+        goal_rows = {row[0]: int(row[1] or 0) for row in query.group_by(models.MetrikaGoals.date).all()}
+
     values: list[tuple[date, float, int, int]] = []
     cursor = start
     while cursor <= end:
-        spend, clicks, leads = _sum_channel_stats(db, client_id, channel, cursor, cursor)
+        spend, clicks, conversions = stat_rows.get(cursor, (0.0, 0, 0))
+        leads = conversions if channel == models.IntegrationPlatform.VK_ADS else goal_rows.get(cursor, 0)
         values.append((cursor, spend, clicks, leads))
         cursor += timedelta(days=1)
     return values
+
+
+def _daily_goal_leads(
+    db: Session,
+    client_id: uuid.UUID,
+    channel: models.IntegrationPlatform,
+    goal_id: str | None,
+    is_summary: bool,
+    start: date,
+    end: date,
+    selected: set[str] | None = None,
+) -> dict[date, int]:
+    """Per-day lead counts for one goal (or the whole channel) in one query."""
+    if end < start:
+        return {}
+    if channel == models.IntegrationPlatform.VK_ADS:
+        rows = (
+            db.query(models.VKStats.date, func.sum(models.VKStats.conversions))
+            .filter(models.VKStats.client_id == client_id, models.VKStats.date >= start, models.VKStats.date <= end)
+            .group_by(models.VKStats.date)
+            .all()
+        )
+        return {row[0]: int(row[1] or 0) for row in rows}
+    query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
+        models.MetrikaGoals.client_id == client_id,
+        models.MetrikaGoals.date >= start,
+        models.MetrikaGoals.date <= end,
+        models.MetrikaGoals.goal_id != "all",
+    )
+    if not is_summary:
+        query = query.filter(models.MetrikaGoals.goal_id == str(goal_id))
+    else:
+        if selected is None:
+            selected = _selected_goal_ids(_ad_integrations(db, client_id))
+        if selected:
+            query = query.filter(models.MetrikaGoals.goal_id.in_(selected))
+    return {row[0]: int(row[1] or 0) for row in query.group_by(models.MetrikaGoals.date).all()}
 
 
 def _latest_budgets(
@@ -245,8 +358,9 @@ def sync_issues_for_client(db: Session, client_id: uuid.UUID, reference_date: da
 
 
 def _make_plan_spend(
-    db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform,
+    db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform | None,
     budget: models.ProjectBudget, reference_date: date, client: models.Client, cfg: DetectorCfg,
+    selected: set[str] | None = None, channels: list[models.IntegrationPlatform] | None = None,
 ) -> AlertCandidate | None:
     total_days = (budget.period_end - budget.period_start).days + 1
     start = max(budget.period_start, client.actual_start_date or budget.period_start)
@@ -256,7 +370,13 @@ def _make_plan_spend(
     expected = float(budget.amount) * elapsed / total_days
     if expected < cfg.plan_min_expected_spend:
         return None
-    actual, _, _ = _sum_channel_stats(db, client_id, channel, start, reference_date)
+    # ``channels`` carries the project-wide plan case (channel=None): the pace
+    # is judged against the total spend of every fresh ad channel.
+    report_channels = channels or [channel]
+    actual = sum(
+        _sum_channel_stats(db, client_id, report_channel, start, reference_date, selected)[0]
+        for report_channel in report_channels
+    )
     remaining = (budget.period_end - reference_date).days
     if actual >= float(budget.amount) and remaining >= cfg.plan_exhausted_min_days_remaining:
         text = (
@@ -330,6 +450,7 @@ def _target_exists(db: Session, client_id: uuid.UUID, target: models.ProjectTarg
 def _make_plan_cpl(
     db: Session, client_id: uuid.UUID, target: models.ProjectTargetCPA,
     budget: models.ProjectBudget | None, reference_date: date, cfg: DetectorCfg,
+    selected: set[str] | None = None,
 ) -> AlertCandidate | None:
     if not target.control_enabled or not target.target_cpa or not _target_exists(db, client_id, target):
         return None
@@ -341,8 +462,8 @@ def _make_plan_cpl(
     # CPL version still waits until the window can contain meaningful data.
     if (reference_date - start).days + 1 < min(cfg.plan_cpl_window_days, (target.period_end - target.period_start).days + 1):
         return None
-    spend, _, _ = _sum_channel_stats(db, client_id, channel, start, reference_date)
-    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), start, reference_date)
+    spend, _, _ = _sum_channel_stats(db, client_id, channel, start, reference_date, selected)
+    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), start, reference_date, selected)
     target_cpl = float(target.target_cpa)
     budget_amount = float(budget.amount) if budget else float("inf")
     red_min = min(cfg.plan_cpl_problem_target_multiplier * target_cpl, cfg.plan_cpl_problem_budget_share * budget_amount)
@@ -372,6 +493,7 @@ def _make_plan_leads(
     db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform,
     budget: models.ProjectBudget, summary_target: models.ProjectTargetCPA | None,
     reference_date: date, client: models.Client, cfg: DetectorCfg,
+    selected: set[str] | None = None,
 ) -> AlertCandidate | None:
     if not summary_target or not summary_target.control_enabled or not summary_target.target_cpa:
         return None
@@ -386,7 +508,7 @@ def _make_plan_leads(
     expected = planned * elapsed / total_days
     if expected < cfg.plan_min_expected_leads:
         return None
-    _, _, actual = _sum_channel_stats(db, client_id, channel, start, reference_date)
+    _, _, actual = _sum_channel_stats(db, client_id, channel, start, reference_date, selected)
     deviation = (actual - expected) / expected
     if deviation > -cfg.plan_leads_warning_deviation:
         return None
@@ -420,9 +542,105 @@ def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandida
     return result
 
 
+def _relative_change(prior: float, fresh: float) -> float | None:
+    """Window-over-window change; None when there is no base to compare with."""
+    if prior <= 0:
+        return None
+    return (fresh - prior) / prior
+
+
+def _diagnose_pattern(check: str, direction: str, fresh: dict, prior: dict, threshold: float) -> str | None:
+    """§4: deterministic funnel diagnosis for an open P alert.
+
+    Secondary metrics never trigger anything on their own — they only explain
+    an alert that money/leads already raised.  Patterns follow the base spec
+    table; the wording is a ready hypothesis, safe without any AI.
+    """
+    impressions = _relative_change(float(prior.get("impressions") or 0), float(fresh.get("impressions") or 0))
+    clicks = _relative_change(float(prior.get("clicks") or 0), float(fresh.get("clicks") or 0))
+    spend = _relative_change(float(prior.get("spend") or 0), float(fresh.get("spend") or 0))
+    leads = _relative_change(float(prior.get("leads") or 0), float(fresh.get("leads") or 0))
+
+    def ratio_change(numerator: str, denominator: str) -> float | None:
+        prior_den = float(prior.get(denominator) or 0)
+        fresh_den = float(fresh.get(denominator) or 0)
+        prior_num = float(prior.get(numerator) or 0)
+        if prior_den <= 0 or fresh_den <= 0 or prior_num <= 0:
+            return None
+        return _relative_change(prior_num / prior_den, float(fresh.get(numerator) or 0) / fresh_den)
+
+    cpc = ratio_change("spend", "clicks")
+    conversion = ratio_change("leads", "clicks")
+
+    if check == "P-2":
+        if cpc is not None and cpc >= threshold and clicks is not None and clicks <= -threshold and (conversion is None or abs(conversion) < threshold):
+            return "Диагностика: CPC вырос, кликов меньше, конверсия в норме — похоже, подорожал аукцион или выросла конкуренция."
+        if conversion is not None and conversion <= -threshold and (cpc is None or abs(cpc) < threshold):
+            return "Диагностика: клики и CPC в норме, а заявок с клика меньше — похоже, просела конверсия посадочной."
+    if check == "P-1" and direction == "down" and impressions is not None and impressions <= -threshold:
+        return "Диагностика: показы снизились, остальное за ними — похоже, сузился охват или упал объём трафика."
+    if check == "P-1" and direction == "up" and spend is not None and spend >= threshold and (leads is None or leads < threshold):
+        return "Диагностика: расход растёт, а заявки нет — похоже, открут в пустоту; проверьте таргетинг и площадки."
+    return None
+
+
+def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform, reference_date: date, cfg: DetectorCfg) -> str | None:
+    """§4.1 ↔ P-2 link: the highlighted rows are the alert's own breakdown."""
+    end = reference_date - timedelta(days=1)
+    start = end - timedelta(days=cfg.plan_cpl_window_days - 1)
+    rows = campaign_highlights(db, client_id, start, end)
+    scored = sorted(
+        (
+            (item.get("actual_cpl") or math.inf if item.get("leads") else math.inf, key, item)
+            for key, item in rows.items()
+            if item.get("channel") == _enum(channel)
+        ),
+        key=lambda entry: (0 if entry[2]["severity"] == "problem" else 1, -entry[0] if math.isfinite(entry[0]) else float("-inf")),
+    )
+    names = [entry[2].get("name") for entry in scored[:2] if entry[2].get("name")]
+    if not names:
+        return None
+    quoted = " и ".join(f"«{name}»" for name in names)
+    return f"Основной вклад — {'кампании' if len(names) > 1 else 'кампания'} {quoted}."
+
+
+def _apply_diagnostics(
+    db: Session, client_id: uuid.UUID, alerts: list[AlertCandidate],
+    reference_date: date, cfg: DetectorCfg, selected: set[str] | None,
+) -> None:
+    """Attach the §4 diagnostic layer to composite P alerts in place."""
+    fresh_end = reference_date - timedelta(days=1)
+    fresh_start = fresh_end - timedelta(days=cfg.plan_cpl_window_days - 1)
+    prior_end = fresh_start - timedelta(days=1)
+    prior_start = prior_end - timedelta(days=cfg.plan_cpl_window_days - 1)
+    for alert in alerts:
+        if alert.mode != "plan" or not alert.channel:
+            continue
+        try:
+            fresh = _window_funnel(db, client_id, alert.channel, fresh_start, fresh_end, selected)
+            prior = _window_funnel(db, client_id, alert.channel, prior_start, prior_end, selected)
+            check = (alert.meta or {}).get("check") or ""
+            parts: list[str] = []
+            diagnosis = _diagnose_pattern(check, alert.direction, fresh, prior, cfg.diagnostic_change_threshold)
+            if diagnosis:
+                parts.append(diagnosis)
+            if "P-2" in ((alert.meta or {}).get("checks") or [check]):
+                contributors = _campaign_contributors(db, client_id, alert.channel, reference_date, cfg)
+                if contributors:
+                    parts.append(contributors)
+            if parts:
+                alert.hypothesis_text = f"{alert.hypothesis_text} {' '.join(parts)}"
+                alert.meta = {**(alert.meta or {}), "diagnosis": " ".join(parts)}
+        except Exception:
+            # The diagnosis explains an alert; failing to build it must never
+            # cancel the alert itself.
+            logger.exception("Diagnostic layer failed for %s / %s", client_id, alert.channel)
+
+
 def _make_balance_alert(
     db: Session, client_id: uuid.UUID, integration: models.Integration,
     reference_date: date, cfg: DetectorCfg,
+    selected: set[str] | None = None,
 ) -> AlertCandidate | None:
     if integration.balance is None:
         return None
@@ -431,7 +649,7 @@ def _make_balance_alert(
     start = end - timedelta(days=cfg.balance_spend_window_days - 1)
     if end < start:
         return None
-    daily = _daily_channel_values(db, client_id, channel, start, end)
+    daily = _daily_channel_values(db, client_id, channel, start, end, selected)
     avg = sum(row[1] for row in daily) / len(daily) if daily else 0
     if avg <= 0:
         return None
@@ -453,13 +671,14 @@ def _make_balance_alert(
 def _make_stopped_alert(
     db: Session, client_id: uuid.UUID, integration: models.Integration,
     reference_date: date, cfg: DetectorCfg,
+    selected: set[str] | None = None,
 ) -> AlertCandidate | None:
     channel = integration.platform
     end = reference_date - timedelta(days=1)
     zero_start = end - timedelta(days=cfg.stopped_spend_zero_days - 1)
     if end < zero_start:
         return None
-    current = _daily_channel_values(db, client_id, channel, zero_start, end)
+    current = _daily_channel_values(db, client_id, channel, zero_start, end, selected)
     if any(row[1] > 0 for row in current):
         return None
     active = (
@@ -472,7 +691,7 @@ def _make_stopped_alert(
         return None
     prior_end = zero_start - timedelta(days=1)
     prior_start = prior_end - timedelta(days=cfg.stopped_prior_spend_days - 1)
-    prior = _daily_channel_values(db, client_id, channel, prior_start, prior_end)
+    prior = _daily_channel_values(db, client_id, channel, prior_start, prior_end, selected)
     average = sum(row[1] for row in prior) / len(prior) if prior else 0
     if average < cfg.stopped_min_daily_spend:
         return None
@@ -485,11 +704,12 @@ def _make_stopped_alert(
 def _make_tracking_alerts(
     db: Session, client_id: uuid.UUID, integration: models.Integration,
     reference_date: date, cfg: DetectorCfg,
+    selected: set[str] | None = None,
 ) -> list[AlertCandidate]:
     channel = integration.platform
     end = reference_date - timedelta(days=1)
     start = end - timedelta(days=cfg.tracking_zero_leads_days - 1)
-    _, clicks, _ = _sum_channel_stats(db, client_id, channel, start, end)
+    _, clicks, _ = _sum_channel_stats(db, client_id, channel, start, end, selected)
     if clicks < cfg.tracking_min_clicks:
         return []
     goal_ids = _selected_goal_ids([integration]) if channel == models.IntegrationPlatform.YANDEX_DIRECT else {"__all__"}
@@ -499,15 +719,11 @@ def _make_tracking_alerts(
     history_start = history_end - timedelta(days=cfg.tracking_history_days - 1)
     result: list[AlertCandidate] = []
     for goal_id in goal_ids:
-        now_leads = _sum_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", start, end)
+        now_leads = _sum_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", start, end, selected)
         if now_leads:
             continue
-        active_days = 0
-        cursor = history_start
-        while cursor <= history_end:
-            if _sum_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", cursor, cursor) >= 1:
-                active_days += 1
-            cursor += timedelta(days=1)
+        history = _daily_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", history_start, history_end, selected)
+        active_days = sum(1 for leads in history.values() if leads >= 1)
         if active_days < cfg.tracking_history_active_days:
             continue
         label = "заявок" if goal_id == "__all__" else f"цели {goal_id}"
@@ -570,14 +786,24 @@ def campaign_highlights(
         target.channel: target for target in targets
         if target.is_summary and target.control_enabled and target.target_cpa and target.channel in AD_CHANNELS
     }
+    campaign_names = {
+        str(row[0]): row[1]
+        for row in (
+            db.query(models.Campaign.id, models.Campaign.name)
+            .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+            .filter(models.Integration.client_id == client_id)
+            .all()
+        )
+    }
     result: dict[str, dict] = {}
     for channel, target in summaries.items():
         budget = _budget_for_channel(budgets, channel)
-        if not budget or float(budget.amount or 0) <= 0:
-            continue
+        # Consistent with P-2: the budget only caps the money filter.  A plan
+        # holding a target CPL without a budget still highlights rows.
+        budget_amount = float(budget.amount) if budget and float(budget.amount or 0) > 0 else float("inf")
         minimum = min(
             cfg.campaign_cpl_problem_target_multiplier * float(target.target_cpa),
-            cfg.campaign_cpl_budget_share * float(budget.amount),
+            cfg.campaign_cpl_budget_share * budget_amount,
         )
         source = _query_all_campaign_metrics(db, client_id, channel, start, end)
         for campaign_id, rows in source.items():
@@ -601,8 +827,50 @@ def campaign_highlights(
                 "actual_cpl": cpl if math.isfinite(cpl) else None,
                 "spend": spend,
                 "leads": leads,
+                "name": campaign_names.get(str(campaign_id)),
+                "channel": _enum(channel),
             }
     return result
+
+
+def plan_completion(db: Session, client_id: uuid.UUID, today: date | None = None) -> dict | None:
+    """Completion of the most recent finished plan period (§6, «выполнен на N%»).
+
+    Sums the latest budget versions that share the most recent past period_end
+    against the actual spend of their channels for that period.
+    """
+    ref = today or date.today()
+    rows = (
+        db.query(models.ProjectBudget)
+        .filter(models.ProjectBudget.client_id == client_id, models.ProjectBudget.period_end < ref)
+        .order_by(models.ProjectBudget.period_end.desc(), models.ProjectBudget.created_at.desc(), models.ProjectBudget.id.desc())
+        .all()
+    )
+    if not rows:
+        return None
+    last_end = rows[0].period_end
+    latest: dict[models.IntegrationPlatform | None, models.ProjectBudget] = {}
+    for row in rows:
+        if row.period_end == last_end:
+            latest.setdefault(row.channel, row)
+    total_budget = sum(float(row.amount or 0) for row in latest.values())
+    if total_budget <= 0:
+        return None
+    integrations = _ad_integrations(db, client_id)
+    selected = _selected_goal_ids(integrations)
+    channels = {row.platform for row in integrations}
+    spent = 0.0
+    for channel, row in latest.items():
+        report_channels = [channel] if channel is not None else list(channels)
+        for report_channel in report_channels:
+            spend, _, _ = _sum_channel_stats(db, client_id, report_channel, row.period_start, row.period_end, selected)
+            spent += spend
+    return {
+        "pct": round(spent / total_budget * 100),
+        "period_end": last_end.isoformat(),
+        "budget": total_budget,
+        "spent": round(spent, 2),
+    }
 
 
 def run_detector_iteration3(
@@ -631,6 +899,8 @@ def run_detector_iteration3(
     _close_superseded_alerts(db, client_id, ref)
     budgets = _latest_budgets(db, client_id, ref)
     targets = _latest_targets(db, client_id, ref)
+    # One goal-configuration read per run: every window below reuses it.
+    selected = _selected_goal_ids(integrations)
     targets_by_channel: dict[models.IntegrationPlatform, list[models.ProjectTargetCPA]] = {}
     for target in targets:
         if target.channel in AD_CHANNELS:
@@ -638,6 +908,8 @@ def run_detector_iteration3(
 
     plan_checks: list[AlertCandidate] = []
     critical: list[AlertCandidate] = []
+    fresh_channels: list[models.IntegrationPlatform] = []
+    has_channel_budget = False
     for integration in integrations:
         channel = integration.platform
         stale, _ = _is_sync_stale(integration, ref, cfg)
@@ -645,31 +917,44 @@ def run_detector_iteration3(
             # C-3 is deliberately exposed as neutral status through the API;
             # every data-dependent detector check is frozen.
             continue
+        fresh_channels.append(channel)
         budget = _budget_for_channel(budgets, channel)
         if budget:
-            candidate = _make_plan_spend(db, client_id, channel, budget, ref, client, cfg)
+            has_channel_budget = True
+            candidate = _make_plan_spend(db, client_id, channel, budget, ref, client, cfg, selected)
             if candidate:
                 plan_checks.append(candidate)
         for target in targets_by_channel.get(channel, []):
-            candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg)
+            candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg, selected)
             if candidate:
                 plan_checks.append(candidate)
         summary = next((target for target in targets_by_channel.get(channel, []) if target.is_summary), None)
         if budget:
-            candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg)
+            candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg, selected)
             if candidate:
                 plan_checks.append(candidate)
         for candidate in (
-            _make_balance_alert(db, client_id, integration, ref, cfg),
-            _make_stopped_alert(db, client_id, integration, ref, cfg),
+            _make_balance_alert(db, client_id, integration, ref, cfg, selected),
+            _make_stopped_alert(db, client_id, integration, ref, cfg, selected),
         ):
             if candidate:
                 critical.append(candidate)
-        critical.extend(_make_tracking_alerts(db, client_id, integration, ref, cfg))
+        critical.extend(_make_tracking_alerts(db, client_id, integration, ref, cfg, selected))
+
+    # §2 P-1: a project-wide budget (channel=None) is judged against the total
+    # spend, and only when no per-channel budgets exist — never both at once.
+    total_budget = budgets.get(None)
+    if total_budget and not has_channel_budget and fresh_channels:
+        candidate = _make_plan_spend(
+            db, client_id, None, total_budget, ref, client, cfg, selected, channels=fresh_channels,
+        )
+        if candidate:
+            plan_checks.append(candidate)
 
     owner = db.query(models.User).filter(models.User.id == client.owner_id).first()
     global_on = getattr(owner, "global_detector_enabled", True) if owner else True
     plan_alerts = _collapse_plan_checks(plan_checks)
+    _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected)
     upsert_alerts(db, client_id, client.owner_id, plan_alerts + critical, cfg,
                   notify=bool(client.detector_enabled) and global_on)
     if immediate_plan_recalculation:

@@ -105,6 +105,11 @@ def _plan_status(db: Session, client_id: uuid.UUID, today) -> str:
         row.channel for row in targets
         if row.channel is not None and row.control_enabled and float(row.target_cpa or 0) > 0
     }
+    # A project-wide budget (channel=None) covers whichever channels hold a
+    # target CPL; alone it is a budget without a CPL — «дозаполните».
+    total_budget = budgets.get(None)
+    if total_budget and float(total_budget.amount or 0) > 0:
+        active_budget_channels |= active_target_channels or {"__total__"}
     if active_budget_channels or active_target_channels:
         return "configured" if active_budget_channels == active_target_channels else "incomplete"
     latest_end = (
@@ -114,6 +119,39 @@ def _plan_status(db: Session, client_id: uuid.UUID, today) -> str:
         .first()
     )
     return "expired" if latest_end and latest_end[0] < today else "missing"
+
+
+def _effective_onboarding_dismissed(db: Session, client: models.Client, today) -> datetime | None:
+    """§6: a new plan period finishing without a follow-up plan resurrects the
+    onboarding banner regardless of an earlier dismissal."""
+    until = getattr(client, "detector_onboarding_dismissed_until", None)
+    if not until:
+        return None
+    from core.config import get_config
+    dismissed_at = until - timedelta(days=get_config().detector.onboarding_dismiss_days)
+    period_ended_after_dismiss = (
+        db.query(models.ProjectBudget.id)
+        .filter(
+            models.ProjectBudget.client_id == client.id,
+            models.ProjectBudget.period_end < today,
+            models.ProjectBudget.period_end >= dismissed_at.date(),
+        )
+        .first()
+    )
+    if period_ended_after_dismiss:
+        return None
+    return until
+
+
+def _plan_completion_pct(db: Session, client_id: uuid.UUID, plan_status: str, today) -> float | None:
+    if plan_status != "expired":
+        return None
+    from backend_api.services.detector_iteration3 import plan_completion
+    try:
+        completion = plan_completion(db, client_id, today)
+        return float(completion["pct"]) if completion else None
+    except Exception:
+        return None
 
 
 @router.get("/{client_id}/summary", response_model=schemas.DetectorSummaryResponse)
@@ -134,6 +172,8 @@ def get_detector_summary(
     det_state = get_detector_state(client)
     warmup_status = det_state["status"] if global_on else "disabled"
     if warmup_status == "disabled":
+        today = _now().date()
+        plan_status = _plan_status(db, client_id, today)
         return {
             "warning_count": 0,
             "problem_count": 0,
@@ -143,9 +183,10 @@ def get_detector_summary(
             "hidden_count": 0,
             "alerts": [],
             "hidden_alerts": [],
-            "plan_status": _plan_status(db, client_id, _now().date()),
+            "plan_status": plan_status,
+            "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, today),
             "sync_issues": [],
-            "onboarding_dismissed_until": getattr(client, "detector_onboarding_dismissed_until", None),
+            "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, today),
         }
 
     now = _now()
@@ -183,6 +224,7 @@ def get_detector_summary(
     if warmup_status == "warming_up" and det_state.get("days_since_start") is not None:
         warmup_days_left = max(0, int(det_state.get("warmup_days") or 7) - det_state["days_since_start"])
 
+    plan_status = _plan_status(db, client_id, now.date())
     return {
         "warning_count": warning_count,
         "problem_count": problem_count,
@@ -192,9 +234,10 @@ def get_detector_summary(
         "warmup_days_left": warmup_days_left,
         "alerts": [_alert_to_response(a, now) for a in alerts],
         "hidden_alerts": [_alert_to_response(a, now) for a in hidden_alerts],
-        "plan_status": _plan_status(db, client_id, now.date()),
+        "plan_status": plan_status,
+        "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, now.date()),
         "sync_issues": sync_issues_for_client(db, client_id, now.date()),
-        "onboarding_dismissed_until": getattr(client, "detector_onboarding_dismissed_until", None),
+        "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, now.date()),
     }
 
 
@@ -354,9 +397,51 @@ def dismiss_plan_onboarding(
     if not client:
         raise HTTPException(status_code=404, detail="Проект не найден")
     from core.config import get_config
+    from backend_api.services.history import log_history_event
     client.detector_onboarding_dismissed_until = _now() + timedelta(days=get_config().detector.onboarding_dismiss_days)
+    # §8: показы/скрытия/клики плашки — метрика успеха итерации.
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="detector",
+        action="plan_onboarding_dismissed",
+        description="Плашка «Задайте план» скрыта",
+        client_id=client_id,
+        target_type="plan_onboarding",
+    )
     db.commit()
     return {"dismissed_until": client.detector_onboarding_dismissed_until}
+
+
+@router.post("/{client_id}/onboarding/event")
+def track_plan_onboarding_event(
+    client_id: uuid.UUID,
+    body: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """§8: аналитика плашки «Задайте план» — показы и клики CTA.
+
+    Заполнение плана после клика ловится существующими событиями history
+    от PUT /budgets и /target-cpa: воронка собирается по client_id.
+    """
+    _assert_detector_access(db, current_user, client_id, write=False)
+    event = str((body or {}).get("event") or "").strip().lower()
+    if event not in ("shown", "clicked"):
+        raise HTTPException(status_code=422, detail="event должен быть shown или clicked")
+    from backend_api.services.history import log_history_event
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="detector",
+        action=f"plan_onboarding_{event}",
+        description="Плашка «Задайте план» показана" if event == "shown" else "Клик по CTA «Задать план»",
+        client_id=client_id,
+        target_type="plan_onboarding",
+        meta={"plan_status": _plan_status(db, client_id, _now().date())},
+    )
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/cross-project", response_model=List[schemas.DetectorCrossProjectItem])
