@@ -1056,6 +1056,10 @@ class GoalStat(BaseModel):
     id: Optional[str] = None  # Goal ID from Metrika
     name: str
     count: int
+    # ТЗ «Дельта по заявкам» §4/§6: prev обязан различать 0 и null.
+    # None = данных за предыдущий период нет (короткая история, разрыв синка) —
+    # фронт в этом случае не рендерит чип дельты вовсе.
+    prev_count: Optional[int] = None
     trend: float
     cost: Optional[float] = 0.0  # Cost for this goal (proportional to conversions)
     category: Optional[str] = None

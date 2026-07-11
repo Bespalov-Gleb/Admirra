@@ -217,7 +217,7 @@
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
                       <strong>{{ formatNumber(channel.goalTotal) }}
-                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls" :title="leadsDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
@@ -437,7 +437,7 @@
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
                       <strong>{{ formatNumber(channel.goalTotal) }}
-                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
+                        <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls" :title="leadsDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
                     </div>
@@ -462,7 +462,7 @@
                   >
                     <span>{{ goal.name }}</span>
                     <strong>{{ formatNumber(goal.count) }} шт
-                      <em v-if="goalCountDelta(goal)" class="channel-delta" :class="goalCountDelta(goal).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': goalCountDelta(goal).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ goalCountDelta(goal).text }}</em>
+                      <em v-if="goalCountDelta(goal)" class="channel-delta" :class="goalCountDelta(goal).cls" :title="goalCountDelta(goal).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': goalCountDelta(goal).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ goalCountDelta(goal).text }}</em>
                     </strong>
                     <template v-if="channel.code !== 'yandex'">
                       <b>{{ formatGoalCpl(goal, channel.code) }}</b>
@@ -1525,7 +1525,9 @@ const normalizeGoalRows = (goals = []) => goals
       id: goal.id,
       name: goal.name || 'Цель',
       count,
-      prev_count: Number(goal.prev_count || 0),
+      // ТЗ «Дельта по заявкам» §4/§7: пустота ≠ ноль. null = данных за прошлый
+      // период нет — никаких `prev ?? 0`, чип дельты в этом случае не рендерится.
+      prev_count: goal.prev_count == null ? null : Number(goal.prev_count),
       trend: Number(goal.trend || 0),
       hasCost,
       cost,
@@ -1534,6 +1536,14 @@ const normalizeGoalRows = (goals = []) => goals
       missingInMetrika: Boolean(goal.missing_in_metrika),
     }
   })
+
+// Сумма prev по целям: null, только если НИ У ОДНОЙ цели нет данных за P′
+// (бэк отдаёт null на весь канал при отсутствии покрытия статистикой).
+const sumPrevCounts = (goals = []) => {
+  const known = goals.map((goal) => goal.prev_count).filter((value) => value != null)
+  if (!known.length) return null
+  return known.reduce((sum, value) => sum + Number(value || 0), 0)
+}
 
 const goalNoun = (count) => {
   const value = Math.abs(Number(count || 0))
@@ -1595,13 +1605,14 @@ const projectChannelSummaries = (project) => {
     const metric = insights[platform.code] || emptyMetric()
     const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
     const summary = topGoalSummary(goals, platform.code, metric.expenses)
-    // ТЗ «Правки UI» п.8: делты главных метрик строки канала.
-    // База сравнения — предыдущий эквивалентный период (та же, что у KPI-плиток).
+    // ТЗ «Дельта по заявкам» §4: prev = null (нет данных за P′) → дельты нет.
+    // База сравнения — предыдущий сопоставимый период, его считает бэк (§6).
     const prevExpenses = Number(metric.prev?.expenses || 0)
-    const prevTotal = goals.reduce((sum, g) => sum + Number(g.prev_count || 0), 0)
-    const leadsDelta = summary.total - prevTotal
-    // CPL канала считается как расход/цели — та же формула для прошлого периода
-    const prevAvgCpl = (['yandex', 'avito'].includes(platform.code) && prevTotal > 0)
+    const prevTotal = sumPrevCounts(goals)
+    const leadsDelta = prevTotal == null ? null : summary.total - prevTotal
+    // CPL канала считается как расход/цели — та же формула для прошлого периода.
+    // §6: cpl_prev = null при leads_prev ∈ {0, null} — деление на ноль не маскируем.
+    const prevAvgCpl = (['yandex', 'avito'].includes(platform.code) && prevTotal != null && prevTotal > 0)
       ? prevExpenses / prevTotal
       : null
     let cplDeltaPct = null
@@ -1641,13 +1652,17 @@ const folderChannelSummaries = (folder) => {
         const current = goalMap.get(key) || {
           ...goal,
           count: 0,
-          prev_count: 0,
+          prev_count: null,
           cost: goal.hasCost ? 0 : null,
           syncing: false,
           missingInMetrika: false,
         }
         current.count += Number(goal.count || 0)
-        current.prev_count += Number(goal.prev_count || 0)
+        // null + null = null (нет данных ни у одного проекта папки);
+        // число + null = число (частичное покрытие — суммируем известное)
+        if (goal.prev_count != null) {
+          current.prev_count = Number(current.prev_count || 0) + Number(goal.prev_count)
+        }
         current.syncing = current.syncing || Boolean(goal.syncing)
         current.missingInMetrika = current.missingInMetrika || Boolean(goal.missingInMetrika)
         if (goal.hasCost) current.cost = Number(current.cost || 0) + Number(goal.cost || 0)
@@ -1658,10 +1673,11 @@ const folderChannelSummaries = (folder) => {
 
     const goals = Array.from(goalMap.values())
     const goalTotal = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
-    const prevGoalTotal = goals.reduce((sum, goal) => sum + Number(goal.prev_count || 0), 0)
+    // §4: null, если данных за P′ нет ни по одной цели папки
+    const prevGoalTotal = sumPrevCounts(goals)
     const goalNounValue = goalNoun(goalTotal)
     const avgCpl = ['yandex', 'avito'].includes(platform.code) && goalTotal > 0 ? expenses / goalTotal : null
-    const prevAvgCpl = ['yandex', 'avito'].includes(platform.code) && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
+    const prevAvgCpl = ['yandex', 'avito'].includes(platform.code) && prevGoalTotal != null && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
     let cplDeltaPct = null
     if (avgCpl !== null && avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
       cplDeltaPct = Math.round(((avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
@@ -1678,34 +1694,47 @@ const folderChannelSummaries = (folder) => {
         ? `${formatNumber(goalTotal)} ${goalNounValue} · CPL ${formatMoney(withChannelVat(avgCpl, platform.code))}`
         : (goalTotal ? `${formatNumber(goalTotal)} ${goalNounValue}` : 'нет целей за период'),
       prevGoalTotal,
-      leadsDelta: goalTotal - prevGoalTotal,
+      leadsDelta: prevGoalTotal == null ? null : goalTotal - prevGoalTotal,
       cplDeltaPct,
     }
   })
 }
 
-// ТЗ п.8, граничные случаи: 0→0 — без пилюли; 0→N — «↑ +N»; N→0 — «↓ −N»
+// ТЗ «Дельта по заявкам» §5: тултип чипа — «за период: N, за предыдущий: M»,
+// при prev = 0 — «0 → N», для неполных пресетов — пометка «сравнение к дате».
+const INCOMPLETE_PERIOD_PRESETS = new Set(['today', 'this_week', 'this_month'])
+
+const deltaTooltip = (cur, prev) => {
+  const toDate = INCOMPLETE_PERIOD_PRESETS.has(periodKey.value) ? ' · сравнение к дате' : ''
+  if (prev === 0) return `0 → ${formatNumber(cur)} за период${toDate}`
+  return `За период: ${formatNumber(cur)} · за предыдущий: ${formatNumber(prev)}${toDate}`
+}
+
+// ТЗ «Дельта по заявкам» §4: prev=null → чипа нет (пустота ≠ ноль);
+// Δ=0 — без пилюли (консистентно с остальными чипами); prev=0 → честный «+N» с тултипом «0 → N»
 const goalCountDelta = (goal) => {
+  const prev = goal.prev_count
+  if (prev == null) return null
   const cur = Number(goal.count || 0)
-  const prev = Number(goal.prev_count || 0)
-  if (!cur && !prev) return null
-  const d = cur - prev
+  const d = cur - Number(prev)
   if (d === 0) return null
   return {
     text: d > 0 ? `+${formatNumber(d)}` : `−${formatNumber(Math.abs(d))}`,
     dir: d > 0 ? 'up' : 'down',
     cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
+    title: deltaTooltip(cur, Number(prev)),
   }
 }
 
 const leadsDeltaBadge = (channel) => {
-  if (!channel.goalTotal && !channel.prevGoalTotal) return null
+  if (channel.prevGoalTotal == null || channel.leadsDelta == null) return null
   const d = Number(channel.leadsDelta || 0)
   if (d === 0) return null
   return {
     text: d > 0 ? `+${formatNumber(d)}` : `−${formatNumber(Math.abs(d))}`,
     dir: d > 0 ? 'up' : 'down',
     cls: d > 0 ? 'channel-delta--up' : 'channel-delta--down',
+    title: deltaTooltip(Number(channel.goalTotal || 0), Number(channel.prevGoalTotal)),
   }
 }
 
@@ -1785,7 +1814,7 @@ const loadProjectMetrics = async () => {
   const entries = await Promise.all([
     ...projects.value.map(async (project) => {
       try {
-        const data = await loadProjectInsight(project.id, startDate, endDate)
+        const data = await loadProjectInsight(project.id, startDate, endDate, null, periodKey.value)
         return [project.id, data]
       } catch {
         return [project.id, emptyProjectInsights()]
@@ -1795,7 +1824,7 @@ const loadProjectMetrics = async () => {
     // поэтому карточка папки использует те же функции, что и карточка проекта.
     ...folders.value.map(async (folder) => {
       try {
-        const data = await loadProjectInsight(null, startDate, endDate, folder.id)
+        const data = await loadProjectInsight(null, startDate, endDate, folder.id, periodKey.value)
         return [folder.id, data]
       } catch {
         return [folder.id, emptyProjectInsights()]
@@ -1807,7 +1836,7 @@ const loadProjectMetrics = async () => {
   metricsByProjectId.value = Object.fromEntries(entries.map(([projectId, data]) => [projectId, data.all || emptyMetric()]))
 }
 
-const loadProjectInsight = async (projectId, startDate, endDate, folderId = null) => {
+const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null) => {
   // Скоуп: конкретный проект (client_id) или папка (folder_id — сводка по вложенным)
   const scope = folderId ? { folder_id: folderId } : { client_id: projectId }
   const summaryParams = (platform) => ({
@@ -1816,11 +1845,14 @@ const loadProjectInsight = async (projectId, startDate, endDate, folderId = null
     start_date: startDate,
     end_date: endDate,
   })
+  // period_preset задаёт бэку базу сравнения дельты (ТЗ «Дельта по заявкам» §3):
+  // «эта неделя/этот месяц» сравниваются «к дате», а не встык.
   const goalParams = (platform) => ({
     ...scope,
     platform,
     date_from: startDate,
     date_to: endDate,
+    ...(periodPreset ? { period_preset: periodPreset } : {}),
   })
 
   const [all, yandex, vk, avito, yandexGoals, vkGoals, avitoGoals] = await Promise.all([

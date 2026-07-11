@@ -2349,6 +2349,58 @@ async def get_top_clients(
         r["expenses"] = round(r["expenses"], 2)
     return results
 
+def resolve_previous_period(date_from_obj, date_to_obj, preset: Optional[str] = None):
+    """ТЗ «Дельта по заявкам» §2–3: единый предыдущий сопоставимый период.
+
+    Незавершённые календарные пресеты сравниваются «к дате» с той же частью
+    предыдущего календарного периода; завершённый месяц — с прошлым месяцем
+    целиком; всё остальное (дни, недели, свободные диапазоны) — период той же
+    длины встык до начала выбранного.
+    """
+    key = (preset or "").strip().lower()
+    if key == "this_week":
+        # Пн–сегодня против тех же дней прошлой недели: сдвиг ровно на 7 дней.
+        return date_from_obj - timedelta(days=7), date_to_obj - timedelta(days=7)
+    if key == "this_month":
+        # 01–DD текущего месяца против 01–DD прошлого (cap по длине месяца).
+        prev_month_end = date_from_obj - timedelta(days=1)
+        prev_start = prev_month_end.replace(day=1)
+        prev_end = min(prev_start + timedelta(days=(date_to_obj - date_from_obj).days), prev_month_end)
+        return prev_start, prev_end
+    if key == "last_month":
+        # Календарный месяц против предыдущего календарного целиком, без
+        # нормировки на число дней (консистентно с «Таблицей истории»).
+        prev_month_end = date_from_obj - timedelta(days=1)
+        return prev_month_end.replace(day=1), prev_month_end
+    period_days = (date_to_obj - date_from_obj).days + 1
+    return date_from_obj - timedelta(days=period_days), date_from_obj - timedelta(days=1)
+
+
+def _has_prev_stats_coverage(db, client_ids, prev_from, prev_to, platform_key: str) -> bool:
+    """ТЗ «Дельта по заявкам» §4: 0 ≠ «нет данных».
+
+    Данные за P′ существуют, если по каналу есть хоть одна строка дневной
+    статистики (расход/клики) за период. Нет строк — проект моложе двух
+    периодов или в P′ разрыв синхронизации → prev = null, чип не рендерится.
+    """
+    tables = []
+    if platform_key in ("yandex", "all"):
+        tables.append(models.YandexStats)
+    if platform_key in ("vk", "all"):
+        tables.append(models.VKStats)
+    if platform_key in ("avito", "all"):
+        tables.append(models.AvitoStats)
+    for table in tables:
+        row = (
+            db.query(table.id)
+            .filter(table.client_id.in_(client_ids), table.date >= prev_from, table.date <= prev_to)
+            .first()
+        )
+        if row:
+            return True
+    return False
+
+
 @router.get("/goals", response_model=List[schemas.GoalStat])
 async def get_goals(
     client_id: Optional[uuid.UUID] = None,
@@ -2359,6 +2411,7 @@ async def get_goals(
     platform: Optional[str] = Query("all", description="yandex | vk | avito | all"),
     campaign_ids: Optional[str] = Query(None, description="comma-separated campaign UUIDs (для VK)"),
     direction_name: Optional[str] = Query(None, description="Selected direction name for goal narrowing"),
+    period_preset: Optional[str] = Query(None, description="Пресет фильтра периода (this_week | this_month | last_month | …) — задаёт базу сравнения дельты по ТЗ «Дельта по заявкам» §3"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2449,9 +2502,8 @@ async def get_goals(
                 if direction_key in str(goal_name or "").lower()
             ]
             if matching_goal_ids:
-                period_days = (date_to_obj - date_from_obj).days + 1
-                prev_date_from = date_from_obj - timedelta(days=period_days)
-                prev_date_to = date_from_obj - timedelta(days=1)
+                prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
+                prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, goal_platform)
 
                 def goal_counts(start_date, end_date):
                     q = db.query(
@@ -2477,10 +2529,10 @@ async def get_goals(
                         "id": gid,
                         "name": latest_goal_names.get(gid) or f"Goal {gid}",
                         "count": int(current_counts.get(gid, 0) or 0),
-                        "prev_count": int(previous_counts.get(gid, 0) or 0),
+                        "prev_count": int(previous_counts.get(gid, 0) or 0) if prev_has_data else None,
                         "trend": (
                             round(((int(current_counts.get(gid, 0) or 0) - int(previous_counts.get(gid, 0) or 0)) / int(previous_counts.get(gid, 0) or 1)) * 100, 1)
-                            if int(previous_counts.get(gid, 0) or 0) > 0
+                            if prev_has_data and int(previous_counts.get(gid, 0) or 0) > 0
                             else 0.0
                         ),
                         "cost": None,
@@ -2496,9 +2548,8 @@ async def get_goals(
             platform_key,
             u_campaign_ids,
         )
-        period_days = (date_to_obj - date_from_obj).days + 1
-        prev_date_from = date_from_obj - timedelta(days=period_days)
-        prev_date_to = date_from_obj - timedelta(days=1)
+        prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
+        prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, platform_key)
         prev_summary = StatsService.aggregate_summary(
             db,
             effective_client_ids,
@@ -2515,14 +2566,14 @@ async def get_goals(
         trend = 0.0
         current_cpl = current_cost / current_count if current_count > 0 else 0
         prev_cpl = prev_cost / prev_count if prev_count > 0 else 0
-        if current_cpl > 0 and prev_cpl > 0:
+        if prev_has_data and current_cpl > 0 and prev_cpl > 0:
             trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
 
         return [{
             "id": "selected_campaigns",
             "name": "Конверсии выбранных кампаний",
             "count": current_count,
-            "prev_count": prev_count,
+            "prev_count": prev_count if prev_has_data else None,
             "trend": trend,
             "cost": current_cost,
         }]
@@ -2549,9 +2600,8 @@ async def get_goals(
         ).all()
 
         result = []
-        period_days = (date_to_obj - date_from_obj).days + 1
-        prev_date_from = date_from_obj - timedelta(days=period_days)
-        prev_date_to = date_from_obj - timedelta(days=1)
+        prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
+        prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, "vk")
 
         # Настраиваемый CPL: новые VK-интеграции хранят выбор в
         # Integration.lead_action_types. selected_goals — только переходный
@@ -2601,7 +2651,7 @@ async def get_goals(
             trend = 0.0
             current_cpl = current_cost / current_count if current_count > 0 else 0
             prev_cpl = prev_cost / prev_count if prev_count > 0 else 0
-            if prev_cpl > 0 and current_cpl > 0:
+            if prev_has_data and prev_cpl > 0 and current_cpl > 0:
                 trend = round(((current_cpl - prev_cpl) / prev_cpl) * 100, 1)
 
             # №3: имя берём каноническое по коду ЦД, чтобы один и тот же тип
@@ -2629,7 +2679,7 @@ async def get_goals(
                 "id": str(code or ""),
                 "name": name,
                 "count": current_count,
-                "prev_count": prev_count,
+                "prev_count": prev_count if prev_has_data else None,
                 "trend": trend,
                 "cost": current_cost,
                 "category": category,
@@ -2766,9 +2816,8 @@ async def get_goals(
                 logger.info(f"📊 get_goals: triggered goals-only sync for integration {integration.id}")
                 break
 
-    period_days = (date_to_obj - date_from_obj).days + 1
-    prev_date_from = date_from_obj - timedelta(days=period_days)
-    prev_date_to = date_from_obj - timedelta(days=1)
+    prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
+    prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, platform_key)
 
     # Yandex/Metrika stores goal reaches separately from Direct spend. Without
     # campaign-goal attribution, assigning spend per individual goal would make
@@ -2793,20 +2842,20 @@ async def get_goals(
 
         current_count = int(current_counts.get(str(goal_id), 0) or 0)
         count_trend = 0.0
-        if prev_count > 0:
+        if prev_has_data and prev_count > 0:
             count_trend = round(((current_count - int(prev_count)) / int(prev_count)) * 100, 1)
 
         result.append({
             "id": str(goal_id),
             "name": latest_names.get(str(goal_id)) or f"Goal {goal_id}",
             "count": current_count,
-            "prev_count": int(prev_count),
+            "prev_count": int(prev_count) if prev_has_data else None,
             "trend": count_trend,
             "cost": None,
             "syncing": goals_syncing,
             "missing_in_metrika": bool(selected_goal_ids and str(goal_id) not in latest_names and not goals_syncing),
         })
-    
+
     return result
 
 @router.get("/integrations", response_model=List[schemas.DashboardIntegrationStatus])
