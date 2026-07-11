@@ -4749,7 +4749,7 @@ const executeReportSend = async () => {
     })
     activeReportDelivery.value = data
     await refreshPendingReportDeliveries()
-    toaster.info('Отчёт подготовлен. Проверьте перед отправкой')
+    toaster.info('Отчёт готов и ждёт утверждения — без «Утвердить и отправить» он не уйдёт')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Ошибка подготовки отчёта')
   } finally {
@@ -9861,11 +9861,13 @@ onMounted(() => {
   gap: 1.1rem;
 }
 
-/* Тулбар отчётов: заголовок + чипы каналов слева, действия справа, одна ось */
+/* Тулбар отчётов: заголовок + чипы каналов слева, действия справа, одна ось.
+   При нехватке ширины действия переносятся строкой ниже, а не вылезают за панель */
 .reports-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.3889rem;
+  gap: 0.9rem 1.3889rem;
   min-height: 3.1944rem;
 }
 
@@ -9888,13 +9890,30 @@ onMounted(() => {
   flex: 0 0 auto;
 }
 
-/* Кнопки действий не сжимаются — иначе «Отправить отчёт» обрезает текст */
-.reports-toolbar__actions > * {
-  flex: 0 0 auto;
+/* Главная кнопка не сжимается никогда; селекты умеют ужиматься (ellipsis),
+   чтобы ряд действий всегда помещался в панель */
+.reports-toolbar__actions {
+  min-width: 0;
 }
 
 .reports-toolbar__actions .primary-report {
+  flex: 0 0 auto;
   padding: 0 1.6rem;
+}
+
+.reports-toolbar__actions .reports-settings-head {
+  flex: 0 1 auto;
+  min-width: 9rem;
+}
+
+.reports-toolbar__actions .report-export-select {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.reports-toolbar__actions .report-export-head {
+  width: 100%;
+  min-width: 9.5rem;
 }
 
 /* Селект «Настройки отчётов»: одна строка, стабильная ширина */

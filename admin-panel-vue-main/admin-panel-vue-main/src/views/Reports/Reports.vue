@@ -552,6 +552,7 @@ onMounted(load)
 .history-status.sent { background: #e6f6ed; color: #188a4c; }
 .history-status.partial { background: #fff4db; color: #9a6700; }
 .history-status.failed { background: #fceaea; color: #c23a3a; }
+.history-status.cancelled { background: #eef1f5; color: #69758a; }
 .reports-page.is-dark .history-status.sent { background: rgba(24, 138, 76, 0.2); color: #6cd39a; }
 .reports-page.is-dark .history-status.partial { background: rgba(239, 168, 39, 0.18); color: #f6c768; }
 .reports-page.is-dark .history-status.failed { background: rgba(226, 75, 74, 0.18); color: #ff8a87; }

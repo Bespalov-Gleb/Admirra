@@ -1420,6 +1420,34 @@ def save_report_delivery_draft(
     return _delivery_to_response(db, d)
 
 
+@router.post("/deliveries/{delivery_id}/cancel", response_model=schemas.ReportDeliveryResponse)
+def cancel_report_delivery(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Отменить неотправленный отчёт из очереди проверки.
+
+    Доступно только для pending/failed/partial: отправки клиенту ещё не было
+    (или она не удалась), поэтому подтверждение не требуется. Запись уходит
+    в историю со статусом «Отменён» — очередь не копит брошенные черновики.
+    """
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("pending", "failed", "partial"):
+        raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
+    d.status = "cancelled"
+    d.approved_by_user_id = current_user.id
+    d.approved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
 @router.post("/deliveries/{delivery_id}/approve", response_model=schemas.ReportDeliveryResponse)
 async def approve_report_delivery(
     delivery_id: uuid.UUID,

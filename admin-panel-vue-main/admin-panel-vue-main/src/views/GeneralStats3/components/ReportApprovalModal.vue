@@ -103,11 +103,14 @@
 
             <div class="report-approval-side__spacer"></div>
 
-            <button type="button" class="report-approval-secondary" :disabled="savingDraft || sending" @click="saveDraft">
+            <button type="button" class="report-approval-secondary" :disabled="savingDraft || sending || cancelling" @click="saveDraft">
               {{ savingDraft ? 'Сохраняем…' : 'Сохранить черновик' }}
             </button>
-            <button type="button" class="report-approval-primary" :disabled="sending || savingDraft" @click="approve">
+            <button type="button" class="report-approval-primary" :disabled="sending || savingDraft || cancelling" @click="approve">
               {{ sending ? 'Отправляем…' : '✓ Утвердить и отправить' }}
+            </button>
+            <button type="button" class="report-approval-cancel" :disabled="sending || savingDraft || cancelling" @click="cancelReport">
+              {{ cancelling ? 'Отменяем…' : 'Отменить отчёт' }}
             </button>
           </aside>
         </div>
@@ -135,6 +138,7 @@ const editing = ref(false)
 const sending = ref(false)
 const savingDraft = ref(false)
 const regenerating = ref(false)
+const cancelling = ref(false)
 const loadingPreview = ref(false)
 const commentStatus = ref('draft') // draft | edited | approved
 const activeTab = ref('telegram')
@@ -233,6 +237,23 @@ const regenerate = async () => {
     toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать комментарий')
   } finally {
     regenerating.value = false
+  }
+}
+
+// Отмена неотправленного отчёта: клиенту ничего не уходило, подтверждение
+// не требуется; запись попадает в историю со статусом «Отменён»
+const cancelReport = async () => {
+  if (!props.delivery?.id || cancelling.value) return
+  cancelling.value = true
+  try {
+    const { data } = await api.post(`reports/deliveries/${props.delivery.id}/cancel`)
+    toaster.success('Отчёт отменён')
+    emit('sent', data)
+    emit('close')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось отменить отчёт')
+  } finally {
+    cancelling.value = false
   }
 }
 
@@ -781,6 +802,23 @@ const approve = async () => {
   opacity: 0.6;
   cursor: default;
 }
+
+/* Тихая отмена под основными действиями: текстовая, без визуального веса */
+.report-approval-cancel {
+  margin-top: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: #c23a3a;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.report-approval-cancel:hover:not(:disabled) { opacity: 1; }
+.report-approval-cancel:disabled { opacity: 0.4; cursor: default; }
+
+.report-approval-modal.is-dark .report-approval-cancel { color: #ff8a87; }
 
 @media (max-width: 720px) {
   .report-approval-body {
