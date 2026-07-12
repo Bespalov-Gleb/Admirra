@@ -926,7 +926,9 @@ class DetectorAlert(Base):
     actual_value = Column(Numeric(20, 2), nullable=True)
     consecutive_days = Column(Integer, nullable=False, default=1)
     pattern_key = Column(String(64), nullable=True)
-    hypothesis_text = Column(String(500), nullable=True)
+    # Composite plan/fact diagnoses contain the primary problem, related plan
+    # checks and contributing campaigns; 500 chars truncates valid context.
+    hypothesis_text = Column(Text, nullable=True)
     status = Column(String(16), nullable=False, default="open", index=True)
     opened_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     dismissed_at = Column(DateTime(timezone=True), nullable=True)

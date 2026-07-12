@@ -123,6 +123,12 @@ def test_plan_checks_are_one_alert_and_cpl_has_priority():
     assert "spend" in merged[0].hypothesis_text
 
 
+def test_detector_alert_keeps_full_composite_diagnosis_text():
+    # The UI must be able to show every related plan check and campaign clue,
+    # not silently fail once a composite explanation exceeds 500 characters.
+    assert isinstance(models.DetectorAlert.__table__.c.hypothesis_text.type, models.Text)
+
+
 def test_warmup_is_only_for_a_new_active_project(monkeypatch):
     monkeypatch.setattr(
         project_settings,

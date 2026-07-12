@@ -1182,7 +1182,10 @@ def upsert_alerts(
                         user_id=owner_id,
                         type=f"anomaly_{c.severity}",
                         title=f"{sev_text}: {c.metric}",
-                        body=c.hypothesis_text or f"Отклонение {c.metric}: {c.deviation_pct:+.1f}%",
+                        # Alert text itself is stored without a product limit;
+                        # the notifications table intentionally has a 1000-char
+                        # transport limit.
+                        body=(c.hypothesis_text or f"Отклонение {c.metric}: {c.deviation_pct:+.1f}%")[:1000],
                         meta={"client_id": str(client_id), "metric": c.metric, "mode": c.mode},
                     )
                 except Exception:
