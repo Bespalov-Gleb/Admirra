@@ -15,7 +15,7 @@
           <span v-if="subtitle" class="detector-banner__hypothesis">{{ subtitle }}</span>
         </div>
         <button
-          v-if="hasAlertRows"
+          v-if="hasExpandableDetails"
           type="button"
           class="detector-banner__action"
           @click="expanded = !expanded"
@@ -35,7 +35,7 @@
         </button>
       </div>
 
-      <div v-if="expanded && hasAlertRows" class="detector-banner__details">
+      <div v-if="expanded && hasExpandableDetails" class="detector-banner__details">
         <article
           v-for="alert in alerts"
           :key="alert.id"
@@ -114,6 +114,11 @@ const visible = computed(() => {
 })
 
 const hasAlertRows = computed(() => props.alerts.length > 0 || props.hiddenAlerts.length > 0)
+// For one alert the full diagnosis is already shown in the banner itself.
+// A second identical row below only wastes space and makes it look like two
+// different alerts. Details are useful when there are several items or hidden
+// items to manage.
+const hasExpandableDetails = computed(() => props.alerts.length + props.hiddenAlerts.length > 1)
 const primaryAlert = computed(() => props.alerts[0] || null)
 
 const title = computed(() => {
@@ -222,14 +227,12 @@ const hiddenMeta = (alert) => {
 }
 
 .detector-banner__hypothesis {
-  overflow: hidden;
   color: currentColor;
   font-size: 0.84rem;
   font-weight: 650;
   line-height: 1.35;
   opacity: 0.8;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .detector-banner__action {
@@ -302,13 +305,11 @@ const hiddenMeta = (alert) => {
 }
 
 .detector-alert-row__body strong {
-  overflow: hidden;
   color: #1f2937;
   font-size: 0.86rem;
   font-weight: 850;
   line-height: 1.28;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .detector-alert-row__body small {

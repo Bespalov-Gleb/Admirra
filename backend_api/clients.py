@@ -325,6 +325,7 @@ def update_client(
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
 
     update_data = client_in.dict(exclude_unset=True)
+    detector_just_enabled = bool(update_data.get("detector_enabled")) and not bool(client.detector_enabled)
 
     if "spreadsheet_id" in update_data:
         try:
@@ -371,6 +372,11 @@ def update_client(
         )
     db.commit()
     db.refresh(client)
+    # Turning the detector on must inspect the already imported history now,
+    # not wait for the next scheduled synchronization.
+    if detector_just_enabled:
+        _recalculate_detector_now(db, client)
+        db.refresh(client)
     return client
 
 

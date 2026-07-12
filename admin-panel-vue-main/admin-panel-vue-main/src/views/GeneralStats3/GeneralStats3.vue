@@ -368,7 +368,7 @@
     <PlanOnboardingBanner
       v-if="filters.client_id"
       :plan-status="detectorSummary?.plan_status"
-      :detector-enabled="detectorSummary?.warmup_status !== 'disabled'"
+      :detector-enabled="!['disabled', 'paused'].includes(detectorSummary?.warmup_status)"
       :warming-up="detectorSummary?.warmup_status === 'warming_up'"
       :has-critical="hasCriticalDetectorAlert"
       :dismissed-until="detectorSummary?.onboarding_dismissed_until"
@@ -5081,7 +5081,7 @@ const openPlanSettings = () => {
   if (!filters.client_id) return
   trackPlanOnboarding('clicked')
   setCurrentProject(filters.client_id)
-  router.push({ path: '/project-card', query: { settings: filters.client_id } })
+  router.push({ name: 'MockupProjectCard', query: { settings: String(filters.client_id) } })
 }
 
 // §8 ТЗ детектора ит.3: показы и клики плашки — метрика успеха итерации

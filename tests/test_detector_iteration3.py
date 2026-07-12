@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend_api.services import detector_iteration3 as iteration3
+from backend_api.services import project_settings
 from core import models
 
 
@@ -119,6 +120,28 @@ def test_plan_checks_are_one_alert_and_cpl_has_priority():
     assert merged[0].metric == "cpa"
     assert merged[0].mode == "plan"
     assert merged[0].meta["checks"] == ["P-1", "P-2"]
+    assert "spend" in merged[0].hypothesis_text
+
+
+def test_warmup_is_only_for_a_new_active_project(monkeypatch):
+    monkeypatch.setattr(
+        project_settings,
+        "get_config",
+        lambda: SimpleNamespace(detector=SimpleNamespace(warmup_days=21)),
+    )
+    established = SimpleNamespace(
+        detector_enabled=True,
+        status=models.ClientStatus.ACTIVE,
+        actual_start_date=date.today() - timedelta(days=30),
+    )
+    assert project_settings.get_detector_state(established)["status"] == "ready"
+
+    paused = SimpleNamespace(
+        detector_enabled=True,
+        status=models.ClientStatus.PAUSED,
+        actual_start_date=date.today() - timedelta(days=30),
+    )
+    assert project_settings.get_detector_state(paused)["status"] == "paused"
 
 
 def test_diagnostic_layer_names_the_auction_and_funnel_patterns():

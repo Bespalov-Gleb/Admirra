@@ -171,7 +171,7 @@ def get_detector_summary(
 
     det_state = get_detector_state(client)
     warmup_status = det_state["status"] if global_on else "disabled"
-    if warmup_status == "disabled":
+    if warmup_status in {"disabled", "paused"}:
         today = _now().date()
         plan_status = _plan_status(db, client_id, today)
         return {
@@ -500,14 +500,14 @@ def get_cross_project_status(
         global_on = getattr(owner, "global_detector_enabled", True) if owner else True
         det_state = get_detector_state(client)
         status = det_state["status"] if global_on else "disabled"
-        if status == "disabled":
+        if status in {"disabled", "paused"}:
             result.append({
                 "project_id": client.id,
                 "warning_count": 0,
                 "problem_count": 0,
                 "hidden_count": 0,
                 "max_severity": None,
-                "warmup_status": "disabled",
+                "warmup_status": status,
                 "plan_status": _plan_status(db, client.id, now.date()),
                 "sync_issue_count": 0,
             })
@@ -537,6 +537,7 @@ def get_cross_project_status(
                     "severity": a.severity,
                     "hypothesis_text": a.hypothesis_text,
                     "metric": a.metric,
+                    "checks": list((a.meta or {}).get("checks") or []),
                 }
                 for a in top
             ],

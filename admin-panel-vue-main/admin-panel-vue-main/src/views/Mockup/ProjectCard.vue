@@ -328,9 +328,11 @@
                     class="detector-badge detector-badge--pill"
                     :class="`detector-badge--${detectorBadge(project).type}`"
                     :title="detectorBadge(project).text"
-                    @click.stop="toggleDetectorPreview(project.id)"
+                    :disabled="!detectorBadge(project).interactive"
+                    @click.stop="detectorBadge(project).interactive && toggleDetectorPreview(project.id)"
                   >
                     <svg v-if="detectorBadge(project).type === 'warmup'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    <svg v-else-if="detectorBadge(project).type === 'sync'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0-14.9-3.8L3 10"/><path d="M3 4v6h6"/><path d="M4 13a8.1 8.1 0 0 0 14.9 3.8L21 14"/><path d="M21 20v-6h-6"/></svg>
                     <template v-else>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
                       {{ detectorBadge(project).count }}
@@ -344,7 +346,10 @@
                       :class="`detector-preview__row--${al.severity}`"
                     >
                       <span class="detector-preview__dot"></span>
-                      <span class="detector-preview__text">{{ al.hypothesis_text || 'Отклонение' }}</span>
+                      <div class="detector-preview__copy">
+                        <span v-if="detectorAlertChecks(al).length" class="detector-preview__checks">{{ detectorAlertChecks(al).join(' · ') }}</span>
+                        <span class="detector-preview__text">{{ al.hypothesis_text || 'Отклонение' }}</span>
+                      </div>
                     </div>
                     <div v-if="detectorPreviewMore(project) > 0" class="detector-preview__more">и ещё {{ detectorPreviewMore(project) }}</div>
                     <div class="detector-preview__actions">
@@ -378,7 +383,6 @@
             </button>
           </div>
           <div v-else class="project-tile-stats-wrap">
-            <div v-if="isProjectWarmingUp(project)" class="project-warmup-pill">накопление данных</div>
             <div class="project-tile-stats">
               <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
                 <div class="iconbox flex-shrink-0">
@@ -1982,6 +1986,14 @@ onMounted(() => document.addEventListener('mousedown', closeDetectorPreview))
 onUnmounted(() => document.removeEventListener('mousedown', closeDetectorPreview))
 
 const detectorPreview = (project) => getProjectStatus(project.id)?.top_alerts || []
+const detectorAlertChecks = (alert) => {
+  const labels = {
+    'P-1': 'Темп расхода',
+    'P-2': 'Стоимость заявки',
+    'P-3': 'Темп заявок',
+  }
+  return (alert?.checks || []).map((check) => labels[check]).filter(Boolean)
+}
 const detectorPreviewMore = (project) => {
   const status = getProjectStatus(project.id)
   if (!status) return 0
@@ -1999,25 +2011,25 @@ const askAiFromPreview = (project) => {
 const detectorBadge = (project) => {
   const status = getProjectStatus(project.id)
   if (!status) return null
-  if (status.sync_issue_count) return { type: 'warmup', text: 'Нет свежих данных' }
-  if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Детектор накапливает данные' }
-  if (['missing', 'incomplete', 'expired'].includes(status.plan_status)) return { type: 'warmup', text: status.plan_status === 'incomplete' ? 'дозаполните план' : 'план не задан' }
+  if (status.warmup_status === 'paused' || status.warmup_status === 'disabled') return null
+  if (status.sync_issue_count) return { type: 'sync', text: 'Нет свежих данных', interactive: false }
+  if (status.warmup_status === 'warming_up') return { type: 'warmup', text: 'Детектор накапливает данные', interactive: false }
   const total = (status.warning_count || 0) + (status.problem_count || 0)
   const hidden = status.hidden_count || 0
   if (!total && !hidden) return null
   if (!total && hidden) return {
-    type: 'warmup',
+    type: 'muted',
     text: `Скрыто ${hidden} ${hidden === 1 ? 'отклонение' : hidden < 5 ? 'отклонения' : 'отклонений'}`,
     count: hidden,
+    interactive: true,
   }
   return {
     type: status.max_severity || 'warning',
     text: `${total} ${total === 1 ? 'отклонение' : total < 5 ? 'отклонения' : 'отклонений'}${hidden ? ` · скрыто ${hidden}` : ''}`,
     count: total,
+    interactive: true,
   }
 }
-
-const isProjectWarmingUp = (project) => detectorBadge(project)?.type === 'warmup'
 
 onMounted(async () => {
   await Promise.all([fetchProjects(), fetchFolders()])
@@ -2550,28 +2562,6 @@ onMounted(async () => {
   margin-bottom: 1.25rem;
 }
 
-.project-warmup-pill {
-  position: absolute;
-  top: -0.6944rem;
-  left: 50%;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 1.7361rem;
-  padding: 0.2778rem 0.6944rem;
-  border-radius: 999px;
-  background: rgba(239, 246, 255, 0.96);
-  color: #1d4ed8;
-  font-size: 0.7639rem;
-  font-weight: 800;
-  line-height: 1;
-  pointer-events: none;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  box-shadow: 0 0.4167rem 1.0417rem rgba(37, 99, 235, 0.14);
-}
-
 .project-tile-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2791,7 +2781,7 @@ onMounted(async () => {
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.2222rem minmax(0, 0.85fr) minmax(19rem, 1fr);
+  grid-template-columns: 2.2222rem minmax(8.5rem, 0.85fr) minmax(22.75rem, 1fr);
   align-items: center;
   gap: 0.8333rem;
   min-height: 4.1667rem;
@@ -2826,7 +2816,7 @@ onMounted(async () => {
 
 .project-channel-metrics {
   display: grid;
-  grid-template-columns: minmax(4rem, 0.7fr) minmax(6.2rem, 1fr) minmax(6.2rem, 1fr);
+  grid-template-columns: minmax(6.75rem, 0.9fr) minmax(7.75rem, 1.05fr) minmax(8.25rem, 1.15fr);
   align-self: stretch;
   min-width: 0;
   overflow: hidden;
@@ -2852,12 +2842,10 @@ onMounted(async () => {
 .project-channel-metric strong {
   display: block;
   max-width: 100%;
-  overflow: hidden;
   color: #171717;
-  font-size: 1.1111rem;
+  font-size: clamp(0.9rem, 1.25vw, 1.1111rem);
   font-weight: 800;
   line-height: 1.05;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3417,7 +3405,7 @@ onMounted(async () => {
 
   .project-channel-metrics {
     grid-column: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     min-width: 0;
     border-top: 1px solid rgba(245, 158, 11, 0.13);
     border-left: 0;
@@ -3425,6 +3413,12 @@ onMounted(async () => {
   }
 
   .project-channel-metric:first-child {
+    border-left: 0;
+  }
+
+  .project-channel-metric--spend {
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(245, 158, 11, 0.13);
     border-left: 0;
   }
 
@@ -3939,6 +3933,13 @@ onMounted(async () => {
   padding: 0.18rem 0.55rem;
   font-weight: 800;
 }
+.detector-badge--pill:disabled { cursor: default; }
+.detector-badge--sync,
+.detector-badge--muted {
+  background: #f4f6f9;
+  color: #6b7280;
+  border: 1px solid #dce3ed;
+}
 .detector-preview {
   position: absolute;
   top: calc(100% + 0.55rem);
@@ -3969,7 +3970,21 @@ onMounted(async () => {
 }
 .detector-preview__row--problem .detector-preview__dot { background: #ef4444; }
 .detector-preview__text {
-  font-size: 0.83rem; line-height: 1.45; color: #1f2937; font-weight: 600;
+  display: block;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: #1f2937;
+  font-weight: 600;
+}
+.detector-preview__copy { min-width: 0; }
+.detector-preview__checks {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: #7c2d12;
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 .detector-preview__more { font-size: 0.77rem; color: #94a3b8; font-weight: 600; padding: 0.5rem 0.25rem 0.15rem; }
 .detector-preview__actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }

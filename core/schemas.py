@@ -965,6 +965,9 @@ class DetectorTopAlert(BaseModel):
     severity: str
     hypothesis_text: Optional[str] = None
     metric: Optional[str] = None
+    # Composite plan alert: several plan checks can be represented by one
+    # actionable notification, but the card preview must name every check.
+    checks: List[str] = []
 
 
 class DetectorCrossProjectItem(BaseModel):
