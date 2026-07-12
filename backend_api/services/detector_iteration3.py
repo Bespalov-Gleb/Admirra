@@ -329,9 +329,13 @@ def _budget_for_channel(
 
 
 def _is_sync_stale(integration: models.Integration, reference_date: date, cfg: DetectorCfg) -> tuple[bool, int | None]:
-    status = _enum(integration.sync_status).upper()
-    if status == "FAILED":
-        return True, None
+    """Freeze data-dependent checks only when the imported data is stale.
+
+    ``sync_status=FAILED`` records the latest attempt, while ``last_sync_at``
+    remains the timestamp of the last successful import. A transient failed
+    attempt must not hide a critical plan/fact issue when yesterday's data is
+    already available.
+    """
     last = integration.last_sync_at
     if not last:
         return True, None

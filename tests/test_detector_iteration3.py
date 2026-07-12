@@ -201,3 +201,8 @@ def test_c0_balance_warning_and_c3_stale_sync_are_distinct(monkeypatch):
 
     stale = SimpleNamespace(sync_status=models.IntegrationSyncStatus.SUCCESS, last_sync_at=datetime(2026, 7, 5))
     assert iteration3._is_sync_stale(stale, date(2026, 7, 8), cfg())[0] is True
+
+    # A failed retry does not erase fresh data from the preceding successful
+    # import; plan/fact checks must still protect the project.
+    failed_but_fresh = SimpleNamespace(sync_status=models.IntegrationSyncStatus.FAILED, last_sync_at=datetime(2026, 7, 7))
+    assert iteration3._is_sync_stale(failed_but_fresh, date(2026, 7, 8), cfg())[0] is False
