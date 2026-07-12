@@ -216,10 +216,10 @@
                   <div class="project-channel-main"><strong>{{ channel.name }}</strong></div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
-                      <strong>{{ formatNumber(channel.goalTotal) }}
+                      <strong>{{ channel.needsGoalSelection ? '—' : formatNumber(channel.goalTotal) }}
                         <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls" :title="leadsDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
-                      <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
+                      <span :title="channel.goalSelectionTooltip || null">{{ channel.goalLabel }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
@@ -440,10 +440,10 @@
                   </div>
                   <div class="project-channel-metrics">
                     <div class="project-channel-metric">
-                      <strong>{{ formatNumber(channel.goalTotal) }}
+                      <strong>{{ channel.needsGoalSelection ? '—' : formatNumber(channel.goalTotal) }}
                         <em v-if="leadsDeltaBadge(channel)" class="channel-delta" :class="leadsDeltaBadge(channel).cls" :title="leadsDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': leadsDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ leadsDeltaBadge(channel).text }}</em>
                       </strong>
-                      <span>{{ capitalizeFirst(channel.goalNoun) }}</span>
+                      <span :title="channel.goalSelectionTooltip || null">{{ channel.goalLabel }}</span>
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
@@ -785,6 +785,8 @@ const openSelect = ref(null)
 const metricsByProjectId = ref({})
 const projectInsightsById = ref({})
 const expandedGoalsByProjectId = ref({})
+let projectMetricsRequestId = 0
+const PROJECT_INSIGHT_CONCURRENCY = 3
 
 // ── Папки проектов ──
 const folders = ref([])
@@ -1536,6 +1538,10 @@ const normalizeGoalRows = (goals = []) => goals
       hasCost,
       cost,
       cpl: hasCost && count > 0 ? cost / count : null,
+      // Для VK бэкенд явно помечает действия, выбранные агентством для
+      // расчёта заявок/CPL. Не выбранные типы по-прежнему доступны в развороте,
+      // но не должны искажать итог на карточке.
+      summable: goal.summable !== false,
       syncing: Boolean(goal.syncing),
       missingInMetrika: Boolean(goal.missing_in_metrika),
     }
@@ -1564,8 +1570,14 @@ const capitalizeFirst = (value) => {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''
 }
 
+const vkGoalSelectionTooltip = (selectedGoals) => {
+  if (!selectedGoals.length) return 'Выберите действия, которые нужно считать заявками. Пока они не выбраны, общий CPL для VK не рассчитывается.'
+  return `В заявках и общем CPL учитываются: ${selectedGoals.map((goal) => goal.name).join(', ')}.`
+}
+
 const topGoalSummary = (goals, platformCode, expenses) => {
-  if (goals.some((goal) => goal.syncing)) {
+  const countedGoals = goals.filter((goal) => goal.summable !== false)
+  if (countedGoals.some((goal) => goal.syncing)) {
     return {
       total: 0,
       noun: 'заявок',
@@ -1573,9 +1585,11 @@ const topGoalSummary = (goals, platformCode, expenses) => {
       text: 'цели синхронизируются',
     }
   }
-  const total = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+  const total = countedGoals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
   const noun = goalNoun(total)
-  const avgCpl = ['yandex', 'avito'].includes(platformCode) && total > 0 ? Number(expenses || 0) / total : null
+  // VK Ads: расход площадки и число действий, отмеченных агентством как
+  // заявки. Для невыбранных типов (охват, трафик и т.п.) CPL не считаем.
+  const avgCpl = total > 0 ? Number(expenses || 0) / total : null
   if (!total) {
     return {
       total: 0,
@@ -1612,11 +1626,13 @@ const projectChannelSummaries = (project) => {
     // ТЗ «Дельта по заявкам» §4: prev = null (нет данных за P′) → дельты нет.
     // База сравнения — предыдущий сопоставимый период, его считает бэк (§6).
     const prevExpenses = Number(metric.prev?.expenses || 0)
-    const prevTotal = sumPrevCounts(goals)
+    const countedGoals = goals.filter((goal) => goal.summable !== false)
+    const isVk = platform.code === 'vk'
+    const prevTotal = sumPrevCounts(countedGoals)
     const leadsDelta = prevTotal == null ? null : summary.total - prevTotal
     // CPL канала считается как расход/цели — та же формула для прошлого периода.
     // §6: cpl_prev = null при leads_prev ∈ {0, null} — деление на ноль не маскируем.
-    const prevAvgCpl = (['yandex', 'avito'].includes(platform.code) && prevTotal != null && prevTotal > 0)
+    const prevAvgCpl = (prevTotal != null && prevTotal > 0)
       ? prevExpenses / prevTotal
       : null
     let cplDeltaPct = null
@@ -1629,6 +1645,9 @@ const projectChannelSummaries = (project) => {
       goals,
       goalTotal: summary.total,
       goalNoun: summary.noun,
+      goalLabel: isVk ? (countedGoals.length ? 'Заявки · по выбранным' : 'Выберите действия') : capitalizeFirst(summary.noun),
+      goalSelectionTooltip: isVk ? vkGoalSelectionTooltip(countedGoals) : '',
+      needsGoalSelection: isVk && goals.length > 0 && countedGoals.length === 0,
       avgCpl: summary.avgCpl,
       summaryText: summary.text,
       prevGoalTotal: prevTotal,
@@ -1652,7 +1671,10 @@ const folderChannelSummaries = (folder) => {
       prevExpenses += Number(metric.prev?.expenses || 0)
 
       for (const goal of normalizeGoalRows(insights.goals?.[platform.code] || [])) {
-        const key = String(goal.id || goal.name || 'goal')
+        // В одной папке у разных проектов один и тот же тип VK-действия может
+        // быть выбран как заявка только в части интеграций. Не смешиваем такие
+        // строки, иначе невыбранные действия попадут в суммарный CPL.
+        const key = `${String(goal.id || goal.name || 'goal')}:${goal.summable !== false ? 'selected' : 'other'}`
         const current = goalMap.get(key) || {
           ...goal,
           count: 0,
@@ -1676,12 +1698,14 @@ const folderChannelSummaries = (folder) => {
     }
 
     const goals = Array.from(goalMap.values())
-    const goalTotal = goals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+    const countedGoals = goals.filter((goal) => goal.summable !== false)
+    const goalTotal = countedGoals.reduce((sum, goal) => sum + Number(goal.count || 0), 0)
+    const isVk = platform.code === 'vk'
     // §4: null, если данных за P′ нет ни по одной цели папки
-    const prevGoalTotal = sumPrevCounts(goals)
+    const prevGoalTotal = sumPrevCounts(countedGoals)
     const goalNounValue = goalNoun(goalTotal)
-    const avgCpl = ['yandex', 'avito'].includes(platform.code) && goalTotal > 0 ? expenses / goalTotal : null
-    const prevAvgCpl = ['yandex', 'avito'].includes(platform.code) && prevGoalTotal != null && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
+    const avgCpl = goalTotal > 0 ? expenses / goalTotal : null
+    const prevAvgCpl = prevGoalTotal != null && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
     let cplDeltaPct = null
     if (avgCpl !== null && avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
       cplDeltaPct = Math.round(((avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
@@ -1693,6 +1717,9 @@ const folderChannelSummaries = (folder) => {
       goals,
       goalTotal,
       goalNoun: goalNounValue,
+      goalLabel: isVk ? (countedGoals.length ? 'Заявки · по выбранным' : 'Выберите действия') : capitalizeFirst(goalNounValue),
+      goalSelectionTooltip: isVk ? vkGoalSelectionTooltip(countedGoals) : '',
+      needsGoalSelection: isVk && goals.length > 0 && countedGoals.length === 0,
       avgCpl,
       summaryText: avgCpl
         ? `${formatNumber(goalTotal)} ${goalNounValue} · CPL ${formatMoney(withChannelVat(avgCpl, platform.code))}`
@@ -1813,31 +1840,40 @@ const openAiAudit = (project) => {
 }
 
 const loadProjectMetrics = async () => {
+  const requestId = ++projectMetricsRequestId
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
-
-  const entries = await Promise.all([
-    ...projects.value.map(async (project) => {
-      try {
-        const data = await loadProjectInsight(project.id, startDate, endDate, null, periodKey.value)
-        return [project.id, data]
-      } catch {
-        return [project.id, emptyProjectInsights()]
-      }
-    }),
+  const entries = [
+    ...projects.value.map((project) => ({ id: project.id, projectId: project.id })),
     // Сводки папок: те же инсайты, но со скоупом folder_id — лежат под folder.id,
     // поэтому карточка папки использует те же функции, что и карточка проекта.
-    ...folders.value.map(async (folder) => {
+    ...folders.value.map((folder) => ({ id: folder.id, folderId: folder.id })),
+  ]
+
+  // Раньше при 17 проектах браузер отправлял 119 запросов одновременно
+  // (7 на карточку) и заполнял интерфейс только после самого последнего.
+  // Теперь карточки получают данные по мере готовности, а бэкенд получает
+  // ограниченный поток запросов вместо лавины.
+  let nextIndex = 0
+  const loadNext = async () => {
+    while (nextIndex < entries.length) {
+      const entry = entries[nextIndex]
+      nextIndex += 1
+      let data
       try {
-        const data = await loadProjectInsight(null, startDate, endDate, folder.id, periodKey.value)
-        return [folder.id, data]
+        data = await loadProjectInsight(entry.projectId || null, startDate, endDate, entry.folderId || null, periodKey.value)
       } catch {
-        return [folder.id, emptyProjectInsights()]
+        data = emptyProjectInsights()
       }
-    }),
-  ])
-  const insights = Object.fromEntries(entries)
-  projectInsightsById.value = insights
-  metricsByProjectId.value = Object.fromEntries(entries.map(([projectId, data]) => [projectId, data.all || emptyMetric()]))
+      if (requestId !== projectMetricsRequestId) return
+      projectInsightsById.value = { ...projectInsightsById.value, [entry.id]: data }
+      metricsByProjectId.value = { ...metricsByProjectId.value, [entry.id]: data.all || emptyMetric() }
+    }
+  }
+
+  await Promise.all(Array.from(
+    { length: Math.min(PROJECT_INSIGHT_CONCURRENCY, entries.length) },
+    () => loadNext(),
+  ))
 }
 
 const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null) => {
@@ -2032,9 +2068,12 @@ const detectorBadge = (project) => {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchProjects(), fetchFolders()])
+  await Promise.all([fetchProjects({ preferCache: true }), fetchFolders()])
   openSettingsFromQuery()
-  await Promise.all([loadProjectMetrics(), fetchCrossProject()])
+  // Не задерживаем отрисовку страницы ожиданием статистики всех карточек:
+  // видимые данные подгружаются последовательно, а структура уже интерактивна.
+  void loadProjectMetrics()
+  void fetchCrossProject()
 })
 </script>
 
