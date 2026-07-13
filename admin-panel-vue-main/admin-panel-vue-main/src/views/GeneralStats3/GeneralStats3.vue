@@ -116,46 +116,50 @@
     <section class="heading-section">
       <div class="dashboard-title-row">
         <h1>{{ dashboardTitle }}</h1>
-        <!-- Видимый статус детектора: сразу понятно, что проект под наблюдением -->
-        <button
-          v-if="filters.client_id && detectorSummary"
-          type="button"
-          class="detector-status-chip"
-          :class="`detector-status-chip--${detectorStatusChip.kind}`"
-          :title="detectorStatusChip.hint"
-          @click="openProjectSettingsModal"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
-          <span>{{ detectorStatusChip.label }}</span>
-        </button>
-        <!-- Настройки проекта прямо с дашборда (план/цели/детектор) -->
-        <button
-          v-if="filters.client_id && !folderMode"
-          type="button"
-          class="project-settings-btn"
-          title="Настройки проекта"
-          @click="openProjectSettingsModal"
-        >
-          <Cog6ToothIcon />
-        </button>
       </div>
-      <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
-        <button
-          type="button"
-          class="dashboard-view-tab"
-          role="tab"
-          :class="{ 'dashboard-view-tab--active': activeView === 'report' }"
-          :aria-selected="activeView === 'report'"
-          @click="activeView = 'report'"
-        >Отчёт</button>
-        <button
-          type="button"
-          class="dashboard-view-tab"
-          role="tab"
-          :class="{ 'dashboard-view-tab--active': activeView === 'dynamics' }"
-          :aria-selected="activeView === 'dynamics'"
-          @click="activeView = 'dynamics'"
-        >Динамика</button>
+      <div class="dashboard-view-row">
+        <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
+          <button
+            type="button"
+            class="dashboard-view-tab"
+            role="tab"
+            :class="{ 'dashboard-view-tab--active': activeView === 'report' }"
+            :aria-selected="activeView === 'report'"
+            @click="activeView = 'report'"
+          >Отчёт</button>
+          <button
+            type="button"
+            class="dashboard-view-tab"
+            role="tab"
+            :class="{ 'dashboard-view-tab--active': activeView === 'dynamics' }"
+            :aria-selected="activeView === 'dynamics'"
+            @click="activeView = 'dynamics'"
+          >Динамика</button>
+        </div>
+        <div class="dashboard-view-row__actions">
+          <!-- Настройки проекта: единственная точка входа к плану и детектору. -->
+          <button
+            v-if="filters.client_id && !folderMode"
+            type="button"
+            class="project-settings-btn"
+            title="Настройки проекта"
+            @click="openProjectSettingsModal"
+          >
+            <Cog6ToothIcon />
+            <span>Настройки проекта</span>
+          </button>
+          <!-- Информационный статус, не дублирует кнопку настроек. -->
+          <span
+            v-if="filters.client_id && detectorSummary"
+            class="detector-status-chip"
+            :class="`detector-status-chip--${detectorStatusChip.kind}`"
+            :title="detectorStatusChip.hint"
+            role="status"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+            <span>{{ detectorStatusChip.label }}</span>
+          </span>
+        </div>
       </div>
       <div class="filters-row">
         <!-- Режим «Аналитика папки»: сводка по проектам в папке -->
@@ -556,7 +560,12 @@
           <b :class="`detector-popover__level--${detectorMetricPopover.alert.severity}`">{{ detectorMetricPopover.alert.severity === 'problem' ? 'Проблема' : 'Внимание' }}</b>
           <span class="detector-popover__meta">· длится {{ alertDurationLabel(detectorMetricPopover.alert) }} · {{ alertChannelLabel(detectorMetricPopover.alert) }}</span>
         </div>
-        <strong>{{ detectorMetricPopover.alert.hypothesis_text || 'Отклонение в показателе' }}</strong>
+        <div
+          class="detector-popover__message"
+          :class="{ 'detector-popover__message--sectioned': detectorAlertSections(detectorMetricPopover.alert).length > 1 }"
+        >
+          <p v-for="(section, index) in detectorAlertSections(detectorMetricPopover.alert)" :key="`${detectorMetricPopover.alert.id}-section-${index}`">{{ section }}</p>
+        </div>
         <small class="detector-popover__source">{{ alertSourceLine(detectorMetricPopover.alert) }}</small>
         <small v-if="metricDeltaMismatch(detectorMetricPopover.key)" class="detector-popover__mismatch">
           Дельта сравнивает с прошлым периодом по фильтру. Флажок — {{ detectorMetricPopover.alert.mode === 'plan' ? 'с планом проекта' : 'с правилом детектора' }}.
@@ -564,7 +573,7 @@
         <div class="detector-popover__actions">
           <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(detectorMetricPopover.alert)">Спросить AI</button>
           <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === detectorMetricPopover.key }">
-            <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === detectorMetricPopover.key ? null : detectorMetricPopover.key">Скрыть…</button>
+            <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === detectorMetricPopover.key ? null : detectorMetricPopover.key">Скрыть</button>
             <div class="detector-popover__snooze-menu">
               <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 1)">На 1 день</button>
               <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 3)">На 3 дня</button>
@@ -5318,6 +5327,20 @@ const updateDetectorMetricPopoverPosition = () => {
 
   const rect = anchor.getBoundingClientRect()
   const viewportPadding = 16
+  // KPI-ТЗ §2: на мобильном это нижняя шторка, а не маленький тултип у
+  // угла карточки. Содержимое и действия остаются теми же.
+  if (window.innerWidth <= 767) {
+    detectorMetricPopoverStyle.value = {
+      position: 'fixed',
+      zIndex: 2147483646,
+      width: '100vw',
+      left: '0',
+      right: '0',
+      bottom: '0',
+      maxHeight: '82vh',
+    }
+    return
+  }
   const width = Math.min(368, Math.max(280, window.innerWidth - viewportPadding * 2))
   const left = Math.min(
     Math.max(viewportPadding, rect.right - width),
@@ -5413,6 +5436,18 @@ const alertSourceLine = (alert) => {
     return 'Проверка критических поломок · считает детектор, не AI'
   }
   return 'Считает детектор, не AI'
+}
+
+// Один составной алерт хранит несколько проверок в hypothesis_text через
+// «\n•». Отдельные абзацы с маркерами сохраняют общую сущность алерта, но
+// делают длинное объяснение читаемым и в поповере KPI.
+const detectorAlertSections = (alert) => {
+  const text = String(alert?.hypothesis_text || 'Отклонение в показателе').replace(/\r/g, '').trim()
+  const sections = text
+    .split(/\n\s*•\s*/)
+    .map((part) => part.replace(/^\s*•\s*/, '').trim())
+    .filter(Boolean)
+  return sections.length ? sections : ['Отклонение в показателе']
 }
 
 const toggleDetectorEntityPopover = (rowKey) => {
@@ -5892,11 +5927,10 @@ onMounted(() => {
   margin-top: 6.5rem;
 }
 
-/* Заголовок + статус детектора + настройки проекта на одной оси */
+/* Заголовок проекта */
 .dashboard-title-row {
   display: flex;
   align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
 }
 
@@ -5914,11 +5948,9 @@ onMounted(() => {
   border-radius: 999px;
   font-size: 0.92rem;
   font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.15s;
+  white-space: nowrap;
+  cursor: default;
 }
-
-.detector-status-chip:hover { transform: translateY(-1px); }
 
 .detector-status-chip--on {
   background: #e6f6ed;
@@ -5942,12 +5974,17 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.4rem;
+  gap: 0.48rem;
+  min-height: 2.4rem;
+  padding: 0 0.88rem 0 0.72rem;
   height: 2.4rem;
   border: 1px solid #ebebeb;
   border-radius: 999px;
   background: #fff;
   color: #696969;
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, transform 0.15s;
 }
@@ -5959,8 +5996,8 @@ onMounted(() => {
 }
 
 .project-settings-btn svg {
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.2rem;
+  height: 1.2rem;
 }
 
 .figma-dashboard.is-dark .project-settings-btn {
@@ -5998,10 +6035,26 @@ onMounted(() => {
 .dashboard-view-tabs {
   display: inline-flex;
   gap: 0.4rem;
-  margin: 0 0 2rem;
+  margin: 0;
   padding: 0.4rem;
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.06);
+}
+
+.dashboard-view-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+
+.dashboard-view-row__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  min-width: 0;
 }
 
 .dashboard-view-tab {
@@ -7510,7 +7563,7 @@ onMounted(() => {
   overflow: visible;
 }
 
-/* ТЗ «Флажок детектора на KPI-карточке» §1: бейдж 16px с «!» на углу,
+/* ТЗ «Флажок детектора на KPI-карточке» §1: бейдж 18px с «!» на углу,
    выступает за карточку, обводка 2px фоном; клик-зона — невидимые 44px */
 .kpi-flag {
   position: absolute;
@@ -7529,8 +7582,8 @@ onMounted(() => {
 }
 
 .kpi-flag__badge {
-  width: 1.4815rem;
-  height: 1.4815rem;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -7541,8 +7594,8 @@ onMounted(() => {
 }
 
 .kpi-flag__badge svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 10px;
+  height: 10px;
 }
 
 .kpi-flag__badge--warning { background: #f59e0b; }
@@ -7592,6 +7645,33 @@ onMounted(() => {
   white-space: pre-line;
 }
 
+.detector-popover__message {
+  display: grid;
+  gap: 0.45rem;
+  color: #111827;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.detector-popover__message p {
+  margin: 0;
+}
+
+.detector-popover__message--sectioned p {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.detector-popover__message--sectioned p::before {
+  position: absolute;
+  top: 0;
+  left: 0.18rem;
+  color: currentColor;
+  content: '•';
+}
+
 .detector-popover small {
   color: #6b7280;
   font-size: 0.75rem;
@@ -7609,10 +7689,11 @@ onMounted(() => {
 .detector-popover__actions button {
   border: 1px solid #e5e7eb;
   border-radius: 999px;
-  padding: 0.42rem 0.62rem;
+  min-height: 2.4rem;
+  padding: 0.56rem 0.78rem;
   background: #fff;
   color: #374151;
-  font-size: 0.73rem;
+  font-size: 0.8rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -7674,8 +7755,8 @@ onMounted(() => {
   z-index: 5;
   display: none;
   flex-direction: column;
-  min-width: 9rem;
-  padding: 0.3rem;
+  min-width: 10.5rem;
+  padding: 0.42rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.7rem;
   background: #fff;
@@ -7689,13 +7770,34 @@ onMounted(() => {
 .detector-popover__snooze-menu button {
   border: 0 !important;
   border-radius: 0.5rem !important;
-  padding: 0.5rem 0.7rem !important;
+  min-height: 2.55rem;
+  padding: 0.6rem 0.8rem !important;
   text-align: left;
   white-space: nowrap;
 }
 
 .detector-popover__snooze-menu button:hover {
   background: #f5f7f9;
+}
+
+/* KPI-поповер на телефоне становится нижней шторкой с тем же содержимым. */
+@media (max-width: 767px) {
+  .dashboard-view-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-view-row__actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .detector-popover--teleported {
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -1rem 2.5rem rgba(15, 23, 42, 0.2);
+  }
 }
 @keyframes anomaly-pulse {
   0%, 100% { opacity: 1; }

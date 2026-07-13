@@ -92,6 +92,27 @@ def test_p1_red_overpace_has_forecast_and_exhaustion_has_special_copy(monkeypatc
     assert "израсходован полностью" in exhausted.hypothesis_text
 
 
+def test_p1_uses_iteration_three_yellow_threshold_of_twenty_percent(monkeypatch):
+    # Для P-1/P-3 ТЗ задаёт жёлтый порог 20%, не 10%; красный — 40%.
+    # На 15-й день из 30 при бюджете 100 000 ₽ ожидание равно 50 000 ₽.
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (55_000, 0, 0))
+    assert iteration3._make_plan_spend(
+        None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
+    ) is None
+
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (60_000, 0, 0))
+    warning = iteration3._make_plan_spend(
+        None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
+    )
+    assert warning and warning.severity == "warning"
+
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (70_000, 0, 0))
+    problem = iteration3._make_plan_spend(
+        None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
+    )
+    assert problem and problem.severity == "problem"
+
+
 def test_p2_uses_money_volume_not_lead_count_and_budget_cap(monkeypatch):
     monkeypatch.setattr(iteration3, "_target_window_start", lambda *_: date(2026, 7, 1))
     monkeypatch.setattr(iteration3, "_target_exists", lambda *_: True)
@@ -121,6 +142,7 @@ def test_plan_checks_are_one_alert_and_cpl_has_priority():
     assert merged[0].mode == "plan"
     assert merged[0].meta["checks"] == ["P-1", "P-2"]
     assert "spend" in merged[0].hypothesis_text
+    assert merged[0].hypothesis_text == "• cpl\n• Дополнительно: spend"
 
 
 def test_detector_alert_keeps_full_composite_diagnosis_text():

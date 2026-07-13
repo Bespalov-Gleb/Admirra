@@ -44,13 +44,18 @@
         >
           <span class="detector-alert-row__dot"></span>
           <div class="detector-alert-row__body">
-            <strong>{{ alertTitle(alert) }}</strong>
+            <div
+              class="detector-alert-row__message"
+              :class="{ 'detector-alert-row__message--sectioned': alertSections(alert).length > 1 }"
+            >
+              <p v-for="(section, index) in alertSections(alert)" :key="`${alert.id}-section-${index}`">{{ section }}</p>
+            </div>
             <small>{{ alertMeta(alert) }}</small>
           </div>
           <div class="detector-alert-row__actions">
             <button type="button" class="detector-alert-row__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
             <span class="detector-alert-row__snooze" :class="{ open: openSnoozeId === alert.id }">
-              <button type="button" @click.stop="openSnoozeId = openSnoozeId === alert.id ? null : alert.id">Скрыть…</button>
+              <button type="button" @click.stop="openSnoozeId = openSnoozeId === alert.id ? null : alert.id">Скрыть</button>
               <span class="detector-alert-row__snooze-menu">
                 <button type="button" @click="snooze(alert, 1)">На 1 день</button>
                 <button type="button" @click="snooze(alert, 3)">На 3 дня</button>
@@ -63,7 +68,7 @@
               class="detector-alert-row__soft"
               title="Скроется до конца отклонения, поможет настроить детектор"
               @click="$emit('not-problem', alert)"
-            >Не проблема<small>скроется до конца отклонения, поможет настроить детектор</small></button>
+            >Не проблема</button>
           </div>
         </article>
 
@@ -74,7 +79,12 @@
         >
           <span class="detector-alert-row__dot"></span>
           <div class="detector-alert-row__body">
-            <strong>{{ alertTitle(alert) }}</strong>
+            <div
+              class="detector-alert-row__message"
+              :class="{ 'detector-alert-row__message--sectioned': alertSections(alert).length > 1 }"
+            >
+              <p v-for="(section, index) in alertSections(alert)" :key="`${alert.id}-hidden-section-${index}`">{{ section }}</p>
+            </div>
             <small>{{ hiddenMeta(alert) }}</small>
           </div>
           <div class="detector-alert-row__actions">
@@ -158,6 +168,18 @@ const bannerClass = computed(() => {
 })
 
 const alertTitle = (alert) => alert?.hypothesis_text || 'Отклонение в показателях'
+
+// Составной P-алерт — одна сущность с несколькими проверками, разделёнными
+// маркером «•». Рендерим их отдельными абзацами, а не одной простынёй текста.
+const alertSections = (alert) => {
+  const text = alertTitle(alert).replace(/\r/g, '').trim()
+  if (!text) return ['Отклонение в показателях']
+  const sections = text
+    .split(/\n\s*•\s*/)
+    .map((part) => part.replace(/^\s*•\s*/, '').trim())
+    .filter(Boolean)
+  return sections.length ? sections : [text]
+}
 
 const alertMeta = (alert) => {
   const days = alert?.consecutive_days ? `${alert.consecutive_days} дн. подряд` : 'по истории проекта'
@@ -314,14 +336,31 @@ const hiddenMeta = (alert) => {
   min-width: 0;
 }
 
-.detector-alert-row__body strong {
+.detector-alert-row__message {
+  display: grid;
+  gap: 0.38rem;
   color: #1f2937;
   font-size: 0.86rem;
   font-weight: 850;
   line-height: 1.38;
   overflow-wrap: anywhere;
-  /* Составной алерт — списком «•», каждая проверка с новой строки */
-  white-space: pre-line;
+}
+
+.detector-alert-row__message p {
+  margin: 0;
+}
+
+.detector-alert-row__message--sectioned p {
+  position: relative;
+  padding-left: 0.95rem;
+}
+
+.detector-alert-row__message--sectioned p::before {
+  position: absolute;
+  top: 0;
+  left: 0.18rem;
+  color: currentColor;
+  content: '•';
 }
 
 .detector-alert-row__body small {
@@ -339,10 +378,11 @@ const hiddenMeta = (alert) => {
 .detector-alert-row__actions button {
   border: 1px solid #e5e7eb;
   border-radius: 999px;
-  padding: 0.4rem 0.55rem;
+  min-height: 2.45rem;
+  padding: 0.58rem 0.85rem;
   background: #fff;
   color: #374151;
-  font-size: 0.73rem;
+  font-size: 0.8rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -397,10 +437,7 @@ const hiddenMeta = (alert) => {
   .detector-alert-row__actions {
     grid-column: 2;
   }
-  .detector-banner__hypothesis,
-  .detector-alert-row__body strong {
-    white-space: normal;
-  }
+  .detector-banner__hypothesis { white-space: normal; }
 }
 
 :root.dark .detector-banner--warning,
@@ -423,8 +460,8 @@ const hiddenMeta = (alert) => {
   z-index: 6;
   display: none;
   flex-direction: column;
-  min-width: 9rem;
-  padding: 0.3rem;
+  min-width: 10.5rem;
+  padding: 0.42rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.7rem;
   background: #fff;
@@ -435,6 +472,8 @@ const hiddenMeta = (alert) => {
 
 .detector-alert-row__snooze-menu button {
   border: 0 !important;
+  min-height: 2.55rem;
+  padding: 0.6rem 0.8rem !important;
   text-align: left;
   white-space: nowrap;
 }
@@ -449,18 +488,6 @@ const hiddenMeta = (alert) => {
   background: rgba(15, 23, 42, 0.12);
   margin: 0 0.35rem;
 }
-.detector-alert-row__soft small {
-  display: block;
-  font-size: 0.58rem;
-  font-weight: 500;
-  color: #94a3b8;
-  margin-top: 0.1rem;
-  white-space: normal;
-  max-width: 13rem;
-  line-height: 1.25;
-  text-align: left;
-}
-
 /* ТЗ ит.2 п.1.8: мобильная версия — баннер компактный, действия вертикально, тап ≥44px */
 @media (max-width: 767px) {
   .detector-banner__head { flex-wrap: wrap; gap: 0.5rem; }
