@@ -1129,7 +1129,11 @@ def upsert_alerts(
             existing.pattern_key = c.pattern_key
             existing.hypothesis_text = c.hypothesis_text
             existing.last_checked_at = now
-            existing.meta = {**(existing.meta or {}), **(c.meta or {}), "recovery_count": 0}
+            # Контекст алерта — снимок текущей проверки. Сливать его с
+            # предыдущим нельзя: иначе после смены целей или кампаний в meta
+            # остаются устаревшие diagnosis/«основной вклад», хотя текст уже
+            # пересчитан по новым данным.
+            existing.meta = {**(c.meta or {}), "recovery_count": 0}
         else:
             alert = latest_map.get(key)
             if alert:
