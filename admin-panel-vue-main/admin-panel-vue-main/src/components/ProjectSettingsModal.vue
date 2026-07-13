@@ -755,6 +755,48 @@ async function loadGoals() {
         isSummary: true,
       })
     }
+
+    // VK: цели детектора — выбранные лид-типы целевых действий (настройка
+    // «что считать лидами» из Интеграций). Без этого блока VK-проект не может
+    // задать целевой CPL, и детектор не получает ни одной цели.
+    if (platform.includes('VK')) {
+      try {
+        const { data } = await api.get(`integrations/${intg.id}/vk-lead-actions`)
+        const items = Array.isArray(data?.items) ? data.items : []
+        const selectedCodes = Array.isArray(intg.lead_action_types)
+          ? intg.lead_action_types.map(String)
+          : null
+        const leadItems = selectedCodes
+          ? items.filter((item) => selectedCodes.includes(String(item.id)))
+          : items
+        for (const item of leadItems) {
+          rows.push({
+            id: `${intg.id}-${item.id}`,
+            integrationId: intg.id,
+            goalId: String(item.id),
+            platform: intg.platform,
+            name: item.name || `Действие ${item.id}`,
+            hint: `${item.campaigns_count || 0} камп. · ${item.actions_count || 0} действий за 30 дней`,
+            targetCpa: '',
+            controlEnabled: false,
+            isSummary: false,
+          })
+        }
+        if (leadItems.length) {
+          rows.push({
+            id: `${intg.id}-summary`,
+            integrationId: intg.id,
+            goalId: '__summary__',
+            platform: intg.platform,
+            name: 'Все лид-действия — общий CPL',
+            hint: 'сводный план по выбранным лид-типам VK (суммирование корректно)',
+            targetCpa: '',
+            controlEnabled: false,
+            isSummary: true,
+          })
+        }
+      } catch { /* VK actions endpoint недоступен — строки просто не добавятся */ }
+    }
   }
 
   goalRows.value = rows

@@ -61,6 +61,55 @@ def _ad_integrations(db: Session, client_id: uuid.UUID) -> list[models.Integrati
     )
 
 
+def _vk_lead_codes(db: Session, client_id: uuid.UUID) -> set[str] | None:
+    """Выбранные лид-типы VK (Integration.lead_action_types).
+
+    None — выбор не настраивался (легаси-поведение: лидами считаются все
+    conversions). Пустой set — пользователь явно ничего не отметил: заявок нет.
+    Детектор обязан считать заявки так же, как дашборд, — по выбору проекта.
+    """
+    has_explicit = False
+    codes: set[str] = set()
+    rows = (
+        db.query(models.Integration.lead_action_types)
+        .filter(
+            models.Integration.client_id == client_id,
+            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
+        )
+        .all()
+    )
+    for (raw,) in rows:
+        if raw is None:
+            continue
+        has_explicit = True
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            for code in parsed or []:
+                if code:
+                    codes.add(str(code))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Invalid lead_action_types for client %s", client_id)
+    return codes if has_explicit else None
+
+
+def _vk_leads_query(db: Session, client_id: uuid.UUID, start: date, end: date, vk_codes: set[str] | None, goal_id: str | None = None):
+    """Sum of VK leads honouring the project's selected lead action types."""
+    query = db.query(func.sum(models.VKStats.conversions)).filter(
+        models.VKStats.client_id == client_id,
+        models.VKStats.date >= start,
+        models.VKStats.date <= end,
+    )
+    if goal_id is not None:
+        query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+            models.Campaign.vk_goal_action_id == str(goal_id)
+        )
+    elif vk_codes is not None:
+        query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+            models.Campaign.vk_goal_action_id.in_(vk_codes)
+        )
+    return query
+
+
 def _selected_goal_ids(integrations: Iterable[models.Integration]) -> set[str]:
     result: set[str] = set()
     for integration in integrations:
@@ -86,11 +135,12 @@ def _sum_channel_stats(
     start: date,
     end: date,
     selected: set[str] | None = None,
+    vk_codes: set[str] | None = None,
 ) -> tuple[float, int, int]:
     """Spend (including project display VAT), clicks and all configured leads.
 
-    ``selected`` lets one detector run reuse the goal configuration instead of
-    re-reading integrations on every window.
+    ``selected``/``vk_codes`` let one detector run reuse the goal configuration
+    instead of re-reading integrations on every window.
     """
     table = _table_for(channel)
     if not table or end < start:
@@ -103,7 +153,12 @@ def _sum_channel_stats(
     raw_spend = float(row[0] or 0)
     clicks = int(row[1] or 0)
     if channel == models.IntegrationPlatform.VK_ADS:
-        leads = int(row[2] or 0)
+        if vk_codes is None:
+            vk_codes = _vk_lead_codes(db, client_id)
+        if vk_codes is None:
+            leads = int(row[2] or 0)
+        else:
+            leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
     else:
         query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -126,6 +181,7 @@ def _window_funnel(
     start: date,
     end: date,
     selected: set[str] | None = None,
+    vk_codes: set[str] | None = None,
 ) -> dict:
     """Full funnel for the diagnostic layer: spend, impressions, clicks, leads."""
     table = _table_for(channel)
@@ -140,7 +196,10 @@ def _window_funnel(
     impressions = int(row[1] or 0)
     clicks = int(row[2] or 0)
     if channel == models.IntegrationPlatform.VK_ADS:
-        leads = int(row[3] or 0)
+        if vk_codes is None:
+            leads = int(row[3] or 0)
+        else:
+            leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
     else:
         query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -163,20 +222,20 @@ def _sum_goal_leads(
     start: date,
     end: date,
     selected: set[str] | None = None,
+    vk_codes: set[str] | None = None,
 ) -> int:
     if end < start:
         return 0
     if channel == models.IntegrationPlatform.VK_ADS:
-        return int(
-            db.query(func.sum(models.VKStats.conversions))
-            .filter(
-                models.VKStats.client_id == client_id,
-                models.VKStats.date >= start,
-                models.VKStats.date <= end,
-            )
-            .scalar()
-            or 0
+        if vk_codes is None and is_summary:
+            vk_codes = _vk_lead_codes(db, client_id)
+        # Отдельная цель VK — это конкретный тип целевого действия кампаний;
+        # summary — сумма по выбранным лид-типам проекта.
+        query = _vk_leads_query(
+            db, client_id, start, end, vk_codes,
+            goal_id=None if is_summary else goal_id,
         )
+        return int(query.scalar() or 0)
     query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
         models.MetrikaGoals.client_id == client_id,
         models.MetrikaGoals.date >= start,
@@ -200,6 +259,7 @@ def _daily_channel_values(
     start: date,
     end: date,
     selected: set[str] | None = None,
+    vk_codes: set[str] | None = None,
 ) -> list[tuple[date, float, int, int]]:
     """Dense daily values. Missing data is a genuine zero only after sync is fresh.
 
@@ -220,6 +280,22 @@ def _daily_channel_values(
         )
     }
     goal_rows: dict[date, int] = {}
+    if channel == models.IntegrationPlatform.VK_ADS and vk_codes is not None:
+        goal_rows = {
+            row[0]: int(row[1] or 0)
+            for row in (
+                db.query(models.VKStats.date, func.sum(models.VKStats.conversions))
+                .join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
+                .filter(
+                    models.VKStats.client_id == client_id,
+                    models.VKStats.date >= start,
+                    models.VKStats.date <= end,
+                    models.Campaign.vk_goal_action_id.in_(vk_codes),
+                )
+                .group_by(models.VKStats.date)
+                .all()
+            )
+        }
     if channel != models.IntegrationPlatform.VK_ADS:
         query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -237,7 +313,10 @@ def _daily_channel_values(
     cursor = start
     while cursor <= end:
         spend, clicks, conversions = stat_rows.get(cursor, (0.0, 0, 0))
-        leads = conversions if channel == models.IntegrationPlatform.VK_ADS else goal_rows.get(cursor, 0)
+        if channel == models.IntegrationPlatform.VK_ADS:
+            leads = conversions if vk_codes is None else goal_rows.get(cursor, 0)
+        else:
+            leads = goal_rows.get(cursor, 0)
         values.append((cursor, spend, clicks, leads))
         cursor += timedelta(days=1)
     return values
@@ -252,18 +331,24 @@ def _daily_goal_leads(
     start: date,
     end: date,
     selected: set[str] | None = None,
+    vk_codes: set[str] | None = None,
 ) -> dict[date, int]:
     """Per-day lead counts for one goal (or the whole channel) in one query."""
     if end < start:
         return {}
     if channel == models.IntegrationPlatform.VK_ADS:
-        rows = (
-            db.query(models.VKStats.date, func.sum(models.VKStats.conversions))
-            .filter(models.VKStats.client_id == client_id, models.VKStats.date >= start, models.VKStats.date <= end)
-            .group_by(models.VKStats.date)
-            .all()
+        query = db.query(models.VKStats.date, func.sum(models.VKStats.conversions)).filter(
+            models.VKStats.client_id == client_id, models.VKStats.date >= start, models.VKStats.date <= end
         )
-        return {row[0]: int(row[1] or 0) for row in rows}
+        if not is_summary and goal_id:
+            query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.Campaign.vk_goal_action_id == str(goal_id)
+            )
+        elif vk_codes is not None:
+            query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+                models.Campaign.vk_goal_action_id.in_(vk_codes)
+            )
+        return {row[0]: int(row[1] or 0) for row in query.group_by(models.VKStats.date).all()}
     query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
         models.MetrikaGoals.client_id == client_id,
         models.MetrikaGoals.date >= start,
@@ -389,7 +474,7 @@ def _make_plan_spend(
         )
         return AlertCandidate("expenses", "project", None, channel, "plan_spend", "problem", 100.0,
                               float(budget.amount), actual, "up", hypothesis_text=text,
-                              meta={"check": "P-1", "period_end": budget.period_end.isoformat(), "budget": float(budget.amount)})
+                              meta={"check": "P-1", "period_start": budget.period_start.isoformat(), "period_end": budget.period_end.isoformat(), "budget": float(budget.amount)})
     deviation = (actual - expected) / expected
     absolute = abs(deviation)
     if absolute < cfg.plan_spend_warning_deviation:
@@ -409,7 +494,7 @@ def _make_plan_spend(
     )
     return AlertCandidate("expenses", "project", None, channel, "plan_spend", severity, round(deviation * 100, 2),
                           expected, actual, "up" if deviation > 0 else "down", hypothesis_text=text,
-                          meta={"check": "P-1", "period_end": budget.period_end.isoformat(), "forecast": forecast})
+                          meta={"check": "P-1", "period_start": budget.period_start.isoformat(), "period_end": budget.period_end.isoformat(), "forecast": forecast})
 
 
 def _target_window_start(
@@ -454,7 +539,7 @@ def _target_exists(db: Session, client_id: uuid.UUID, target: models.ProjectTarg
 def _make_plan_cpl(
     db: Session, client_id: uuid.UUID, target: models.ProjectTargetCPA,
     budget: models.ProjectBudget | None, reference_date: date, cfg: DetectorCfg,
-    selected: set[str] | None = None,
+    selected: set[str] | None = None, vk_codes: set[str] | None = None,
 ) -> AlertCandidate | None:
     if not target.control_enabled or not target.target_cpa or not _target_exists(db, client_id, target):
         return None
@@ -467,7 +552,7 @@ def _make_plan_cpl(
     if (reference_date - start).days + 1 < min(cfg.plan_cpl_window_days, (target.period_end - target.period_start).days + 1):
         return None
     spend, _, _ = _sum_channel_stats(db, client_id, channel, start, reference_date, selected)
-    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), start, reference_date, selected)
+    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), start, reference_date, selected, vk_codes)
     target_cpl = float(target.target_cpa)
     budget_amount = float(budget.amount) if budget else float("inf")
     red_min = min(cfg.plan_cpl_problem_target_multiplier * target_cpl, cfg.plan_cpl_problem_budget_share * budget_amount)
@@ -490,14 +575,14 @@ def _make_plan_cpl(
                           "plan_cpl", severity, round((ratio - 1) * 100, 2) if math.isfinite(ratio) else 9999,
                           target_cpl, actual_cpl if math.isfinite(actual_cpl) else spend, "up", hypothesis_text=text,
                           meta={"check": "P-2", "goal_name": label, "spend": spend, "leads": leads,
-                                "window_start": start.isoformat(), "period_end": target.period_end.isoformat()})
+                                "window_start": start.isoformat(), "period_start": target.period_start.isoformat(), "period_end": target.period_end.isoformat()})
 
 
 def _make_plan_leads(
     db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform,
     budget: models.ProjectBudget, summary_target: models.ProjectTargetCPA | None,
     reference_date: date, client: models.Client, cfg: DetectorCfg,
-    selected: set[str] | None = None,
+    selected: set[str] | None = None, vk_codes: set[str] | None = None,
 ) -> AlertCandidate | None:
     if not summary_target or not summary_target.control_enabled or not summary_target.target_cpa:
         return None
@@ -512,7 +597,7 @@ def _make_plan_leads(
     expected = planned * elapsed / total_days
     if expected < cfg.plan_min_expected_leads:
         return None
-    _, _, actual = _sum_channel_stats(db, client_id, channel, start, reference_date, selected)
+    _, _, actual = _sum_channel_stats(db, client_id, channel, start, reference_date, selected, vk_codes)
     deviation = (actual - expected) / expected
     if deviation > -cfg.plan_leads_warning_deviation:
         return None
@@ -522,7 +607,7 @@ def _make_plan_leads(
     return AlertCandidate("conversions", "project", None, channel, "plan_leads", severity, round(deviation * 100, 2),
                           expected, actual, "down", hypothesis_text=text,
                           meta={"check": "P-3", "planned_leads": planned, "forecast": forecast,
-                                "period_end": budget.period_end.isoformat()})
+                                "period_start": budget.period_start.isoformat(), "period_end": budget.period_end.isoformat()})
 
 
 def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandidate]:
@@ -611,6 +696,7 @@ def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.In
 def _apply_diagnostics(
     db: Session, client_id: uuid.UUID, alerts: list[AlertCandidate],
     reference_date: date, cfg: DetectorCfg, selected: set[str] | None,
+    vk_codes: set[str] | None = None,
 ) -> None:
     """Attach the §4 diagnostic layer to composite P alerts in place."""
     fresh_end = reference_date - timedelta(days=1)
@@ -621,8 +707,8 @@ def _apply_diagnostics(
         if alert.mode != "plan" or not alert.channel:
             continue
         try:
-            fresh = _window_funnel(db, client_id, alert.channel, fresh_start, fresh_end, selected)
-            prior = _window_funnel(db, client_id, alert.channel, prior_start, prior_end, selected)
+            fresh = _window_funnel(db, client_id, alert.channel, fresh_start, fresh_end, selected, vk_codes)
+            prior = _window_funnel(db, client_id, alert.channel, prior_start, prior_end, selected, vk_codes)
             check = (alert.meta or {}).get("check") or ""
             parts: list[str] = []
             diagnosis = _diagnose_pattern(check, alert.direction, fresh, prior, cfg.diagnostic_change_threshold)
@@ -708,7 +794,7 @@ def _make_stopped_alert(
 def _make_tracking_alerts(
     db: Session, client_id: uuid.UUID, integration: models.Integration,
     reference_date: date, cfg: DetectorCfg,
-    selected: set[str] | None = None,
+    selected: set[str] | None = None, vk_codes: set[str] | None = None,
 ) -> list[AlertCandidate]:
     channel = integration.platform
     end = reference_date - timedelta(days=1)
@@ -723,10 +809,10 @@ def _make_tracking_alerts(
     history_start = history_end - timedelta(days=cfg.tracking_history_days - 1)
     result: list[AlertCandidate] = []
     for goal_id in goal_ids:
-        now_leads = _sum_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", start, end, selected)
+        now_leads = _sum_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", start, end, selected, vk_codes)
         if now_leads:
             continue
-        history = _daily_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", history_start, history_end, selected)
+        history = _daily_goal_leads(db, client_id, channel, goal_id, goal_id == "__all__", history_start, history_end, selected, vk_codes)
         active_days = sum(1 for leads in history.values() if leads >= 1)
         if active_days < cfg.tracking_history_active_days:
             continue
@@ -781,8 +867,12 @@ def campaign_highlights(
     Campaigns never create detector-alert rows, notifications or counters.  A
     highlighted row has exactly one meaning: its CPL is above the current
     summary CPL plan (or spend is meaningful and it has no leads).
+
+    Заявки кампании — из её собственной статистики (Yandex/VK stats по
+    campaign_id), ровно как в таблице дашборда. Пропорциональная размазка
+    конверсий Метрики по расходу здесь запрещена: она делает CPL всех
+    кампаний одинаковым и подсвечивает не те строки.
     """
-    from backend_api.services.detector import _query_all_campaign_metrics
     cfg = get_config().detector
     budgets = _latest_budgets(db, client_id, end)
     targets = _latest_targets(db, client_id, end)
@@ -799,6 +889,7 @@ def campaign_highlights(
             .all()
         )
     }
+    vk_codes = _vk_lead_codes(db, client_id)
     result: dict[str, dict] = {}
     for channel, target in summaries.items():
         budget = _budget_for_channel(budgets, channel)
@@ -809,10 +900,28 @@ def campaign_highlights(
             cfg.campaign_cpl_problem_target_multiplier * float(target.target_cpa),
             cfg.campaign_cpl_budget_share * budget_amount,
         )
-        source = _query_all_campaign_metrics(db, client_id, channel, start, end)
-        for campaign_id, rows in source.items():
-            spend = sum(float(row.get("expenses", 0) or 0) for row in rows) * _money_factor(channel)
-            leads = sum(int(row.get("conversions", 0) or 0) for row in rows)
+        table = _table_for(channel)
+        if table is None:
+            continue
+        query = (
+            db.query(table.campaign_id, func.sum(table.cost), func.sum(table.conversions))
+            .filter(
+                table.client_id == client_id,
+                table.campaign_id.isnot(None),
+                table.date >= start,
+                table.date <= end,
+            )
+        )
+        if channel == models.IntegrationPlatform.VK_ADS and vk_codes is not None:
+            # Кампании с нелидовым целевым действием не судим по цене заявки:
+            # их «конверсии» — не заявки по определению проекта.
+            query = query.join(models.Campaign, table.campaign_id == models.Campaign.id).filter(
+                models.Campaign.vk_goal_action_id.in_(vk_codes)
+            )
+        factor = _money_factor(channel)
+        for campaign_id, cost, conversions in query.group_by(table.campaign_id).all():
+            spend = float(cost or 0) * factor
+            leads = int(conversions or 0)
             if spend < minimum:
                 continue
             cpl = spend / leads if leads else math.inf
@@ -905,6 +1014,7 @@ def run_detector_iteration3(
     targets = _latest_targets(db, client_id, ref)
     # One goal-configuration read per run: every window below reuses it.
     selected = _selected_goal_ids(integrations)
+    vk_codes = _vk_lead_codes(db, client_id)
     targets_by_channel: dict[models.IntegrationPlatform, list[models.ProjectTargetCPA]] = {}
     for target in targets:
         if target.channel in AD_CHANNELS:
@@ -929,12 +1039,12 @@ def run_detector_iteration3(
             if candidate:
                 plan_checks.append(candidate)
         for target in targets_by_channel.get(channel, []):
-            candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg, selected)
+            candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg, selected, vk_codes)
             if candidate:
                 plan_checks.append(candidate)
         summary = next((target for target in targets_by_channel.get(channel, []) if target.is_summary), None)
         if budget:
-            candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg, selected)
+            candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg, selected, vk_codes)
             if candidate:
                 plan_checks.append(candidate)
         for candidate in (
@@ -943,7 +1053,7 @@ def run_detector_iteration3(
         ):
             if candidate:
                 critical.append(candidate)
-        critical.extend(_make_tracking_alerts(db, client_id, integration, ref, cfg, selected))
+        critical.extend(_make_tracking_alerts(db, client_id, integration, ref, cfg, selected, vk_codes))
 
     # §2 P-1: a project-wide budget (channel=None) is judged against the total
     # spend, and only when no per-channel budgets exist — never both at once.
@@ -958,7 +1068,7 @@ def run_detector_iteration3(
     owner = db.query(models.User).filter(models.User.id == client.owner_id).first()
     global_on = getattr(owner, "global_detector_enabled", True) if owner else True
     plan_alerts = _collapse_plan_checks(plan_checks)
-    _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected)
+    _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected, vk_codes)
     upsert_alerts(db, client_id, client.owner_id, plan_alerts + critical, cfg,
                   notify=bool(client.detector_enabled) and global_on)
     if immediate_plan_recalculation:

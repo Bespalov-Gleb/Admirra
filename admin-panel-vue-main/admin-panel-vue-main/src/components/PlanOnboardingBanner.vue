@@ -18,6 +18,9 @@ const props = defineProps({
   detectorEnabled: { type: Boolean, default: false },
   warmingUp: { type: Boolean, default: false },
   hasCritical: { type: Boolean, default: false },
+  // Матрица состояний ит.3 §7: при любых активных алертах показывается баннер
+  // детектора — онбординг-плашка ему уступает, даже в варианте «дозаполните»
+  hasAlerts: { type: Boolean, default: false },
   dismissedUntil: { type: [String, Date], default: null },
   completionPct: { type: Number, default: null },
 })
@@ -25,7 +28,7 @@ const props = defineProps({
 const emit = defineEmits(['set-plan', 'dismiss', 'shown'])
 
 const dismissed = computed(() => props.dismissedUntil && new Date(props.dismissedUntil) > new Date())
-const visible = computed(() => props.detectorEnabled && !props.warmingUp && !props.hasCritical && !dismissed.value && ['missing', 'incomplete', 'expired'].includes(props.planStatus))
+const visible = computed(() => props.detectorEnabled && !props.warmingUp && !props.hasCritical && !props.hasAlerts && !dismissed.value && ['missing', 'incomplete', 'expired'].includes(props.planStatus))
 
 // §8: показ плашки — событие аналитики; одно на появление, не на каждый рендер
 const shownReported = ref(false)

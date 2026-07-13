@@ -371,6 +371,7 @@
       :detector-enabled="!['disabled', 'paused'].includes(detectorSummary?.warmup_status)"
       :warming-up="detectorSummary?.warmup_status === 'warming_up'"
       :has-critical="hasCriticalDetectorAlert"
+      :has-alerts="((detectorSummary?.warning_count || 0) + (detectorSummary?.problem_count || 0)) > 0"
       :dismissed-until="detectorSummary?.onboarding_dismissed_until"
       :completion-pct="detectorSummary?.plan_completion_pct ?? null"
       @set-plan="openPlanSettings"
@@ -446,26 +447,49 @@
       @end="saveKpiConfig"
     >
       <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
+        <!-- ТЗ «Флажок детектора на KPI-карточке»: бейдж 16px с «!», выступает
+             за угол; клик-зона 44px; поповер по клику и ховеру; клик по бейджу
+             никогда не скрывает алерт -->
         <button
           v-if="getMetricAnomaly(key)"
           type="button"
-          class="anomaly-dot"
-          :class="`anomaly-dot--${getMetricAnomaly(key).severity}`"
+          class="kpi-flag"
           :title="getMetricAnomalyTooltip(key)"
+          @mouseenter="hoverDetectorMetric(key)"
+          @mouseleave="unhoverDetectorMetric()"
           @click.stop="toggleDetectorMetricPopover(key)"
-        ></button>
-        <div v-if="activeDetectorMetric === key && getMetricAnomaly(key)" class="detector-popover detector-popover--metric" @click.stop>
+        >
+          <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v8"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </button>
+        <div
+          v-if="(activeDetectorMetric === key || hoveredDetectorMetric === key) && getMetricAnomaly(key)"
+          class="detector-popover detector-popover--metric"
+          @click.stop
+          @mouseenter="hoverDetectorMetric(key)"
+          @mouseleave="unhoverDetectorMetric()"
+        >
+          <div class="detector-popover__head">
+            <span class="detector-popover__leveldot" :class="`detector-popover__leveldot--${getMetricAnomaly(key).severity}`"></span>
+            <b :class="`detector-popover__level--${getMetricAnomaly(key).severity}`">{{ getMetricAnomaly(key).severity === 'problem' ? 'Проблема' : 'Внимание' }}</b>
+            <span class="detector-popover__meta">· длится {{ alertDurationLabel(getMetricAnomaly(key)) }} · {{ alertChannelLabel(getMetricAnomaly(key)) }}</span>
+          </div>
           <strong>{{ getMetricAnomaly(key).hypothesis_text || 'Отклонение в показателе' }}</strong>
-          <small>{{ formatDetectorAlertTitle(getMetricAnomaly(key)) }}</small>
+          <small class="detector-popover__source">{{ alertSourceLine(getMetricAnomaly(key)) }}</small>
           <small v-if="metricDeltaMismatch(key)" class="detector-popover__mismatch">
-            Дельта на карточке зелёная, потому что сравнивает с прошлым периодом по фильтру.
-            Детектор сравнивает с нормой проекта за 6 недель.
+            Дельта сравнивает с прошлым периодом по фильтру. Флажок — {{ getMetricAnomaly(key).mode === 'plan' ? 'с планом проекта' : 'с правилом детектора' }}.
           </small>
           <div class="detector-popover__actions">
-            <button type="button" @click="openAssistantForDetectorAlert(getMetricAnomaly(key))">Спросить AI</button>
-            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 1)">1 дн.</button>
-            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 3)">3 дн.</button>
-            <button type="button" @click="handleSnoozeDetectorAlert(getMetricAnomaly(key), 7)">7 дн.</button>
+            <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(getMetricAnomaly(key))">Спросить AI</button>
+            <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === key }">
+              <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === key ? null : key">Скрыть…</button>
+              <div class="detector-popover__snooze-menu">
+                <button type="button" @click="snoozeMetricAlert(key, 1)">На 1 день</button>
+                <button type="button" @click="snoozeMetricAlert(key, 3)">На 3 дня</button>
+                <button type="button" @click="snoozeMetricAlert(key, 7)">На 7 дней</button>
+              </div>
+            </div>
             <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(getMetricAnomaly(key))">Не проблема</button>
           </div>
         </div>
@@ -1032,7 +1056,6 @@
               </span>
               <div v-if="activeDetectorEntity === campaign.rowKey && campaign.alert" class="detector-popover detector-popover--row" @click.stop>
                 <strong>{{ campaign.alert.hypothesis_text || 'Отклонение по кампании' }}</strong>
-                <small>{{ campaign.alertTitle }}</small>
                 <button
                   v-if="campaign.canExpand"
                   type="button"
@@ -5132,6 +5155,66 @@ const getMetricAnomalyTooltip = (key) => {
 const toggleDetectorMetricPopover = (key) => {
   activeDetectorMetric.value = activeDetectorMetric.value === key ? null : key
   activeDetectorEntity.value = null
+  snoozeMenuMetric.value = null
+}
+
+// ТЗ KPI-флажка §2: поповер открывается и по ховеру (действия — по клику).
+// Небольшая задержка закрытия, чтобы курсор успевал дойти от бейджа до поповера.
+const hoveredDetectorMetric = ref(null)
+const snoozeMenuMetric = ref(null)
+let metricHoverCloseTimer = null
+
+const hoverDetectorMetric = (key) => {
+  if (metricHoverCloseTimer) clearTimeout(metricHoverCloseTimer)
+  hoveredDetectorMetric.value = key
+}
+
+const unhoverDetectorMetric = () => {
+  if (metricHoverCloseTimer) clearTimeout(metricHoverCloseTimer)
+  metricHoverCloseTimer = setTimeout(() => {
+    hoveredDetectorMetric.value = null
+    if (!activeDetectorMetric.value) snoozeMenuMetric.value = null
+  }, 220)
+}
+
+const snoozeMetricAlert = (key, days) => {
+  snoozeMenuMetric.value = null
+  handleSnoozeDetectorAlert(getMetricAnomaly(key), days)
+}
+
+const alertDurationLabel = (alert) => {
+  const opened = alert?.opened_at ? new Date(alert.opened_at) : null
+  if (!opened || Number.isNaN(opened.getTime())) return '1 дн.'
+  const days = Math.max(1, Math.round((Date.now() - opened.getTime()) / 86400000))
+  return `${days} дн.`
+}
+
+const DETECTOR_CHANNEL_LABELS = {
+  YANDEX_DIRECT: 'Яндекс Директ',
+  VK_ADS: 'VK Реклама',
+  AVITO_ADS: 'Avito Ads',
+}
+
+const alertChannelLabel = (alert) => DETECTOR_CHANNEL_LABELS[String(alert?.channel || '').toUpperCase()] || 'все каналы'
+
+// ТЗ KPI-флажка §2: база сравнения читается явно
+const alertSourceLine = (alert) => {
+  if (alert?.mode === 'plan') {
+    const start = alert?.meta?.period_start
+    const end = alert?.meta?.period_end
+    const fmt = (value) => {
+      const parsed = value ? new Date(value) : null
+      return parsed && !Number.isNaN(parsed.getTime())
+        ? parsed.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+        : null
+    }
+    const period = fmt(start) && fmt(end) ? ` на ${fmt(start)}–${fmt(end)}` : ''
+    return `Сравнение с планом проекта${period} · считает детектор, не AI`
+  }
+  if (String(alert?.mode || '').startsWith('critical_')) {
+    return 'Проверка критических поломок · считает детектор, не AI'
+  }
+  return 'Считает детектор, не AI'
 }
 
 const toggleDetectorEntityPopover = (rowKey) => {
@@ -7112,7 +7195,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   border: 2px solid transparent;
-  overflow: hidden;
+  /* visible: бейдж детектора выступает за угол карточки (ТЗ KPI-флажка §1) */
+  overflow: visible;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 .metric-card.metric-card--add {
@@ -7133,17 +7217,46 @@ onMounted(() => {
   overflow: visible;
 }
 
-.anomaly-dot {
+/* ТЗ «Флажок детектора на KPI-карточке» §1: бейдж 16px с «!» на углу,
+   выступает за карточку, обводка 2px фоном; клик-зона — невидимые 44px */
+.kpi-flag {
   position: absolute;
-  top: 0.9rem;
-  right: 0.9rem;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 50%;
+  top: -2.037rem;
+  right: -2.037rem;
+  width: 4.074rem;
+  height: 4.074rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 0;
+  background: transparent;
   cursor: pointer;
-  z-index: 2;
+  z-index: 3;
+}
+
+.kpi-flag__badge {
+  width: 1.4815rem;
+  height: 1.4815rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 0 0 2px #f4f7fe;
   animation: anomaly-pulse 2s ease-in-out infinite;
+}
+
+.kpi-flag__badge svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.kpi-flag__badge--warning { background: #f59e0b; }
+.kpi-flag__badge--problem { background: #ef4444; }
+
+.figma-dashboard.is-dark .kpi-flag__badge {
+  box-shadow: 0 0 0 2px #1a1c2c;
 }
 
 .detector-popover {
@@ -7211,13 +7324,77 @@ onMounted(() => {
 .detector-popover__actions .detector-popover__soft {
   color: #6b7280;
 }
-.anomaly-dot--warning {
-  background: #f59e0b;
-  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(245, 158, 11, 0.4);
+
+/* Шапка поповера: уровень + длительность + канал (ТЗ KPI-флажка §2) */
+.detector-popover__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
 }
-.anomaly-dot--problem {
-  background: #ef4444;
-  box-shadow: 0 0 0 2px #fff, 0 0 0.5rem rgba(239, 68, 68, 0.4);
+
+.detector-popover__leveldot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.detector-popover__leveldot--warning { background: #f59e0b; }
+.detector-popover__leveldot--problem { background: #ef4444; }
+.detector-popover__level--warning { color: #b45309; font-weight: 850; }
+.detector-popover__level--problem { color: #dc2626; font-weight: 850; }
+
+.detector-popover__meta {
+  color: #98a2b6;
+  font-weight: 600;
+}
+
+.detector-popover__source {
+  color: #98a2b6 !important;
+  font-weight: 600 !important;
+}
+
+.detector-popover__primary {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #fff !important;
+}
+
+/* «Скрыть…» — дропдаун 1/3/7 дней */
+.detector-popover__snooze {
+  position: relative;
+}
+
+.detector-popover__snooze-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.3rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.7rem;
+  background: #fff;
+  box-shadow: 0 0.8rem 2rem rgba(15, 23, 42, 0.14);
+}
+
+.detector-popover__snooze.open .detector-popover__snooze-menu {
+  display: flex;
+}
+
+.detector-popover__snooze-menu button {
+  border: 0 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 0.7rem !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.detector-popover__snooze-menu button:hover {
+  background: #f5f7f9;
 }
 @keyframes anomaly-pulse {
   0%, 100% { opacity: 1; }

@@ -192,6 +192,11 @@ export function useDetector() {
     }
   }
 
+  // ТЗ «Флажок детектора на KPI-карточке» §3: составной P-алерт несёт список
+  // проверок (meta.checks) и подсвечивает ВСЕ затронутые метрики — флажки на
+  // каждой карточке открывают один и тот же алерт, скрытие общее.
+  const PLAN_CHECK_TO_METRIC = { 'P-1': 'expenses', 'P-2': 'cpa', 'P-3': 'conversions' }
+
   function getAlertForMetric(metricKey) {
     if (!summary.value?.alerts) return null
     const metricMap = {
@@ -203,7 +208,16 @@ export function useDetector() {
       cpa: 'cpa',
     }
     const dbKey = metricMap[metricKey] || metricKey
-    return summary.value.alerts.find(a => a.metric === dbKey) || null
+    return summary.value.alerts.find(a => {
+      if (a.metric === dbKey) return true
+      if (a.mode === 'plan') {
+        const checks = Array.isArray(a.meta?.checks) && a.meta.checks.length
+          ? a.meta.checks
+          : (a.meta?.check ? [a.meta.check] : [])
+        return checks.some(check => PLAN_CHECK_TO_METRIC[check] === dbKey)
+      }
+      return false
+    }) || null
   }
 
   function getAlertForEntity(level, entityId) {
