@@ -478,6 +478,7 @@
           v-if="getMetricAnomaly(key)"
           type="button"
           class="kpi-flag"
+          :ref="(element) => setMetricFlagRef(key, element)"
           :title="getMetricAnomalyTooltip(key)"
           @mouseenter="hoverDetectorMetric(key)"
           @mouseleave="unhoverDetectorMetric()"
@@ -487,36 +488,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v8"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>
           </span>
         </button>
-        <div
-          v-if="(activeDetectorMetric === key || hoveredDetectorMetric === key) && getMetricAnomaly(key)"
-          class="detector-popover detector-popover--metric"
-          @click.stop
-          @mouseenter="hoverDetectorMetric(key)"
-          @mouseleave="unhoverDetectorMetric()"
-        >
-          <div class="detector-popover__head">
-            <span class="detector-popover__leveldot" :class="`detector-popover__leveldot--${getMetricAnomaly(key).severity}`"></span>
-            <b :class="`detector-popover__level--${getMetricAnomaly(key).severity}`">{{ getMetricAnomaly(key).severity === 'problem' ? 'Проблема' : 'Внимание' }}</b>
-            <span class="detector-popover__meta">· длится {{ alertDurationLabel(getMetricAnomaly(key)) }} · {{ alertChannelLabel(getMetricAnomaly(key)) }}</span>
-          </div>
-          <strong>{{ getMetricAnomaly(key).hypothesis_text || 'Отклонение в показателе' }}</strong>
-          <small class="detector-popover__source">{{ alertSourceLine(getMetricAnomaly(key)) }}</small>
-          <small v-if="metricDeltaMismatch(key)" class="detector-popover__mismatch">
-            Дельта сравнивает с прошлым периодом по фильтру. Флажок — {{ getMetricAnomaly(key).mode === 'plan' ? 'с планом проекта' : 'с правилом детектора' }}.
-          </small>
-          <div class="detector-popover__actions">
-            <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(getMetricAnomaly(key))">Спросить AI</button>
-            <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === key }">
-              <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === key ? null : key">Скрыть…</button>
-              <div class="detector-popover__snooze-menu">
-                <button type="button" @click="snoozeMetricAlert(key, 1)">На 1 день</button>
-                <button type="button" @click="snoozeMetricAlert(key, 3)">На 3 дня</button>
-                <button type="button" @click="snoozeMetricAlert(key, 7)">На 7 дней</button>
-              </div>
-            </div>
-            <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(getMetricAnomaly(key))">Не проблема</button>
-          </div>
-        </div>
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -568,6 +539,42 @@
         </div>
       </div>
     </VueDraggable>
+
+    <!-- Вынесен в body: поповер не может быть обрезан KPI-карточкой или
+         контейнером дашборда и всегда лежит выше интерфейса. -->
+    <Teleport to="body">
+      <div
+        v-if="detectorMetricPopover"
+        class="detector-popover detector-popover--metric detector-popover--teleported"
+        :style="detectorMetricPopoverStyle"
+        @click.stop
+        @mouseenter="hoverDetectorMetric(detectorMetricPopover.key)"
+        @mouseleave="unhoverDetectorMetric()"
+      >
+        <div class="detector-popover__head">
+          <span class="detector-popover__leveldot" :class="`detector-popover__leveldot--${detectorMetricPopover.alert.severity}`"></span>
+          <b :class="`detector-popover__level--${detectorMetricPopover.alert.severity}`">{{ detectorMetricPopover.alert.severity === 'problem' ? 'Проблема' : 'Внимание' }}</b>
+          <span class="detector-popover__meta">· длится {{ alertDurationLabel(detectorMetricPopover.alert) }} · {{ alertChannelLabel(detectorMetricPopover.alert) }}</span>
+        </div>
+        <strong>{{ detectorMetricPopover.alert.hypothesis_text || 'Отклонение в показателе' }}</strong>
+        <small class="detector-popover__source">{{ alertSourceLine(detectorMetricPopover.alert) }}</small>
+        <small v-if="metricDeltaMismatch(detectorMetricPopover.key)" class="detector-popover__mismatch">
+          Дельта сравнивает с прошлым периодом по фильтру. Флажок — {{ detectorMetricPopover.alert.mode === 'plan' ? 'с планом проекта' : 'с правилом детектора' }}.
+        </small>
+        <div class="detector-popover__actions">
+          <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(detectorMetricPopover.alert)">Спросить AI</button>
+          <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === detectorMetricPopover.key }">
+            <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === detectorMetricPopover.key ? null : detectorMetricPopover.key">Скрыть…</button>
+            <div class="detector-popover__snooze-menu">
+              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 1)">На 1 день</button>
+              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 3)">На 3 дня</button>
+              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 7)">На 7 дней</button>
+            </div>
+          </div>
+          <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(detectorMetricPopover.alert)">Не проблема</button>
+        </div>
+      </div>
+    </Teleport>
 
     <section
       v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length"
@@ -1663,6 +1670,88 @@ const campaignHighlights = ref({})
 const hasCriticalDetectorAlert = computed(() => Boolean(
   detectorSummary.value?.alerts?.some((alert) => String(alert.mode || '').startsWith('critical_'))
 ))
+
+// Статус у заголовка — безопасный для всех состояний детектора. В прошлом
+// коммите разметка уже использовала detectorStatusChip, но само вычисление не
+// было добавлено: после прихода summary это роняло render дашборда целиком.
+const detectorStatusChip = computed(() => {
+  const state = detectorSummary.value
+  if (!state || state.warmup_status === 'disabled') {
+    return { kind: 'off', label: 'Детектор выключен', hint: 'Включите контроль в настройках проекта.' }
+  }
+  if (state.warmup_status === 'paused') {
+    return { kind: 'off', label: 'Проект на паузе', hint: 'Контроль приостановлен вместе с проектом.' }
+  }
+  if (state.warmup_status === 'warming_up') {
+    const days = Number(state.warmup_days_left || 0)
+    return {
+      kind: 'warmup',
+      label: days > 0 ? `Накопление данных · ${days} дн.` : 'Накопление данных',
+      hint: 'Детектор собирает достаточно истории для надёжных проверок.',
+    }
+  }
+  if (state.plan_status === 'configured') {
+    return { kind: 'on', label: 'Детектор следит за планом', hint: 'Контролируются темп расхода, стоимость и темп заявок.' }
+  }
+  return { kind: 'on', label: 'Детектор активен', hint: 'Критические проверки включены. Добавьте план для контроля темпа и CPL.' }
+})
+
+// Модалка настроек открывается прямо с дашборда. Эти состояния и обработчики
+// должны существовать независимо от того, успел ли общий список проектов
+// загрузиться: иначе первый клик оставлял интерфейс в ошибочном состоянии.
+const settingsProjectObject = ref(null)
+
+const openProjectSettingsModal = async () => {
+  const projectId = filters.client_id
+  if (!projectId || folderMode.value) return
+  let project = projects.value.find((item) => String(item.id) === String(projectId)) || null
+  if (!project) {
+    await fetchProjects({ preferCache: true })
+    project = projects.value.find((item) => String(item.id) === String(projectId)) || null
+  }
+  if (!project) {
+    try {
+      const { data } = await api.get(`clients/${projectId}`)
+      project = data || null
+    } catch {
+      project = null
+    }
+  }
+  if (!project) {
+    toaster.error('Не удалось открыть настройки проекта')
+    return
+  }
+  settingsProjectObject.value = project
+}
+
+const handleDashboardProjectSettingsSaved = async (updatedProject) => {
+  if (!updatedProject?.id) return
+  const index = projects.value.findIndex((item) => String(item.id) === String(updatedProject.id))
+  if (index !== -1) projects.value[index] = { ...projects.value[index], ...updatedProject }
+  settingsProjectObject.value = { ...(settingsProjectObject.value || {}), ...updatedProject }
+  await Promise.allSettled([
+    fetchDetectorSummary(updatedProject.id),
+    fetchStats(),
+  ])
+}
+
+const handleDashboardProjectDeleted = (projectId) => {
+  settingsProjectObject.value = null
+  projects.value = projects.value.filter((item) => String(item.id) !== String(projectId))
+  if (String(currentProjectId.value || '') === String(projectId)) setCurrentProject(null)
+  router.replace('/project-card')
+}
+
+const goToIntegrations = (channel = null) => {
+  const projectId = filters.client_id
+  settingsProjectObject.value = null
+  router.push({
+    path: '/integrations/wizard',
+    query: channel?.id
+      ? { resume_integration_id: channel.id, initial_step: 2 }
+      : (projectId ? { client_id: projectId } : {}),
+  })
+}
 
 const fetchCampaignHighlights = async () => {
   if (!filters.client_id || !filters.start_date || !filters.end_date) {
@@ -5197,6 +5286,7 @@ const toggleDetectorMetricPopover = (key) => {
   activeDetectorMetric.value = activeDetectorMetric.value === key ? null : key
   activeDetectorEntity.value = null
   snoozeMenuMetric.value = null
+  nextTick(() => updateDetectorMetricPopoverPosition())
 }
 
 // ТЗ KPI-флажка §2: поповер открывается и по ховеру (действия — по клику).
@@ -5204,10 +5294,62 @@ const toggleDetectorMetricPopover = (key) => {
 const hoveredDetectorMetric = ref(null)
 const snoozeMenuMetric = ref(null)
 let metricHoverCloseTimer = null
+const metricFlagRefs = new Map()
+const detectorMetricPopoverStyle = ref({})
+
+const detectorMetricPopover = computed(() => {
+  // Закреплённый кликом поповер имеет приоритет над случайным hover другого KPI.
+  const key = activeDetectorMetric.value || hoveredDetectorMetric.value
+  if (!key) return null
+  const alert = getMetricAnomaly(key)
+  return alert ? { key, alert } : null
+})
+
+const setMetricFlagRef = (key, element) => {
+  if (element) metricFlagRefs.set(key, element)
+  else metricFlagRefs.delete(key)
+}
+
+const updateDetectorMetricPopoverPosition = () => {
+  if (typeof window === 'undefined') return
+  const item = detectorMetricPopover.value
+  const anchor = item ? metricFlagRefs.get(item.key) : null
+  if (!anchor) return
+
+  const rect = anchor.getBoundingClientRect()
+  const viewportPadding = 16
+  const width = Math.min(368, Math.max(280, window.innerWidth - viewportPadding * 2))
+  const left = Math.min(
+    Math.max(viewportPadding, rect.right - width),
+    Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+  )
+  // У первого ряда KPI места снизу достаточно; у нижних рядов раскрываем
+  // поповер вверх, чтобы он оставался полностью в пределах экрана.
+  const popoverEstimate = 320
+  const openAbove = rect.bottom + popoverEstimate > window.innerHeight && rect.top > popoverEstimate
+  detectorMetricPopoverStyle.value = openAbove
+    ? {
+        position: 'fixed',
+        zIndex: 2147483646,
+        width: `${width}px`,
+        left: `${left}px`,
+        bottom: `${Math.max(viewportPadding, window.innerHeight - rect.top + 10)}px`,
+        maxHeight: `calc(100vh - ${viewportPadding * 2}px)`,
+      }
+    : {
+        position: 'fixed',
+        zIndex: 2147483646,
+        width: `${width}px`,
+        left: `${left}px`,
+        top: `${Math.max(viewportPadding, rect.bottom + 10)}px`,
+        maxHeight: `calc(100vh - ${viewportPadding * 2}px)`,
+      }
+}
 
 const hoverDetectorMetric = (key) => {
   if (metricHoverCloseTimer) clearTimeout(metricHoverCloseTimer)
   hoveredDetectorMetric.value = key
+  nextTick(() => updateDetectorMetricPopoverPosition())
 }
 
 const unhoverDetectorMetric = () => {
@@ -5217,6 +5359,21 @@ const unhoverDetectorMetric = () => {
     if (!activeDetectorMetric.value) snoozeMenuMetric.value = null
   }, 220)
 }
+
+const refreshDetectorMetricPopoverPosition = () => {
+  if (detectorMetricPopover.value) updateDetectorMetricPopoverPosition()
+}
+
+onMounted(() => {
+  window.addEventListener('resize', refreshDetectorMetricPopoverPosition)
+  window.addEventListener('scroll', refreshDetectorMetricPopoverPosition, true)
+})
+
+onBeforeUnmount(() => {
+  if (metricHoverCloseTimer) clearTimeout(metricHoverCloseTimer)
+  window.removeEventListener('resize', refreshDetectorMetricPopoverPosition)
+  window.removeEventListener('scroll', refreshDetectorMetricPopoverPosition, true)
+})
 
 const snoozeMetricAlert = (key, days) => {
   snoozeMenuMetric.value = null
@@ -7415,6 +7572,12 @@ onMounted(() => {
   right: 0.8rem;
 }
 
+.detector-popover--teleported {
+  right: auto;
+  bottom: auto;
+  overflow: auto;
+}
+
 .detector-popover--row {
   top: calc(100% + 0.35rem);
   left: var(--tree-indent, 0);
@@ -9503,6 +9666,12 @@ onMounted(() => {
   border-radius: 1.0417rem;
   border: 2px solid transparent;
   overflow: hidden;
+}
+.metric-card.metric-card--anomaly-warning,
+.metric-card.metric-card--anomaly-problem {
+  /* Флажок выступает за угол KPI; сам поповер телепортирован в body. */
+  overflow: visible;
+  z-index: 4;
 }
 .metric-card.metric-card--add {
   border-style: dashed;
