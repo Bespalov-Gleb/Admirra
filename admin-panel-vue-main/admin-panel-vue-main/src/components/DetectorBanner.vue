@@ -20,7 +20,7 @@
           class="detector-banner__action"
           @click="expanded = !expanded"
         >
-          {{ expanded ? 'Скрыть детали' : 'Что произошло' }}
+          {{ expanded ? 'Скрыть детали' : 'Смотреть все' }}
         </button>
         <button
           v-if="primaryAlert"
@@ -48,11 +48,14 @@
             <small>{{ alertMeta(alert) }}</small>
           </div>
           <div class="detector-alert-row__actions">
-            <button type="button" @click="$emit('ask-ai', alert)">AI</button>
-            <span class="detector-alert-row__snoozes">
-              <button type="button" @click="$emit('snooze', alert, 1)">1 дн.</button>
-              <button type="button" @click="$emit('snooze', alert, 3)">3 дн.</button>
-              <button type="button" @click="$emit('snooze', alert, 7)">7 дн.</button>
+            <button type="button" class="detector-alert-row__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
+            <span class="detector-alert-row__snooze" :class="{ open: openSnoozeId === alert.id }">
+              <button type="button" @click.stop="openSnoozeId = openSnoozeId === alert.id ? null : alert.id">Скрыть…</button>
+              <span class="detector-alert-row__snooze-menu">
+                <button type="button" @click="snooze(alert, 1)">На 1 день</button>
+                <button type="button" @click="snooze(alert, 3)">На 3 дня</button>
+                <button type="button" @click="snooze(alert, 7)">На 7 дней</button>
+              </span>
             </span>
             <span class="detector-alert-row__divider" aria-hidden="true"></span>
             <button
@@ -99,9 +102,16 @@ const props = defineProps({
   syncIssues: { type: Array, default: () => [] },
 })
 
-defineEmits(['collapse', 'ask-ai', 'snooze', 'not-problem', 'restore'])
+const emit = defineEmits(['collapse', 'ask-ai', 'snooze', 'not-problem', 'restore'])
 
 const expanded = ref(false)
+// «Скрыть…» — дропдаун 1/3/7 дней на строке алерта
+const openSnoozeId = ref(null)
+
+const snooze = (alert, days) => {
+  openSnoozeId.value = null
+  emit('snooze', alert, days)
+}
 
 watch(() => [props.warningCount, props.problemCount, props.hiddenCount], () => {
   if (!props.warningCount && !props.problemCount) expanded.value = false
@@ -308,8 +318,10 @@ const hiddenMeta = (alert) => {
   color: #1f2937;
   font-size: 0.86rem;
   font-weight: 850;
-  line-height: 1.28;
+  line-height: 1.38;
   overflow-wrap: anywhere;
+  /* Составной алерт — списком «•», каждая проверка с новой строки */
+  white-space: pre-line;
 }
 
 .detector-alert-row__body small {
@@ -401,7 +413,36 @@ const hiddenMeta = (alert) => {
 .dark .detector-banner--warmup,
 .darkmode .detector-banner--warmup { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.28); color: #60a5fa; }
 
-.detector-alert-row__snoozes { display: inline-flex; gap: 0.3rem; }
+/* Дропдаун «Скрыть…» на строке алерта */
+.detector-alert-row__snooze { position: relative; display: inline-flex; }
+
+.detector-alert-row__snooze-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  z-index: 6;
+  display: none;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.3rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.7rem;
+  background: #fff;
+  box-shadow: 0 0.8rem 2rem rgba(15, 23, 42, 0.16);
+}
+
+.detector-alert-row__snooze.open .detector-alert-row__snooze-menu { display: flex; }
+
+.detector-alert-row__snooze-menu button {
+  border: 0 !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.detector-alert-row__ai {
+  color: #2563eb !important;
+  border-color: rgba(37, 99, 235, 0.35) !important;
+}
 .detector-alert-row__divider {
   width: 1px;
   align-self: stretch;

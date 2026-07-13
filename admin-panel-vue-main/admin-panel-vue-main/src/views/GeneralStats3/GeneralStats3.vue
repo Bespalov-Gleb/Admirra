@@ -114,7 +114,31 @@
     </section>
 
     <section class="heading-section">
-      <h1>{{ dashboardTitle }}</h1>
+      <div class="dashboard-title-row">
+        <h1>{{ dashboardTitle }}</h1>
+        <!-- Видимый статус детектора: сразу понятно, что проект под наблюдением -->
+        <button
+          v-if="filters.client_id && detectorSummary"
+          type="button"
+          class="detector-status-chip"
+          :class="`detector-status-chip--${detectorStatusChip.kind}`"
+          :title="detectorStatusChip.hint"
+          @click="openProjectSettingsModal"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+          <span>{{ detectorStatusChip.label }}</span>
+        </button>
+        <!-- Настройки проекта прямо с дашборда (план/цели/детектор) -->
+        <button
+          v-if="filters.client_id && !folderMode"
+          type="button"
+          class="project-settings-btn"
+          title="Настройки проекта"
+          @click="openProjectSettingsModal"
+        >
+          <Cog6ToothIcon />
+        </button>
+      </div>
       <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
         <button
           type="button"
@@ -1532,6 +1556,18 @@
       @close="activeReportDelivery = null"
       @sent="handleReportDeliveryChanged"
     />
+
+    <!-- Настройки проекта прямо на дашборде: план/цели/детектор без ухода
+         на страницу «Проекты» (CTA плашки «Задать план» тоже ведёт сюда) -->
+    <ProjectSettingsModal
+      v-if="settingsProjectObject"
+      :project="settingsProjectObject"
+      @close="settingsProjectObject = null"
+      @saved="handleDashboardProjectSettingsSaved"
+      @deleted="handleDashboardProjectDeleted"
+      @add-channel="goToIntegrations"
+      @configure-channel="goToIntegrations"
+    />
   </div>
 </template>
 
@@ -1550,6 +1586,7 @@ import {
   ChartBarIcon,
   CheckBadgeIcon,
   ChevronDownIcon,
+  Cog6ToothIcon,
   CursorArrowRaysIcon,
   DevicePhoneMobileIcon,
   DocumentArrowDownIcon,
@@ -1581,6 +1618,7 @@ import DetectorBanner from '@/components/DetectorBanner.vue'
 import PlanOnboardingBanner from '@/components/PlanOnboardingBanner.vue'
 import DynamicsView from './components/DynamicsView.vue'
 import ProjectReportSettingsModal from './components/ProjectReportSettingsModal.vue'
+import ProjectSettingsModal from '@/components/ProjectSettingsModal.vue'
 import ReportApprovalModal from './components/ReportApprovalModal.vue'
 import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
@@ -1589,7 +1627,7 @@ const { isDarkMode } = useTheme()
 const router = useRouter()
 const route = useRoute()
 const toaster = useToaster()
-const { currentProjectId, setCurrentProject } = useProjects()
+const { currentProjectId, setCurrentProject, projects, fetchProjects } = useProjects()
 const { openTelegramBotForLinking } = useTelegramReportLink()
 const {
   summary,
@@ -5085,7 +5123,10 @@ watch(() => [filters.start_date, filters.end_date], () => {
 
 const detectorBannerHypothesis = computed(() => {
   if (!detectorSummary.value?.alerts?.length) return ''
-  return detectorSummary.value.alerts[0]?.hypothesis_text || ''
+  // Шапка баннера — только главный пункт составного алерта; весь список
+  // с буллетами раскрывается по «Смотреть все»
+  const text = detectorSummary.value.alerts[0]?.hypothesis_text || ''
+  return text.split('\n')[0].replace(/^•\s*/, '')
 })
 
 const detectorBannerAlert = computed(() => detectorSummary.value?.alerts?.[0] || null)
@@ -5103,8 +5144,8 @@ const dismissPlanOnboarding = async () => {
 const openPlanSettings = () => {
   if (!filters.client_id) return
   trackPlanOnboarding('clicked')
-  setCurrentProject(filters.client_id)
-  router.push({ name: 'MockupProjectCard', query: { settings: String(filters.client_id) } })
+  // «Задать план» открывает настройки прямо на дашборде, без перехода
+  openProjectSettingsModal()
 }
 
 // §8 ТЗ детектора ит.3: показы и клики плашки — метрика успеха итерации
@@ -5692,6 +5733,101 @@ onMounted(() => {
 
 .heading-section {
   margin-top: 6.5rem;
+}
+
+/* Заголовок + статус детектора + настройки проекта на одной оси */
+.dashboard-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-title-row h1 {
+  margin-bottom: 0;
+}
+
+.detector-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.2rem;
+  padding: 0 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.detector-status-chip:hover { transform: translateY(-1px); }
+
+.detector-status-chip--on {
+  background: #e6f6ed;
+  border-color: #bfe6ce;
+  color: #188a4c;
+}
+
+.detector-status-chip--warmup {
+  background: #eaf0fe;
+  border-color: #cbdaf8;
+  color: #1e4fc0;
+}
+
+.detector-status-chip--off {
+  background: #f2f5f9;
+  border-color: #e3e8f0;
+  color: #8a93a3;
+}
+
+.project-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid #ebebeb;
+  border-radius: 999px;
+  background: #fff;
+  color: #696969;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.project-settings-btn:hover {
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+.project-settings-btn svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.figma-dashboard.is-dark .project-settings-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.figma-dashboard.is-dark .detector-status-chip--on {
+  background: rgba(24, 138, 76, 0.18);
+  border-color: rgba(24, 138, 76, 0.3);
+  color: #6cd39a;
+}
+
+.figma-dashboard.is-dark .detector-status-chip--warmup {
+  background: rgba(74, 122, 255, 0.16);
+  border-color: rgba(74, 122, 255, 0.3);
+  color: #8fb0ff;
+}
+
+.figma-dashboard.is-dark .detector-status-chip--off {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .heading-section h1 {
@@ -7288,7 +7424,9 @@ onMounted(() => {
   color: #111827;
   font-size: 0.86rem;
   font-weight: 900;
-  line-height: 1.25;
+  line-height: 1.38;
+  /* Составной алерт — пункты «•» с новой строки */
+  white-space: pre-line;
 }
 
 .detector-popover small {

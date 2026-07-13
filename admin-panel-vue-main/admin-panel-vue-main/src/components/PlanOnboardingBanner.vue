@@ -42,9 +42,11 @@ watch(visible, (value) => {
 
 const title = computed(() => {
   if (props.planStatus === 'expired') {
-    // §6: итог периода — точка удержания в фиче
+    // §6: итог периода — точка удержания в фиче. Процент — про деньги,
+    // формулировка обязана это говорить сама («выполнен на 124%» читалось
+    // как успех, хотя 124% бюджета — перерасход)
     return props.completionPct != null
-      ? `План на прошлый период выполнен на ${Math.round(props.completionPct)}%`
+      ? `Бюджет прошлого периода израсходован на ${Math.round(props.completionPct)}%`
       : 'План на прошлый период завершён'
   }
   if (props.planStatus === 'incomplete') return 'Дозаполните план по бюджету и стоимости заявки'

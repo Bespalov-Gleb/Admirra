@@ -325,6 +325,7 @@
                               placeholder="не задано"
                               v-model="goal.targetCpa"
                               :disabled="goal.missing"
+                              @input="autoEnableGoalControl(goal)"
                             />
                             <span class="psm-input-suffix">₽</span>
                           </div>
@@ -957,6 +958,14 @@ async function disconnectGoogleSheets() {
 function formatBudgetInput(chId) {
   const raw = String(budgets[chId] || '').replace(/[^\d]/g, '')
   budgets[chId] = raw ? Number(raw).toLocaleString('ru-RU') : ''
+}
+
+// Ввёл стоимость — контроль включается сам (тумблер с transition уедет плавно);
+// стёр значение — выключается, чтобы не осталась «контролируемая» пустая цель
+function autoEnableGoalControl(goal) {
+  const hasValue = String(goal.targetCpa || '').trim() !== ''
+  if (hasValue && !goal.controlEnabled) goal.controlEnabled = true
+  if (!hasValue && goal.controlEnabled) goal.controlEnabled = false
 }
 
 function calculatedPlanLeads(channel) {

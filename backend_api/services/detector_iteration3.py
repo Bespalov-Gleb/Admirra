@@ -620,9 +620,14 @@ def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandida
     for channel, rows in by_channel.items():
         primary = sorted(rows, key=lambda item: (priority[item.mode], 0 if item.severity == "problem" else 1, -abs(item.deviation_pct)))[0]
         context = [item.hypothesis_text for item in rows if item is not primary and item.hypothesis_text]
-        text = primary.hypothesis_text or "Отклонение от плана."
-        if context:
-            text += " Дополнительно: " + " ".join(context)
+        # Составной алерт читается списком: каждая проверка — отдельный пункт
+        # с новой строки, а не слитная простыня (фронт рендерит pre-line).
+        parts = [primary.hypothesis_text or "Отклонение от плана."]
+        for index, item_text in enumerate(context):
+            parts.append(("Дополнительно: " if index == 0 else "") + item_text)
+        text = "\n• ".join(parts)
+        if len(parts) > 1:
+            text = "• " + text
         result.append(AlertCandidate(primary.metric, "project", None, channel, "plan", primary.severity,
                                      primary.deviation_pct, primary.baseline_value, primary.actual_value,
                                      primary.direction, hypothesis_text=text,
@@ -719,7 +724,8 @@ def _apply_diagnostics(
                 if contributors:
                     parts.append(contributors)
             if parts:
-                alert.hypothesis_text = f"{alert.hypothesis_text} {' '.join(parts)}"
+                # Диагностика и «основной вклад» — отдельные пункты списка
+                alert.hypothesis_text = alert.hypothesis_text + "".join(f"\n• {part}" for part in parts)
                 alert.meta = {**(alert.meta or {}), "diagnosis": " ".join(parts)}
         except Exception:
             # The diagnosis explains an alert; failing to build it must never
@@ -860,7 +866,8 @@ def _close_superseded_alerts(db: Session, client_id: uuid.UUID, reference_date: 
 
 
 def campaign_highlights(
-    db: Session, client_id: uuid.UUID, start: date, end: date
+    db: Session, client_id: uuid.UUID, start: date, end: date,
+    yandex_overrides: dict | None = None,
 ) -> dict[str, dict]:
     """Return read-only campaign tint data for the selected table period.
 
@@ -922,6 +929,16 @@ def campaign_highlights(
         for campaign_id, cost, conversions in query.group_by(table.campaign_id).all():
             spend = float(cost or 0) * factor
             leads = int(conversions or 0)
+            # Таблица дашборда для Яндекса переопределяет конверсии кампаний
+            # живыми данными Метрики (по имени кампании). Подсветка обязана
+            # видеть те же числа, иначе строка «CPL 1 016 ₽» подсвечивается
+            # текстом про 6 092 ₽ по данным Директа.
+            if (
+                yandex_overrides is not None
+                and channel == models.IntegrationPlatform.YANDEX_DIRECT
+                and str(campaign_id) in yandex_overrides
+            ):
+                leads = int(yandex_overrides[str(campaign_id)] or 0)
             if spend < minimum:
                 continue
             cpl = spend / leads if leads else math.inf

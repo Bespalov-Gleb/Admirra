@@ -261,7 +261,7 @@ def get_detector_alerts(
 
 
 @router.get("/{client_id}/campaign-highlights")
-def get_campaign_highlights(
+async def get_campaign_highlights(
     client_id: uuid.UUID,
     start_date: str,
     end_date: str,
@@ -277,7 +277,15 @@ def get_campaign_highlights(
     if end < start:
         raise HTTPException(status_code=400, detail="Дата окончания не может быть раньше даты начала")
     from backend_api.services.detector_iteration3 import campaign_highlights
-    return {"items": campaign_highlights(db, client_id, start, end)}
+    # Подсветка обязана видеть те же per-campaign конверсии, что и таблица:
+    # для Яндекса это живые данные Метрики (перекрывают conversions Директа)
+    yandex_overrides = None
+    try:
+        from backend_api.stats import _build_yandex_campaign_conversion_overrides
+        yandex_overrides = await _build_yandex_campaign_conversion_overrides(db, [client_id], start, end)
+    except Exception:
+        yandex_overrides = None  # Метрика недоступна — считаем по данным Директа
+    return {"items": campaign_highlights(db, client_id, start, end, yandex_overrides=yandex_overrides)}
 
 
 @router.post("/alerts/{alert_id}/dismiss")
