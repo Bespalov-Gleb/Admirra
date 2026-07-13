@@ -762,13 +762,20 @@ async function loadGoals() {
     // задать целевой CPL, и детектор не получает ни одной цели.
     if (platform.includes('VK')) {
       try {
-        const { data } = await api.get(`integrations/${intg.id}/vk-lead-actions`)
-        const items = Array.isArray(data?.items) ? data.items : []
-        const selectedCodes = Array.isArray(intg.lead_action_types)
-          ? intg.lead_action_types.map(String)
-          : null
+        // Список проектов может быть взят из кэша и содержать сокращённую
+        // интеграцию. Для VK обязательно читаем актуальный выбор действий,
+        // иначе строка цели исчезает, хотя «что считать заявкой» уже выбрано
+        // в мастере интеграции.
+        const [integrationResult, actionsResult] = await Promise.all([
+          api.get(`integrations/${intg.id}`).catch(() => ({ data: null })),
+          api.get(`integrations/${intg.id}/vk-lead-actions`),
+        ])
+        const items = Array.isArray(actionsResult.data?.items) ? actionsResult.data.items : []
+        const selectedCodes = normalizeLeadActionTypes(
+          integrationResult.data?.lead_action_types ?? intg.lead_action_types,
+        )
         const leadItems = selectedCodes
-          ? items.filter((item) => selectedCodes.includes(String(item.id)))
+          ? items.filter((item) => selectedCodes.includes(String(item.id || item.code)))
           : items
         for (const item of leadItems) {
           rows.push({
@@ -1027,6 +1034,17 @@ function normalizeSelectedGoals(value) {
     }
   }
   return selectedGoals.map((g) => (typeof g === 'object' ? g : { id: g, name: null }))
+}
+
+function normalizeLeadActionTypes(value) {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(String) : null
+  } catch {
+    return null
+  }
 }
 
 function validateUrl() {

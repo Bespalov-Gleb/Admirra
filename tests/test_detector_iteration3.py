@@ -11,18 +11,18 @@ from core import models
 def cfg(**overrides):
     values = {
         "plan_start_pause_days": 3,
-        "plan_spend_warning_deviation": 0.20,
+        "plan_spend_warning_deviation": 0.10,
         "plan_spend_problem_deviation": 0.40,
         "plan_min_expected_spend": 1000.0,
         "plan_exhausted_min_days_remaining": 2,
         "plan_cpl_window_days": 7,
-        "plan_cpl_warning_ratio": 1.3,
+        "plan_cpl_warning_ratio": 1.1,
         "plan_cpl_problem_ratio": 1.8,
         "plan_cpl_problem_target_multiplier": 5.0,
         "plan_cpl_warning_target_multiplier": 10.0,
         "plan_cpl_problem_budget_share": 0.15,
         "plan_cpl_warning_budget_share": 0.30,
-        "plan_leads_warning_deviation": 0.20,
+        "plan_leads_warning_deviation": 0.10,
         "plan_leads_problem_deviation": 0.40,
         "plan_min_expected_leads": 10,
         "stopped_spend_zero_days": 2,
@@ -92,15 +92,15 @@ def test_p1_red_overpace_has_forecast_and_exhaustion_has_special_copy(monkeypatc
     assert "израсходован полностью" in exhausted.hypothesis_text
 
 
-def test_p1_uses_iteration_three_yellow_threshold_of_twenty_percent(monkeypatch):
-    # Для P-1/P-3 ТЗ задаёт жёлтый порог 20%, не 10%; красный — 40%.
+def test_p1_uses_ten_percent_yellow_threshold(monkeypatch):
+    # Жёлтый порог для плановых проверок — 10%; красный — 40%.
     # На 15-й день из 30 при бюджете 100 000 ₽ ожидание равно 50 000 ₽.
-    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (55_000, 0, 0))
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (54_999, 0, 0))
     assert iteration3._make_plan_spend(
         None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
     ) is None
 
-    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (60_000, 0, 0))
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (55_000, 0, 0))
     warning = iteration3._make_plan_spend(
         None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
     )
@@ -111,6 +111,39 @@ def test_p1_uses_iteration_three_yellow_threshold_of_twenty_percent(monkeypatch)
         None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), date(2026, 7, 15), client(), cfg(),
     )
     assert problem and problem.severity == "problem"
+
+
+def test_p2_and_p3_use_ten_percent_yellow_threshold(monkeypatch):
+    monkeypatch.setattr(iteration3, "_target_window_start", lambda *_: date(2026, 7, 1))
+    monkeypatch.setattr(iteration3, "_target_exists", lambda *_: True)
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (12_000, 0, 45))
+    monkeypatch.setattr(iteration3, "_sum_goal_leads", lambda *_: 11)
+    assert iteration3._make_plan_cpl(
+        None, "p", target(1_000), budget(100_000), date(2026, 7, 7), cfg(),
+    ) is None
+
+    monkeypatch.setattr(iteration3, "_sum_goal_leads", lambda *_: 10)
+    cpl = iteration3._make_plan_cpl(
+        None, "p", target(1_000), budget(100_000), date(2026, 7, 7), cfg(),
+    )
+    assert cpl and cpl.severity == "warning"
+
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (12_000, 0, 46))
+    assert iteration3._make_plan_leads(
+        None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), target(1_000), date(2026, 7, 15), client(), cfg(),
+    ) is None
+
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (12_000, 0, 45))
+    leads = iteration3._make_plan_leads(
+        None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(100_000), target(1_000), date(2026, 7, 15), client(), cfg(),
+    )
+    assert leads and leads.severity == "warning"
+
+
+def test_p2_uses_current_target_against_the_full_recent_window():
+    changed_target = target(2_000)
+    changed_target.created_at = datetime(2026, 7, 12)
+    assert iteration3._target_window_start(None, changed_target, date(2026, 7, 14), cfg()) == date(2026, 7, 8)
 
 
 def test_p2_uses_money_volume_not_lead_count_and_budget_cap(monkeypatch):

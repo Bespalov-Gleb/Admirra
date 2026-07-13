@@ -500,25 +500,11 @@ def _make_plan_spend(
 def _target_window_start(
     db: Session, target: models.ProjectTargetCPA, reference_date: date, cfg: DetectorCfg
 ) -> date:
-    start = max(target.period_start, reference_date - timedelta(days=cfg.plan_cpl_window_days - 1))
-    older = (
-        db.query(models.ProjectTargetCPA)
-        .filter(
-            models.ProjectTargetCPA.client_id == target.client_id,
-            models.ProjectTargetCPA.channel == target.channel,
-            models.ProjectTargetCPA.goal_id == target.goal_id,
-            models.ProjectTargetCPA.is_summary == target.is_summary,
-            models.ProjectTargetCPA.period_start == target.period_start,
-            models.ProjectTargetCPA.period_end == target.period_end,
-            models.ProjectTargetCPA.created_at < target.created_at,
-        )
-        .order_by(models.ProjectTargetCPA.created_at.desc())
-        .first()
-    )
-    if older and float(older.target_cpa or 0) != float(target.target_cpa or 0):
-        changed = target.created_at.date() if target.created_at else reference_date
-        start = max(start, changed)
-    return start
+    # Цель — это текущая договорённость с клиентом. После её изменения
+    # детектор должен сразу сравнить актуальное скользящее окно с новой целью,
+    # а не молчать ещё семь дней. Иначе новый, более строгий CPL фактически
+    # не защищает проект (как было у SIB ATV).
+    return max(target.period_start, reference_date - timedelta(days=cfg.plan_cpl_window_days - 1))
 
 
 def _target_exists(db: Session, client_id: uuid.UUID, target: models.ProjectTargetCPA) -> bool:
@@ -897,6 +883,12 @@ def campaign_highlights(
         )
     }
     vk_codes = _vk_lead_codes(db, client_id)
+    # Если проект настроил выбранные цели Метрики, native-конверсии Директа
+    # содержат другие действия и непригодны для CPL кампании. В таком случае
+    # подсвечиваем только кампании с точной атрибуцией по DirectClickOrder;
+    # при временной недоступности Метрики честнее не подсветить строку, чем
+    # показать ложные 6 092 ₽ из чужих конверсий.
+    has_selected_yandex_goals = bool(_selected_goal_ids(_ad_integrations(db, client_id)))
     result: dict[str, dict] = {}
     for channel, target in summaries.items():
         budget = _budget_for_channel(budgets, channel)
@@ -933,12 +925,10 @@ def campaign_highlights(
             # живыми данными Метрики (по имени кампании). Подсветка обязана
             # видеть те же числа, иначе строка «CPL 1 016 ₽» подсвечивается
             # текстом про 6 092 ₽ по данным Директа.
-            if (
-                yandex_overrides is not None
-                and channel == models.IntegrationPlatform.YANDEX_DIRECT
-                and str(campaign_id) in yandex_overrides
-            ):
-                leads = int(yandex_overrides[str(campaign_id)] or 0)
+            if channel == models.IntegrationPlatform.YANDEX_DIRECT and has_selected_yandex_goals:
+                if str(campaign_id) not in (yandex_overrides or {}):
+                    continue
+                leads = int((yandex_overrides or {})[str(campaign_id)] or 0)
             if spend < minimum:
                 continue
             cpl = spend / leads if leads else math.inf

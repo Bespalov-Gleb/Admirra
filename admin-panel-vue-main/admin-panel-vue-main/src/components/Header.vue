@@ -80,7 +80,7 @@
                   <Transition name="folder-tree">
                     <div v-if="isFolderExpanded(folder.id)" class="hd-folder-children">
                       <button
-                        v-for="project in folder.projects || []"
+                        v-for="project in activeFolderProjects(folder)"
                         :key="project.id"
                         @click="handleProjectSelect(project.id, { forceDashboard: true })"
                         :class="['hd-child-project', currentProjectId === project.id ? 'hd-child-project--active' : '']"
@@ -92,17 +92,36 @@
                         </span>
                         <span class="min-w-0 truncate">{{ project.name }}</span>
                       </button>
-                      <div v-if="!(folder.projects || []).length" class="hd-folder-empty">В папке нет доступных проектов</div>
+                      <div v-if="!activeFolderProjects(folder).length" class="hd-folder-empty">В папке нет активных проектов</div>
                     </div>
                   </Transition>
                 </li>
-                <li v-for="project in headerRootProjects" :key="project.id">
+                <li v-for="project in headerRootActiveProjects" :key="project.id">
                   <button @click="handleProjectSelect(project.id, { forceDashboard: true })" :class="['hd-menu-item', currentProjectId === project.id ? 'hd-menu-item--active' : '']">
                     <span class="hd-project-avatar">
                       <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
                       <span v-else class="text-[0.625rem] font-bold">{{ projectInitials(project) }}</span>
                     </span>
                     <span class="hd-menu-item-label min-w-0 truncate">{{ project.name }}</span>
+                  </button>
+                </li>
+                <li v-if="headerPausedProjects.length" class="hd-paused-group">
+                  <div class="hd-divider"></div>
+                  <div class="hd-section-label">Проекты на паузе</div>
+                  <button
+                    v-for="project in headerPausedProjects"
+                    :key="project.id"
+                    @click="handleProjectSelect(project.id, { forceDashboard: true })"
+                    :class="['hd-menu-item', 'hd-menu-item--paused', currentProjectId === project.id ? 'hd-menu-item--active' : '']"
+                  >
+                    <span class="hd-project-avatar">
+                      <img v-if="projectAvatarUrl(project)" class="h-full w-full object-cover" :src="projectAvatarUrl(project)" :alt="project.name" />
+                      <span v-else class="text-[0.625rem] font-bold">{{ projectInitials(project) }}</span>
+                    </span>
+                    <span class="hd-paused-project-copy">
+                      <span class="hd-menu-item-label min-w-0 truncate">{{ project.name }}</span>
+                      <small v-if="project.folderName" class="truncate">{{ project.folderName }}</small>
+                    </span>
                   </button>
                 </li>
               </ul>
@@ -479,14 +498,28 @@ const fetchProjectTree = async ({ silent = false } = {}) => {
   }
 }
 
-const headerFolders = computed(() => folderTree.value.folders || [])
+const allHeaderFolders = computed(() => folderTree.value.folders || [])
+const isProjectPaused = (project) => String(project?.status || '').toLowerCase() === 'paused'
+const activeFolderProjects = (folder) => (folder?.projects || []).filter((project) => !isProjectPaused(project))
+const headerFolders = computed(() => allHeaderFolders.value.filter((folder) => (
+  !(folder.projects || []).length || activeFolderProjects(folder).length > 0
+)))
 const headerRootProjects = computed(() => {
   const treeRoot = folderTree.value.root_projects || []
-  if (treeRoot.length || headerFolders.value.length) return treeRoot
+  if (treeRoot.length || allHeaderFolders.value.length) return treeRoot
   return projects.value.filter((project) => !project.folder_id)
 })
+const headerRootActiveProjects = computed(() => headerRootProjects.value.filter((project) => !isProjectPaused(project)))
+const headerPausedProjects = computed(() => {
+  const inFolders = allHeaderFolders.value.flatMap((folder) => (
+    (folder.projects || [])
+      .filter(isProjectPaused)
+      .map((project) => ({ ...project, folderName: folder.name || null }))
+  ))
+  return [...inFolders, ...headerRootProjects.value.filter(isProjectPaused)]
+})
 const currentFolderId = computed(() => route.path.startsWith('/dashboard/general-3') ? String(route.query.folder_id || '') : '')
-const currentFolder = computed(() => headerFolders.value.find((folder) => String(folder.id) === currentFolderId.value) || null)
+const currentFolder = computed(() => allHeaderFolders.value.find((folder) => String(folder.id) === currentFolderId.value) || null)
 const currentFolderColor = computed(() => currentFolder.value?.color || '#2563eb')
 const headerFolderMode = computed(() => Boolean(currentFolderId.value))
 
@@ -1107,6 +1140,12 @@ watch(
 .hd-menu-item--danger:hover { background: rgba(220,53,69,0.06); color: #dc3545; }
 :global(.dark) .hd-menu-item--danger { color: #f87171; }
 :global(.dark) .hd-menu-item--danger:hover { background: rgba(248,113,113,0.08); color: #f87171; }
+.hd-menu-item--paused { color: rgba(75,85,99,0.84); }
+.hd-menu-item--paused:not(.hd-menu-item--active) .hd-project-avatar { filter: saturate(.55); opacity: .82; }
+:global(.dark) .hd-menu-item--paused { color: rgba(255,255,255,.58); }
+.hd-paused-project-copy { display:flex; min-width:0; flex:1; flex-direction:column; gap:.08rem; }
+.hd-paused-project-copy small { color:rgba(107,114,128,.72); font-size:.68rem; line-height:1.1; }
+:global(.dark) .hd-paused-project-copy small { color:rgba(255,255,255,.34); }
 
 .hd-menu-icon {
   width: 1.7rem;

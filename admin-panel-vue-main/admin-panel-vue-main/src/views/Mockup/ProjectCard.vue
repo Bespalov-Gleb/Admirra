@@ -1020,6 +1020,13 @@ const folderById = computed(() => Object.fromEntries(folders.value.map((f) => [f
 const folderProjects = (folderId) => filteredProjects.value.filter((p) => p.folder_id === folderId)
 const allFolderProjects = (folderId) => projects.value.filter((p) => p.folder_id === folderId)
 
+const shouldDisplayFolder = (folder) => {
+  if (projectFilter.value === 'paused') return false
+  // В «Активных» не оставляем папки, внутри которых есть только проекты на
+  // паузе. Пустая папка остаётся самостоятельной сущностью.
+  return projectFilter.value !== 'active' || !allFolderProjects(folder.id).length || folderProjects(folder.id).length > 0
+}
+
 // Папка как «сущность карточки»: integrations собираются из вложенных проектов,
 // поэтому существующие функции карточки (статы/каналы/балансы) работают без изменений —
 // метрики папки лежат в тех же metricsByProjectId/projectInsightsById под folder.id.
@@ -1049,7 +1056,17 @@ const displayItems = computed(() => {
     }
     return items
   }
+  if (projectFilter.value === 'paused') {
+    // Папка — не «проект на паузе». Паузы выводятся плоским списком, при этом
+    // в карточке остаётся подпись исходной папки.
+    for (const p of filteredProjects.value) {
+      const folderName = p.folder_id ? folderById.value[p.folder_id]?.name : null
+      items.push({ type: 'project', project: p, folderName })
+    }
+    return items
+  }
   for (const f of [...folders.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))) {
+    if (!shouldDisplayFolder(f)) continue
     items.push({ type: 'folder', folder: f })
     if (expandedFolders.value[f.id]) {
       for (const p of folderProjects(f.id)) {

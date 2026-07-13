@@ -397,6 +397,7 @@
       v-if="filters.client_id"
       :plan-status="detectorSummary?.plan_status"
       :detector-enabled="!['disabled', 'paused'].includes(detectorSummary?.warmup_status)"
+      :paused="detectorSummary?.warmup_status === 'paused'"
       :warming-up="detectorSummary?.warmup_status === 'warming_up'"
       :has-critical="hasCriticalDetectorAlert"
       :has-alerts="((detectorSummary?.warning_count || 0) + (detectorSummary?.problem_count || 0)) > 0"
