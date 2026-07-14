@@ -1902,15 +1902,14 @@ class YandexDirectAPI:
         """
         Clients.get — параметры рекламодателя и представителя (токена).
         Документация: https://yandex.ru/dev/direct/doc/ru/clients/get
-
-        ManagedLogins не описан в FieldNames, но API возвращает его при запросе —
-        используем только как список логинов кабинетов с делегированным доступом.
         """
         url = "https://api.direct.yandex.com/json/v5/clients"
         payload = {
             "method": "get",
             "params": {
-                "FieldNames": ["Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"],
+                # Only documented Clients.get fields belong in the core request.
+                # An unknown enum value makes the entire profile selector fail.
+                "FieldNames": ["Login", "ClientInfo", "ClientId", "Type"],
                 "OrganizationFieldNames": ["Name"],
             },
         }
@@ -1939,7 +1938,7 @@ class YandexDirectAPI:
             except Exception as e:
                 logger.error(f"Failed to fetch Yandex clients: {e}")
                 raise
-    
+
     async def get_balance(self) -> Optional[Dict[str, Any]]:
         """
         Получает баланс рекламного кабинета через AccountManagement API (для Direct Pro).

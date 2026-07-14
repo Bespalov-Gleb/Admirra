@@ -59,6 +59,20 @@ const logger = {
   info: (msg) => console.log(`[YandexCallback] ${msg}`)
 }
 
+const clearLegacyYandexIntegrationState = () => {
+  // OAuth context is now stored in a one-time server session. Clearing these
+  // keys prevents a failed legacy flow from ever leaking into a new callback.
+  for (const key of [
+    'yandex_auth_client_name',
+    'yandex_auth_client_id',
+    'yandex_auth_is_new_project',
+    'yandex_auth_for_avito',
+    'avito_integration_id'
+  ]) {
+    localStorage.removeItem(key)
+  }
+}
+
 onMounted(async () => {
   const stateParam = route.query.state
   const fromSession = sessionStorage.getItem('oauth_site_login') === 'yandex'
@@ -118,35 +132,32 @@ onMounted(async () => {
   }
 
   if (!code) {
+    clearLegacyYandexIntegrationState()
     error.value = 'Код авторизации не найден'
     loading.value = false
     return
   }
 
-  try {
-    const clientName = localStorage.getItem('yandex_auth_client_name')
-    const clientId = localStorage.getItem('yandex_auth_client_id')
-    const forAvito = localStorage.getItem('yandex_auth_for_avito') === 'true'
+  const integrationState = String(stateParam || '')
+  if (!integrationState) {
+    clearLegacyYandexIntegrationState()
+    error.value = 'OAuth-сессия Яндекса не найдена. Начните подключение заново.'
+    loading.value = false
+    return
+  }
 
+  try {
     const payload = {
       code,
       redirect_uri: redirectUri,
-      client_name: clientName,
-      client_id: clientId,
-      platform: forAvito ? 'YANDEX_METRIKA' : 'YANDEX_DIRECT'
+      state: integrationState
     }
 
     const response = await api.post('integrations/yandex/exchange', payload)
-
     const isAgency = response.data.is_agency
 
-    localStorage.removeItem('yandex_auth_client_name')
-    localStorage.removeItem('yandex_auth_client_id')
-    localStorage.removeItem('yandex_auth_for_avito')
-
-    if (forAvito) {
-      const avitoIntegrationId = localStorage.getItem('avito_integration_id')
-      localStorage.removeItem('avito_integration_id')
+    if (response.data.flow === 'avito_metrika') {
+      const avitoIntegrationId = response.data.resume_integration_id
       if (response.data.integration_id) {
         localStorage.setItem('metrika_integration_id', response.data.integration_id)
       }
@@ -178,6 +189,7 @@ onMounted(async () => {
     console.error(err)
     error.value = err.response?.data?.detail || 'Не удалось завершить подключение'
   } finally {
+    clearLegacyYandexIntegrationState()
     loading.value = false
   }
 })

@@ -612,13 +612,23 @@ const initYandexAuth = async () => {
   try {
     sessionStorage.removeItem('oauth_site_login')
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
-    
-    // Save form state to localStorage
-    if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
-    if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
-    if (isCreatingNewProject.value) localStorage.setItem('yandex_auth_is_new_project', 'true')
-    
-    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+
+    // OAuth context is persisted server-side in a one-time state. Remove every
+    // legacy browser value before starting so an abandoned attempt cannot pick
+    // a different project after the callback.
+    for (const key of ['yandex_auth_client_id', 'yandex_auth_client_name', 'yandex_auth_is_new_project']) {
+      localStorage.removeItem(key)
+    }
+
+    const { data } = await api.get('integrations/yandex/auth-url', {
+      params: {
+        redirect_uri: redirectUri,
+        client_id: form.client_id || undefined,
+        client_name: isCreatingNewProject.value ? form.client_name : undefined,
+        platform: 'YANDEX_DIRECT',
+        flow: 'yandex_direct'
+      }
+    })
     if (data.url) {
       window.location.href = data.url
     }

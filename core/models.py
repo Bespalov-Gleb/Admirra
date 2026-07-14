@@ -158,6 +158,33 @@ class MaxOAuthLoginAttempt(Base):
     user = relationship("User", backref="max_oauth_login_attempts")
 
 
+class YandexIntegrationOAuthAttempt(Base):
+    """One-time OAuth session for connecting Yandex Direct or Metrika.
+
+    The browser receives only a high-entropy ``state`` value.  The project,
+    requested platform and the Avito resume context remain server-side, so a
+    stale browser storage entry can never attach a token to another project.
+    """
+
+    __tablename__ = "yandex_integration_oauth_attempts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    state_hash = Column(String(128), unique=True, nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
+    client_name = Column(String(255), nullable=True)
+    platform = Column(String(32), nullable=False)
+    flow = Column(String(32), nullable=False, default="yandex_direct", server_default="yandex_direct")
+    resume_integration_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    redirect_uri = Column(String(2048), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="yandex_integration_oauth_attempts")
+    client = relationship("Client", backref="yandex_integration_oauth_attempts")
+
+
 class TelegramLinkToken(Base):
     """
     Одноразовый токен для deep link t.me/<bot>?start=<token>.

@@ -263,9 +263,13 @@ class TestYandexDirectAPIClients:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
             
             clients = await api.get_clients()
-            
+
             assert len(clients) == 2
             assert clients[0]["Login"] == "user1"
+            request = mock_client.return_value.__aenter__.return_value.post.await_args.kwargs["json"]
+            assert request["params"]["FieldNames"] == ["Login", "ClientInfo", "ClientId", "Type"]
+            assert request["params"]["OrganizationFieldNames"] == ["Name"]
+            assert "ManagedLogins" not in request["params"]["FieldNames"]
     
     @pytest.mark.asyncio
     async def test_get_clients_unauthorized(self):

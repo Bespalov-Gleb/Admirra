@@ -1370,18 +1370,35 @@ const handleCancel = async () => {
   }
 }
 
+const clearLegacyYandexAuthContext = () => {
+  for (const key of [
+    'yandex_auth_client_name',
+    'yandex_auth_client_id',
+    'yandex_auth_is_new_project',
+    'yandex_auth_for_avito',
+    'avito_integration_id'
+  ]) {
+    localStorage.removeItem(key)
+  }
+}
+
 const initYandexAuth = async () => {
   if (loadingAuth.value) return
   loadingAuth.value = true
   error.value = null
   let redirected = false
   try {
-    if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
-    if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
-    if (isNewProject.value) localStorage.setItem('yandex_auth_is_new_project', 'true')
-
+    clearLegacyYandexAuthContext()
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
-    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    const { data } = await api.get('integrations/yandex/auth-url', {
+      params: {
+        redirect_uri: redirectUri,
+        client_id: form.client_id || undefined,
+        client_name: isNewProject.value ? form.client_name : undefined,
+        platform: 'YANDEX_DIRECT',
+        flow: 'yandex_direct'
+      }
+    })
     if (data?.url) {
       redirected = true
       toaster.info('Переходим в Яндекс OAuth...')
@@ -1560,13 +1577,18 @@ const initYandexMetrikaAuth = async () => {
       throw new Error('Сначала подключите Avito Ads')
     }
     saveAvitoWizardState()
-    if (form.client_id) localStorage.setItem('yandex_auth_client_id', form.client_id)
-    if (form.client_name) localStorage.setItem('yandex_auth_client_name', form.client_name)
-    localStorage.setItem('yandex_auth_for_avito', 'true')
-    localStorage.setItem('avito_integration_id', lastIntegrationId.value)
-
+    clearLegacyYandexAuthContext()
     const redirectUri = `${window.location.origin}/auth/yandex/callback`
-    const { data } = await api.get(`integrations/yandex/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`)
+    const { data } = await api.get('integrations/yandex/auth-url', {
+      params: {
+        redirect_uri: redirectUri,
+        client_id: form.client_id || undefined,
+        client_name: isNewProject.value ? form.client_name : undefined,
+        platform: 'YANDEX_METRIKA',
+        flow: 'avito_metrika',
+        resume_integration_id: lastIntegrationId.value
+      }
+    })
     if (data?.url) {
       redirected = true
       toaster.info('Переходим в Яндекс OAuth для Метрики...')

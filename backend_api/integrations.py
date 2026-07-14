@@ -34,6 +34,7 @@ from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
 from core.public_domain import resolve_frontend_url
+from backend_api.access_control import assert_project_access, get_accessible_client_ids
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from core.campaign_status import apply_platform_status
@@ -68,6 +69,7 @@ VK_CLIENT_LINK_TTL = timedelta(days=7)
 VK_CLIENT_LINK_RETENTION = timedelta(days=30)
 VK_CLIENT_LINK_STATUS_COOLDOWN = timedelta(seconds=3)
 _vk_client_link_status_checks: dict[tuple[str, str], datetime] = {}
+YANDEX_INTEGRATION_OAUTH_TTL = timedelta(minutes=10)
 
 # myTarget Credentials (Authorization Code Grant)
 # Для песочницы используем target-sandbox.my.com
@@ -84,6 +86,129 @@ router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _integration_for_project_access(
+    db: Session,
+    user: models.User,
+    integration_id: uuid.UUID,
+    *,
+    write: bool = False,
+) -> models.Integration:
+    """Fetch an integration after applying the same project ACL as the UI."""
+    integration = (
+        db.query(models.Integration)
+        .join(models.Client)
+        .filter(models.Integration.id == integration_id)
+        .first()
+    )
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    assert_project_access(db, user, integration.client_id, write=write)
+    return integration
+
+
+def _yandex_integration_state_hash(state: str) -> str:
+    """Hash opaque browser state before persisting it in the database."""
+    return hashlib.sha256(state.encode("utf-8")).hexdigest()
+
+
+def _validate_yandex_integration_redirect_uri(redirect_uri: str) -> str:
+    """Accept exactly the callback registered for this deployment."""
+    normalized = (redirect_uri or "").strip().rstrip("/")
+    expected = f"{resolve_frontend_url().rstrip('/')}/auth/yandex/callback"
+    if normalized != expected:
+        raise HTTPException(
+            status_code=400,
+            detail="Некорректный Redirect URI для Яндекс OAuth",
+        )
+    return normalized
+
+
+def _create_yandex_integration_attempt(
+    db: Session,
+    *,
+    user: models.User,
+    client_id: Optional[uuid.UUID],
+    client_name: Optional[str],
+    platform: models.IntegrationPlatform,
+    flow: str,
+    resume_integration_id: Optional[uuid.UUID],
+    redirect_uri: str,
+) -> str:
+    """Persist an opaque, single-use OAuth session and return its raw state."""
+    now = _utcnow()
+    db.query(models.YandexIntegrationOAuthAttempt).filter(
+        models.YandexIntegrationOAuthAttempt.expires_at <= now,
+        models.YandexIntegrationOAuthAttempt.consumed_at.is_(None),
+    ).delete(synchronize_session=False)
+
+    state = secrets.token_urlsafe(48)
+    attempt = models.YandexIntegrationOAuthAttempt(
+        state_hash=_yandex_integration_state_hash(state),
+        user_id=user.id,
+        client_id=client_id,
+        client_name=client_name,
+        platform=platform.value,
+        flow=flow,
+        resume_integration_id=resume_integration_id,
+        redirect_uri=redirect_uri,
+        expires_at=now + YANDEX_INTEGRATION_OAUTH_TTL,
+    )
+    db.add(attempt)
+    db.commit()
+    return state
+
+
+def _consume_yandex_integration_attempt(
+    db: Session,
+    *,
+    user: models.User,
+    state: object,
+    redirect_uri: str,
+) -> models.YandexIntegrationOAuthAttempt:
+    """Validate and permanently consume the OAuth state before token exchange."""
+    raw_state = str(state or "").strip()
+    if len(raw_state) < 32:
+        raise HTTPException(status_code=400, detail="OAuth-сессия Яндекса не найдена. Начните подключение заново.")
+
+    attempt = (
+        db.query(models.YandexIntegrationOAuthAttempt)
+        .filter(
+            models.YandexIntegrationOAuthAttempt.state_hash == _yandex_integration_state_hash(raw_state)
+        )
+        .with_for_update()
+        .first()
+    )
+    if not attempt:
+        raise HTTPException(status_code=400, detail="OAuth-сессия Яндекса истекла. Начните подключение заново.")
+
+    now = _utcnow()
+    if attempt.user_id != user.id:
+        raise HTTPException(status_code=403, detail="OAuth-сессия Яндекса принадлежит другому пользователю")
+    if attempt.consumed_at is not None or attempt.expires_at <= now:
+        raise HTTPException(status_code=400, detail="OAuth-сессия Яндекса истекла. Начните подключение заново.")
+    if _validate_yandex_integration_redirect_uri(redirect_uri) != attempt.redirect_uri:
+        raise HTTPException(status_code=400, detail="Redirect URI не совпадает с OAuth-сессией Яндекса")
+
+    attempt.consumed_at = now
+    # Persist consumption before talking to Yandex: a callback can never be replayed.
+    db.commit()
+    return attempt
+
+
+def _build_yandex_authorize_url(redirect_uri: str, state: str) -> str:
+    """Build the documented Authorization Code URL for a Yandex integration."""
+    params = {
+        "response_type": "code",
+        "client_id": YANDEX_CLIENT_ID,
+        "redirect_uri": redirect_uri,
+        "scope": "direct:api metrika:read",
+        # Always let the user choose the intended Yandex ID / organisation context.
+        "force_confirm": "yes",
+        "state": state,
+    }
+    return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
 
 
 def _vk_client_link_state_secret() -> bytes:
@@ -356,8 +481,11 @@ def get_integrations(
     Optional client_id filters to a specific project; folder_id — к папке проектов
     (для «Синхронизировать» на уровне папки: синк всех кабинетов вложенных проектов).
     """
+    accessible_client_ids = get_accessible_client_ids(db, current_user)
+    if not accessible_client_ids:
+        return []
     q = db.query(models.Integration).join(models.Client).filter(
-        models.Client.owner_id == current_user.id
+        models.Integration.client_id.in_(accessible_client_ids)
     )
     if client_id:
         try:
@@ -375,18 +503,81 @@ def get_integrations(
     return q.all()
 
 @router.get("/yandex/auth-url")
-def get_yandex_auth_url(redirect_uri: str):
+def get_yandex_auth_url(
+    redirect_uri: str,
+    client_id: Optional[str] = None,
+    client_name: Optional[str] = None,
+    platform: str = "YANDEX_DIRECT",
+    flow: str = "yandex_direct",
+    resume_integration_id: Optional[str] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate Yandex OAuth authorization URL with dynamic redirect_uri.
     Required scopes for Yandex Direct API:
     - direct:api - access to Yandex Direct API
     - metrika:read - access to Yandex Metrika (for goals)
     """
-    # Yandex Direct + Metrika (чтение целей; офлайн-конверсии — отдельный scope, пока убран)
-    scope = "direct:api metrika:read"
-    return {
-        "url": f"{YANDEX_AUTH_URL}?response_type=code&client_id={YANDEX_CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}"
-    }
+    SubscriptionService.require_active_subscription(db, current_user)
+    if not YANDEX_CLIENT_ID or not YANDEX_CLIENT_SECRET:
+        raise HTTPException(status_code=503, detail="Яндекс OAuth не настроен на сервере")
+
+    normalized_redirect_uri = _validate_yandex_integration_redirect_uri(redirect_uri)
+    normalized_platform = (platform or "").strip().upper()
+    if normalized_platform not in {"YANDEX_DIRECT", "YANDEX_METRIKA"}:
+        raise HTTPException(status_code=400, detail="platform должен быть YANDEX_DIRECT или YANDEX_METRIKA")
+    target_platform = models.IntegrationPlatform(normalized_platform)
+
+    normalized_flow = (flow or "yandex_direct").strip().lower()
+    if normalized_flow not in {"yandex_direct", "avito_metrika"}:
+        raise HTTPException(status_code=400, detail="Некорректный OAuth-flow Яндекса")
+    if normalized_flow == "avito_metrika" and target_platform != models.IntegrationPlatform.YANDEX_METRIKA:
+        raise HTTPException(status_code=400, detail="Avito flow требует подключения Яндекс Метрики")
+    if normalized_flow == "yandex_direct" and target_platform != models.IntegrationPlatform.YANDEX_DIRECT:
+        raise HTTPException(status_code=400, detail="Для Яндекс Директа указан некорректный flow")
+
+    project_id: Optional[uuid.UUID] = None
+    project_name: Optional[str] = None
+    if client_id:
+        try:
+            project_id = uuid.UUID(str(client_id))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Некорректный ID проекта")
+        assert_project_access(db, current_user, project_id, write=True)
+    else:
+        project_name = (client_name or "").strip()
+        if not project_name:
+            raise HTTPException(status_code=400, detail="Выберите проект или укажите название нового проекта")
+        if len(project_name) > 255:
+            raise HTTPException(status_code=400, detail="Название проекта слишком длинное")
+
+    resume_id: Optional[uuid.UUID] = None
+    if normalized_flow == "avito_metrika":
+        try:
+            resume_id = uuid.UUID(str(resume_integration_id))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Не найдена интеграция Avito для продолжения")
+        avito_integration = _integration_for_project_access(db, current_user, resume_id, write=True)
+        if avito_integration.platform != models.IntegrationPlatform.AVITO_ADS:
+            raise HTTPException(status_code=400, detail="Указанная интеграция не является Avito Ads")
+        if project_id and avito_integration.client_id != project_id:
+            raise HTTPException(status_code=400, detail="Интеграция Avito относится к другому проекту")
+        if not project_id:
+            project_id = avito_integration.client_id
+            project_name = None
+
+    state = _create_yandex_integration_attempt(
+        db,
+        user=current_user,
+        client_id=project_id,
+        client_name=project_name,
+        platform=target_platform,
+        flow=normalized_flow,
+        resume_integration_id=resume_id,
+        redirect_uri=normalized_redirect_uri,
+    )
+    return {"url": _build_yandex_authorize_url(normalized_redirect_uri, state)}
 
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
@@ -883,39 +1074,81 @@ def run_sync_in_background(integration_id: uuid.UUID, days: int = 7):
 
 @router.post("/yandex/exchange")
 async def exchange_yandex_token(
-    payload: dict, # Expecting {"code": "...", "redirect_uri": "...", "client_name": "..."}
+    payload: dict,
     background_tasks: BackgroundTasks,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Exchange authorization code for access token.
-    """
+    """Exchange a one-time, project-bound Yandex authorization code."""
     SubscriptionService.require_active_subscription(db, current_user)
 
-    auth_code = payload.get("code")
-    redirect_uri = payload.get("redirect_uri") # Must match the one used in auth-url
-    client_name_input = payload.get("client_name")
-    client_id_input = payload.get("client_id")  # NEW: If provided, link to existing client
-    platform_input = (payload.get("platform") or "YANDEX_DIRECT").strip().upper()
-    if platform_input not in {"YANDEX_DIRECT", "YANDEX_METRIKA"}:
-        raise HTTPException(status_code=400, detail="platform должен быть YANDEX_DIRECT или YANDEX_METRIKA")
-    target_platform = (
-        models.IntegrationPlatform.YANDEX_METRIKA
-        if platform_input == "YANDEX_METRIKA"
-        else models.IntegrationPlatform.YANDEX_DIRECT
-    )
-
+    auth_code = str(payload.get("code") or "").strip()
+    redirect_uri = str(payload.get("redirect_uri") or "").strip()
     if not auth_code or not redirect_uri:
         log_event("backend", "Failed to exchange Yandex token: missing code or redirect_uri")
         raise HTTPException(status_code=400, detail="Missing code or redirect_uri")
 
-    log_event("backend", f"Exchanging Yandex code for client_name: {client_name_input}, client_id: {client_id_input}, platform: {platform_input}")
+    attempt = _consume_yandex_integration_attempt(
+        db,
+        user=current_user,
+        state=payload.get("state"),
+        redirect_uri=redirect_uri,
+    )
+    try:
+        target_platform = models.IntegrationPlatform(attempt.platform)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="OAuth-сессия Яндекса содержит неподдерживаемую платформу") from exc
+    if target_platform not in {
+        models.IntegrationPlatform.YANDEX_DIRECT,
+        models.IntegrationPlatform.YANDEX_METRIKA,
+    }:
+        raise HTTPException(status_code=400, detail="OAuth-сессия Яндекса содержит неподдерживаемую платформу")
+
+    # Check project access again: it can have changed while the user was on the
+    # Yandex consent screen. The project id never comes from browser storage.
+    if attempt.client_id:
+        project = db.query(models.Client).filter(models.Client.id == attempt.client_id).first()
+        if not project:
+            raise HTTPException(status_code=409, detail="Проект был удалён во время подключения. Начните заново.")
+        assert_project_access(db, current_user, project.id, write=True)
+    else:
+        client_name = (attempt.client_name or "").strip()
+        if not client_name:
+            raise HTTPException(status_code=400, detail="В OAuth-сессии отсутствует проект")
+        # A new project belongs to the account that initiated OAuth; team
+        # members must never accidentally create it under the account owner.
+        project = db.query(models.Client).filter(
+            models.Client.owner_id == current_user.id,
+            models.Client.name == client_name,
+        ).first()
+        if not project:
+            SubscriptionService.ensure_can_create_project(db, current_user)
+            project = models.Client(owner_id=current_user.id, name=client_name)
+            db.add(project)
+            db.flush()
+
+    resume_integration_id = attempt.resume_integration_id
+    if attempt.flow == "avito_metrika":
+        if not resume_integration_id:
+            raise HTTPException(status_code=400, detail="Не найдена интеграция Avito для продолжения")
+        avito_integration = _integration_for_project_access(
+            db, current_user, resume_integration_id, write=True
+        )
+        if (
+            avito_integration.platform != models.IntegrationPlatform.AVITO_ADS
+            or avito_integration.client_id != project.id
+        ):
+            raise HTTPException(status_code=400, detail="OAuth-сессия не соответствует интеграции Avito")
+
+    log_event(
+        "backend",
+        f"Exchanging Yandex code for project {project.id}, platform {target_platform.value}, flow {attempt.flow}",
+    )
 
     # 1. Exchange code for token
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient() as http_client:
         # Yandex requires the same redirect_uri in the token request for strict validation
-        response = await client.post(YANDEX_TOKEN_URL, data={
+        response = await http_client.post(YANDEX_TOKEN_URL, data={
             "grant_type": "authorization_code",
             "code": auth_code,
             "client_id": YANDEX_CLIENT_ID,
@@ -930,6 +1163,9 @@ async def exchange_yandex_token(
         token_data = response.json()
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
+        if not access_token:
+            logger.error("Yandex token response does not contain access_token")
+            raise HTTPException(status_code=502, detail="Яндекс не вернул токен доступа")
         
         # 2. Get User Info from Yandex Passport
         yandex_login = None
@@ -937,7 +1173,7 @@ async def exchange_yandex_token(
         
         try:
             auth_headers = {"Authorization": f"OAuth {access_token}"}
-            user_info_resp = await client.get("https://login.yandex.ru/info?format=json", headers=auth_headers)
+            user_info_resp = await http_client.get("https://login.yandex.ru/info?format=json", headers=auth_headers)
             if user_info_resp.status_code == 200:
                 user_info = user_info_resp.json()
                 yandex_login = user_info.get("login")
@@ -945,58 +1181,9 @@ async def exchange_yandex_token(
         except Exception as e:
             logger.error(f"Failed to fetch Yandex user info: {e}")
 
-        # Determine Client Name
-        # If client_name is provided from frontend, use it. Otherwise fallback to login or generic.
-        if client_name_input:
-             client_name = client_name_input
-        elif yandex_login:
-             if target_platform == models.IntegrationPlatform.YANDEX_METRIKA:
-                 client_name = f"Yandex Metrika ({yandex_login})"
-             else:
-                 client_name = f"Yandex Direct ({yandex_login})"
-        else:
-             client_name = "Yandex Metrika Main" if target_platform == models.IntegrationPlatform.YANDEX_METRIKA else "Yandex Direct Main"
-        
-        # 3. Create/Get Client
-        # CRITICAL FIX: If client_id is provided from frontend, use EXISTING client by ID
-        # This ensures integration is linked to the correct project, not found by name collision
-        if client_id_input:
-            try:
-                import uuid as uuid_lib
-                client_uuid = uuid_lib.UUID(client_id_input)
-                client = db.query(models.Client).filter(
-                    models.Client.id == client_uuid,
-                    models.Client.owner_id == current_user.id
-                ).first()
-                
-                if not client:
-                    log_event("backend", f"Client ID {client_id_input} not found or not owned by user", level="error")
-                    raise HTTPException(status_code=404, detail=f"Project (Client) not found")
-                    
-                log_event("backend", f"Using existing client: {client.name} (ID: {client.id})")
-            except ValueError:
-                log_event("backend", f"Invalid client_id format: {client_id_input}", level="error")
-                raise HTTPException(status_code=400, detail="Invalid project ID format")
-        else:
-            # Legacy flow: search by name (will create duplicates if name matches)
-            client = db.query(models.Client).filter(
-                models.Client.owner_id == current_user.id,
-                models.Client.name == client_name
-            ).first()
-            
-            if not client:
-                SubscriptionService.ensure_can_create_project(db, current_user)
-                client = models.Client(
-                    owner_id=current_user.id,
-                    name=client_name
-                )
-                db.add(client)
-                db.flush()
-                log_event("backend", f"Created new client: {client.name} (ID: {client.id})")
-
-        # 4. Save Integration
+        # 3. Save integration for the server-bound project.
         db_integration = db.query(models.Integration).filter(
-            models.Integration.client_id == client.id,
+            models.Integration.client_id == project.id,
             models.Integration.platform == target_platform
         ).first()
 
@@ -1017,7 +1204,7 @@ async def exchange_yandex_token(
         else:
             SubscriptionService.ensure_can_create_cabinet(db, current_user)
             db_integration = models.Integration(
-                client_id=client.id,
+                client_id=project.id,
                 platform=target_platform,
                 access_token=encrypted_access,
                 refresh_token=encrypted_refresh,
@@ -1041,10 +1228,12 @@ async def exchange_yandex_token(
              pass
 
         return {
-            "status": "success", 
-            "integration_id": str(db_integration.id), 
-            "access_token": access_token,
-            "is_agency": is_agency
+            "status": "success",
+            "integration_id": str(db_integration.id),
+            "platform": target_platform.value,
+            "flow": attempt.flow,
+            "resume_integration_id": str(resume_integration_id) if resume_integration_id else None,
+            "is_agency": is_agency,
         }
 
 @router.post("/vk/exchange")
@@ -1808,13 +1997,7 @@ async def trigger_sync(
     """
     days = request_data.days if request_data else 7
     force_full = bool(request_data.force_full) if request_data else False
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id, write=True)
     if is_project_paused(integration.client):
         raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
     
@@ -1854,12 +2037,7 @@ async def create_sync_job(
     except Exception:
         raise HTTPException(status_code=400, detail="invalid integration_id")
 
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == iid,
-        models.Client.owner_id == current_user.id,
-    ).first()
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, iid, write=True)
     if is_project_paused(integration.client):
         raise HTTPException(status_code=409, detail="Проект на паузе. Возобновите проект, чтобы запустить синхронизацию.")
 
@@ -1886,12 +2064,10 @@ async def get_sync_job(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    job = db.query(models.SyncJob).join(models.Integration).join(models.Client).filter(
-        models.SyncJob.id == job_id,
-        models.Client.owner_id == current_user.id,
-    ).first()
+    job = db.query(models.SyncJob).filter(models.SyncJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Sync job not found")
+    _integration_for_project_access(db, current_user, job.integration_id)
     return {
         "id": str(job.id),
         "integration_id": str(job.integration_id),
@@ -1913,12 +2089,7 @@ async def get_integration_sync_status(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id,
-    ).first()
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
     job = db.query(models.SyncJob).filter(
         models.SyncJob.integration_id == integration_id
     ).order_by(models.SyncJob.created_at.desc()).first()
@@ -1945,19 +2116,7 @@ def get_integration(
     """
     Get a specific integration by ID.
     """
-    from sqlalchemy.orm import joinedload
-    
-    integration = db.query(models.Integration).options(
-        joinedload(models.Integration.client)
-    ).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
-        
-    return integration
+    return _integration_for_project_access(db, current_user, integration_id)
 
 @router.get("/{integration_id}/profiles")
 async def get_integration_profiles(
@@ -1969,14 +2128,7 @@ async def get_integration_profiles(
     Fetch available profiles/accounts for this integration.
     For Yandex Agency, returns list of sub-clients.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        log_event("get_integration_profiles", f"Integration {integration_id} not found for user {current_user.id}", level="warning")
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
 
     log_event("get_integration_profiles", f"User {current_user.id} requesting profiles for integration {integration_id}")
 
@@ -1990,11 +2142,10 @@ async def get_integration_profiles(
             profiles = []
             seen_logins = set()
 
-            # ARCHITECTURE: One Yandex account (email) can have access to multiple advertising profiles
-            # 1. Personal — Clients.get (без Client-Login)
-            # 2. Agency clients — AgencyClients.get
-            # 3. Shared cabinets — ManagedLogins* + Clients.get с Client-Login и OrganizationFieldNames
-            #    * ManagedLogins не в enum FieldNames, но API возвращает при запросе
+            # One Yandex account can expose a personal Direct cabinet or an
+            # agency. These two documented APIs are the authoritative source
+            # of selectable profiles; Client-Login is then used for the chosen
+            # profile when fetching its campaigns and reports.
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -2048,32 +2199,6 @@ async def get_integration_profiles(
                         logger.warning(f"⚠️ Skipped agency client (duplicate or empty login): {login}")
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
-
-            # 3. Кабинеты с делегированным доступом (ManagedLogins — недокументированное поле API).
-            # Имя: Organization.Name через Clients.get + Client-Login (документация Clients.get).
-            try:
-                direct_api = YandexDirectAPI(access_token)
-                clients_info_managed = await direct_api.get_clients() or []
-                managed_logins_to_fetch = []
-                for c_info in clients_info_managed:
-                    managed = c_info.get("ManagedLogins", [])
-                    for m_login in managed:
-                        if m_login and m_login.lower() not in seen_logins:
-                            managed_logins_to_fetch.append(m_login)
-                            seen_logins.add(m_login.lower())
-
-                for m_login in managed_logins_to_fetch:
-                    profile_info = await direct_api.get_cabinet_profile_for_login(m_login)
-                    org_name = profile_info.get("organization_name", "").strip() if profile_info else ""
-                    display_name = org_name if org_name else f"Кабинет ({m_login})"
-                    profiles.append({
-                        "login": m_login,
-                        "name": display_name,
-                        "type": "managed",
-                    })
-                    logger.info(f"Added shared cabinet: {m_login} ({display_name})")
-            except Exception as managed_err:
-                logger.warning(f"Error fetching shared cabinets: {managed_err}")
 
             # Fallback if nothing found
             if not profiles:
@@ -2183,13 +2308,7 @@ async def get_integration_counters(
     Get Metrika counters for selected campaigns or profile.
     Priority: Campaign CounterIds -> Profile counters from Metrika API.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
     
     access_token = security.decrypt_token(integration.access_token)
     
@@ -2425,12 +2544,7 @@ def get_goal_names(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id,
-    ).first()
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
     from sqlalchemy import func as sa_func
     rows = (
         db.query(
@@ -2465,13 +2579,7 @@ async def get_integration_goals(
     CRITICAL: If campaign_ids is provided, returns goals only for those campaigns.
     Otherwise falls back to profile-based goal fetching (legacy behavior).
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
 
     # CRITICAL: Refresh integration from DB to ensure we have the latest agency_client_login
     # This is important because the profile might have been updated just before this call
@@ -3221,13 +3329,7 @@ async def update_integration(
     """
     Update integration settings (auto_sync, sync_interval, etc.).
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id, write=True)
     
     allowed_fields = {
         "account_id",
@@ -3464,13 +3566,7 @@ async def discover_campaigns(
     """
     Fetch campaign list from platform and save/update in DB as inactive.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id, write=True)
     
     # CRITICAL: Refresh integration from DB to ensure we have the latest account_id and agency_client_login
     # This is important because the profile might have been updated just before this call
@@ -3898,13 +3994,7 @@ async def get_campaigns_stats(
     from sqlalchemy import func
     from datetime import datetime, timedelta
     
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
     
     # Default date range: last 30 days
     if not date_from or not date_to:
@@ -4093,13 +4183,7 @@ async def test_integration_connection(
     """
     Test if the integration tokens are still valid and have access.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id)
         
     access_token = security.decrypt_token(integration.access_token)
     status_info = {"status": "success", "platform": integration.platform, "details": []}
@@ -4197,13 +4281,7 @@ async def delete_integration(
     CRITICAL: For VK Ads integrations, attempts to revoke the access token
     before deletion to free up token slots and prevent token_limit_exceeded errors.
     """
-    integration = db.query(models.Integration).join(models.Client).filter(
-        models.Integration.id == integration_id,
-        models.Client.owner_id == current_user.id
-    ).first()
-    
-    if not integration:
-        raise HTTPException(status_code=404, detail="Integration not found")
+    integration = _integration_for_project_access(db, current_user, integration_id, write=True)
     
     # CRITICAL: For VK Ads, revoke the token before deletion to free up token slots
     if integration.platform == models.IntegrationPlatform.VK_ADS and integration.access_token:
