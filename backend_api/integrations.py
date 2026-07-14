@@ -2462,13 +2462,13 @@ async def get_integration_counters(
                         })
                         logger.info(f"➕ Priority 1: added campaign counter {cid} missing from get_counters() (fallback name)")
 
-                    # Если счётчики из кампаний токену недоступны (чужие/устаревшие
-                    # CounterIds в настройках кампаний — кейс РУСТЕХ), пользователь
-                    # видел бы только «неизвестные» ID без имён и без целей.
-                    # Дополняем список доступными счётчиками профиля, чтобы можно
-                    # было выбрать реальный счётчик. Для здоровых кабинетов
-                    # (все CounterIds доступны) список не меняется.
-                    if missing_campaign_ids and all_counters:
+                    # Если НИ ОДИН счётчик из кампаний токену недоступен (чужие/
+                    # устаревшие CounterIds в настройках кампаний — кейс РУСТЕХ),
+                    # пользователь видел бы только «неизвестные» ID без имён и без
+                    # целей, и выбрать было бы нечего. Только в этом случае дополняем
+                    # список доступными счётчиками профиля. Пока доступен хотя бы
+                    # один счётчик кампаний — список, как раньше, только из кампаний.
+                    if not matched_ids and all_counters:
                         listed_ids = {c["id"] for c in counters_list}
                         appended = 0
                         for counter in sorted(all_counters, key=lambda c: str(c.get("name") or "")):
