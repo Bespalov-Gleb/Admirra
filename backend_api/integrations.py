@@ -2420,8 +2420,9 @@ async def get_integration_counters(
                     # Fetch counter details from Metrika API
                     from automation.yandex_metrica import YandexMetricaAPI
                     metrica_api = YandexMetricaAPI(access_token)
-                    
+
                     # Get all accessible counters to match with IDs
+                    all_counters = []
                     try:
                         all_counters = await metrica_api.get_counters()
                         logger.info(f"🔵 Metrika API returned {len(all_counters)} total counters")
@@ -2450,16 +2451,40 @@ async def get_integration_counters(
                     # равно тянутся напрямую через /goals, поэтому счётчик обязан быть в списке.
                     # Иначе баг — «цели без счётчика». Дописываем недостающие с fallback-именем.
                     matched_ids = {c["id"] for c in counters_list}
-                    for cid in sorted(all_counter_ids):
-                        if cid not in matched_ids:
+                    missing_campaign_ids = [cid for cid in sorted(all_counter_ids) if cid not in matched_ids]
+                    for cid in missing_campaign_ids:
+                        counters_list.append({
+                            "id": cid,
+                            "name": f"Счётчик {cid}",
+                            "site": "",
+                            "owner_login": "",
+                            "source": "campaign",
+                        })
+                        logger.info(f"➕ Priority 1: added campaign counter {cid} missing from get_counters() (fallback name)")
+
+                    # Если счётчики из кампаний токену недоступны (чужие/устаревшие
+                    # CounterIds в настройках кампаний — кейс РУСТЕХ), пользователь
+                    # видел бы только «неизвестные» ID без имён и без целей.
+                    # Дополняем список доступными счётчиками профиля, чтобы можно
+                    # было выбрать реальный счётчик. Для здоровых кабинетов
+                    # (все CounterIds доступны) список не меняется.
+                    if missing_campaign_ids and all_counters:
+                        listed_ids = {c["id"] for c in counters_list}
+                        appended = 0
+                        for counter in sorted(all_counters, key=lambda c: str(c.get("name") or "")):
+                            counter_id_str = str(counter.get("id", ""))
+                            if not counter_id_str or counter_id_str in listed_ids:
+                                continue
                             counters_list.append({
-                                "id": cid,
-                                "name": f"Счётчик {cid}",
-                                "site": "",
-                                "owner_login": "",
-                                "source": "campaign",
+                                "id": counter_id_str,
+                                "name": counter.get("name") or f"Счётчик {counter_id_str}",
+                                "site": counter.get("site", ""),
+                                "owner_login": counter.get("owner_login", ""),
+                                "source": "profile",
                             })
-                            logger.info(f"➕ Priority 1: added campaign counter {cid} missing from get_counters() (fallback name)")
+                            listed_ids.add(counter_id_str)
+                            appended += 1
+                        logger.info(f"➕ Priority 1: {len(missing_campaign_ids)} campaign counter(s) inaccessible, appended {appended} accessible profile counters")
                 else:
                     logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
             else:
