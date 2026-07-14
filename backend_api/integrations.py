@@ -44,6 +44,11 @@ cfg = get_config()
 # Yandex Direct Credentials
 YANDEX_CLIENT_ID = cfg.oauth.yandex_client_id
 YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
+# Второе приложение «AdMirra — для организаций»: право «Работа с организациями
+# Яндекс ID» не влезло в основное приложение (лимит 3 сервиса). Через него
+# кабинеты паспортных организаций подключаются «как сотрудник».
+YANDEX_ORG_CLIENT_ID = cfg.oauth.yandex_org_client_id
+YANDEX_ORG_CLIENT_SECRET = cfg.oauth.yandex_org_client_secret
 YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
 
@@ -197,17 +202,21 @@ def _consume_yandex_integration_attempt(
     return attempt
 
 
-def _build_yandex_authorize_url(redirect_uri: str, state: str) -> str:
+def _build_yandex_authorize_url(redirect_uri: str, state: str, *, as_org: bool = False) -> str:
     """Build the documented Authorization Code URL for a Yandex integration."""
     params = {
         "response_type": "code",
-        "client_id": YANDEX_CLIENT_ID,
+        "client_id": YANDEX_ORG_CLIENT_ID if as_org else YANDEX_CLIENT_ID,
         "redirect_uri": redirect_uri,
-        "scope": "direct:api metrika:read",
         # Always let the user choose the intended Yandex ID / organisation context.
         "force_confirm": "yes",
         "state": state,
     }
+    if not as_org:
+        params["scope"] = "direct:api metrika:read"
+    # Org-приложение: scope не передаём — Яндекс выдаст все отмеченные права
+    # приложения, включая «Работа с организациями Яндекс ID». Именно это право
+    # добавляет на экране входа кнопку «Войти как сотрудник» организации.
     return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
 
 
@@ -509,6 +518,7 @@ def get_yandex_auth_url(
     client_name: Optional[str] = None,
     platform: str = "YANDEX_DIRECT",
     flow: str = "yandex_direct",
+    as_org: bool = False,
     resume_integration_id: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
@@ -518,10 +528,14 @@ def get_yandex_auth_url(
     Required scopes for Yandex Direct API:
     - direct:api - access to Yandex Direct API
     - metrika:read - access to Yandex Metrika (for goals)
+    as_org=true — авторизация через приложение «AdMirra — для организаций»
+    (право «Работа с организациями Яндекс ID», вход «как сотрудник»).
     """
     SubscriptionService.require_active_subscription(db, current_user)
     if not YANDEX_CLIENT_ID or not YANDEX_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Яндекс OAuth не настроен на сервере")
+    if as_org and (not YANDEX_ORG_CLIENT_ID or not YANDEX_ORG_CLIENT_SECRET):
+        raise HTTPException(status_code=503, detail="Подключение как организация не настроено на сервере")
 
     normalized_redirect_uri = _validate_yandex_integration_redirect_uri(redirect_uri)
     normalized_platform = (platform or "").strip().upper()
@@ -536,6 +550,12 @@ def get_yandex_auth_url(
         raise HTTPException(status_code=400, detail="Avito flow требует подключения Яндекс Метрики")
     if normalized_flow == "yandex_direct" and target_platform != models.IntegrationPlatform.YANDEX_DIRECT:
         raise HTTPException(status_code=400, detail="Для Яндекс Директа указан некорректный flow")
+    if as_org and normalized_flow != "yandex_direct":
+        raise HTTPException(status_code=400, detail="Подключение как организация доступно только для Яндекс Директа")
+    # Org-подключение фиксируется в flow OAuth-сессии: exchange обязан менять
+    # код на токен через то же приложение, каким строился authorize URL.
+    if as_org:
+        normalized_flow = "yandex_direct_org"
 
     project_id: Optional[uuid.UUID] = None
     project_name: Optional[str] = None
@@ -577,7 +597,7 @@ def get_yandex_auth_url(
         resume_integration_id=resume_id,
         redirect_uri=normalized_redirect_uri,
     )
-    return {"url": _build_yandex_authorize_url(normalized_redirect_uri, state)}
+    return {"url": _build_yandex_authorize_url(normalized_redirect_uri, state, as_org=as_org)}
 
 @router.get("/vk/auth-url")
 def get_vk_auth_url(redirect_uri: str):
@@ -1145,14 +1165,22 @@ async def exchange_yandex_token(
         f"Exchanging Yandex code for project {project.id}, platform {target_platform.value}, flow {attempt.flow}",
     )
 
+    # Код обязан меняться на токен через то же приложение, каким строился
+    # authorize URL (org-подключения идут через «AdMirra — для организаций»).
+    is_org_flow = attempt.flow == "yandex_direct_org"
+    if is_org_flow and (not YANDEX_ORG_CLIENT_ID or not YANDEX_ORG_CLIENT_SECRET):
+        raise HTTPException(status_code=503, detail="Подключение как организация не настроено на сервере")
+    app_client_id = YANDEX_ORG_CLIENT_ID if is_org_flow else YANDEX_CLIENT_ID
+    app_client_secret = YANDEX_ORG_CLIENT_SECRET if is_org_flow else YANDEX_CLIENT_SECRET
+
     # 1. Exchange code for token
     async with httpx.AsyncClient() as http_client:
         # Yandex requires the same redirect_uri in the token request for strict validation
         response = await http_client.post(YANDEX_TOKEN_URL, data={
             "grant_type": "authorization_code",
             "code": auth_code,
-            "client_id": YANDEX_CLIENT_ID,
-            "client_secret": YANDEX_CLIENT_SECRET,
+            "client_id": app_client_id,
+            "client_secret": app_client_secret,
             "redirect_uri": redirect_uri  # Required for strict validation - must match exactly
         })
         
@@ -1200,6 +1228,7 @@ async def exchange_yandex_token(
             db_integration.refresh_token = encrypted_refresh
             db_integration.account_id = final_account_id
             db_integration.platform_client_id = encrypted_platform_id
+            db_integration.oauth_app = "org" if is_org_flow else None
             db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         else:
             SubscriptionService.ensure_can_create_cabinet(db, current_user)
@@ -1210,6 +1239,7 @@ async def exchange_yandex_token(
                 refresh_token=encrypted_refresh,
                 account_id=final_account_id,
                 platform_client_id=encrypted_platform_id,
+                oauth_app="org" if is_org_flow else None,
                 sync_status=models.IntegrationSyncStatus.NEVER
             )
             db.add(db_integration)

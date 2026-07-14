@@ -532,6 +532,11 @@ class Integration(Base):
     is_agency = Column(Boolean, default=False)
     agency_client_login = Column(String, nullable=True) # Logic login of the sub-client for Agency tokens
 
+    # Каким OAuth-приложением Яндекса выдан токен: NULL — основное,
+    # 'org' — «AdMirra — для организаций» (вход как сотрудник организации).
+    # Нужен, чтобы refresh шёл через client_id/secret того же приложения.
+    oauth_app = Column(String(16), nullable=True)
+
     # Goals Support
     selected_goals = Column(String, nullable=True) # JSON list of goal IDs
     primary_goal_id = Column(String, nullable=True)

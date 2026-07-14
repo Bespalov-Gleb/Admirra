@@ -22,6 +22,12 @@ class DatabaseConfig:
 class OAuthConfig:
     yandex_client_id: str
     yandex_client_secret: str
+    # Второе приложение «AdMirra — для организаций»: у Яндекса лимит 3 сервиса
+    # на приложение, право «Работа с организациями Яндекс ID» в основное не
+    # влезло. Через это приложение подключаются кабинеты паспортных организаций
+    # («Войти как сотрудник»). Пусто — подключение как организация недоступно.
+    yandex_org_client_id: str
+    yandex_org_client_secret: str
     vk_client_id: str
     vk_client_secret: str
     # Отдельная пара приложения VK Ads. Старые VK_CLIENT_* остаются fallback,
@@ -248,6 +254,8 @@ def get_config() -> Config:
         oauth=OAuthConfig(
             yandex_client_id=_env("YANDEX_CLIENT_ID"),
             yandex_client_secret=_env("YANDEX_CLIENT_SECRET"),
+            yandex_org_client_id=_env("YANDEX_ORG_CLIENT_ID"),
+            yandex_org_client_secret=_env("YANDEX_ORG_CLIENT_SECRET"),
             vk_client_id=_env("VK_CLIENT_ID"),
             vk_client_secret=_env("VK_CLIENT_SECRET"),
             vk_ads_client_id=_env("VK_ADS_CLIENT_ID") or _env("VK_CLIENT_ID"),

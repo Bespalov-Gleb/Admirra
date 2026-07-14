@@ -103,6 +103,15 @@
               <span>Создать новый проект</span>
             </label>
 
+            <label v-if="form.platform === 'YANDEX_DIRECT'" class="switch-row dark:!text-white/70">
+              <input v-model="connectAsOrg" type="checkbox" />
+              <span class="switch-row__control dark:!bg-white/10"></span>
+              <span>Кабинет принадлежит организации</span>
+            </label>
+            <p v-if="form.platform === 'YANDEX_DIRECT' && connectAsOrg" class="org-hint dark:!text-white/50">
+              На экране Яндекса выберите организацию и «Войти как сотрудник» — подтянутся кабинеты организации.
+            </p>
+
             <input
               v-if="isNewProject"
               v-model="form.client_name"
@@ -763,6 +772,9 @@ const {
 const step = ref(1)
 const stepRefs = ref({})
 const isNewProject = ref(false)
+// Яндекс: кабинет паспортной организации — OAuth идёт через приложение
+// «AdMirra — для организаций» (вход «как сотрудник»)
+const connectAsOrg = ref(false)
 const loadingAuth = ref(false)
 const loadingMetrikaAuth = ref(false)
 const vkConnectionMode = ref('self')
@@ -1396,7 +1408,8 @@ const initYandexAuth = async () => {
         client_id: form.client_id || undefined,
         client_name: isNewProject.value ? form.client_name : undefined,
         platform: 'YANDEX_DIRECT',
-        flow: 'yandex_direct'
+        flow: 'yandex_direct',
+        as_org: connectAsOrg.value || undefined
       }
     })
     if (data?.url) {
@@ -2162,6 +2175,12 @@ const toggleGoalSelection = (id) => {
 .switch-row input:checked + .switch-row__control::after,
 .final-switch input:checked + span::after {
   transform: translateX(1.1111rem);
+}
+.org-hint {
+  margin: -0.35rem 0 0;
+  color: #8a94a6;
+  font-size: 0.8333rem;
+  line-height: 1.4;
 }
 .primary-btn,
 .secondary-btn,

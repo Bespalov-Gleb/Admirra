@@ -28,6 +28,15 @@ cfg = get_config()
 # Yandex Direct Credentials (should ideally be in a shared config)
 YANDEX_CLIENT_ID = cfg.oauth.yandex_client_id
 YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
+YANDEX_ORG_CLIENT_ID = cfg.oauth.yandex_org_client_id
+YANDEX_ORG_CLIENT_SECRET = cfg.oauth.yandex_org_client_secret
+
+
+def _yandex_app_credentials(integration: models.Integration) -> tuple[str, str]:
+    """client_id/secret приложения, которым выдан токен интеграции (org или основное)."""
+    if getattr(integration, "oauth_app", None) == "org":
+        return YANDEX_ORG_CLIENT_ID, YANDEX_ORG_CLIENT_SECRET
+    return YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -748,7 +757,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     from backend_api.services import IntegrationService
                     logger.info(f"Refreshing Yandex token for integration {integration.id}")
                     rt = security.decrypt_token(integration.refresh_token)
-                    new_token_data = await IntegrationService.refresh_yandex_token(rt, YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET)
+                    app_id, app_secret = _yandex_app_credentials(integration)
+                    new_token_data = await IntegrationService.refresh_yandex_token(rt, app_id, app_secret)
                     if new_token_data and "access_token" in new_token_data:
                         integration.access_token = security.encrypt_token(new_token_data["access_token"])
                         if "refresh_token" in new_token_data:
@@ -802,7 +812,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     from backend_api.services import IntegrationService
                     logger.info(f"Refreshing Yandex token for integration {integration.id}")
                     rt = security.decrypt_token(integration.refresh_token)
-                    new_token_data = await IntegrationService.refresh_yandex_token(rt, YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET)
+                    app_id, app_secret = _yandex_app_credentials(integration)
+                    new_token_data = await IntegrationService.refresh_yandex_token(rt, app_id, app_secret)
                     if new_token_data and "access_token" in new_token_data:
                         integration.access_token = security.encrypt_token(new_token_data["access_token"])
                         if "refresh_token" in new_token_data:
