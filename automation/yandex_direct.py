@@ -5,6 +5,7 @@ import os
 from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 import logging
+from collections.abc import Mapping
 from core.logging_utils import log_structured
 from automation.request_queue import get_api_limiter
 
@@ -69,14 +70,14 @@ class YandexDirectAPI:
         if client_login:
             # Strip whitespace and ensure it's a string
             client_login_clean = str(client_login).strip()
-            if client_login_clean:
+            if client_login_clean and client_login_clean.lower() not in {"unknown", "none", "null"}:
                 self.headers["Client-Login"] = client_login_clean
                 logger.info(f"YandexDirectAPI initialized with Client-Login: '{client_login_clean}'")
                 log_structured('info', 'Yandex API initialized',
                              context={'has_client_login': True, 'client_login': client_login_clean},
                              api_mode='agency_or_managed')
             else:
-                logger.warning(f"YandexDirectAPI: client_login provided but empty after stripping: '{client_login}'")
+                logger.warning(f"YandexDirectAPI: ignoring empty or placeholder Client-Login: '{client_login}'")
                 self.client_login = None
         else:
             logger.info("YandexDirectAPI initialized without Client-Login (personal account)")
@@ -173,23 +174,26 @@ class YandexDirectAPI:
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
                 # DEBUG: Log what was ACTUALLY sent (from httpx's perspective)
-                if hasattr(response, 'request'):
+                request = getattr(response, "request", None)
+                request_headers = getattr(request, "headers", None)
+                if isinstance(request_headers, Mapping):
                     logger.info(f"   📤 Request that was ACTUALLY sent:")
-                    logger.info(f"      Method: {response.request.method}")
-                    logger.info(f"      URL: {response.request.url}")
+                    logger.info(f"      Method: {getattr(request, 'method', 'UNKNOWN')}")
+                    logger.info(f"      URL: {getattr(request, 'url', 'UNKNOWN')}")
                     # Log headers but mask Authorization token
-                    sent_headers = dict(response.request.headers)
+                    sent_headers = dict(request_headers)
                     if 'Authorization' in sent_headers:
                         sent_headers['Authorization'] = 'Bearer [REDACTED]'
                     logger.info(f"      Headers: {sent_headers}")
-                    client_login_value = response.request.headers.get('Client-Login', 'NOT SET')
+                    client_login_value = request_headers.get('Client-Login', 'NOT SET')
                     logger.info(f"      Client-Login header value: '{client_login_value}'")
-                    logger.info(f"      Client-Login in sent headers: {'Client-Login' in response.request.headers}")
+                    logger.info(f"      Client-Login in sent headers: {'Client-Login' in request_headers}")
                 
                 # DEBUG: Log response details
                 logger.info(f"🟢 Received response from Yandex API:")
                 logger.info(f"   Status: {response.status_code}")
-                logger.info(f"   Response headers: {dict(response.headers)}")
+                response_headers = response.headers if isinstance(response.headers, Mapping) else {}
+                logger.info(f"   Response headers: {dict(response_headers)}")
                 
                 if response.status_code == 200:
                     data = response.json()

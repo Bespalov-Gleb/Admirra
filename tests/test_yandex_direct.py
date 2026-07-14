@@ -155,7 +155,7 @@ class TestYandexDirectAPIReports:
         
         mock_response_queued = Mock()
         mock_response_queued.status_code = 201
-        mock_response_queued.headers.get.side_effect = lambda x: "5" if x == "Retry-After" else None
+        mock_response_queued.headers.get.side_effect = lambda key, default=None: "5" if key == "Retry-After" else default
         
         mock_response_ready = Mock()
         mock_response_ready.status_code = 200
@@ -178,7 +178,7 @@ class TestYandexDirectAPIReports:
         
         mock_response = Mock()
         mock_response.status_code = 201
-        mock_response.headers.get.side_effect = lambda x: "1" if x == "Retry-After" else None
+        mock_response.headers.get.side_effect = lambda key, default=None: "1" if key == "Retry-After" else default
         
         with patch('httpx.AsyncClient') as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
