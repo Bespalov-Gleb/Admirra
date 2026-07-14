@@ -11,6 +11,16 @@ from automation.request_queue import get_api_limiter
 
 logger = logging.getLogger(__name__)
 
+_SENSITIVE_HEADER_NAMES = {"authorization", "proxy-authorization"}
+
+
+def redact_headers(headers: Mapping[str, Any]) -> Dict[str, Any]:
+    """Return request headers safe for diagnostics without OAuth credentials."""
+    return {
+        str(key): "[REDACTED]" if str(key).lower() in _SENSITIVE_HEADER_NAMES else value
+        for key, value in headers.items()
+    }
+
 
 def organization_name_from_client(client: Dict[str, Any]) -> str:
     """
@@ -167,7 +177,7 @@ class YandexDirectAPI:
                 logger.info(f"🔵 Sending request to Yandex API:")
                 logger.info(f"   URL: {self.campaigns_url}")
                 logger.info(f"   Client-Login header value: {self.headers.get('Client-Login', 'NOT SET')}")
-                logger.info(f"   All headers being sent: {self.headers}")
+                logger.info(f"   Header names: {list(redact_headers(self.headers).keys())}")
                 logger.info(f"   Payload: {payload}")
                 
                 # Make request
@@ -180,10 +190,8 @@ class YandexDirectAPI:
                     logger.info(f"   📤 Request that was ACTUALLY sent:")
                     logger.info(f"      Method: {getattr(request, 'method', 'UNKNOWN')}")
                     logger.info(f"      URL: {getattr(request, 'url', 'UNKNOWN')}")
-                    # Log headers but mask Authorization token
-                    sent_headers = dict(request_headers)
-                    if 'Authorization' in sent_headers:
-                        sent_headers['Authorization'] = 'Bearer [REDACTED]'
+                    # httpx normalizes header names to lowercase, so redact case-insensitively.
+                    sent_headers = redact_headers(request_headers)
                     logger.info(f"      Headers: {sent_headers}")
                     client_login_value = request_headers.get('Client-Login', 'NOT SET')
                     logger.info(f"      Client-Login header value: '{client_login_value}'")
@@ -481,10 +489,8 @@ class YandexDirectAPI:
         # Client-Login header is already set in self.headers, which is sufficient for filtering
         logger.info(f"📊 get_campaigns_from_reports: Using Client-Login header: '{self.client_login}' (header filtering only, no SelectionCriteria filter)")
         
-        # DEBUG: Log headers that will be sent (mask Authorization)
-        debug_headers = dict(self.headers)
-        if 'Authorization' in debug_headers:
-            debug_headers['Authorization'] = 'Bearer [REDACTED]'
+        # DEBUG: Log headers that will be sent without credentials.
+        debug_headers = redact_headers(self.headers)
         logger.info(f"📊 Reports API request headers: {debug_headers}")
         logger.info(f"📊 Reports API Client-Login header value: '{self.headers.get('Client-Login', 'NOT SET')}'")
         

@@ -12,7 +12,12 @@ Tests cover:
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from automation.yandex_direct import YandexDirectAPI, organization_name_from_client, cabinet_display_name
+from automation.yandex_direct import (
+    YandexDirectAPI,
+    organization_name_from_client,
+    cabinet_display_name,
+    redact_headers,
+)
 
 
 class TestYandexDirectAPIInitialization:
@@ -40,6 +45,19 @@ class TestYandexDirectAPIInitialization:
         
         assert "Client-Login" not in api.headers
         assert api.client_login is None
+
+    def test_redact_headers_is_case_insensitive(self):
+        headers = {
+            "authorization": "Bearer real-access-token",
+            "Proxy-Authorization": "Basic sensitive-value",
+            "Client-Login": "client-login",
+        }
+
+        assert redact_headers(headers) == {
+            "authorization": "[REDACTED]",
+            "Proxy-Authorization": "[REDACTED]",
+            "Client-Login": "client-login",
+        }
 
 
 class TestYandexDirectAPICampaigns:

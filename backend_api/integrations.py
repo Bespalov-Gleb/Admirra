@@ -2437,62 +2437,37 @@ async def get_integration_counters(
             
             try:
                 counters = await metrica_api.get_counters()
+                # `ulogin` is only a narrowing hint. It may legitimately return an
+                # empty set for a shared counter even though the same OAuth token
+                # can access it, so retry once without that hint before reporting
+                # an empty list.
+                if not counters and target_account:
+                    logger.info(
+                        "📊 No counters returned for ulogin=%r; retrying with the OAuth account scope",
+                        target_account,
+                    )
+                    metrica_api = YandexMetricaAPI(access_token)
+                    counters = await metrica_api.get_counters()
                 logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
                 
-                # CRITICAL: If campaign_ids were provided but no CounterIds found,
-                # return ALL counters without filtering by owner_login
-                # This is because campaigns might not have CounterIds configured, but user still needs to select counters
-                if campaign_ids:
-                    logger.warning(f"⚠️ Campaigns don't have CounterIds, returning ALL {len(counters)} accessible counters")
-                    for counter in counters:
-                        counters_list.append({
-                            "id": str(counter.get('id')),
-                            "name": counter.get('name', 'Unknown'),
-                            "site": counter.get('site', ''),
-                            "owner_login": counter.get('owner_login', ''),
-                            "source": "profile_fallback_all"  # Indicates all counters returned because campaigns have no CounterIds
-                        })
-                else:
-                    # Normalize for comparison
-                    def normalize_login(login):
-                        return login.lower().replace('.', '').replace('-', '') if login else ''
-                    
-                    target_normalized = normalize_login(target_account)
-                    matched_counters = []
-                    unmatched_counters = []
-                    
-                    # Filter by owner_login if possible
-                    for counter in counters:
-                        owner_login = counter.get('owner_login', '')
-                        owner_normalized = normalize_login(owner_login)
-                        
-                        # Match if owner matches target OR if no owner_login (trusted counter)
-                        matches = normalize_login(owner_login) == target_normalized or not owner_login
-                        
-                        counter_data = {
-                            "id": str(counter.get('id')),
-                            "name": counter.get('name', 'Unknown'),
-                            "site": counter.get('site', ''),
-                            "owner_login": owner_login,
-                            "source": "profile"  # Indicates this counter came from profile
-                        }
-                        
-                        if matches:
-                            matched_counters.append(counter_data)
-                            logger.info(f"✅ Included counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                        else:
-                            unmatched_counters.append(counter_data)
-                            logger.info(f"❌ Excluded counter '{counter.get('name', 'Unknown')}' (ID: {counter.get('id')}, owner: {owner_login}, normalized: {owner_normalized}, expected: {target_account}, normalized: {target_normalized})")
-                    
-                    # If no matched counters but we have unmatched ones, return all with a warning
-                    if not matched_counters and unmatched_counters:
-                        logger.warning(f"⚠️ No counters matched profile '{target_account}' after filtering")
-                        logger.warning(f"⚠️ Returning all {len(unmatched_counters)} accessible counters (user can manually select)")
-                        counters_list = unmatched_counters
-                    else:
-                        counters_list = matched_counters
-                        if unmatched_counters:
-                            logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
+                # owner_login is the account that owns a Metrika counter, not a list of
+                # users who may access it. The Management API has already applied the
+                # OAuth permissions, so every item returned here is valid for selection.
+                # Filtering shared counters by owner_login caused a false "not found"
+                # state despite goals being readable for the selected counter.
+                source = "profile_fallback_all" if campaign_ids else "profile"
+                for counter in counters:
+                    counters_list.append({
+                        "id": str(counter.get('id')),
+                        "name": counter.get('name', 'Unknown'),
+                        "site": counter.get('site', ''),
+                        "owner_login": counter.get('owner_login', ''),
+                        "source": source,
+                    })
+                logger.info(
+                    "📊 Returning %s OAuth-accessible Metrika counters without owner_login filtering",
+                    len(counters_list),
+                )
             except Exception as e:
                 logger.error(f"Failed to fetch profile counters: {e}")
                 # If 403, try without profile filter
@@ -3081,31 +3056,23 @@ async def get_integration_goals(
     # CRITICAL: Import YandexMetricaAPI here (before use in fallback path)
     from automation.yandex_metrica import YandexMetricaAPI
     
-    # CRITICAL: Try to get the correct Metrika owner_login format for the selected profile
-    # Direct API uses one format (e.g., "sintez-digital"), Metrika may use another (e.g., "Sintez.digital")
-    # We'll try to get the actual login format from Direct API
-    metrika_owner_login = target_account  # Default to target_account
-    if target_account and integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-        try:
-            from automation.yandex_direct import YandexDirectAPI
-            direct_api = YandexDirectAPI(access_token, client_login=target_account)
-            clients_info = await direct_api.get_clients()
-            if clients_info:
-                # Get the Login field which is the actual advertising account login
-                actual_login = clients_info[0].get("Login")
-                if actual_login:
-                    metrika_owner_login = actual_login
-        except Exception as e:
-            pass
-    
-    # IMPORTANT: Try to get counters with profile filter first, but fallback to all if 403
-    # Some profiles may not have direct access in Metrika API (403 Forbidden)
-    # In that case, we get all accessible counters and filter by owner_login later
+    # Ask Metrika for the selected Direct profile first. A counter's owner_login
+    # does not describe every user with shared access, therefore it is never used
+    # as a permission filter below.
     metrica_api = YandexMetricaAPI(access_token, client_login=target_account)
     
     try:
         try:
             counters = await metrica_api.get_counters()
+            # A shared counter can be invisible through an ulogin filter while it
+            # remains available to the current OAuth user. Retry in OAuth scope.
+            if not counters and target_account:
+                logger.info(
+                    "No Metrika counters returned for ulogin=%r; retrying without ulogin",
+                    target_account,
+                )
+                metrica_api = YandexMetricaAPI(access_token)
+                counters = await metrica_api.get_counters()
         except Exception as api_err:
             error_str = str(api_err)
             if "403" in error_str or "access_denied" in error_str.lower():
@@ -3121,94 +3088,10 @@ async def get_integration_goals(
         if not counters:
             return []
             
-        # CRITICAL: Save all counters before filtering (for fallback if filtering returns 0)
-        all_counters_before_filter = counters.copy()
-        
-        # CRITICAL: Filter counters by the selected profile (target_account)
-        # One Yandex account can have access to counters from multiple advertising profiles
-        # We need to show only counters that belong to the selected profile
-        warning_message = None
-        if target_account:
-            # Helper function to normalize login for comparison
-            # Metrika owner_login can have different format than Direct agency_client_login
-            # Examples: "Sintez.digital" vs "sintez-digital"
-            # Strategy: normalize both by removing dots/dashes and comparing alphanumeric parts
-            def normalize_login(login: str) -> str:
-                """Normalize login for comparison: lowercase, remove dots/dashes, keep only alphanumeric"""
-                if not login:
-                    return ""
-                # Convert to lowercase and remove all dots, dashes, underscores
-                normalized = login.lower().strip()
-                # Remove common separators to compare core parts
-                normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
-                return normalized
-            
-            # Use both target_account and metrika_owner_login for matching
-            # This handles cases where formats differ between Direct and Metrika
-            target_logins = [target_account, metrika_owner_login]
-            if target_account != metrika_owner_login:
-                target_logins = list(set([target_account, metrika_owner_login]))  # Remove duplicates
-            
-            target_normalized = normalize_login(target_account)
-            metrika_normalized = normalize_login(metrika_owner_login)
-            
-            filtered_counters = []
-            for counter in counters:
-                owner_login = counter.get('owner_login', '')
-                owner_normalized = normalize_login(owner_login)
-                
-                matches = (
-                    owner_login.lower() == target_account.lower() or
-                    owner_login.lower() == metrika_owner_login.lower() or
-                    owner_normalized == target_normalized or
-                    owner_normalized == metrika_normalized or
-                    target_normalized in owner_normalized or
-                    owner_normalized in target_normalized
-                )
-                
-                if matches:
-                    filtered_counters.append(counter)
-            
-            if filtered_counters:
-                counters = filtered_counters
-            else:
-                counters = all_counters_before_filter
-                warning_message = "Метрики для этого профиля не найдены. Пожалуйста, выберите нужные метрики из доступных"
-
         all_goals = []
         for counter in counters:
             counter_id = str(counter['id'])
             counter_name = counter.get('name', 'Unknown')
-            owner_login = counter.get('owner_login', 'N/A')
-            
-            # CRITICAL: Only double-check counter if we're NOT showing all counters (no warning_message)
-            # If warning_message is set, we're showing all counters intentionally, so skip this check
-            if target_account and not warning_message:
-                def normalize_login_check(login: str) -> str:
-                    """Normalize login for comparison: lowercase, remove dots/dashes, keep only alphanumeric"""
-                    if not login:
-                        return ""
-                    normalized = login.lower().strip()
-                    normalized = normalized.replace('.', '').replace('-', '').replace('_', '')
-                    return normalized
-                
-                owner_normalized = normalize_login_check(owner_login)
-                target_normalized = normalize_login_check(target_account)
-                metrika_normalized = normalize_login_check(metrika_owner_login)
-                
-                # Use same matching logic as filtering
-                matches = (
-                    owner_login.lower() == target_account.lower() or
-                    owner_login.lower() == metrika_owner_login.lower() or
-                    owner_normalized == target_normalized or
-                    owner_normalized == metrika_normalized or
-                    target_normalized in owner_normalized or
-                    owner_normalized in target_normalized
-                )
-                
-                if not matches:
-                    logger.warning(f"⚠️ Skipping counter '{counter_name}' (ID: {counter_id}) - owner_login '{owner_login}' (normalized: '{owner_normalized}') doesn't match selected profile '{target_account}' (normalized: '{target_normalized}')")
-                    continue
             
             try:
                 goals = await metrica_api.get_counter_goals(counter_id)
@@ -3304,15 +3187,6 @@ async def get_integration_goals(
                     all_goals.append(goal_data)
             except Exception as goals_err:
                 logger.error(f"Failed to fetch goals for counter {counter_id}: {goals_err}")
-        
-        # CRITICAL: If warning_message is set, return goals with warning
-        # Frontend should display the warning message to user
-        if warning_message:
-            # Return as dict with goals and warning_message
-            return {
-                "goals": all_goals,
-                "warning_message": warning_message
-            }
         
         return all_goals
     except Exception as e:
