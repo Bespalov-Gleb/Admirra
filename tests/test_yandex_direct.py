@@ -285,10 +285,36 @@ class TestYandexDirectAPIClients:
             assert len(clients) == 2
             assert clients[0]["Login"] == "user1"
             request = mock_client.return_value.__aenter__.return_value.post.await_args.kwargs["json"]
-            assert request["params"]["FieldNames"] == ["Login", "ClientInfo", "ClientId", "Type"]
+            # ManagedLogins — единственный источник кабинетов паспортной организации,
+            # поле обязано запрашиваться первым же вызовом
+            assert request["params"]["FieldNames"] == ["Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"]
             assert request["params"]["OrganizationFieldNames"] == ["Name"]
-            assert "ManagedLogins" not in request["params"]["FieldNames"]
-    
+            assert mock_client.return_value.__aenter__.return_value.post.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_clients_retries_without_managed_logins(self):
+        """Если API отклонит недокументированное поле — повторяем запрос без него."""
+        api = YandexDirectAPI("test_token")
+
+        error_response = Mock()
+        error_response.status_code = 200
+        error_response.json.return_value = {"error": {"error_code": 8000, "error_string": "Invalid field"}}
+
+        ok_response = Mock()
+        ok_response.status_code = 200
+        ok_response.json.return_value = {"result": {"Clients": [{"Login": "user1"}]}}
+
+        with patch('httpx.AsyncClient') as mock_client:
+            post_mock = AsyncMock(side_effect=[error_response, ok_response])
+            mock_client.return_value.__aenter__.return_value.post = post_mock
+
+            clients = await api.get_clients()
+
+            assert len(clients) == 1
+            assert post_mock.await_count == 2
+            retry_request = post_mock.await_args.kwargs["json"]
+            assert retry_request["params"]["FieldNames"] == ["Login", "ClientInfo", "ClientId", "Type"]
+
     @pytest.mark.asyncio
     async def test_get_clients_unauthorized(self):
         """Test client fetching with unauthorized error"""

@@ -1914,40 +1914,55 @@ class YandexDirectAPI:
         Документация: https://yandex.ru/dev/direct/doc/ru/clients/get
         """
         url = "https://api.direct.yandex.com/json/v5/clients"
-        payload = {
-            "method": "get",
-            "params": {
-                # Only documented Clients.get fields belong in the core request.
-                # An unknown enum value makes the entire profile selector fail.
-                "FieldNames": ["Login", "ClientInfo", "ClientId", "Type"],
-                "OrganizationFieldNames": ["Name"],
-            },
-        }
+        # ManagedLogins не описан в enum FieldNames, но API стабильно возвращает
+        # его при запросе — это единственный источник кабинетов, доступных через
+        # паспортную организацию/делегирование. Если Яндекс однажды начнёт
+        # отклонять поле, повторяем запрос без него, чтобы не терять личный кабинет.
+        field_variants = [
+            ["Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"],
+            ["Login", "ClientInfo", "ClientId", "Type"],
+        ]
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    if "result" in data and "Clients" in data["result"]:
-                        return data["result"]["Clients"]
-                    elif "error" in data:
-                        error_msg = f"Yandex Clients API Error: {data['error']}"
+            last_error: Optional[Exception] = None
+            for field_names in field_variants:
+                payload = {
+                    "method": "get",
+                    "params": {
+                        "FieldNames": field_names,
+                        "OrganizationFieldNames": ["Name"],
+                    },
+                }
+                try:
+                    response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if "result" in data and "Clients" in data["result"]:
+                            return data["result"]["Clients"]
+                        elif "error" in data:
+                            error_msg = f"Yandex Clients API Error: {data['error']}"
+                            logger.error(error_msg)
+                            raise Exception(error_msg)
+                        else:
+                            raise Exception(f"Unexpected response format from Yandex Clients API: {data}")
+                    else:
+                        error_msg = f"Failed to fetch Yandex clients: {response.status_code} - {response.text[:200]}"
                         logger.error(error_msg)
-                        raise Exception(error_msg)
-                    else:
-                        raise Exception(f"Unexpected response format from Yandex Clients API: {data}")
-                else:
-                    error_msg = f"Failed to fetch Yandex clients: {response.status_code} - {response.text[:200]}"
-                    logger.error(error_msg)
-                    if response.status_code == 401:
-                        raise PermissionError(f"Unauthorized: {error_msg}")
-                    elif response.status_code == 403:
-                        raise PermissionError(f"Forbidden: {error_msg}")
-                    else:
-                        raise Exception(error_msg)
-            except Exception as e:
-                logger.error(f"Failed to fetch Yandex clients: {e}")
-                raise
+                        if response.status_code == 401:
+                            raise PermissionError(f"Unauthorized: {error_msg}")
+                        elif response.status_code == 403:
+                            raise PermissionError(f"Forbidden: {error_msg}")
+                        else:
+                            raise Exception(error_msg)
+                except PermissionError:
+                    raise
+                except Exception as e:
+                    last_error = e
+                    if "ManagedLogins" in field_names:
+                        logger.warning(f"Clients.get with ManagedLogins failed, retrying without it: {e}")
+                        continue
+                    logger.error(f"Failed to fetch Yandex clients: {e}")
+                    raise
+            raise last_error if last_error else Exception("Yandex Clients API: no response")
 
     async def get_balance(self) -> Optional[Dict[str, Any]]:
         """

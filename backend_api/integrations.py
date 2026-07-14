@@ -2142,10 +2142,12 @@ async def get_integration_profiles(
             profiles = []
             seen_logins = set()
 
-            # One Yandex account can expose a personal Direct cabinet or an
-            # agency. These two documented APIs are the authoritative source
-            # of selectable profiles; Client-Login is then used for the chosen
-            # profile when fetching its campaigns and reports.
+            # ARCHITECTURE: One Yandex account (email) can have access to multiple advertising profiles
+            # 1. Personal — Clients.get (без Client-Login)
+            # 2. Agency clients — AgencyClients.get
+            # 3. Shared cabinets — ManagedLogins* + Clients.get с Client-Login и OrganizationFieldNames
+            #    * ManagedLogins не в enum FieldNames, но API возвращает при запросе;
+            #    это единственный способ увидеть кабинеты паспортной организации
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -2199,6 +2201,47 @@ async def get_integration_profiles(
                         logger.warning(f"⚠️ Skipped agency client (duplicate or empty login): {login}")
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
+
+            # 3. Кабинеты с делегированным доступом (ManagedLogins — недокументированное поле API).
+            # Имя: Organization.Name через Clients.get + Client-Login (документация Clients.get).
+            try:
+                direct_api = YandexDirectAPI(access_token)
+                clients_info_managed = clients_info or await direct_api.get_clients() or []
+                managed_logins_to_fetch = []
+                for c_info in clients_info_managed:
+                    managed = c_info.get("ManagedLogins", [])
+                    for m_login in managed:
+                        if m_login and m_login.lower() not in seen_logins:
+                            managed_logins_to_fetch.append(m_login)
+                            seen_logins.add(m_login.lower())
+
+                # Организаций может быть много (50+ кабинетов) — тянем имена
+                # ограниченной пачкой параллельных запросов, иначе визард ждёт минуту.
+                sem = asyncio.Semaphore(5)
+
+                async def fetch_profile(m_login):
+                    async with sem:
+                        return m_login, await direct_api.get_cabinet_profile_for_login(m_login)
+
+                fetched = await asyncio.gather(
+                    *(fetch_profile(m_login) for m_login in managed_logins_to_fetch),
+                    return_exceptions=True,
+                )
+                for item in fetched:
+                    if isinstance(item, Exception):
+                        logger.warning(f"Error fetching shared cabinet profile: {item}")
+                        continue
+                    m_login, profile_info = item
+                    org_name = profile_info.get("organization_name", "").strip() if profile_info else ""
+                    display_name = org_name if org_name else f"Кабинет ({m_login})"
+                    profiles.append({
+                        "login": m_login,
+                        "name": display_name,
+                        "type": "managed",
+                    })
+                    logger.info(f"Added shared cabinet: {m_login} ({display_name})")
+            except Exception as managed_err:
+                logger.warning(f"Error fetching shared cabinets: {managed_err}")
 
             # Fallback if nothing found
             if not profiles:
