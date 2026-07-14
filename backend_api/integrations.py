@@ -2518,24 +2518,56 @@ async def get_integration_counters(
                     counters = await metrica_api.get_counters()
                 logger.info(f"📊 Metrika API returned {len(counters)} counters for profile '{target_account}'")
                 
-                # owner_login is the account that owns a Metrika counter, not a list of
-                # users who may access it. The Management API has already applied the
-                # OAuth permissions, so every item returned here is valid for selection.
-                # Filtering shared counters by owner_login caused a false "not found"
-                # state despite goals being readable for the selected counter.
-                source = "profile_fallback_all" if campaign_ids else "profile"
-                for counter in counters:
-                    counters_list.append({
-                        "id": str(counter.get('id')),
-                        "name": counter.get('name', 'Unknown'),
-                        "site": counter.get('site', ''),
-                        "owner_login": counter.get('owner_login', ''),
-                        "source": source,
-                    })
-                logger.info(
-                    "📊 Returning %s OAuth-accessible Metrika counters without owner_login filtering",
-                    len(counters_list),
-                )
+                # Токен теперь общий (владельца) и видит счётчики всех клиентов,
+                # поэтому список ОБЯЗАН фильтроваться по выбранному кабинету —
+                # иначе в визарде вываливаются счётчики чужих кабинетов.
+                # Фильтр мягкий: owner_login счётчика не описывает расшаренный
+                # доступ, поэтому при нуле совпадений возвращаем весь список
+                # (кейс «shared counter», который чинил коммит d0b9e40) — юзер
+                # выберет вручную. Без target_account фильтровать не по чему.
+                if campaign_ids:
+                    # Кампании без CounterIds: показываем всё, выбор за пользователем
+                    logger.warning(f"⚠️ Campaigns don't have CounterIds, returning ALL {len(counters)} accessible counters")
+                    for counter in counters:
+                        counters_list.append({
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": counter.get('owner_login', ''),
+                            "source": "profile_fallback_all",
+                        })
+                else:
+                    def normalize_login(login):
+                        return login.lower().replace('.', '').replace('-', '') if login else ''
+
+                    target_normalized = normalize_login(target_account)
+                    matched_counters = []
+                    unmatched_counters = []
+
+                    for counter in counters:
+                        owner_login = counter.get('owner_login', '')
+                        # Счётчик кабинета: владелец совпадает с выбранным логином.
+                        # Счётчики без owner_login не отбрасываем (доверенные).
+                        matches = bool(target_normalized) and (
+                            normalize_login(owner_login) == target_normalized or not owner_login
+                        )
+                        counter_data = {
+                            "id": str(counter.get('id')),
+                            "name": counter.get('name', 'Unknown'),
+                            "site": counter.get('site', ''),
+                            "owner_login": owner_login,
+                            "source": "profile",
+                        }
+                        (matched_counters if matches else unmatched_counters).append(counter_data)
+
+                    if matched_counters:
+                        counters_list = matched_counters
+                        logger.info(f"📊 Filtered to {len(matched_counters)} counters for profile '{target_account}' (excluded {len(unmatched_counters)} counters from other profiles)")
+                    else:
+                        # Ни один owner_login не совпал (расшаренные счётчики или
+                        # porg-кабинет без реального логина) — отдаём всё, что доступно
+                        counters_list = unmatched_counters
+                        logger.warning(f"⚠️ No counters matched profile '{target_account}', returning all {len(unmatched_counters)} accessible counters")
             except Exception as e:
                 logger.error(f"Failed to fetch profile counters: {e}")
                 # If 403, try without profile filter
@@ -3155,12 +3187,38 @@ async def get_integration_goals(
 
         if not counters:
             return []
-            
+
+        # Общий токен владельца видит счётчики всех клиентов — без фильтра по
+        # выбранному кабинету сюда приезжали бы цели чужих кабинетов (и 100+
+        # запросов к Метрике). Фильтр мягкий: при нуле совпадений оставляем
+        # весь список (расшаренные счётчики, porg-кабинеты без реального логина).
+        if target_account:
+            def _normalize_login(login: str) -> str:
+                if not login:
+                    return ""
+                return login.lower().strip().replace('.', '').replace('-', '').replace('_', '')
+
+            target_normalized = _normalize_login(target_account)
+            filtered_counters = [
+                counter for counter in counters
+                if (owner_normalized := _normalize_login(counter.get('owner_login', '')))
+                and (
+                    owner_normalized == target_normalized
+                    or target_normalized in owner_normalized
+                    or owner_normalized in target_normalized
+                )
+            ]
+            if filtered_counters:
+                logger.info(f"📊 Goals: filtered {len(counters)} counters to {len(filtered_counters)} for profile '{target_account}'")
+                counters = filtered_counters
+            else:
+                logger.warning(f"⚠️ Goals: no counters matched profile '{target_account}', keeping all {len(counters)} accessible counters")
+
         all_goals = []
         for counter in counters:
             counter_id = str(counter['id'])
             counter_name = counter.get('name', 'Unknown')
-            
+
             try:
                 goals = await metrica_api.get_counter_goals(counter_id)
                 for goal in goals:
