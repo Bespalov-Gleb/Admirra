@@ -7604,8 +7604,14 @@ onMounted(() => {
 }
 
 .detector-popover--teleported {
+  /* Позицию полностью задаёт инлайновый стиль (top ИЛИ bottom). Сбрасываем
+     top/right от .detector-popover--metric, иначе при раскрытии вверх (нижние
+     KPI-карточки) действуют и top: 2.1rem, и инлайновый bottom — коробка
+     растягивается по высоте и под текстом появляется пустота. */
+  top: auto;
   right: auto;
   bottom: auto;
+  height: fit-content;
   overflow: auto;
 }
 

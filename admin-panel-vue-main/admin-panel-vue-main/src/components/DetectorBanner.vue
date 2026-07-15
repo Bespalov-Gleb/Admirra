@@ -12,7 +12,17 @@
         </div>
         <div class="detector-banner__text">
           <span class="detector-banner__title">{{ title }}</span>
-          <span v-if="subtitle" class="detector-banner__hypothesis">{{ subtitle }}</span>
+          <!-- Один алерт (в т.ч. составной P-1+P-2+P-3) — показываем полностью
+               все пункты прямо в баннере: это и есть общий алерт на дашборде. -->
+          <div
+            v-if="bannerSections"
+            class="detector-banner__hypothesis"
+            :class="{ 'detector-banner__hypothesis--sectioned': bannerSections.length > 1 }"
+          >
+            <p v-for="(section, index) in bannerSections" :key="`banner-section-${index}`">{{ section }}</p>
+            <span v-if="hiddenCount" class="detector-banner__hidden-note">Скрыто ещё {{ hiddenCount }}</span>
+          </div>
+          <span v-else-if="subtitle" class="detector-banner__hypothesis">{{ subtitle }}</span>
         </div>
         <button
           v-if="hasExpandableDetails"
@@ -161,6 +171,15 @@ const primaryAlert = computed(() => props.alerts[0] || null)
 // Ровно один видимый алерт и нечего разворачивать — действия переезжают в шапку
 const singleAlert = computed(() => (!hasExpandableDetails.value ? primaryAlert.value : null))
 
+// Составной алерт (один эпизод, несколько проверок) выводим на дашборд
+// целиком — все пункты. При нескольких алертах шапка остаётся короткой,
+// а полный список раскрывается по «Смотреть все».
+const bannerSections = computed(() => {
+  if (!props.warningCount && !props.problemCount) return null
+  if (!singleAlert.value) return null
+  return alertSections(singleAlert.value)
+})
+
 const title = computed(() => {
   if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'Нет свежих данных по подключению'
   if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') {
@@ -285,6 +304,27 @@ const hiddenMeta = (alert) => {
   line-height: 1.35;
   opacity: 0.8;
   overflow-wrap: anywhere;
+}
+
+.detector-banner__hypothesis p { margin: 0; }
+.detector-banner__hypothesis--sectioned {
+  display: grid;
+  gap: 0.28rem;
+}
+.detector-banner__hypothesis--sectioned p {
+  position: relative;
+  padding-left: 0.95rem;
+}
+.detector-banner__hypothesis--sectioned p::before {
+  position: absolute;
+  top: 0;
+  left: 0.15rem;
+  content: '•';
+}
+.detector-banner__hidden-note {
+  font-size: 0.78rem;
+  font-weight: 650;
+  opacity: 0.7;
 }
 
 .detector-banner__action {
