@@ -687,6 +687,11 @@ def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandida
                                      primary.deviation_pct, primary.baseline_value, primary.actual_value,
                                      primary.direction, hypothesis_text=text,
                                      meta={**(primary.meta or {}), "checks": [item.meta.get("check") for item in rows if item.meta],
+                                           # Поповер KPI-карточки показывает только свою проверку
+                                           # (P-1 → расходы, P-2 → CPL, P-3 → лиды), полный
+                                           # составной текст остаётся баннеру на дашборде.
+                                           "check_texts": {item.meta.get("check"): item.hypothesis_text
+                                                           for item in rows if item.meta and item.hypothesis_text},
                                            "composite": len(rows) > 1}))
     return result
 

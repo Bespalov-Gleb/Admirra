@@ -484,7 +484,6 @@
           type="button"
           class="kpi-flag"
           :ref="(element) => setMetricFlagRef(key, element)"
-          :title="getMetricAnomalyTooltip(key)"
           @mouseenter="hoverDetectorMetric(key)"
           @mouseleave="unhoverDetectorMetric()"
           @click.stop="toggleDetectorMetricPopover(key)"
@@ -563,14 +562,11 @@
         </div>
         <div
           class="detector-popover__message"
-          :class="{ 'detector-popover__message--sectioned': detectorAlertSections(detectorMetricPopover.alert).length > 1 }"
+          :class="{ 'detector-popover__message--sectioned': detectorMetricSections(detectorMetricPopover.key, detectorMetricPopover.alert).length > 1 }"
         >
-          <p v-for="(section, index) in detectorAlertSections(detectorMetricPopover.alert)" :key="`${detectorMetricPopover.alert.id}-section-${index}`">{{ section }}</p>
+          <p v-for="(section, index) in detectorMetricSections(detectorMetricPopover.key, detectorMetricPopover.alert)" :key="`${detectorMetricPopover.alert.id}-section-${index}`">{{ section }}</p>
         </div>
         <small class="detector-popover__source">{{ alertSourceLine(detectorMetricPopover.alert) }}</small>
-        <small v-if="metricDeltaMismatch(detectorMetricPopover.key)" class="detector-popover__mismatch">
-          Дельта сравнивает с прошлым периодом по фильтру. Флажок — {{ detectorMetricPopover.alert.mode === 'plan' ? 'с планом проекта' : 'с правилом детектора' }}.
-        </small>
         <div class="detector-popover__actions">
           <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(detectorMetricPopover.alert)">Спросить AI</button>
           <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === detectorMetricPopover.key }">
@@ -4206,7 +4202,7 @@ const buildGoalBars = (sourceItems) => {
       trend,
       alert,
       alertClass: alert ? `goals-bar-row--anomaly-${alert.severity}` : '',
-      alertTitle: alert ? formatDetectorAlertTitle(alert) : null,
+      alertTitle: alert ? (alert.hypothesis_text || 'Отклонение в показателе') : null,
     }
   }).sort((a, b) => b.count - a.count)
   const maxCount = Math.max(...items.map(i => i.count), 1)
@@ -5253,18 +5249,6 @@ const trackPlanOnboarding = (event) => {
   api.post(`detector/${filters.client_id}/onboarding/event`, { event }).catch(() => {})
 }
 
-const formatDetectorAlertTitle = (alert) => {
-  if (!alert) return ''
-  const deviation = alert.deviation_pct > 0 ? `+${alert.deviation_pct}%` : `${alert.deviation_pct}%`
-  const days = alert.consecutive_days || 1
-  const hypothesis = alert.hypothesis_text ? `\n${alert.hypothesis_text}` : ''
-  const baseline = alert.baseline_value != null && alert.actual_value != null
-    ? `\nБаза: ${Number(alert.baseline_value).toLocaleString('ru')}, факт: ${Number(alert.actual_value).toLocaleString('ru')}`
-    : ''
-  const source = String(alert.mode || '').startsWith('plan') ? 'Считает детектор по плану · не AI' : 'Считает детектор по критической проверке · не AI'
-  return `Отклонение ${deviation}, ${days} дн. подряд${baseline}${hypothesis}\n${source}`
-}
-
 const metricAnomalyClass = (key) => {
   const alert = getAlertForMetric(key)
   if (!alert) return ''
@@ -5272,25 +5256,6 @@ const metricAnomalyClass = (key) => {
 }
 
 const getMetricAnomaly = (key) => getAlertForMetric(key)
-
-// ТЗ «Детектор ит.2» п.1.7: дельта KPI сравнивает периоды по фильтру, детектор —
-// с нормой за 6 недель; при расхождении направлений поповер обязан это объяснить
-const metricDeltaMismatch = (key) => {
-  const alert = getAlertForMetric(key)
-  if (!alert) return false
-  const trendKeyMap = { expenses: 'expenses', impressions: 'impressions', clicks: 'clicks', cpc: 'cpc', leads: 'leads', cpa: 'cpa', ctr: 'ctr', cr: 'cr' }
-  const trend = Number(summary.value?.trends?.[trendKeyMap[key] || key] ?? 0)
-  if (!trend) return false
-  const inverted = ['cpc', 'cpa'].includes(key)
-  const deltaLooksGood = inverted ? trend < 0 : trend > 0
-  return deltaLooksGood
-}
-
-const getMetricAnomalyTooltip = (key) => {
-  const alert = getAlertForMetric(key)
-  if (!alert) return ''
-  return `${formatDetectorAlertTitle(alert)}\nКликните, чтобы открыть действия`
-}
 
 const toggleDetectorMetricPopover = (key) => {
   activeDetectorMetric.value = activeDetectorMetric.value === key ? null : key
@@ -5431,12 +5396,24 @@ const alertSourceLine = (alert) => {
         : null
     }
     const period = fmt(start) && fmt(end) ? ` на ${fmt(start)}–${fmt(end)}` : ''
-    return `Сравнение с планом проекта${period} · считает детектор, не AI`
+    return `Сравнение с планом проекта${period}`
   }
   if (String(alert?.mode || '').startsWith('critical_')) {
-    return 'Проверка критических поломок · считает детектор, не AI'
+    return 'Проверка критических поломок'
   }
-  return 'Считает детектор, не AI'
+  return 'Сравнение с нормой проекта'
+}
+
+// Составной план-алерт светит несколько карточек, но каждая карточка
+// объясняет только свою метрику: расходы — P-1, CPL — P-2, лиды — P-3.
+// Полный составной текст остаётся баннеру на дашборде.
+const METRIC_TO_PLAN_CHECK = { expenses: 'P-1', cpa: 'P-2', leads: 'P-3' }
+
+const detectorMetricSections = (key, alert) => {
+  const check = METRIC_TO_PLAN_CHECK[key]
+  const own = alert?.mode === 'plan' && check ? alert?.meta?.check_texts?.[check] : null
+  if (own) return [String(own).trim()]
+  return detectorAlertSections(alert)
 }
 
 // Один составной алерт хранит несколько проверок в hypothesis_text через
@@ -14351,16 +14328,6 @@ onMounted(() => {
 .figma-dashboard.is-dark .folder-branch--paused td { opacity: 0.5; }
 
 
-.detector-popover__mismatch {
-  display: block;
-  margin-top: 0.45rem;
-  padding: 0.45rem 0.55rem;
-  border-radius: 0.5rem;
-  background: rgba(37, 99, 235, 0.06);
-  color: #3b5bb8;
-  font-size: 0.72rem;
-  line-height: 1.35;
-}
 .detector-popover__drill {
   display: inline-flex;
   align-items: center;

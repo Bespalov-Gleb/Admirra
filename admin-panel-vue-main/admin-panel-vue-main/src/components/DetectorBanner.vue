@@ -30,6 +30,24 @@
         >
           Спросить AI
         </button>
+        <!-- Один алерт: детали не разворачиваются (текст уже в баннере),
+             поэтому «Скрыть» и «Не проблема» живут прямо в шапке -->
+        <template v-if="singleAlert">
+          <span class="detector-banner__snooze" :class="{ open: openSnoozeId === singleAlert.id }">
+            <button type="button" class="detector-banner__action" @click.stop="openSnoozeId = openSnoozeId === singleAlert.id ? null : singleAlert.id">Скрыть</button>
+            <span class="detector-banner__snooze-menu">
+              <button type="button" @click="snooze(singleAlert, 1)">На 1 день</button>
+              <button type="button" @click="snooze(singleAlert, 3)">На 3 дня</button>
+              <button type="button" @click="snooze(singleAlert, 7)">На 7 дней</button>
+            </span>
+          </span>
+          <button
+            type="button"
+            class="detector-banner__action detector-banner__action--soft"
+            title="Скроется до конца отклонения, поможет настроить детектор"
+            @click="$emit('not-problem', singleAlert)"
+          >Не проблема</button>
+        </template>
         <button type="button" class="detector-banner__close" title="Свернуть баннер" @click="$emit('collapse')">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         </button>
@@ -140,6 +158,8 @@ const hasAlertRows = computed(() => props.alerts.length > 0 || props.hiddenAlert
 // items to manage.
 const hasExpandableDetails = computed(() => props.alerts.length + props.hiddenAlerts.length > 1)
 const primaryAlert = computed(() => props.alerts[0] || null)
+// Ровно один видимый алерт и нечего разворачивать — действия переезжают в шапку
+const singleAlert = computed(() => (!hasExpandableDetails.value ? primaryAlert.value : null))
 
 const title = computed(() => {
   if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'Нет свежих данных по подключению'
@@ -184,7 +204,7 @@ const alertSections = (alert) => {
 const alertMeta = (alert) => {
   const days = alert?.consecutive_days ? `${alert.consecutive_days} дн. подряд` : 'по истории проекта'
   const source = alert?.detection_level === 'campaign' ? 'кампания' : 'проект'
-  return `${source} · ${days} · детектор, не AI`
+  return `${source} · ${days}`
 }
 
 const hiddenMeta = (alert) => {
@@ -449,6 +469,45 @@ const hiddenMeta = (alert) => {
 :root.dark .detector-banner--warmup,
 .dark .detector-banner--warmup,
 .darkmode .detector-banner--warmup { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.28); color: #60a5fa; }
+
+/* Дропдаун «Скрыть…» в шапке баннера (кейс одного алерта) */
+.detector-banner__snooze { position: relative; display: inline-flex; flex-shrink: 0; }
+
+.detector-banner__snooze-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  z-index: 6;
+  display: none;
+  flex-direction: column;
+  min-width: 10.5rem;
+  padding: 0.42rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.7rem;
+  background: #fff;
+  box-shadow: 0 0.8rem 2rem rgba(15, 23, 42, 0.16);
+}
+
+.detector-banner__snooze.open .detector-banner__snooze-menu { display: flex; }
+
+.detector-banner__snooze-menu button {
+  border: 0;
+  min-height: 2.55rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.detector-banner__snooze-menu button:hover { background: #f3f6fc; color: #2563eb; }
+
+.detector-banner__action--soft { opacity: 0.75; }
+.detector-banner__action--soft:hover { opacity: 1; }
 
 /* Дропдаун «Скрыть…» на строке алерта */
 .detector-alert-row__snooze { position: relative; display: inline-flex; }
